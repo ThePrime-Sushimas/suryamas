@@ -27,9 +27,9 @@ export function isPublicModule(moduleName: string): boolean {
 
 // Helper: Check if role is system role (from database)
 export async function isSystemRole(roleId: string): Promise<boolean> {
-  const { supabase } = await import('../config/supabase')
-  const { data } = await supabase.from('perm_roles').select('is_system_role').eq('id', roleId).single()
-  return data?.is_system_role || false
+  const { pool } = await import('../config/db')
+  const { rows } = await pool.query('SELECT is_system_role FROM perm_roles WHERE id = $1', [roleId])
+  return rows[0]?.is_system_role || false
 }
 
 // Helper: Get permission column name from action

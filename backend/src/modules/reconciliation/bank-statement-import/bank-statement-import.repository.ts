@@ -3,10 +3,11 @@
  * Database operations untuk bank statement imports dan statements
  */
 
-import { supabase } from '../../../config/supabase'
-import { 
-  BankStatementImport, 
-  BankStatement, 
+import { pool } from "../../../config/db";
+import { storageService } from "../../../services/storage.service";
+import {
+  BankStatementImport,
+  BankStatement,
   CreateBankStatementImportDto,
   UpdateBankStatementImportDto,
   CreateBankStatementDto,
@@ -14,10 +15,10 @@ import {
   BankStatementFilterParams,
   ImportJobParams,
   JobProgressUpdate,
-} from './bank-statement-import.types'
-import { BankStatementImportErrors } from './bank-statement-import.errors'
-import { logError, logWarn, logInfo } from '../../../config/logger'
-import { jobsRepository } from '@/modules/jobs'
+} from "./bank-statement-import.types";
+import { BankStatementImportErrors } from "./bank-statement-import.errors";
+import { logError, logWarn } from "../../../config/logger";
+import { jobsRepository } from "../../jobs";
 
 // ============================================================================
 // REPOSITORY CLASS
@@ -27,66 +28,67 @@ export class BankStatementImportRepository {
   /**
    * Create new import record
    */
-  async create(data: CreateBankStatementImportDto): Promise<BankStatementImport | null> {
-    const { data: result, error } = await supabase
-      .from('bank_statement_imports')
-      .insert({
-        company_id: data.company_id,
-        bank_account_id: data.bank_account_id,
-        file_name: data.file_name,
-        file_size: data.file_size,
-        file_hash: data.file_hash,
-        status: 'PENDING',
-        total_rows: 0,
-        processed_rows: 0,
-        failed_rows: 0,
-        created_by: data.created_by
-      })
-      .select()
-      .single()
-
-    if (error) {
-      logError('BankStatementImportRepository.create error', { error: error.message })
-      throw BankStatementImportErrors.CREATE_FAILED()
+  async create(
+    data: CreateBankStatementImportDto,
+  ): Promise<BankStatementImport | null> {
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO bank_statement_imports (
+          company_id, bank_account_id, file_name, file_size, file_hash, 
+          status, total_rows, processed_rows, failed_rows, created_by, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, 'PENDING', 0, 0, 0, $6, $7)
+        RETURNING *`,
+        [
+          data.company_id,
+          data.bank_account_id,
+          data.file_name,
+          data.file_size,
+          data.file_hash,
+          data.created_by,
+          new Date().toISOString(),
+        ],
+      );
+      return rows[0] as BankStatementImport;
+    } catch (error: any) {
+      logError("BankStatementImportRepository.create error", {
+        error: error.message,
+      });
+      throw BankStatementImportErrors.CREATE_FAILED();
     }
-
-    return result as BankStatementImport
   }
 
   /**
    * Find import by ID
    */
   async findById(id: number): Promise<BankStatementImport | null> {
-    const { data, error } = await supabase
-      .from('bank_statement_imports')
-      .select(`
-        *,
-        bank_accounts:bank_account_id (
-          account_name,
-          account_number,
-          banks:bank_id (
-            bank_name
-          )
-        )
-      `)
-      .eq('id', id)
-      .is('deleted_at', null)
-      .single()
+    try {
+      const { rows } = await pool.query(
+        `SELECT 
+          bsi.*,
+          ba.account_name,
+          ba.account_number,
+          b.bank_name
+        FROM bank_statement_imports bsi
+        LEFT JOIN bank_accounts ba ON bsi.bank_account_id = ba.id
+        LEFT JOIN banks b ON ba.bank_id = b.id
+        WHERE bsi.id = $1 AND bsi.deleted_at IS NULL`,
+        [id],
+      );
 
-    if (error) {
-      logError('BankStatementImportRepository.findById error', { id, error: error.message })
-      throw BankStatementImportErrors.IMPORT_NOT_FOUND(id)
+      if (rows.length === 0) {
+        throw BankStatementImportErrors.IMPORT_NOT_FOUND(id);
+      }
+
+      return rows[0] as BankStatementImport;
+    } catch (error: any) {
+      if (error.code === "IMPORT_NOT_FOUND") throw error;
+      logError("BankStatementImportRepository.findById error", {
+        id,
+        error: error.message,
+      });
+      throw BankStatementImportErrors.IMPORT_NOT_FOUND(id);
     }
-
-    // Transform to include bank account fields at top level
-    const transformed = {
-      ...data,
-      bank_name: data.bank_accounts?.banks?.bank_name || null,
-      account_number: data.bank_accounts?.account_number || null,
-      account_name: data.bank_accounts?.account_name || null,
-    }
-
-    return transformed as BankStatementImport | null
   }
 
   /**
@@ -95,94 +97,120 @@ export class BankStatementImportRepository {
   async findAll(
     companyId: string,
     pagination: { page: number; limit: number },
-    filter?: BankStatementImportFilterParams
+    filter?: BankStatementImportFilterParams,
   ): Promise<{ data: BankStatementImport[]; total: number }> {
-    const offset = (pagination.page - 1) * pagination.limit
-
-    let query = supabase
-      .from('bank_statement_imports')
-      .select(`
-        *,
-        bank_accounts:bank_account_id (
-          account_name,
-          account_number,
-          banks:bank_id (
-            bank_name
-          )
-        )
-      `, { count: 'exact' })
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pagination.limit - 1)
+    const offset = (pagination.page - 1) * pagination.limit;
+    const params: any[] = [companyId];
+    const conditions: string[] = [
+      "bsi.company_id = $1",
+      "bsi.deleted_at IS NULL",
+    ];
 
     if (filter?.bank_account_id) {
-      query = query.eq('bank_account_id', filter.bank_account_id)
+      params.push(filter.bank_account_id);
+      conditions.push(`bsi.bank_account_id = $${params.length}`);
     }
     if (filter?.status) {
-      query = query.eq('status', filter.status)
+      params.push(filter.status);
+      conditions.push(`bsi.status = $${params.length}`);
     }
     if (filter?.date_from) {
-      query = query.gte('created_at', filter.date_from)
+      params.push(filter.date_from);
+      conditions.push(`bsi.created_at >= $${params.length}`);
     }
     if (filter?.date_to) {
-      query = query.lte('created_at', filter.date_to)
+      params.push(filter.date_to);
+      conditions.push(`bsi.created_at <= $${params.length}`);
     }
     if (filter?.search) {
-      query = query.ilike('file_name', `%${filter.search}%`)
+      params.push(`%${filter.search}%`);
+      conditions.push(`bsi.file_name ILIKE $${params.length}`);
     }
 
-    const { data, error, count } = await query
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    if (error) {
-      logError('BankStatementImportRepository.findAll error', { error: error.message })
-      throw new Error(error.message)
-    }
+    try {
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*)::int as total FROM bank_statement_imports bsi ${whereClause}`,
+        params,
+      );
+      const total = countRows[0].total;
 
-    // Transform data to include bank account fields at top level
-    const transformedData = (data || []).map((item: any) => ({
-      ...item,
-      bank_name: item.bank_accounts?.banks?.bank_name || null,
-      account_number: item.bank_accounts?.account_number || null,
-      account_name: item.bank_accounts?.account_name || null,
-    }))
+      const dataParams = [...params, pagination.limit, offset];
+      const { rows } = await pool.query(
+        `SELECT 
+          bsi.*,
+          ba.account_name,
+          ba.account_number,
+          b.bank_name
+        FROM bank_statement_imports bsi
+        LEFT JOIN bank_accounts ba ON bsi.bank_account_id = ba.id
+        LEFT JOIN banks b ON ba.bank_id = b.id
+        ${whereClause}
+        ORDER BY bsi.created_at DESC
+        LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams,
+      );
 
-    return {
-      data: transformedData as BankStatementImport[],
-      total: count || 0
+      return { data: rows as BankStatementImport[], total };
+    } catch (error: any) {
+      logError("BankStatementImportRepository.findAll error", {
+        error: error.message,
+      });
+      throw error;
     }
   }
 
   /**
    * Update import record
    */
-  async update(id: number, data: UpdateBankStatementImportDto): Promise<BankStatementImport | null> {
-    const { data: result, error } = await supabase
-      .from('bank_statement_imports')
-      .update({ ...data, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
+  async update(
+    id: number,
+    data: UpdateBankStatementImportDto,
+  ): Promise<BankStatementImport | null> {
+    try {
+      const fields = Object.keys(data);
+      if (fields.length === 0) return this.findById(id);
 
-    if (error) {
-      logError('BankStatementImportRepository.update error', { id, error: error.message })
-      throw BankStatementImportErrors.UPDATE_FAILED(id)
+      const values = fields.map((f) => (data as any)[f]);
+      values.push(new Date().toISOString(), id);
+
+      const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(", ");
+      const { rows } = await pool.query(
+        `UPDATE bank_statement_imports SET ${setClause}, updated_at = $${fields.length + 1} WHERE id = $${fields.length + 2} RETURNING *`,
+        values,
+      );
+
+      if (rows.length === 0) throw BankStatementImportErrors.UPDATE_FAILED(id);
+      return rows[0] as BankStatementImport;
+    } catch (error: any) {
+      logError("BankStatementImportRepository.update error", {
+        id,
+        error: error.message,
+      });
+      throw BankStatementImportErrors.UPDATE_FAILED(id);
     }
-
-    return result as BankStatementImport | null
   }
 
   /**
    * Update import progress
    */
-  async updateProgress(id: number, processedRows: number, failedRows: number): Promise<void> {
-    const { error } = await supabase
-      .from('bank_statement_imports')
-      .update({ processed_rows: processedRows, failed_rows: failedRows, updated_at: new Date().toISOString() })
-      .eq('id', id)
-
-    if (error) {
-      logError('BankStatementImportRepository.updateProgress error', { id, error: error.message })
+  async updateProgress(
+    id: number,
+    processedRows: number,
+    failedRows: number,
+  ): Promise<void> {
+    try {
+      await pool.query(
+        "UPDATE bank_statement_imports SET processed_rows = $1, failed_rows = $2, updated_at = $3 WHERE id = $4",
+        [processedRows, failedRows, new Date().toISOString(), id],
+      );
+    } catch (error: any) {
+      logError("BankStatementImportRepository.updateProgress error", {
+        id,
+        error: error.message,
+      });
     }
   }
 
@@ -190,157 +218,182 @@ export class BankStatementImportRepository {
    * Hard delete import record
    */
   async delete(id: number, _userId: string): Promise<void> {
-    const { error } = await supabase
-      .from('bank_statement_imports')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      logError('BankStatementImportRepository.delete error', { id, error: error.message })
-      throw BankStatementImportErrors.DELETE_FAILED(id)
+    try {
+      await pool.query("DELETE FROM bank_statement_imports WHERE id = $1", [
+        id,
+      ]);
+    } catch (error: any) {
+      logError("BankStatementImportRepository.delete error", {
+        id,
+        error: error.message,
+      });
+      throw BankStatementImportErrors.DELETE_FAILED(id);
     }
   }
 
   /**
    * Bulk insert bank statements with validation
-   * Filters out rows where both debit_amount and credit_amount are 0
-   * to prevent constraint violation for chk_amount_not_both_zero
    */
   async bulkInsert(statements: CreateBankStatementDto[]): Promise<number> {
-    if (statements.length === 0) return 0
+    if (statements.length === 0) return 0;
 
-    // Filter out rows where both debit_amount and credit_amount are 0
-    // This prevents constraint violation for chk_amount_not_both_zero
-    const validStatements = statements.filter(statement => {
-      const debit = typeof statement.debit_amount === 'number' ? statement.debit_amount : 0
-      const credit = typeof statement.credit_amount === 'number' ? statement.credit_amount : 0
-      return debit > 0 || credit > 0
-    })
+    const validStatements = statements.filter((statement) => {
+      const debit = Number(statement.debit_amount) || 0;
+      const credit = Number(statement.credit_amount) || 0;
+      return debit > 0 || credit > 0;
+    });
 
-    if (validStatements.length === 0) {
-      logWarn('BankStatementImportRepository.bulkInsert: No valid statements to insert', {
-        originalCount: statements.length,
-      })
-      return 0
-    }
+    if (validStatements.length === 0) return 0;
 
-    // Log info if some rows were filtered out
-    if (validStatements.length < statements.length) {
-      logWarn('BankStatementImportRepository.bulkInsert: Some rows filtered out', {
-        originalCount: statements.length,
-        validCount: validStatements.length,
-        filteredCount: statements.length - validStatements.length,
-      })
-    }
+    try {
+      const columns = [
+        "company_id",
+        "bank_account_id",
+        "import_id",
+        "transaction_date",
+        "transaction_time",
+        "reference_number",
+        "description",
+        "debit_amount",
+        "credit_amount",
+        "balance",
+        "row_number",
+        "source_file",
+        "is_pending",
+        "is_reconciled",
+        "reconciliation_id",
+        "reconciliation_group_id",
+        "payment_method_id",
+        "created_at",
+        "updated_at",
+      ];
 
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .insert(validStatements)
-      .select('id')
+      const values: any[] = [];
+      const placeholders = validStatements
+        .map((s, i) => {
+          const base = i * columns.length;
+          values.push(
+            s.company_id,
+            s.bank_account_id,
+            s.import_id,
+            s.transaction_date,
+            s.transaction_time || null,
+            s.reference_number || null,
+            s.description,
+            s.debit_amount || 0,
+            s.credit_amount || 0,
+            s.balance || 0,
+            s.row_number || null,
+            s.source_file || null,
+            s.is_pending || false,
+            s.is_reconciled || false,
+            s.reconciliation_id || null,
+            s.reconciliation_group_id || null,
+            s.payment_method_id || null,
+            new Date().toISOString(),
+            new Date().toISOString(),
+          );
+          return `(${columns.map((_, j) => `$${base + j + 1}`).join(", ")})`;
+        })
+        .join(", ");
 
-    if (error) {
-      logError('BankStatementImportRepository.bulkInsert error', { 
+      const { rows } = await pool.query(
+        `INSERT INTO bank_statements (${columns.join(", ")}) VALUES ${placeholders} RETURNING id`,
+        values,
+      );
+
+      return rows.length;
+    } catch (error: any) {
+      logError("BankStatementImportRepository.bulkInsert error", {
         error: error.message,
         statementCount: validStatements.length,
-      })
-      throw BankStatementImportErrors.IMPORT_FAILED(error.message)
+      });
+      throw BankStatementImportErrors.IMPORT_FAILED(error.message);
     }
-
-    return (data || []).length
   }
 
   /**
    * Bulk insert with detailed error tracking
-   * Returns both successful count and failed rows for retry logic
    */
   async bulkInsertWithDetails(
-    statements: CreateBankStatementDto[]
+    statements: CreateBankStatementDto[],
   ): Promise<{ inserted: number; failed: CreateBankStatementDto[] }> {
-    if (statements.length === 0) {
-      return { inserted: 0, failed: [] }
-    }
+    if (statements.length === 0) return { inserted: 0, failed: [] };
 
-    // Filter valid statements
-    const validStatements: CreateBankStatementDto[] = []
-    const failedStatements: CreateBankStatementDto[] = []
+    const validStatements: CreateBankStatementDto[] = [];
+    const failedStatements: CreateBankStatementDto[] = [];
 
-    statements.forEach(statement => {
-      const debit = typeof statement.debit_amount === 'number' ? statement.debit_amount : 0
-      const credit = typeof statement.credit_amount === 'number' ? statement.credit_amount : 0
-      
-      if (debit > 0 || credit > 0) {
-        validStatements.push(statement)
-      } else {
-        failedStatements.push(statement)
-      }
-    })
+    statements.forEach((statement) => {
+      const debit = Number(statement.debit_amount) || 0;
+      const credit = Number(statement.credit_amount) || 0;
+      if (debit > 0 || credit > 0) validStatements.push(statement);
+      else failedStatements.push(statement);
+    });
 
-    if (validStatements.length === 0) {
-      return { inserted: 0, failed: statements }
-    }
+    if (validStatements.length === 0)
+      return { inserted: 0, failed: statements };
 
-    // Try bulk insert first
     try {
-      const { data, error } = await supabase
-        .from('bank_statements')
-        .insert(validStatements)
-        .select('id')
-
-      if (error) {
-        logError('BankStatementImportRepository.bulkInsertWithDetails error', {
-          error: error.message,
-          statementCount: validStatements.length,
-        })
-        
-        // If bulk insert fails, try individual inserts
-        return this.insertIndividually(validStatements)
-      }
-
-      return { inserted: (data || []).length, failed: failedStatements }
+      const insertedCount = await this.bulkInsert(validStatements);
+      return { inserted: insertedCount, failed: failedStatements };
     } catch (err) {
-      // Fallback to individual inserts on unexpected error
-      logError('BankStatementImportRepository.bulkInsertWithDetails unexpected error', {
-        error: err instanceof Error ? err.message : 'Unknown error',
-      })
-      return this.insertIndividually(validStatements)
+      logError("BankStatementImportRepository.bulkInsertWithDetails error", {
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+      return this.insertIndividually(validStatements);
     }
   }
 
   /**
-   * Insert statements individually as fallback
+   * Insert statements individually as fallback.
+   * Uses the same column set as bulkInsert to avoid NOT NULL failures.
    */
   private async insertIndividually(
-    statements: CreateBankStatementDto[]
+    statements: CreateBankStatementDto[],
   ): Promise<{ inserted: number; failed: CreateBankStatementDto[] }> {
-    let inserted = 0
-    const failed: CreateBankStatementDto[] = []
+    let inserted = 0;
+    const failed: CreateBankStatementDto[] = [];
 
     for (const statement of statements) {
       try {
-        const { error } = await supabase
-          .from('bank_statements')
-          .insert(statement)
-          .select('id')
-
-        if (error) {
-          failed.push(statement)
-        } else {
-          inserted++
-        }
+        const { rows } = await pool.query(
+          `INSERT INTO bank_statements (
+            company_id, bank_account_id, import_id, transaction_date, transaction_time,
+            reference_number, description, debit_amount, credit_amount, balance,
+            row_number, source_file, is_pending, is_reconciled, reconciliation_id,
+            reconciliation_group_id, payment_method_id, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          RETURNING id`,
+          [
+            statement.company_id,
+            statement.bank_account_id,
+            statement.import_id ?? null,
+            statement.transaction_date,
+            statement.transaction_time ?? null,
+            statement.reference_number ?? null,
+            statement.description ?? null,
+            statement.debit_amount ?? 0,
+            statement.credit_amount ?? 0,
+            statement.balance ?? 0,
+            statement.row_number ?? null,
+            statement.source_file ?? null,
+            statement.is_pending ?? false,
+            statement.is_reconciled ?? false,
+            statement.reconciliation_id ?? null,
+            statement.reconciliation_group_id ?? null,
+            statement.payment_method_id ?? null,
+            new Date().toISOString(),
+            new Date().toISOString(),
+          ],
+        );
+        if (rows.length > 0) inserted++;
+        else failed.push(statement);
       } catch {
-        failed.push(statement)
+        failed.push(statement);
       }
     }
 
-    if (failed.length > 0) {
-      logWarn('BankStatementImportRepository: Some statements failed to insert', {
-        attempted: statements.length,
-        inserted,
-        failed: failed.length,
-      })
-    }
-
-    return { inserted, failed }
+    return { inserted, failed };
   }
 
   /**
@@ -348,25 +401,33 @@ export class BankStatementImportRepository {
    */
   async findByImportId(
     importId: number,
-    pagination: { page: number; limit: number }
+    pagination: { page: number; limit: number },
   ): Promise<{ data: BankStatement[]; total: number }> {
-    const offset = (pagination.page - 1) * pagination.limit
+    const offset = (pagination.page - 1) * pagination.limit;
 
-    const { data, error, count } = await supabase
-      .from('bank_statements')
-      .select('*', { count: 'exact' })
-      .eq('import_id', importId)
-      .is('deleted_at', null)
-      .order('transaction_date', { ascending: false })
-      .order('row_number', { ascending: true })
-      .range(offset, offset + pagination.limit - 1)
+    try {
+      const { rows: countRows } = await pool.query(
+        "SELECT COUNT(*)::int as total FROM bank_statements WHERE import_id = $1 AND deleted_at IS NULL",
+        [importId],
+      );
+      const total = countRows[0].total;
 
-    if (error) {
-      logError('BankStatementImportRepository.findByImportId error', { importId, error: error.message })
-      throw new Error(error.message)
+      const { rows } = await pool.query(
+        `SELECT * FROM bank_statements 
+         WHERE import_id = $1 AND deleted_at IS NULL 
+         ORDER BY transaction_date DESC, row_number ASC 
+         LIMIT $2 OFFSET $3`,
+        [importId, pagination.limit, offset],
+      );
+
+      return { data: rows as BankStatement[], total };
+    } catch (error: any) {
+      logError("BankStatementImportRepository.findByImportId error", {
+        importId,
+        error: error.message,
+      });
+      throw error;
     }
-
-    return { data: (data || []) as BankStatement[], total: count || 0 }
   }
 
   /**
@@ -375,510 +436,524 @@ export class BankStatementImportRepository {
   async findStatements(
     companyId: string,
     pagination: { page: number; limit: number },
-    filter?: BankStatementFilterParams
+    filter?: BankStatementFilterParams,
   ): Promise<{ data: BankStatement[]; total: number }> {
-    const offset = (pagination.page - 1) * pagination.limit
+    const offset = (pagination.page - 1) * pagination.limit;
+    const params: any[] = [companyId];
+    const conditions: string[] = ["company_id = $1", "deleted_at IS NULL"];
 
-    let query = supabase
-      .from('bank_statements')
-      .select('*', { count: 'exact' })
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('transaction_date', { ascending: false })
-      .range(offset, offset + pagination.limit - 1)
-
-    if (filter?.bank_account_id) query = query.eq('bank_account_id', filter.bank_account_id)
-    if (filter?.transaction_date_from) query = query.gte('transaction_date', filter.transaction_date_from)
-    if (filter?.transaction_date_to) query = query.lte('transaction_date', filter.transaction_date_to)
-    if (filter?.is_reconciled !== undefined) query = query.eq('is_reconciled', filter.is_reconciled)
-    if (filter?.transaction_type) query = query.eq('transaction_type', filter.transaction_type)
-    if (filter?.import_id) query = query.eq('import_id', filter.import_id)
-    if (filter?.search) query = query.or(`description.ilike.%${filter.search}%,reference_number.ilike.%${filter.search}%`)
-
-    const { data, error, count } = await query
-
-    if (error) {
-      logError('BankStatementImportRepository.findStatements error', { error: error.message })
-      throw new Error(error.message)
+    if (filter?.bank_account_id) {
+      params.push(filter.bank_account_id);
+      conditions.push(`bank_account_id = $${params.length}`);
+    }
+    if (filter?.transaction_date_from) {
+      params.push(filter.transaction_date_from);
+      conditions.push(`transaction_date >= $${params.length}`);
+    }
+    if (filter?.transaction_date_to) {
+      params.push(filter.transaction_date_to);
+      conditions.push(`transaction_date <= $${params.length}`);
+    }
+    if (filter?.is_reconciled !== undefined) {
+      params.push(filter.is_reconciled);
+      conditions.push(`is_reconciled = $${params.length}`);
+    }
+    if (filter?.transaction_type) {
+      params.push(filter.transaction_type);
+      conditions.push(`transaction_type = $${params.length}`);
+    }
+    if (filter?.import_id) {
+      params.push(filter.import_id);
+      conditions.push(`import_id = $${params.length}`);
+    }
+    if (filter?.search) {
+      params.push(`%${filter.search}%`);
+      conditions.push(
+        `(description ILIKE $${params.length} OR reference_number ILIKE $${params.length})`,
+      );
     }
 
-    return { data: (data || []) as BankStatement[], total: count || 0 }
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    try {
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*)::int as total FROM bank_statements ${whereClause}`,
+        params,
+      );
+      const total = countRows[0].total;
+
+      const dataParams = [...params, pagination.limit, offset];
+      const { rows } = await pool.query(
+        `SELECT * FROM bank_statements 
+         ${whereClause} 
+         ORDER BY transaction_date DESC 
+         LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams,
+      );
+
+      return { data: rows as BankStatement[], total };
+    } catch (error: any) {
+      logError("BankStatementImportRepository.findStatements error", {
+        error: error.message,
+      });
+      throw error;
+    }
   }
 
   /**
-   * Check for duplicate file hash (including soft-deleted records)
-   * Returns the record if found (including deleted ones), null if not found
+   * Check for duplicate file hash
    */
-  async checkFileHashExistsIncludingDeleted(fileHash: string, companyId: string): Promise<BankStatementImport | null> {
-    const { data, error } = await supabase
-      .from('bank_statement_imports')
-      .select('*')
-      .eq('file_hash', fileHash)
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    // Handle case where no records found (not an error)
-    if (error) {
-      // If it's a "PGRST116" error (no rows returned), that's actually okay
-      if (error.message.includes('PGRST116') || error.message.includes('row')) {
-        return null
-      }
-      logError('BankStatementImportRepository.checkFileHashExistsIncludingDeleted error', { error: error.message })
-      return null
+  async checkFileHashExistsIncludingDeleted(
+    fileHash: string,
+    companyId: string,
+  ): Promise<BankStatementImport | null> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM bank_statement_imports WHERE file_hash = $1 AND company_id = $2 ORDER BY created_at DESC LIMIT 1",
+        [fileHash, companyId],
+      );
+      return rows[0] || null;
+    } catch (error: any) {
+      logError(
+        "BankStatementImportRepository.checkFileHashExistsIncludingDeleted error",
+        { error: error.message },
+      );
+      return null;
     }
-
-    if (!data || data.length === 0) {
-      return null
-    }
-
-    return data[0] as BankStatementImport | null
   }
 
   /**
    * Check for active (non-deleted) file hash
    */
-  async checkFileHashExists(fileHash: string, companyId: string): Promise<BankStatementImport | null> {
-    const { data, error } = await supabase
-      .from('bank_statement_imports')
-      .select('*')
-      .eq('file_hash', fileHash)
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    // Handle case where no records found (not an error)
-    if (error) {
-      // If it's a "PGRST116" error (no rows returned), that's actually okay
-      if (error.message.includes('PGRST116') || error.message.includes('row')) {
-        return null
-      }
-      logError('BankStatementImportRepository.checkFileHashExists error', { error: error.message })
-      return null
+  async checkFileHashExists(
+    fileHash: string,
+    companyId: string,
+  ): Promise<BankStatementImport | null> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM bank_statement_imports WHERE file_hash = $1 AND company_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1",
+        [fileHash, companyId],
+      );
+      return rows[0] || null;
+    } catch (error: any) {
+      logError("BankStatementImportRepository.checkFileHashExists error", {
+        error: error.message,
+      });
+      return null;
     }
-
-    if (!data || data.length === 0) {
-      return null
-    }
-
-    return data[0] as BankStatementImport | null
   }
 
   /**
    * Check for duplicate transactions
-   * Primary: balance match (unique per row in bank statement)
-   * Fallback: normalized_description + amount (for rows without balance)
    */
   async checkDuplicates(
-    transactions: { reference_number?: string; transaction_date: string; debit_amount: number; credit_amount: number; description?: string; balance?: number; bank_account_id: number }[],
-    bankAccountId: number
+    transactions: {
+      reference_number?: string;
+      transaction_date: string;
+      debit_amount: number;
+      credit_amount: number;
+      description?: string;
+      balance?: number;
+      bank_account_id: number;
+    }[],
+    bankAccountId: number,
   ): Promise<BankStatement[]> {
-    if (transactions.length === 0) return []
+    if (transactions.length === 0) return [];
 
-    const DATE_TOLERANCE_DAYS = 3
-    const normalize = (s: string) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase()
+    const DATE_TOLERANCE_DAYS = 3;
+    const normalize = (s: string) =>
+      (s || "").replace(/\s+/g, " ").trim().toLowerCase();
 
-    const uniquePairs = transactions.filter((pair, index, self) =>
-      index === self.findIndex(p =>
-        p.transaction_date === pair.transaction_date &&
-        p.debit_amount === pair.debit_amount &&
-        p.credit_amount === pair.credit_amount
-      )
-    )
+    const uniquePairs = transactions.filter(
+      (pair, index, self) =>
+        index ===
+        self.findIndex(
+          (p) =>
+            p.transaction_date === pair.transaction_date &&
+            p.debit_amount === pair.debit_amount &&
+            p.credit_amount === pair.credit_amount,
+        ),
+    );
 
-    const allDates = uniquePairs.map(p => new Date(p.transaction_date).getTime())
-    const minDate = new Date(Math.min(...allDates))
-    const maxDate = new Date(Math.max(...allDates))
-    minDate.setDate(minDate.getDate() - DATE_TOLERANCE_DAYS)
-    maxDate.setDate(maxDate.getDate() + DATE_TOLERANCE_DAYS)
+    const allDates = uniquePairs.map((p) =>
+      new Date(p.transaction_date).getTime(),
+    );
+    const minDate = new Date(Math.min(...allDates));
+    const maxDate = new Date(Math.max(...allDates));
+    minDate.setDate(minDate.getDate() - DATE_TOLERANCE_DAYS);
+    maxDate.setDate(maxDate.getDate() + DATE_TOLERANCE_DAYS);
 
-    const { data: existingBatch, error: batchErr } = await supabase
-      .from('bank_statements')
-      .select('id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description, balance, bank_account_id, is_pending')
-      .eq('bank_account_id', bankAccountId)
-      .gte('transaction_date', minDate.toISOString().split('T')[0])
-      .lte('transaction_date', maxDate.toISOString().split('T')[0])
-      .is('deleted_at', null)
+    try {
+      const { rows: existing } = await pool.query(
+        `SELECT id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description, balance, bank_account_id, is_pending 
+         FROM bank_statements 
+         WHERE bank_account_id = $1 AND transaction_date >= $2 AND transaction_date <= $3 AND deleted_at IS NULL`,
+        [
+          bankAccountId,
+          minDate.toISOString().split("T")[0],
+          maxDate.toISOString().split("T")[0],
+        ],
+      );
 
-    if (batchErr) {
-      logError('checkDuplicates: batch fetch error', { error: batchErr.message })
-      return []
-    }
+      const existingBalanceSet = new Set(
+        existing
+          .filter((ex: any) => ex.balance != null && Number(ex.balance) !== 0)
+          .map((ex: any) => Number(ex.balance).toFixed(2)),
+      );
 
-    const existing = existingBatch || []
+      const allDuplicates: BankStatement[] = [];
 
-    // Build balance lookup from existing DB rows
-    const existingBalanceSet = new Set(
-      existing
-        .filter((ex: any) => ex.balance != null && Number(ex.balance) !== 0)
-        .map((ex: any) => Number(ex.balance).toFixed(2))
-    )
-
-    const allDuplicates: BankStatement[] = []
-
-    for (const pair of uniquePairs) {
-      // PRIMARY: balance match — if balance exists and matches, it's a duplicate
-      if (pair.balance != null && Number(pair.balance) !== 0) {
-        const pairBalanceKey = Number(pair.balance).toFixed(2)
-        if (existingBalanceSet.has(pairBalanceKey)) {
-          const match = (existing as any[]).find(ex =>
-            ex.balance != null && Number(ex.balance).toFixed(2) === pairBalanceKey
-          )
-          if (match) {
-            allDuplicates.push(match as unknown as BankStatement)
-            continue
+      for (const pair of uniquePairs) {
+        if (pair.balance != null && Number(pair.balance) !== 0) {
+          const pairBalanceKey = Number(pair.balance).toFixed(2);
+          if (existingBalanceSet.has(pairBalanceKey)) {
+            const match = existing.find(
+              (ex) =>
+                ex.balance != null &&
+                Number(ex.balance).toFixed(2) === pairBalanceKey,
+            );
+            if (match) {
+              allDuplicates.push(match as BankStatement);
+              continue;
+            }
           }
         }
+
+        const pairDescNorm = normalize(pair.description || "");
+        const pairDate = (pair.transaction_date || "").split("T")[0];
+
+        const matches = existing.filter((ex) => {
+          const amountMatch =
+            Number(ex.debit_amount) === Number(pair.debit_amount) &&
+            Number(ex.credit_amount) === Number(pair.credit_amount);
+          if (!amountMatch) return false;
+
+          if (
+            pair.reference_number &&
+            ex.reference_number &&
+            pair.reference_number !== ex.reference_number
+          )
+            return false;
+
+          if (ex.is_pending) return true;
+
+          const exDescNorm = normalize(ex.description || "");
+          if (pairDescNorm && exDescNorm && pairDescNorm === exDescNorm)
+            return true;
+
+          const exDate = (ex.transaction_date || "").split("T")[0];
+          if (
+            pair.reference_number &&
+            ex.reference_number &&
+            pair.reference_number === ex.reference_number &&
+            exDate === pairDate
+          )
+            return true;
+
+          if (exDate === pairDate && pairDescNorm && exDescNorm) {
+            return (
+              this.calculateDescriptionSimilarity(
+                pair.description || "",
+                ex.description || "",
+              ) >= 0.7
+            );
+          }
+
+          return false;
+        });
+
+        allDuplicates.push(...(matches as BankStatement[]));
       }
 
-      // FALLBACK: for rows without balance
-      const pairDescNorm = normalize(pair.description || '')
-      const pairDate = (pair.transaction_date || '').split('T')[0]
-
-      const matches = (existing as any[]).filter(ex => {
-        const amountMatch = Number(ex.debit_amount) === Number(pair.debit_amount) &&
-          Number(ex.credit_amount) === Number(pair.credit_amount)
-        if (!amountMatch) return false
-
-        if (pair.reference_number && ex.reference_number &&
-            pair.reference_number !== ex.reference_number) return false
-
-        if (ex.is_pending) return true
-
-        // Normalized description + amount (date-independent)
-        const exDescNorm = normalize(ex.description || '')
-        if (pairDescNorm && exDescNorm && pairDescNorm === exDescNorm) return true
-
-        // Reference + date + amount
-        const exDate = (ex.transaction_date || '').split('T')[0]
-        if (pair.reference_number && ex.reference_number &&
-            pair.reference_number === ex.reference_number && exDate === pairDate) return true
-
-        // Exact date + description similarity
-        if (exDate === pairDate && pairDescNorm && exDescNorm) {
-          return this.calculateDescriptionSimilarity(pair.description || '', ex.description || '') >= 0.7
-        }
-
-        return false
-      })
-
-      allDuplicates.push(...(matches as unknown as BankStatement[]))
+      return allDuplicates.filter(
+        (dup, index, self) => index === self.findIndex((d) => d.id === dup.id),
+      );
+    } catch (error: any) {
+      logError("checkDuplicates error", { error: error.message });
+      return [];
     }
-
-    return allDuplicates.filter((dup, index, self) =>
-      index === self.findIndex(d => d.id === dup.id)
-    )
   }
 
   /**
-   * Calculate description similarity using simple string comparison
-   * Returns value between 0 and 1 (1 = exact match)
+   * Calculate description similarity
    */
   private calculateDescriptionSimilarity(desc1: string, desc2: string): number {
-    if (!desc1 || !desc2) return 0
-    if (desc1 === desc2) return 1
+    if (!desc1 || !desc2) return 0;
+    if (desc1 === desc2) return 1;
 
-    // Normalize descriptions
-    const normalize = (s: string) => s
-      .replace(/\s+/g, ' ')
-      .replace(/[^\w\s]/g, '')
-      .trim()
-    
-    const n1 = normalize(desc1)
-    const n2 = normalize(desc2)
+    const normalize = (s: string) =>
+      s
+        .replace(/\s+/g, " ")
+        .replace(/[^\w\s]/g, "")
+        .trim();
 
-    if (n1 === n2) return 1
+    const n1 = normalize(desc1);
+    const n2 = normalize(desc2);
 
-    // Calculate similarity using common substring approach
-    const shorter = n1.length < n2.length ? n1 : n2
-    const longer = n1.length < n2.length ? n2 : n1
+    if (n1 === n2) return 1;
 
-    if (shorter.length === 0) return 0
+    const shorter = n1.length < n2.length ? n1 : n2;
+    const longer = n1.length < n2.length ? n2 : n1;
 
-    // Too short for meaningful comparison
-    if (shorter.length < 10) return 0
+    if (shorter.length === 0) return 0;
+    if (shorter.length < 10) return 0;
+    if (longer.includes(shorter)) return 0.9;
 
-    if (longer.includes(shorter)) return 0.9
+    const words1 = new Set(shorter.split(" ").filter((w) => w.length > 2));
+    const words2 = longer.split(" ").filter((w) => w.length > 2);
 
-    // Calculate word overlap
-    const words1 = new Set(shorter.split(' ').filter(w => w.length > 2))
-    const words2 = longer.split(' ').filter(w => w.length > 2)
-    
-    if (words1.size === 0) return 0
+    if (words1.size === 0) return 0;
 
-    let matches = 0
+    let matches = 0;
     for (const word of words1) {
-      if (words2.includes(word)) matches++
+      if (words2.includes(word)) matches++;
     }
 
-    return matches / words1.size
+    return matches / words1.size;
   }
 
   /**
    * Get summary by import ID
    */
-  async getSummaryByImportId(importId: number): Promise<{ total_statements: number; total_credit: number; total_debit: number; reconciled_count: number }> {
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .select('credit_amount, debit_amount, is_reconciled')
-      .eq('import_id', importId)
-      .is('deleted_at', null)
+  async getSummaryByImportId(importId: number): Promise<{
+    total_statements: number;
+    total_credit: number;
+    total_debit: number;
+    reconciled_count: number;
+  }> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT credit_amount, debit_amount, is_reconciled FROM bank_statements WHERE import_id = $1 AND deleted_at IS NULL",
+        [importId],
+      );
 
-    if (error) {
-      logError('BankStatementImportRepository.getSummaryByImportId error', { importId, error: error.message })
-      throw new Error(error.message)
-    }
-
-    const statements = data || []
-    return {
-      total_statements: statements.length,
-      total_credit: statements.reduce((sum, s) => sum + (s.credit_amount || 0), 0),
-      total_debit: statements.reduce((sum, s) => sum + (s.debit_amount || 0), 0),
-      reconciled_count: statements.filter(s => s.is_reconciled).length
+      return {
+        total_statements: rows.length,
+        total_credit: rows.reduce(
+          (sum, s) => sum + (Number(s.credit_amount) || 0),
+          0,
+        ),
+        total_debit: rows.reduce(
+          (sum, s) => sum + (Number(s.debit_amount) || 0),
+          0,
+        ),
+        reconciled_count: rows.filter((s) => s.is_reconciled).length,
+      };
+    } catch (error: any) {
+      logError("BankStatementImportRepository.getSummaryByImportId error", {
+        importId,
+        error: error.message,
+      });
+      throw error;
     }
   }
 
   /**
-   * Delete statements by import ID (hard delete)
+   * Delete statements by import ID
    */
   async deleteByImportId(importId: number): Promise<void> {
-    const { error } = await supabase
-      .from('bank_statements')
-      .delete()
-      .eq('import_id', importId)
-
-    if (error) {
-      logError('BankStatementImportRepository.deleteByImportId error', { importId, error: error.message })
+    try {
+      await pool.query("DELETE FROM bank_statements WHERE import_id = $1", [
+        importId,
+      ]);
+    } catch (error: any) {
+      logError("BankStatementImportRepository.deleteByImportId error", {
+        importId,
+        error: error.message,
+      });
     }
   }
 
   /**
-   * Undo all reconciliations for statements in an import before deletion.
-   * Resets linked aggregated_transactions and clears reconciliation fields.
+   * Undo all reconciliations for statements in an import
    */
   async undoReconciliationsForImport(importId: number): Promise<void> {
-    // 1. Find reconciled statements with their reconciliation links
-    const { data: reconciledStmts, error: fetchErr } = await supabase
-      .from('bank_statements')
-      .select('id, reconciliation_id, reconciliation_group_id, cash_deposit_id')
-      .eq('import_id', importId)
-      .eq('is_reconciled', true)
-      .is('deleted_at', null)
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    if (fetchErr) {
-      logError('undoReconciliationsForImport: fetch error', { importId, error: fetchErr.message })
-      throw fetchErr
-    }
+      const { rows: reconciledStmts } = await client.query(
+        "SELECT id, reconciliation_id, reconciliation_group_id, cash_deposit_id FROM bank_statements WHERE import_id = $1 AND is_reconciled = true AND deleted_at IS NULL",
+        [importId],
+      );
 
-    if (!reconciledStmts || reconciledStmts.length === 0) return
-
-    // 2. Collect aggregate IDs to reset
-    const aggregateIds = reconciledStmts
-      .map((s: any) => s.reconciliation_id)
-      .filter(Boolean) as string[]
-
-    const uniqueAggregateIds = [...new Set(aggregateIds)]
-
-    // 3. Reset aggregated_transactions
-    if (uniqueAggregateIds.length > 0) {
-      const { error: aggErr } = await supabase
-        .from('aggregated_transactions')
-        .update({
-          is_reconciled: false,
-          actual_fee_amount: 0,
-          fee_discrepancy: 0,
-          fee_discrepancy_note: null,
-          updated_at: new Date().toISOString(),
-        })
-        .in('id', uniqueAggregateIds)
-
-      if (aggErr) {
-        logError('undoReconciliationsForImport: reset aggregates error', { importId, error: aggErr.message })
+      if (reconciledStmts.length === 0) {
+        await client.query("COMMIT");
+        return;
       }
-    }
 
-    // 4. Reset cash deposits
-    const cashDepositIds = reconciledStmts
-      .map((s: any) => s.cash_deposit_id)
-      .filter(Boolean) as string[]
+      const aggregateIds = reconciledStmts
+        .map((s: any) => s.reconciliation_id)
+        .filter(Boolean);
+      const cashDepositIds = reconciledStmts
+        .map((s: any) => s.cash_deposit_id)
+        .filter(Boolean);
+      const stmtIds = reconciledStmts.map((s: any) => s.id);
 
-    if (cashDepositIds.length > 0) {
-      const { error: depErr } = await supabase
-        .from('cash_deposits')
-        .update({
-          status: 'DEPOSITED',
-          bank_statement_id: null,
-          updated_at: new Date().toISOString(),
-        })
-        .in('id', [...new Set(cashDepositIds)])
-
-      if (depErr) {
-        logError('undoReconciliationsForImport: reset cash deposits error', { importId, error: depErr.message })
+      if (aggregateIds.length > 0) {
+        await client.query(
+          `UPDATE aggregated_transactions SET is_reconciled = false, actual_fee_amount = 0, fee_discrepancy = 0, fee_discrepancy_note = null, updated_at = $1 WHERE id = ANY($2)`,
+          [new Date().toISOString(), aggregateIds],
+        );
       }
+
+      if (cashDepositIds.length > 0) {
+        await client.query(
+          `UPDATE cash_deposits SET status = 'DEPOSITED', bank_statement_id = null, updated_at = $1 WHERE id = ANY($2)`,
+          [new Date().toISOString(), cashDepositIds],
+        );
+      }
+
+      await client.query(
+        `UPDATE bank_statements SET is_reconciled = false, reconciliation_id = null, reconciliation_group_id = null, cash_deposit_id = null, updated_at = $1 WHERE id = ANY($2)`,
+        [new Date().toISOString(), stmtIds],
+      );
+
+      await client.query("COMMIT");
+    } catch (error: any) {
+      await client.query("ROLLBACK");
+      logError("undoReconciliationsForImport error", {
+        importId,
+        error: error.message,
+      });
+      throw error;
+    } finally {
+      client.release();
     }
-
-    // 5. Reset reconciliation fields on statements
-    const stmtIds = reconciledStmts.map((s: any) => s.id)
-    const { error: resetErr } = await supabase
-      .from('bank_statements')
-      .update({
-        is_reconciled: false,
-        reconciliation_id: null,
-        reconciliation_group_id: null,
-        cash_deposit_id: null,
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', stmtIds)
-
-    if (resetErr) {
-      logError('undoReconciliationsForImport: reset statements error', { importId, error: resetErr.message })
-    }
-
-    logInfo('undoReconciliationsForImport: completed', {
-      importId,
-      statementsReset: stmtIds.length,
-      aggregatesReset: uniqueAggregateIds.length,
-      cashDepositsReset: cashDepositIds.length,
-    })
   }
 
   /**
    * Hard delete of an import record
    */
   async hardDelete(id: number): Promise<void> {
-    const { error } = await supabase
-      .from('bank_statement_imports')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      logError('BankStatementImportRepository.hardDelete error', { id, error: error.message })
-      throw new Error(`Failed to hard delete import: ${error.message}`)
+    try {
+      await pool.query("DELETE FROM bank_statement_imports WHERE id = $1", [
+        id,
+      ]);
+    } catch (error: any) {
+      logError("BankStatementImportRepository.hardDelete error", {
+        id,
+        error: error.message,
+      });
+      throw new Error(`Failed to hard delete import: ${error.message}`);
     }
   }
 
   /**
    * Replace existing PEND records that match with settled rows
-   * Uses ±2 day date tolerance because PEND date (extracted from description)
-   * may differ from the actual settled date
    */
   async replacePendingWithSettled(
     companyId: string,
     bankAccountId: number,
     settledRows: Array<{
-      transaction_date: string
-      debit_amount: number
-      credit_amount: number
-      balance?: number
-      description: string
-      company_id?: string
-      bank_account_id?: number
-      import_id?: number
-      row_number?: number
-      transaction_time?: string
-      reference_number?: string
-      source_file?: string
-    }>
+      transaction_date: string;
+      debit_amount: number;
+      credit_amount: number;
+      balance?: number;
+      description: string;
+      company_id?: string;
+      bank_account_id?: number;
+      import_id?: number;
+      row_number?: number;
+      transaction_time?: string;
+      reference_number?: string;
+      source_file?: string;
+    }>,
   ): Promise<{ replacedCount: number; handledSettledKeys: Set<string> }> {
-    let replacedCount = 0
-    const handledSettledKeys = new Set<string>()
-    const DATE_TOLERANCE_DAYS = 2
+    let replacedCount = 0;
+    const handledSettledKeys = new Set<string>();
+    const DATE_TOLERANCE_DAYS = 2;
 
-    for (const row of settledRows) {
-      const baseDate = new Date(row.transaction_date)
-      const dateFrom = new Date(baseDate)
-      dateFrom.setDate(dateFrom.getDate() - DATE_TOLERANCE_DAYS)
-      const dateTo = new Date(baseDate)
-      dateTo.setDate(dateTo.getDate() + DATE_TOLERANCE_DAYS)
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-      const dateFromStr = dateFrom.toISOString().split('T')[0]
-      const dateToStr = dateTo.toISOString().split('T')[0]
+      for (const row of settledRows) {
+        const baseDate = new Date(row.transaction_date);
+        const dateFrom = new Date(baseDate);
+        dateFrom.setDate(dateFrom.getDate() - DATE_TOLERANCE_DAYS);
+        const dateTo = new Date(baseDate);
+        dateTo.setDate(dateTo.getDate() + DATE_TOLERANCE_DAYS);
 
-      const { data: matchedPends, error: fetchErr } = await supabase
-        .from('bank_statements')
-        .select('id, is_reconciled, reconciliation_id, reconciliation_group_id, payment_method_id')
-        .eq('company_id', companyId)
-        .eq('bank_account_id', bankAccountId)
-        .eq('is_pending', true)
-        .gte('transaction_date', dateFromStr)
-        .lte('transaction_date', dateToStr)
-        .eq('debit_amount', row.debit_amount)
-        .eq('credit_amount', row.credit_amount)
-        .is('deleted_at', null)
+        const dateFromStr = dateFrom.toISOString().split("T")[0];
+        const dateToStr = dateTo.toISOString().split("T")[0];
 
-      if (fetchErr || !matchedPends?.length) continue
+        const { rows: matchedPends } = await client.query(
+          `SELECT id, is_reconciled, reconciliation_id, reconciliation_group_id, payment_method_id 
+           FROM bank_statements 
+           WHERE company_id = $1 AND bank_account_id = $2 AND is_pending = true 
+             AND transaction_date >= $3 AND transaction_date <= $4 
+             AND debit_amount = $5 AND credit_amount = $6 AND deleted_at IS NULL`,
+          [
+            companyId,
+            bankAccountId,
+            dateFromStr,
+            dateToStr,
+            row.debit_amount,
+            row.credit_amount,
+          ],
+        );
 
-      for (const pend of matchedPends) {
-        if (!pend.is_reconciled) {
-          // Kasus A: PEND belum reconciled → delete, settled masuk via batch insert
-          const { data: deleted, error: delErr } = await supabase
-            .from('bank_statements')
-            .delete()
-            .eq('id', pend.id)
-            .select('id')
+        if (matchedPends.length === 0) continue;
 
-          if (!delErr && deleted?.length) {
-            replacedCount++
-            logInfo('replacePendingWithSettled: Kasus A - deleted unreconciled PEND', {
-              pend_id: pend.id,
-              settled_date: row.transaction_date,
-            })
+        for (const pend of matchedPends) {
+          if (!pend.is_reconciled) {
+            await client.query("DELETE FROM bank_statements WHERE id = $1", [
+              pend.id,
+            ]);
+            replacedCount++;
+          } else {
+            await client.query(
+              `INSERT INTO bank_statements (
+                company_id, bank_account_id, transaction_date, transaction_time, reference_number, 
+                description, debit_amount, credit_amount, balance, import_id, row_number, 
+                source_file, is_pending, is_reconciled, reconciliation_id, reconciliation_group_id, 
+                payment_method_id, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+              [
+                row.company_id || companyId,
+                row.bank_account_id || bankAccountId,
+                row.transaction_date,
+                row.transaction_time || null,
+                row.reference_number || null,
+                row.description,
+                row.debit_amount,
+                row.credit_amount,
+                row.balance || null,
+                row.import_id || null,
+                row.row_number || null,
+                row.source_file || null,
+                false,
+                true,
+                pend.reconciliation_id || null,
+                pend.reconciliation_group_id || null,
+                pend.payment_method_id || null,
+                new Date().toISOString(),
+              ],
+            );
+
+            await client.query(
+              "UPDATE bank_statements SET is_pending = false, updated_at = $1 WHERE id = $2",
+              [new Date().toISOString(), pend.id],
+            );
+            handledSettledKeys.add(
+              `${row.transaction_date}-${row.debit_amount}-${row.credit_amount}`,
+            );
+            replacedCount++;
           }
-        } else {
-          // Kasus B: PEND sudah reconciled → insert settled row dengan copy reconciliation context
-          const { data: newRow, error: insertErr } = await supabase
-            .from('bank_statements')
-            .insert({
-              company_id: row.company_id || companyId,
-              bank_account_id: row.bank_account_id || bankAccountId,
-              transaction_date: row.transaction_date,
-              transaction_time: row.transaction_time || null,
-              reference_number: row.reference_number || null,
-              description: row.description,
-              debit_amount: row.debit_amount,
-              credit_amount: row.credit_amount,
-              balance: row.balance || null,
-              import_id: row.import_id || null,
-              row_number: row.row_number || null,
-              source_file: row.source_file || null,
-              is_pending: false,
-              is_reconciled: true,
-              reconciliation_id: pend.reconciliation_id || null,
-              reconciliation_group_id: pend.reconciliation_group_id || null,
-              payment_method_id: (pend as any).payment_method_id || null,
-            })
-            .select('id')
-            .single()
-
-          if (insertErr || !newRow) {
-            logError('replacePendingWithSettled: Kasus B - failed to insert settled row', {
-              pend_id: pend.id,
-              error: insertErr?.message,
-            })
-            continue
-          }
-
-          // Update PEND lama: is_pending = false (bukan delete, audit trail tetap)
-          await supabase
-            .from('bank_statements')
-            .update({ is_pending: false, updated_at: new Date().toISOString() })
-            .eq('id', pend.id)
-
-          handledSettledKeys.add(`${row.transaction_date}-${row.debit_amount}-${row.credit_amount}`)
-          replacedCount++
-
-          logInfo('replacePendingWithSettled: Kasus B - settled inserted, PEND updated', {
-            pend_id: pend.id,
-            new_settled_id: newRow.id,
-            reconciliation_id: pend.reconciliation_id,
-            reconciliation_group_id: pend.reconciliation_group_id,
-          })
         }
       }
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
 
-    return { replacedCount, handledSettledKeys }
+    return { replacedCount, handledSettledKeys };
   }
 
   /**
@@ -888,43 +963,43 @@ export class BankStatementImportRepository {
     companyId: string,
     bankAccountId: number,
     dateFrom: string,
-    dateTo: string
+    dateTo: string,
   ): Promise<BankStatement[]> {
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .select('*')
-      .eq('company_id', companyId)
-      .eq('bank_account_id', bankAccountId)
-      .eq('is_pending', true)
-      .gte('transaction_date', dateFrom)
-      .lte('transaction_date', dateTo)
-
-    if (error) {
-      logError('BankStatementImportRepository.findPendingByDateRange error', { companyId, bankAccountId, error: error.message })
-      return []
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM bank_statements 
+         WHERE company_id = $1 AND bank_account_id = $2 AND is_pending = true 
+           AND transaction_date >= $3 AND transaction_date <= $4 AND deleted_at IS NULL`,
+        [companyId, bankAccountId, dateFrom, dateTo],
+      );
+      return rows as BankStatement[];
+    } catch (error: any) {
+      logError("findPendingByDateRange error", {
+        companyId,
+        bankAccountId,
+        error: error.message,
+      });
+      return [];
     }
-    return (data || []) as BankStatement[]
   }
 
   /**
    * Cleanup stale pending records
    */
   async cleanupStalePendingRecords(daysOld: number = 3): Promise<number> {
-    const cutoffDate = new Date()
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld)
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .delete()
-      .eq('is_pending', true)
-      .lt('transaction_date', cutoffDate.toISOString().split('T')[0])
-      .select('id')
-
-    if (error) {
-      logError('BankStatementImportRepository.cleanupStalePendingRecords error', { error: error.message })
-      return 0
+    try {
+      const { rows } = await pool.query(
+        "DELETE FROM bank_statements WHERE is_pending = true AND transaction_date < $1 RETURNING id",
+        [cutoffDate.toISOString().split("T")[0]],
+      );
+      return rows.length;
+    } catch (error: any) {
+      logError("cleanupStalePendingRecords error", { error: error.message });
+      return 0;
     }
-    return data?.length || 0
   }
 
   /**
@@ -934,56 +1009,60 @@ export class BankStatementImportRepository {
     companyId: string,
     bankAccountId: number,
     startDate: string,
-    endDate: string
+    endDate: string,
   ): Promise<number> {
-    const { count, error } = await supabase
-      .from('bank_statements')
-      .select('*', { count: 'exact', head: true })
-      .eq('company_id', companyId)
-      .eq('bank_account_id', bankAccountId)
-      .gte('transaction_date', startDate)
-      .lte('transaction_date', endDate)
-      .is('deleted_at', null)
-
-    if (error) {
-      logError('BankStatementImportRepository.countExistingStatements error', { companyId, bankAccountId, error: error.message })
-      throw new Error(`Failed to count existing statements: ${error.message}`)
+    try {
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int as total FROM bank_statements 
+         WHERE company_id = $1 AND bank_account_id = $2 AND transaction_date >= $3 AND transaction_date <= $4 AND deleted_at IS NULL`,
+        [companyId, bankAccountId, startDate, endDate],
+      );
+      return rows[0].total;
+    } catch (error: any) {
+      logError("countExistingStatements error", {
+        companyId,
+        bankAccountId,
+        error: error.message,
+      });
+      throw error;
     }
-
-    return count || 0
   }
 
   /**
-   * Create background job record for import
+   * Create background job record for import.
+   * Uses SELECT * FROM to correctly handle the set-returning function.
    */
   async createImportJob(params: ImportJobParams): Promise<string> {
-    const { data, error } = await supabase.rpc('create_job_atomic', {
-      p_user_id: params.userId,
-      p_company_id: params.companyId,
-      p_type: 'import',
-      p_module: 'bank_statements',
-      p_name: `Import Bank Statement ${params.fileName}`,
-      p_metadata: {
-        importId: params.importId,
-        bankAccountId: params.bankAccountId,
-        companyId: params.companyId,
-        skipDuplicates: params.skipDuplicates,
-        totalRows: params.totalRows
+    try {
+      const { rows } = await pool.query(
+        'SELECT * FROM create_job_atomic($1, $2, $3, $4, $5, $6)',
+        [
+          params.userId,
+          params.companyId,
+          'import',
+          'bank_statements',
+          `Import Bank Statement ${params.fileName}`,
+          JSON.stringify({
+            importId: params.importId,
+            bankAccountId: params.bankAccountId,
+            companyId: params.companyId,
+            skipDuplicates: params.skipDuplicates,
+            totalRows: params.totalRows,
+          }),
+        ],
+      );
+
+      if (rows.length === 0 || !rows[0].id) {
+        throw new Error('Failed to create job');
       }
-    })
 
-    if (error) {
-      logError('BankStatementImportRepository.createImportJob error', { error: error.message })
-      throw new Error(`Failed to create job: ${error.message}`)
+      return rows[0].id;
+    } catch (error: any) {
+      logError('BankStatementImportRepository.createImportJob error', {
+        error: error.message,
+      });
+      throw error;
     }
-
-    const jobId = (data as { id?: unknown } | null)?.id
-    if (typeof jobId !== 'string' || jobId.length === 0) {
-      logError('BankStatementImportRepository.createImportJob invalid response', { data })
-      throw new Error('Failed to create job')
-    }
-
-    return jobId
   }
 
   /**
@@ -991,523 +1070,346 @@ export class BankStatementImportRepository {
    */
   async updateJobProgress(
     jobId: string,
-    progress: JobProgressUpdate
+    progress: JobProgressUpdate,
   ): Promise<void> {
-    const percentage = Math.max(0, Math.min(100, Math.round(progress.percentage)))
+    const percentage = Math.max(
+      0,
+      Math.min(100, Math.round(progress.percentage)),
+    );
     try {
-      await jobsRepository.updateProgress(jobId, percentage)
+      await jobsRepository.updateProgress(jobId, percentage);
     } catch (error: any) {
-      logWarn('BankStatementImportRepository.updateJobProgress error', {
+      logWarn("BankStatementImportRepository.updateJobProgress error", {
         jobId,
         percentage,
-        error: error?.message || String(error)
-      })
+        error: error?.message || String(error),
+      });
     }
   }
 
   /**
-   * Get import file name (for source_file field)
+   * Get import file name
    */
   async getImportFileName(importId: number): Promise<string> {
-    const { data, error } = await supabase
-      .from('bank_statement_imports')
-      .select('file_name')
-      .eq('id', importId)
-      .maybeSingle()
-
-    if (error) {
-      logError('BankStatementImportRepository.getImportFileName error', { importId, error: error.message })
-      throw new Error(`Failed to get import file name: ${error.message}`)
-    }
-
-    const fileName = (data as { file_name?: unknown } | null)?.file_name
-    if (typeof fileName !== 'string' || fileName.length === 0) {
-      throw new Error(`Import with ID ${importId} not found`)
-    }
-
-    return fileName
-  }
-
-  /**
-   * Store temporary import rows to Supabase Storage
-   */
-  async uploadTemporaryData<T = any>(importId: number, rows: T[]): Promise<void> {
-    const jsonData = JSON.stringify(rows)
-    const bucket = 'bank-statement-imports-temp'
-    const objectPath = `${importId}.json`
-
-    const supabaseHost = (() => {
-      try {
-        const url = process.env.SUPABASE_URL
-        if (!url) return null
-        return new URL(url).host
-      } catch {
-        return null
-      }
-    })()
-
-    // In Node, pass Buffer to avoid ambiguous string handling
-    const body = Buffer.from(jsonData, 'utf8')
-    const { error } = await supabase.storage
-      .from(bucket)
-      .upload(objectPath, body, {
-        contentType: 'application/json',
-        upsert: true
-      })
-
-    if (error) {
-      logError('BankStatementImportRepository.uploadTemporaryData error', {
-        importId,
-        bucket,
-        path: objectPath,
-        supabase_host: supabaseHost,
-        error_name: (error as any)?.name,
-        error_message: (error as any)?.message,
-        error_status: (error as any)?.statusCode ?? (error as any)?.status,
-        error
-      })
-      throw error
-    }
-
-    // Postflight: verify object exists (best-effort, makes env mismatch obvious)
     try {
-      const { data: listed, error: listErr } = await supabase.storage
-        .from(bucket)
-        .list('', { search: objectPath })
-      if (listErr) {
-        logWarn('BankStatementImportRepository.uploadTemporaryData verify list error', {
-          importId,
-          bucket,
-          path: objectPath,
-          supabase_host: supabaseHost,
-          error_name: (listErr as any)?.name,
-          error_message: (listErr as any)?.message,
-          error: listErr
-        })
-      } else {
-        const found = (listed || []).some(o => o.name === objectPath)
-        if (!found) {
-          logWarn('BankStatementImportRepository.uploadTemporaryData verify not found', {
-            importId,
-            bucket,
-            path: objectPath,
-            supabase_host: supabaseHost,
-            listed_names_sample: (listed || []).slice(0, 5).map(o => o.name)
-          })
-        }
-      }
-    } catch (e) {
-      logWarn('BankStatementImportRepository.uploadTemporaryData verify failed', {
+      const { rows } = await pool.query(
+        "SELECT file_name FROM bank_statement_imports WHERE id = $1 LIMIT 1",
+        [importId],
+      );
+      if (rows.length === 0)
+        throw new Error(`Import with ID ${importId} not found`);
+      return rows[0].file_name;
+    } catch (error: any) {
+      logError("BankStatementImportRepository.getImportFileName error", {
         importId,
-        bucket,
-        path: objectPath,
-        supabase_host: supabaseHost,
-        error_string: String(e)
-      })
+        error: error.message,
+      });
+      throw error;
     }
-
-    logInfo('BankStatementImportRepository.uploadTemporaryData success', { importId, bucket, path: objectPath, supabase_host: supabaseHost })
   }
 
   /**
-   * Retrieve temporary import rows from Supabase Storage
+   * Store temporary import rows (STILL USES SUPABASE STORAGE)
+   */
+  async uploadTemporaryData<T = any>(
+    importId: number,
+    rows: T[],
+  ): Promise<void> {
+    const jsonData = JSON.stringify(rows);
+    await storageService.uploadToPath(jsonData, `${importId}.json`, 'application/json', 'bankstatementimportstemp');
+  }
+
+  /**
+   * Retrieve temporary import rows (STILL USES SUPABASE STORAGE)
    */
   async downloadTemporaryData<T = any>(importId: number): Promise<T[]> {
-    const objectPath = `${importId}.json`
-    const bucket = 'bank-statement-imports-temp'
-    const supabaseHost = (() => {
-      try {
-        const url = process.env.SUPABASE_URL
-        if (!url) return null
-        return new URL(url).host
-      } catch {
-        return null
-      }
-    })()
-
-    // Removed noisy listBuckets preflight check since it fails due to permissions
-    // while the actual download succeeds.
-
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .download(objectPath)
-
-    if (error) {
-      // Extra diagnostics: try list() to see if object exists (best-effort)
-      try {
-        const { data: listed, error: listErr } = await supabase.storage
-          .from(bucket)
-          .list('', { search: objectPath })
-        if (listErr) {
-          logWarn('BankStatementImportRepository.downloadTemporaryData list error', {
-            importId,
-            bucket,
-            path: objectPath,
-            error_name: (listErr as any)?.name,
-            error_message: (listErr as any)?.message,
-            error: listErr
-          })
-        } else {
-          logWarn('BankStatementImportRepository.downloadTemporaryData list result', {
-            importId,
-            bucket,
-            path: objectPath,
-            found: (listed || []).some(o => o.name === objectPath),
-            listed_names_sample: (listed || []).slice(0, 5).map(o => o.name)
-          })
-        }
-      } catch (e) {
-        logWarn('BankStatementImportRepository.downloadTemporaryData list diagnostic failed', {
-          importId,
-          bucket,
-          path: objectPath,
-          error_string: String(e)
-        })
-      }
-
-      logError('BankStatementImportRepository.downloadTemporaryData error', {
-        importId,
-        bucket,
-        path: objectPath,
-        supabase_host: supabaseHost,
-        error_name: (error as any)?.name,
-        error_message: (error as any)?.message,
-        error_status: (error as any)?.statusCode ?? (error as any)?.status,
-        error_string: String(error),
-        error_keys: error ? Object.getOwnPropertyNames(error as any) : [],
-        original_error_string: String((error as any)?.originalError),
-        original_error_keys: (error as any)?.originalError
-          ? Object.getOwnPropertyNames((error as any).originalError)
-          : [],
-        error
-      })
-      throw error
-    }
-
-    const text = await data.text()
-    return JSON.parse(text) as T[]
+    const text = await storageService.download(`${importId}.json`, 'bankstatementimportstemp');
+    return JSON.parse(text) as T[];
   }
 
   /**
-   * Remove temporary import rows from Supabase Storage (reliable, 3x retry)
+   * Remove temporary import rows (STILL USES SUPABASE STORAGE)
    */
   async removeTemporaryData(importId: number): Promise<boolean> {
-    const objectPath = `${importId}.json`;
-    const bucket = 'bank-statement-imports-temp';
-    
-    // Check bucket exists first
     try {
-      const { data: buckets } = await supabase.storage.listBuckets();
-      const bucketExists = buckets?.some(b => b.name === bucket);
-      if (!bucketExists) {
-        logWarn('Temp bucket does not exist, skipping cleanup', { importId, bucket });
-        return false;
-      }
-    } catch (bucketCheckError) {
-      logWarn('Bucket check failed, proceeding with cleanup anyway', { importId, error: String(bucketCheckError) });
+      await storageService.remove([`${importId}.json`], 'bankstatementimportstemp');
+      return true;
+    } catch (error) {
+      logError("BankStatementImportRepository.removeTemporaryData error", { importId, error });
+      return false;
     }
-
-    // Retry logic: 3 attempts with exponential backoff
-    const maxRetries = 3;
-    let lastError: any;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const { error } = await supabase.storage
-          .from(bucket)
-          .remove([objectPath]);
-
-        if (!error) {
-          logInfo('BankStatementImportRepository.removeTemporaryData success', { 
-            importId, 
-            attempt,
-            path: objectPath 
-          });
-          return true;
-        }
-
-        lastError = error;
-        logWarn(`Cleanup attempt ${attempt} failed`, { 
-          importId, 
-          path: objectPath, 
-          error: error.message 
-        });
-
-        // Backoff: 100ms * attempt
-        if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 100 * attempt));
-        }
-      } catch (retryError) {
-        lastError = retryError;
-        logWarn(`Cleanup retry ${attempt} threw error`, { importId, error: String(retryError) });
-        
-        if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 100 * attempt));
-        }
-      }
-    }
-
-    // Final failure log
-    logError('BankStatementImportRepository.removeTemporaryData final failure after retries', {
-      importId,
-      path: objectPath,
-      attempts: maxRetries,
-      final_error: lastError?.message || String(lastError)
-    });
-
-    return false; // Failed but non-blocking
   }
-
-  // ============================================================================
-  // MANUAL ENTRY METHODS
-  // ============================================================================
 
   /**
    * Insert single manual bank statement
    */
-  async insertManualStatement(data: CreateBankStatementDto): Promise<BankStatement> {
-    const { data: result, error } = await supabase
-      .from('bank_statements')
-      .insert({
-        ...data,
-        source_file: 'MANUAL_ENTRY',
-        import_id: null,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      logError('BankStatementImportRepository.insertManualStatement error', { error: error.message })
-      throw new Error(`Gagal menyimpan manual entry: ${error.message}`)
+  async insertManualStatement(
+    data: CreateBankStatementDto,
+  ): Promise<BankStatement> {
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO bank_statements (
+          company_id, bank_account_id, transaction_date, transaction_time, description, 
+          debit_amount, credit_amount, balance, source_file, import_id, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'MANUAL_ENTRY', NULL, $9) RETURNING *`,
+        [
+          data.company_id,
+          data.bank_account_id,
+          data.transaction_date,
+          data.transaction_time || null,
+          data.description,
+          data.debit_amount || 0,
+          data.credit_amount || 0,
+          data.balance || 0,
+          new Date().toISOString(),
+        ],
+      );
+      return rows[0] as BankStatement;
+    } catch (error: any) {
+      logError("BankStatementImportRepository.insertManualStatement error", {
+        error: error.message,
+      });
+      throw new Error(`Gagal menyimpan manual entry: ${error.message}`);
     }
-
-    return result as BankStatement
   }
 
   /**
    * Insert bulk manual bank statements
    */
-  async insertManualStatements(statements: CreateBankStatementDto[]): Promise<{ inserted: number; ids: number[] }> {
-    if (statements.length === 0) return { inserted: 0, ids: [] }
+  async insertManualStatements(
+    statements: CreateBankStatementDto[],
+  ): Promise<{ inserted: number; ids: number[] }> {
+    if (statements.length === 0) return { inserted: 0, ids: [] };
 
-    const rows = statements.map(s => ({
-      ...s,
-      source_file: 'MANUAL_ENTRY',
-      import_id: null,
-    }))
+    try {
+      const columns = [
+        "company_id",
+        "bank_account_id",
+        "transaction_date",
+        "transaction_time",
+        "description",
+        "debit_amount",
+        "credit_amount",
+        "balance",
+        "source_file",
+        "import_id",
+        "updated_at",
+      ];
+      const values: any[] = [];
+      const placeholders = statements
+        .map((s, i) => {
+          const base = i * columns.length;
+          values.push(
+            s.company_id,
+            s.bank_account_id,
+            s.transaction_date,
+            s.transaction_time || null,
+            s.description,
+            s.debit_amount || 0,
+            s.credit_amount || 0,
+            s.balance || 0,
+            "MANUAL_ENTRY",
+            null,
+            new Date().toISOString(),
+          );
+          return `(${columns.map((_, j) => `$${base + j + 1}`).join(", ")})`;
+        })
+        .join(", ");
 
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .insert(rows)
-      .select('id')
-
-    if (error) {
-      logError('BankStatementImportRepository.insertManualStatements error', { error: error.message, count: rows.length })
-      throw new Error(`Gagal menyimpan bulk manual entry: ${error.message}`)
+      const { rows } = await pool.query(
+        `INSERT INTO bank_statements (${columns.join(", ")}) VALUES ${placeholders} RETURNING id`,
+        values,
+      );
+      return { inserted: rows.length, ids: rows.map((r) => r.id) };
+    } catch (error: any) {
+      logError("BankStatementImportRepository.insertManualStatements error", {
+        error: error.message,
+      });
+      throw error;
     }
-
-    const ids = (data || []).map((r: { id: number }) => r.id)
-    return { inserted: ids.length, ids }
   }
 
-  // ============================================================================
-  // HARD DELETE METHODS
-  // ============================================================================
-
   /**
-   * Find single bank statement by ID + company_id
+   * Find single bank statement
    */
-  async findStatementById(id: number, companyId: string): Promise<BankStatement | null> {
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .select('*')
-      .eq('id', id)
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (error) {
-      logError('BankStatementImportRepository.findStatementById error', { id, error: error.message })
-      return null
+  async findStatementById(
+    id: number,
+    companyId: string,
+  ): Promise<BankStatement | null> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM bank_statements WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL",
+        [id, companyId],
+      );
+      return (rows[0] as BankStatement) || null;
+    } catch (error: any) {
+      logError("findStatementById error", { id, error: error.message });
+      return null;
     }
-
-    return data as BankStatement | null
   }
 
   /**
-   * Hard delete single bank statement (defense-in-depth: filter company_id)
+   * Hard delete single statement
    */
   async hardDeleteStatement(id: number, companyId: string): Promise<void> {
-    const { error } = await supabase
-      .from('bank_statements')
-      .delete()
-      .eq('id', id)
-      .eq('company_id', companyId)
-
-    if (error) {
-      logError('BankStatementImportRepository.hardDeleteStatement error', { id, companyId, error: error.message })
-      throw new Error(`Gagal menghapus statement: ${error.message}`)
+    try {
+      await pool.query(
+        "DELETE FROM bank_statements WHERE id = $1 AND company_id = $2",
+        [id, companyId],
+      );
+    } catch (error: any) {
+      logError("hardDeleteStatement error", {
+        id,
+        companyId,
+        error: error.message,
+      });
+      throw error;
     }
   }
 
   /**
-   * Hard delete multiple bank statements (defense-in-depth: filter company_id)
+   * Hard delete multiple statements
    */
-  async hardDeleteStatements(ids: number[], companyId: string): Promise<number> {
-    if (ids.length === 0) return 0
-
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .delete()
-      .in('id', ids)
-      .eq('company_id', companyId)
-      .select('id')
-
-    if (error) {
-      logError('BankStatementImportRepository.hardDeleteStatements error', { ids, companyId, error: error.message })
-      throw new Error(`Gagal menghapus statements: ${error.message}`)
+  async hardDeleteStatements(
+    ids: number[],
+    companyId: string,
+  ): Promise<number> {
+    if (ids.length === 0) return 0;
+    try {
+      const { rows } = await pool.query(
+        "DELETE FROM bank_statements WHERE id = ANY($1) AND company_id = $2 RETURNING id",
+        [ids, companyId],
+      );
+      return rows.length;
+    } catch (error: any) {
+      logError("hardDeleteStatements error", { ids, error: error.message });
+      throw error;
     }
-
-    return (data || []).length
   }
 
   /**
-   * Find multiple statements by IDs + company_id
+   * Find multiple statements by IDs
    */
-  async findStatementsByIds(ids: number[], companyId: string): Promise<BankStatement[]> {
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .select('*')
-      .in('id', ids)
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-
-    if (error) {
-      logError('BankStatementImportRepository.findStatementsByIds error', { error: error.message })
-      return []
+  async findStatementsByIds(
+    ids: number[],
+    companyId: string,
+  ): Promise<BankStatement[]> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM bank_statements WHERE id = ANY($1) AND company_id = $2 AND deleted_at IS NULL",
+        [ids, companyId],
+      );
+      return rows as BankStatement[];
+    } catch (error: any) {
+      logError("findStatementsByIds error", { error: error.message });
+      return [];
     }
-
-    return (data || []) as BankStatement[]
   }
 
   /**
-   * List manual entries for a bank account, ordered by date desc
+   * List manual entries
    */
   async listManualEntries(
     companyId: string,
     bankAccountId: number,
   ): Promise<BankStatement[]> {
-    const { data, error } = await supabase
-      .from('bank_statements')
-      .select('*')
-      .eq('company_id', companyId)
-      .eq('bank_account_id', bankAccountId)
-      .eq('source_file', 'MANUAL_ENTRY')
-      .is('deleted_at', null)
-      .order('transaction_date', { ascending: false })
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      logError('BankStatementImportRepository.listManualEntries error', { error: error.message })
-      throw new Error(`Gagal memuat manual entries: ${error.message}`)
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM bank_statements 
+         WHERE company_id = $1 AND bank_account_id = $2 AND source_file = 'MANUAL_ENTRY' AND deleted_at IS NULL 
+         ORDER BY transaction_date DESC, created_at DESC`,
+        [companyId, bankAccountId],
+      );
+      return rows as BankStatement[];
+    } catch (error: any) {
+      logError("listManualEntries error", { error: error.message });
+      throw error;
     }
-
-    return (data || []) as BankStatement[]
   }
 
   /**
-   * Get payment method IDs linked to a bank account
+   * Get payment methods by bank account
    */
   async getPaymentMethodsByBankAccount(
     companyId: string,
     bankAccountId: number,
   ): Promise<Array<{ id: number; name: string }>> {
-    const { data, error } = await supabase
-      .from('payment_methods')
-      .select('id, name')
-      .eq('company_id', companyId)
-      .eq('bank_account_id', bankAccountId)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-
-    if (error) {
-      logError('BankStatementImportRepository.getPaymentMethodsByBankAccount error', { error: error.message })
-      return []
+    try {
+      const { rows } = await pool.query(
+        "SELECT id, name FROM payment_methods WHERE company_id = $1 AND bank_account_id = $2 AND is_active = true AND deleted_at IS NULL",
+        [companyId, bankAccountId],
+      );
+      return rows;
+    } catch (error: any) {
+      logError("getPaymentMethodsByBankAccount error", {
+        error: error.message,
+      });
+      return [];
     }
-
-    return (data || []) as Array<{ id: number; name: string }>
   }
 
   /**
-   * Get branch IDs for a company
+   * Get branch IDs by company
    */
   async getBranchIdsByCompany(companyId: string): Promise<string[]> {
-    const { data, error } = await supabase
-      .from('branches')
-      .select('id')
-      .eq('company_id', companyId)
-
-    if (error) {
-      logError('BankStatementImportRepository.getBranchIdsByCompany error', { error: error.message })
-      return []
+    try {
+      const { rows } = await pool.query(
+        "SELECT id FROM branches WHERE company_id = $1",
+        [companyId],
+      );
+      return rows.map((r) => r.id);
+    } catch (error: any) {
+      logError("getBranchIdsByCompany error", { error: error.message });
+      return [];
     }
-
-    return (data || []).map((b: { id: string }) => b.id)
   }
 
   /**
-   * Get POS aggregates summed by date + payment_method_id for a date range
+   * Get aggregated POS transactions
    */
   async getAggregatedByDateAndPM(
     branchIds: string[],
     paymentMethodIds: number[],
     dateFrom: string,
     dateTo: string,
-  ): Promise<Array<{
-    transaction_date: string
-    payment_method_id: number
-    payment_method_name: string
-    total_bill: number
-    total_nett: number
-  }>> {
-    if (paymentMethodIds.length === 0 || branchIds.length === 0) return []
+  ): Promise<
+    Array<{
+      transaction_date: string;
+      payment_method_id: number;
+      payment_method_name: string;
+      total_bill: number;
+      total_nett: number;
+    }>
+  > {
+    if (paymentMethodIds.length === 0 || branchIds.length === 0) return [];
 
-    const { data, error } = await supabase
-      .from('aggregated_transactions')
-      .select('transaction_date, payment_method_id, bill_after_discount, nett_amount, payment_methods:payment_method_id(name)')
-      .in('payment_method_id', paymentMethodIds)
-      .in('branch_id', branchIds)
-      .gte('transaction_date', dateFrom)
-      .lte('transaction_date', dateTo)
-      .is('deleted_at', null)
-      .is('superseded_by', null)
-
-    if (error) {
-      logError('BankStatementImportRepository.getAggregatedByDateAndPM error', { error: error.message })
-      return []
+    try {
+      const { rows } = await pool.query(
+        `SELECT 
+          at.transaction_date, 
+          at.payment_method_id, 
+          pm.name as payment_method_name,
+          SUM(COALESCE(at.bill_after_discount, 0))::float as total_bill,
+          SUM(COALESCE(at.nett_amount, 0))::float as total_nett
+        FROM aggregated_transactions at
+        LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+        WHERE at.payment_method_id = ANY($1) 
+          AND at.branch_id = ANY($2)
+          AND at.transaction_date >= $3 
+          AND at.transaction_date <= $4
+          AND at.deleted_at IS NULL
+          AND at.superseded_by IS NULL
+        GROUP BY at.transaction_date, at.payment_method_id, pm.name
+        ORDER BY at.transaction_date DESC`,
+        [paymentMethodIds, branchIds, dateFrom, dateTo],
+      );
+      return rows;
+    } catch (error: any) {
+      logError("getAggregatedByDateAndPM error", { error: error.message });
+      return [];
     }
-
-    const grouped = new Map<string, { transaction_date: string; payment_method_id: number; payment_method_name: string; total_bill: number; total_nett: number }>()
-    for (const row of (data || []) as any[]) {
-      const pmName = row.payment_methods?.name || ''
-      const key = `${row.transaction_date}|${row.payment_method_id}`
-      const existing = grouped.get(key)
-      if (existing) {
-        existing.total_bill += Number(row.bill_after_discount) || 0
-        existing.total_nett += Number(row.nett_amount) || 0
-      } else {
-        grouped.set(key, {
-          transaction_date: row.transaction_date,
-          payment_method_id: row.payment_method_id,
-          payment_method_name: pmName,
-          total_bill: Number(row.bill_after_discount) || 0,
-          total_nett: Number(row.nett_amount) || 0,
-        })
-      }
-    }
-
-    return Array.from(grouped.values())
   }
 }
 
-export const bankStatementImportRepository = new BankStatementImportRepository()
+export const bankStatementImportRepository =
+  new BankStatementImportRepository();

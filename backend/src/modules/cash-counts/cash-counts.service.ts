@@ -240,10 +240,13 @@ export class CashCountsService {
     const baIds = [...new Set(data.map((d: any) => d.bank_account_id).filter(Boolean))]
     let baMap: Record<number, string> = {}
     if (baIds.length > 0) {
-      const { data: bas } = await (await import('../../config/supabase')).supabase
-        .from('bank_accounts').select('id, account_name, banks(bank_name)').in('id', baIds)
+      const { pool } = await import('../../config/db')
+      const { rows: bas } = await pool.query(
+        `SELECT ba.id, ba.account_name, b.bank_name FROM bank_accounts ba LEFT JOIN banks b ON b.id = ba.bank_id WHERE ba.id = ANY($1::int[])`,
+        [baIds]
+      )
       if (bas) baMap = bas.reduce((a: any, b: any) => {
-        a[b.id] = `${(b.banks as any)?.bank_name || ''} - ${b.account_name}`; return a
+        a[b.id] = `${b.bank_name || ''} - ${b.account_name}`; return a
       }, {})
     }
 

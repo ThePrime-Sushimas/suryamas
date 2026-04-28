@@ -1,4 +1,4 @@
-import { supabase } from "../../../config/supabase";
+import { pool } from "../../../config/db";
 import { logError } from "../../../config/logger";
 import { BankReconciliationStatus } from "./bank-reconciliation.types";
 import {
@@ -15,22 +15,16 @@ export class BankReconciliationRepository {
    */
   async findById(id: string): Promise<any> {
     try {
-      const { data, error } = await supabase
-        .from("bank_statements")
-        .select("*")
-        .eq("id", id)
-        .is("deleted_at", null)
-        .maybeSingle();
+      const { rows } = await pool.query(
+        "SELECT * FROM bank_statements WHERE id = $1 AND deleted_at IS NULL LIMIT 1",
+        [id]
+      );
 
-      if (error) {
-        throw error;
-      }
-
-      if (!data) {
+      if (rows.length === 0) {
         throw new StatementNotFoundError(id);
       }
 
-      return data;
+      return rows[0];
     } catch (error: any) {
       if (error instanceof StatementNotFoundError) {
         throw error;
@@ -50,21 +44,15 @@ export class BankReconciliationRepository {
     const end = endDate || startDate;
 
     try {
-      const { data, error } = await supabase
-        .from("bank_statements")
-        .select("*")
-        .gte("transaction_date", startDate.toISOString().split("T")[0])
-        .lte("transaction_date", end.toISOString().split("T")[0])
-        .eq("is_reconciled", false)
-        .is("deleted_at", null)
-        .order("transaction_date", { ascending: false })
-        .order("created_at", { ascending: false });
+      const { rows } = await pool.query(
+        `SELECT * FROM bank_statements 
+         WHERE transaction_date >= $1 AND transaction_date <= $2 
+           AND is_reconciled = false AND deleted_at IS NULL 
+         ORDER BY transaction_date DESC, created_at DESC`,
+        [startDate.toISOString().split("T")[0], end.toISOString().split("T")[0]]
+      );
 
-      if (error) {
-        throw error;
-      }
-
-      return data || [];
+      return rows;
     } catch (error: any) {
       logError("Error fetching unreconciled statements", {
         startDate: startDate.toISOString(),
@@ -97,326 +85,148 @@ export class BankReconciliationRepository {
     },
   ): Promise<{ data: any[]; total: number }> {
     try {
-      let baseQuery = supabase
-        .from("bank_statements")
-        .select(
-          `
-        *,
-        bank_accounts (
-          id,
-          account_name,
-          account_number,
-          banks (
-            bank_name,
-            bank_code
-          )
-        )
-      `,
-          { count: "exact" },
-        )
-        .is("deleted_at", null);
-
-      // Apply date range filters if provided
-      if (startDate) {
-        baseQuery = baseQuery.gte(
-          "transaction_date",
-          startDate.toISOString().split("T")[0],
-        );
-      }
-      if (endDate) {
-        baseQuery = baseQuery.lte(
-          "transaction_date",
-          endDate.toISOString().split("T")[0],
-        );
-      }
-
-      // Apply bank account filter
-      if (bankAccountIds && bankAccountIds.length > 0) {
-        baseQuery = bankAccountIds.length === 1
-          ? baseQuery.eq("bank_account_id", bankAccountIds[0])
-          : baseQuery.in("bank_account_id", bankAccountIds);
-      }
-
-      // Apply status filter
-      if (options?.status === "RECONCILED") {
-        baseQuery = baseQuery.eq("is_reconciled", true);
-      } else if (options?.status === "UNRECONCILED") {
-        baseQuery = baseQuery.eq("is_reconciled", false);
-      }
-
-      // Apply isReconciled filter (overrides status if both provided)
-      if (options?.isReconciled !== undefined) {
-        baseQuery = baseQuery.eq("is_reconciled", options.isReconciled);
-      }
-
-      // Apply search filter on description or reference_number
-      if (options?.search) {
-        const searchTerm = `%${options.search}%`;
-        baseQuery = baseQuery.or(
-          `description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`,
-        );
-      }
-
-      // Apply credit-only filter
-      if (options?.creditOnly) {
-        baseQuery = baseQuery.gt('credit_amount', 0);
-      }
-
-      // Get count query first (same filters as main query)
-      let countQuery = supabase
-        .from("bank_statements")
-        .select("id", { count: "exact", head: true })
-        .is("deleted_at", null);
+      const params: any[] = [];
+      const conditions: string[] = ["bs.deleted_at IS NULL"];
 
       if (startDate) {
-        countQuery = countQuery.gte(
-          "transaction_date",
-          startDate.toISOString().split("T")[0],
-        );
+        params.push(startDate.toISOString().split("T")[0]);
+        conditions.push(`bs.transaction_date >= $${params.length}`);
       }
       if (endDate) {
-        countQuery = countQuery.lte(
-          "transaction_date",
-          endDate.toISOString().split("T")[0],
-        );
+        params.push(endDate.toISOString().split("T")[0]);
+        conditions.push(`bs.transaction_date <= $${params.length}`);
       }
       if (bankAccountIds && bankAccountIds.length > 0) {
-        countQuery = bankAccountIds.length === 1
-          ? countQuery.eq("bank_account_id", bankAccountIds[0])
-          : countQuery.in("bank_account_id", bankAccountIds);
+        params.push(bankAccountIds);
+        conditions.push(`bs.bank_account_id = ANY($${params.length})`);
       }
-      if (options?.status === "RECONCILED") {
-        countQuery = countQuery.eq("is_reconciled", true);
-      } else if (options?.status === "UNRECONCILED") {
-        countQuery = countQuery.eq("is_reconciled", false);
-      }
-      if (options?.isReconciled !== undefined) {
-        countQuery = countQuery.eq("is_reconciled", options.isReconciled);
+      if (options?.status === "RECONCILED" || options?.isReconciled === true) {
+        conditions.push("bs.is_reconciled = true");
+      } else if (options?.status === "UNRECONCILED" || options?.isReconciled === false) {
+        conditions.push("bs.is_reconciled = false");
       }
       if (options?.search) {
-        const searchTerm = `%${options.search}%`;
-        countQuery = countQuery.or(
-          `description.ilike.${searchTerm},reference_number.ilike.${searchTerm}`,
-        );
+        params.push(`%${options.search}%`);
+        conditions.push(`(bs.description ILIKE $${params.length} OR bs.reference_number ILIKE $${params.length})`);
       }
       if (options?.creditOnly) {
-        countQuery = countQuery.gt('credit_amount', 0);
+        conditions.push("bs.credit_amount > 0");
       }
 
-      // Apply sorting
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+      // Count Query
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*)::int as total FROM bank_statements bs ${whereClause}`,
+        params
+      );
+      const total = countRows[0].total;
+
+      // Data Query
       const sortField = options?.sortField || "transaction_date";
       const sortOrder = options?.sortOrder || "desc";
-      baseQuery = baseQuery.order(sortField, {
-        ascending: sortOrder === "asc",
-      });
+      let dataQuery = `
+        SELECT 
+          bs.*,
+          jsonb_build_object(
+            'id', ba.id,
+            'account_name', ba.account_name,
+            'account_number', ba.account_number,
+            'banks', jsonb_build_object(
+              'bank_name', b.bank_name,
+              'bank_code', b.bank_code
+            )
+          ) as bank_accounts
+        FROM bank_statements bs
+        LEFT JOIN bank_accounts ba ON bs.bank_account_id = ba.id
+        LEFT JOIN banks b ON ba.bank_id = b.id
+        ${whereClause}
+        ORDER BY bs.${sortField} ${sortOrder === "asc" ? "ASC" : "DESC"}
+      `;
 
-      // Apply pagination
       if (options?.limit) {
-        baseQuery = baseQuery.limit(options.limit);
+        params.push(options.limit);
+        dataQuery += ` LIMIT $${params.length}`;
       }
       if (options?.offset) {
-        baseQuery = baseQuery.range(
-          options.offset,
-          options.offset + (options.limit || 100) - 1,
-        );
+        params.push(options.offset);
+        dataQuery += ` OFFSET $${params.length}`;
       }
 
-      const [{ data, error }, { count, error: countError }] = await Promise.all(
-        [baseQuery, countQuery],
-      );
-
-      if (error) {
-        logError("Error fetching bank statements", {
-          startDate: startDate?.toISOString(),
-          endDate: endDate?.toISOString(),
-          error: error.message,
-        });
-        throw error;
-      }
-
-      if (countError) {
-        logError("Error counting bank statements", {
-          error: countError.message,
-        });
-      }
+      const { rows: data } = await pool.query(dataQuery, params);
 
       // ── 1:1 match: fetch aggregates via reconciliation_id ──
-      const statementsWithReconciliation = (data || []).filter(
-        (s) => s.reconciliation_id,
-      );
-      const aggregateIds = [
-        ...new Set(
-          statementsWithReconciliation.map((s) => s.reconciliation_id),
-        ),
-      ];
+      const statementsWithReconciliation = data.filter((s) => s.reconciliation_id);
+      const aggregateIds = [...new Set(statementsWithReconciliation.map((s) => s.reconciliation_id))];
 
       let aggregateMap: Record<string, any> = {};
       if (aggregateIds.length > 0) {
-        try {
-          const { data: aggregates, error: aggError } = await supabase
-            .from("aggregated_transactions")
-            .select(
-              `
-              id,
-              transaction_date,
-              gross_amount,
-              nett_amount,
-              payment_methods!inner (
-                name
-              )
-            `,
-            )
-            .in("id", aggregateIds);
-
-          if (aggError) {
-            logError("Error fetching aggregates", { error: aggError.message });
-          } else if (aggregates) {
-            aggregateMap = aggregates.reduce(
-              (acc: Record<string, any>, agg: any) => {
-                acc[agg.id] = agg;
-                return acc;
-              },
-              {},
-            );
-          }
-        } catch (e: any) {
-          logError("Error in aggregate fetch", { error: e.message });
-        }
+        const { rows: aggregates } = await pool.query(
+          `SELECT 
+             at.id, at.transaction_date, at.gross_amount, at.nett_amount,
+             pm.name as payment_method_name
+           FROM aggregated_transactions at
+           JOIN payment_methods pm ON at.payment_method_id = pm.id
+           WHERE at.id = ANY($1)`,
+          [aggregateIds]
+        );
+        aggregateMap = aggregates.reduce((acc, agg) => ({ ...acc, [agg.id]: agg }), {});
       }
 
       // ── Multi-match: fetch group data via reconciliation_group_id ──
-      const statementsWithGroup = (data || []).filter(
-        (s) => s.reconciliation_group_id && !s.reconciliation_id,
-      );
-      const groupIds = [
-        ...new Set(statementsWithGroup.map((s) => s.reconciliation_group_id)),
-      ];
+      const statementsWithGroup = data.filter((s) => s.reconciliation_group_id && !s.reconciliation_id);
+      const groupIds = [...new Set(statementsWithGroup.map((s) => s.reconciliation_group_id))];
 
-      // Map: groupId → group + aggregate data
       let groupDataMap: Record<string, any> = {};
       if (groupIds.length > 0) {
-        try {
-          const { data: groups, error: grpError } = await supabase
-            .from("bank_reconciliation_groups")
-            .select(
-              `
-              id,
-              aggregate_id,
-              total_bank_amount,
-              aggregate_amount,
-              difference,
-              aggregated_transactions (
-                id,
-                transaction_date,
-                gross_amount,
-                nett_amount,
-                payment_methods!left (
-                  name
-                )
-              )
-            `,
-            )
-            .in("id", groupIds)
-            .is("deleted_at", null);
-
-          if (grpError) {
-            logError("Error fetching group aggregates", { error: grpError.message });
-          } else if (groups) {
-            groupDataMap = groups.reduce(
-              (acc: Record<string, any>, grp: any) => {
-                acc[grp.id] = grp;
-                return acc;
-              },
-              {},
-            );
-          }
-        } catch (e: any) {
-          logError("Error in group aggregate fetch", { error: e.message });
-        }
+        const { rows: groups } = await pool.query(
+          `SELECT 
+             brg.id, brg.aggregate_id, brg.total_bank_amount, brg.aggregate_amount, brg.difference,
+             at.id as aggregate_id_at, at.transaction_date, at.gross_amount, at.nett_amount,
+             pm.name as payment_method_name
+           FROM bank_reconciliation_groups brg
+           LEFT JOIN aggregated_transactions at ON brg.aggregate_id = at.id
+           LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+           WHERE brg.id = ANY($1) AND brg.deleted_at IS NULL`,
+          [groupIds]
+        );
+        groupDataMap = groups.reduce((acc, grp) => ({ ...acc, [grp.id]: grp }), {});
       }
 
       // ── Settlement groups: fetch via bank_statement_id ──
-      const reconciledWithoutLink = (data || []).filter(
-        (s) => s.is_reconciled && !s.reconciliation_id && !s.reconciliation_group_id,
-      );
-      const reconciledWithoutLinkIds = reconciledWithoutLink.map((s) => s.id);
+      const reconciledWithoutLinkIds = data
+        .filter((s) => s.is_reconciled && !s.reconciliation_id && !s.reconciliation_group_id)
+        .map((s) => s.id);
 
-      // Map: statementId → settlement group data
       let settlementMap: Record<string, any> = {};
       if (reconciledWithoutLinkIds.length > 0) {
-        try {
-          const { data: settlements, error: setError } = await supabase
-            .from("bank_settlement_groups")
-            .select(
-              `
-              id,
-              bank_statement_id,
-              total_statement_amount,
-              total_allocated_amount,
-              difference,
-              status,
-              bank_settlement_aggregates (
-                aggregate_id,
-                allocated_amount,
-                original_amount
-              )
-            `,
-            )
-            .in("bank_statement_id", reconciledWithoutLinkIds)
-            .is("deleted_at", null);
-
-          if (setError) {
-            logError("Error fetching settlement groups", { error: setError.message });
-          } else if (settlements) {
-            settlementMap = settlements.reduce(
-              (acc: Record<string, any>, sg: any) => {
-                const bsId = String(sg.bank_statement_id);
-                acc[bsId] = sg;
-                return acc;
-              },
-              {},
-            );
-          }
-        } catch (e: any) {
-          logError("Error in settlement group fetch", { error: e.message });
-        }
+        const { rows: settlements } = await pool.query(
+          `SELECT 
+             bsg.id, bsg.bank_statement_id, bsg.total_statement_amount, bsg.total_allocated_amount, bsg.difference, bsg.status,
+             COALESCE(jsonb_agg(bsa.*) FILTER (WHERE bsa.id IS NOT NULL), '[]') as bank_settlement_aggregates
+           FROM bank_settlement_groups bsg
+           LEFT JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.group_id
+           WHERE bsg.bank_statement_id = ANY($1) AND bsg.deleted_at IS NULL
+           GROUP BY bsg.id`,
+          [reconciledWithoutLinkIds]
+        );
+        settlementMap = settlements.reduce((acc, sg) => ({ ...acc, [String(sg.bank_statement_id)]: sg }), {});
       }
 
       // ── Cash deposits: fetch via cash_deposit_id ──
-      const statementsWithCashDeposit = (data || []).filter(
-        (s: any) => s.cash_deposit_id,
-      );
-      const cashDepositIds = [
-        ...new Set(statementsWithCashDeposit.map((s: any) => s.cash_deposit_id)),
-      ];
+      const cashDepositIds = [...new Set(data.filter((s) => s.cash_deposit_id).map((s) => s.cash_deposit_id))];
 
       let cashDepositMap: Record<string, any> = {};
       if (cashDepositIds.length > 0) {
-        try {
-          const { data: deposits, error: depError } = await supabase
-            .from("cash_deposits")
-            .select("id, deposit_amount, deposit_date, branch_name, bank_account_id, status, proof_url, deposited_at")
-            .in("id", cashDepositIds);
-
-          if (depError) {
-            logError("Error fetching cash deposits", { error: depError.message });
-          } else if (deposits) {
-            cashDepositMap = deposits.reduce(
-              (acc: Record<string, any>, dep: any) => {
-                acc[dep.id] = dep;
-                return acc;
-              },
-              {},
-            );
-          }
-        } catch (e: any) {
-          logError("Error in cash deposit fetch", { error: e.message });
-        }
+        const { rows: deposits } = await pool.query(
+          "SELECT id, deposit_amount, deposit_date, branch_name, bank_account_id, status, proof_url, deposited_at FROM cash_deposits WHERE id = ANY($1)",
+          [cashDepositIds]
+        );
+        cashDepositMap = deposits.reduce((acc, dep) => ({ ...acc, [dep.id]: dep }), {});
       }
 
-      // Map data to include matched_aggregate (1:1, multi-match, settlement, or cash deposit)
-      const mappedData = (data || []).map((row) => {
-        // 1:1 match
+      // Map data to include matched_aggregate
+      const mappedData = data.map((row) => {
         if (row.reconciliation_id && aggregateMap[row.reconciliation_id]) {
           const agg = aggregateMap[row.reconciliation_id];
           return {
@@ -426,29 +236,27 @@ export class BankReconciliationRepository {
               transaction_date: agg.transaction_date,
               gross_amount: agg.gross_amount,
               nett_amount: agg.nett_amount,
-              payment_method_name: agg.payment_methods?.name || null,
+              payment_method_name: agg.payment_method_name || null,
             },
           };
         }
-        // Multi-match: use group-level totals
         if (row.reconciliation_group_id && groupDataMap[row.reconciliation_group_id]) {
           const grp = groupDataMap[row.reconciliation_group_id];
           const agg = grp.aggregated_transactions;
           return {
             ...row,
             matched_aggregate: {
-              id: agg?.id || grp.aggregate_id,
-              transaction_date: agg?.transaction_date || null,
-              gross_amount: agg?.gross_amount || 0,
+              id: grp.aggregate_id_at || grp.aggregate_id,
+              transaction_date: grp.transaction_date || null,
+              gross_amount: grp.gross_amount || 0,
               nett_amount: Number(grp.aggregate_amount) || 0,
-              payment_method_name: agg?.payment_methods?.name || null,
+              payment_method_name: grp.payment_method_name || null,
               is_multi_match: true,
               group_total_bank_amount: Number(grp.total_bank_amount) || 0,
               group_difference: Number(grp.difference) || 0,
             },
           };
         }
-        // Settlement group: 1 bank statement → many aggregates
         const rowId = String(row.id);
         if (row.is_reconciled && settlementMap[rowId]) {
           const sg = settlementMap[rowId];
@@ -467,7 +275,6 @@ export class BankReconciliationRepository {
             },
           };
         }
-        // Cash deposit match
         if (row.cash_deposit_id && cashDepositMap[row.cash_deposit_id]) {
           const dep = cashDepositMap[row.cash_deposit_id];
           return {
@@ -485,7 +292,6 @@ export class BankReconciliationRepository {
             },
           };
         }
-        // Bank mutation entry match
         if (row.bank_mutation_entry_id) {
           return {
             ...row,
@@ -502,10 +308,7 @@ export class BankReconciliationRepository {
         return { ...row, matched_aggregate: null };
       });
 
-      return {
-        data: mappedData,
-        total: count || 0,
-      };
+      return { data: mappedData, total };
     } catch (error: any) {
       logError("Error fetching statements by date range", {
         startDate: startDate?.toISOString(),
@@ -518,54 +321,39 @@ export class BankReconciliationRepository {
 
   /**
    * Get all bank accounts without any date filter
-   * Used for filter dropdown - always returns all accounts regardless of transactions
    */
   async getAllBankAccounts(): Promise<any[]> {
     try {
-      const { data: activeIds, error: activeError } = await supabase
-        .from("bank_statements")
-        .select("bank_account_id")
-        .is("deleted_at", null);
+      const { rows: activeIdsRows } = await pool.query(
+        "SELECT DISTINCT bank_account_id FROM bank_statements WHERE deleted_at IS NULL"
+      );
+      const uniqueIds = activeIdsRows.map((r) => r.bank_account_id);
 
-      if (activeError) throw activeError;
+      let query = `
+        SELECT 
+          ba.id, ba.account_name, ba.account_number,
+          jsonb_build_object('bank_name', b.bank_name, 'bank_code', b.bank_code) as banks
+        FROM bank_accounts ba
+        JOIN banks b ON ba.bank_id = b.id
+        WHERE ba.deleted_at IS NULL
+      `;
+      const params: any[] = [];
 
-      const uniqueIds = [
-        ...new Set((activeIds || []).map((s) => s.bank_account_id)),
-      ];
-      if (uniqueIds.length === 0) {
-        // Fallback: return semua akun jika belum ada statements sama sekali
-        const { data } = await supabase
-          .from("bank_accounts")
-          .select(
-            `id, account_name, account_number, banks(bank_name, bank_code)`,
-          )
-          .is("deleted_at", null)
-          .order("account_name", { ascending: true });
-
-        return (data || []).map((acc) => ({
-          ...acc,
-          stats: { total: 0, unreconciled: 0 },
-        }));
+      if (uniqueIds.length > 0) {
+        params.push(uniqueIds);
+        query += " AND ba.id = ANY($1)";
       }
-      const { data, error } = await supabase
-        .from("bank_accounts")
-        .select(`id, account_name, account_number, banks(bank_name, bank_code)`)
-        .in("id", uniqueIds) // ← filter hanya yang punya data
-        .is("deleted_at", null)
-        .order("account_name", { ascending: true });
 
-      if (error) throw error;
+      query += " ORDER BY ba.account_name ASC";
+      const { rows } = await pool.query(query, params);
 
-      return (data || []).map((acc) => ({
+      return rows.map((acc) => ({
         ...acc,
         stats: { total: 0, unreconciled: 0 },
       }));
     } catch (error: any) {
       logError("Error fetching all bank accounts", { error: error.message });
-      throw new DatabaseConnectionError(
-        "fetching all bank accounts",
-        error.message,
-      );
+      throw new DatabaseConnectionError("fetching all bank accounts", error.message);
     }
   }
 
@@ -574,63 +362,40 @@ export class BankReconciliationRepository {
    */
   async getBankAccountsStatus(startDate: Date, endDate: Date): Promise<any[]> {
     try {
-      const { data, error } = await supabase
-        .from("bank_statements")
-        .select("bank_account_id, is_reconciled")
-        .gte("transaction_date", startDate.toISOString().split("T")[0])
-        .lte("transaction_date", endDate.toISOString().split("T")[0])
-        .is("deleted_at", null);
+      const { rows: statsRows } = await pool.query(
+        `SELECT bank_account_id, is_reconciled FROM bank_statements 
+         WHERE transaction_date >= $1 AND transaction_date <= $2 AND deleted_at IS NULL`,
+        [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0]]
+      );
 
-      if (error) {
-        throw error;
-      }
-
-      const stats = (data || []).reduce((acc: any, curr: any) => {
+      const stats = statsRows.reduce((acc: any, curr: any) => {
         const bId = curr.bank_account_id;
-        if (!acc[bId]) {
-          acc[bId] = { total: 0, unreconciled: 0 };
-        }
+        if (!acc[bId]) acc[bId] = { total: 0, unreconciled: 0 };
         acc[bId].total++;
-        if (!curr.is_reconciled) {
-          acc[bId].unreconciled++;
-        }
+        if (!curr.is_reconciled) acc[bId].unreconciled++;
         return acc;
       }, {});
 
       const accountIds = Object.keys(stats).map((id) => parseInt(id));
       if (accountIds.length === 0) return [];
 
-      const { data: accounts, error: accError } = await supabase
-        .from("bank_accounts")
-        .select(
-          `
-        id,
-        account_name,
-        account_number,
-        banks (
-          bank_name,
-          bank_code
-        )
-      `,
-        )
-        .in("id", accountIds);
-
-      if (accError) {
-        throw accError;
-      }
+      const { rows: accounts } = await pool.query(
+        `SELECT 
+           ba.id, ba.account_name, ba.account_number,
+           jsonb_build_object('bank_name', b.bank_name, 'bank_code', b.bank_code) as banks
+         FROM bank_accounts ba
+         JOIN banks b ON ba.bank_id = b.id
+         WHERE ba.id = ANY($1)`,
+        [accountIds]
+      );
 
       return accounts.map((acc) => ({
         ...acc,
         stats: stats[acc.id],
       }));
     } catch (error: any) {
-      logError("Error fetching bank accounts status", {
-        error: error.message,
-      });
-      throw new DatabaseConnectionError(
-        "fetching bank accounts status",
-        error.message,
-      );
+      logError("Error fetching bank accounts status", { error: error.message });
+      throw new DatabaseConnectionError("fetching bank accounts status", error.message);
     }
   }
 
@@ -644,24 +409,17 @@ export class BankReconciliationRepository {
   ): Promise<void> {
     try {
       const isReconciled = status === BankReconciliationStatus.RECONCILED;
-
-      const updateData: any = {
-        is_reconciled: isReconciled,
-        updated_at: new Date().toISOString(),
-      };
+      const params: any[] = [isReconciled, new Date().toISOString()];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, updated_at = $2";
 
       if (userId) {
-        updateData.updated_by = userId;
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
       }
+      params.push(id);
+      query += ` WHERE id = $${params.length}`;
 
-      const { error } = await supabase
-        .from("bank_statements")
-        .update(updateData)
-        .eq("id", id);
-
-      if (error) {
-        throw error;
-      }
+      await pool.query(query, params);
     } catch (error: any) {
       logError("Error updating statement status", {
         statementId: id,
@@ -680,43 +438,30 @@ export class BankReconciliationRepository {
     userId?: string,
   ): Promise<void> {
     try {
-      // Get payment_method_id from aggregate
-      const { data: aggregate, error: aggError } = await supabase
-        .from("aggregated_transactions")
-        .select("payment_method_id")
-        .eq("id", aggregateId)
-        .maybeSingle();
+      const { rows: aggregateRows } = await pool.query(
+        "SELECT payment_method_id FROM aggregated_transactions WHERE id = $1 LIMIT 1",
+        [aggregateId]
+      );
+      const aggregate = aggregateRows[0];
 
-      if (aggError) {
-        throw aggError;
-      }
+      const params: any[] = [true, false, aggregateId, new Date().toISOString()];
+      let query = `
+        UPDATE bank_statements
+        SET is_reconciled = $1, is_pending = $2, reconciliation_id = $3, updated_at = $4
+      `;
 
-      // Update statement - only use fields that are confirmed to exist
-      const updateData: any = {
-        is_reconciled: true,
-        is_pending: false,
-        reconciliation_id: aggregateId,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Only add payment_method_id if aggregate has it
       if (aggregate?.payment_method_id) {
-        updateData.payment_method_id = aggregate.payment_method_id;
+        params.push(aggregate.payment_method_id);
+        query += `, payment_method_id = $${params.length}`;
       }
-
-      // Add updated_by if userId is provided
       if (userId) {
-        updateData.updated_by = userId;
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
       }
+      params.push(statementId);
+      query += ` WHERE id = $${params.length}`;
 
-      const { error } = await supabase
-        .from("bank_statements")
-        .update(updateData)
-        .eq("id", statementId);
-
-      if (error) {
-        throw error;
-      }
+      await pool.query(query, params);
     } catch (error: any) {
       logError("Error marking statement as reconciled", {
         statementId,
@@ -736,46 +481,35 @@ export class BankReconciliationRepository {
     userId?: string,
   ): Promise<void> {
     try {
-      const updateData: any = {
-        is_reconciled: isReconciled,
-        updated_at: new Date().toISOString(),
-      };
+      const params: any[] = [isReconciled, new Date().toISOString()];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, updated_at = $2";
 
       if (userId) {
-        updateData.updated_by = userId;
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
       }
+      params.push(ids);
+      query += ` WHERE id = ANY($${params.length})`;
 
-      const { error } = await supabase
-        .from("bank_statements")
-        .update(updateData)
-        .in("id", ids);
-
-      if (error) {
-        throw error;
-      }
+      await pool.query(query, params);
     } catch (error: any) {
       logError("Error bulk updating reconciliation status", {
         count: ids.length,
         error: error.message,
       });
-      throw new DatabaseConnectionError(
-        "bulk update reconciliation status",
-        error.message,
-      );
+      throw new DatabaseConnectionError("bulk update reconciliation status", error.message);
     }
   }
 
   async countReconciledStatementsInGroup(groupId: string): Promise<number> {
-    // Setelah undoReconciliation dipanggil, statement ini sudah is_reconciled = false
-    // Jadi query ini menghitung yang MASIH reconciled di group
-    const { data, error } = await supabase
-      .from("bank_reconciliation_group_details")
-      .select("bank_statements!inner(is_reconciled)")
-      .eq("group_id", groupId)
-      .eq("bank_statements.is_reconciled", true);
-
-    if (error) throw error;
-    return data?.length ?? 0;
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int as count 
+       FROM bank_reconciliation_group_details brgd
+       JOIN bank_statements bs ON brgd.statement_id = bs.id
+       WHERE brgd.group_id = $1 AND bs.is_reconciled = true`,
+      [groupId]
+    );
+    return rows[0].count;
   }
 
   /**
@@ -789,27 +523,27 @@ export class BankReconciliationRepository {
     bankAccountId?: number,
   ): Promise<any[]> {
     try {
-      let query = supabase
-        .from("bank_statements")
-        .select("*")
-        .gte("transaction_date", startDate.toISOString().split("T")[0])
-        .lte("transaction_date", endDate.toISOString().split("T")[0])
-        .eq("is_reconciled", false)
-        .is("deleted_at", null);
+      const params: any[] = [
+        startDate.toISOString().split("T")[0],
+        endDate.toISOString().split("T")[0],
+        limit,
+        offset
+      ];
+      let query = `
+        SELECT * FROM bank_statements 
+        WHERE transaction_date >= $1 AND transaction_date <= $2 
+          AND is_reconciled = false AND deleted_at IS NULL
+      `;
 
       if (bankAccountId) {
-        query = query.eq("bank_account_id", bankAccountId);
+        params.push(bankAccountId);
+        query += ` AND bank_account_id = $${params.length}`;
       }
 
-      const { data, error } = await query
-        .order("transaction_date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        throw error;
-      }
-      return data || [];
+      query += ` ORDER BY transaction_date DESC, created_at DESC LIMIT $3 OFFSET $4`;
+      
+      const { rows } = await pool.query(query, params);
+      return rows;
     } catch (error: any) {
       logError("Error fetching unreconciled batch", {
         startDate: startDate.toISOString(),
@@ -831,25 +565,23 @@ export class BankReconciliationRepository {
     bankAccountId?: number,
   ): Promise<number> {
     try {
-      let query = supabase
-        .from("bank_statements")
-        .select("*", { count: "exact", head: true })
-        .gte("transaction_date", startDate.toISOString().split("T")[0])
-        .lte("transaction_date", endDate.toISOString().split("T")[0])
-        .eq("is_reconciled", false)
-        .is("deleted_at", null);
+      const params: any[] = [
+        startDate.toISOString().split("T")[0],
+        endDate.toISOString().split("T")[0]
+      ];
+      let query = `
+        SELECT COUNT(*)::int as count FROM bank_statements 
+        WHERE transaction_date >= $1 AND transaction_date <= $2 
+          AND is_reconciled = false AND deleted_at IS NULL
+      `;
 
       if (bankAccountId) {
-        query = query.eq("bank_account_id", bankAccountId);
+        params.push(bankAccountId);
+        query += ` AND bank_account_id = $${params.length}`;
       }
 
-      const { count, error } = await query;
-
-      if (error) {
-        logError("Error counting unreconciled statements", { error: error.message });
-        return 0;
-      }
-      return count || 0;
+      const { rows } = await pool.query(query, params);
+      return rows[0].count;
     } catch (error: any) {
       logError("Error counting unreconciled statements", { error: error.message });
       return 0;
@@ -875,18 +607,12 @@ export class BankReconciliationRepository {
     details?: any;
   }): Promise<void> {
     try {
-      const { error } = await supabase.from("bank_reconciliation_logs").insert({
-        company_id: data.companyId,
-        user_id: data.userId,
-        action: data.action,
-        statement_id: data.statementId,
-        aggregate_id: data.aggregateId,
-        details: data.details || {},
-      });
-
-      if (error) {
-        throw error;
-      }
+      await pool.query(
+        `INSERT INTO bank_reconciliation_logs 
+         (company_id, user_id, action, statement_id, aggregate_id, details) 
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [data.companyId, data.userId, data.action, data.statementId, data.aggregateId, data.details || {}]
+      );
     } catch (error: any) {
       logError("Error logging reconciliation action", {
         action: data.action,
@@ -898,53 +624,37 @@ export class BankReconciliationRepository {
 
   /**
    * Undo reconciliation for a specific statement.
-   * Cascades reset to aggregated_transactions.
-   * pos_sync_aggregates cascade dihandle otomatis oleh DB trigger trg_sync_pos_sync_reconciliation.
    */
   async undoReconciliation(
     statementId: string,
     userId?: string,
   ): Promise<void> {
     try {
-      // 1. Capture reconciliation_id before resetting
-      const { data: stmt } = await supabase
-        .from("bank_statements")
-        .select("reconciliation_id")
-        .eq("id", statementId)
-        .single();
+      const { rows } = await pool.query(
+        "SELECT reconciliation_id FROM bank_statements WHERE id = $1 LIMIT 1",
+        [statementId]
+      );
+      const reconciliationId = rows[0]?.reconciliation_id;
 
-      const reconciliationId = stmt?.reconciliation_id;
+      const params: any[] = [false, null, null, new Date().toISOString()];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, reconciliation_id = $2, reconciliation_group_id = $3, updated_at = $4";
 
-      // 2. Reset bank_statements
-      const updateData: any = {
-        is_reconciled: false,
-        reconciliation_id: null,
-        reconciliation_group_id: null,
-        updated_at: new Date().toISOString(),
-      };
+      if (userId) {
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
+      }
+      params.push(statementId);
+      query += ` WHERE id = $${params.length}`;
 
-      if (userId) updateData.updated_by = userId;
+      await pool.query(query, params);
 
-      const { error } = await supabase
-        .from("bank_statements")
-        .update(updateData)
-        .eq("id", statementId);
-
-      if (error) throw error;
-
-      // 3. Reset aggregated_transactions if linked
-      //    pos_sync_aggregates akan otomatis di-reset oleh DB trigger
       if (reconciliationId) {
-        await supabase
-          .from("aggregated_transactions")
-          .update({
-            is_reconciled: false,
-            actual_fee_amount: 0,
-            fee_discrepancy: 0,
-            fee_discrepancy_note: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", reconciliationId);
+        await pool.query(
+          `UPDATE aggregated_transactions 
+           SET is_reconciled = false, actual_fee_amount = 0, fee_discrepancy = 0, fee_discrepancy_note = null, updated_at = $1 
+           WHERE id = $2`,
+          [new Date().toISOString(), reconciliationId]
+        );
       }
     } catch (error: any) {
       logError("Error undoing reconciliation", {
@@ -973,32 +683,17 @@ export class BankReconciliationRepository {
     companyId?: string;
   }): Promise<string> {
     try {
-      const { data: group, error } = await supabase
-        .from("bank_reconciliation_groups")
-        .insert({
-          aggregate_id: data.aggregateId,
-          company_id: data.companyId,
-          total_bank_amount: data.totalBankAmount,
-          aggregate_amount: data.aggregateAmount,
-          difference: data.difference,
-          notes: data.notes,
-          reconciled_by: data.reconciledBy,
-          updated_at: new Date().toISOString(),
-          status:
-            Math.abs(data.difference) <= 100 ? "RECONCILED" : "DISCREPANCY",
-        })
-        .select("id")
-        .single();
-
-      if (error) {
-        throw error;
-      }
-      return group.id;
-    } catch (error: any) {
-      throw new DatabaseConnectionError(
-        "creating reconciliation group",
-        error.message,
+      const status = Math.abs(data.difference) <= 100 ? "RECONCILED" : "DISCREPANCY";
+      const { rows } = await pool.query(
+        `INSERT INTO bank_reconciliation_groups 
+         (aggregate_id, company_id, total_bank_amount, aggregate_amount, difference, notes, reconciled_by, updated_at, status) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+         RETURNING id`,
+        [data.aggregateId, data.companyId, data.totalBankAmount, data.aggregateAmount, data.difference, data.notes, data.reconciledBy, new Date().toISOString(), status]
       );
+      return rows[0].id;
+    } catch (error: any) {
+      throw new DatabaseConnectionError("creating reconciliation group", error.message);
     }
   }
 
@@ -1010,28 +705,24 @@ export class BankReconciliationRepository {
     statements: Array<{ statementId: string; amount: number }>,
   ): Promise<void> {
     try {
-      const details = statements.map((s) => ({
-        group_id: groupId,
-        statement_id: s.statementId,
-        amount: s.amount,
-      }));
+      if (statements.length === 0) return;
+      const values: any[] = [];
+      const placeholders = statements.map((s, i) => {
+        const base = i * 3;
+        values.push(groupId, s.statementId, s.amount);
+        return `($${base + 1}, $${base + 2}, $${base + 3})`;
+      }).join(", ");
 
-      const { error } = await supabase
-        .from("bank_reconciliation_group_details")
-        .insert(details);
-
-      if (error) {
-        throw error;
-      }
+      await pool.query(
+        `INSERT INTO bank_reconciliation_group_details (group_id, statement_id, amount) VALUES ${placeholders}`,
+        values
+      );
     } catch (error: any) {
       logError("Error adding statements to group", {
         groupId,
         error: error.message,
       });
-      throw new DatabaseConnectionError(
-        "adding statements to group",
-        error.message,
-      );
+      throw new DatabaseConnectionError("adding statements to group", error.message);
     }
   }
 
@@ -1040,40 +731,45 @@ export class BankReconciliationRepository {
    */
   async getReconciliationGroupById(groupId: string): Promise<any> {
     try {
-      const { data, error } = await supabase
-        .from("bank_reconciliation_groups")
-        .select(
-          `
-        *,
-        aggregated_transactions (
-          id,
-          transaction_date,
-          gross_amount,
-          nett_amount,
-          payment_methods!left (
-            name
-          )
-        ),
-        bank_reconciliation_group_details (
-          *,
-          bank_statements (
-            id,
-            transaction_date,
-            description,
-            debit_amount,
-            credit_amount
-          )
-        )
-      `,
-        )
-        .eq("id", groupId)
-        .is("deleted_at", null)
-        .single();
+      const { rows: groupRows } = await pool.query(
+        `SELECT 
+           brg.*,
+           jsonb_build_object(
+             'id', at.id,
+             'transaction_date', at.transaction_date,
+             'gross_amount', at.gross_amount,
+             'nett_amount', at.nett_amount,
+             'payment_methods', jsonb_build_object('name', pm.name)
+           ) as aggregated_transactions
+         FROM bank_reconciliation_groups brg
+         LEFT JOIN aggregated_transactions at ON brg.aggregate_id = at.id
+         LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+         WHERE brg.id = $1 AND brg.deleted_at IS NULL`,
+        [groupId]
+      );
 
-      if (error) {
-        throw error;
-      }
-      return data;
+      if (groupRows.length === 0) return null;
+
+      const { rows: detailRows } = await pool.query(
+        `SELECT 
+           brgd.*,
+           jsonb_build_object(
+             'id', bs.id,
+             'transaction_date', bs.transaction_date,
+             'description', bs.description,
+             'debit_amount', bs.debit_amount,
+             'credit_amount', bs.credit_amount
+           ) as bank_statements
+         FROM bank_reconciliation_group_details brgd
+         LEFT JOIN bank_statements bs ON brgd.statement_id = bs.id
+         WHERE brgd.group_id = $1`,
+        [groupId]
+      );
+
+      return {
+        ...groupRows[0],
+        bank_reconciliation_group_details: detailRows
+      };
     } catch (error: any) {
       logError("Error fetching reconciliation group", {
         groupId,
@@ -1092,25 +788,17 @@ export class BankReconciliationRepository {
     userId?: string,
   ): Promise<void> {
     try {
-      const updateData: any = {
-        is_reconciled: true,
-        is_pending: false,
-        reconciliation_group_id: groupId,
-        updated_at: new Date().toISOString(),
-      };
+      const params: any[] = [true, false, groupId, new Date().toISOString()];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, is_pending = $2, reconciliation_group_id = $3, updated_at = $4";
 
       if (userId) {
-        updateData.updated_by = userId;
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
       }
+      params.push(statementIds);
+      query += ` WHERE id = ANY($${params.length})`;
 
-      const { error } = await supabase
-        .from("bank_statements")
-        .update(updateData)
-        .in("id", statementIds);
-
-      if (error) {
-        throw error;
-      }
+      await pool.query(query, params);
     } catch (error: any) {
       logError("Error marking statements as reconciled with group", {
         count: statementIds.length,
@@ -1122,75 +810,60 @@ export class BankReconciliationRepository {
   }
 
   /**
-   * Undo reconciliation - reset statements, cascade to aggregated_tx/pos_sync, soft delete group
+   * Undo reconciliation group
    */
   async undoReconciliationGroup(
     groupId: string,
     userId?: string,
   ): Promise<void> {
+    const client = await pool.connect();
     try {
+      await client.query("BEGIN");
+
       const group = await this.getReconciliationGroupById(groupId);
       if (!group) throw new Error("Group not found");
 
-      const statementIds = (group.bank_reconciliation_group_details || []).map(
-        (d: any) => d.statement_id,
-      );
+      const statementIds = (group.bank_reconciliation_group_details || []).map((d: any) => d.statement_id);
 
       // 1. Reset bank_statements
       if (statementIds.length > 0) {
-        const updateData: any = {
-          is_reconciled: false,
-          reconciliation_group_id: null,
-          updated_at: new Date().toISOString(),
-        };
-
+        const params: any[] = [false, null, new Date().toISOString()];
+        let query = "UPDATE bank_statements SET is_reconciled = $1, reconciliation_group_id = $2, updated_at = $3";
         if (userId) {
-          updateData.updated_by = userId;
+          params.push(userId);
+          query += `, updated_by = $${params.length}`;
         }
-
-        const { error } = await supabase
-          .from("bank_statements")
-          .update(updateData)
-          .in("id", statementIds);
-
-        if (error) throw error;
+        params.push(statementIds);
+        query += ` WHERE id = ANY($${params.length})`;
+        await client.query(query, params);
       }
 
       // 2. Reset aggregated_transactions if linked
-      //    pos_sync_aggregates akan otomatis di-reset oleh DB trigger
       if (group.aggregate_id) {
-        await supabase
-          .from("aggregated_transactions")
-          .update({
-            is_reconciled: false,
-            actual_fee_amount: 0,
-            fee_discrepancy: 0,
-            fee_discrepancy_note: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", group.aggregate_id);
+        await client.query(
+          `UPDATE aggregated_transactions 
+           SET is_reconciled = false, actual_fee_amount = 0, fee_discrepancy = 0, fee_discrepancy_note = null, updated_at = $1 
+           WHERE id = $2`,
+          [new Date().toISOString(), group.aggregate_id]
+        );
       }
 
       // 3. Soft delete group
-      const { error } = await supabase
-        .from("bank_reconciliation_groups")
-        .update({
-          deleted_at: new Date().toISOString(),
-          status: "UNDO",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", groupId);
+      await client.query(
+        `UPDATE bank_reconciliation_groups SET deleted_at = $1, status = 'UNDO', updated_at = $1 WHERE id = $2`,
+        [new Date().toISOString(), groupId]
+      );
 
-      if (error) throw error;
+      await client.query("COMMIT");
     } catch (error: any) {
+      await client.query("ROLLBACK");
       logError("Error undoing reconciliation group", {
         groupId,
         error: error.message,
       });
-      throw new DatabaseConnectionError(
-        "undoing reconciliation group",
-        error.message,
-      );
+      throw new DatabaseConnectionError("undoing reconciliation group", error.message);
+    } finally {
+      client.release();
     }
   }
 
@@ -1199,40 +872,27 @@ export class BankReconciliationRepository {
    */
   async isAggregateInGroup(aggregateId: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase
-        .from("bank_reconciliation_groups")
-        .select("id")
-        .eq("aggregate_id", aggregateId)
-        .is("deleted_at", null)
-        .maybeSingle();
-
-      if (error) {
-        throw error;
-      }
-      return !!data;
+      const { rows } = await pool.query(
+        "SELECT id FROM bank_reconciliation_groups WHERE aggregate_id = $1 AND deleted_at IS NULL LIMIT 1",
+        [aggregateId]
+      );
+      return rows.length > 0;
     } catch (error: any) {
       logError("Error checking if aggregate is in group", {
         aggregateId,
         error: error.message,
       });
-      throw new DatabaseConnectionError(
-        "checking aggregate group status",
-        error.message,
-      );
+      throw new DatabaseConnectionError("checking aggregate group status", error.message);
     }
   }
-  async softDeleteGroup(groupId: string): Promise<void> {
-    const { error } = await supabase
-      .from("bank_reconciliation_groups")
-      .update({
-        deleted_at: new Date().toISOString(),
-        status: "UNDO",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", groupId);
 
-    if (error) throw error;
+  async softDeleteGroup(groupId: string): Promise<void> {
+    await pool.query(
+      `UPDATE bank_reconciliation_groups SET deleted_at = $1, status = 'UNDO', updated_at = $1 WHERE id = $2`,
+      [new Date().toISOString(), groupId]
+    );
   }
+
   /**
    * Get unreconciled statements by date range for suggestion algorithm
    */
@@ -1241,21 +901,15 @@ export class BankReconciliationRepository {
     endDate: Date,
   ): Promise<any[]> {
     try {
-      const { data, error } = await supabase
-        .from("bank_statements")
-        .select(
-          "id, transaction_date, description, debit_amount, credit_amount",
-        )
-        .gte("transaction_date", startDate.toISOString().split("T")[0])
-        .lte("transaction_date", endDate.toISOString().split("T")[0])
-        .eq("is_reconciled", false)
-        .is("deleted_at", null)
-        .order("transaction_date", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-      return data || [];
+      const { rows } = await pool.query(
+        `SELECT id, transaction_date, description, debit_amount, credit_amount 
+         FROM bank_statements 
+         WHERE transaction_date >= $1 AND transaction_date <= $2 
+           AND is_reconciled = false AND deleted_at IS NULL 
+         ORDER BY transaction_date DESC`,
+        [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0]]
+      );
+      return rows;
     } catch (error: any) {
       logError("Error fetching statements for suggestion", {
         startDate: startDate.toISOString(),
@@ -1268,134 +922,67 @@ export class BankReconciliationRepository {
 
   /**
    * Get all reconciliation groups for a company
-   * Filter by aggregated_transactions.transaction_date instead of created_at
-   * to match user's selected date range filter
    */
   async getReconciliationGroups(
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
     try {
-      const { data, error } = await supabase
-        .from("bank_reconciliation_groups")
-        .select(
-          `
-        *,
-        aggregated_transactions (
-          id,
-          transaction_date,
-          gross_amount,
-          nett_amount,
-          payment_methods!left (name)
-        )
-      `,
-        )
-        .gte(
-          "aggregated_transactions.transaction_date",
-          startDate.toISOString().split("T")[0],
-        )
-        .lte(
-          "aggregated_transactions.transaction_date",
-          endDate.toISOString().split("T")[0],
-        )
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
+      const { rows: groups } = await pool.query(
+        `SELECT 
+           brg.*,
+           jsonb_build_object(
+             'id', at.id,
+             'transaction_date', at.transaction_date,
+             'gross_amount', at.gross_amount,
+             'nett_amount', at.nett_amount,
+             'payment_method_name', pm.name
+           ) as aggregate
+         FROM bank_reconciliation_groups brg
+         JOIN aggregated_transactions at ON brg.aggregate_id = at.id
+         LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+         WHERE at.transaction_date >= $1 AND at.transaction_date <= $2 
+           AND brg.deleted_at IS NULL 
+         ORDER BY brg.created_at DESC`,
+        [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0]]
+      );
 
-      if (error) {
-        logError("Error fetching reconciliation groups (main query)", {
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          error: error.message,
-        });
-        throw error;
-      }
+      if (groups.length === 0) return [];
 
-      // Fetch details separately for each group to avoid join issues
-      const groupIds = (data || []).map((group: any) => group.id);
-      let detailsMap: Record<string, any[]> = {};
+      const groupIds = groups.map((g) => g.id);
+      const { rows: detailsData } = await pool.query(
+        `SELECT 
+           brgd.*,
+           jsonb_build_object(
+             'id', bs.id,
+             'transaction_date', bs.transaction_date,
+             'description', bs.description,
+             'debit_amount', bs.debit_amount,
+             'credit_amount', bs.credit_amount
+           ) as statement
+         FROM bank_reconciliation_group_details brgd
+         JOIN bank_statements bs ON brgd.statement_id = bs.id
+         WHERE brgd.group_id = ANY($1)`,
+        [groupIds]
+      );
 
-      if (groupIds.length > 0) {
-        try {
-          const { data: detailsData, error: detailsError } = await supabase
-            .from("bank_reconciliation_group_details")
-            .select(
-              `
-              *,
-              bank_statements (
-                id,
-                transaction_date,
-                description,
-                debit_amount,
-                credit_amount
-              )
-            `,
-            )
-            .in("group_id", groupIds);
+      const detailsMap = detailsData.reduce((acc, detail) => {
+        if (!acc[detail.group_id]) acc[detail.group_id] = [];
+        acc[detail.group_id].push(detail);
+        return acc;
+      }, {});
 
-          if (detailsError) {
-            logError("Error fetching group details", {
-              error: detailsError.message,
-            });
-          } else if (detailsData) {
-            // Group details by group_id
-            detailsMap = detailsData.reduce(
-              (acc: Record<string, any[]>, detail: any) => {
-                if (!acc[detail.group_id]) {
-                  acc[detail.group_id] = [];
-                }
-                acc[detail.group_id].push(detail);
-                return acc;
-              },
-              {},
-            );
-          }
-        } catch (e: any) {
-          logError("Error in details fetch", { error: e.message });
-        }
-      }
-
-      // Transform data to match frontend ReconciliationGroup interface
-      const transformedData = (data || []).map((group: any) => ({
+      return groups.map((group) => ({
         ...group,
-        // Rename aggregated_transactions to aggregate for frontend compatibility
-        aggregate: group.aggregated_transactions
-          ? {
-              id: group.aggregated_transactions.id,
-              transaction_date: group.aggregated_transactions.transaction_date,
-              gross_amount: group.aggregated_transactions.gross_amount,
-              nett_amount: group.aggregated_transactions.nett_amount,
-              payment_method_name:
-                group.aggregated_transactions.payment_methods?.name || null,
-            }
-          : undefined,
-        // Map details array from the separate query
-        details: (detailsMap[group.id] || []).map((detail: any) => ({
-          id: detail.id,
-          statement_id: detail.statement_id,
-          amount: detail.amount,
-          statement: detail.bank_statements
-            ? {
-                id: detail.bank_statements.id,
-                transaction_date: detail.bank_statements.transaction_date,
-                description: detail.bank_statements.description,
-                debit_amount: detail.bank_statements.debit_amount,
-                credit_amount: detail.bank_statements.credit_amount,
-              }
-            : undefined,
-        })),
+        details: detailsMap[group.id] || []
       }));
-
-      return transformedData;
     } catch (error: any) {
       logError("Error fetching reconciliation groups", {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         error: error.message,
       });
-      throw new DatabaseConnectionError(
-        "fetching reconciliation groups",
-        error.message,
-      );
+      throw new DatabaseConnectionError("fetching reconciliation groups", error.message);
     }
   }
 
@@ -1404,20 +991,15 @@ export class BankReconciliationRepository {
     cashDepositId: string,
     userId?: string,
   ): Promise<void> {
-    const updateData: any = {
-      is_reconciled: true,
-      is_pending: false,
-      cash_deposit_id: cashDepositId,
-      updated_at: new Date().toISOString(),
-    };
-    if (userId) updateData.updated_by = userId;
-
-    const { error } = await supabase
-      .from("bank_statements")
-      .update(updateData)
-      .eq("id", statementId);
-
-    if (error) throw error;
+    const params: any[] = [true, false, cashDepositId, new Date().toISOString()];
+    let query = "UPDATE bank_statements SET is_reconciled = $1, is_pending = $2, cash_deposit_id = $3, updated_at = $4";
+    if (userId) {
+      params.push(userId);
+      query += `, updated_by = $${params.length}`;
+    }
+    params.push(statementId);
+    query += ` WHERE id = $${params.length}`;
+    await pool.query(query, params);
   }
 
   async undoCashDepositReconciliation(
@@ -1425,30 +1007,32 @@ export class BankReconciliationRepository {
     cashDepositId: string,
     userId?: string,
   ): Promise<void> {
-    // 1. Reset bank statement
-    const updateData: any = {
-      is_reconciled: false,
-      cash_deposit_id: null,
-      updated_at: new Date().toISOString(),
-    };
-    if (userId) updateData.updated_by = userId;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      
+      const params: any[] = [false, null, new Date().toISOString()];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, cash_deposit_id = $2, updated_at = $3";
+      if (userId) {
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
+      }
+      params.push(statementId);
+      query += ` WHERE id = $${params.length}`;
+      await client.query(query, params);
 
-    const { error: stmtErr } = await supabase
-      .from("bank_statements")
-      .update(updateData)
-      .eq("id", statementId);
-    if (stmtErr) throw stmtErr;
+      await client.query(
+        `UPDATE cash_deposits SET status = 'DEPOSITED', bank_statement_id = null, updated_at = $1 WHERE id = $2`,
+        [new Date().toISOString(), cashDepositId]
+      );
 
-    // 2. Reset cash deposit → DEPOSITED (bukan PENDING, karena bukti setoran masih ada)
-    const { error: depErr } = await supabase
-      .from("cash_deposits")
-      .update({
-        status: "DEPOSITED",
-        bank_statement_id: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", cashDepositId);
-    if (depErr) throw depErr;
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
 

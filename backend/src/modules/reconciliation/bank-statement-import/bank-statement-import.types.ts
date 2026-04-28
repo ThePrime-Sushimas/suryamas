@@ -196,6 +196,13 @@ export interface CreateBankStatementDto {
   import_id?: number
   row_number?: number
   created_by?: string
+  
+  // Reconciliation fields (optional for creation)
+  is_reconciled?: boolean
+  reconciliation_id?: string
+  reconciliation_group_id?: string
+  payment_method_id?: number
+  is_pending?: boolean
 }
 
 /**
