@@ -1,4 +1,4 @@
-import { supabase } from "@/config/supabase";
+import { pool } from "@/config/db";
 import { logInfo, logError } from "@/config/logger";
 
 /**
@@ -9,9 +9,6 @@ import { logInfo, logError } from "@/config/logger";
  * - Auto-supersede unreconciled manual CSV entries
  * - Migrate reconciled POS twins → POS_SYNC
  * - Sync VOID aggregates
- *
- * Before: N×4 API calls per sales_date (upsert + supersede + findTwin + migrate per record)
- * After:  1 RPC call per sales_date
  */
 export async function syncPosSyncToAggregated(
   salesDate: string,
@@ -19,20 +16,20 @@ export async function syncPosSyncToAggregated(
   const result = { synced: 0, superseded: 0, voided: 0 };
 
   try {
-    const { data, error } = await supabase.rpc('sync_pos_aggregates_batch', {
-      p_sales_date: salesDate,
-    });
+    const { rows } = await pool.query(
+      `SELECT * FROM sync_pos_aggregates_batch($1)`,
+      [salesDate]
+    );
 
-    if (error) throw error;
-
+    const data = rows[0];
     result.synced = data?.synced ?? 0;
     result.superseded = data?.superseded ?? 0;
     result.voided = data?.voided ?? 0;
 
     logInfo("syncPosSyncToAggregated: done", { salesDate, ...result });
     return result;
-  } catch (err: any) {
-    logError("syncPosSyncToAggregated: failed", { salesDate, error: err.message });
+  } catch (err: unknown) {
+    logError("syncPosSyncToAggregated: failed", { salesDate, error: (err as Error).message });
     return result;
   }
 }

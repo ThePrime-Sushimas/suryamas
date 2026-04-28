@@ -1,72 +1,43 @@
-import { supabase } from '../../../config/supabase'
+import { pool } from '../../../config/db'
 import { logError } from '../../../config/logger'
 import type { BankMutationEntryRow, BankMutationEntryStatus, BankMutationEntryType } from './bank-mutation-entries.types'
 import { BankMutationEntryNotFoundError, BankMutationEntryDatabaseError } from './bank-mutation-entries.errors'
 
+function escapeSearch(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&')
+}
+
 export class BankMutationEntriesRepository {
 
   async create(data: {
-    companyId: string
-    entryDate: string
-    entryType: BankMutationEntryType
-    description: string
-    amount: number
-    referenceNumber?: string
-    bankAccountId?: number
-    coaId: string
-    coaCode?: string
-    coaName?: string
-    bankStatementId: string
-    reconciledBy?: string
-    notes?: string
-    createdBy?: string
+    companyId: string; entryDate: string; entryType: BankMutationEntryType;
+    description: string; amount: number; referenceNumber?: string; bankAccountId?: number;
+    coaId: string; coaCode?: string; coaName?: string; bankStatementId: string;
+    reconciledBy?: string; notes?: string; createdBy?: string;
   }): Promise<BankMutationEntryRow> {
     const now = new Date().toISOString()
-    const { data: row, error } = await supabase
-      .from('bank_mutation_entries')
-      .insert({
-        company_id: data.companyId,
-        entry_date: data.entryDate,
-        entry_type: data.entryType,
-        description: data.description,
-        amount: data.amount,
-        reference_number: data.referenceNumber || null,
-        bank_account_id: data.bankAccountId || null,
-        coa_id: data.coaId,
-        coa_code: data.coaCode || null,
-        coa_name: data.coaName || null,
-        bank_statement_id: data.bankStatementId,
-        is_reconciled: true,
-        reconciled_at: now,
-        reconciled_by: data.reconciledBy || null,
-        notes: data.notes || null,
-        created_by: data.createdBy || null,
-        updated_by: data.createdBy || null,
-      })
-      .select('*')
-      .single()
-
-    if (error) {
-      logError('Failed to create bank mutation entry', { error: error.message })
-      throw new BankMutationEntryDatabaseError('create', error.message)
-    }
-    return row
+    const { rows } = await pool.query(
+      `INSERT INTO bank_mutation_entries
+       (company_id, entry_date, entry_type, description, amount, reference_number,
+        bank_account_id, coa_id, coa_code, coa_name, bank_statement_id,
+        is_reconciled, reconciled_at, reconciled_by, notes, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,$12,$13,$14,$15,$15)
+       RETURNING *`,
+      [data.companyId, data.entryDate, data.entryType, data.description, data.amount,
+       data.referenceNumber || null, data.bankAccountId || null,
+       data.coaId, data.coaCode || null, data.coaName || null, data.bankStatementId,
+       now, data.reconciledBy || null, data.notes || null, data.createdBy || null]
+    )
+    if (rows.length === 0) throw new BankMutationEntryDatabaseError('create', 'No row returned')
+    return rows[0]
   }
 
   async findById(id: string, companyId: string): Promise<BankMutationEntryRow | null> {
-    const { data, error } = await supabase
-      .from('bank_mutation_entries')
-      .select('*')
-      .eq('id', id)
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (error) {
-      logError('Failed to find bank mutation entry', { id, error: error.message })
-      throw new BankMutationEntryDatabaseError('find', error.message)
-    }
-    return data
+    const { rows } = await pool.query(
+      `SELECT * FROM bank_mutation_entries WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+      [id, companyId]
+    )
+    return rows[0] ?? null
   }
 
   async findByIdOrThrow(id: string, companyId: string): Promise<BankMutationEntryRow> {
@@ -76,160 +47,105 @@ export class BankMutationEntriesRepository {
   }
 
   async findByBankStatementId(bankStatementId: string): Promise<BankMutationEntryRow | null> {
-    const { data, error } = await supabase
-      .from('bank_mutation_entries')
-      .select('*')
-      .eq('bank_statement_id', bankStatementId)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (error) {
-      logError('Failed to find mutation entry by statement', { bankStatementId, error: error.message })
-      throw new BankMutationEntryDatabaseError('find_by_statement', error.message)
-    }
-    return data
+    const { rows } = await pool.query(
+      `SELECT * FROM bank_mutation_entries WHERE bank_statement_id = $1 AND deleted_at IS NULL LIMIT 1`,
+      [bankStatementId]
+    )
+    return rows[0] ?? null
   }
 
   async list(filter: {
-    companyId: string
-    bankAccountId?: number
-    entryType?: BankMutationEntryType
-    status?: BankMutationEntryStatus
-    isReconciled?: boolean
-    dateFrom?: string
-    dateTo?: string
-    search?: string
-    limit: number
-    offset: number
+    companyId: string; bankAccountId?: number; entryType?: BankMutationEntryType;
+    status?: BankMutationEntryStatus; isReconciled?: boolean;
+    dateFrom?: string; dateTo?: string; search?: string; limit: number; offset: number;
   }): Promise<{ data: BankMutationEntryRow[]; total: number }> {
-    let query = supabase
-      .from('bank_mutation_entries')
-      .select('*', { count: 'exact' })
-      .eq('company_id', filter.companyId)
-      .is('deleted_at', null)
+    const conditions: string[] = ['company_id = $1', 'deleted_at IS NULL']
+    const values: unknown[] = [filter.companyId]
+    let idx = 2
 
-    if (filter.bankAccountId) query = query.eq('bank_account_id', filter.bankAccountId)
-    if (filter.entryType) query = query.eq('entry_type', filter.entryType)
-    if (filter.status) query = query.eq('status', filter.status)
-    if (filter.isReconciled !== undefined) query = query.eq('is_reconciled', filter.isReconciled)
-    if (filter.dateFrom) query = query.gte('entry_date', filter.dateFrom)
-    if (filter.dateTo) query = query.lte('entry_date', filter.dateTo)
+    if (filter.bankAccountId) { conditions.push(`bank_account_id = $${idx++}`); values.push(filter.bankAccountId) }
+    if (filter.entryType) { conditions.push(`entry_type = $${idx++}`); values.push(filter.entryType) }
+    if (filter.status) { conditions.push(`status = $${idx++}`); values.push(filter.status) }
+    if (filter.isReconciled !== undefined) { conditions.push(`is_reconciled = $${idx++}`); values.push(filter.isReconciled) }
+    if (filter.dateFrom) { conditions.push(`entry_date >= $${idx++}`); values.push(filter.dateFrom) }
+    if (filter.dateTo) { conditions.push(`entry_date <= $${idx++}`); values.push(filter.dateTo) }
     if (filter.search) {
-      const term = `%${filter.search}%`
-      query = query.or(`description.ilike.${term},reference_number.ilike.${term}`)
+      const term = `%${escapeSearch(filter.search)}%`
+      conditions.push(`(description ILIKE $${idx} OR reference_number ILIKE $${idx})`)
+      values.push(term); idx++
     }
 
-    const { data, count, error } = await query
-      .order('entry_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(filter.offset, filter.offset + filter.limit - 1)
+    const where = `WHERE ${conditions.join(' AND ')}`
 
-    if (error) {
-      logError('Failed to list bank mutation entries', { error: error.message })
-      throw new BankMutationEntryDatabaseError('list', error.message)
-    }
-    return { data: data || [], total: count || 0 }
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(
+        `SELECT * FROM bank_mutation_entries ${where}
+         ORDER BY entry_date DESC, created_at DESC
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...values, filter.limit, filter.offset]
+      ),
+      pool.query(`SELECT COUNT(*)::int AS total FROM bank_mutation_entries ${where}`, values),
+    ])
+
+    return { data: dataRes.rows, total: countRes.rows[0]?.total ?? 0 }
   }
 
   async updateJournalHeaderId(id: string, journalHeaderId: string): Promise<void> {
-    const { error } = await supabase
-      .from('bank_mutation_entries')
-      .update({ journal_header_id: journalHeaderId, updated_at: new Date().toISOString() })
-      .eq('id', id)
-
-    if (error) {
-      logError('Failed to update journal_header_id', { id, error: error.message })
-      throw new BankMutationEntryDatabaseError('update_journal', error.message)
-    }
+    await pool.query(
+      `UPDATE bank_mutation_entries SET journal_header_id = $1, updated_at = NOW() WHERE id = $2`,
+      [journalHeaderId, id]
+    )
   }
 
   async voidEntry(id: string, reason: string, userId: string): Promise<void> {
-    const now = new Date().toISOString()
-    const { error } = await supabase
-      .from('bank_mutation_entries')
-      .update({
-        status: 'VOIDED',
-        is_reconciled: false,
-        void_reason: reason,
-        voided_at: now,
-        voided_by: userId,
-        updated_at: now,
-        updated_by: userId,
-      })
-      .eq('id', id)
-
-    if (error) {
-      logError('Failed to void bank mutation entry', { id, error: error.message })
-      throw new BankMutationEntryDatabaseError('void', error.message)
-    }
+    await pool.query(
+      `UPDATE bank_mutation_entries
+       SET status = 'VOIDED', is_reconciled = false, void_reason = $1,
+           voided_at = NOW(), voided_by = $2, updated_at = NOW(), updated_by = $2
+       WHERE id = $3`,
+      [reason, userId, id]
+    )
   }
 
   async linkBankStatement(bankStatementId: string, mutationEntryId: string, userId?: string): Promise<void> {
-    const updateData: Record<string, unknown> = {
-      is_reconciled: true,
-      is_pending: false,
-      bank_mutation_entry_id: mutationEntryId,
-      updated_at: new Date().toISOString(),
-    }
-    if (userId) updateData.updated_by = userId
+    const sets = ['is_reconciled = true', 'is_pending = false', `bank_mutation_entry_id = $1`, 'updated_at = NOW()']
+    const values: unknown[] = [mutationEntryId]
+    let idx = 2
+    if (userId) { sets.push(`updated_by = $${idx++}`); values.push(userId) }
+    values.push(bankStatementId)
 
-    const { error } = await supabase
-      .from('bank_statements')
-      .update(updateData)
-      .eq('id', bankStatementId)
-
-    if (error) {
-      logError('Failed to link bank statement to mutation entry', { bankStatementId, error: error.message })
-      throw new BankMutationEntryDatabaseError('link_statement', error.message)
-    }
+    await pool.query(
+      `UPDATE bank_statements SET ${sets.join(', ')} WHERE id = $${idx}`,
+      values
+    )
   }
 
   async unlinkBankStatement(bankStatementId: string, userId?: string): Promise<void> {
-    const updateData: Record<string, unknown> = {
-      is_reconciled: false,
-      bank_mutation_entry_id: null,
-      updated_at: new Date().toISOString(),
-    }
-    if (userId) updateData.updated_by = userId
+    const sets = ['is_reconciled = false', 'bank_mutation_entry_id = NULL', 'updated_at = NOW()']
+    const values: unknown[] = []
+    let idx = 1
+    if (userId) { sets.push(`updated_by = $${idx++}`); values.push(userId) }
+    values.push(bankStatementId)
 
-    const { error } = await supabase
-      .from('bank_statements')
-      .update(updateData)
-      .eq('id', bankStatementId)
-
-    if (error) {
-      logError('Failed to unlink bank statement', { bankStatementId, error: error.message })
-      throw new BankMutationEntryDatabaseError('unlink_statement', error.message)
-    }
+    await pool.query(
+      `UPDATE bank_statements SET ${sets.join(', ')} WHERE id = $${idx}`,
+      values
+    )
   }
 
   async softDelete(id: string, userId: string): Promise<void> {
-    const { error } = await supabase
-      .from('bank_mutation_entries')
-      .update({
-        deleted_at: new Date().toISOString(),
-        updated_by: userId,
-      })
-      .eq('id', id)
-
-    if (error) {
-      logError('Failed to soft delete bank mutation entry', { id, error: error.message })
-      throw new BankMutationEntryDatabaseError('delete', error.message)
-    }
+    await pool.query(
+      `UPDATE bank_mutation_entries SET deleted_at = NOW(), updated_by = $1 WHERE id = $2`,
+      [userId, id]
+    )
   }
 
   async getBankAccountCoaId(bankAccountId: number): Promise<string | null> {
-    const { data, error } = await supabase
-      .from('bank_accounts')
-      .select('coa_id')
-      .eq('id', bankAccountId)
-      .maybeSingle()
-
-    if (error) {
-      logError('Failed to get bank account COA', { bankAccountId, error: error.message })
-      return null
-    }
-    return data?.coa_id || null
+    const { rows } = await pool.query(
+      `SELECT coa_id FROM bank_accounts WHERE id = $1`,
+      [bankAccountId]
+    )
+    return rows[0]?.coa_id ?? null
   }
 }
 

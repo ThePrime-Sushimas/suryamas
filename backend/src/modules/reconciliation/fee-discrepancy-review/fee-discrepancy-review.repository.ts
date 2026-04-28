@@ -1,48 +1,28 @@
-import { supabase } from '@/config/supabase'
+import { pool } from '@/config/db'
 import { logInfo, logError } from '@/config/logger'
 import type { FeeDiscrepancyItem, FeeDiscrepancyFilter, FeeDiscrepancySummary, FeeDiscrepancyStatus, FeeDiscrepancySource } from './fee-discrepancy-review.types'
 
 interface ReviewRecord {
-  source: string
-  source_id: string
-  status: string
-  correction_journal_id: string | null
-  notes: string | null
-  reviewed_by: string | null
-  reviewed_at: string | null
+  source: string; source_id: string; status: string;
+  correction_journal_id: string | null; notes: string | null;
+  reviewed_by: string | null; reviewed_at: string | null;
 }
 
 export class FeeDiscrepancyReviewRepository {
 
   private async getBranchIdsByCompany(companyId: string): Promise<string[]> {
-    const { data, error } = await supabase
-      .from('branches')
-      .select('id')
-      .eq('company_id', companyId)
-
-    if (error) {
-      logError('getBranchIdsByCompany error', { error: error.message })
-      return []
-    }
-    return (data || []).map((b: { id: string }) => b.id)
+    const { rows } = await pool.query(`SELECT id FROM branches WHERE company_id = $1`, [companyId])
+    return rows.map(b => b.id)
   }
 
   private async getReviewMap(companyId: string): Promise<Record<string, ReviewRecord>> {
-    const { data, error } = await supabase
-      .from('fee_discrepancy_reviews')
-      .select('source, source_id, status, correction_journal_id, notes, reviewed_by, reviewed_at')
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-
-    if (error) {
-      logError('getReviewMap error', { error: error.message })
-      return {}
-    }
-
+    const { rows } = await pool.query(
+      `SELECT source, source_id, status, correction_journal_id, notes, reviewed_by, reviewed_at
+       FROM fee_discrepancy_reviews WHERE company_id = $1 AND deleted_at IS NULL`,
+      [companyId]
+    )
     const map: Record<string, ReviewRecord> = {}
-    for (const r of data || []) {
-      map[`${r.source}_${r.source_id}`] = r as ReviewRecord
-    }
+    for (const r of rows) map[`${r.source}_${r.source_id}`] = r
     return map
   }
 
@@ -58,12 +38,7 @@ export class FeeDiscrepancyReviewRepository {
     }
   }
 
-  /** Fetch single discrepancy item by source + sourceId — avoids full table scan */
-  async getDiscrepancyById(
-    companyId: string,
-    source: FeeDiscrepancySource,
-    sourceId: string,
-  ): Promise<FeeDiscrepancyItem | null> {
+  async getDiscrepancyById(companyId: string, source: FeeDiscrepancySource, sourceId: string): Promise<FeeDiscrepancyItem | null> {
     const reviewMap = await this.getReviewMap(companyId)
     const review = reviewMap[`${source}_${sourceId}`]
 
@@ -71,117 +46,84 @@ export class FeeDiscrepancyReviewRepository {
       const branchIds = await this.getBranchIdsByCompany(companyId)
       if (branchIds.length === 0) return null
 
-      const { data, error } = await supabase
-        .from('aggregated_transactions')
-        .select('id, transaction_date, fee_discrepancy, fee_discrepancy_note, nett_amount, payment_method_id, branch_name, payment_methods(name)')
-        .eq('id', sourceId)
-        .in('branch_id', branchIds)
-        .is('deleted_at', null)
-        .single()
+      const { rows } = await pool.query(
+        `SELECT at.id, at.transaction_date, at.fee_discrepancy, at.fee_discrepancy_note,
+                at.nett_amount, at.payment_method_id, at.branch_name, pm.name AS pm_name
+         FROM aggregated_transactions at
+         LEFT JOIN payment_methods pm ON pm.id = at.payment_method_id
+         WHERE at.id = $1 AND at.branch_id = ANY($2::uuid[]) AND at.deleted_at IS NULL`,
+        [sourceId, branchIds]
+      )
+      if (rows.length === 0) return null
+      const data = rows[0]
 
-      if (error || !data) return null
-
-      const { data: stmts } = await supabase
-        .from('bank_statements')
-        .select('id, credit_amount, description')
-        .eq('reconciliation_id', sourceId)
-        .is('deleted_at', null)
-        .limit(1)
-
-      const stmt = stmts?.[0]
-      const pm = data.payment_methods as unknown as { name: string } | null
+      const { rows: stmts } = await pool.query(
+        `SELECT id, credit_amount, description FROM bank_statements
+         WHERE reconciliation_id = $1 AND deleted_at IS NULL LIMIT 1`,
+        [sourceId]
+      )
+      const stmt = stmts[0]
 
       return this.applyReview({
-        id: `single_${data.id}`,
-        source: 'SINGLE_MATCH',
-        sourceId: data.id as string,
-        transactionDate: data.transaction_date as string,
-        bankStatementId: stmt?.id || '',
-        bankDescription: stmt?.description || null,
-        bankAmount: Number(stmt?.credit_amount || 0),
-        posNettAmount: Number(data.nett_amount),
-        discrepancyAmount: Number(data.fee_discrepancy),
-        paymentMethodName: pm?.name || null,
-        branchName: data.branch_name as string | null,
-        status: 'PENDING',
-        correctionJournalId: null,
-        reviewedBy: null,
-        reviewedAt: null,
-        notes: data.fee_discrepancy_note as string | null,
+        id: `single_${data.id}`, source: 'SINGLE_MATCH', sourceId: data.id,
+        transactionDate: data.transaction_date, bankStatementId: stmt?.id || '',
+        bankDescription: stmt?.description || null, bankAmount: Number(stmt?.credit_amount || 0),
+        posNettAmount: Number(data.nett_amount), discrepancyAmount: Number(data.fee_discrepancy),
+        paymentMethodName: data.pm_name || null, branchName: data.branch_name,
+        status: 'PENDING', correctionJournalId: null, reviewedBy: null, reviewedAt: null,
+        notes: data.fee_discrepancy_note,
       }, review)
     }
 
     if (source === 'MULTI_MATCH') {
-      const { data, error } = await supabase
-        .from('bank_reconciliation_groups')
-        .select('id, total_bank_amount, aggregate_amount, difference, aggregated_transactions(transaction_date, nett_amount, branch_name, payment_methods(name))')
-        .eq('id', sourceId)
-        .eq('company_id', companyId)
-        .is('deleted_at', null)
-        .single()
+      const { rows } = await pool.query(
+        `SELECT g.id, g.total_bank_amount, g.aggregate_amount, g.difference,
+                at.transaction_date, at.nett_amount, at.branch_name, pm.name AS pm_name
+         FROM bank_reconciliation_groups g
+         LEFT JOIN aggregated_transactions at ON at.id = g.aggregate_id
+         LEFT JOIN payment_methods pm ON pm.id = at.payment_method_id
+         WHERE g.id = $1 AND g.company_id = $2 AND g.deleted_at IS NULL`,
+        [sourceId, companyId]
+      )
+      if (rows.length === 0) return null
+      const data = rows[0]
 
-      if (error || !data) return null
-
-      const { data: stmts } = await supabase
-        .from('bank_statements')
-        .select('id, credit_amount, description')
-        .eq('reconciliation_group_id', sourceId)
-        .is('deleted_at', null)
-        .limit(1)
-
-      const stmt = stmts?.[0]
-      const agg = data.aggregated_transactions as unknown as { transaction_date: string; nett_amount: number; branch_name: string | null; payment_methods: { name: string } | null } | null
+      const { rows: stmts } = await pool.query(
+        `SELECT id, credit_amount, description FROM bank_statements
+         WHERE reconciliation_group_id = $1 AND deleted_at IS NULL LIMIT 1`,
+        [sourceId]
+      )
+      const stmt = stmts[0]
 
       return this.applyReview({
-        id: `multi_${data.id}`,
-        source: 'MULTI_MATCH',
-        sourceId: data.id as string,
-        transactionDate: agg?.transaction_date || '',
-        bankStatementId: stmt?.id || '',
-        bankDescription: stmt?.description || null,
-        bankAmount: Number(data.total_bank_amount),
-        posNettAmount: Number(data.aggregate_amount),
-        discrepancyAmount: -Number(data.difference),
-        paymentMethodName: agg?.payment_methods?.name || null,
-        branchName: agg?.branch_name || null,
-        status: 'PENDING',
-        correctionJournalId: null,
-        reviewedBy: null,
-        reviewedAt: null,
-        notes: null,
+        id: `multi_${data.id}`, source: 'MULTI_MATCH', sourceId: data.id,
+        transactionDate: data.transaction_date || '', bankStatementId: stmt?.id || '',
+        bankDescription: stmt?.description || null, bankAmount: Number(data.total_bank_amount),
+        posNettAmount: Number(data.aggregate_amount), discrepancyAmount: -Number(data.difference),
+        paymentMethodName: data.pm_name || null, branchName: data.branch_name || null,
+        status: 'PENDING', correctionJournalId: null, reviewedBy: null, reviewedAt: null, notes: null,
       }, review)
     }
 
     if (source === 'SETTLEMENT_GROUP') {
-      const { data, error } = await supabase
-        .from('bank_settlement_groups')
-        .select('id, bank_statement_id, total_statement_amount, total_allocated_amount, difference, bank_statements(id, transaction_date, description, credit_amount)')
-        .eq('id', sourceId)
-        .eq('company_id', companyId)
-        .is('deleted_at', null)
-        .single()
-
-      if (error || !data) return null
-
-      const stmt = data.bank_statements as unknown as { id: string; transaction_date: string; description: string | null; credit_amount: number } | null
+      const { rows } = await pool.query(
+        `SELECT sg.id, sg.bank_statement_id, sg.total_statement_amount, sg.total_allocated_amount, sg.difference,
+                bs.id AS bs_id, bs.transaction_date AS bs_date, bs.description AS bs_desc, bs.credit_amount AS bs_credit
+         FROM bank_settlement_groups sg
+         LEFT JOIN bank_statements bs ON bs.id = sg.bank_statement_id
+         WHERE sg.id = $1 AND sg.company_id = $2 AND sg.deleted_at IS NULL`,
+        [sourceId, companyId]
+      )
+      if (rows.length === 0) return null
+      const data = rows[0]
 
       return this.applyReview({
-        id: `settlement_${data.id}`,
-        source: 'SETTLEMENT_GROUP',
-        sourceId: data.id as string,
-        transactionDate: stmt?.transaction_date || '',
-        bankStatementId: data.bank_statement_id as string,
-        bankDescription: stmt?.description || null,
-        bankAmount: Number(data.total_statement_amount),
-        posNettAmount: Number(data.total_allocated_amount),
-        discrepancyAmount: -Number(data.difference),
-        paymentMethodName: null,
-        branchName: null,
-        status: 'PENDING',
-        correctionJournalId: null,
-        reviewedBy: null,
-        reviewedAt: null,
-        notes: null,
+        id: `settlement_${data.id}`, source: 'SETTLEMENT_GROUP', sourceId: data.id,
+        transactionDate: data.bs_date || '', bankStatementId: data.bank_statement_id,
+        bankDescription: data.bs_desc || null, bankAmount: Number(data.total_statement_amount),
+        posNettAmount: Number(data.total_allocated_amount), discrepancyAmount: -Number(data.difference),
+        paymentMethodName: null, branchName: null,
+        status: 'PENDING', correctionJournalId: null, reviewedBy: null, reviewedAt: null, notes: null,
       }, review)
     }
 
@@ -191,7 +133,6 @@ export class FeeDiscrepancyReviewRepository {
   async getDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter): Promise<{ data: FeeDiscrepancyItem[]; total: number }> {
     const limit = filter.limit || 50
     const offset = ((filter.page || 1) - 1) * limit
-
     const reviewMap = await this.getReviewMap(companyId)
 
     const [singleItems, multiItems, settlementItems] = await Promise.all([
@@ -206,8 +147,7 @@ export class FeeDiscrepancyReviewRepository {
 
     items.sort((a, b) => {
       const dateDiff = b.transactionDate.localeCompare(a.transactionDate)
-      if (dateDiff !== 0) return dateDiff
-      return Math.abs(b.discrepancyAmount) - Math.abs(a.discrepancyAmount)
+      return dateDiff !== 0 ? dateDiff : Math.abs(b.discrepancyAmount) - Math.abs(a.discrepancyAmount)
     })
 
     const filtered = filter.status ? items.filter(i => i.status === filter.status) : items
@@ -218,14 +158,11 @@ export class FeeDiscrepancyReviewRepository {
 
   async getSummary(companyId: string, filter: FeeDiscrepancyFilter): Promise<FeeDiscrepancySummary> {
     const { data } = await this.getDiscrepancies(companyId, { ...filter, page: 1, limit: 10000 })
-
     const summary: FeeDiscrepancySummary = {
       totalPending: 0, totalConfirmed: 0, totalCorrected: 0, totalDismissed: 0,
-      sumPendingPositive: 0, sumPendingNegative: 0,
-      sumConfirmedPositive: 0, sumConfirmedNegative: 0,
+      sumPendingPositive: 0, sumPendingNegative: 0, sumConfirmedPositive: 0, sumConfirmedNegative: 0,
       count: data.length,
     }
-
     for (const item of data) {
       switch (item.status) {
         case 'PENDING':
@@ -246,35 +183,18 @@ export class FeeDiscrepancyReviewRepository {
   }
 
   async updateStatus(
-    companyId: string,
-    source: FeeDiscrepancySource,
-    sourceId: string,
-    status: FeeDiscrepancyStatus,
-    userId: string,
-    notes?: string,
-    correctionJournalId?: string,
+    companyId: string, source: FeeDiscrepancySource, sourceId: string,
+    status: FeeDiscrepancyStatus, userId: string, notes?: string, correctionJournalId?: string,
   ): Promise<void> {
-    const now = new Date().toISOString()
-
-    const { error } = await supabase
-      .from('fee_discrepancy_reviews')
-      .upsert({
-        source,
-        source_id: sourceId,
-        company_id: companyId,
-        status,
-        notes: notes || null,
-        correction_journal_id: correctionJournalId || null,
-        reviewed_by: userId,
-        reviewed_at: now,
-        updated_at: now,
-      }, { onConflict: 'source,source_id,company_id' })
-
-    if (error) {
-      logError('updateStatus error', { error: error.message, source, sourceId })
-      throw new Error(error.message)
-    }
-
+    await pool.query(
+      `INSERT INTO fee_discrepancy_reviews (source, source_id, company_id, status, notes, correction_journal_id, reviewed_by, reviewed_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+       ON CONFLICT (source, source_id, company_id) DO UPDATE SET
+         status = EXCLUDED.status, notes = EXCLUDED.notes,
+         correction_journal_id = EXCLUDED.correction_journal_id,
+         reviewed_by = EXCLUDED.reviewed_by, reviewed_at = EXCLUDED.reviewed_at, updated_at = EXCLUDED.updated_at`,
+      [source, sourceId, companyId, status, notes || null, correctionJournalId || null, userId]
+    )
     logInfo('Fee discrepancy status updated', { source, sourceId, status })
   }
 
@@ -284,192 +204,154 @@ export class FeeDiscrepancyReviewRepository {
     const branchIds = await this.getBranchIdsByCompany(companyId)
     if (branchIds.length === 0) return []
 
-    // Get aggregate IDs that belong to multi-match groups (to exclude from single match)
-    const { data: groupAggs } = await supabase
-      .from('bank_reconciliation_groups')
-      .select('aggregate_id')
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-    const multiMatchAggIds = new Set((groupAggs || []).map((g: { aggregate_id: string }) => g.aggregate_id))
+    // Exclude multi-match and settlement aggregate IDs
+    const [{ rows: groupAggs }, { rows: settlementAggs }] = await Promise.all([
+      pool.query(`SELECT aggregate_id FROM bank_reconciliation_groups WHERE company_id = $1 AND deleted_at IS NULL`, [companyId]),
+      pool.query(
+        `SELECT bsa.aggregate_id FROM bank_settlement_aggregates bsa
+         INNER JOIN bank_settlement_groups bsg ON bsg.id = bsa.settlement_group_id
+         WHERE bsg.company_id = $1 AND bsg.deleted_at IS NULL`,
+        [companyId]
+      ),
+    ])
+    const excludeIds = new Set([
+      ...groupAggs.map((g: { aggregate_id: string }) => g.aggregate_id),
+      ...settlementAggs.map((s: { aggregate_id: string }) => s.aggregate_id),
+    ])
 
-    // Get aggregate IDs that belong to settlement groups (to exclude from single match)
-    const { data: settlementAggs } = await supabase
-      .from('bank_settlement_aggregates')
-      .select('aggregate_id, bank_settlement_groups!inner(company_id)')
-      .eq('bank_settlement_groups.company_id', companyId)
-      .is('bank_settlement_groups.deleted_at', null)
-    const settlementAggIds = new Set((settlementAggs || []).map((s: { aggregate_id: string }) => s.aggregate_id))
+    const conditions = [
+      'at.branch_id = ANY($1::uuid[])',
+      'at.is_reconciled = true',
+      'at.fee_discrepancy != 0',
+      'at.deleted_at IS NULL',
+    ]
+    const values: unknown[] = [branchIds]
+    let idx = 2
 
-    let query = supabase
-      .from('aggregated_transactions')
-      .select('id, transaction_date, fee_discrepancy, fee_discrepancy_note, nett_amount, actual_nett_amount, payment_method_id, branch_name, payment_methods(name)')
-      .in('branch_id', branchIds)
-      .eq('is_reconciled', true)
-      .neq('fee_discrepancy', 0)
-      .is('deleted_at', null)
+    if (filter.dateFrom) { conditions.push(`at.transaction_date >= $${idx++}`); values.push(filter.dateFrom) }
+    if (filter.dateTo) { conditions.push(`at.transaction_date <= $${idx++}`); values.push(filter.dateTo) }
+    if (filter.paymentMethodId) { conditions.push(`at.payment_method_id = $${idx++}`); values.push(filter.paymentMethodId) }
 
-    if (filter.dateFrom) query = query.gte('transaction_date', filter.dateFrom)
-    if (filter.dateTo) query = query.lte('transaction_date', filter.dateTo)
-    if (filter.paymentMethodId) query = query.eq('payment_method_id', filter.paymentMethodId)
-
-    const { data, error } = await query
-    if (error) { logError('getSingleMatchDiscrepancies error', { error: error.message }); return [] }
-
-    // Filter out aggregates that belong to multi-match or settlement groups
-    const filteredData = (data || []).filter((row: { id: string }) =>
-      !multiMatchAggIds.has(row.id) && !settlementAggIds.has(row.id)
+    const { rows } = await pool.query(
+      `SELECT at.id, at.transaction_date, at.fee_discrepancy, at.fee_discrepancy_note,
+              at.nett_amount, at.payment_method_id, at.branch_name, pm.name AS pm_name
+       FROM aggregated_transactions at
+       LEFT JOIN payment_methods pm ON pm.id = at.payment_method_id
+       WHERE ${conditions.join(' AND ')}`,
+      values
     )
 
-    const aggIds = filteredData.map((r: { id: string }) => r.id)
+    const filteredData = rows.filter(r => !excludeIds.has(r.id))
+    const aggIds = filteredData.map(r => r.id)
+
     let stmtMap: Record<string, { id: string; credit_amount: number; description: string | null }> = {}
     if (aggIds.length > 0) {
-      const { data: stmts } = await supabase
-        .from('bank_statements')
-        .select('id, reconciliation_id, credit_amount, description')
-        .in('reconciliation_id', aggIds)
-        .is('deleted_at', null)
-      for (const s of stmts || []) stmtMap[s.reconciliation_id as string] = s as { id: string; credit_amount: number; description: string | null }
+      const { rows: stmts } = await pool.query(
+        `SELECT id, reconciliation_id, credit_amount, description
+         FROM bank_statements WHERE reconciliation_id = ANY($1::uuid[]) AND deleted_at IS NULL`,
+        [aggIds]
+      )
+      for (const s of stmts) stmtMap[s.reconciliation_id] = s
     }
 
-    return filteredData.map((row: Record<string, unknown>) => {
-      const stmt = stmtMap[row.id as string]
-      const pm = row.payment_methods as { name: string } | null
+    return filteredData.map(row => {
+      const stmt = stmtMap[row.id]
       return {
-        id: `single_${row.id}`,
-        source: 'SINGLE_MATCH' as const,
-        sourceId: row.id as string,
-        transactionDate: row.transaction_date as string,
-        bankStatementId: stmt?.id || '',
-        bankDescription: stmt?.description || null,
-        bankAmount: Number(stmt?.credit_amount || 0),
-        posNettAmount: Number(row.nett_amount),
-        discrepancyAmount: Number(row.fee_discrepancy),
-        paymentMethodName: pm?.name || null,
-        branchName: row.branch_name as string | null,
-        status: 'PENDING' as FeeDiscrepancyStatus,
-        correctionJournalId: null,
-        reviewedBy: null,
-        reviewedAt: null,
-        notes: row.fee_discrepancy_note as string | null,
+        id: `single_${row.id}`, source: 'SINGLE_MATCH' as const, sourceId: row.id,
+        transactionDate: row.transaction_date, bankStatementId: stmt?.id || '',
+        bankDescription: stmt?.description || null, bankAmount: Number(stmt?.credit_amount || 0),
+        posNettAmount: Number(row.nett_amount), discrepancyAmount: Number(row.fee_discrepancy),
+        paymentMethodName: row.pm_name || null, branchName: row.branch_name,
+        status: 'PENDING' as FeeDiscrepancyStatus, correctionJournalId: null,
+        reviewedBy: null, reviewedAt: null, notes: row.fee_discrepancy_note,
       }
     })
   }
 
   private async getMultiMatchDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter): Promise<FeeDiscrepancyItem[]> {
-    const query = supabase
-      .from('bank_reconciliation_groups')
-      .select('id, aggregate_id, total_bank_amount, aggregate_amount, difference, aggregated_transactions(transaction_date, nett_amount, payment_method_id, branch_name, payment_methods(name))')
-      .eq('company_id', companyId)
-      .neq('difference', 0)
-      .is('deleted_at', null)
+    const { rows } = await pool.query(
+      `SELECT g.id, g.aggregate_id, g.total_bank_amount, g.aggregate_amount, g.difference,
+              at.transaction_date, at.nett_amount, at.branch_name, pm.name AS pm_name
+       FROM bank_reconciliation_groups g
+       LEFT JOIN aggregated_transactions at ON at.id = g.aggregate_id
+       LEFT JOIN payment_methods pm ON pm.id = at.payment_method_id
+       WHERE g.company_id = $1 AND g.difference != 0 AND g.deleted_at IS NULL`,
+      [companyId]
+    )
 
-    const { data, error } = await query
-    if (error) { logError('getMultiMatchDiscrepancies error', { error: error.message }); return [] }
-
-    const groupIds = (data || []).map((r: { id: string }) => r.id)
+    const groupIds = rows.map(r => r.id)
     let stmtMap: Record<string, { id: string; credit_amount: number; description: string | null }> = {}
     if (groupIds.length > 0) {
-      const { data: stmts } = await supabase
-        .from('bank_statements')
-        .select('id, reconciliation_group_id, credit_amount, description')
-        .in('reconciliation_group_id', groupIds)
-        .is('deleted_at', null)
-      for (const s of stmts || []) {
-        if (!stmtMap[s.reconciliation_group_id as string]) stmtMap[s.reconciliation_group_id as string] = s as { id: string; credit_amount: number; description: string | null }
-      }
+      const { rows: stmts } = await pool.query(
+        `SELECT id, reconciliation_group_id, credit_amount, description
+         FROM bank_statements WHERE reconciliation_group_id = ANY($1::uuid[]) AND deleted_at IS NULL`,
+        [groupIds]
+      )
+      for (const s of stmts) if (!stmtMap[s.reconciliation_group_id]) stmtMap[s.reconciliation_group_id] = s
     }
 
-    return (data || [])
-      .filter((row: Record<string, unknown>) => {
-        const agg = row.aggregated_transactions as { transaction_date: string } | null
-        const txDate = agg?.transaction_date
-        if (filter.dateFrom && txDate && txDate < filter.dateFrom) return false
-        if (filter.dateTo && txDate && txDate > filter.dateTo) return false
+    return rows
+      .filter(row => {
+        if (filter.dateFrom && row.transaction_date && row.transaction_date < filter.dateFrom) return false
+        if (filter.dateTo && row.transaction_date && row.transaction_date > filter.dateTo) return false
         return true
       })
-      .map((row: Record<string, unknown>) => {
-        const agg = row.aggregated_transactions as { transaction_date: string; nett_amount: number; branch_name: string | null; payment_methods: { name: string } | null } | null
-        const stmt = stmtMap[row.id as string]
-        return {
-          id: `multi_${row.id}`,
-          source: 'MULTI_MATCH' as const,
-          sourceId: row.id as string,
-          transactionDate: agg?.transaction_date || '',
-          bankStatementId: stmt?.id || '',
-          bankDescription: stmt?.description || null,
-          bankAmount: Number(row.total_bank_amount),
-          posNettAmount: Number(row.aggregate_amount),
-          discrepancyAmount: -Number(row.difference),
-          paymentMethodName: agg?.payment_methods?.name || null,
-          branchName: agg?.branch_name || null,
-          status: 'PENDING' as FeeDiscrepancyStatus,
-          correctionJournalId: null,
-          reviewedBy: null,
-          reviewedAt: null,
-          notes: null,
-        }
-      })
+      .map(row => ({
+        id: `multi_${row.id}`, source: 'MULTI_MATCH' as const, sourceId: row.id,
+        transactionDate: row.transaction_date || '', bankStatementId: stmtMap[row.id]?.id || '',
+        bankDescription: stmtMap[row.id]?.description || null, bankAmount: Number(row.total_bank_amount),
+        posNettAmount: Number(row.aggregate_amount), discrepancyAmount: -Number(row.difference),
+        paymentMethodName: row.pm_name || null, branchName: row.branch_name || null,
+        status: 'PENDING' as FeeDiscrepancyStatus, correctionJournalId: null,
+        reviewedBy: null, reviewedAt: null, notes: null,
+      }))
   }
 
   private async getSettlementDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter): Promise<FeeDiscrepancyItem[]> {
-    const query = supabase
-      .from('bank_settlement_groups')
-      .select('id, bank_statement_id, total_statement_amount, total_allocated_amount, difference, bank_statements(id, transaction_date, description, credit_amount), bank_settlement_aggregates(aggregate_id)')
-      .eq('company_id', companyId)
-      .neq('difference', 0)
-      .is('deleted_at', null)
-
-    const { data, error } = await query
-    if (error) { logError('getSettlementDiscrepancies error', { error: error.message }); return [] }
-
-    const allAggIds = (data || []).flatMap((row: Record<string, unknown>) =>
-      ((row.bank_settlement_aggregates as { aggregate_id: string }[]) || []).map(a => a.aggregate_id)
+    const { rows } = await pool.query(
+      `SELECT sg.id, sg.bank_statement_id, sg.total_statement_amount, sg.total_allocated_amount, sg.difference,
+              bs.transaction_date AS bs_date, bs.description AS bs_desc
+       FROM bank_settlement_groups sg
+       LEFT JOIN bank_statements bs ON bs.id = sg.bank_statement_id
+       WHERE sg.company_id = $1 AND sg.difference != 0 AND sg.deleted_at IS NULL`,
+      [companyId]
     )
+
+    // Get aggregate details for branch/pm names
+    const sgIds = rows.map(r => r.id)
     let aggDetailsMap: Record<string, { branch_name: string | null; pm_name: string | null }> = {}
-    if (allAggIds.length > 0) {
-      const { data: aggs } = await supabase
-        .from('aggregated_transactions')
-        .select('id, branch_name, payment_methods(name)')
-        .in('id', allAggIds)
-      for (const a of aggs || []) {
-        aggDetailsMap[a.id as string] = {
-          branch_name: a.branch_name as string | null,
-          pm_name: (a.payment_methods as unknown as { name: string } | null)?.name || null,
+    if (sgIds.length > 0) {
+      const { rows: aggRows } = await pool.query(
+        `SELECT bsa.settlement_group_id, at.id AS agg_id, at.branch_name, pm.name AS pm_name
+         FROM bank_settlement_aggregates bsa
+         INNER JOIN aggregated_transactions at ON at.id = bsa.aggregate_id
+         LEFT JOIN payment_methods pm ON pm.id = at.payment_method_id
+         WHERE bsa.settlement_group_id = ANY($1::uuid[])`,
+        [sgIds]
+      )
+      for (const a of aggRows) {
+        if (!aggDetailsMap[a.settlement_group_id]) {
+          aggDetailsMap[a.settlement_group_id] = { branch_name: a.branch_name, pm_name: a.pm_name }
         }
       }
     }
 
-    return (data || [])
-      .filter((row: Record<string, unknown>) => {
-        const stmt = row.bank_statements as { transaction_date: string } | null
-        const txDate = stmt?.transaction_date
-        if (filter.dateFrom && txDate && txDate < filter.dateFrom) return false
-        if (filter.dateTo && txDate && txDate > filter.dateTo) return false
+    return rows
+      .filter(row => {
+        if (filter.dateFrom && row.bs_date && row.bs_date < filter.dateFrom) return false
+        if (filter.dateTo && row.bs_date && row.bs_date > filter.dateTo) return false
         return true
       })
-      .map((row: Record<string, unknown>) => {
-        const stmt = row.bank_statements as { id: string; transaction_date: string; description: string | null; credit_amount: number } | null
-        const settleAggs = (row.bank_settlement_aggregates as { aggregate_id: string }[]) || []
-        const pmNames = [...new Set(settleAggs.map(a => aggDetailsMap[a.aggregate_id]?.pm_name).filter(Boolean))]
-        const branchNames = [...new Set(settleAggs.map(a => aggDetailsMap[a.aggregate_id]?.branch_name).filter(Boolean))]
-
+      .map(row => {
+        const details = aggDetailsMap[row.id]
         return {
-          id: `settlement_${row.id}`,
-          source: 'SETTLEMENT_GROUP' as const,
-          sourceId: row.id as string,
-          transactionDate: stmt?.transaction_date || '',
-          bankStatementId: row.bank_statement_id as string,
-          bankDescription: stmt?.description || null,
-          bankAmount: Number(row.total_statement_amount),
-          posNettAmount: Number(row.total_allocated_amount),
-          discrepancyAmount: -Number(row.difference),
-          paymentMethodName: pmNames.join(', ') || null,
-          branchName: branchNames.join(', ') || null,
-          status: 'PENDING' as FeeDiscrepancyStatus,
-          correctionJournalId: null,
-          reviewedBy: null,
-          reviewedAt: null,
-          notes: null,
+          id: `settlement_${row.id}`, source: 'SETTLEMENT_GROUP' as const, sourceId: row.id,
+          transactionDate: row.bs_date || '', bankStatementId: row.bank_statement_id,
+          bankDescription: row.bs_desc || null, bankAmount: Number(row.total_statement_amount),
+          posNettAmount: Number(row.total_allocated_amount), discrepancyAmount: -Number(row.difference),
+          paymentMethodName: details?.pm_name || null, branchName: details?.branch_name || null,
+          status: 'PENDING' as FeeDiscrepancyStatus, correctionJournalId: null,
+          reviewedBy: null, reviewedAt: null, notes: null,
         }
       })
   }

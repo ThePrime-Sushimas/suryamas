@@ -1,434 +1,355 @@
-import { supabase } from "@/config/supabase";
+import { pool } from "@/config/db";
 import { logError } from "@/config/logger";
 import { ListAggregatesParams } from "./pos-sync-aggregates.types";
+
+function escapeSearch(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&')
+}
 
 export const posSyncAggregatesRepository = {
   async list(params: ListAggregatesParams = {}) {
     const {
-      date_from,
-      date_to,
-      branch_id,
-      branch_ids,
-      payment_method_id,
-      payment_method_ids,
-      status,
-      is_reconciled,
-      search,
-      page = 1,
-      limit = 50,
-      fields,
+      date_from, date_to, branch_id, branch_ids,
+      payment_method_id, payment_method_ids,
+      status, is_reconciled, search,
+      page = 1, limit = 50, fields,
     } = params;
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
 
     const selectFields = fields === 'slim'
-      ? `id, sales_date, branch_id, branch_name, status, grand_total, nett_amount, total_fee_amount, transaction_count, void_transaction_count, skip_reason, is_reconciled, payment_method_id, payment_methods ( id, name, payment_type )`
-      : `*, payment_methods ( id, name, payment_type )`;
+      ? `psa.id, psa.sales_date, psa.branch_id, psa.branch_name, psa.status, psa.grand_total, psa.nett_amount, psa.total_fee_amount, psa.transaction_count, psa.void_transaction_count, psa.skip_reason, psa.is_reconciled, psa.payment_method_id, pm.id AS pm_id, pm.name AS pm_name, pm.payment_type AS pm_payment_type`
+      : `psa.*, pm.id AS pm_id, pm.name AS pm_name, pm.payment_type AS pm_payment_type`;
 
-    let query = supabase
-      .from("pos_sync_aggregates")
-      .select(selectFields, { count: "exact" })
-      .order("sales_date", { ascending: false })
-      .order("branch_name", { ascending: true })
-      .range(from, to);
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
 
-    if (date_from) query = query.gte("sales_date", date_from);
-    if (date_to) query = query.lte("sales_date", date_to);
-    if (branch_id) query = query.eq("branch_id", branch_id);
-    
+    if (date_from) { conditions.push(`psa.sales_date >= $${idx++}`); values.push(date_from) }
+    if (date_to) { conditions.push(`psa.sales_date <= $${idx++}`); values.push(date_to) }
+    if (branch_id) { conditions.push(`psa.branch_id = $${idx++}`); values.push(branch_id) }
     if (branch_ids) {
-      const ids = branch_ids.split(",");
-      query = query.in("branch_id", ids);
+      const ids = branch_ids.split(",").filter(Boolean);
+      if (ids.length > 0) { conditions.push(`psa.branch_id = ANY($${idx++}::uuid[])`); values.push(ids) }
     }
-    
-    if (payment_method_id) {
-      query = query.eq("payment_method_id", payment_method_id);
-    }
-
+    if (payment_method_id) { conditions.push(`psa.payment_method_id = $${idx++}`); values.push(Number(payment_method_id)) }
     if (payment_method_ids) {
-      const ids = payment_method_ids.split(",").map(Number);
-      query = query.in("payment_method_id", ids);
+      const ids = payment_method_ids.split(",").map(Number).filter(n => !isNaN(n));
+      if (ids.length > 0) { conditions.push(`psa.payment_method_id = ANY($${idx++}::int[])`); values.push(ids) }
     }
-
-    if (status) query = query.eq("status", status);
-
+    if (status) { conditions.push(`psa.status = $${idx++}`); values.push(status) }
     if (is_reconciled !== undefined && is_reconciled !== "") {
       const boolVal = is_reconciled === "true" || is_reconciled === true;
-      query = query.eq("is_reconciled", boolVal);
+      conditions.push(`psa.is_reconciled = $${idx++}`); values.push(boolVal)
     }
-
     if (search) {
-      // Basic search on branch name, or other fields if needed. Note: ilike is case insensitive
-      query = query.or(`branch_name.ilike.%${search}%,id.eq.${search}`);
+      const escaped = escapeSearch(search);
+      conditions.push(`(psa.branch_name ILIKE $${idx} OR psa.id::text = $${idx + 1})`);
+      values.push(`%${escaped}%`, search); idx += 2
     }
 
-    const { data, error, count } = await query;
-    if (error) throw error;
-    return { data: data ?? [], total: count ?? 0, page, limit };
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const offset = (page - 1) * limit;
+
+    const fromClause = `FROM pos_sync_aggregates psa LEFT JOIN payment_methods pm ON pm.id = psa.payment_method_id`;
+
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(
+        `SELECT ${selectFields} ${fromClause} ${where}
+         ORDER BY psa.sales_date DESC, psa.branch_name ASC
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...values, limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*)::int AS total ${fromClause} ${where}`, values),
+    ]);
+
+    const data = dataRes.rows.map(r => ({
+      ...r,
+      payment_methods: r.pm_id ? { id: r.pm_id, name: r.pm_name, payment_type: r.pm_payment_type } : null,
+    }));
+    // Clean up pm_ fields
+    for (const d of data) { delete d.pm_id; delete d.pm_name; delete d.pm_payment_type }
+
+    return { data, total: countRes.rows[0]?.total ?? 0, page, limit };
   },
 
   async getById(id: string) {
-    const { data, error } = await supabase
-      .from("pos_sync_aggregates")
-      .select(
-        `
-      *,
-      payment_methods ( id, name, payment_type )
-    `,
-      )
-      .eq("id", id)
-      .single();
-
-    if (error) throw error;
-    return data;
+    const { rows } = await pool.query(
+      `SELECT psa.*, pm.id AS pm_id, pm.name AS pm_name, pm.payment_type AS pm_payment_type
+       FROM pos_sync_aggregates psa
+       LEFT JOIN payment_methods pm ON pm.id = psa.payment_method_id
+       WHERE psa.id = $1`,
+      [id]
+    );
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    r.payment_methods = r.pm_id ? { id: r.pm_id, name: r.pm_name, payment_type: r.pm_payment_type } : null;
+    delete r.pm_id; delete r.pm_name; delete r.pm_payment_type;
+    return r;
   },
 
   async getLines(aggregateId: string) {
-    const { data, error } = await supabase
-      .from("pos_sync_aggregate_lines")
-      .select("*")
-      .eq("aggregate_id", aggregateId)
-      .order("sales_num", { ascending: true });
-
-    if (error) throw error;
-    return data ?? [];
+    const { rows } = await pool.query(
+      `SELECT * FROM pos_sync_aggregate_lines WHERE aggregate_id = $1 ORDER BY sales_num ASC`,
+      [aggregateId]
+    );
+    return rows;
   },
 
   async getSummaryByDate(dateFrom: string, dateTo: string) {
-    const { data, error } = await supabase
-      .from("pos_sync_aggregates")
-      .select(
-        "sales_date, branch_name, status, grand_total, nett_amount, total_fee_amount, transaction_count",
-      )
-      .gte("sales_date", dateFrom)
-      .lte("sales_date", dateTo)
-      .order("sales_date", { ascending: false });
-
-    if (error) throw error;
-    return data ?? [];
+    const { rows } = await pool.query(
+      `SELECT sales_date, branch_name, status, grand_total, nett_amount, total_fee_amount, transaction_count
+       FROM pos_sync_aggregates WHERE sales_date >= $1 AND sales_date <= $2
+       ORDER BY sales_date DESC`,
+      [dateFrom, dateTo]
+    );
+    return rows;
   },
 
   async getReadyBySalesDate(salesDate: string) {
-    const { data, error } = await supabase
-      .from("pos_sync_aggregates")
-      .select("*")
-      .eq("sales_date", salesDate)
-      .in("status", ["READY", "RECALCULATED"]);
-
-    if (error) throw error;
-    return data ?? [];
+    const { rows } = await pool.query(
+      `SELECT * FROM pos_sync_aggregates WHERE sales_date = $1 AND status IN ('READY', 'RECALCULATED')`,
+      [salesDate]
+    );
+    return rows;
   },
 
   async getVoidBySalesDate(salesDate: string) {
-    const { data, error } = await supabase
-      .from("pos_sync_aggregates")
-      .select("*")
-      .eq("sales_date", salesDate)
-      .eq("status", "VOID");
-
-    if (error) throw error;
-    return data ?? [];
+    const { rows } = await pool.query(
+      `SELECT * FROM pos_sync_aggregates WHERE sales_date = $1 AND status = 'VOID'`,
+      [salesDate]
+    );
+    return rows;
   },
 
   async upsertToAggregatedTransactions(row: {
-    source_type: string;
-    source_id: string;
-    source_ref: string;
-    transaction_date: string;
-    payment_method_id: number | null;
-    branch_id: string | null;
-    branch_name: string | null;
-    gross_amount: number;
-    discount_amount: number;
-    tax_amount: number;
-    nett_amount: number;
-    total_fee_amount: number;
-    percentage_fee_amount: number;
-    fixed_fee_amount: number;
-    bill_after_discount: number;
-    rounding_amount: number;
-    delivery_cost: number;
-    order_fee: number;
-    voucher_discount_amount: number;
-    promotion_discount_amount: number;
-    menu_discount_amount: number;
-    voucher_payment_amount: number;
-    other_vat_amount: number;
-    service_charge_amount: number;
-    pax_total: number;
-    pos_sync_aggregate_id: string;
-    status: string;
+    source_type: string; source_id: string; source_ref: string;
+    transaction_date: string; payment_method_id: number | null;
+    branch_id: string | null; branch_name: string | null;
+    gross_amount: number; discount_amount: number; tax_amount: number;
+    nett_amount: number; total_fee_amount: number; percentage_fee_amount: number;
+    fixed_fee_amount: number; bill_after_discount: number; rounding_amount: number;
+    delivery_cost: number; order_fee: number; voucher_discount_amount: number;
+    promotion_discount_amount: number; menu_discount_amount: number;
+    voucher_payment_amount: number; other_vat_amount: number;
+    service_charge_amount: number; pax_total: number;
+    pos_sync_aggregate_id: string; status: string;
   }) {
-    const { data, error } = await supabase
-      .from("aggregated_transactions")
-      .upsert(
-        { ...row, updated_at: new Date().toISOString() },
-        { onConflict: "source_type,source_id,source_ref" },
-      )
-      .select("id")
-      .single();
-
-    if (error) throw error;
-    return data;
+    const { rows } = await pool.query(
+      `INSERT INTO aggregated_transactions
+       (source_type, source_id, source_ref, transaction_date, payment_method_id,
+        branch_id, branch_name, gross_amount, discount_amount, tax_amount,
+        nett_amount, total_fee_amount, percentage_fee_amount, fixed_fee_amount,
+        bill_after_discount, rounding_amount, delivery_cost, order_fee,
+        voucher_discount_amount, promotion_discount_amount, menu_discount_amount,
+        voucher_payment_amount, other_vat_amount, service_charge_amount, pax_total,
+        pos_sync_aggregate_id, status, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,NOW())
+       ON CONFLICT (source_type, source_id, source_ref) DO UPDATE SET
+         transaction_date = EXCLUDED.transaction_date, payment_method_id = EXCLUDED.payment_method_id,
+         branch_id = EXCLUDED.branch_id, branch_name = EXCLUDED.branch_name,
+         gross_amount = EXCLUDED.gross_amount, discount_amount = EXCLUDED.discount_amount,
+         tax_amount = EXCLUDED.tax_amount, nett_amount = EXCLUDED.nett_amount,
+         total_fee_amount = EXCLUDED.total_fee_amount, percentage_fee_amount = EXCLUDED.percentage_fee_amount,
+         fixed_fee_amount = EXCLUDED.fixed_fee_amount, bill_after_discount = EXCLUDED.bill_after_discount,
+         rounding_amount = EXCLUDED.rounding_amount, delivery_cost = EXCLUDED.delivery_cost,
+         order_fee = EXCLUDED.order_fee, voucher_discount_amount = EXCLUDED.voucher_discount_amount,
+         promotion_discount_amount = EXCLUDED.promotion_discount_amount, menu_discount_amount = EXCLUDED.menu_discount_amount,
+         voucher_payment_amount = EXCLUDED.voucher_payment_amount, other_vat_amount = EXCLUDED.other_vat_amount,
+         service_charge_amount = EXCLUDED.service_charge_amount, pax_total = EXCLUDED.pax_total,
+         pos_sync_aggregate_id = EXCLUDED.pos_sync_aggregate_id, status = EXCLUDED.status,
+         updated_at = NOW()
+       RETURNING id`,
+      [row.source_type, row.source_id, row.source_ref, row.transaction_date, row.payment_method_id,
+       row.branch_id, row.branch_name, row.gross_amount, row.discount_amount, row.tax_amount,
+       row.nett_amount, row.total_fee_amount, row.percentage_fee_amount, row.fixed_fee_amount,
+       row.bill_after_discount, row.rounding_amount, row.delivery_cost, row.order_fee,
+       row.voucher_discount_amount, row.promotion_discount_amount, row.menu_discount_amount,
+       row.voucher_payment_amount, row.other_vat_amount, row.service_charge_amount, row.pax_total,
+       row.pos_sync_aggregate_id, row.status]
+    );
+    return rows[0];
   },
 
-  /**
-   * @deprecated Digantikan oleh sync_pos_aggregates_batch RPC.
-   * Retained untuk fallback/debugging. Akan dihapus setelah RPC stabil di production.
-   */
+  /** @deprecated — replaced by sync_pos_aggregates_batch RPC */
   async supersedeManualEntries(params: {
-    supersededById: string;
-    transactionDate: string;
-    paymentMethodId: number;
-    branchId: string | null;
-    branchName?: string | null;
+    supersededById: string; transactionDate: string;
+    paymentMethodId: number; branchId: string | null; branchName?: string | null;
   }) {
-    const { data, error } = await supabase.rpc("supersede_manual_entries", {
-      p_superseded_by_id: params.supersededById,
-      p_transaction_date: params.transactionDate,
-      p_payment_method_id: params.paymentMethodId,
-      p_branch_id: params.branchId ?? null,
-      p_branch_name: params.branchName ?? null,
-    });
-
-    if (error) throw error;
-    return data ?? [];
+    const { rows } = await pool.query(
+      `SELECT * FROM supersede_manual_entries($1, $2, $3, $4, $5)`,
+      [params.supersededById, params.transactionDate, params.paymentMethodId, params.branchId ?? null, params.branchName ?? null]
+    );
+    return rows;
   },
 
-  /**
-   * @deprecated Digantikan oleh sync_pos_aggregates_batch RPC.
-   * Retained untuk fallback/debugging. Akan dihapus setelah RPC stabil di production.
-   */
+  /** @deprecated — replaced by sync_pos_aggregates_batch RPC */
   async migrateReconciledPosToSync(posId: string, syncId: string): Promise<boolean> {
-    const { data, error } = await supabase.rpc('migrate_reconciled_pos_to_sync', {
-      p_pos_id: posId,
-      p_sync_id: syncId,
-    });
-    if (error) throw error;
-    return data ?? false;
+    const { rows } = await pool.query(
+      `SELECT migrate_reconciled_pos_to_sync($1, $2) AS result`,
+      [posId, syncId]
+    );
+    return rows[0]?.result ?? false;
   },
 
-  /**
-   * Auto-supersede newly inserted manual (POS) entries if POS_SYNC already exists
-   * for the same (date, branch, payment_method). Called after bulk CSV import.
-   *
-   * Before: N+1 queries (fetch chunks + per-record lookup + per-record update)
-   * After:  1 RPC call via supersede_manual_if_sync_exists_batch
-   */
   async supersedeManualIfPosSyncExists(manualIds: string[]): Promise<number> {
     if (manualIds.length === 0) return 0;
-
-    const { data, error } = await supabase.rpc(
-      'supersede_manual_if_sync_exists_batch',
-      { p_manual_ids: manualIds }
+    const { rows } = await pool.query(
+      `SELECT supersede_manual_if_sync_exists_batch($1::uuid[]) AS result`,
+      [manualIds]
     );
-
-    if (error) {
-      logError('supersedeManualIfPosSyncExists failed', { error: error.message });
-      return 0;
-    }
-    return data ?? 0;
+    return rows[0]?.result ?? 0;
   },
 
-  /**
-   * @deprecated Digantikan oleh sync_pos_aggregates_batch RPC.
-   * Retained untuk fallback/debugging. Akan dihapus setelah RPC stabil di production.
-   */
+  /** @deprecated — replaced by sync_pos_aggregates_batch RPC */
   async findReconciledPosTwin(params: {
-  transactionDate: string;
-  paymentMethodId: number;
-  branchId: string | null;
-  branchName: string | null;
-}): Promise<{ id: string } | null> {
-  if (!params.branchName && !params.branchId) return null;
+    transactionDate: string; paymentMethodId: number;
+    branchId: string | null; branchName: string | null;
+  }): Promise<{ id: string } | null> {
+    if (!params.branchName && !params.branchId) return null;
 
-  let query = supabase
-    .from('aggregated_transactions')
-    .select('id')
-    .eq('source_type', 'POS')
-    .eq('transaction_date', params.transactionDate)
-    .eq('payment_method_id', params.paymentMethodId)
-    .eq('is_reconciled', true)
-    .eq('status', 'READY')
-    .is('superseded_by', null)
-    .is('deleted_at', null);
+    const conditions = [
+      "source_type = 'POS'",
+      'transaction_date = $1',
+      'payment_method_id = $2',
+      'is_reconciled = true',
+      "status = 'READY'",
+      'superseded_by IS NULL',
+      'deleted_at IS NULL',
+    ];
+    const values: unknown[] = [params.transactionDate, params.paymentMethodId];
+    let idx = 3;
 
-  if (params.branchId && params.branchName) {
-    query = query.or(`branch_id.eq.${params.branchId},branch_name.eq."${params.branchName}"`);
-  } else if (params.branchId) {
-    query = query.eq('branch_id', params.branchId);
-  } else {
-    query = query.eq('branch_name', params.branchName!);
-  }
+    if (params.branchId && params.branchName) {
+      conditions.push(`(branch_id = $${idx} OR branch_name = $${idx + 1})`);
+      values.push(params.branchId, params.branchName); idx += 2;
+    } else if (params.branchId) {
+      conditions.push(`branch_id = $${idx++}`); values.push(params.branchId);
+    } else {
+      conditions.push(`branch_name = $${idx++}`); values.push(params.branchName!);
+    }
 
-  const { data, error } = await query.limit(1);
-  if (error) throw error;
-  return data?.[0] ?? null;
-},
+    const { rows } = await pool.query(
+      `SELECT id FROM aggregated_transactions WHERE ${conditions.join(' AND ')} LIMIT 1`,
+      values
+    );
+    return rows[0] ?? null;
+  },
 
   async findAggregatedTxByPosSyncId(posSyncAggregateId: string) {
-    const { data, error } = await supabase
-      .from("aggregated_transactions")
-      .select("id")
-      .eq("pos_sync_aggregate_id", posSyncAggregateId)
-      .eq("source_type", "POS_SYNC")
-      .is("deleted_at", null)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
+    const { rows } = await pool.query(
+      `SELECT id FROM aggregated_transactions
+       WHERE pos_sync_aggregate_id = $1 AND source_type = 'POS_SYNC' AND deleted_at IS NULL
+       LIMIT 1`,
+      [posSyncAggregateId]
+    );
+    return rows[0] ?? null;
   },
 
   async findBankStatementByReconciliationId(aggregatedTxId: string) {
-    const { data, error } = await supabase
-      .from("bank_statements")
-      .select("id")
-      .eq("reconciliation_id", aggregatedTxId)
-      .is("deleted_at", null)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
+    const { rows } = await pool.query(
+      `SELECT id FROM bank_statements WHERE reconciliation_id = $1 AND deleted_at IS NULL LIMIT 1`,
+      [aggregatedTxId]
+    );
+    return rows[0] ?? null;
   },
 
   async getBankStatementById(statementId: number) {
-    const { data, error } = await supabase
-      .from("bank_statements")
-      .select("id, credit_amount, debit_amount, is_reconciled")
-      .eq("id", statementId)
-      .single();
-
-    if (error) throw error;
-    return data;
+    const { rows } = await pool.query(
+      `SELECT id, credit_amount, debit_amount, is_reconciled FROM bank_statements WHERE id = $1`,
+      [statementId]
+    );
+    return rows[0] ?? null;
   },
-
 
   async markBankStatementReconciled(statementId: number, reconciliationId: string) {
-    const { error } = await supabase
-      .from("bank_statements")
-      .update({
-        is_reconciled: true,
-        reconciliation_id: reconciliationId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", statementId);
-
-    if (error) throw error;
-  },
-
-  async resetBankStatementReconciliation(statementId: number) {
-    const { error } = await supabase
-      .from("bank_statements")
-      .update({
-        is_reconciled: false,
-        reconciliation_id: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", statementId);
-
-    if (error) throw error;
-  },
-
-  async markAggregatedTxReconciled(aggTxId: string, feeData: {
-    actual_fee_amount: number;
-    fee_discrepancy: number;
-    fee_discrepancy_note: string | null;
-  }) {
-    const { error } = await supabase
-      .from("aggregated_transactions")
-      .update({
-        is_reconciled: true,
-        ...feeData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", aggTxId);
-
-    if (error) throw error;
-  },
-
-  async resetAggregatedTxReconciliation(posSyncAggregateId: string) {
-    const { error } = await supabase
-      .from("aggregated_transactions")
-      .update({
-        is_reconciled: false,
-        actual_fee_amount: 0,
-        fee_discrepancy: 0,
-        fee_discrepancy_note: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("pos_sync_aggregate_id", posSyncAggregateId)
-      .eq("source_type", "POS_SYNC");
-
-    if (error) throw error;
-  },
-
-  async getVoidAggregates(salesDate: string, branchId?: string | null) {
-    let query = supabase
-      .from("pos_sync_aggregates")
-      .select("*")
-      .eq("status", "VOID")
-      .eq("sales_date", salesDate);
-
-    if (branchId) query = query.eq("branch_id", branchId);
-
-    const { data, error } = await query.order("created_at", { ascending: false });
-    if (error) throw error;
-    return data ?? [];
-  },
-
-  async getVoidTransactionCount(salesDate: string) {
-    const { data, error } = await supabase
-      .from("pos_sync_aggregates")
-      .select("void_transaction_count")
-      .eq("status", "VOID")
-      .eq("sales_date", salesDate);
-
-    if (error) throw error;
-    return (data ?? []).reduce(
-      (sum, row) => sum + (row.void_transaction_count ?? 0),
-      0,
+    await pool.query(
+      `UPDATE bank_statements SET is_reconciled = true, reconciliation_id = $1, updated_at = NOW() WHERE id = $2`,
+      [reconciliationId, statementId]
     );
   },
 
+  async resetBankStatementReconciliation(statementId: number) {
+    await pool.query(
+      `UPDATE bank_statements SET is_reconciled = false, reconciliation_id = NULL, updated_at = NOW() WHERE id = $1`,
+      [statementId]
+    );
+  },
+
+  async markAggregatedTxReconciled(aggTxId: string, feeData: {
+    actual_fee_amount: number; fee_discrepancy: number; fee_discrepancy_note: string | null;
+  }) {
+    await pool.query(
+      `UPDATE aggregated_transactions
+       SET is_reconciled = true, actual_fee_amount = $1, fee_discrepancy = $2,
+           fee_discrepancy_note = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [feeData.actual_fee_amount, feeData.fee_discrepancy, feeData.fee_discrepancy_note, aggTxId]
+    );
+  },
+
+  async resetAggregatedTxReconciliation(posSyncAggregateId: string) {
+    await pool.query(
+      `UPDATE aggregated_transactions
+       SET is_reconciled = false, actual_fee_amount = 0, fee_discrepancy = 0,
+           fee_discrepancy_note = NULL, updated_at = NOW()
+       WHERE pos_sync_aggregate_id = $1 AND source_type = 'POS_SYNC'`,
+      [posSyncAggregateId]
+    );
+  },
+
+  async getVoidAggregates(salesDate: string, branchId?: string | null) {
+    const conditions = ["status = 'VOID'", 'sales_date = $1'];
+    const values: unknown[] = [salesDate];
+    let idx = 2;
+    if (branchId) { conditions.push(`branch_id = $${idx++}`); values.push(branchId) }
+
+    const { rows } = await pool.query(
+      `SELECT * FROM pos_sync_aggregates WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`,
+      values
+    );
+    return rows;
+  },
+
+  async getVoidTransactionCount(salesDate: string) {
+    const { rows } = await pool.query(
+      `SELECT COALESCE(SUM(void_transaction_count), 0)::int AS total
+       FROM pos_sync_aggregates WHERE status = 'VOID' AND sales_date = $1`,
+      [salesDate]
+    );
+    return rows[0]?.total ?? 0;
+  },
+
   async findVoidSalesDetails(salesNums: string[]) {
-    if (salesNums.length === 0) return []
-    const { data, error } = await supabase
-      .from('tr_saleshead')
-      .select('sales_num, sales_date, sales_date_in, sales_date_out, branch_id, queue_num, pax_total, subtotal, discount_total, vat_total, grand_total, additional_info, created_by')
-      .in('sales_num', salesNums)
-      .eq('status_id', 12)
-      .order('sales_date_in', { ascending: false })
-    if (error) throw error
-    return data ?? []
+    if (salesNums.length === 0) return [];
+    const { rows } = await pool.query(
+      `SELECT sales_num, sales_date, sales_date_in, sales_date_out, branch_id, queue_num,
+              pax_total, subtotal, discount_total, vat_total, grand_total, additional_info, created_by
+       FROM tr_saleshead
+       WHERE sales_num = ANY($1::text[]) AND status_id = 12
+       ORDER BY sales_date_in DESC`,
+      [salesNums]
+    );
+    return rows;
   },
 
   async getVoidSummary(startDate: string, endDate: string) {
-    const { data, error } = await supabase
-      .from("pos_sync_aggregates")
-      .select(
-        "sales_date, branch_id, branch_name, void_transaction_count, recalculated_count, updated_at",
-      )
-      .eq("status", "VOID")
-      .gte("sales_date", startDate)
-      .lte("sales_date", endDate)
-      .order("sales_date", { ascending: false });
-
-    if (error) throw error;
-    return data ?? [];
+    const { rows } = await pool.query(
+      `SELECT sales_date, branch_id, branch_name, void_transaction_count, recalculated_count, updated_at
+       FROM pos_sync_aggregates
+       WHERE status = 'VOID' AND sales_date >= $1 AND sales_date <= $2
+       ORDER BY sales_date DESC`,
+      [startDate, endDate]
+    );
+    return rows;
   },
 
   async getRecentVoidActivity(daysBack: number = 7) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);
 
-    const { data, error } = await supabase
-      .from("pos_sync_aggregates")
-      .select("*")
-      .eq("status", "VOID")
-      .gte("updated_at", startDate.toISOString())
-      .order("updated_at", { ascending: false });
-
-    if (error) throw error;
-    return data ?? [];
+    const { rows } = await pool.query(
+      `SELECT * FROM pos_sync_aggregates WHERE status = 'VOID' AND updated_at >= $1 ORDER BY updated_at DESC`,
+      [startDate.toISOString()]
+    );
+    return rows;
   },
 };
