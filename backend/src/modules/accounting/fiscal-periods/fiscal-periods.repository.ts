@@ -1,811 +1,247 @@
-import { supabase } from '../../../config/supabase'
+import { pool } from '../../../config/db'
 import { FiscalPeriod, CreateFiscalPeriodDto, UpdateFiscalPeriodDto, FiscalPeriodFilter, SortParams } from './fiscal-periods.types'
 import { FiscalPeriodErrors, FiscalPeriodError } from './fiscal-periods.errors'
 import { FiscalPeriodsConfig, defaultConfig } from './fiscal-periods.config'
-import { logError, logInfo, logWarn } from '../../../config/logger'
+import { logInfo } from '../../../config/logger'
 
-interface CacheEntry<T> {
-  data: T
-  timestamp: number
-  ttl: number
-}
+const VALID_SORT_FIELDS = ['period', 'fiscal_year', 'period_start', 'period_end', 'is_open', 'created_at']
+const FP_INSERT_FIELDS = ['company_id', 'period', 'period_start', 'period_end', 'is_adjustment_allowed', 'is_year_end', 'fiscal_year', 'created_by', 'updated_by', 'created_at', 'updated_at'] as const
+const FP_UPDATE_FIELDS = ['period', 'period_start', 'period_end', 'is_open', 'is_adjustment_allowed', 'is_year_end', 'closed_at', 'closed_by', 'close_reason', 'deleted_at', 'deleted_by', 'updated_by', 'updated_at'] as const
 
 export class FiscalPeriodsRepository {
-  private cache = new Map<string, CacheEntry<any>>()
+  private cache = new Map<string, { data: unknown; timestamp: number; ttl: number }>()
   private cleanupTimer: NodeJS.Timeout | null = null
   private readonly config: FiscalPeriodsConfig
 
   constructor(config: FiscalPeriodsConfig = defaultConfig) {
     this.config = config
-    this.startCacheCleanup()
-  }
-
-  private startCacheCleanup(): void {
-    this.cleanupTimer = setInterval(() => {
-      this.cleanupExpiredCache()
-    }, this.config.cache.cleanupInterval)
+    this.cleanupTimer = setInterval(() => this.cleanupExpiredCache(), this.config.cache.cleanupInterval)
   }
 
   private cleanupExpiredCache(): void {
     const now = Date.now()
-    let cleanedCount = 0
-    
-    try {
-      for (const [key, entry] of this.cache.entries()) {
-        if (now - entry.timestamp > entry.ttl) {
-          this.cache.delete(key)
-          cleanedCount++
-        }
-      }
-      
-      if (cleanedCount > 0) {
-        logInfo('Cache cleanup completed', { 
-          cleaned_entries: cleanedCount, 
-          remaining_entries: this.cache.size 
-        })
-      }
-
-      if (this.cache.size > this.config.cache.maxSize) {
-        const entriesToRemove = this.cache.size - this.config.cache.maxSize
-        const sortedEntries = Array.from(this.cache.entries())
-          .sort(([, a], [, b]) => a.timestamp - b.timestamp)
-        
-        for (let i = 0; i < entriesToRemove && i < sortedEntries.length; i++) {
-          this.cache.delete(sortedEntries[i][0])
-        }
-        
-        logWarn('Cache size limit exceeded, removed oldest entries', {
-          removed_entries: entriesToRemove,
-          cache_size: this.cache.size
-        })
-      }
-    } catch (error) {
-      logError('Cache cleanup failed', { error: error instanceof Error ? error.message : 'Unknown error' })
+    let cleaned = 0
+    for (const [key, entry] of this.cache.entries()) { if (now - entry.timestamp > entry.ttl) { this.cache.delete(key); cleaned++ } }
+    if (cleaned > 0) logInfo('Cache cleanup', { cleaned, remaining: this.cache.size })
+    if (this.cache.size > this.config.cache.maxSize) {
+      const sorted = [...this.cache.entries()].sort(([, a], [, b]) => a.timestamp - b.timestamp)
+      const toRemove = this.cache.size - this.config.cache.maxSize
+      for (let i = 0; i < toRemove; i++) this.cache.delete(sorted[i][0])
     }
   }
 
-  private getCacheKey(prefix: string, params: Record<string, any>): string {
-    const sortedParams = Object.keys(params)
-      .sort()
-      .reduce((obj, key) => ({ ...obj, [key]: params[key] }), {})
-    return `${prefix}:${JSON.stringify(sortedParams)}`
+  private getCacheKey(prefix: string, params: Record<string, unknown>): string {
+    return `${prefix}:${JSON.stringify(Object.keys(params).sort().reduce((o, k) => ({ ...o, [k]: params[k] }), {}))}`
   }
-
   private getFromCache<T>(key: string): T | null {
-    const cached = this.cache.get(key)
-    if (cached && Date.now() - cached.timestamp < cached.ttl) {
-      return cached.data as T
-    }
-    if (cached) {
-      this.cache.delete(key)
-    }
-    return null
+    const c = this.cache.get(key); if (c && Date.now() - c.timestamp < c.ttl) return c.data as T; if (c) this.cache.delete(key); return null
   }
-
-  private setCache<T>(key: string, data: T, ttl: number = this.config.cache.ttl): void {
-    if (this.cache.size >= this.config.cache.maxSize) {
-      this.cleanupExpiredCache()
-    }
-    this.cache.set(key, { data, timestamp: Date.now(), ttl })
-  }
-
+  private setCache<T>(key: string, data: T, ttl = this.config.cache.ttl): void { this.cache.set(key, { data, timestamp: Date.now(), ttl }) }
   private invalidateCache(pattern?: string): void {
-    if (pattern) {
-      const keysToDelete = Array.from(this.cache.keys()).filter(key => key.startsWith(pattern))
-      keysToDelete.forEach(key => this.cache.delete(key))
-      logInfo('Cache invalidated by pattern', { pattern, invalidated_keys: keysToDelete.length })
-    } else {
-      const size = this.cache.size
-      this.cache.clear()
-      logInfo('Cache cleared completely', { cleared_entries: size })
-    }
+    if (pattern) { for (const k of this.cache.keys()) { if (k.startsWith(pattern)) this.cache.delete(k) } } else this.cache.clear()
   }
 
-  async findAll(
-    companyId: string,
-    pagination: { limit: number; offset: number },
-    sort?: SortParams,
-    filter?: FiscalPeriodFilter
-  ): Promise<{ data: FiscalPeriod[]; total: number }> {
-    if (!companyId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('companyId', 'Company ID is required')
+  private buildConditions(companyId: string, filter?: FiscalPeriodFilter, search?: string) {
+    const conditions: string[] = ['company_id = $1']
+    const params: (string | boolean | number)[] = [companyId]
+    let idx = 2
+
+    if (filter?.show_deleted) conditions.push('deleted_at IS NOT NULL')
+    else conditions.push('deleted_at IS NULL')
+
+    if (filter?.fiscal_year !== undefined) { params.push(filter.fiscal_year); conditions.push(`fiscal_year = $${idx}`); idx++ }
+    if (typeof filter?.is_open === 'boolean') { params.push(filter.is_open); conditions.push(`is_open = $${idx}`); idx++ }
+    if (filter?.period) { params.push(filter.period); conditions.push(`period = $${idx}`); idx++ }
+    if (filter?.q || search) {
+      const term = (filter?.q || search || '').replace(/[%_\\]/g, '\\$&')
+      params.push(`%${term}%`)
+      conditions.push(`period ILIKE $${idx}`); idx++
     }
-    
-    if (pagination.limit <= 0 || pagination.offset < 0) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('pagination', 'Invalid pagination parameters')
-    }
-    
-    const cacheKey = this.getCacheKey('list', {
-      companyId,
-      page: Math.floor(pagination.offset / pagination.limit),
-      limit: pagination.limit,
-      sort,
-      filter
-    })
+
+    return { where: `WHERE ${conditions.join(' AND ')}`, params, idx }
+  }
+
+  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: SortParams, filter?: FiscalPeriodFilter): Promise<{ data: FiscalPeriod[]; total: number }> {
+    if (!companyId?.trim()) throw FiscalPeriodErrors.VALIDATION_ERROR('companyId', 'Company ID is required')
+
+    const cacheKey = this.getCacheKey('list', { companyId, offset: pagination.offset, limit: pagination.limit, sort, filter })
     const cached = this.getFromCache<{ data: FiscalPeriod[]; total: number }>(cacheKey)
-    if (cached) {
-      logInfo('Cache hit for findAll', { company_id: companyId })
-      return cached
-    }
+    if (cached) return cached
 
     try {
-      let query = supabase
-        .from('fiscal_periods')
-        .select('*')
-        .eq('company_id', companyId)
-      
-      let countQuery = supabase
-        .from('fiscal_periods')
-        .select('id', { count: 'exact', head: true })
-        .eq('company_id', companyId)
-      
-      if (filter?.fiscal_year !== undefined) {
-        query = query.eq('fiscal_year', filter.fiscal_year)
-        countQuery = countQuery.eq('fiscal_year', filter.fiscal_year)
-      }
-      if (typeof filter?.is_open === 'boolean') {
-        query = query.eq('is_open', filter.is_open)
-        countQuery = countQuery.eq('is_open', filter.is_open)
-      }
-      if (filter?.period) {
-        query = query.eq('period', filter.period)
-        countQuery = countQuery.eq('period', filter.period)
-      }
-      
-      if (filter?.show_deleted === true) {
-        query = query.not('deleted_at', 'is', null)
-        countQuery = countQuery.not('deleted_at', 'is', null)
-      } else {
-        query = query.is('deleted_at', null)
-        countQuery = countQuery.is('deleted_at', null)
-      }
-      
-      if (filter?.q) {
-        const searchPattern = `%${filter.q}%`
-        query = query.ilike('period', searchPattern)
-      }
-      
-      if (sort) {
-        query = query.order(sort.field, { ascending: sort.order === 'asc' })
-      } else {
-        query = query.order('period', { ascending: false })
-      }
-      
-      const [{ data, error }, { count, error: countError }] = await Promise.all([
-        query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-        countQuery
+      const { where, params, idx } = this.buildConditions(companyId, filter)
+      const sortField = sort?.field && VALID_SORT_FIELDS.includes(sort.field) ? sort.field : (filter?.show_deleted ? 'deleted_at' : 'period')
+      const sortOrder = filter?.show_deleted ? 'DESC' : (sort?.order === 'asc' ? 'ASC' : 'DESC')
+
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(`SELECT * FROM fiscal_periods ${where} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+        pool.query(`SELECT COUNT(*)::int AS total FROM fiscal_periods ${where}`, params)
       ])
 
-      if (error) {
-        logError('Repository findAll error', { 
-          error: error.message, 
-          code: error.code,
-          company_id: companyId
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findAll', error.message)
-      }
-      
-      if (countError) {
-        logError('Repository count error', { 
-          error: countError.message, 
-          company_id: companyId 
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('count', countError.message)
-      }
-      
-      const result = { data: data || [], total: count || 0 }
+      const result = { data: dataRes.rows, total: countRes.rows[0].total }
       this.setCache(cacheKey, result)
-      
-      logInfo('Repository findAll success', { 
-        company_id: companyId, 
-        count: result.data.length, 
-        total: result.total 
-      })
-      
-return result
+      return result
     } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findAll', error instanceof Error ? error.message : String(error))
+      if (error instanceof FiscalPeriodError) throw error
+      throw FiscalPeriodErrors.REPOSITORY_ERROR('findAll', (error as Error).message)
     }
   }
 
   async findById(id: string, companyId: string): Promise<FiscalPeriod | null> {
-    if (!id?.trim() || !companyId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('id_or_companyId', 'ID and Company ID are required')
-    }
+    if (!id?.trim() || !companyId?.trim()) throw FiscalPeriodErrors.VALIDATION_ERROR('id_or_companyId', 'ID and Company ID are required')
 
     const cacheKey = this.getCacheKey('detail', { id, companyId })
     const cached = this.getFromCache<FiscalPeriod>(cacheKey)
-    if (cached) {
-      logInfo('Cache hit for findById', { id, company_id: companyId })
-      return cached
-    }
+    if (cached) return cached
 
-    try {
-      const { data, error } = await supabase
-        .from('fiscal_periods')
-        .select('*')
-        .eq('id', id)
-        .eq('company_id', companyId)
-        .is('deleted_at', null)
-        .maybeSingle()
-
-      if (error) {
-        logError('Repository findById error', { 
-          error: error.message, 
-          id, 
-          company_id: companyId 
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findById', error.message)
-      }
-      
-      if (data) {
-        this.setCache(cacheKey, data)
-        logInfo('Repository findById success', { id, company_id: companyId })
-      }
-      
-      return data
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findById', (error as Error).message)
-    }
+    const { rows } = await pool.query('SELECT * FROM fiscal_periods WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL', [id, companyId])
+    if (rows[0]) this.setCache(cacheKey, rows[0])
+    return rows[0] ?? null
   }
 
   async findByCompanyAndPeriod(companyId: string, period: string): Promise<FiscalPeriod | null> {
-    if (!companyId?.trim() || !period?.trim()) {
-      return null
-    }
-
+    if (!companyId?.trim() || !period?.trim()) return null
     const cacheKey = this.getCacheKey('period', { companyId, period })
     const cached = this.getFromCache<FiscalPeriod>(cacheKey)
-    if (cached) {
-      logInfo('Cache hit for findByCompanyAndPeriod', { period, company_id: companyId })
-      return cached
-    }
-    
-    try {
-      const { data, error } = await supabase
-        .from('fiscal_periods')
-        .select('*')
-        .eq('company_id', companyId)
-        .eq('period', period)
-        .is('deleted_at', null)
-        .maybeSingle()
+    if (cached) return cached
 
-      if (error) {
-        logError('Repository findByCompanyAndPeriod error', { 
-          error: error.message, 
-          period, 
-          company_id: companyId 
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findByCompanyAndPeriod', error.message)
-      }
-      
-      if (data) {
-        this.setCache(cacheKey, data, 120000)
-        logInfo('Repository findByCompanyAndPeriod success', { period, company_id: companyId })
-      }
-      
-      return data
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findByCompanyAndPeriod', (error as Error).message)
-    }
+    const { rows } = await pool.query('SELECT * FROM fiscal_periods WHERE company_id = $1 AND period = $2 AND deleted_at IS NULL', [companyId, period])
+    if (rows[0]) this.setCache(cacheKey, rows[0], 120000)
+    return rows[0] ?? null
   }
-  async findByDate(companyId: string, date: string): Promise<FiscalPeriod | null> {
-    if (!companyId?.trim() || !date?.trim()) {
-      return null
-    }
 
+  async findByDate(companyId: string, date: string): Promise<FiscalPeriod | null> {
+    if (!companyId?.trim() || !date?.trim()) return null
     const cacheKey = this.getCacheKey('period_by_date', { companyId, date })
     const cached = this.getFromCache<FiscalPeriod>(cacheKey)
-    if (cached) {
-      return cached
-    }
+    if (cached) return cached
 
-    try {
-      const { data, error } = await supabase
-        .from('fiscal_periods')
-        .select('*')
-        .eq('company_id', companyId)
-        .lte('period_start', date)
-        .gte('period_end', date)
-        .is('deleted_at', null)
-        .maybeSingle()
-
-      if (error) {
-        logError('Repository findByDate error', { error: error.message, date, company_id: companyId })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findByDate', error.message)
-      }
-
-      if (data) {
-        this.setCache(cacheKey, data)
-      }
-
-      return data
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) throw error
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findByDate', (error as Error).message)
-    }
+    const { rows } = await pool.query(
+      'SELECT * FROM fiscal_periods WHERE company_id = $1 AND period_start <= $2 AND period_end >= $2 AND deleted_at IS NULL',
+      [companyId, date]
+    )
+    if (rows[0]) this.setCache(cacheKey, rows[0])
+    return rows[0] ?? null
   }
 
-
   async findByIds(companyId: string, ids: string[]): Promise<FiscalPeriod[]> {
-    if (!companyId?.trim() || !Array.isArray(ids) || ids.length === 0) {
-      return []
-    }
-
-    try {
-      // NOTE: Result order is not guaranteed by SQL IN clause
-      const { data, error } = await supabase
-        .from('fiscal_periods')
-        .select('*')
-        .eq('company_id', companyId)
-        .is('deleted_at', null)
-        .in('id', ids)
-
-      if (error) {
-        logError('Repository findByIds error', { 
-          error: error.message, 
-          company_id: companyId,
-          ids_count: ids.length
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findByIds', error.message)
-      }
-      
-      logInfo('Repository findByIds success', { 
-        company_id: companyId, 
-        requested_count: ids.length,
-        found_count: data?.length || 0
-      })
-      
-      return data || []
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findByIds', (error as Error).message)
-    }
+    if (!companyId?.trim() || !ids?.length) return []
+    const { rows } = await pool.query('SELECT * FROM fiscal_periods WHERE company_id = $1 AND deleted_at IS NULL AND id = ANY($2::uuid[])', [companyId, ids])
+    return rows
   }
 
   async findAnyByCompanyAndPeriod(companyId: string, period: string): Promise<FiscalPeriod | null> {
-    if (!companyId?.trim() || !period?.trim()) {
-      return null
-    }
-
-    try {
-      // Use limit(1) instead of maybeSingle to be safe against multiple deleted records
-      const { data, error } = await supabase
-        .from('fiscal_periods')
-        .select('*')
-        .eq('company_id', companyId)
-        .eq('period', period)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (error) {
-        logError('Repository findAnyByCompanyAndPeriod error', { error: error.message, period, company_id: companyId })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('findAnyByCompanyAndPeriod', error.message)
-      }
-      
-      return data && data.length > 0 ? data[0] : null
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) throw error
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('findAnyByCompanyAndPeriod', (error as Error).message)
-    }
+    if (!companyId?.trim() || !period?.trim()) return null
+    const { rows } = await pool.query('SELECT * FROM fiscal_periods WHERE company_id = $1 AND period = $2 ORDER BY created_at DESC LIMIT 1', [companyId, period])
+    return rows[0] ?? null
   }
 
   async restoreWithUpdate(id: string, companyId: string, updates: UpdateFiscalPeriodDto & { updated_by: string }): Promise<FiscalPeriod> {
-    try {
-      const { data, error } = await supabase
-        .from('fiscal_periods')
-        .update({
-          ...updates,
-          deleted_at: null,
-          deleted_by: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .eq('company_id', companyId)
-        .select()
-        .single()
-
-      if (error) {
-        logError('Repository restoreWithUpdate error', { error: error.message, id, company_id: companyId })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('restoreWithUpdate', error.message)
-      }
-
-      this.invalidateCache('list:')
-      this.invalidateCache('period:')
-      this.invalidateCache('detail:')
-      
-      return data
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) throw error
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('restoreWithUpdate', (error as Error).message)
-    }
+    const fullUpdates: Record<string, unknown> = { ...updates, deleted_at: null, deleted_by: null, updated_at: new Date().toISOString() }
+    const keys = FP_UPDATE_FIELDS.filter(k => fullUpdates[k] !== undefined)
+    const values = keys.map(k => fullUpdates[k])
+    const { rows } = await pool.query(
+      `UPDATE fiscal_periods SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} AND company_id = $${keys.length + 2} RETURNING *`,
+      [...values, id, companyId]
+    )
+    this.invalidateCache()
+    return rows[0]
   }
 
   async create(data: CreateFiscalPeriodDto & { company_id: string }, userId: string): Promise<FiscalPeriod> {
-    if (!userId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('userId', 'User ID is required')
-    }
-
+    if (!userId?.trim()) throw FiscalPeriodErrors.VALIDATION_ERROR('userId', 'User ID is required')
     try {
-      const insertData = {
-        company_id: data.company_id,
-        period: data.period,
-        period_start: data.period_start,
-        period_end: data.period_end,
-        is_adjustment_allowed: data.is_adjustment_allowed,
-        is_year_end: data.is_year_end,
+      const insertData: Record<string, unknown> = {
+        company_id: data.company_id, period: data.period, period_start: data.period_start, period_end: data.period_end,
+        is_adjustment_allowed: data.is_adjustment_allowed, is_year_end: data.is_year_end,
         fiscal_year: parseInt(data.period.substring(0, 4)),
-        created_by: userId,
-        updated_by: userId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        created_by: userId, updated_by: userId, created_at: new Date().toISOString(), updated_at: new Date().toISOString()
       }
-
-      const { data: period, error } = await supabase
-        .from('fiscal_periods')
-        .insert(insertData)
-        .select()
-        .single()
-
-      if (error) {
-        logError('Repository create error', { 
-          error: error.message, 
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-          period: data.period,
-          company_id: data.company_id,
-          user_id: userId,
-          full_error: JSON.stringify(error)
-        })
-        
-        if (error.code === '23505') {
-          throw FiscalPeriodErrors.PERIOD_EXISTS(data.period, data.company_id)
-        }
-        
-        
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('create', error.message)
-      }
-      
-      this.invalidateCache('list:')
-      this.invalidateCache('period:')
-      
-      logInfo('Repository create success', { 
-        period_id: period.id, 
-        period: period.period,
-        company_id: data.company_id,
-        user_id: userId
-      })
-      
-      return period
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
+      const keys = FP_INSERT_FIELDS.filter(k => insertData[k] !== undefined)
+      const values = keys.map(k => insertData[k])
+      const { rows } = await pool.query(
+        `INSERT INTO fiscal_periods (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+        values
+      )
+      this.invalidateCache()
+      logInfo('Fiscal period created', { period_id: rows[0].id, period: rows[0].period })
+      return rows[0]
+    } catch (error: unknown) {
+      if ((error as { code?: string }).code === '23505') throw FiscalPeriodErrors.PERIOD_EXISTS(data.period, data.company_id)
+      if (error instanceof FiscalPeriodError) throw error
       throw FiscalPeriodErrors.REPOSITORY_ERROR('create', (error as Error).message)
     }
   }
 
   async update(id: string, companyId: string, updates: UpdateFiscalPeriodDto & { updated_by: string }): Promise<FiscalPeriod | null> {
-    if (!id?.trim() || !companyId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'ID and Company ID are required')
-    }
-
-    try {
-      const updateData = {
-        ...updates,
-        updated_at: new Date().toISOString()
-      }
-
-      const { data, error } = await supabase
-        .from('fiscal_periods')
-        .update(updateData)
-        .eq('id', id)
-        .eq('company_id', companyId)
-        .select()
-        .maybeSingle()
-
-      if (error) {
-        logError('Repository update error', { 
-          error: error.message, 
-          code: error.code,
-          id,
-          company_id: companyId
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('update', error.message)
-      }
-      
-      if (data) {
-        this.invalidateCache('list:')
-        this.invalidateCache('period:')
-        this.invalidateCache('detail:')
-        logInfo('Repository update success', { 
-          period_id: id, 
-          company_id: companyId
-        })
-      }
-      
-      return data
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('update', (error as Error).message)
-    }
+    const fullUpdates: Record<string, unknown> = { ...updates, updated_at: new Date().toISOString() }
+    const keys = FP_UPDATE_FIELDS.filter(k => fullUpdates[k] !== undefined)
+    const values = keys.map(k => fullUpdates[k])
+    const { rows } = await pool.query(
+      `UPDATE fiscal_periods SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} AND company_id = $${keys.length + 2} RETURNING *`,
+      [...values, id, companyId]
+    )
+    if (rows[0]) this.invalidateCache()
+    return rows[0] ?? null
   }
 
   async closePeriod(id: string, companyId: string, userId: string, reason?: string): Promise<FiscalPeriod | null> {
-    if (!id?.trim() || !companyId?.trim() || !userId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'ID, Company ID, and User ID are required')
-    }
-
-    try {
-      const updateData = {
-        is_open: false,
-        closed_at: new Date().toISOString(),
-        closed_by: userId,
-        close_reason: reason || null,
-        updated_at: new Date().toISOString(),
-        updated_by: userId
-      }
-
-      const { data, error } = await supabase
-        .from('fiscal_periods')
-        .update(updateData)
-        .eq('id', id)
-        .eq('company_id', companyId)
-        .eq('is_open', true)
-        .select()
-        .maybeSingle()
-
-      if (error) {
-        logError('Repository closePeriod error', { 
-          error: error.message, 
-          id, 
-          company_id: companyId 
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('closePeriod', error.message)
-      }
-      
-      if (!data) {
-        throw FiscalPeriodErrors.PERIOD_ALREADY_CLOSED()
-      }
-      
-      this.invalidateCache('list:')
-      this.invalidateCache('period:')
-      this.invalidateCache('detail:')
-      logInfo('Repository closePeriod success', { period_id: id, company_id: companyId })
-      
-      return data
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('closePeriod', (error as Error).message)
-    }
+    const { rows } = await pool.query(
+      'UPDATE fiscal_periods SET is_open = false, closed_at = NOW(), closed_by = $1, close_reason = $2, updated_at = NOW(), updated_by = $1 WHERE id = $3 AND company_id = $4 AND is_open = true RETURNING *',
+      [userId, reason || null, id, companyId]
+    )
+    if (!rows[0]) throw FiscalPeriodErrors.PERIOD_ALREADY_CLOSED()
+    this.invalidateCache()
+    return rows[0]
   }
 
   async softDelete(id: string, companyId: string, userId: string): Promise<void> {
-    if (!id?.trim() || !companyId?.trim() || !userId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'ID, Company ID, and User ID are required')
-    }
-
-    try {
-      const { error } = await supabase
-        .from('fiscal_periods')
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .eq('company_id', companyId)
-        .eq('is_open', true)
-
-      if (error) {
-        logError('Repository softDelete error', { 
-          error: error.message, 
-          id, 
-          company_id: companyId 
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('softDelete', error.message)
-      }
-      
-      this.invalidateCache('list:')
-      this.invalidateCache('period:')
-      this.invalidateCache('detail:')
-      logInfo('Repository softDelete success', { period_id: id, company_id: companyId })
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('softDelete', (error as Error).message)
-    }
+    await pool.query(
+      'UPDATE fiscal_periods SET deleted_at = NOW(), deleted_by = $1, updated_at = NOW() WHERE id = $2 AND company_id = $3 AND is_open = true',
+      [userId, id, companyId]
+    )
+    this.invalidateCache()
   }
 
   async bulkDelete(companyId: string, ids: string[], userId: string): Promise<void> {
-    if (!companyId?.trim() || !Array.isArray(ids) || ids.length === 0 || !userId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'Company ID, IDs array, and User ID are required')
-    }
-
-    try {
-      const { error } = await supabase
-        .from('fiscal_periods')
-        .update({
-          deleted_at: new Date().toISOString(),
-          deleted_by: userId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('company_id', companyId)
-        .eq('is_open', true)
-        .in('id', ids)
-
-      if (error) {
-        logError('Repository bulkDelete error', { 
-          error: error.message, 
-          company_id: companyId,
-          ids_count: ids.length
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkDelete', error.message)
-      }
-      
-      this.invalidateCache('list:')
-      this.invalidateCache('period:')
-      logInfo('Repository bulkDelete success', { 
-        company_id: companyId, 
-        deleted_count: ids.length
-      })
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkDelete', (error as Error).message)
-    }
+    await pool.query(
+      'UPDATE fiscal_periods SET deleted_at = NOW(), deleted_by = $1, updated_at = NOW() WHERE company_id = $2 AND is_open = true AND id = ANY($3::uuid[])',
+      [userId, companyId, ids]
+    )
+    this.invalidateCache()
   }
 
   async restore(id: string, companyId: string): Promise<void> {
-    if (!id?.trim() || !companyId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'ID and Company ID are required')
-    }
-
-    try {
-      const { error } = await supabase
-        .from('fiscal_periods')
-        .update({
-          deleted_at: null,
-          deleted_by: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .eq('company_id', companyId)
-        .not('deleted_at', 'is', null)
-
-      if (error) {
-        logError('Repository restore error', { 
-          error: error.message, 
-          id, 
-          company_id: companyId 
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('restore', error.message)
-      }
-      
-      this.invalidateCache('list:')
-      this.invalidateCache('period:')
-      this.invalidateCache('detail:')
-      logInfo('Repository restore success', { period_id: id, company_id: companyId })
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('restore', (error as Error).message)
-    }
+    await pool.query(
+      'UPDATE fiscal_periods SET deleted_at = NULL, deleted_by = NULL, updated_at = NOW() WHERE id = $1 AND company_id = $2 AND deleted_at IS NOT NULL',
+      [id, companyId]
+    )
+    this.invalidateCache()
   }
 
   async bulkRestore(companyId: string, ids: string[]): Promise<void> {
-    if (!companyId?.trim() || !Array.isArray(ids) || ids.length === 0) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'Company ID and IDs array are required')
-    }
-
-    try {
-      const { error } = await supabase
-        .from('fiscal_periods')
-        .update({
-          deleted_at: null,
-          deleted_by: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('company_id', companyId)
-        .not('deleted_at', 'is', null)
-        .in('id', ids)
-
-      if (error) {
-        logError('Repository bulkRestore error', { 
-          error: error.message, 
-          company_id: companyId,
-          ids_count: ids.length
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkRestore', error.message)
-      }
-      
-      this.invalidateCache('list:')
-      this.invalidateCache('period:')
-      logInfo('Repository bulkRestore success', { 
-        company_id: companyId, 
-        restored_count: ids.length 
-      })
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('bulkRestore', (error as Error).message)
-    }
+    await pool.query(
+      'UPDATE fiscal_periods SET deleted_at = NULL, deleted_by = NULL, updated_at = NOW() WHERE company_id = $1 AND deleted_at IS NOT NULL AND id = ANY($2::uuid[])',
+      [companyId, ids]
+    )
+    this.invalidateCache()
   }
 
-  async exportData(companyId: string, filter?: FiscalPeriodFilter, limit: number = 10000): Promise<FiscalPeriod[]> {
-    if (!companyId?.trim()) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('companyId', 'Company ID is required')
-    }
-
+  async exportData(companyId: string, filter?: FiscalPeriodFilter, limit = 10000): Promise<FiscalPeriod[]> {
     const safeLimit = Math.min(limit, this.config.limits.export)
-    
-    try {
-      let query = supabase
-        .from('fiscal_periods')
-        .select('*')
-        .eq('company_id', companyId)
-        .is('deleted_at', null)
-        .limit(safeLimit)
-      
-      if (filter?.fiscal_year) {
-        query = query.eq('fiscal_year', filter.fiscal_year)
-      }
-      if (typeof filter?.is_open === 'boolean') {
-        query = query.eq('is_open', filter.is_open)
-      }
-      
-      const { data, error } = await query.order('period', { ascending: false })
-      
-      if (error) {
-        logError('Repository exportData error', { 
-          error: error.message, 
-          company_id: companyId,
-          limit: safeLimit
-        })
-        throw FiscalPeriodErrors.REPOSITORY_ERROR('exportData', error.message)
-      }
-      
-      logInfo('Repository exportData success', { 
-        company_id: companyId, 
-        exported_count: data?.length || 0 
-      })
-      
-      return data || []
-    } catch (error) {
-      if (error instanceof FiscalPeriodError) {
-        throw error
-      }
-      throw FiscalPeriodErrors.REPOSITORY_ERROR('exportData', (error as Error).message)
-    }
+    const conditions: string[] = ['company_id = $1', 'deleted_at IS NULL']
+    const params: (string | boolean | number)[] = [companyId]
+    let idx = 2
+    if (filter?.fiscal_year) { params.push(filter.fiscal_year); conditions.push(`fiscal_year = $${idx}`); idx++ }
+    if (typeof filter?.is_open === 'boolean') { params.push(filter.is_open); conditions.push(`is_open = $${idx}`); idx++ }
+    params.push(safeLimit)
+    const { rows } = await pool.query(`SELECT * FROM fiscal_periods WHERE ${conditions.join(' AND ')} ORDER BY period DESC LIMIT $${idx}`, params)
+    return rows
   }
 
   destroy(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer)
-      this.cleanupTimer = null
-    }
+    if (this.cleanupTimer) { clearInterval(this.cleanupTimer); this.cleanupTimer = null }
     this.cache.clear()
-    logInfo('FiscalPeriodsRepository destroyed')
   }
 }
 
