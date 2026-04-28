@@ -1,349 +1,131 @@
-import { supabase } from '../../../../config/supabase'
-import { JournalLine, JournalLineWithDetails, JournalLineFilter, JournalLineSortParams } from './journal-lines.types'
+import { pool } from '../../../../config/db'
+import { JournalLineWithDetails, JournalLineFilter, JournalLineSortParams } from './journal-lines.types'
+
+const BASE_SELECT = `
+  jl.*,
+  jh.journal_number, jh.journal_date, jh.journal_type, jh.status AS journal_status,
+  jh.description AS journal_description, jh.period, jh.is_reversed, jh.branch_id AS jh_branch_id,
+  jh.company_id AS jh_company_id, jh.deleted_at AS jh_deleted_at,
+  coa.account_code, coa.account_name, coa.account_type
+`
+const BASE_FROM = `
+  FROM journal_lines jl
+  JOIN journal_headers jh ON jh.id = jl.journal_header_id
+  JOIN chart_of_accounts coa ON coa.id = jl.account_id
+`
+
+function buildConditions(companyId: string, filter?: JournalLineFilter) {
+  const conditions: string[] = ['jh.company_id = $1']
+  const params: (string | boolean)[] = [companyId]
+  let idx = 2
+
+  if (!filter?.show_deleted) conditions.push('jh.deleted_at IS NULL')
+  if (!filter?.include_reversed) conditions.push('jh.is_reversed = false')
+
+  if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`jh.branch_id = $${idx}`); idx++ }
+  if (filter?.account_id) { params.push(filter.account_id); conditions.push(`jl.account_id = $${idx}`); idx++ }
+  if (filter?.journal_type) { params.push(filter.journal_type); conditions.push(`jh.journal_type = $${idx}`); idx++ }
+
+  if (filter?.journal_status === 'POSTED_ONLY') {
+    conditions.push("jh.status = 'POSTED'")
+  } else if (filter?.journal_status) {
+    params.push(filter.journal_status); conditions.push(`jh.status = $${idx}`); idx++
+  }
+
+  if (filter?.period_from) { params.push(filter.period_from); conditions.push(`jh.period >= $${idx}`); idx++ }
+  if (filter?.period_to) { params.push(filter.period_to); conditions.push(`jh.period <= $${idx}`); idx++ }
+  if (filter?.date_from) { params.push(filter.date_from); conditions.push(`jh.journal_date >= $${idx}`); idx++ }
+  if (filter?.date_to) { params.push(filter.date_to); conditions.push(`jh.journal_date <= $${idx}`); idx++ }
+  if (filter?.search) {
+    params.push(`%${filter.search}%`)
+    conditions.push(`(jl.description ILIKE $${idx} OR jh.journal_number ILIKE $${idx})`)
+    idx++
+  }
+
+  return { where: `WHERE ${conditions.join(' AND ')}`, params, idx }
+}
+
+const VALID_SORT_MAP: Record<string, string> = {
+  journal_date: 'jh.journal_date', journal_number: 'jh.journal_number',
+  account_code: 'coa.account_code', amount: 'jl.debit_amount',
+  created_at: 'jl.created_at', line_number: 'jl.line_number',
+}
+
+function buildOrderBy(sort?: JournalLineSortParams): string {
+  if (sort?.field && VALID_SORT_MAP[sort.field]) {
+    return `ORDER BY ${VALID_SORT_MAP[sort.field]} ${sort.order === 'desc' ? 'DESC' : 'ASC'}`
+  }
+  return 'ORDER BY jh.journal_date ASC, jh.journal_number ASC, jl.line_number ASC'
+}
+
+function transformRow(row: Record<string, unknown>): JournalLineWithDetails {
+  return {
+    id: row.id, journal_header_id: row.journal_header_id, line_number: row.line_number,
+    account_id: row.account_id, description: row.description,
+    debit_amount: row.debit_amount, credit_amount: row.credit_amount,
+    is_debit: Number(row.debit_amount) > 0,
+    amount: Number(row.debit_amount) > 0 ? row.debit_amount : row.credit_amount,
+    currency: row.currency, exchange_rate: row.exchange_rate,
+    base_debit_amount: row.base_debit_amount, base_credit_amount: row.base_credit_amount,
+    cost_center_id: row.cost_center_id, project_id: row.project_id,
+    created_at: row.created_at, updated_at: row.updated_at,
+    account_code: row.account_code, account_name: row.account_name, account_type: row.account_type,
+    journal_number: row.journal_number, journal_date: row.journal_date,
+    journal_type: row.journal_type, journal_status: row.journal_status,
+    journal_description: row.journal_description, period: row.period,
+    is_reversed: row.is_reversed, branch_id: row.jh_branch_id,
+  } as unknown as JournalLineWithDetails
+}
 
 export class JournalLinesRepository {
-  
-  /**
-   * Find all lines with details (account, journal info)
-   * Includes computed semantic fields (is_debit, amount)
-   */
   async findAll(
-    companyId: string,
-    pagination: { limit: number; offset: number },
-    sort?: JournalLineSortParams,
-    filter?: JournalLineFilter
+    companyId: string, pagination: { limit: number; offset: number },
+    sort?: JournalLineSortParams, filter?: JournalLineFilter
   ): Promise<{ data: JournalLineWithDetails[]; total: number }> {
-    
-    // Build select with computed fields
-    let query = supabase
-      .from('journal_lines')
-      .select(`
-        *,
-        journal_headers!inner(
-          id,
-          company_id,
-          branch_id,
-          journal_number,
-          journal_date,
-          journal_type,
-          status,
-          description,
-          period,
-          is_reversed,
-          deleted_at
-        ),
-        chart_of_accounts!inner(
-          account_code,
-          account_name,
-          account_type
-        )
-      `, { count: 'exact' })
-    
-    let countQuery = supabase
-      .from('journal_lines')
-      .select('id, journal_headers!inner(company_id, deleted_at)', { count: 'exact', head: true })
-    
-    // Company filter (via journal_headers)
-    query = query.eq('journal_headers.company_id', companyId)
-    countQuery = countQuery.eq('journal_headers.company_id', companyId)
-    
-    // Soft delete filter (default: hide deleted)
-    if (!filter?.show_deleted) {
-      query = query.is('journal_headers.deleted_at', null)
-      countQuery = countQuery.is('journal_headers.deleted_at', null)
-    }
-    
-    // Reversed filter (default: hide reversed)
-    if (!filter?.include_reversed) {
-      query = query.eq('journal_headers.is_reversed', false)
-      countQuery = countQuery.eq('journal_headers.is_reversed', false)
-    }
-    
-    if (filter) {
-      if (filter.branch_id) {
-        query = query.eq('journal_headers.branch_id', filter.branch_id)
-        countQuery = countQuery.eq('journal_headers.branch_id', filter.branch_id)
-      }
-      
-      if (filter.account_id) {
-        query = query.eq('account_id', filter.account_id)
-        countQuery = countQuery.eq('account_id', filter.account_id)
-      }
-      
-      if (filter.journal_type) {
-        query = query.eq('journal_headers.journal_type', filter.journal_type)
-        countQuery = countQuery.eq('journal_headers.journal_type', filter.journal_type)
-      }
-      
-      if (filter.journal_status === 'POSTED_ONLY') {
-        query = query.eq('journal_headers.status', 'POSTED')
-        countQuery = countQuery.eq('journal_headers.status', 'POSTED')
-      } else if (filter.journal_status) {
-        query = query.eq('journal_headers.status', filter.journal_status)
-        countQuery = countQuery.eq('journal_headers.status', filter.journal_status)
-      }
-      
-      if (filter.period_from) {
-        query = query.gte('journal_headers.period', filter.period_from)
-        countQuery = countQuery.gte('journal_headers.period', filter.period_from)
-      }
-      
-      if (filter.period_to) {
-        query = query.lte('journal_headers.period', filter.period_to)
-        countQuery = countQuery.lte('journal_headers.period', filter.period_to)
-      }
-      
-      if (filter.date_from) {
-        query = query.gte('journal_headers.journal_date', filter.date_from)
-        countQuery = countQuery.gte('journal_headers.journal_date', filter.date_from)
-      }
-      
-      if (filter.date_to) {
-        query = query.lte('journal_headers.journal_date', filter.date_to)
-        countQuery = countQuery.lte('journal_headers.journal_date', filter.date_to)
-      }
-      
-      if (filter.search) {
-        const search = `%${filter.search}%`
-        query = query.or(
-          `description.ilike.${search},journal_headers.journal_number.ilike.${search}`
-        )
-        countQuery = countQuery.or(
-          `description.ilike.${search},journal_headers.journal_number.ilike.${search}`
-        )
-      }
-    }
-    
-    // Default sort: accounting-friendly
-    if (sort) {
-      const ascending = sort.order === 'asc'
-      switch (sort.field) {
-        case 'journal_date':
-          query = query.order('journal_date', { foreignTable: 'journal_headers', ascending })
-          break
-        case 'journal_number':
-          query = query.order('journal_number', { foreignTable: 'journal_headers', ascending })
-          break
-        case 'account_code':
-          query = query.order('account_code', { foreignTable: 'chart_of_accounts', ascending })
-          break
-        case 'amount':
-          query = query.order('debit_amount', { ascending })
-          break
-        case 'created_at':
-          query = query.order('created_at', { ascending })
-          break
-        case 'line_number':
-        default:
-          query = query.order('line_number', { ascending })
-          break
-      }
-    } else {
-      // Default: journal_date ASC, journal_number ASC, line_number ASC
-      query = query
-        .order('journal_date', { foreignTable: 'journal_headers', ascending: true })
-        .order('journal_number', { foreignTable: 'journal_headers', ascending: true })
-        .order('line_number', { ascending: true })
-    }
-    
-    const [{ data, error }, { count, error: countError }] = await Promise.all([
-      query.range(pagination.offset, pagination.offset + pagination.limit - 1),
-      countQuery
+    const { where, params, idx } = buildConditions(companyId, filter)
+    const orderBy = buildOrderBy(sort)
+
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(`SELECT ${BASE_SELECT} ${BASE_FROM} ${where} ${orderBy} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total ${BASE_FROM} ${where}`, params)
     ])
 
-    if (error) throw new Error(error.message)
-    if (countError) throw new Error(countError.message)
-    
-    // Transform to flat structure with computed fields
-    const transformedData = (data || []).map(this.transformToWithDetails)
-    
-    return { data: transformedData, total: count || 0 }
+    return { data: dataRes.rows.map(transformRow), total: countRes.rows[0].total }
   }
 
   async findById(id: string, companyId: string): Promise<JournalLineWithDetails | null> {
-    const { data, error } = await supabase
-      .from('journal_lines')
-      .select(`
-        *,
-        journal_headers!inner(
-          id,
-          company_id,
-          branch_id,
-          journal_number,
-          journal_date,
-          journal_type,
-          status,
-          description,
-          period,
-          is_reversed,
-          deleted_at
-        ),
-        chart_of_accounts!inner(
-          account_code,
-          account_name,
-          account_type
-        )
-      `)
-      .eq('id', id)
-      .eq('journal_headers.company_id', companyId)
-      .is('journal_headers.deleted_at', null)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    if (!data) return null
-
-    return this.transformToWithDetails(data)
+    const { rows } = await pool.query(
+      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE jl.id = $1 AND jh.company_id = $2 AND jh.deleted_at IS NULL`,
+      [id, companyId]
+    )
+    return rows[0] ? transformRow(rows[0]) : null
   }
 
   async findByJournalHeaderId(journalHeaderId: string, companyId: string): Promise<JournalLineWithDetails[]> {
-    const { data, error } = await supabase
-      .from('journal_lines')
-      .select(`
-        *,
-        journal_headers!inner(
-          id,
-          company_id,
-          branch_id,
-          journal_number,
-          journal_date,
-          journal_type,
-          status,
-          description,
-          period,
-          is_reversed,
-          deleted_at
-        ),
-        chart_of_accounts!inner(
-          account_code,
-          account_name,
-          account_type
-        )
-      `)
-      .eq('journal_header_id', journalHeaderId)
-      .eq('journal_headers.company_id', companyId)
-      .is('journal_headers.deleted_at', null)
-      .order('line_number', { ascending: true })
-
-    if (error) throw new Error(error.message)
-
-    return (data || []).map(this.transformToWithDetails)
+    const { rows } = await pool.query(
+      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE jl.journal_header_id = $1 AND jh.company_id = $2 AND jh.deleted_at IS NULL ORDER BY jl.line_number ASC`,
+      [journalHeaderId, companyId]
+    )
+    return rows.map(transformRow)
   }
 
-  async findByAccountId(
-    accountId: string,
-    companyId: string,
-    filter?: JournalLineFilter
-  ): Promise<JournalLineWithDetails[]> {
-    let query = supabase
-      .from('journal_lines')
-      .select(`
-        *,
-        journal_headers!inner(
-          id,
-          company_id,
-          branch_id,
-          journal_number,
-          journal_date,
-          journal_type,
-          status,
-          description,
-          period,
-          is_reversed,
-          deleted_at
-        ),
-        chart_of_accounts!inner(
-          account_code,
-          account_name,
-          account_type
-        )
-      `)
-      .eq('account_id', accountId)
-      .eq('journal_headers.company_id', companyId)
-    
-    // Default: only posted, not reversed, not deleted
-    if (filter?.journal_status === 'POSTED_ONLY' || !filter?.journal_status) {
-      query = query.eq('journal_headers.status', 'POSTED')
+  async findByAccountId(accountId: string, companyId: string, filter?: JournalLineFilter): Promise<JournalLineWithDetails[]> {
+    const defaultFilter: JournalLineFilter = {
+      company_id: companyId,
+      account_id: accountId,
+      journal_status: filter?.journal_status || 'POSTED_ONLY',
+      include_reversed: filter?.include_reversed ?? false,
+      show_deleted: filter?.show_deleted ?? false,
+      date_from: filter?.date_from,
+      date_to: filter?.date_to,
     }
-    
-    if (!filter?.include_reversed) {
-      query = query.eq('journal_headers.is_reversed', false)
-    }
-    
-    if (!filter?.show_deleted) {
-      query = query.is('journal_headers.deleted_at', null)
-    }
-    
-    if (filter?.date_from) {
-      query = query.gte('journal_headers.journal_date', filter.date_from)
-    }
-    
-    if (filter?.date_to) {
-      query = query.lte('journal_headers.journal_date', filter.date_to)
-    }
-    
-    // Accounting-friendly sort
-    query = query
-      .order('journal_date', { foreignTable: 'journal_headers', ascending: true })
-      .order('journal_number', { foreignTable: 'journal_headers', ascending: true })
-      .order('line_number', { ascending: true })
+    const { where, params } = buildConditions(companyId, defaultFilter)
 
-    const { data, error } = await query
-
-    if (error) throw new Error(error.message)
-
-    return (data || []).map(this.transformToWithDetails)
-  }
-
-  /**
-   * Transform Supabase nested result to flat structure with computed fields
-   */
-  private transformToWithDetails(row: any): JournalLineWithDetails {
-    const jh = row.journal_headers
-    const coa = row.chart_of_accounts
-    
-    return {
-      id: row.id,
-      journal_header_id: row.journal_header_id,
-      line_number: row.line_number,
-      account_id: row.account_id,
-      description: row.description,
-      
-      debit_amount: row.debit_amount,
-      credit_amount: row.credit_amount,
-      
-      // Computed semantic fields
-      is_debit: row.debit_amount > 0,
-      amount: row.debit_amount > 0 ? row.debit_amount : row.credit_amount,
-      
-      currency: row.currency,
-      exchange_rate: row.exchange_rate,
-      base_debit_amount: row.base_debit_amount,
-      base_credit_amount: row.base_credit_amount,
-      
-      cost_center_id: row.cost_center_id,
-      project_id: row.project_id,
-      
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      
-      // Account info
-      account_code: coa.account_code,
-      account_name: coa.account_name,
-      account_type: coa.account_type,
-      
-      // Journal info
-      journal_number: jh.journal_number,
-      journal_date: jh.journal_date,
-      journal_type: jh.journal_type,
-      journal_status: jh.status,
-      journal_description: jh.description,
-      period: jh.period,
-      
-      // Posting state (derived from journal_status)
-      is_reversed: jh.is_reversed,
-      
-      branch_id: jh.branch_id
-    }
+    const { rows } = await pool.query(
+      `SELECT ${BASE_SELECT} ${BASE_FROM} ${where} ORDER BY jh.journal_date ASC, jh.journal_number ASC, jl.line_number ASC`,
+      params
+    )
+    return rows.map(transformRow)
   }
 }
 

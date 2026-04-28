@@ -1,127 +1,70 @@
-/**
- * Jobs Repository
- * Database access layer for background job queue
- * Fully type-safe with RPC methods
- */
-
-import { supabase } from '@/config/supabase'
+import { pool } from '@/config/db'
 import { logInfo, logError } from '@/config/logger'
 import { Job, CreateJobDto, UpdateJobDto } from './jobs.types'
 import { JobErrors } from './jobs.errors'
 import { JOB_QUEUE_CONFIG } from './jobs.constants'
 
 export class JobsRepository {
-  /**
-   * Find user's recent jobs (last 10, excluding deleted)
-   */
   async findUserRecentJobs(userId: string): Promise<Job[]> {
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .in('status', ['pending', 'processing', 'completed'])
-        .order('created_at', { ascending: false })
-        .limit(10)
-
-      if (error) throw error
-
-      logInfo('Repository findUserRecentJobs success', { user_id: userId, count: data?.length || 0 })
-      return data as Job[] || []
+      const { rows } = await pool.query(
+        "SELECT * FROM jobs WHERE user_id = $1 AND deleted_at IS NULL AND status IN ('pending', 'processing', 'completed') ORDER BY created_at DESC LIMIT 10",
+        [userId]
+      )
+      logInfo('Repository findUserRecentJobs success', { user_id: userId, count: rows.length })
+      return rows as Job[]
     } catch (error) {
       logError('Repository findUserRecentJobs error', { user_id: userId, error })
       throw error
     }
   }
 
-
   async findPendingJobs(limit?: number): Promise<Job[]> {
-    const { data, error } = await supabase
-      .from('jobs')
-      .select('*')
-      .eq('status', 'pending')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true })
-      .limit(limit || 10)
-  
-    if (error) throw error
-    return data as Job[]
+    const { rows } = await pool.query(
+      "SELECT * FROM jobs WHERE status = 'pending' AND deleted_at IS NULL ORDER BY created_at ASC LIMIT $1",
+      [limit || 10]
+    )
+    return rows as Job[]
   }
-  
-  /**
-   * Find job by ID
-   */
+
   async findById(id: string, userId: string): Promise<Job | null> {
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', userId)
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') return null
-        throw error
-      }
-
+      const { rows } = await pool.query('SELECT * FROM jobs WHERE id = $1 AND user_id = $2', [id, userId])
+      if (!rows[0]) return null
       logInfo('Repository findById success', { id, user_id: userId })
-      return data as Job
+      return rows[0] as Job
     } catch (error) {
       logError('Repository findById error', { id, user_id: userId, error })
       throw error
     }
   }
 
-  /**
-   * Check if user has active job (excluding deleted)
-   */
   async hasActiveJob(userId: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('id')
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .in('status', ['pending', 'processing'])
-        .limit(1)
-        .single()
-
-      if (error && error.code !== 'PGRST116') throw error
-
-      return !!data
+      const { rows } = await pool.query(
+        "SELECT id FROM jobs WHERE user_id = $1 AND deleted_at IS NULL AND status IN ('pending', 'processing') LIMIT 1",
+        [userId]
+      )
+      return rows.length > 0
     } catch (error) {
       logError('Repository hasActiveJob error', { user_id: userId, error })
       throw error
     }
   }
 
-  /**
-   * Create new job atomically (prevents race condition)
-   */
   async create(dto: CreateJobDto): Promise<Job> {
     try {
-      const { data, error } = await supabase
-        .rpc('create_job_atomic', {
-          p_user_id: dto.user_id,
-          p_company_id: dto.company_id,
-          p_type: dto.type,
-          p_module: dto.module,
-          p_name: dto.name,
-          p_metadata: dto.metadata || {}
-        })
+      const { rows } = await pool.query(
+        'SELECT * FROM create_job_atomic($1, $2, $3, $4, $5, $6)',
+        [dto.user_id, dto.company_id, dto.type, dto.module, dto.name, JSON.stringify(dto.metadata || {})]
+      )
 
-      if (error) {
-        if (error.code === '23505') throw JobErrors.ALREADY_PROCESSING()
-        throw error
-      }
-
-      if (!data) throw new Error('Job creation failed')
-      logInfo('Repository create success', { id: (data as any).id, name: dto.name, type: dto.type, module: dto.module })
-      return data as Job
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('already has an active job')) {
+      if (!rows[0]) throw new Error('Job creation failed')
+      logInfo('Repository create success', { id: rows[0].id, name: dto.name, type: dto.type, module: dto.module })
+      return rows[0] as Job
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string }
+      if (err.code === '23505' || err.message?.includes('already has an active job')) {
         throw JobErrors.ALREADY_PROCESSING()
       }
       logError('Repository create error', { dto, error })
@@ -129,122 +72,78 @@ export class JobsRepository {
     }
   }
 
-  /**
-   * Update job
-   */
   async update(id: string, userId: string, updates: UpdateJobDto): Promise<Job> {
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .update(updates)
-        .eq('id', id)
-        .eq('user_id', userId)
-        .select()
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') throw JobErrors.NOT_FOUND()
-        throw error
+      const keys = Object.keys(updates)
+      if (!keys.length) {
+        const existing = await this.findById(id, userId)
+        if (!existing) throw JobErrors.NOT_FOUND()
+        return existing
       }
-
-      if (!data) throw JobErrors.NOT_FOUND()
+      const values = Object.values(updates)
+      const set = keys.map((k, i) => `${k} = $${i + 1}`).join(', ')
+      const { rows } = await pool.query(
+        `UPDATE jobs SET ${set} WHERE id = $${keys.length + 1} AND user_id = $${keys.length + 2} RETURNING *`,
+        [...values, id, userId]
+      )
+      if (!rows[0]) throw JobErrors.NOT_FOUND()
       logInfo('Repository update success', { id, updates })
-      return data as Job
+      return rows[0] as Job
     } catch (error) {
       logError('Repository update error', { id, user_id: userId, updates, error })
       throw error
     }
   }
 
-  /**
-   * Mark job as processing atomically
-   */
   async markAsProcessing(id: string): Promise<Job> {
     try {
-      const { data, error } = await supabase
-        .rpc('mark_job_processing_atomic', { p_job_id: id })
-
-      if (error) throw error
-      if (!data) throw JobErrors.NOT_FOUND()
-
+      const { rows } = await pool.query('SELECT * FROM mark_job_processing_atomic($1)', [id])
+      if (!rows[0]) throw JobErrors.NOT_FOUND()
       logInfo('Repository markAsProcessing success', { id })
-      return data as Job
+      return rows[0] as Job
     } catch (error) {
       logError('Repository markAsProcessing error', { id, error })
       throw error
     }
   }
 
-  /**
-   * Mark job as completed atomically
-   */
-  async markAsCompleted(
-    id: string,
-    userId: string,
-    resultUrl: string,
-    filePath: string,
-    fileSize: number
-  ): Promise<Job> {
+  async markAsCompleted(id: string, userId: string, resultUrl: string, filePath: string, fileSize: number): Promise<Job> {
     try {
       const expiresAt = new Date(Date.now() + JOB_QUEUE_CONFIG.resultExpiration)
-      const { data, error } = await supabase
-        .rpc('complete_job_atomic', {
-          p_job_id: id,
-          p_result_url: resultUrl,
-          p_file_path: filePath,
-          p_file_size: fileSize,
-          p_expires_at: expiresAt.toISOString(),
-          p_updated_by: userId
-        })
-
-      if (error) throw error
-      if (!data) throw JobErrors.NOT_FOUND()
-
+      const { rows } = await pool.query(
+        'SELECT * FROM complete_job_atomic($1, $2, $3, $4, $5, $6)',
+        [id, resultUrl, filePath, fileSize, expiresAt.toISOString(), userId]
+      )
+      if (!rows[0]) throw JobErrors.NOT_FOUND()
       logInfo('Repository markAsCompleted success', { id, expires_at: expiresAt })
-      return data as Job
+      return rows[0] as Job
     } catch (error) {
       logError('Repository markAsCompleted error', { id, error })
       throw error
     }
   }
 
-  /**
-   * Mark job as failed atomically
-   */
   async markAsFailed(id: string, userId: string, errorMessage: string): Promise<Job> {
     try {
-      const { data, error } = await supabase
-        .rpc('fail_job_atomic', {
-          p_job_id: id,
-          p_error_message: errorMessage,
-          p_updated_by: userId
-        })
-
-      if (error) throw error
-      if (!data) throw JobErrors.NOT_FOUND()
-
+      const { rows } = await pool.query(
+        'SELECT * FROM fail_job_atomic($1, $2, $3)',
+        [id, errorMessage, userId]
+      )
+      if (!rows[0]) throw JobErrors.NOT_FOUND()
       logInfo('Repository markAsFailed success', { id, errorMessage })
-      return data as Job
+      return rows[0] as Job
     } catch (error) {
       logError('Repository markAsFailed error', { id, error })
       throw error
     }
   }
 
-  /**
-   * Update job progress
-   */
   async updateProgress(id: string, progress: number, userId?: string): Promise<void> {
     try {
-      let query = supabase
-        .from('jobs')
-        .update({ progress })
-        .eq('id', id)
-
-      if (userId) query = query.eq('user_id', userId)
-      const { error } = await query
-      if (error) throw error
-
+      const params: (string | number)[] = [progress, id]
+      let query = 'UPDATE jobs SET progress = $1 WHERE id = $2'
+      if (userId) { params.push(userId); query += ' AND user_id = $3' }
+      await pool.query(query, params)
       logInfo('Repository updateProgress success', { id, progress })
     } catch (error) {
       logError('Repository updateProgress error', { id, progress, error })
@@ -252,41 +151,22 @@ export class JobsRepository {
     }
   }
 
-  /**
-   * Find expired jobs (excluding deleted)
-   */
-  async findExpiredJobs(limit: number = 100): Promise<Job[]> {
+  async findExpiredJobs(limit = 100): Promise<Job[]> {
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('status', 'completed')
-        .is('deleted_at', null)
-        .not('expires_at', 'is', null)
-        .lt('expires_at', new Date().toISOString())
-        .limit(limit)
-
-      if (error) throw error
-      return (data as Job[]) || []
+      const { rows } = await pool.query(
+        "SELECT * FROM jobs WHERE status = 'completed' AND deleted_at IS NULL AND expires_at IS NOT NULL AND expires_at < NOW() LIMIT $1",
+        [limit]
+      )
+      return rows as Job[]
     } catch (error) {
       logError('Repository findExpiredJobs error', { error })
       throw error
     }
   }
 
-  /**
-   * Soft delete job
-   */
   async delete(id: string, userId: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .rpc('soft_delete_job', {
-          p_job_id: id,
-          p_user_id: userId,
-          p_deleted_by: userId
-        })
-
-      if (error) throw error
+      await pool.query('SELECT soft_delete_job($1, $2, $3)', [id, userId, userId])
       logInfo('Repository soft delete success', { id, deleted_by: userId })
     } catch (error) {
       logError('Repository delete error', { id, user_id: userId, error })
