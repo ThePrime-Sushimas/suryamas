@@ -1,527 +1,214 @@
-import { supabase } from '../../../config/supabase'
-import { 
-  AccountingPurposeAccount, 
-  CreateAccountingPurposeAccountDTO, 
-  UpdateAccountingPurposeAccountDTO,
-  AccountingPurposeAccountWithDetails
-} from './accounting-purpose-accounts.types'
-import { logError, logInfo } from '../../../config/logger'
+import { pool } from '../../../config/db'
+import { AccountingPurposeAccount, CreateAccountingPurposeAccountDTO, UpdateAccountingPurposeAccountDTO, AccountingPurposeAccountWithDetails } from './accounting-purpose-accounts.types'
+import { logError } from '../../../config/logger'
 
-/**
- * Transaction context interface for database operations
- * Provides type-safe access to Supabase client within transactions
- */
-interface TransactionContext {
-  client: typeof supabase
-}
-
-/**
- * Filter parameters for repository queries
- */
 interface FilterParams {
-  purpose_id?: string
-  side?: string
-  is_required?: boolean
-  is_active?: boolean
-  account_type?: string
+  purpose_id?: string; side?: string; is_required?: boolean; is_active?: boolean; account_type?: string
 }
+
+const VALID_SORT_FIELDS = ['priority', 'side', 'created_at', 'updated_at', 'is_active', 'is_required']
+const DETAIL_SELECT = `
+  apa.*, ap.purpose_name, ap.purpose_code,
+  coa.account_code, coa.account_name, coa.account_type, coa.normal_balance
+`
+const DETAIL_FROM = `
+  FROM accounting_purpose_accounts apa
+  JOIN accounting_purposes ap ON ap.id = apa.purpose_id
+  JOIN chart_of_accounts coa ON coa.id = apa.account_id
+`
+const APA_INSERT_FIELDS = ['purpose_id', 'account_id', 'company_id', 'side', 'priority', 'is_required', 'is_auto', 'is_active', 'created_by', 'updated_by', 'created_at', 'updated_at'] as const
+const APA_UPDATE_FIELDS = ['side', 'priority', 'is_required', 'is_auto', 'is_active', 'updated_by', 'updated_at', 'deleted_at', 'deleted_by'] as const
 
 export class AccountingPurposeAccountsRepository {
-  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>()
-  private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-
-  private getCacheKey(prefix: string, ...args: string[]): string {
-    return `${prefix}:${args.join(':')}`
-  }
+  private cache = new Map<string, { data: unknown; timestamp: number; ttl: number }>()
+  private readonly CACHE_TTL = 5 * 60 * 1000
 
   private getFromCache<T>(key: string): T | null {
-    const cached = this.cache.get(key)
-    if (cached && Date.now() - cached.timestamp < cached.ttl) {
-      return cached.data as T
-    }
-    this.cache.delete(key)
-    return null
+    const c = this.cache.get(key); if (c && Date.now() - c.timestamp < c.ttl) return c.data as T; if (c) this.cache.delete(key); return null
+  }
+  private setCache<T>(key: string, data: T, ttl = this.CACHE_TTL): void { this.cache.set(key, { data, timestamp: Date.now(), ttl }) }
+  private invalidateCache(): void { this.cache.clear() }
+
+  private buildConditions(companyId: string, filter?: FilterParams, deleted = false) {
+    const conditions: string[] = ['apa.company_id = $1']
+    const params: (string | boolean)[] = [companyId]
+    let idx = 2
+
+    if (deleted) conditions.push('apa.deleted_at IS NOT NULL')
+    else conditions.push('apa.deleted_at IS NULL')
+
+    if (filter?.purpose_id) { params.push(filter.purpose_id); conditions.push(`apa.purpose_id = $${idx}`); idx++ }
+    if (filter?.side) { params.push(filter.side); conditions.push(`apa.side = $${idx}`); idx++ }
+    if (filter?.is_required !== undefined) { params.push(filter.is_required); conditions.push(`apa.is_required = $${idx}`); idx++ }
+    if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`apa.is_active = $${idx}`); idx++ }
+    if (filter?.account_type) { params.push(filter.account_type); conditions.push(`coa.account_type = $${idx}`); idx++ }
+
+    return { where: `WHERE ${conditions.join(' AND ')}`, params, idx }
   }
 
-  private setCache<T>(key: string, data: T, ttl: number = this.CACHE_TTL): void {
-    this.cache.set(key, { data, timestamp: Date.now(), ttl })
+  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: FilterParams): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
+    const { where, params, idx } = this.buildConditions(companyId, filter)
+    const sortField = sort?.field && VALID_SORT_FIELDS.includes(sort.field) ? `apa.${sort.field}` : 'apa.priority'
+    const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
+    const extraOrder = sortField === 'apa.priority' ? ', apa.side ASC' : ''
+
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(`SELECT ${DETAIL_SELECT} ${DETAIL_FROM} ${where} ORDER BY ${sortField} ${sortOrder}${extraOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total ${DETAIL_FROM} ${where}`, params)
+    ])
+
+    return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  private invalidateCache(pattern?: string): void {
-    if (pattern) {
-      for (const key of this.cache.keys()) {
-        if (key.includes(pattern)) {
-          this.cache.delete(key)
-        }
-      }
-    } else {
-      this.cache.clear()
-    }
+  async findDeleted(companyId: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: FilterParams): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
+    const { where, params, idx } = this.buildConditions(companyId, filter, true)
+    const validDeletedSort = ['deleted_at', 'priority', 'side', 'created_at']
+    const sortField = sort?.field && validDeletedSort.includes(sort.field) ? `apa.${sort.field}` : 'apa.deleted_at'
+    const sortOrder = sort?.order === 'asc' ? 'ASC' : 'DESC'
+
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(`SELECT ${DETAIL_SELECT} ${DETAIL_FROM} ${where} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total ${DETAIL_FROM} ${where}`, params)
+    ])
+
+    return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async withTransaction<T>(callback: (trx: TransactionContext) => Promise<T>): Promise<T> {
-    try {
-      const result = await callback({ client: supabase })
-      return result
-    } catch (error) {
-      logError('Transaction failed', { error: (error as Error).message })
-      throw error
-    }
+  async findById(id: string): Promise<AccountingPurposeAccount | null> {
+    const { rows } = await pool.query('SELECT * FROM accounting_purpose_accounts WHERE id = $1', [id])
+    return rows[0] ?? null
   }
 
-  async findAll(
-    companyId: string,
-    pagination: { limit: number; offset: number },
-    sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: FilterParams,
-    trx?: TransactionContext
-  ): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
-    const client = trx?.client || supabase
-    
-    // Apply all filters including account_type to main query
-    let query = client
-      .from('accounting_purpose_accounts')
-      .select(`
-        *,
-        accounting_purposes!inner(purpose_name, purpose_code),
-        chart_of_accounts!inner(account_code, account_name, account_type, normal_balance)
-      `)
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-    
-    // Apply all filters
-    if (filter) {
-      if (filter.purpose_id) {
-        query = query.eq('purpose_id', filter.purpose_id)
-      }
-      if (filter.side) {
-        query = query.eq('side', filter.side)
-      }
-      if (filter.is_required !== undefined) {
-        query = query.eq('is_required', filter.is_required)
-      }
-      if (filter.is_active !== undefined) {
-        query = query.eq('is_active', filter.is_active)
-      }
-      if (filter.account_type) {
-        query = query.eq('chart_of_accounts.account_type', filter.account_type)
-      }
-    }
-    
-    // Apply sorting
-    if (sort) {
-      const validFields = ['priority', 'side', 'created_at', 'updated_at', 'is_active', 'is_required']
-      if (validFields.includes(sort.field)) {
-        query = query.order(sort.field, { ascending: sort.order === 'asc' })
-      }
-    } else {
-      query = query.order('priority', { ascending: true }).order('side', { ascending: true })
-    }
-    
-    // Execute main query with pagination
-    const { data, error } = await query.range(
-      pagination.offset, 
-      pagination.offset + pagination.limit - 1
+  async findByPurposeAndAccount(purposeId: string, accountId: string, side: string): Promise<AccountingPurposeAccount | null> {
+    const { rows } = await pool.query(
+      'SELECT * FROM accounting_purpose_accounts WHERE purpose_id = $1 AND account_id = $2 AND side = $3',
+      [purposeId, accountId, side]
     )
-
-    if (error) {
-      logError('FindAll query error', { error: error.message })
-      throw new Error(error.message)
-    }
-    
-    // For count query (simpler without complex joins)
-    let countQuery = client
-      .from('accounting_purpose_accounts')
-      .select('*', { count: 'exact', head: true })
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-    
-    if (filter) {
-      if (filter.purpose_id) {
-        countQuery = countQuery.eq('purpose_id', filter.purpose_id)
-      }
-      if (filter.side) {
-        countQuery = countQuery.eq('side', filter.side)
-      }
-      if (filter.is_required !== undefined) {
-        countQuery = countQuery.eq('is_required', filter.is_required)
-      }
-      if (filter.is_active !== undefined) {
-        countQuery = countQuery.eq('is_active', filter.is_active)
-      }
-    }
-    
-    const { count, error: countError } = await countQuery
-    
-    if (countError) {
-      logError('FindAll count query error', { error: countError.message })
-      throw new Error(countError.message)
-    }
-    
-    const total = count || 0
-    
-    // Map the data to include related fields
-    const mappedData = (data || []).map((item: any) => ({
-      ...item,
-      purpose_name: item.accounting_purposes?.purpose_name,
-      purpose_code: item.accounting_purposes?.purpose_code,
-      account_code: item.chart_of_accounts?.account_code,
-      account_name: item.chart_of_accounts?.account_name,
-      account_type: item.chart_of_accounts?.account_type,
-      normal_balance: item.chart_of_accounts?.normal_balance,
-    }))
-    
-    return { data: mappedData, total }
+    return rows[0] ?? null
   }
 
-  async findById(id: string, trx?: TransactionContext): Promise<AccountingPurposeAccount | null> {
-    const client = trx?.client || supabase
-    const { data, error } = await client
-      .from('accounting_purpose_accounts')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data
+  async getNextPriority(purposeId: string, side: string): Promise<number> {
+    const { rows } = await pool.query(
+      'SELECT priority FROM accounting_purpose_accounts WHERE purpose_id = $1 AND side = $2 ORDER BY priority DESC LIMIT 1',
+      [purposeId, side]
+    )
+    return rows.length > 0 ? rows[0].priority + 1 : 1
   }
 
-  async findByPurposeAndAccount(
-    purposeId: string, 
-    accountId: string, 
-    side: string,
-    trx?: TransactionContext
-  ): Promise<AccountingPurposeAccount | null> {
-    const client = trx?.client || supabase
-    const { data, error } = await client
-      .from('accounting_purpose_accounts')
-      .select('*')
-      .eq('purpose_id', purposeId)
-      .eq('account_id', accountId)
-      .eq('side', side)
-      .maybeSingle()
-
-    if (error) throw new Error(error.message)
-    return data
-  }
-
-  async getNextPriority(purposeId: string, side: string, trx?: TransactionContext): Promise<number> {
-    const client = trx?.client || supabase
-    const { data, error } = await client
-      .from('accounting_purpose_accounts')
-      .select('priority')
-      .eq('purpose_id', purposeId)
-      .eq('side', side)
-      .order('priority', { ascending: false })
-      .limit(1)
-
-    if (error) throw new Error(error.message)
-    return data && data.length > 0 ? data[0].priority + 1 : 1
-  }
-
-  async create(data: CreateAccountingPurposeAccountDTO, companyId: string, userId: string, trx?: TransactionContext): Promise<AccountingPurposeAccount | null> {
-    const client = trx?.client || supabase
-    
-    const priority = data.priority || await this.getNextPriority(data.purpose_id, data.side, trx)
-    
-    const { data: account, error } = await client
-      .from('accounting_purpose_accounts')
-      .insert({
-        ...data,
-        company_id: companyId,
-        priority,
-        is_required: data.is_required ?? true,
-        is_auto: data.is_auto ?? true,
-        created_by: userId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-
-    if (error) {
-      logError('Repository create error', { error: error.message, code: error.code })
-      throw error
+  async create(data: CreateAccountingPurposeAccountDTO, companyId: string, userId: string): Promise<AccountingPurposeAccount | null> {
+    const now = new Date().toISOString()
+    const priority = data.priority || await this.getNextPriority(data.purpose_id, data.side)
+    const insertData: Record<string, unknown> = {
+      ...data, company_id: companyId, priority, is_required: data.is_required ?? true,
+      is_auto: data.is_auto ?? true, created_by: userId, updated_by: userId, created_at: now, updated_at: now
     }
-    
+    const keys = APA_INSERT_FIELDS.filter(k => insertData[k] !== undefined)
+    const values = keys.map(k => insertData[k])
+
+    const { rows } = await pool.query(
+      `INSERT INTO accounting_purpose_accounts (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values
+    )
     this.invalidateCache()
-    return account
+    return rows[0]
   }
 
-  async update(id: string, updates: UpdateAccountingPurposeAccountDTO, trx?: TransactionContext): Promise<AccountingPurposeAccount | null> {
-    const client = trx?.client || supabase
-    const { data, error } = await client
-      .from('accounting_purpose_accounts')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .maybeSingle()
+  async update(id: string, updates: UpdateAccountingPurposeAccountDTO): Promise<AccountingPurposeAccount | null> {
+    const fullUpdates: Record<string, unknown> = { ...updates, updated_at: new Date().toISOString() }
+    const keys = APA_UPDATE_FIELDS.filter(k => fullUpdates[k] !== undefined)
+    if (!keys.length) return this.findById(id)
+    const values = keys.map(k => fullUpdates[k])
 
-    if (error) {
-      logError('Repository update error', { error: error.message, code: error.code })
-      throw error
-    }
-    
-    if (data) {
-      this.invalidateCache(data.company_id)
-    }
-    return data
+    const { rows } = await pool.query(
+      `UPDATE accounting_purpose_accounts SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    )
+    if (rows[0]) this.invalidateCache()
+    return rows[0] ?? null
   }
 
-  async delete(id: string, userId: string, trx?: TransactionContext): Promise<void> {
-    const client = trx?.client || supabase
-    const { error } = await client
-      .from('accounting_purpose_accounts')
-      .update({ 
-        deleted_at: new Date().toISOString(),
-        deleted_by: userId
-      })
-      .eq('id', id)
-
-    if (error) throw new Error(error.message)
+  async delete(id: string, userId: string): Promise<void> {
+    await pool.query('UPDATE accounting_purpose_accounts SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [userId, id])
     this.invalidateCache()
   }
 
   async bulkCreate(
     purposeId: string,
     accounts: Array<{ account_id: string; side: 'DEBIT' | 'CREDIT'; is_required?: boolean; is_auto?: boolean; priority?: number }>,
-    companyId: string,
-    userId: string,
-    trx?: TransactionContext
+    companyId: string, userId: string
   ): Promise<AccountingPurposeAccount[]> {
-    const client = trx?.client || supabase
-    
-    // Assign priorities for accounts without them
-    const accountsWithPriority = await Promise.all(
-      accounts.map(async (account) => ({
-        ...account,
-        purpose_id: purposeId,
-        company_id: companyId,
-        is_required: account.is_required ?? true,
-        is_auto: account.is_auto ?? true,
-        priority: account.priority || await this.getNextPriority(purposeId, account.side, trx),
-        created_by: userId,
-        updated_by: userId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }))
+    if (!accounts.length) return []
+    const now = new Date().toISOString()
+    const prepared = await Promise.all(accounts.map(async (a) => ({
+      purpose_id: purposeId, account_id: a.account_id, company_id: companyId, side: a.side,
+      priority: a.priority || await this.getNextPriority(purposeId, a.side),
+      is_required: a.is_required ?? true, is_auto: a.is_auto ?? true,
+      created_by: userId, updated_by: userId, created_at: now, updated_at: now
+    })))
+
+    const keys = [...APA_INSERT_FIELDS]
+    const placeholders = prepared.map((_, i) => `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`).join(', ')
+    const values = prepared.flatMap(p => keys.map(k => (p as Record<string, unknown>)[k] ?? null))
+
+    const { rows } = await pool.query(`INSERT INTO accounting_purpose_accounts (${keys.join(', ')}) VALUES ${placeholders} RETURNING *`, values)
+    this.invalidateCache()
+    return rows
+  }
+
+  async bulkRemove(purposeId: string, accountIds: string[], userId: string): Promise<void> {
+    await pool.query(
+      'UPDATE accounting_purpose_accounts SET deleted_at = NOW(), deleted_by = $1 WHERE purpose_id = $2 AND account_id = ANY($3::uuid[])',
+      [userId, purposeId, accountIds]
     )
-    
-    const { data, error } = await client
-      .from('accounting_purpose_accounts')
-      .insert(accountsWithPriority)
-      .select()
-
-    if (error) {
-      logError('Repository bulk create error', { error: error.message, code: error.code })
-      throw error
-    }
-    
-    this.invalidateCache(companyId)
-    return data || []
-  }
-
-  async bulkRemove(purposeId: string, accountIds: string[], userId: string, trx?: TransactionContext): Promise<void> {
-    const client = trx?.client || supabase
-    const { error } = await client
-      .from('accounting_purpose_accounts')
-      .update({ 
-        deleted_at: new Date().toISOString(),
-        deleted_by: userId
-      })
-      .eq('purpose_id', purposeId)
-      .in('account_id', accountIds)
-
-    if (error) throw new Error(error.message)
     this.invalidateCache()
   }
 
-  async bulkUpdateStatus(ids: string[], isActive: boolean, trx?: TransactionContext): Promise<void> {
-    const client = trx?.client || supabase
-    const { error } = await client
-      .from('accounting_purpose_accounts')
-      .update({ 
-        is_active: isActive,
-        updated_at: new Date().toISOString()
-      })
-      .in('id', ids)
-
-    if (error) throw new Error(error.message)
+  async bulkUpdateStatus(ids: string[], isActive: boolean): Promise<void> {
+    await pool.query('UPDATE accounting_purpose_accounts SET is_active = $1, updated_at = NOW() WHERE id = ANY($2::uuid[])', [isActive, ids])
     this.invalidateCache()
   }
 
-  async exportData(companyId: string, filter?: FilterParams, limit: number = 10000): Promise<AccountingPurposeAccountWithDetails[]> {
-    let query = supabase
-      .from('accounting_purpose_accounts')
-      .select(`
-        *,
-        accounting_purposes!inner(purpose_name, purpose_code),
-        chart_of_accounts!inner(account_code, account_name, account_type, normal_balance)
-      `)
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-    
-    // Apply all filters
-    if (filter) {
-      if (filter.purpose_id) query = query.eq('purpose_id', filter.purpose_id)
-      if (filter.side) query = query.eq('side', filter.side)
-      if (filter.is_active !== undefined) query = query.eq('is_active', filter.is_active)
-      if (filter.account_type) query = query.eq('chart_of_accounts.account_type', filter.account_type)
-    }
-    
-    const { data, error } = await query.order('priority', { ascending: true }).limit(limit)
-    
-    if (error) {
-      logError('Repository export error', { error: error.message })
-      throw new Error(error.message)
-    }
-    
-    return (data || []).map(item => ({
-      ...item,
-      purpose_name: item.accounting_purposes?.purpose_name,
-      purpose_code: item.accounting_purposes?.purpose_code,
-      account_code: item.chart_of_accounts?.account_code,
-      account_name: item.chart_of_accounts?.account_name,
-      account_type: item.chart_of_accounts?.account_type,
-      normal_balance: item.chart_of_accounts?.normal_balance,
-    }))
-  }
-
-  async findDeleted(
-    companyId: string,
-    pagination: { limit: number; offset: number },
-    sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: FilterParams,
-    trx?: TransactionContext
-  ): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
-    const client = trx?.client || supabase
-    
-    // Main query with joins - apply all filters
-    let query = client
-      .from('accounting_purpose_accounts')
-      .select(`
-        *,
-        accounting_purposes!inner(purpose_name, purpose_code),
-        chart_of_accounts!inner(account_code, account_name, account_type, normal_balance)
-      `)
-      .eq('company_id', companyId)
-      .not('deleted_at', 'is', null)
-    
-    // Apply all filters
-    if (filter) {
-      if (filter.purpose_id) {
-        query = query.eq('purpose_id', filter.purpose_id)
-      }
-      if (filter.side) {
-        query = query.eq('side', filter.side)
-      }
-      if (filter.account_type) {
-        query = query.eq('chart_of_accounts.account_type', filter.account_type)
-      }
-    }
-    
-    // Apply sorting
-    if (sort) {
-      const validFields = ['deleted_at', 'priority', 'side', 'created_at']
-      if (validFields.includes(sort.field)) {
-        query = query.order(sort.field, { ascending: sort.order === 'asc' })
-      }
-    } else {
-      query = query.order('deleted_at', { ascending: false })
-    }
-    
-    // Execute main query with pagination
-    const { data, error } = await query.range(
-      pagination.offset, 
-      pagination.offset + pagination.limit - 1
+  async exportData(companyId: string, filter?: FilterParams, limit = 10000): Promise<AccountingPurposeAccountWithDetails[]> {
+    const { where, params } = this.buildConditions(companyId, filter)
+    const { rows } = await pool.query(
+      `SELECT ${DETAIL_SELECT} ${DETAIL_FROM} ${where} ORDER BY apa.priority ASC LIMIT $${params.length + 1}`,
+      [...params, limit]
     )
-
-    if (error) {
-      logError('FindDeleted query error', { error: error.message })
-      throw new Error(error.message)
-    }
-    
-    // For count query, we need to get IDs first if account_type filter is present
-    let total = 0
-    
-    if (filter?.account_type) {
-      // Get IDs that match the account_type filter
-      let idQuery = client
-        .from('accounting_purpose_accounts')
-        .select('id, chart_of_accounts!inner(account_type)')
-        .eq('company_id', companyId)
-        .not('deleted_at', 'is', null)
-        .eq('chart_of_accounts.account_type', filter.account_type)
-      
-      if (filter.purpose_id) {
-        idQuery = idQuery.eq('purpose_id', filter.purpose_id)
-      }
-      if (filter.side) {
-        idQuery = idQuery.eq('side', filter.side)
-      }
-      
-      const { data: idData, error: idError } = await idQuery
-      
-      if (idError) {
-        logError('FindDeleted count query error', { error: idError.message })
-        throw new Error(idError.message)
-      }
-      
-      total = idData?.length || 0
-    } else {
-      // Simple count query without joins
-      let countQuery = client
-        .from('accounting_purpose_accounts')
-        .select('*', { count: 'exact', head: true })
-        .eq('company_id', companyId)
-        .not('deleted_at', 'is', null)
-      
-      if (filter) {
-        if (filter.purpose_id) {
-          countQuery = countQuery.eq('purpose_id', filter.purpose_id)
-        }
-        if (filter.side) {
-          countQuery = countQuery.eq('side', filter.side)
-        }
-      }
-      
-      const { count, error: countError } = await countQuery
-      
-      if (countError) {
-        logError('FindDeleted count query error', { error: countError.message })
-        throw new Error(countError.message)
-      }
-      
-      total = count || 0
-    }
-    
-    const mappedData = (data || []).map((item: any) => ({
-      ...item,
-      purpose_name: item.accounting_purposes?.purpose_name,
-      purpose_code: item.accounting_purposes?.purpose_code,
-      account_code: item.chart_of_accounts?.account_code,
-      account_name: item.chart_of_accounts?.account_name,
-      account_type: item.chart_of_accounts?.account_type,
-      normal_balance: item.chart_of_accounts?.normal_balance,
-    }))
-    
-    return { data: mappedData, total }
+    return rows
   }
 
-  async restore(id: string, userId: string, trx?: TransactionContext): Promise<void> {
-    const client = trx?.client || supabase
-    const { error } = await client
-      .from('accounting_purpose_accounts')
-      .update({ 
-        deleted_at: null,
-        deleted_by: null,
-        updated_by: userId,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-
-    if (error) throw new Error(error.message)
+  async restore(id: string, userId: string): Promise<void> {
+    await pool.query('UPDATE accounting_purpose_accounts SET deleted_at = NULL, deleted_by = NULL, updated_by = $1, updated_at = NOW() WHERE id = $2', [userId, id])
     this.invalidateCache()
+  }
+
+  async findCoaAccount(accountId: string, companyId: string): Promise<{ id: string; account_code: string; account_type: string; normal_balance: string; is_postable: boolean } | null> {
+    const { rows } = await pool.query(
+      'SELECT id, account_code, account_type, normal_balance, is_postable FROM chart_of_accounts WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+      [accountId, companyId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findCoaAccountById(accountId: string): Promise<{ account_type: string; normal_balance: string } | null> {
+    const { rows } = await pool.query('SELECT account_type, normal_balance FROM chart_of_accounts WHERE id = $1', [accountId])
+    return rows[0] ?? null
+  }
+
+  async purposeExists(purposeId: string, companyId: string): Promise<boolean> {
+    const { rows } = await pool.query(
+      "SELECT COUNT(*)::int AS cnt FROM accounting_purposes WHERE id = $1 AND company_id = $2 AND (is_deleted IS NULL OR is_deleted = false)",
+      [purposeId, companyId]
+    )
+    return rows[0].cnt > 0
+  }
+
+  async findPurposeByCode(purposeCode: string, companyId: string): Promise<{ id: string } | null> {
+    const { rows } = await pool.query(
+      'SELECT id FROM accounting_purposes WHERE purpose_code = $1 AND company_id = $2',
+      [purposeCode, companyId]
+    )
+    return rows[0] ?? null
   }
 }
 

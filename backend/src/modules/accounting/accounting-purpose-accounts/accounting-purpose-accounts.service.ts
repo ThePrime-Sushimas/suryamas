@@ -1,11 +1,7 @@
 import { accountingPurposeAccountsRepository, AccountingPurposeAccountsRepository } from './accounting-purpose-accounts.repository'
-import { 
-  AccountingPurposeAccount, 
-  CreateAccountingPurposeAccountDTO, 
-  UpdateAccountingPurposeAccountDTO,
-  AccountingPurposeAccountWithDetails,
-  BulkCreateAccountingPurposeAccountDTO,
-  BulkRemoveAccountingPurposeAccountDTO
+import {
+  AccountingPurposeAccount, CreateAccountingPurposeAccountDTO, UpdateAccountingPurposeAccountDTO,
+  AccountingPurposeAccountWithDetails, BulkCreateAccountingPurposeAccountDTO, BulkRemoveAccountingPurposeAccountDTO
 } from './accounting-purpose-accounts.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../../utils/pagination.util'
 import { ExportService } from '../../../services/export.service'
@@ -13,301 +9,119 @@ import { AuditService } from '../../monitoring/monitoring.service'
 import { AccountingPurposeAccountErrors } from './accounting-purpose-accounts.errors'
 import { AccountingPurposeAccountsConfig } from './accounting-purpose-accounts.constants'
 import { logInfo, logError } from '../../../config/logger'
-import { supabase } from '../../../config/supabase'
 
 export class AccountingPurposeAccountsService {
   constructor(private repository: AccountingPurposeAccountsRepository = accountingPurposeAccountsRepository) {}
 
-  async list(
-    companyId: string,
-    pagination: { page: number; limit: number; offset: number },
-    sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any
-  ): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
-    const { data, total } = await this.repository.findAll(companyId, pagination, sort, filter)
+  async list(companyId: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: Record<string, unknown>): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
+    const { data, total } = await this.repository.findAll(companyId, pagination, sort, filter as Parameters<typeof this.repository.findAll>[3])
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
   async create(data: CreateAccountingPurposeAccountDTO, companyId: string, userId: string): Promise<AccountingPurposeAccount> {
-    logInfo('Creating purpose account mapping', { 
-      purpose_id: data.purpose_id,
-      account_id: data.account_id,
-      side: data.side,
-      company_id: companyId
-    })
-    
-    return await this.repository.withTransaction(async (trx) => {
-      try {
-        // Validate purpose exists and belongs to company
-        const purpose = await this.validatePurposeExists(data.purpose_id, companyId)
-        
-        // Validate account exists, is postable, and belongs to company
-        const account = await this.validateAccountExists(data.account_id, companyId)
-        
-        // Validate balance side
-        this.validateBalanceSide(account.account_type, account.normal_balance, data.side)
+    logInfo('Creating purpose account mapping', { purpose_id: data.purpose_id, account_id: data.account_id, side: data.side })
 
-        // Check for duplicate mapping
-        const existing = await this.repository.findByPurposeAndAccount(
-          data.purpose_id, 
-          data.account_id, 
-          data.side,
-          trx
-        )
-        if (existing) {
-          throw AccountingPurposeAccountErrors.DUPLICATE_MAPPING(
-            data.purpose_id, 
-            data.account_id, 
-            data.side
-          )
-        }
+    const purposeExists = await this.repository.purposeExists(data.purpose_id, companyId)
+    if (!purposeExists) throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(data.purpose_id)
 
-        const purposeAccount = await this.repository.create(data, companyId, userId, trx)
+    const account = await this.repository.findCoaAccount(data.account_id, companyId)
+    if (!account) throw AccountingPurposeAccountErrors.ACCOUNT_NOT_FOUND(data.account_id)
+    if (!account.is_postable) throw AccountingPurposeAccountErrors.ACCOUNT_NOT_POSTABLE(account.account_code)
+    this.validateBalanceSide(account.account_type, account.normal_balance, data.side)
 
-        if (!purposeAccount) {
-          throw AccountingPurposeAccountErrors.CREATE_FAILED()
-        }
+    const existing = await this.repository.findByPurposeAndAccount(data.purpose_id, data.account_id, data.side)
+    if (existing) throw AccountingPurposeAccountErrors.DUPLICATE_MAPPING(data.purpose_id, data.account_id, data.side)
 
-        logInfo('Purpose account mapping created successfully', { 
-          id: purposeAccount.id,
-          purpose_code: purpose.purpose_code,
-          account_code: account.account_code
-        })
-        return purposeAccount
-      } catch (error: any) {
-        logError('Failed to create purpose account mapping', { 
-          error: error.message, 
-          purpose_id: data.purpose_id,
-          account_id: data.account_id,
-          company_id: companyId
-        })
-        throw error
-      }
-    })
+    const purposeAccount = await this.repository.create(data, companyId, userId)
+    if (!purposeAccount) throw AccountingPurposeAccountErrors.CREATE_FAILED()
+
+    logInfo('Purpose account mapping created', { id: purposeAccount.id })
+    return purposeAccount
   }
 
   async getById(id: string, companyId?: string): Promise<AccountingPurposeAccount> {
-    const purposeAccount = await this.repository.findById(id)
-    if (!purposeAccount) {
-      throw AccountingPurposeAccountErrors.NOT_FOUND(id)
-    }
-    
-    if (companyId && purposeAccount.company_id !== companyId) {
-      throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-    }
-    
-    return purposeAccount
+    const pa = await this.repository.findById(id)
+    if (!pa) throw AccountingPurposeAccountErrors.NOT_FOUND(id)
+    if (companyId && pa.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    return pa
   }
 
   async update(id: string, data: UpdateAccountingPurposeAccountDTO, userId: string, companyId?: string): Promise<AccountingPurposeAccount> {
     logInfo('Updating purpose account mapping', { id, user: userId })
-    
-    return await this.repository.withTransaction(async (trx) => {
-      const existing = await this.repository.findById(id, trx)
-      if (!existing) {
-        throw AccountingPurposeAccountErrors.NOT_FOUND(id)
-      }
 
-      if (companyId && existing.company_id !== companyId) {
-        throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-      }
+    const existing = await this.repository.findById(id)
+    if (!existing) throw AccountingPurposeAccountErrors.NOT_FOUND(id)
+    if (companyId && existing.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
 
-      try {
-        // If side is being changed, validate balance rules
-        if (data.side && data.side !== existing.side) {
-          const { data: account, error } = await supabase
-            .from('chart_of_accounts')
-            .select('account_type, normal_balance')
-            .eq('id', existing.account_id)
-            .maybeSingle()
+    if (data.side && data.side !== existing.side) {
+      const account = await this.repository.findCoaAccountById(existing.account_id)
+      if (account) this.validateBalanceSide(account.account_type, account.normal_balance, data.side)
+    }
 
-          if (error) throw new Error(error.message)
-          if (account) {
-            this.validateBalanceSide(account.account_type, account.normal_balance, data.side)
-          }
-        }
+    const purposeAccount = await this.repository.update(id, { ...data, updated_by: userId } as UpdateAccountingPurposeAccountDTO & { updated_by: string })
+    if (!purposeAccount) throw AccountingPurposeAccountErrors.UPDATE_FAILED()
 
-        const updatedData = {
-          ...data,
-          updated_by: userId
-        }
-
-        const purposeAccount = await this.repository.update(id, updatedData, trx)
-        if (!purposeAccount) {
-          throw AccountingPurposeAccountErrors.UPDATE_FAILED()
-        }
-
-        await AuditService.log('UPDATE', 'accounting_purpose_account', id, userId, existing, purposeAccount)
-        logInfo('Purpose account mapping updated successfully', { id })
-        return purposeAccount
-      } catch (error: any) {
-        logError('Failed to update purpose account mapping', { error: error.message, id })
-        throw error
-      }
-    })
+    await AuditService.log('UPDATE', 'accounting_purpose_account', id, userId, existing, purposeAccount)
+    return purposeAccount
   }
 
   async delete(id: string, userId: string, companyId?: string): Promise<void> {
-    logInfo('Deleting purpose account mapping', { id, user: userId })
-    
-    return await this.repository.withTransaction(async (trx) => {
-      const purposeAccount = await this.repository.findById(id, trx)
-      if (!purposeAccount) {
-        throw AccountingPurposeAccountErrors.NOT_FOUND(id)
-      }
+    const pa = await this.repository.findById(id)
+    if (!pa) throw AccountingPurposeAccountErrors.NOT_FOUND(id)
+    if (companyId && pa.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
 
-      if (companyId && purposeAccount.company_id !== companyId) {
-        throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-      }
-
-      await this.repository.delete(id, userId, trx)
-      await AuditService.log('DELETE', 'accounting_purpose_account', id, userId, purposeAccount, null)
-      logInfo('Purpose account mapping deleted successfully', { id })
-    })
+    await this.repository.delete(id, userId)
+    await AuditService.log('DELETE', 'accounting_purpose_account', id, userId, pa, null)
+    logInfo('Purpose account mapping deleted', { id })
   }
 
   async bulkCreate(data: BulkCreateAccountingPurposeAccountDTO, companyId: string, userId: string): Promise<AccountingPurposeAccount[]> {
-    logInfo('Bulk creating purpose account mappings', { 
-      purpose_id: data.purpose_id,
-      count: data.accounts.length,
-      user: userId 
-    })
-    
-    return await this.repository.withTransaction(async (trx) => {
-      try {
-        // Validate purpose exists
-        const { data: purpose, error: purposeError } = await supabase
-          .from('accounting_purposes')
-          .select('id')
-          .eq('id', data.purpose_id)
-          .eq('company_id', companyId)
-          .is('deleted_at', null)
-          .maybeSingle()
+    logInfo('Bulk creating purpose account mappings', { purpose_id: data.purpose_id, count: data.accounts.length })
 
-        if (purposeError) throw new Error(purposeError.message)
-        if (!purpose) {
-          throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(data.purpose_id)
-        }
+    const purposeExists = await this.repository.purposeExists(data.purpose_id, companyId)
+    if (!purposeExists) throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(data.purpose_id)
 
-        // Validate all accounts exist and are postable
-        for (const accountData of data.accounts) {
-          const { data: account, error } = await supabase
-            .from('chart_of_accounts')
-            .select('id, account_code, account_type, normal_balance, is_postable')
-            .eq('id', accountData.account_id)
-            .eq('company_id', companyId)
-            .is('deleted_at', null)
-            .maybeSingle()
+    for (const accountData of data.accounts) {
+      const account = await this.repository.findCoaAccount(accountData.account_id, companyId)
+      if (!account) throw AccountingPurposeAccountErrors.ACCOUNT_NOT_FOUND(accountData.account_id)
+      if (!account.is_postable) throw AccountingPurposeAccountErrors.ACCOUNT_NOT_POSTABLE(account.account_code)
+      this.validateBalanceSide(account.account_type, account.normal_balance, accountData.side)
 
-          if (error) throw new Error(error.message)
-          if (!account) {
-            throw AccountingPurposeAccountErrors.ACCOUNT_NOT_FOUND(accountData.account_id)
-          }
+      const existing = await this.repository.findByPurposeAndAccount(data.purpose_id, accountData.account_id, accountData.side)
+      if (existing) throw AccountingPurposeAccountErrors.DUPLICATE_MAPPING(data.purpose_id, accountData.account_id, accountData.side)
+    }
 
-          if (!account.is_postable) {
-            throw AccountingPurposeAccountErrors.ACCOUNT_NOT_POSTABLE(account.account_code)
-          }
-
-          this.validateBalanceSide(account.account_type, account.normal_balance, accountData.side)
-
-          // Check for duplicate mapping
-          const existing = await this.repository.findByPurposeAndAccount(
-            data.purpose_id, 
-            accountData.account_id, 
-            accountData.side,
-            trx
-          )
-          if (existing) {
-            throw AccountingPurposeAccountErrors.DUPLICATE_MAPPING(
-              data.purpose_id, 
-              accountData.account_id, 
-              accountData.side
-            )
-          }
-        }
-
-        const purposeAccounts = await this.repository.bulkCreate(
-          data.purpose_id,
-          data.accounts,
-          companyId,
-          userId,
-          trx
-        )
-
-        await AuditService.log('BULK_CREATE', 'accounting_purpose_account', data.purpose_id, userId, null, { count: purposeAccounts.length })
-        logInfo('Bulk create completed', { count: purposeAccounts.length })
-        return purposeAccounts
-      } catch (error: any) {
-        logError('Failed to bulk create purpose account mappings', { 
-          error: error.message, 
-          purpose_id: data.purpose_id,
-          user: userId 
-        })
-        throw AccountingPurposeAccountErrors.BULK_OPERATION_FAILED('create')
-      }
-    })
+    const result = await this.repository.bulkCreate(data.purpose_id, data.accounts, companyId, userId)
+    await AuditService.log('BULK_CREATE', 'accounting_purpose_account', data.purpose_id, userId, null, { count: result.length })
+    return result
   }
 
   async bulkRemove(data: BulkRemoveAccountingPurposeAccountDTO, userId: string, companyId?: string): Promise<void> {
-    logInfo('Bulk removing purpose account mappings', { 
-      purpose_id: data.purpose_id,
-      count: data.account_ids.length,
-      user: userId 
-    })
-    
-    return await this.repository.withTransaction(async (trx) => {
-      try {
-        // Validate company access if provided
-        if (companyId) {
-          const { data: purpose, error } = await supabase
-            .from('accounting_purposes')
-            .select('company_id')
-            .eq('id', data.purpose_id)
-            .maybeSingle()
+    logInfo('Bulk removing purpose account mappings', { purpose_id: data.purpose_id, count: data.account_ids.length })
 
-          if (error) throw new Error(error.message)
-          if (purpose && purpose.company_id !== companyId) {
-            throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-          }
-        }
+    if (companyId) {
+      const purposeExists = await this.repository.purposeExists(data.purpose_id, companyId)
+      if (!purposeExists) throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(data.purpose_id)
+    }
 
-        await this.repository.bulkRemove(data.purpose_id, data.account_ids, userId, trx)
-        await AuditService.log('BULK_REMOVE', 'accounting_purpose_account', data.purpose_id, userId, null, { count: data.account_ids.length })
-        logInfo('Bulk remove completed', { count: data.account_ids.length })
-      } catch (error: any) {
-        logError('Failed to bulk remove purpose account mappings', { 
-          error: error.message, 
-          purpose_id: data.purpose_id,
-          user: userId 
-        })
-        throw AccountingPurposeAccountErrors.BULK_OPERATION_FAILED('remove')
-      }
-    })
+    await this.repository.bulkRemove(data.purpose_id, data.account_ids, userId)
+    await AuditService.log('BULK_REMOVE', 'accounting_purpose_account', data.purpose_id, userId, null, { count: data.account_ids.length })
   }
 
   async bulkUpdateStatus(ids: string[], isActive: boolean, userId: string, companyId?: string): Promise<void> {
-    logInfo('Bulk updating purpose account status', { count: ids.length, is_active: isActive, user: userId })
-    
-    return await this.repository.withTransaction(async (trx) => {
-      // Validate company access for all records if companyId provided
-      if (companyId) {
-        for (const id of ids) {
-          const purposeAccount = await this.repository.findById(id, trx)
-          if (purposeAccount && purposeAccount.company_id !== companyId) {
-            throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-          }
-        }
+    if (companyId) {
+      for (const id of ids) {
+        const pa = await this.repository.findById(id)
+        if (pa && pa.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
       }
+    }
 
-      await this.repository.bulkUpdateStatus(ids, isActive, trx)
-      await AuditService.log('BULK_UPDATE_STATUS', 'accounting_purpose_account', ids.join(','), userId, null, { is_active: isActive })
-      logInfo('Bulk status update completed', { count: ids.length })
-    })
+    await this.repository.bulkUpdateStatus(ids, isActive)
+    await AuditService.log('BULK_UPDATE_STATUS', 'accounting_purpose_account', ids.join(','), userId, null, { is_active: isActive })
   }
 
-  async exportToExcel(companyId: string, filter?: any): Promise<Buffer> {
-    logInfo('Exporting purpose account mappings to Excel', { company_id: companyId, filter })
-    const data = await this.repository.exportData(companyId, filter, AccountingPurposeAccountsConfig.EXPORT.MAX_ROWS)
+  async exportToExcel(companyId: string, filter?: Record<string, unknown>): Promise<Buffer> {
+    const data = await this.repository.exportData(companyId, filter as Parameters<typeof this.repository.exportData>[1], AccountingPurposeAccountsConfig.EXPORT.MAX_ROWS)
     const columns = [
       { header: 'Purpose Code', key: 'purpose_code', width: 15 },
       { header: 'Purpose Name', key: 'purpose_name', width: 30 },
@@ -322,146 +136,34 @@ export class AccountingPurposeAccountsService {
     return await ExportService.generateExcel(data, columns)
   }
 
-  private validateBalanceSide(accountType: string, normalBalance: string, side: string): void {
-    // Define valid normal balance for each account type
-    // ASSET and EXPENSE should have DEBIT normal balance
-    // LIABILITY, EQUITY, and REVENUE should have CREDIT normal balance
-    const VALID_BALANCE_SIDES: Record<string, string[]> = {
-      'ASSET': ['DEBIT'],
-      'LIABILITY': ['CREDIT'],
-      'EQUITY': ['CREDIT'],
-      'REVENUE': ['CREDIT'],
-      'EXPENSE': ['DEBIT']
-    }
-
-    const validSides = VALID_BALANCE_SIDES[accountType]
-    if (!validSides) {
-      throw new Error(`Unknown account type: ${accountType}`)
-    }
-
-    // Check if the side matches the expected normal balance
-    if (!validSides.includes(normalBalance)) {
-      throw AccountingPurposeAccountErrors.INVALID_BALANCE_SIDE(
-        accountType,
-        normalBalance,
-        side
-      )
-    }
-
-    // Strict validation: accounts should typically post to the side matching their normal balance
-    // Allow contra accounts (opposite side) but with warning in logs
-    if (normalBalance === 'DEBIT' && side === 'CREDIT') {
-      logInfo('Contra account detected', {
-        account_type: accountType,
-        normal_balance: normalBalance,
-        posting_side: side,
-        message: 'This is a contra account posting to opposite side'
-      })
-    }
-
-    if (normalBalance === 'CREDIT' && side === 'DEBIT') {
-      logInfo('Contra account detected', {
-        account_type: accountType,
-        normal_balance: normalBalance,
-        posting_side: side,
-        message: 'This is a contra account posting to opposite side'
-      })
-    }
-  }
-
-  private async validatePurposeExists(purposeId: string, companyId: string): Promise<any> {
-    const { data, error } = await supabase
-      .from('accounting_purposes')
-      .select('id, company_id, purpose_code')
-      .eq('id', purposeId)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (error) {
-      logError('Error validating purpose', { error: error.message, purpose_id: purposeId })
-      throw new Error(error.message)
-    }
-
-    if (!data) {
-      throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(purposeId)
-    }
-
-    if (data.company_id !== companyId) {
-      logError('Company access denied for purpose', {
-        purpose_id: purposeId,
-        purpose_company_id: data.company_id,
-        requested_company_id: companyId
-      })
-      throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-    }
-
-    return data
-  }
-
-  private async validateAccountExists(accountId: string, companyId: string): Promise<any> {
-    const { data, error } = await supabase
-      .from('chart_of_accounts')
-      .select('id, company_id, account_code, account_type, normal_balance, is_postable')
-      .eq('id', accountId)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (error) {
-      logError('Error validating account', { error: error.message, account_id: accountId })
-      throw new Error(error.message)
-    }
-
-    if (!data) {
-      throw AccountingPurposeAccountErrors.ACCOUNT_NOT_FOUND(accountId)
-    }
-
-    if (data.company_id !== companyId) {
-      logError('Company access denied for account', {
-        account_id: accountId,
-        account_company_id: data.company_id,
-        requested_company_id: companyId
-      })
-      throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-    }
-
-    if (!data.is_postable) {
-      throw AccountingPurposeAccountErrors.ACCOUNT_NOT_POSTABLE(data.account_code)
-    }
-
-    return data
-  }
-
-  async listDeleted(
-    companyId: string,
-    pagination: { page: number; limit: number; offset: number },
-    sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any
-  ): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
-    const { data, total } = await this.repository.findDeleted(companyId, pagination, sort, filter)
+  async listDeleted(companyId: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: Record<string, unknown>): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
+    const { data, total } = await this.repository.findDeleted(companyId, pagination, sort, filter as Parameters<typeof this.repository.findDeleted>[3])
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
   async restore(id: string, userId: string, companyId?: string): Promise<void> {
-    logInfo('Restoring purpose account mapping', { id, user: userId })
-    
-    return await this.repository.withTransaction(async (trx) => {
-      const purposeAccount = await this.repository.findById(id, trx)
-      if (!purposeAccount) {
-        throw AccountingPurposeAccountErrors.NOT_FOUND(id)
-      }
+    const pa = await this.repository.findById(id)
+    if (!pa) throw AccountingPurposeAccountErrors.NOT_FOUND(id)
+    if (companyId && pa.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    if (!pa.deleted_at) throw new Error('This record has not been deleted and cannot be restored')
 
-      if (companyId && purposeAccount.company_id !== companyId) {
-        throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-      }
+    await this.repository.restore(id, userId)
+    await AuditService.log('RESTORE', 'accounting_purpose_account', id, userId, pa, null)
+    logInfo('Purpose account mapping restored', { id })
+  }
 
-      if (!purposeAccount.deleted_at) {
-        throw new Error('This record has not been deleted and cannot be restored')
-      }
-
-      await this.repository.restore(id, userId, trx)
-      await AuditService.log('RESTORE', 'accounting_purpose_account', id, userId, purposeAccount, null)
-      logInfo('Purpose account mapping restored successfully', { id })
-    })
+  private validateBalanceSide(accountType: string, normalBalance: string, side: string): void {
+    const VALID_BALANCE_SIDES: Record<string, string[]> = {
+      'ASSET': ['DEBIT'], 'LIABILITY': ['CREDIT'], 'EQUITY': ['CREDIT'], 'REVENUE': ['CREDIT'], 'EXPENSE': ['DEBIT']
+    }
+    const validSides = VALID_BALANCE_SIDES[accountType]
+    if (!validSides) throw new Error(`Unknown account type: ${accountType}`)
+    if (!validSides.includes(normalBalance)) {
+      throw AccountingPurposeAccountErrors.INVALID_BALANCE_SIDE(accountType, normalBalance, side)
+    }
+    if ((normalBalance === 'DEBIT' && side === 'CREDIT') || (normalBalance === 'CREDIT' && side === 'DEBIT')) {
+      logInfo('Contra account detected', { account_type: accountType, normal_balance: normalBalance, posting_side: side })
+    }
   }
 }
 
