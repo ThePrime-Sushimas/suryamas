@@ -4,7 +4,7 @@
  * Implements chunked batch processing untuk performa optimal dengan data puluhan ribu baris
  */
 
-import { supabase } from '@/config/supabase'
+import { storageService } from '@/services/storage.service'
 import { posImportsRepository } from '../../../modules/pos-imports/pos-imports/pos-imports.repository'
 import { posImportLinesRepository } from '../../../modules/pos-imports/pos-import-lines/pos-import-lines.repository'
 import { parseToLocalDate, parseToLocalDateTime } from '@/modules/pos-imports/shared/excel-date.util'
@@ -113,72 +113,38 @@ function mapRowToDto(row: any, rowIndex: number, posImportId: string): CreatePos
   return mapped
 }
 
+const TEMP_BUCKET = 'posimportstemp'
+
 async function retrieveTemporaryData_STREAM(chunkFileName: string): Promise<any[]> {
   logInfo('retrieveTemporaryData_STREAM called', { chunk_file: chunkFileName })
-
-  try {
-    const { data, error } = await supabase.storage
-      .from('pos-imports-temp')
-      .download(chunkFileName)
-
-    if (error) {
-      logError('Stream chunk download failed', { chunk_file: chunkFileName, error })
-      throw error
-    }
-
-    const chunkText = await data.text()
-    const chunkRows = JSON.parse(chunkText)
-
-    logInfo('Stream chunk processed', { 
-      chunk_file: chunkFileName, 
-      rows_in_chunk: chunkRows.length 
-    })
-
-    return chunkRows
-  } catch (error) {
-    logError('retrieveTemporaryData_STREAM failed', { chunk_file: chunkFileName, error })
-    throw new Error(`Chunk ${chunkFileName} not found`)
-  }
+  const chunkText = await storageService.download(chunkFileName, TEMP_BUCKET)
+  const chunkRows = JSON.parse(chunkText)
+  logInfo('Stream chunk processed', { chunk_file: chunkFileName, rows_in_chunk: chunkRows.length })
+  return chunkRows
 }
 
 async function retrieveTemporaryData(importId: string): Promise<any[]> {
   logInfo('Loading legacy single-file format', { import_id: importId })
-
-  try {
-    const { data, error } = await supabase.storage
-      .from('pos-imports-temp')
-      .download(`${importId}.json`)
-
-    if (error) throw error
-
-    const text = await data.text()
-    const rows = JSON.parse(text)
-
-    logInfo('Legacy single file loaded', { importId, row_count: rows.length })
-    return rows
-  } catch (error) {
-    logError('retrieveTemporaryData failed', { importId, error })
-    throw new Error(`Cannot load data for ${importId}. Try re-analyze file first.`)
-  }
+  const text = await storageService.download(`${importId}.json`, TEMP_BUCKET)
+  const rows = JSON.parse(text)
+  logInfo('Legacy single file loaded', { importId, row_count: rows.length })
+  return rows
 }
 
 async function cleanupTemporaryData(importId: string): Promise<void> {
   try {
-    const { data: partFiles } = await supabase.storage
-      .from('pos-imports-temp')
-      .list('', { search: `${importId}-part`, limit: 100 })
+    const posImport = await posImportsRepository.findByIdOnly(importId)
+    const chunkInfo = posImport?.chunk_info as { total_chunks: number } | null
 
-    if (partFiles && partFiles.length > 0) {
-      const partPaths = partFiles.map(f => f.name)
-      await supabase.storage.from('pos-imports-temp').remove(partPaths)
+    if (chunkInfo) {
+      // Chunked format — remove all part files
+      const partPaths = Array.from({ length: chunkInfo.total_chunks }, (_, i) => `${importId}-part${i + 1}.json`)
+      await storageService.remove(partPaths, TEMP_BUCKET)
     }
+    // Always try removing legacy single file as safety net
+    try { await storageService.remove([`${importId}.json`], TEMP_BUCKET) } catch { /* ignore */ }
 
-    await supabase.storage.from('pos-imports-temp').remove([`${importId}.json`])
-
-    logInfo('Temporary data cleaned up successfully', { 
-      import_id: importId, 
-      part_files_removed: partFiles?.length || 0 
-    })
+    logInfo('Temporary data cleaned up successfully', { import_id: importId })
   } catch (error) {
     logError('Cleanup failed (non-critical)', { import_id: importId, error })
   }
@@ -395,12 +361,9 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
 
     posImportId = metadata.posImportId!
     const skipDuplicates = metadata.skipDuplicates || false
-    const chunkInfo = (metadata as any).chunk_info || { total_chunks: 1, original_size_mb: 0 }
 
-    logInfo('Job started with chunk info', {
+    logInfo('Job started', {
       pos_import_id: posImportId,
-      chunks: chunkInfo.total_chunks,
-      original_size_mb: chunkInfo.original_size_mb ?? 'unknown',  // ✅ Fix NaN
       skip_duplicates: skipDuplicates
     })
 
@@ -417,38 +380,41 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
     const posImport = await posImportsRepository.findById(posImportId, importCompanyId!)
     if (!posImport) throw new Error('POS import not found or does not belong to your company')
 
-    // PHASE 2: List chunks
-    const { data: chunkFiles } = await supabase.storage
-      .from('pos-imports-temp')
-      .list('', { 
-        search: `${posImportId}-part`, 
-        limit: 100, 
-        sortBy: { column: 'name', order: 'asc' } 
-      })
+    // PHASE 2: List chunks — use chunk_info from DB instead of storage.list()
+    const chunkInfo = (posImport.chunk_info ?? (metadata as unknown as Record<string, unknown>).chunk_info ?? null) as { total_chunks: number } | null
+    const totalChunks = chunkInfo?.total_chunks ?? 1
 
-    if (!chunkFiles || chunkFiles.length === 0) {
-      // Legacy single file
-      logWarn('No chunks found, trying single file', { import_id: posImportId })
-      const singleRows = await retrieveTemporaryData(posImportId)
-      results.total = singleRows.length  // ✅ Akurat
+    if (totalChunks <= 1) {
+      // Legacy single file or single chunk
+      const singleFileName = totalChunks === 1 && chunkInfo
+        ? `${posImportId}-part1.json`
+        : `${posImportId}.json`
+
+      let singleRows: unknown[]
+      try {
+        singleRows = totalChunks === 1 && chunkInfo
+          ? await retrieveTemporaryData_STREAM(singleFileName)
+          : await retrieveTemporaryData(posImportId)
+      } catch {
+        singleRows = await retrieveTemporaryData(posImportId)
+      }
+
+      results.total = singleRows.length
       await processSingleChunk(
         singleRows, posImportId, jobId, userId, skipDuplicates, results, 0, processedBillKeys, 0
       )
     } else {
-      logInfo('Found storage chunks for STREAM processing', { 
-        import_id: posImportId, 
-        chunk_count: chunkFiles.length 
+      logInfo('Found storage chunks for STREAM processing', {
+        import_id: posImportId, chunk_count: totalChunks,
       })
 
       let globalRowOffset = 0
 
-      for (let i = 0; i < chunkFiles.length; i++) {
-        const chunkFileName = chunkFiles[i].name
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkFileName = `${posImportId}-part${i + 1}.json`
 
-        logInfo('Processing storage chunk', { 
-          chunk_file: chunkFileName, 
-          chunk_num: i + 1, 
-          total_chunks: chunkFiles.length 
+        logInfo('Processing storage chunk', {
+          chunk_file: chunkFileName, chunk_num: i + 1, total_chunks: totalChunks,
         })
 
         const chunkRows = await retrieveTemporaryData_STREAM(chunkFileName)
@@ -472,7 +438,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
           total_so_far: results.total,
         })
 
-        const chunkProgress = 15 + Math.round(((i + 1) / chunkFiles.length) * 80)
+        const chunkProgress = 15 + Math.round(((i + 1) / totalChunks) * 80)
         await jobsService.updateProgress(jobId, Math.min(chunkProgress, 95), userId)
       }
     }
@@ -499,7 +465,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
       created: results.created,
       skipped: results.skipped,
       failed: results.failed,
-      storage_chunks: chunkFiles?.length ?? 1,
+      storage_chunks: totalChunks,
       errors_count: results.errors.length
     })
 
@@ -508,7 +474,7 @@ export const processPosTransactionsImport: JobProcessor<PosTransactionsImportMet
       fileName: '',
       importResults: {
         ...results,
-        chunksProcessed: chunkFiles?.length ?? 1,
+        chunksProcessed: totalChunks,
         chunkSize: CHUNK_SIZE,
         duplicateCheckBatchSize: DUP_CHECK_BATCH_SIZE,
         errorDetails: results.errors.slice(0, 10)
