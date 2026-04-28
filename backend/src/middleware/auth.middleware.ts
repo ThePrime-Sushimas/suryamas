@@ -1,9 +1,9 @@
 import { Response, NextFunction } from 'express'
-import { supabase } from '../config/supabase'
 import { AuthRequest } from '../types/common.types'
 import { sendError } from '../utils/response.util'
 import { logWarn } from '../config/logger'
-import { PermissionService } from '../services/permission.service'
+import { authService } from '../modules/auth/auth.service'
+import { authRepository } from '../modules/auth/auth.repository'
 import { employeesRepository } from '../modules/employees/employees.repository'
 import { AuthenticatedRequest } from '../types/request.types'
 
@@ -16,24 +16,17 @@ export const authenticate = async (
   next: NextFunction
 ): Promise<void> => {
   const token = req.headers.authorization?.replace('Bearer ', '')
-  
+
   if (!token) {
-    logWarn('Authentication failed: No token', {
-      path: req.path,
-      ip: req.ip
-    })
+    logWarn('Authentication failed: No token', { path: req.path, ip: req.ip })
     sendError(res, 'No token provided', 401)
     return
   }
 
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  
-  if (error || !user) {
-    logWarn('Authentication failed: Invalid token', {
-      path: req.path,
-      error: error?.message,
-      ip: req.ip
-    })
+  const user = await authService.verifyToken(token)
+
+  if (!user) {
+    logWarn('Authentication failed: Invalid token', { path: req.path, ip: req.ip })
     sendError(res, 'Invalid or expired token', 401)
     return
   }
@@ -44,45 +37,31 @@ export const authenticate = async (
   if (cached && cached.expiresAt > Date.now()) {
     isResigned = cached.isResigned
   } else {
-    // Only query if not cached
-    const { data: employee } = await supabase
-      .from('employees')
-      .select('resign_date')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    isResigned = employee?.resign_date && new Date(employee.resign_date) < new Date()
-    resignedCache.set(user.id, {
-      isResigned,
-      expiresAt: Date.now() + RESIGNED_CACHE_TTL,
-    })
+    const employee = await authRepository.findEmployeeByUserId(user.id)
+    isResigned = !!(employee?.resign_date && new Date(employee.resign_date) < new Date())
+    resignedCache.set(user.id, { isResigned, expiresAt: Date.now() + RESIGNED_CACHE_TTL })
   }
 
   if (isResigned) {
-    logWarn('Authentication failed: Employee has resigned', {
-      path: req.path,
-      user_id: user.id,
-      ip: req.ip
-    })
+    logWarn('Authentication failed: Employee has resigned', { path: req.path, user_id: user.id, ip: req.ip })
     sendError(res, 'Account has been deactivated', 403)
     return
   }
 
   req.user = user as any
-  
-  // Attach employee data (for journal entries and audit trail)
+
+  // Attach employee data
   try {
     const employee = await employeesRepository.findByUserId(user.id)
     if (employee) {
       (req as AuthenticatedRequest).employee = employee
     }
   } catch (error) {
-    // Log but don't fail authentication if employee lookup fails
     logWarn('Failed to load employee data', {
       user_id: user.id,
       error: error instanceof Error ? error.message : 'Unknown error'
     })
   }
-  
+
   next()
 }
