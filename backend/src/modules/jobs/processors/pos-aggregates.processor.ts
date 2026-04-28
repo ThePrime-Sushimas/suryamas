@@ -8,7 +8,7 @@
  * 4. Failed transactions disimpan dengan status FAILED, TIDAK fallback ke CASH
  */
 
-import { supabase } from "@/config/supabase";
+import { pool } from "@/config/db";
 import { posAggregatesRepository } from "../../pos-imports/pos-aggregates/pos-aggregates.repository";
 import { posImportLinesRepository } from "../../pos-imports/pos-import-lines/pos-import-lines.repository";
 import type {
@@ -108,17 +108,10 @@ async function resolvePaymentMethodsBatch(
   // Batch query - cari semua payment methods yang needed (global, tidak per company)
   // Payment method lookup dibuat global untuk menghindari mismatch nama
   // 🔥 INCLUDE FEE COLUMNS untuk fee calculation
-  const { data: allPaymentMethods, error } = await supabase
-    .from("payment_methods")
-    .select(
-      "id, name, code, is_active, coa_account_id, company_id, fee_percentage, fee_fixed_amount, fee_fixed_per_transaction",
-    )
-    .eq("is_active", true);
-
-  if (error) {
-    logError("Batch payment method lookup failed", { error });
-    throw new Error(`Failed to lookup payment methods: ${error.message}`);
-  }
+  const { rows: allPaymentMethods } = await pool.query(
+    `SELECT id, name, code, is_active, coa_account_id, company_id, fee_percentage, fee_fixed_amount, fee_fixed_per_transaction
+     FROM payment_methods WHERE is_active = true`
+  );
 
   // Create normalized map from all payment methods
   interface PaymentMethodRow {
@@ -404,22 +397,14 @@ export async function generateAggregatedTransactionsOptimized(
     for (let i = 0; i < allSourceRefs.length; i += CHECK_BATCH_SIZE) {
       const batchRefs = allSourceRefs.slice(i, i + CHECK_BATCH_SIZE);
 
-      const { data, error } = await supabase
-        .from("aggregated_transactions")
-        .select("source_ref")
-        .eq("source_type", "POS")
-        .eq("source_id", posImportId)
-        .in("source_ref", batchRefs);
+      const { rows: data } = await pool.query(
+        `SELECT source_ref FROM aggregated_transactions
+         WHERE source_type = 'POS' AND source_id = $1 AND source_ref = ANY($2::text[])`,
+        [posImportId, batchRefs]
+      );
 
-      if (error) {
-        logError("Batch duplicate check failed", { error });
-        throw new Error(
-          `Duplicate check failed. Aborting to prevent duplicates. Error: ${error.message}`,
-        );
-      } else if (data) {
-        for (const item of data) {
-          existingSources.add(item.source_ref);
-        }
+      for (const item of data) {
+        existingSources.add(item.source_ref);
       }
 
       // Progress update
@@ -852,19 +837,14 @@ export async function generateAggregatedTransactionsOptimized(
         logInfo("Phase 6b: starting supersede check", { createdCount, posImportId });
 
         // Lookup by source_id (posImportId) — reliable regardless of source_ref casing
-        const { data: found, error: lookupErr } = await supabase
-          .from("aggregated_transactions")
-          .select("id")
-          .eq("source_type", "POS")
-          .eq("source_id", posImportId)
-          .is("deleted_at", null)
-          .is("superseded_by", null);
+        const { rows: found } = await pool.query(
+          `SELECT id FROM aggregated_transactions
+           WHERE source_type = 'POS' AND source_id = $1
+             AND deleted_at IS NULL AND superseded_by IS NULL`,
+          [posImportId]
+        );
 
-        if (lookupErr) {
-          logWarn("Phase 6b: lookup error", { error: lookupErr.message });
-        }
-
-        const manualIds = (found || []).map((r: any) => r.id);
+        const manualIds = found.map((r: { id: string }) => r.id);
         logInfo("Phase 6b: manual IDs collected", { manualIdsCount: manualIds.length });
 
         if (manualIds.length > 0) {
@@ -920,15 +900,10 @@ export async function generateAggregatedTransactionsOptimized(
           skipped: skippedGroups.length,
         });
 
-        const { error: statusError } = await supabase
-          .from("pos_imports")
-          .update({
-            status: "MAPPED",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", posImportId);
-
-        if (statusError) throw statusError;
+        await pool.query(
+          `UPDATE pos_imports SET status = 'MAPPED', updated_at = NOW() WHERE id = $1`,
+          [posImportId]
+        );
       } catch (statusError) {
         logError("Failed to update pos_import status to MAPPED", {
           pos_import_id: posImportId,
@@ -944,16 +919,10 @@ export async function generateAggregatedTransactionsOptimized(
           failed: failedStoredCount,
         });
 
-        const { error: statusError } = await supabase
-          .from("pos_imports")
-          .update({
-            status: "FAILED",
-            error_message: `${failedStoredCount} transactions failed - check /pos-aggregates/failed-transactions`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", posImportId);
-
-        if (statusError) throw statusError;
+        await pool.query(
+          `UPDATE pos_imports SET status = 'FAILED', error_message = $1, updated_at = NOW() WHERE id = $2`,
+          [`${failedStoredCount} transactions failed - check /pos-aggregates/failed-transactions`, posImportId]
+        );
       } catch (statusError) {
         logError("Failed to update pos_import status to FAILED", {
           pos_import_id: posImportId,

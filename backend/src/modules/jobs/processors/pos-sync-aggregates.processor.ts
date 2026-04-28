@@ -1,4 +1,4 @@
-import { supabase } from "@/config/supabase";
+import { pool } from "@/config/db";
 import { logInfo, logError, logWarn } from "@/config/logger";
 
 const BATCH_SIZE = 100;
@@ -137,53 +137,48 @@ export async function processPosSyncAggregates(
       filter: salesNums ? `${salesNums.length} sales_nums` : "all",
     });
 
-    let salesQuery = supabase
-      .from("tr_saleshead")
-      .select(
-        "sales_num, sales_date, branch_id, status_id, subtotal, discount_total, menu_discount_total, promotion_discount, voucher_discount_total, other_tax_total, vat_total, other_vat_total, grand_total, rounding_total, delivery_cost, order_fee, voucher_total, pax_total",
-      );
-
+    let salesRows: RawSaleRow[];
     if (salesNums && salesNums.length > 0) {
-      salesQuery = salesQuery.in("sales_num", salesNums);
+      const { rows } = await pool.query(
+        `SELECT sales_num, sales_date, branch_id, status_id, subtotal, discount_total, menu_discount_total, promotion_discount, voucher_discount_total, other_tax_total, vat_total, other_vat_total, grand_total, rounding_total, delivery_cost, order_fee, voucher_total, pax_total
+         FROM tr_saleshead WHERE sales_num = ANY($1::text[])`,
+        [salesNums]
+      );
+      salesRows = rows;
+    } else {
+      const { rows } = await pool.query(
+        `SELECT sales_num, sales_date, branch_id, status_id, subtotal, discount_total, menu_discount_total, promotion_discount, voucher_discount_total, other_tax_total, vat_total, other_vat_total, grand_total, rounding_total, delivery_cost, order_fee, voucher_total, pax_total
+         FROM tr_saleshead`
+      );
+      salesRows = rows;
     }
 
-    const { data: salesRows, error: salesErr } = await salesQuery;
-    if (salesErr) throw salesErr;
-    if (!salesRows || salesRows.length === 0) {
+    if (salesRows.length === 0) {
       logInfo("PosSyncAggregates: no sales data found");
       return result;
     }
 
     const allSalesNums = salesRows.map((r) => r.sales_num);
 
-    const { data: paymentRows, error: payErr } = await supabase
-      .from("tr_salespayment")
-      .select("sales_num, payment_method_id, payment_amount")
-      .in("sales_num", allSalesNums);
-
-    if (payErr) throw payErr;
+    const { rows: paymentRows } = await pool.query(
+      `SELECT sales_num, payment_method_id, payment_amount FROM tr_salespayment WHERE sales_num = ANY($1::text[])`,
+      [allSalesNums]
+    );
 
     // ── PHASE 2: Load lookup tables ────────────────────────────────────
     const [
-      { data: stagingBranches, error: sbErr },
-      { data: stagingPayments, error: spErr },
+      { rows: stagingBranches },
+      { rows: stagingPayments },
     ] = await Promise.all([
-      supabase
-        .from("pos_staging_branches")
-        .select("pos_id, branch_name, mapped_id"),
-      supabase
-        .from("pos_staging_payment_methods")
-        .select("pos_id, name, mapped_id"),
+      pool.query(`SELECT pos_id, branch_name, mapped_id FROM pos_staging_branches`),
+      pool.query(`SELECT pos_id, name, mapped_id FROM pos_staging_payment_methods`),
     ]);
 
-    if (sbErr) throw sbErr;
-    if (spErr) throw spErr;
-
     const branchMap = new Map<number, StagingBranchRow>();
-    for (const b of stagingBranches ?? []) branchMap.set(b.pos_id, b);
+    for (const b of stagingBranches) branchMap.set(b.pos_id, b);
 
     const paymentStagingMap = new Map<number, StagingPaymentRow>();
-    for (const p of stagingPayments ?? []) paymentStagingMap.set(p.pos_id, p);
+    for (const p of stagingPayments) paymentStagingMap.set(p.pos_id, p);
 
     // Load fee config untuk semua internal payment_method_id yang ter-mapped
     const mappedPaymentIds = [...paymentStagingMap.values()]
@@ -192,20 +187,17 @@ export async function processPosSyncAggregates(
 
     const feeMap = new Map<number, PaymentMethodFeeRow>();
     if (mappedPaymentIds.length > 0) {
-      const { data: pmFeeRows, error: feeErr } = await supabase
-        .from("payment_methods")
-        .select(
-          "id, fee_percentage, fee_fixed_amount, fee_fixed_per_transaction",
-        )
-        .in("id", mappedPaymentIds);
-
-      if (feeErr) throw feeErr;
-      for (const pm of pmFeeRows ?? []) feeMap.set(pm.id, pm);
+      const { rows: pmFeeRows } = await pool.query(
+        `SELECT id, fee_percentage, fee_fixed_amount, fee_fixed_per_transaction
+         FROM payment_methods WHERE id = ANY($1::int[])`,
+        [mappedPaymentIds]
+      );
+      for (const pm of pmFeeRows) feeMap.set(pm.id, pm);
     }
 
     // ── PHASE 3: Index payments by sales_num ───────────────────────────
     const paymentIndex = new Map<string, RawPaymentRow[]>();
-    for (const p of paymentRows ?? []) {
+    for (const p of paymentRows) {
       if (!paymentIndex.has(p.sales_num)) paymentIndex.set(p.sales_num, []);
       paymentIndex.get(p.sales_num)!.push(p as RawPaymentRow);
     }
@@ -346,12 +338,11 @@ export async function processPosSyncAggregates(
       ]),
     ];
 
-    const { data: existingRows } = await supabase
-      .from("pos_sync_aggregates")
-      .select(
-        "id, status, recalculated_count, sales_date, branch_pos_id, payment_pos_id, grand_total, transaction_count, payment_method_id, total_fee_amount",
-      )
-      .in("sales_date", allDates);
+    const { rows: existingRows } = await pool.query(
+      `SELECT id, status, recalculated_count, sales_date, branch_pos_id, payment_pos_id, grand_total, transaction_count, payment_method_id, total_fee_amount
+       FROM pos_sync_aggregates WHERE sales_date = ANY($1::text[])`,
+      [allDates]
+    );
 
     const existingMap = new Map<
       string,
@@ -365,7 +356,7 @@ export async function processPosSyncAggregates(
         total_fee_amount: number;
       }
     >();
-    for (const row of existingRows ?? []) {
+    for (const row of existingRows) {
       const key = `${row.sales_date}|${row.branch_pos_id}|${row.payment_pos_id}`;
       existingMap.set(key, {
         id: row.id,
@@ -652,41 +643,60 @@ export async function processPosSyncAggregates(
       }
     }
 
+    // Explicit column list for aggregate INSERT — consistent across void and normal groups
+    const AGG_INSERT_COLS = [
+      'sales_date', 'branch_pos_id', 'branch_id', 'branch_name', 'payment_pos_id',
+      'payment_method_id', 'gross_amount', 'discount_amount', 'menu_discount_amount',
+      'promotion_discount_amount', 'voucher_discount_amount', 'tax_amount', 'other_tax_amount',
+      'other_vat_amount', 'grand_total', 'rounding_amount', 'delivery_cost', 'order_fee',
+      'voucher_payment_amount', 'payment_amount', 'transaction_count', 'void_transaction_count',
+      'pax_total', 'fee_percentage', 'fee_fixed_amount', 'percentage_fee_amount',
+      'fixed_fee_amount_calc', 'total_fee_amount', 'nett_amount', 'status', 'skip_reason',
+      'synced_at', 'updated_at', 'created_at',
+    ] as const;
+
+    const AGG_CONFLICT_COLS = new Set(['sales_date', 'branch_pos_id', 'payment_pos_id', 'created_at']);
+
     // ── PHASE 7: Bulk insert ───────────────────────────────────────────
     for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
       const batch = toInsert.slice(i, i + BATCH_SIZE);
 
-      const { error } = await supabase
-        .from("pos_sync_aggregates")
-        .upsert(batch, {
-          onConflict: "sales_date,branch_pos_id,payment_pos_id",
-        });
+      const valueRows: string[] = [];
+      const params: unknown[] = [];
+      let pIdx = 1;
+      for (const row of batch) {
+        const placeholders: string[] = [];
+        for (const col of AGG_INSERT_COLS) {
+          placeholders.push(`$${pIdx++}`);
+          params.push(row[col] ?? null);
+        }
+        valueRows.push(`(${placeholders.join(', ')})`);
+      }
 
-      if (error) {
+      const setClauses = AGG_INSERT_COLS.filter(c => !AGG_CONFLICT_COLS.has(c))
+        .map(c => `${c} = EXCLUDED.${c}`).join(', ');
+
+      let inserted: Array<{ id: string; sales_date: string; branch_pos_id: number; payment_pos_id: number }> = [];
+      try {
+        const { rows } = await pool.query(
+          `INSERT INTO pos_sync_aggregates (${AGG_INSERT_COLS.join(', ')})
+           VALUES ${valueRows.join(', ')}
+           ON CONFLICT (sales_date, branch_pos_id, payment_pos_id) DO UPDATE SET ${setClauses}
+           RETURNING id, sales_date, branch_pos_id, payment_pos_id`,
+          params
+        );
+        inserted = rows;
+      } catch (error) {
         logError("PosSyncAggregates: insert error", { error });
         result.failed += batch.length;
         continue;
       }
 
-      // ← GANTI: fetch ulang setelah upsert untuk dapat id yang pasti
-      const { data: inserted, error: fetchErr } = await supabase
-        .from("pos_sync_aggregates")
-        .select("id, sales_date, branch_pos_id, payment_pos_id")
-        .in("sales_date", [...new Set(batch.map((b) => b.sales_date))])
-        .in("branch_pos_id", [...new Set(batch.map((b) => b.branch_pos_id))])
-        .in("payment_pos_id", [...new Set(batch.map((b) => b.payment_pos_id))]);
-
-      if (fetchErr) {
-        logError("PosSyncAggregates: fetch after upsert error", { fetchErr });
-        result.failed += batch.length;
-        continue;
-      }
-
-      result.created += inserted?.length ?? 0;
+      result.created += inserted.length;
 
       // Insert lines
       const linesBatch: any[] = [];
-      for (const row of inserted ?? []) {
+      for (const row of inserted) {
         const key = `${row.sales_date}|${row.branch_pos_id}|${row.payment_pos_id}`;
         for (const line of linesByKey.get(key) ?? []) {
           linesBatch.push({ ...line, aggregate_id: row.id });
@@ -694,33 +704,75 @@ export async function processPosSyncAggregates(
       }
 
       if (linesBatch.length > 0) {
-        // Hapus lines lama dulu berdasarkan aggregate_id
         const aggregateIds = [...new Set(linesBatch.map((l) => l.aggregate_id))];
-        await supabase
-          .from("pos_sync_aggregate_lines")
-          .delete()
-          .in("aggregate_id", aggregateIds);
+        await pool.query(
+          `DELETE FROM pos_sync_aggregate_lines WHERE aggregate_id = ANY($1::uuid[])`,
+          [aggregateIds]
+        );
 
-        // Insert fresh
-        const { error: lineErr } = await supabase
-          .from("pos_sync_aggregate_lines")
-          .insert(linesBatch);  // ← pakai insert biasa, bukan upsert
+        // Bulk insert lines with explicit column order
+        const LINE_COLS = [
+          'aggregate_id', 'sales_num', 'sales_date', 'branch_pos_id', 'payment_pos_id',
+          'subtotal', 'discount_total', 'menu_discount_total', 'promotion_discount',
+          'voucher_discount_total', 'other_tax_total', 'vat_total', 'other_vat_total',
+          'grand_total', 'rounding_total', 'delivery_cost', 'order_fee',
+          'voucher_total', 'payment_amount', 'created_at',
+        ];
+        const lineValueRows: string[] = [];
+        const lineParams: unknown[] = [];
+        let lIdx = 1;
+        for (const line of linesBatch) {
+          const ph: string[] = [];
+          for (const col of LINE_COLS) { ph.push(`$${lIdx++}`); lineParams.push(line[col] ?? null); }
+          lineValueRows.push(`(${ph.join(', ')})`);
+        }
 
-        if (lineErr)
+        try {
+          await pool.query(
+            `INSERT INTO pos_sync_aggregate_lines (${LINE_COLS.join(', ')}) VALUES ${lineValueRows.join(', ')}`,
+            lineParams
+          );
+        } catch (lineErr) {
           logError("PosSyncAggregates: lines insert error", { lineErr });
+        }
       }
     }
 
     // ── PHASE 8: Update existing (recalculate) ────────────────────────
-    for (const item of toUpdate) {
-      const { error } = await supabase
-        .from("pos_sync_aggregates")
-        .update(item.data)
-        .eq("id", item.id);
+    // Explicit column list for updates to avoid Object.keys() ordering issues
+    const UPDATE_COLS = [
+      'sales_date', 'branch_pos_id', 'branch_id', 'branch_name', 'payment_pos_id',
+      'payment_method_id', 'gross_amount', 'discount_amount', 'menu_discount_amount',
+      'promotion_discount_amount', 'voucher_discount_amount', 'tax_amount', 'other_tax_amount',
+      'other_vat_amount', 'grand_total', 'rounding_amount', 'delivery_cost', 'order_fee',
+      'voucher_payment_amount', 'payment_amount', 'transaction_count', 'void_transaction_count',
+      'pax_total', 'fee_percentage', 'fee_fixed_amount', 'percentage_fee_amount',
+      'fixed_fee_amount_calc', 'total_fee_amount', 'nett_amount', 'status', 'skip_reason',
+      'synced_at', 'updated_at', 'recalculated', 'recalculated_at', 'recalculated_count',
+    ] as const;
 
-      if (error) {
-        logError("PosSyncAggregates: update error", { id: item.id, error });
-        result.failed++;
+    const LINE_INSERT_COLS = [
+      'aggregate_id', 'sales_num', 'sales_date', 'branch_pos_id', 'payment_pos_id',
+      'subtotal', 'discount_total', 'menu_discount_total', 'promotion_discount',
+      'voucher_discount_total', 'other_tax_total', 'vat_total', 'other_vat_total',
+      'grand_total', 'rounding_total', 'delivery_cost', 'order_fee',
+      'voucher_total', 'payment_amount', 'created_at',
+    ] as const;
+
+    for (const item of toUpdate) {
+      const activeCols = UPDATE_COLS.filter(c => item.data[c] !== undefined);
+      const sets = activeCols.map((c, i) => `${c} = $${i + 1}`).join(', ');
+      const values: unknown[] = activeCols.map(c => item.data[c] ?? null);
+      values.push(item.id);
+
+      const { rowCount } = await pool.query(
+        `UPDATE pos_sync_aggregates SET ${sets} WHERE id = $${activeCols.length + 1}`,
+        values
+      );
+
+      if ((rowCount ?? 0) === 0) {
+        logWarn("PosSyncAggregates: update no rows affected (may have been deleted)", { id: item.id });
+        result.skipped++;
         continue;
       }
 
@@ -731,24 +783,33 @@ export async function processPosSyncAggregates(
         key: item.key,
       });
 
-      // ← GANTI: delete dulu, baru insert fresh (sama seperti Phase 7)
       const lines = linesByKey.get(item.key) ?? [];
       if (lines.length > 0) {
-        // Hapus semua lines lama untuk aggregate ini
-        await supabase
-          .from("pos_sync_aggregate_lines")
-          .delete()
-          .eq("aggregate_id", item.id);
+        await pool.query(
+          `DELETE FROM pos_sync_aggregate_lines WHERE aggregate_id = $1`,
+          [item.id]
+        );
 
-        // Insert fresh
-        const { error: lineErr } = await supabase
-          .from("pos_sync_aggregate_lines")
-          .insert(
-            lines.map((l) => ({ ...l, aggregate_id: item.id })),
+        const lineValueRows: string[] = [];
+        const lineParams: unknown[] = [];
+        let lIdx = 1;
+        for (const line of lines) {
+          const ph: string[] = [];
+          for (const col of LINE_INSERT_COLS) {
+            ph.push(`$${lIdx++}`);
+            lineParams.push(col === 'aggregate_id' ? item.id : (line[col] ?? null));
+          }
+          lineValueRows.push(`(${ph.join(', ')})`);
+        }
+
+        try {
+          await pool.query(
+            `INSERT INTO pos_sync_aggregate_lines (${LINE_INSERT_COLS.join(', ')}) VALUES ${lineValueRows.join(', ')}`,
+            lineParams
           );
-
-        if (lineErr)
+        } catch (lineErr) {
           logError("PosSyncAggregates: lines insert error", { lineErr });
+        }
       }
     }
 
