@@ -15,7 +15,7 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
       `SELECT at.*, pm.id AS pm_id, pm.name AS pm_name, pm.code AS pm_code
        FROM aggregated_transactions at
        LEFT JOIN payment_methods pm ON pm.id = at.payment_method_id
-       WHERE at.transaction_date = $1 AND at.deleted_at IS NULL AND at.superseded_by IS NULL
+       WHERE at.transaction_date = $1::date AND at.deleted_at IS NULL AND at.superseded_by IS NULL
        ORDER BY at.created_at DESC`,
       [dateStr]
     );

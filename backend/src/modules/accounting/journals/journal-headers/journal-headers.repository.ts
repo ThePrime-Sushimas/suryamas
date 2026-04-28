@@ -263,7 +263,7 @@ export class JournalHeadersRepository {
 
   async getAggregatedForCompleteness(branchId: string, journalDate: string): Promise<Array<{ id: string; payment_method_id: number; nett_amount: number; is_reconciled: boolean; status: string }>> {
     const { rows } = await pool.query(
-      'SELECT id, payment_method_id, nett_amount, is_reconciled, status FROM aggregated_transactions WHERE branch_id = $1 AND transaction_date = $2 AND superseded_by IS NULL AND deleted_at IS NULL',
+      'SELECT id, payment_method_id, nett_amount, is_reconciled, status FROM aggregated_transactions WHERE branch_id = $1 AND transaction_date = $2::date AND superseded_by IS NULL AND deleted_at IS NULL',
       [branchId, journalDate]
     )
     return rows

@@ -106,7 +106,7 @@ export const posSyncAggregatesRepository = {
 
   async getReadyBySalesDate(salesDate: string) {
     const { rows } = await pool.query(
-      `SELECT * FROM pos_sync_aggregates WHERE sales_date = $1 AND status IN ('READY', 'RECALCULATED')`,
+      `SELECT * FROM pos_sync_aggregates WHERE sales_date = $1::date AND status IN ('READY', 'RECALCULATED')`,
       [salesDate]
     );
     return rows;
@@ -114,7 +114,7 @@ export const posSyncAggregatesRepository = {
 
   async getVoidBySalesDate(salesDate: string) {
     const { rows } = await pool.query(
-      `SELECT * FROM pos_sync_aggregates WHERE sales_date = $1 AND status = 'VOID'`,
+      `SELECT * FROM pos_sync_aggregates WHERE sales_date = $1::date AND status = 'VOID'`,
       [salesDate]
     );
     return rows;
@@ -208,7 +208,7 @@ export const posSyncAggregatesRepository = {
 
     const conditions = [
       "source_type = 'POS'",
-      'transaction_date = $1',
+      'transaction_date = $1::date',
       'payment_method_id = $2',
       'is_reconciled = true',
       "status = 'READY'",
@@ -297,7 +297,7 @@ export const posSyncAggregatesRepository = {
   },
 
   async getVoidAggregates(salesDate: string, branchId?: string | null) {
-    const conditions = ["status = 'VOID'", 'sales_date = $1'];
+    const conditions = ["status = 'VOID'", 'sales_date = $1::date'];
     const values: unknown[] = [salesDate];
     let idx = 2;
     if (branchId) { conditions.push(`branch_id = $${idx++}`); values.push(branchId) }
@@ -312,7 +312,7 @@ export const posSyncAggregatesRepository = {
   async getVoidTransactionCount(salesDate: string) {
     const { rows } = await pool.query(
       `SELECT COALESCE(SUM(void_transaction_count), 0)::int AS total
-       FROM pos_sync_aggregates WHERE status = 'VOID' AND sales_date = $1`,
+       FROM pos_sync_aggregates WHERE status = 'VOID' AND sales_date = $1::date`,
       [salesDate]
     );
     return rows[0]?.total ?? 0;

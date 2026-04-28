@@ -52,7 +52,7 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
   async getPosAggregatesByPaymentMethodDate(paymentMethodId: number, date: string): Promise<PosAggregate | null> {
     const { rows } = await pool.query(
       `SELECT id, payment_method_id, total_gross_amount, total_transaction_count, transaction_date, company_id
-       FROM pos_aggregates WHERE payment_method_id = $1 AND transaction_date = $2 LIMIT 1`,
+       FROM pos_aggregates WHERE payment_method_id = $1 AND transaction_date = $2::date LIMIT 1`,
       [paymentMethodId, date]
     )
     return rows[0] ?? null
@@ -62,7 +62,7 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
     const { rows } = await pool.query(
       `SELECT COALESCE(SUM(credit_amount), 0)::float AS total
        FROM bank_statements
-       WHERE payment_method_id = $1 AND transaction_date = $2
+       WHERE payment_method_id = $1 AND transaction_date = $2::date
          AND is_reconciled = false AND deleted_at IS NULL`,
       [paymentMethodId, date]
     )

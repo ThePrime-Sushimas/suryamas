@@ -340,7 +340,7 @@ export async function processPosSyncAggregates(
 
     const { rows: existingRows } = await pool.query(
       `SELECT id, status, recalculated_count, sales_date, branch_pos_id, payment_pos_id, grand_total, transaction_count, payment_method_id, total_fee_amount
-       FROM pos_sync_aggregates WHERE sales_date = ANY($1::text[])`,
+       FROM pos_sync_aggregates WHERE sales_date = ANY($1::date[])`,
       [allDates]
     );
 
