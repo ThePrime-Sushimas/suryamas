@@ -4,6 +4,7 @@
  */
 
 import { Response } from "express";
+import { handleError } from "../../../utils/error-handler.util";
 import {
   settlementGroupService,
   SettlementGroupService,
@@ -84,33 +85,10 @@ export class SettlementGroupController {
         data: result,
         message: "Settlement group berhasil dibuat",
       });
-    } catch (error: any) {
-      logError("Create settlement group error", {
-        error: error.message,
-        code: error.code,
-      });
-
-      let status = 400;
-      if (error instanceof SettlementGroupNotFoundError) status = 404;
-      if (error instanceof StatementAlreadyReconciledError) status = 409;
-      if (error instanceof AggregateAlreadyReconciledError) status = 409;
-      if (error instanceof DuplicateAggregateError) status = 409;
-      if (error instanceof DifferenceThresholdExceededError) status = 422;
-
-      // Add correlation ID to logs for better tracing
-      const correlationId = req.headers["x-correlation-id"] || "unknown";
-      logError("Create settlement group error", {
-        correlationId,
-        error: error.message,
-        code: error.code,
-        userId: req.user?.id,
-        companyId: req.context?.company_id,
-      });
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "CREATE_SETTLEMENT_GROUP_FAILED",
+    } catch (error) {
+      return await handleError(res, error, req, { 
+        bankStatementId: req.validated?.body?.bankStatementId, 
+        aggregateIds: req.validated?.body?.aggregateIds 
       });
     }
   }
@@ -136,25 +114,8 @@ export class SettlementGroupController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      const correlationId = req.headers["x-correlation-id"] || "unknown";
-      logError("Get settlement group error", {
-        correlationId,
-        id: req.validated.params.id,
-        error: error.message,
-        code: error.code,
-        userId: req.user?.id,
-        companyId: req.context?.company_id,
-      });
-
-      let status = 400;
-      if (error instanceof SettlementGroupNotFoundError) status = 404;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_SETTLEMENT_GROUP_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { id: req.validated.params.id });
     }
   }
 
@@ -188,18 +149,8 @@ export class SettlementGroupController {
         data: result.data,
         total: result.total,
       });
-    } catch (error: any) {
-      logError("List settlement groups error", {
-        query: req.validated.query,
-        error: error.message,
-        code: error.code,
-      });
-
-      res.status(400).json({
-        success: false,
-        message: error.message,
-        code: error.code || "LIST_SETTLEMENT_GROUPS_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { query: req.validated.query });
     }
   }
 
@@ -227,23 +178,8 @@ export class SettlementGroupController {
         success: true,
         message: "Settlement group berhasil dihapus",
       });
-    } catch (error: any) {
-      const correlationId = req.headers["x-correlation-id"] || "unknown";
-      logError("Delete settlement group error", {
-        correlationId,
-        id: req.validated.params.id,
-        error: error.message,
-        code: error.code,
-      });
-
-      let status = 400;
-      if (error instanceof SettlementGroupNotFoundError) status = 404;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "DELETE_SETTLEMENT_GROUP_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { id: req.validated.params.id });
     }
   }
 
@@ -282,18 +218,8 @@ export class SettlementGroupController {
           totalPages: Math.ceil(result.total / (limit || 100)),
         },
       });
-    } catch (error: any) {
-      logError("Get available aggregates error", {
-        query: req.validated.query,
-        error: error.message,
-        code: error.code,
-      });
-
-      res.status(400).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_AVAILABLE_AGGREGATES_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { query: req.validated.query });
     }
   }
 
@@ -318,21 +244,8 @@ export class SettlementGroupController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get settlement aggregates error", {
-        id: req.validated.params.id,
-        error: error.message,
-        code: error.code,
-      });
-
-      let status = 400;
-      if (error instanceof SettlementGroupNotFoundError) status = 404;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_SETTLEMENT_AGGREGATES_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { id: req.validated.params.id });
     }
   }
 
@@ -357,18 +270,8 @@ export class SettlementGroupController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get suggested aggregates error", {
-        query: req.validated.query,
-        error: error.message,
-        code: error.code,
-      });
-
-      res.status(400).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_SUGGESTIONS_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { query: req.validated.query });
     }
   }
 }

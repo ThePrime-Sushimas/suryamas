@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { handleError } from "../../utils/error-handler.util";
 import { posSyncAggregatesRepository } from "./pos-sync-aggregates.repository";
 import {
   ListAggregatesParams,
@@ -23,8 +24,8 @@ export const posSyncAggregatesController = {
       };
       const result = await posSyncAggregatesRepository.list(params);
       res.json({ success: true, ...result });
-    } catch (err: any) {
-      res.status(500).json({ success: false, message: err?.message });
+    } catch (err) {
+      await handleError(res, err, req, { query: req.query });
     }
   },
 
@@ -34,8 +35,8 @@ export const posSyncAggregatesController = {
         req.params.id as string,
       );
       res.json({ success: true, data });
-    } catch (err: any) {
-      res.status(500).json({ success: false, message: err?.message });
+    } catch (err) {
+      await handleError(res, err, req, { id: req.params.id });
     }
   },
 
@@ -45,8 +46,8 @@ export const posSyncAggregatesController = {
         req.params.id as string,
       );
       res.json({ success: true, data });
-    } catch (err: any) {
-      res.status(500).json({ success: false, message: err?.message });
+    } catch (err) {
+      await handleError(res, err, req, { id: req.params.id });
     }
   },
 
@@ -59,8 +60,8 @@ export const posSyncAggregatesController = {
       }
       const data = await posSyncAggregatesRepository.findVoidSalesDetails(sales_nums.slice(0, 200));
       res.json({ success: true, data });
-    } catch (err: any) {
-      res.status(500).json({ success: false, message: err?.message });
+    } catch (err) {
+      await handleError(res, err, req, { salesNumsCount: req.body?.sales_nums?.length });
     }
   },
 };

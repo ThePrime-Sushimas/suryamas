@@ -1,4 +1,5 @@
-import { Response, NextFunction } from 'express'
+import { Response } from 'express'
+import { handleError } from '../../utils/error-handler.util'
 import { AuthRequest } from '@/types/common.types'
 import { jobsService } from './jobs.service'
 import { sendSuccess, sendError } from '@/utils/response.util'
@@ -35,7 +36,7 @@ export class JobsController {
   // -----------------------------
   // GET /api/v1/jobs/recent
   // -----------------------------
-  async getRecentJobs(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async getRecentJobs(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.id
       const companyId = this.getCompanyId(req)
@@ -45,15 +46,14 @@ export class JobsController {
 
       sendSuccess(res, filteredJobs, 'Recent jobs retrieved successfully')
     } catch (error) {
-      logError('Controller getRecentJobs error', { error })
-      next(error)
+      await handleError(res, error, req)
     }
   }
 
   // -----------------------------
   // GET /api/v1/jobs/:id
   // -----------------------------
-  async getJobById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async getJobById(req: AuthRequest, res: Response): Promise<void> {
     try {
       const id = getParamString(req.params.id)
       const userId = req.user!.id
@@ -66,15 +66,14 @@ export class JobsController {
   
       sendSuccess(res, job, 'Job retrieved successfully')
     } catch (error) {
-      logError('Controller getJobById error', { error })
-      next(error)
+      await handleError(res, error, req)
     }
   }
 
   // -----------------------------
   // POST /api/v1/jobs
   // -----------------------------
-  async createJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async createJob(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.id
       const companyId = this.getCompanyId(req)
@@ -103,15 +102,14 @@ export class JobsController {
         created_at: job.created_at
       }, 'Job created successfully', 201)
     } catch (error) {
-      logError('Controller createJob error', { error })
-      next(error)
+      await handleError(res, error, req)
     }
   }
 
   // -----------------------------
   // POST /api/v1/jobs/:id/upload
   // -----------------------------
-  async uploadJobFile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async uploadJobFile(req: AuthRequest, res: Response): Promise<void> {
     try {
       const id = getParamString(req.params.id)
       const userId = req.user!.id
@@ -148,15 +146,14 @@ export class JobsController {
         message: 'File uploaded successfully. Processing started in background.'
       })
     } catch (error) {
-      logError('Controller uploadJobFile error', { error })
-      next(error)
+      await handleError(res, error, req)
     }
   }
 
   // -----------------------------
   // POST /api/v1/jobs/:id/cancel
   // -----------------------------
-  async cancelJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async cancelJob(req: AuthRequest, res: Response): Promise<void> {
     try {
       const id = getParamString(req.params.id)
       const userId = req.user!.id
@@ -167,15 +164,14 @@ export class JobsController {
 
       sendSuccess(res, job, 'Job cancelled successfully')
     } catch (error) {
-      logError('Controller cancelJob error', { error })
-      next(error)
+      await handleError(res, error, req)
     }
   }
 
   // -----------------------------
   // GET /api/v1/jobs/modules?type=export|import
   // -----------------------------
-  async getAvailableModules(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async getAvailableModules(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { type } = req.query
       if (!type || (type !== 'export' && type !== 'import')) return sendError(res, 'Query param "type" is required', 400)
@@ -183,15 +179,14 @@ export class JobsController {
       const modules = await import('./processors').then(mod => mod.getAvailableModules(type as JobType))
       sendSuccess(res, { type, modules }, 'Available modules retrieved')
     } catch (error) {
-      logError('Controller getAvailableModules error', { error })
-      next(error)
+      await handleError(res, error, req)
     }
   }
 
   // -----------------------------
   // POST /api/v1/jobs/clear-all
   // -----------------------------
-  async clearAllJobs(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async clearAllJobs(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.id
       const companyId = this.getCompanyId(req)
@@ -199,8 +194,7 @@ export class JobsController {
       const deletedCount = await jobsService.clearAllJobs(userId, companyId)
       sendSuccess(res, { deleted: deletedCount }, 'Jobs cleared successfully')
     } catch (error) {
-      logError('Controller clearAllJobs error', { error })
-      next(error)
+      await handleError(res, error, req)
     }
   }
 }

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { handleError } from "../../../utils/error-handler.util";
 import {
   bankReconciliationService,
   BankReconciliationService,
@@ -50,11 +51,11 @@ export class BankReconciliationController {
       );
 
       res.status(200).json({ success: true, data: result });
-    } catch (error: any) {
-      let status = 400;
-      if (error instanceof AlreadyReconciledError) status = 409;
-      logError("Reconcile cash deposit error", { error: error.message });
-      res.status(status).json({ success: false, message: error.message, code: "RECONCILE_CASH_DEPOSIT_FAILED" });
+    } catch (error) {
+      return await handleError(res, error, req, { 
+        cashDepositId: req.validated?.body?.cashDepositId, 
+        statementId: req.validated?.body?.statementId 
+      });
     }
   }
 
@@ -80,27 +81,10 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      let status = 400;
-      if (error instanceof AlreadyReconciledError) status = 409;
-      if (error instanceof DifferenceThresholdExceededError) status = 422;
-      
-      if (error instanceof FetchStatementError || 
-          error instanceof StatementNotFoundError ||
-          error instanceof DatabaseConnectionError) {
-        status = 503;
-      }
-
-      logError("Reconciliation error", { 
-        endpoint: '/reconcile', 
-        error: error.message,
-        code: error.code 
-      });
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "RECONCILIATION_FAILED",
+    } catch (error) {
+      return await handleError(res, error, req, { 
+        aggregateId: req.validated?.body?.aggregateId, 
+        statementId: req.validated?.body?.statementId 
       });
     }
   }
@@ -117,21 +101,8 @@ export class BankReconciliationController {
         success: true,
         message: "Reconciliation undone successfully",
       });
-    } catch (error: any) {
-      logError("Undo reconciliation error", { 
-        statementId: req.params?.statementId,
-        error: error.message 
-      });
-      
-      let status = 400;
-      if (error instanceof StatementNotFoundError) status = 404;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "UNDO_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { statementId: req.params.statementId });
     }
   }
 
@@ -157,19 +128,11 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Auto-match error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "AUTO_MATCH_FAILED",
+    } catch (error) {
+      return await handleError(res, error, req, { 
+        startDate: req.validated?.body?.startDate, 
+        endDate: req.validated?.body?.endDate, 
+        bankAccountId: req.validated?.body?.bankAccountId 
       });
     }
   }
@@ -192,19 +155,11 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Preview auto-match error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "PREVIEW_AUTO_MATCH_FAILED",
+    } catch (error) {
+      return await handleError(res, error, req, { 
+        startDate: req.validated?.body?.startDate, 
+        endDate: req.validated?.body?.endDate, 
+        bankAccountId: req.validated?.body?.bankAccountId 
       });
     }
   }
@@ -230,20 +185,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Confirm auto-match error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "CONFIRM_AUTO_MATCH_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { statementIds: req.validated?.body?.statementIds });
     }
   }
 
@@ -285,23 +228,8 @@ export class BankReconciliationController {
         data: result.data,
         pagination: result.pagination,
       });
-    } catch (error: any) {
-      logError("Get statements error", { 
-        query: req.query,
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof FetchStatementError || error instanceof DatabaseConnectionError) {
-        status = 503;
-      }
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_STATEMENTS_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { query: req.query });
     }
   }
 
@@ -331,19 +259,10 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get bank accounts status error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_ACCOUNTS_FAILED",
+    } catch (error) {
+      return await handleError(res, error, req, { 
+        startDate: req.query?.startDate, 
+        endDate: req.query?.endDate 
       });
     }
   }
@@ -359,20 +278,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get all bank accounts error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_ACCOUNTS_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req);
     }
   }
 
@@ -412,21 +319,10 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get reconciliation summary error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError || error instanceof FetchStatementError) {
-        status = 503;
-      }
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_SUMMARY_FAILED",
+    } catch (error) {
+      return await handleError(res, error, req, { 
+        startDate: req.query?.startDate, 
+        endDate: req.query?.endDate 
       });
     }
   }
@@ -443,24 +339,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get potential matches error", { 
-        statementId: req.params?.id,
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof StatementNotFoundError) status = 404;
-      if (error instanceof FetchStatementError || error instanceof DatabaseConnectionError) {
-        status = 503;
-      }
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_MATCHES_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { statementId: req.params.id });
     }
   }
 
@@ -486,19 +366,10 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Create multi-match error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "MULTI_MATCH_FAILED",
+    } catch (error) {
+      return await handleError(res, error, req, { 
+        aggregateId: req.validated?.body?.aggregateId, 
+        statementIds: req.validated?.body?.statementIds 
       });
     }
   }
@@ -515,21 +386,8 @@ export class BankReconciliationController {
         success: true,
         message: "Multi-match berhasil dibatalkan",
       });
-    } catch (error: any) {
-      logError("Undo multi-match error", { 
-        groupId: req.params?.groupId,
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "UNDO_MULTI_MATCH_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { groupId: req.params.groupId });
     }
   }
 
@@ -555,22 +413,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get suggested group statements error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof FetchStatementError || error instanceof DatabaseConnectionError) {
-        status = 503;
-      }
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_SUGGESTIONS_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { aggregateId: req.query.aggregateId });
     }
   }
 
@@ -599,20 +443,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get reconciliation groups error", { 
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_GROUPS_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { startDate: req.query.startDate, endDate: req.query.endDate });
     }
   }
 
@@ -626,21 +458,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      logError("Get multi-match group error", { 
-        groupId: req.params?.groupId,
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_GROUP_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { groupId: req.params.groupId });
     }
   }
 
@@ -670,21 +489,8 @@ export class BankReconciliationController {
         data: result.data,
         total: result.total,
       });
-    } catch (error: any) {
-      logError("Get unreconciled statements error", { 
-        query: req.query,
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FETCH_UNRECONCILED_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { query: req.query });
     }
   }
 
@@ -727,21 +533,8 @@ export class BankReconciliationController {
         success: true,
         data: statements,
       });
-    } catch (error: any) {
-      logError("Find statements by amount error", { 
-        query: req.query,
-        error: error.message,
-        code: error.code 
-      });
-      
-      let status = 400;
-      if (error instanceof DatabaseConnectionError) status = 503;
-
-      res.status(status).json({
-        success: false,
-        message: error.message,
-        code: error.code || "FIND_BY_AMOUNT_FAILED",
-      });
+    } catch (error) {
+      return await handleError(res, error, req, { query: req.query });
     }
   }
 }

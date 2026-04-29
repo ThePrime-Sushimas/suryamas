@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { handleError } from "../../utils/error-handler.util";
 import { salesService, masterService, stagingService, aggregateService } from "./pos-sync.service";
 import { ImportSalesPayload, ImportMasterPayload, StagingTable, StagingUpdatePayload } from "./pos-sync.types";
 import { logWarn } from "../../config/logger";
@@ -21,14 +22,10 @@ export const salesController = {
         success: true,
         data: result,
       });
-    } catch (err: any) {
-      // ✅ Log full error stack
-      console.error("❌ POS import error:", err);
-      logWarn("POS import failed", { error: err?.message, stack: err?.stack });
-
-      res.status(500).json({
-        success: false,
-        message: err?.message || "Internal Server Error",
+    } catch (err) {
+      await handleError(res, err, req, { 
+        salesCount: req.body?.sales?.length, 
+        itemsCount: req.body?.items?.length 
       });
     }
   },
@@ -53,13 +50,10 @@ export const masterController = {
         success: true,
         data: result,
       })
-    } catch (err: any) {
-      console.error('❌ POS Master sync error:', err)
-      logWarn('POS master sync failed', { error: err?.message, stack: err?.stack })
-
-      res.status(500).json({
-        success: false,
-        message: err?.message || 'Internal Server Error',
+    } catch (err) {
+      await handleError(res, err, req, { 
+        branchesCount: req.body?.branches?.length, 
+        paymentMethodsCount: req.body?.payment_methods?.length 
       })
     }
   },
@@ -87,9 +81,8 @@ export const stagingController = {
 
       const result = await stagingService.list(table, params)
       res.json({ success: true, ...result })
-    } catch (err: any) {
-      console.error('❌ Staging list error:', err)
-      res.status(500).json({ success: false, message: err?.message || 'Internal Server Error' })
+    } catch (err) {
+      await handleError(res, err, req, { table: req.params.table, query: req.query })
     }
   },
 
@@ -143,9 +136,8 @@ export const stagingController = {
       );
 
       res.json({ success: true, data })
-    } catch (err: any) {
-      console.error('❌ Staging update error:', err)
-      res.status(500).json({ success: false, message: err?.message || 'Internal Server Error' })
+    } catch (err) {
+      await handleError(res, err, req, { table: req.params.table, posId: req.params.id })
     }
   },
 };
@@ -182,9 +174,8 @@ export const aggregateController = {
       );
 
       res.json({ success: true, data: result });
-    } catch (err: any) {
-      console.error("❌ Recalculate error:", err);
-      res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
+    } catch (err) {
+      await handleError(res, err, req, { salesDate: req.body?.sales_date });
     }
   },
 };

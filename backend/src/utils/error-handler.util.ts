@@ -74,7 +74,7 @@ async function isModuleError(error: unknown, errorName: string): Promise<boolean
   return false
 }
 
-function persistHandledError(error: Error, statusCode: number, req?: { originalUrl?: string; method?: string; path?: string; headers?: Record<string, any>; user?: { id?: string } }): void {
+function persistHandledError(error: Error, statusCode: number, req?: { originalUrl?: string; method?: string; path?: string; headers?: Record<string, any>; user?: { id?: string } }, context?: Record<string, any>): void {
   // Skip specific noisy client errors to prevent flood
   if (
     error.name === 'NotFoundError' ||
@@ -99,6 +99,7 @@ function persistHandledError(error: Error, statusCode: number, req?: { originalU
     url: req?.originalUrl || '',
     route: req ? `${req.method} ${req.path}` : '',
     userAgent: req?.headers?.['user-agent'] || '',
+    context, // Pass extra context as metadata
   }).catch(() => {})
 
   const userId = (req as any)?.user?.id
@@ -119,56 +120,56 @@ function persistHandledError(error: Error, statusCode: number, req?: { originalU
  * Main error handler function
  * Handles errors dari semua module menggunakan ErrorRegistry untuk dynamic loading
  */
-export const handleError = async (res: Response, error: unknown, req?: Request): Promise<void> => {
+export const handleError = async (res: Response, error: unknown, req?: Request, context?: Record<string, any>): Promise<void> => {
   // ==========================================================================
   // BASE ERROR CLASSES (AppError subclasses) - Fast path
   // ==========================================================================
   
   if (error instanceof NotFoundError) {
     logError('NOT_FOUND', { message: error.message, context: (error as NotFoundError).context })
-    persistHandledError(error, 404, req)
+    persistHandledError(error as Error, 404, req, context)
     sendError(res, error.message, 404)
     return
   }
 
   if (error instanceof ConflictError) {
     logError('CONFLICT', { message: error.message, context: (error as ConflictError).context })
-    persistHandledError(error, 409, req)
+    persistHandledError(error as Error, 409, req, context)
     sendError(res, error.message, 409)
     return
   }
 
   if (error instanceof ValidationError) {
     logError('VALIDATION_ERROR', { message: error.message, context: (error as ValidationError).context })
-    persistHandledError(error, 400, req)
+    persistHandledError(error as Error, 400, req, context)
     sendError(res, error.message, 400, { context: (error as ValidationError).context })
     return
   }
 
   if (error instanceof BusinessRuleError) {
     logError('BUSINESS_RULE_VIOLATION', { message: error.message, context: (error as BusinessRuleError).context })
-    persistHandledError(error, 422, req)
+    persistHandledError(error as Error, 422, req, context)
     sendError(res, error.message, 422)
     return
   }
 
   if (error instanceof PermissionError) {
     logError('PERMISSION_DENIED', { message: error.message, context: (error as PermissionError).context })
-    persistHandledError(error, 403, req)
+    persistHandledError(error, 403, req, context)
     sendError(res, error.message, 403)
     return
   }
 
   if (error instanceof AuthenticationError) {
     logError('AUTHENTICATION_ERROR', { message: error.message, context: (error as AuthenticationError).context })
-    persistHandledError(error, 401, req)
+    persistHandledError(error, 401, req, context)
     sendError(res, error.message, 401)
     return
   }
 
   if (error instanceof DatabaseError) {
     logError((error as DatabaseError).code || 'DATABASE_ERROR', { message: error.message, cause: (error as DatabaseError).cause?.message, context: (error as DatabaseError).context })
-    persistHandledError(error, 500, req)
+    persistHandledError(error, 500, req, context)
     sendError(res, error.message, 500)
     return
   }
@@ -180,7 +181,7 @@ export const handleError = async (res: Response, error: unknown, req?: Request):
   if (error instanceof AppError) {
     const appError = error as AppError
     logError(appError.code, { message: appError.message, context: appError.context, cause: appError.cause?.message })
-    persistHandledError(appError, appError.statusCode, req)
+    persistHandledError(appError, appError.statusCode, req, context)
     sendError(res, appError.message, appError.statusCode, { context: appError.context })
     return
   }
@@ -203,7 +204,7 @@ export const handleError = async (res: Response, error: unknown, req?: Request):
         const category = getErrorCategoryByName(config.name)
         const statusCode = (error as any).statusCode || config.defaultStatusCode
         logError(config.name, { message: error.message, category: config.category, module: config.name })
-        persistHandledError(error, statusCode, req)
+        persistHandledError(error, statusCode, req, context)
         sendError(res, error.message, statusCode, { code: (error as any).code || config.name, category: config.category })
         return
       }
@@ -246,7 +247,7 @@ export const handleError = async (res: Response, error: unknown, req?: Request):
         if (config) {
           const statusCode = (error as any).statusCode || config.defaultStatusCode
           logError(errorTypeName, { message: error.message })
-          persistHandledError(error, statusCode, req)
+          persistHandledError(error, statusCode, req, context)
           sendError(res, error.message, statusCode, { code: (error as any).code || errorTypeName, category: config.category })
           return
         }
@@ -272,7 +273,7 @@ export const handleError = async (res: Response, error: unknown, req?: Request):
 
   if (error instanceof Error) {
     logError('UNEXPECTED_ERROR', { message: error.message, stack: error.stack })
-    persistHandledError(error, 500, req)
+    persistHandledError(error, 500, req, context)
     sendError(res, 'Internal server error', 500)
     return
   }
