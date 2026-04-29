@@ -1,3 +1,6 @@
+---
+trigger: always_on
+---
 📜 Backend Engineering Standards — Suryamas ERP (Unified)
 🎯 Tujuan
 
@@ -246,3 +249,41 @@ Mengikuti struktur folder src/features.
 Selalu menambahkan state loading (skeleton/spinner) saat fetching data.
 Menambahkan dokumentasi JSDoc pada hooks atau utilitas yang kompleks.
 Memastikan responsivitas (Mobile-first approach).
+
+
+📚 15. Project Context (WAJIB BACA)
+
+Sebelum mengerjakan task apapun, AI WAJIB membaca:
+- `.amazonq/docs/INFRASTRUCTURE.md` — server, DB, tunnel, firewall, storage, monitoring, Telegram
+- `.amazonq/docs/DEV_STATUS.md` — progress, pending fixes, backlog, coding conventions
+
+🔑 16. Lessons Learned (WAJIB IKUTI)
+
+Dari pengalaman development sebelumnya, berikut aturan tambahan:
+
+### Backend
+1. `handleError(res, error, req)` — SELALU pass `req` supaya error monitoring dapat info user, route, module
+2. Jangan throw generic `new Error()` — pakai custom error class dari `*.errors.ts`
+3. Schema validation: cross-validate compare periods, UUID regex untuk `branch_ids`
+4. Setelah ubah `.ts`, WAJIB rebuild: `cd backend && npx tsc`
+5. `company_id` dari branch context (`req.context.company_id`), BUKAN dari query param
+6. Retained earnings di Balance Sheet = company-level, BUKAN per-branch
+7. S3Client (Cloudflare R2) WAJIB pakai `forcePathStyle: true`
+
+### Frontend
+1. Jangan hardcode labels — pakai data dari DB/COA hierarchy
+2. Jangan `Math.abs` untuk kalkulasi — pakai helper per account type (`debit - credit` vs `credit - debit`)
+3. Jangan mutable variable di render (`let rowNum`) — hitung `rowIndex` di function sebelum render
+4. `colSpan` pakai konstanta (`totalCols`), bukan angka hardcode
+5. `fmt(0)` di total row pakai `showZero = true` supaya tampil `0,00` bukan `-`
+6. Tailwind JIT: JANGAN dynamic class (`bg-${color}-500`), pakai object mapping literal
+7. CSV export: pakai `escapeCsv()` dari `src/utils/csv.utils.ts`
+8. Error message 500 di frontend: tampilkan pesan generik, bukan detail teknis
+9. Akun tanpa parent di-group ke bucket `__ungrouped__` dengan label "Lainnya"
+10. Permission module harus terpisah per fitur (jangan gabung ke `journals`)
+
+### Database & Migrasi
+1. Akses DB dari lokal: via SSH tunnel (`tunnel` command), JANGAN buka port 5432 di firewall
+2. `DATABASE_URL` pakai `localhost:5433` (tunnel), bukan IP langsung
+3. Setelah migrasi, WAJIB compare: tables, views, functions, enums, triggers, sequences, indexes, FK
+4. `auth.users` (Supabase) → `public.auth_users` (Hetzner) — semua FK sudah di-remap
