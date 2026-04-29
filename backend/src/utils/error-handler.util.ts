@@ -79,8 +79,7 @@ function persistHandledError(error: Error, statusCode: number, req?: { originalU
   if (
     error.name === 'NotFoundError' ||
     error.name === 'ValidationError' ||
-    error.name === 'PermissionError' ||
-    error.name === 'AuthenticationError'
+    error.name === 'PermissionError'
   ) {
     return
   }

@@ -84,7 +84,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Dedup: reuse in-flight promise (React StrictMode double-mount)
     if (_checkAuthPromise) return _checkAuthPromise
     _checkAuthPromise = (async () => {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token')
       if (!token) {
         set({ user: null, token: null, isInitialized: true })
         return
