@@ -810,7 +810,7 @@ export class CashFlowSalesRepository {
         LEFT JOIN branches b ON cd.branch_name = b.branch_name AND b.company_id = $1::uuid AND b.status = 'active'
         LEFT JOIN payment_methods pm ON cd.payment_method_id = pm.id
         LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
-        LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $5::text
+        LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $5::uuid
         WHERE bs.bank_account_id = $2::bigint
           AND bs.company_id = $6::uuid
           AND bs.transaction_date >= $3::date
