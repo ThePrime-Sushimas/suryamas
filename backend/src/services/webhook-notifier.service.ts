@@ -5,28 +5,45 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ''
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || ''
 
 const RATE_LIMIT_MS = 10_000
-// NOTE: Rate limiting hanya efektif untuk single-process deployment.
-// Untuk multi-process, pindahkan state ke Redis atau DB.
 let lastSent = 0
 
-interface ErrorAlert {
+export interface ErrorAlert {
   severity: string
   module: string
   route: string
+  url: string
   message: string
   timestamp: string
+  userId?: string
+  userName?: string
+  userAgent?: string
+  statusCode?: number
+  errorType?: string
 }
 
-function shouldSend(severity: string): boolean {
+function shouldSend(): boolean {
   if (!TELEGRAM_BOT_TOKEN && !DISCORD_WEBHOOK_URL) return false
-  if (severity !== 'CRITICAL' && severity !== 'HIGH') return false
   if (Date.now() - lastSent < RATE_LIMIT_MS) return false
   return true
 }
 
 function formatMessage(alert: ErrorAlert): string {
-  const icon = alert.severity === 'CRITICAL' ? '🔴' : '🟠'
-  return `${icon} *${alert.severity}* — ${alert.module}\n\`${alert.route}\`\n${alert.message}\n_${alert.timestamp}_`
+  const icons: Record<string, string> = { CRITICAL: '🔴', HIGH: '🟠', MEDIUM: '🟡', LOW: '🔵' }
+  const icon = icons[alert.severity] || '⚪'
+
+  const lines = [
+    `${icon} *${alert.severity}*${alert.statusCode ? ` (${alert.statusCode})` : ''} — ${alert.module}`,
+    '',
+    `📍 \`${alert.route || 'N/A'}\``,
+    alert.url ? `🔗 \`${alert.url}\`` : '',
+    '',
+    `💬 ${alert.message}`,
+    '',
+    `👤 ${alert.userName || alert.userId || 'Anonymous'}`,
+    `🕐 ${alert.timestamp}`,
+  ]
+
+  return lines.filter(Boolean).join('\n')
 }
 
 async function sendTelegram(text: string): Promise<void> {
@@ -56,7 +73,7 @@ async function sendDiscord(text: string): Promise<void> {
 }
 
 export function notifyError(alert: ErrorAlert): void {
-  if (!shouldSend(alert.severity)) return
+  if (!shouldSend()) return
   lastSent = Date.now()
   const msg = formatMessage(alert)
   sendTelegram(msg).catch(() => {})

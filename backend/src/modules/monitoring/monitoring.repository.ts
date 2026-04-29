@@ -71,23 +71,23 @@ export class MonitoringRepository {
     const params: string[] = []
     let idx = 1
 
-    if (filters.severity) { params.push(filters.severity); conditions.push(`severity = $${idx}`); idx++ }
-    if (filters.errorType) { params.push(filters.errorType); conditions.push(`error_type = $${idx}`); idx++ }
-    if (filters.module) { params.push(filters.module); conditions.push(`module = $${idx}`); idx++ }
-    if (filters.userId) { params.push(filters.userId); conditions.push(`user_id = $${idx}`); idx++ }
-    if (filters.startDate) { params.push(filters.startDate); conditions.push(`created_at >= $${idx}`); idx++ }
-    if (filters.endDate) { params.push(filters.endDate); conditions.push(`created_at <= $${idx}`); idx++ }
+    if (filters.severity) { params.push(filters.severity); conditions.push(`el.severity = $${idx}`); idx++ }
+    if (filters.errorType) { params.push(filters.errorType); conditions.push(`el.error_type = $${idx}`); idx++ }
+    if (filters.module) { params.push(filters.module); conditions.push(`el.module = $${idx}`); idx++ }
+    if (filters.userId) { params.push(filters.userId); conditions.push(`el.user_id = $${idx}`); idx++ }
+    if (filters.startDate) { params.push(filters.startDate); conditions.push(`el.created_at >= $${idx}`); idx++ }
+    if (filters.endDate) { params.push(filters.endDate); conditions.push(`el.created_at <= $${idx}`); idx++ }
     if (filters.search) {
       const term = `%${filters.search.replace(/[%_\\]/g, '\\$&')}%`
-      params.push(term); conditions.push(`(error_message ILIKE $${idx} OR error_name ILIKE $${idx})`); idx++
+      params.push(term); conditions.push(`(el.error_message ILIKE $${idx} OR el.error_name ILIKE $${idx})`); idx++
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
     try {
       const [dataRes, countRes] = await Promise.all([
-        pool.query(`SELECT * FROM error_logs ${where} ORDER BY created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
-        pool.query(`SELECT COUNT(*)::int AS total FROM error_logs ${where}`, params)
+        pool.query(`SELECT el.*, e.full_name AS user_name, au.email AS user_email FROM error_logs el LEFT JOIN employees e ON e.user_id = el.user_id LEFT JOIN auth_users au ON au.id = el.user_id ${where} ORDER BY el.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+        pool.query(`SELECT COUNT(*)::int AS total FROM error_logs el ${where}`, params)
       ])
       return { data: dataRes.rows as ErrorLogRecord[], total: countRes.rows[0].total }
     } catch (error) { throw new ErrorReportFetchError(error as Error) }

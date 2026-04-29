@@ -22,7 +22,7 @@ import { monitoringRepository } from '../modules/monitoring/monitoring.repositor
 import { notifyError } from '../services/webhook-notifier.service'
 import type { AuthRequest } from '../types/common.types'
 
-function persistError(err: Error, req: Request, statusCode: number, severity: string, skipNotify = false): void {
+function persistError(err: Error, req: Request, statusCode: number, severity: string): void {
   const authReq = req as AuthRequest
   const route = `${req.method} ${req.route?.path || req.path}`
   const module = req.path.split('/').filter(Boolean)[0] || 'unknown'
@@ -43,9 +43,7 @@ function persistError(err: Error, req: Request, statusCode: number, severity: st
     context: { statusCode, query: req.query, body: req.method !== 'GET' ? '[redacted]' : undefined },
   }).catch(e => logWarn('Failed to persist error to DB', { error: e instanceof Error ? e.message : String(e) }))
 
-  if (!skipNotify) {
-    notifyError({ severity, module, route, message: err.message, timestamp: new Date().toISOString() })
-  }
+  notifyError({ severity, module, route, url: req.originalUrl, message: err.message, timestamp: new Date().toISOString(), userId: authReq.user?.id, statusCode })
 }
 
 function getSeverity(statusCode: number): string {
@@ -78,7 +76,7 @@ export const errorHandler = (
     const appError = err as AppError
     const response = ErrorTransformer.toResponse(appError)
     logStructuredError(appError, context, response.statusCode)
-    if (response.statusCode >= 400) persistError(appError, req, response.statusCode, getSeverity(response.statusCode), response.statusCode < 500)
+    if (response.statusCode >= 400) persistError(appError, req, response.statusCode, getSeverity(response.statusCode))
     return sendError(res, response.message, response.statusCode, response.details)
   }
 
@@ -88,7 +86,7 @@ export const errorHandler = (
     if (isMatch) {
       const response = ErrorTransformer.toResponse(err)
       logStructuredError(err, context, response.statusCode)
-      if (response.statusCode >= 400) persistError(err, req, response.statusCode, getSeverity(response.statusCode), response.statusCode < 500)
+      if (response.statusCode >= 400) persistError(err, req, response.statusCode, getSeverity(response.statusCode))
       return sendError(res, response.message, response.statusCode, response.details)
     }
     

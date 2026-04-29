@@ -131,7 +131,7 @@ class JobWorker {
         context: { job_id: jobId },
       }).catch(() => {})
 
-      notifyError({ severity: 'HIGH', module: jobModule || 'jobs', route: `JOB ${jobType}:${jobModule}`, message, timestamp: new Date().toISOString() })
+      notifyError({ severity: 'HIGH', module: jobModule || 'jobs', route: `JOB ${jobType}:${jobModule}`, url: '', message, timestamp: new Date().toISOString(), userId: jobUserId || undefined })
     } finally {
       this.activeJobs.delete(jobId)
     }

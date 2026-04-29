@@ -4,6 +4,7 @@ import { sendError } from './response.util'
 import { logError } from '../config/logger'
 import { monitoringRepository } from '../modules/monitoring/monitoring.repository'
 import { notifyError } from '../services/webhook-notifier.service'
+import { pool } from '../config/db'
 
 // Import base error classes only (no module-specific imports to avoid circular dependencies)
 import {
@@ -99,9 +100,19 @@ function persistHandledError(error: Error, statusCode: number, req?: { originalU
     route: req ? `${req.method} ${req.path}` : '',
     userAgent: req?.headers?.['user-agent'] || '',
   }).catch(() => {})
-  if (statusCode >= 500) {
-    notifyError({ severity, module: pathParts[0] || 'api', route: req ? `${req.method} ${req.path}` : '', message: error.message, timestamp: new Date().toISOString() })
+
+  const userId = (req as any)?.user?.id
+  const lookupAndNotify = async () => {
+    let userName: string | undefined
+    if (userId) {
+      try {
+        const { rows } = await pool.query('SELECT full_name FROM employees WHERE user_id = $1 LIMIT 1', [userId])
+        userName = rows[0]?.full_name
+      } catch {}
+    }
+    notifyError({ severity, module: pathParts[0] || 'api', route: req ? `${req.method} ${req.path}` : '', url: req?.originalUrl || '', message: error.message, timestamp: new Date().toISOString(), userId, userName, statusCode })
   }
+  lookupAndNotify().catch(() => {})
 }
 
 /**

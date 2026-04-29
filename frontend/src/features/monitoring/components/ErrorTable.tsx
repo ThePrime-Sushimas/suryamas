@@ -160,7 +160,7 @@ export const ErrorTable: React.FC<ErrorTableProps> = ({
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                  {log.user_email || log.user_id || "Guest"}
+                  {log.user_name || log.user_email || log.user_id || "Guest"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button

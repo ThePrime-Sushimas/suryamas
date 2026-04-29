@@ -93,7 +93,7 @@ export const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
                   <div>
                     <p className="text-xs text-gray-500">User Context</p>
                     <p className="text-sm font-medium dark:text-gray-200">
-                      {log.user_email || "Anonymous"} ({log.user_id || "N/A"})
+                      {log.user_name || log.user_email || "Anonymous"} ({log.user_id || "N/A"})
                     </p>
                   </div>
                 </div>
