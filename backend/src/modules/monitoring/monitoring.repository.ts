@@ -113,6 +113,37 @@ export class MonitoringRepository {
     } catch (error) { throw new ErrorStatsFetchError(error as Error) }
   }
 
+  async getErrorTrend(days = 30): Promise<Array<{ date: string; total: number; critical: number; high: number; medium: number; low: number }>> {
+    try {
+      const { rows } = await pool.query(`
+        SELECT
+          created_at::date AS date,
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE severity = 'CRITICAL')::int AS critical,
+          COUNT(*) FILTER (WHERE severity = 'HIGH')::int AS high,
+          COUNT(*) FILTER (WHERE severity = 'MEDIUM')::int AS medium,
+          COUNT(*) FILTER (WHERE severity = 'LOW')::int AS low
+        FROM error_logs
+        WHERE deleted_at IS NULL AND created_at >= NOW() - ($1 || ' days')::interval
+        GROUP BY created_at::date ORDER BY date
+      `, [days])
+      return rows
+    } catch (error) { throw new ErrorStatsFetchError(error as Error) }
+  }
+
+  async getErrorGrouped(days = 30): Promise<Array<{ error_name: string; error_message: string; module: string; severity: string; count: number; last_seen: string }>> {
+    try {
+      const { rows } = await pool.query(`
+        SELECT error_name, error_message, module, severity,
+          COUNT(*)::int AS count, MAX(created_at) AS last_seen
+        FROM error_logs WHERE deleted_at IS NULL AND created_at >= NOW() - ($1 || ' days')::interval
+        GROUP BY error_name, error_message, module, severity
+        ORDER BY count DESC, last_seen DESC LIMIT 50
+      `, [days])
+      return rows
+    } catch (error) { throw new ErrorStatsFetchError(error as Error) }
+  }
+
   async cleanupOldAuditLogs(olderThan: Date): Promise<number> {
     const { rowCount } = await pool.query('DELETE FROM perm_audit_log WHERE created_at < $1', [olderThan.toISOString()])
     return rowCount ?? 0

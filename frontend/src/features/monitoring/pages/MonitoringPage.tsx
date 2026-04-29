@@ -15,6 +15,8 @@ import { useMonitoringStore } from "../store/monitoring.store";
 import { ErrorTable } from "../components/ErrorTable";
 import { AuditTable } from "../components/AuditTable";
 import { ErrorStatsCard } from "../components/ErrorStatsCard";
+import { ErrorTrendChart } from "../components/ErrorTrendChart";
+import { ErrorGroupedList } from "../components/ErrorGroupedList";
 import { ErrorDetailModal } from "../components/ErrorDetailModal";
 import { AuditDetailModal } from "../components/AuditDetailModal";
 import type { ErrorLogRecord, AuditLogRecord } from "../types";
@@ -227,8 +229,16 @@ export const MonitoringPage: React.FC = () => {
       </div>
 
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats only for errors tab */}
-        {activeTab === "errors" && <ErrorStatsCard stats={stats} />}
+        {/* Stats + Charts only for errors tab */}
+        {activeTab === "errors" && (
+          <>
+            <ErrorStatsCard stats={stats} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <ErrorTrendChart />
+              <ErrorGroupedList />
+            </div>
+          </>
+        )}
 
         {/* Toolbar */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6 flex flex-col sm:flex-row gap-4 items-center">

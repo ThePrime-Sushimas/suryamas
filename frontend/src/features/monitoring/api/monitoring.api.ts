@@ -32,8 +32,20 @@ export const monitoringApi = {
   },
 
   getErrorStats: async () => {
-    const res = await api.get<ApiResponse<ErrorStats>>(
-      "/monitoring/errors/stats",
+    const res = await api.get<ApiResponse<ErrorStats>>("/monitoring/errors/stats");
+    return res.data.data;
+  },
+
+  getErrorTrend: async (days = 30) => {
+    const res = await api.get<ApiResponse<Array<{ date: string; total: number; critical: number; high: number; medium: number; low: number }>>>(
+      "/monitoring/errors/trend", { params: { days } }
+    );
+    return res.data.data;
+  },
+
+  getErrorGrouped: async (days = 30) => {
+    const res = await api.get<ApiResponse<Array<{ error_name: string; error_message: string; module: string; severity: string; count: number; last_seen: string }>>>(
+      "/monitoring/errors/grouped", { params: { days } }
     );
     return res.data.data;
   },

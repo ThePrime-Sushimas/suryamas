@@ -115,11 +115,31 @@ export const getErrorStats = async (
     sendSuccess(res, stats);
   } catch (error) {
     logError("Failed to get error stats", { error });
-    sendError(
-      res,
-      error instanceof Error ? error.message : "Unknown error",
-      500,
-    );
+    sendError(res, error instanceof Error ? error.message : "Unknown error", 500);
+  }
+};
+
+export const getErrorTrend = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const parsedDays = parseInt(req.query.days as string);
+    const days = !isNaN(parsedDays) && parsedDays > 0 ? parsedDays : 30;
+    const trend = await monitoringRepository.getErrorTrend(days);
+    sendSuccess(res, trend);
+  } catch (error) {
+    logError("Failed to get error trend", { error });
+    sendError(res, error instanceof Error ? error.message : "Unknown error", 500);
+  }
+};
+
+export const getErrorGrouped = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const parsedDays = parseInt(req.query.days as string);
+    const days = !isNaN(parsedDays) && parsedDays > 0 ? parsedDays : 30;
+    const grouped = await monitoringRepository.getErrorGrouped(days);
+    sendSuccess(res, grouped);
+  } catch (error) {
+    logError("Failed to get grouped errors", { error });
+    sendError(res, error instanceof Error ? error.message : "Unknown error", 500);
   }
 };
 

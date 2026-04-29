@@ -8,6 +8,8 @@ import { logInfo, logError } from '@/config/logger'
 import { jobsRepository } from './jobs.repository'
 import { jobsService } from './jobs.service'
 import { JOB_QUEUE_CONFIG } from './jobs.constants'
+import { monitoringRepository } from '../monitoring/monitoring.repository'
+import { notifyError } from '@/services/webhook-notifier.service'
 
 // -----------------------------
 // Type-safe Job Processor
@@ -112,6 +114,24 @@ class JobWorker {
       logError('Job processing failed', { job_id: jobId, type: jobType, module: jobModule, error })
 
       if (jobUserId) await jobsService.failJob(jobId, jobUserId, message)
+
+      // Persist to error_logs so it shows in monitoring dashboard
+      monitoringRepository.createErrorReport({
+        errorName: error instanceof Error ? error.name : 'JobError',
+        errorMessage: message,
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorType: 'JOB_FAILURE',
+        severity: 'HIGH',
+        module: jobModule || 'jobs',
+        submodule: jobType,
+        userId: jobUserId || undefined,
+        url: '',
+        route: `JOB ${jobType}:${jobModule}`,
+        userAgent: 'job-worker',
+        context: { job_id: jobId },
+      }).catch(() => {})
+
+      notifyError({ severity: 'HIGH', module: jobModule || 'jobs', route: `JOB ${jobType}:${jobModule}`, message, timestamp: new Date().toISOString() })
     } finally {
       this.activeJobs.delete(jobId)
     }

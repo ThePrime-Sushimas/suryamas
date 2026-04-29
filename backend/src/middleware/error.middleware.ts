@@ -19,25 +19,33 @@ import { enrichErrorContext, logStructuredError } from '../utils/error-context.u
 import { ErrorTransformer, transformError, getUserFriendlyMessage } from '../utils/error-transformer.util'
 import { isRegisteredError } from '../utils/error-registry.util'
 import { monitoringRepository } from '../modules/monitoring/monitoring.repository'
+import { notifyError } from '../services/webhook-notifier.service'
 import type { AuthRequest } from '../types/common.types'
 
-function persistError(err: Error, req: Request, statusCode: number, severity: string): void {
+function persistError(err: Error, req: Request, statusCode: number, severity: string, skipNotify = false): void {
   const authReq = req as AuthRequest
+  const route = `${req.method} ${req.route?.path || req.path}`
+  const module = req.path.split('/').filter(Boolean)[0] || 'unknown'
+
   monitoringRepository.createErrorReport({
     errorName: err.name || 'Error',
     errorMessage: err.message,
     errorStack: err.stack,
     errorType: (err as AppError).code || (err as any).code || 'UNEXPECTED_ERROR',
     severity,
-    module: req.path.split('/').filter(Boolean)[0] || 'unknown',
+    module,
     submodule: req.path.split('/').filter(Boolean)[1],
     userId: authReq.user?.id,
     branchId: (req as any).branchContext?.branch_id,
     url: req.originalUrl,
-    route: `${req.method} ${req.route?.path || req.path}`,
+    route,
     userAgent: req.headers['user-agent'] || '',
     context: { statusCode, query: req.query, body: req.method !== 'GET' ? '[redacted]' : undefined },
   }).catch(e => logWarn('Failed to persist error to DB', { error: e instanceof Error ? e.message : String(e) }))
+
+  if (!skipNotify) {
+    notifyError({ severity, module, route, message: err.message, timestamp: new Date().toISOString() })
+  }
 }
 
 function getSeverity(statusCode: number): string {
@@ -70,7 +78,7 @@ export const errorHandler = (
     const appError = err as AppError
     const response = ErrorTransformer.toResponse(appError)
     logStructuredError(appError, context, response.statusCode)
-    if (response.statusCode >= 500) persistError(appError, req, response.statusCode, getSeverity(response.statusCode))
+    if (response.statusCode >= 400) persistError(appError, req, response.statusCode, getSeverity(response.statusCode), response.statusCode < 500)
     return sendError(res, response.message, response.statusCode, response.details)
   }
 
@@ -80,7 +88,7 @@ export const errorHandler = (
     if (isMatch) {
       const response = ErrorTransformer.toResponse(err)
       logStructuredError(err, context, response.statusCode)
-      if (response.statusCode >= 500) persistError(err, req, response.statusCode, getSeverity(response.statusCode))
+      if (response.statusCode >= 400) persistError(err, req, response.statusCode, getSeverity(response.statusCode), response.statusCode < 500)
       return sendError(res, response.message, response.statusCode, response.details)
     }
     

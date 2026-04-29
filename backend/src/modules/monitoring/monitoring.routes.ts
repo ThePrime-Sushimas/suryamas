@@ -31,6 +31,8 @@ router.post("/audit", controller.logAuditEntry);
 
 // Protected routes (require authentication and permission)
 router.get("/errors/stats", canView("monitoring"), controller.getErrorStats);
+router.get("/errors/trend", canView("monitoring"), controller.getErrorTrend);
+router.get("/errors/grouped", canView("monitoring"), controller.getErrorGrouped);
 router.get(
   "/errors",
   canView("monitoring"),

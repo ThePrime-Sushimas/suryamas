@@ -85,7 +85,7 @@ export class BankStatementImportController {
         analysis: result.analysis,
       }, 'File analyzed successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -140,7 +140,7 @@ export class BankStatementImportController {
         job_id: result.job_id,
       }, 'Import started successfully. Check job status for progress.', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -176,7 +176,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, result, 'Imports retrieved successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -197,7 +197,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, importRecord, 'Import retrieved successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -226,7 +226,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, result, 'Statements retrieved successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -248,7 +248,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, summary, 'Summary retrieved successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -271,7 +271,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, null, 'Import cancelled successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -289,7 +289,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, null, 'Import deleted successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -315,7 +315,7 @@ export class BankStatementImportController {
         job_id: result.job_id,
       }, 'Import retry started successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -334,7 +334,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, result, 'Manual entries retrieved', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -357,7 +357,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, result, 'Manual entry berhasil disimpan', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -380,7 +380,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, result, `${result.inserted} manual entries berhasil disimpan`, 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -400,7 +400,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, null, 'Statement berhasil dihapus permanen', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -418,7 +418,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, result, `${result.deleted} statement berhasil dihapus permanen`, 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -457,7 +457,7 @@ export class BankStatementImportController {
 
       sendSuccess(res, preview, 'Preview retrieved successfully', 200)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }
