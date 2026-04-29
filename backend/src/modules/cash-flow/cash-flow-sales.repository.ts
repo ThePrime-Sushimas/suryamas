@@ -120,11 +120,11 @@ export class CashFlowSalesRepository {
     const offset = (page - 1) * limit
     const [dataRes, countRes] = await Promise.all([
       pool.query(
-        'SELECT * FROM account_period_balances WHERE bank_account_id = $1 AND company_id = $2 ORDER BY period_start DESC LIMIT $3 OFFSET $4',
+        'SELECT * FROM account_period_balances WHERE bank_account_id = $1::bigint AND company_id = $2 ORDER BY period_start DESC LIMIT $3 OFFSET $4',
         [bankAccountId, companyId, limit, offset]
       ),
       pool.query(
-        'SELECT COUNT(*)::int AS total FROM account_period_balances WHERE bank_account_id = $1 AND company_id = $2',
+        'SELECT COUNT(*)::int AS total FROM account_period_balances WHERE bank_account_id = $1::bigint AND company_id = $2',
         [bankAccountId, companyId]
       )
     ])
@@ -136,7 +136,7 @@ export class CashFlowSalesRepository {
 
   async getActivePeriodBalance(bankAccountId: number, companyId: string, onOrBeforeDate: string): Promise<AccountPeriodBalance | null> {
     const { rows } = await pool.query(
-      'SELECT * FROM account_period_balances WHERE bank_account_id = $1 AND company_id = $2 AND period_start <= $3 ORDER BY period_start DESC LIMIT 1',
+      'SELECT * FROM account_period_balances WHERE bank_account_id = $1::bigint AND company_id = $2 AND period_start <= $3 ORDER BY period_start DESC LIMIT 1',
       [bankAccountId, companyId, onOrBeforeDate]
     )
     return (rows[0] as AccountPeriodBalance) || null
@@ -145,7 +145,7 @@ export class CashFlowSalesRepository {
   async suggestOpeningBalance(bankAccountId: number, companyId: string, periodStart: string): Promise<OpeningBalanceSuggestion> {
     const prevPeriodQuery = `
       SELECT * FROM account_period_balances 
-      WHERE bank_account_id = $1 AND company_id = $2 AND period_start < $3 
+      WHERE bank_account_id = $1::bigint AND company_id = $2 AND period_start < $3 
       ORDER BY period_start DESC LIMIT 1
     `
     const { rows: prevRows } = await pool.query(prevPeriodQuery, [bankAccountId, companyId, periodStart])
@@ -158,7 +158,7 @@ export class CashFlowSalesRepository {
     const txQuery = `
       SELECT COALESCE(SUM(credit_amount), 0) - COALESCE(SUM(debit_amount), 0) as net
       FROM bank_statements
-      WHERE bank_account_id = $1 AND company_id = $2 
+      WHERE bank_account_id = $1::bigint AND company_id = $2 
         AND transaction_date >= $3::date AND transaction_date <= $4::date
         AND deleted_at IS NULL
     `
@@ -442,7 +442,7 @@ export class CashFlowSalesRepository {
           COUNT(*) FILTER (WHERE NOT is_reconciled AND NOT is_pending AND debit_amount > 0) as unrecon_debit_count,
           COALESCE(SUM(debit_amount) FILTER (WHERE NOT is_reconciled AND NOT is_pending AND debit_amount > 0), 0) as unrecon_debit_amount
         FROM bank_statements
-        WHERE bank_account_id = $1 
+        WHERE bank_account_id = $1::bigint 
           AND transaction_date >= $2::date 
           AND transaction_date <= $3::date
           AND deleted_at IS NULL
@@ -456,7 +456,7 @@ export class CashFlowSalesRepository {
           -- Direct reconciliation
           SELECT reconciliation_id as agg_id
           FROM bank_statements
-          WHERE bank_account_id = $1 
+          WHERE bank_account_id = $1::bigint 
             AND transaction_date >= $2::date 
             AND transaction_date <= $3::date
             AND is_reconciled = true
@@ -469,7 +469,7 @@ export class CashFlowSalesRepository {
           SELECT brg.aggregate_id
           FROM bank_statements bs
           JOIN bank_reconciliation_groups brg ON bs.reconciliation_group_id = brg.id
-          WHERE bs.bank_account_id = $1 
+          WHERE bs.bank_account_id = $1::bigint 
             AND bs.transaction_date >= $2::date 
             AND bs.transaction_date <= $3::date
             AND bs.is_reconciled = true
@@ -483,8 +483,8 @@ export class CashFlowSalesRepository {
           SELECT bsa.aggregate_id
           FROM bank_statements bs
           JOIN bank_settlement_groups bsg ON bs.id = bsg.bank_statement_id
-          JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.group_id
-          WHERE bs.bank_account_id = $1 
+          JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.settlement_group_id
+          WHERE bs.bank_account_id = $1::bigint 
             AND bs.transaction_date >= $2::date 
             AND bs.transaction_date <= $3::date
             AND bs.is_reconciled = true
@@ -603,7 +603,7 @@ export class CashFlowSalesRepository {
             reconciliation_id, reconciliation_group_id, cash_deposit_id,
             created_at
           FROM bank_statements
-          WHERE bank_account_id = $1 AND company_id = $2
+          WHERE bank_account_id = $1::bigint AND company_id = $2
             AND transaction_date >= $3::date AND transaction_date <= $4::date
             AND deleted_at IS NULL
           ORDER BY transaction_date ASC, row_number ASC
@@ -612,7 +612,7 @@ export class CashFlowSalesRepository {
         pool.query(`
           SELECT COUNT(*)::int as total
           FROM bank_statements
-          WHERE bank_account_id = $1 AND company_id = $2
+          WHERE bank_account_id = $1::bigint AND company_id = $2
             AND transaction_date >= $3::date AND transaction_date <= $4::date
             AND deleted_at IS NULL
         `, [params.bank_account_id, params.company_id, params.date_from, params.date_to])
@@ -664,7 +664,7 @@ export class CashFlowSalesRepository {
           SELECT bs.id as statement_id, at.branch_name, pm.name as pm_name, pm.payment_type, pmg.name as g_name, pmg.color as g_color
           FROM bank_statements bs
           JOIN bank_settlement_groups bsg ON bs.id = bsg.bank_statement_id
-          JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.group_id
+          JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.settlement_group_id
           JOIN aggregated_transactions at ON bsa.aggregate_id = at.id
           LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
           LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
@@ -720,7 +720,7 @@ export class CashFlowSalesRepository {
     const query = `
       SELECT COALESCE(SUM(credit_amount), 0) - COALESCE(SUM(debit_amount), 0) as net
       FROM bank_statements
-      WHERE bank_account_id = $1 AND company_id = $2
+      WHERE bank_account_id = $1::bigint AND company_id = $2
         AND (
           (transaction_date >= $3::date AND transaction_date < $4::date)
           OR (transaction_date = $4::date AND row_number < $5)
@@ -738,7 +738,7 @@ export class CashFlowSalesRepository {
     const query = `
       SELECT COALESCE(SUM(credit_amount), 0) - COALESCE(SUM(debit_amount), 0) as net
       FROM bank_statements
-      WHERE bank_account_id = $1 AND company_id = $2
+      WHERE bank_account_id = $1::bigint AND company_id = $2
         AND transaction_date >= $3::date AND transaction_date <= $4::date
         AND deleted_at IS NULL
     `
@@ -756,7 +756,7 @@ export class CashFlowSalesRepository {
         COALESCE(SUM(credit_amount), 0) as estimated_credit,
         COALESCE(SUM(debit_amount), 0) as estimated_debit
       FROM bank_statements
-      WHERE bank_account_id = $1 AND company_id = $2
+      WHERE bank_account_id = $1::bigint AND company_id = $2
         AND transaction_date >= $3::date AND transaction_date <= $4::date
         AND is_pending = true AND deleted_at IS NULL
     `
@@ -807,19 +807,19 @@ export class CashFlowSalesRepository {
           pmg.display_order as group_display_order
         FROM bank_statements bs
         JOIN cash_deposits cd ON bs.cash_deposit_id = cd.id
-        LEFT JOIN branches b ON cd.branch_name = b.branch_name AND b.company_id = $1 AND b.status = 'active'
+        LEFT JOIN branches b ON cd.branch_name = b.branch_name AND b.company_id = $1::uuid AND b.status = 'active'
         LEFT JOIN payment_methods pm ON cd.payment_method_id = pm.id
         LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
-        LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $1
-        WHERE bs.bank_account_id = $2
-          AND bs.company_id = $1
+        LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $5::text
+        WHERE bs.bank_account_id = $2::bigint
+          AND bs.company_id = $6::uuid
           AND bs.transaction_date >= $3::date
           AND bs.transaction_date <= $4::date
           AND bs.cash_deposit_id IS NOT NULL
           AND bs.deleted_at IS NULL
-          ${branchId ? 'AND b.id = $5' : ''}
+          ${branchId ? 'AND b.id = $7::uuid' : ''}
       `
-      const params: any[] = [companyId, bankAccountId, dateFrom, dateTo]
+      const params: any[] = [companyId, bankAccountId, dateFrom, dateTo, companyId, companyId]
       if (branchId) params.push(branchId)
 
       const { rows } = await pool.query(query, params)
