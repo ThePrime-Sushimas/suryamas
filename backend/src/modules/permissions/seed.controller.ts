@@ -8,6 +8,7 @@ import { AuthRequest } from '../../types/common.types'
 import { RolesRepository } from './roles.repository'
 import { PermissionService as CorePermissionService } from '../../services/permission.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 
 export class SeedController {
@@ -69,7 +70,7 @@ export class SeedController {
       sendSuccess(res, { success: true, message: 'Default permissions seeded successfully' }, 'Default permissions seeded successfully')
     } catch (error: any) {
       logError('Seed defaults failed', { error: error.message })
-      sendError(res, 'Failed to seed default permissions', 500)
+      handleError(res, error, req)
     }
   }
 }

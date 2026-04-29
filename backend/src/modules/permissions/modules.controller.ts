@@ -7,6 +7,7 @@ import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { ModulesService } from './modules.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
 import { logError } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
 
@@ -33,7 +34,7 @@ export class ModulesController {
       sendSuccess(res, modules, 'Modules retrieved successfully')
     } catch (error: any) {
       logError('Get modules failed', { error: error.message })
-      sendError(res, 'Failed to retrieve modules', 500)
+      handleError(res, error, req)
     }
   }
 
@@ -50,7 +51,7 @@ export class ModulesController {
       sendSuccess(res, module, 'Module retrieved successfully')
     } catch (error: any) {
       logError('Get module failed', { error: error.message })
-      sendError(res, 'Failed to retrieve module', 500)
+      handleError(res, error, req)
     }
   }
 
@@ -79,7 +80,7 @@ export class ModulesController {
       sendSuccess(res, module, 'Module updated successfully')
     } catch (error: any) {
       logError('Update module failed', { error: error.message })
-      sendError(res, 'Failed to update module', 500)
+      handleError(res, error, req)
     }
   })
 
@@ -96,7 +97,7 @@ export class ModulesController {
       sendSuccess(res, null, 'Module deleted successfully')
     } catch (error: any) {
       logError('Delete module failed', { error: error.message })
-      sendError(res, 'Failed to delete module', 500)
+      handleError(res, error, req)
     }
   }
 }

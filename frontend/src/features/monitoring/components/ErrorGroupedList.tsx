@@ -28,7 +28,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export function ErrorGroupedList() {
-  const { data = [], isLoading: loading } = useQuery({
+  const { data = [], isLoading: loading } = useQuery<GroupedError[]>({
     queryKey: ['monitoring', 'error-grouped'],
     queryFn: () => monitoringApi.getErrorGrouped(30),
     staleTime: 60_000,

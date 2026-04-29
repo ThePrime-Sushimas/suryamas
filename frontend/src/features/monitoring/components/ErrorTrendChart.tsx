@@ -19,7 +19,7 @@ function dayLabel(dateStr: string): string {
 }
 
 export function ErrorTrendChart() {
-  const { data = [], isLoading: loading } = useQuery({
+  const { data = [], isLoading: loading } = useQuery<TrendDay[]>({
     queryKey: ['monitoring', 'error-trend', 30],
     queryFn: () => monitoringApi.getErrorTrend(30),
     staleTime: 60_000,
@@ -56,7 +56,7 @@ export function ErrorTrendChart() {
       <div className="p-4">
         <div className="relative" style={{ height: CHART_H }}>
           <div className="absolute inset-0 flex gap-0.5">
-            {data.map((d, i) => {
+            {data.map((d) => {
               const totalH = (d.total / maxVal) * CHART_H
               const critH = d.total > 0 ? (d.critical / d.total) * totalH : 0
               const highH = d.total > 0 ? (d.high / d.total) * totalH : 0
@@ -65,10 +65,10 @@ export function ErrorTrendChart() {
               return (
                 <div key={d.date} className="flex-1 relative group" title={`${dayLabel(d.date)}: ${d.total} errors`}>
                   <div className="absolute bottom-0 left-0 right-0 flex flex-col-reverse">
-                    {d.low > 0 && <div className="bg-blue-300 dark:bg-blue-600" style={{ height: `${lowH}px` }} />}
-                    {d.medium > 0 && <div className="bg-amber-400 dark:bg-amber-500" style={{ height: `${medH}px` }} />}
-                    {d.high > 0 && <div className="bg-orange-500 dark:bg-orange-400" style={{ height: `${highH}px` }} />}
-                    {d.critical > 0 && <div className="bg-red-600 dark:bg-red-500" style={{ height: `${critH}px` }} />}
+                    {d.low > 0 && <div className="bg-sky-300 dark:bg-sky-600" style={{ height: `${lowH}px` }} />}
+                    {d.medium > 0 && <div className="bg-violet-400 dark:bg-violet-500" style={{ height: `${medH}px` }} />}
+                    {d.high > 0 && <div className="bg-rose-400 dark:bg-rose-500" style={{ height: `${highH}px` }} />}
+                    {d.critical > 0 && <div className="bg-red-700 dark:bg-red-600" style={{ height: `${critH}px` }} />}
                   </div>
                 </div>
               )
@@ -87,10 +87,10 @@ export function ErrorTrendChart() {
         </div>
         {/* Legend */}
         <div className="flex items-center gap-4 mt-2 text-[10px] text-gray-400">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-600" />Critical</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-orange-500" />High</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400" />Medium</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-300" />Low</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-700" />Critical</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-400" />High</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-violet-400" />Medium</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-sky-300" />Low</span>
         </div>
       </div>
     </div>

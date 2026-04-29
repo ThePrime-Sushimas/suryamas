@@ -7,6 +7,7 @@ import { Response, Request } from 'express'
 import { AuthRequest } from '../../types/common.types'
 import { RolePermissionsService } from './role-permissions.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
 import { logError } from '../../config/logger'
 import { withValidated } from '../../utils/handler'
 
@@ -34,7 +35,7 @@ export class RolePermissionsController {
       sendSuccess(res, permissions, 'Role permissions retrieved successfully')
     } catch (error: any) {
       logError('Get role permissions failed', { error: error.message })
-      sendError(res, 'Failed to retrieve role permissions', 500)
+      handleError(res, error, req)
     }
   }
 
@@ -50,7 +51,7 @@ export class RolePermissionsController {
       sendSuccess(res, permission, 'Role permission updated successfully')
     } catch (error: any) {
       logError('Update role permission failed', { error: error.message })
-      sendError(res, 'Failed to update role permission', 500)
+      handleError(res, error, req)
     }
   })
 
@@ -70,7 +71,7 @@ export class RolePermissionsController {
       sendSuccess(res, null, 'Role permissions updated successfully')
     } catch (error: any) {
       logError('Bulk update role permissions failed', { error: error.message })
-      sendError(res, 'Failed to update role permissions', 500)
+      handleError(res, error, req)
     }
   })
 }
