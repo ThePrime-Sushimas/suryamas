@@ -21,6 +21,7 @@ export default function PermissionsPage() {
   const [newRole, setNewRole] = useState({ name: '', description: '' })
   const [editRole, setEditRole] = useState({ id: '', name: '', description: '' })
   const [createSaving, setCreateSaving] = useState(false)
+  const [deleteRoleTarget, setDeleteRoleTarget] = useState<{ id: string; name: string } | null>(null)
   const { success, error: showError } = useToast()
 
   useEffect(() => { fetchModules(); fetchRoles() }, [fetchModules, fetchRoles])
@@ -59,13 +60,19 @@ export default function PermissionsPage() {
   }
 
   const handleDeleteRole = async (roleId: string, roleName: string) => {
-    if (!confirm(`Delete role "${roleName}"? This cannot be undone.`)) return
+    setDeleteRoleTarget({ id: roleId, name: roleName })
+  }
+
+  const confirmDeleteRole = async () => {
+    if (!deleteRoleTarget) return
     try {
-      await api.delete(`/permissions/roles/${roleId}`)
+      await api.delete(`/permissions/roles/${deleteRoleTarget.id}`)
       setSelectedRole(''); await fetchRoles(); success('Role deleted successfully')
     } catch (err: unknown) {
       const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to delete role'
       showError(message)
+    } finally {
+      setDeleteRoleTarget(null)
     }
   }
 
@@ -302,6 +309,20 @@ export default function PermissionsPage() {
               <button onClick={() => setEditModal(false)} disabled={createSaving} className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 text-sm font-medium">
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Role Confirm */}
+      {deleteRoleTarget && (
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Delete Role</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Delete role "{deleteRoleTarget.name}"? This cannot be undone.</p>
+            <div className="flex gap-2">
+              <button onClick={confirmDeleteRole} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">Delete</button>
+              <button onClick={() => setDeleteRoleTarget(null)} className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-sm font-medium">Cancel</button>
             </div>
           </div>
         </div>

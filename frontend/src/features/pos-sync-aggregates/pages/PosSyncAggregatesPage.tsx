@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, RefreshCw, ChevronRight, Calculator, AlertCircle } from "lucide-react";
+import { useToast } from "@/contexts/ToastContext";
 import { usePosSyncAggregatesStore } from "../store/posSyncAggregates.store";
 import { PosSyncAggregatesFilters } from "../components/PosSyncAggregatesFilters";
 import { usePermission } from "@/features/branch_context/hooks/usePermission";
@@ -22,6 +23,7 @@ const STATUS_BADGE: Record<AggregateStatus, string> = {
 export default function PosSyncAggregatesPage() {
   const { hasPermission, isLoaded } = usePermission('pos_imports', 'view');
   const navigate = useNavigate();
+  const toast = useToast();
   const {
     transactions: rows,
     total,
@@ -66,10 +68,10 @@ export default function PosSyncAggregatesPage() {
     setIsRecalculating(true);
     try {
       await posSyncAggregatesApi.recalculateByDate(recalcDate);
-      alert(`✅ Recalculate ${recalcDate} selesai`);
+      toast.success(`Recalculate ${recalcDate} selesai`);
       fetchTransactions(page, limit);
     } catch (err: any) {
-      alert(`❌ Gagal: ${err?.response?.data?.message ?? err.message}`);
+      toast.error(err?.response?.data?.message ?? err.message ?? 'Gagal recalculate');
     } finally {
       setIsRecalculating(false);
     }

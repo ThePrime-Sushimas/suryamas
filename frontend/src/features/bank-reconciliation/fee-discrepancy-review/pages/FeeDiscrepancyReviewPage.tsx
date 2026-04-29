@@ -39,6 +39,7 @@ export const FeeDiscrepancyReviewPage = () => {
   const [actionMenuId, setActionMenuId] = useState<string | null>(null)
   const [notesModal, setNotesModal] = useState<{ item: FeeDiscrepancyItem; action: 'CONFIRMED' | 'DISMISSED' | 'CORRECT' } | null>(null)
   const [notesText, setNotesText] = useState('')
+  const [undoConfirm, setUndoConfirm] = useState<{ source: FeeDiscrepancySource; sourceId: string; label: string } | null>(null)
   const [correctionLines, setCorrectionLines] = useState<Array<{ correctionType: string; amount: number }>>([{ correctionType: 'POS_PENDING', amount: 0 }])
   const limit = 50
 
@@ -188,19 +189,14 @@ export const FeeDiscrepancyReviewPage = () => {
                         </div>
                       ) : item.status === 'CORRECTED' ? (
                         <button
-                          onClick={() => { if (confirm('Undo koreksi? Journal koreksi akan dihapus dan status kembali PENDING.')) undoMutation.mutate({ source: item.source, sourceId: item.sourceId }) }}
+                          onClick={() => setUndoConfirm({ source: item.source, sourceId: item.sourceId, label: 'koreksi' })}
                           disabled={undoMutation.isPending}
                           className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-500 hover:text-red-700"
                           title="Undo Koreksi"
                         ><Undo2 className="w-4 h-4" /></button>
                       ) : (item.status === 'CONFIRMED' || item.status === 'DISMISSED') ? (
                         <button
-                          onClick={() => {
-                            if (confirm(`Undo ${item.status.toLowerCase()}? Status akan kembali ke PENDING.`))
-                              feeDiscrepancyApi.updateStatus(item.source, item.sourceId, { status: 'PENDING' as any, notes: `Undo ${item.status.toLowerCase()}` })
-                                .then(() => { qc.invalidateQueries({ queryKey: ['fee-discrepancy-list'] }); qc.invalidateQueries({ queryKey: ['fee-discrepancy-summary'] }); toast.success('Status berhasil di-undo ke PENDING') })
-                                .catch((err: Error) => toast.error(err.message))
-                          }}
+                          onClick={() => setUndoConfirm({ source: item.source, sourceId: item.sourceId, label: item.status.toLowerCase() })}
                           disabled={updateMutation.isPending}
                           className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors text-amber-500 hover:text-amber-700"
                           title={`Undo ${item.status.toLowerCase()}`}
@@ -292,6 +288,38 @@ export const FeeDiscrepancyReviewPage = () => {
               <button onClick={submitAction} disabled={isPending} className={`px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 ${notesModal.action === 'CONFIRMED' ? 'bg-green-600 hover:bg-green-700' : notesModal.action === 'CORRECT' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'}`}>
                 {isPending ? 'Menyimpan...' : notesModal.action === 'CONFIRMED' ? 'Konfirmasi' : notesModal.action === 'CORRECT' ? 'Buat Jurnal Koreksi' : 'Dismiss'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Undo Confirm */}
+      {undoConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => !isPending && setUndoConfirm(null)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Undo {undoConfirm.label}</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              {undoConfirm.label === 'koreksi'
+                ? 'Journal koreksi akan dihapus dan status kembali PENDING.'
+                : `Status akan kembali ke PENDING.`}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setUndoConfirm(null)} disabled={isPending} className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40">Batal</button>
+              <button
+                onClick={() => {
+                  if (undoConfirm.label === 'koreksi') {
+                    undoMutation.mutate({ source: undoConfirm.source, sourceId: undoConfirm.sourceId })
+                  } else {
+                    feeDiscrepancyApi.updateStatus(undoConfirm.source, undoConfirm.sourceId, { status: 'PENDING' as any, notes: `Undo ${undoConfirm.label}` })
+                      .then(() => { qc.invalidateQueries({ queryKey: ['fee-discrepancy-list'] }); qc.invalidateQueries({ queryKey: ['fee-discrepancy-summary'] }); toast.success('Status berhasil di-undo ke PENDING') })
+                      .catch((err: Error) => toast.error(err.message))
+                  }
+                  setUndoConfirm(null)
+                }}
+                disabled={isPending}
+                className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >Ya, Undo</button>
             </div>
           </div>
         </div>

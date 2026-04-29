@@ -11,6 +11,7 @@ import {
   Calendar,
   X,
 } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useMonitoringStore } from "../store/monitoring.store";
 import { ErrorTable } from "../components/ErrorTable";
 import { AuditTable } from "../components/AuditTable";
@@ -50,6 +51,7 @@ export const MonitoringPage: React.FC = () => {
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<"delete" | "soft-delete" | null>(null);
 
   // Filters state
   const [severityFilter, setSeverityFilter] = useState("");
@@ -120,20 +122,18 @@ export const MonitoringPage: React.FC = () => {
 
   const handleBulkAction = async (action: "delete" | "soft-delete") => {
     if (selectedIds.length === 0) return;
+    setBulkAction(action);
+  };
 
-    const confirmMsg =
-      action === "delete"
-        ? `Are you sure you want to permanently delete ${selectedIds.length} logs?`
-        : `Are you sure you want to soft delete ${selectedIds.length} logs?`;
-
-    if (!window.confirm(confirmMsg)) return;
-
+  const confirmBulkAction = async () => {
+    if (!bulkAction || selectedIds.length === 0) return;
     if (activeTab === "errors") {
-      await bulkActionErrors(selectedIds, action);
+      await bulkActionErrors(selectedIds, bulkAction);
     } else {
-      await bulkActionAudit(selectedIds, action);
+      await bulkActionAudit(selectedIds, bulkAction);
     }
     setSelectedIds([]);
+    setBulkAction(null);
   };
 
   const onPageChange = (newPage: number) => {
@@ -426,6 +426,17 @@ export const MonitoringPage: React.FC = () => {
       <AuditDetailModal
         log={selectedAudit}
         onClose={() => setSelectedAudit(null)}
+      />
+
+      {/* Bulk Action Confirm */}
+      <ConfirmModal
+        isOpen={!!bulkAction}
+        onClose={() => setBulkAction(null)}
+        onConfirm={confirmBulkAction}
+        title={bulkAction === "delete" ? "Permanent Delete" : "Soft Delete"}
+        message={`Are you sure you want to ${bulkAction === "delete" ? "permanently delete" : "soft delete"} ${selectedIds.length} logs?`}
+        confirmText={bulkAction === "delete" ? "Delete" : "Soft Delete"}
+        variant="danger"
       />
     </div>
   );

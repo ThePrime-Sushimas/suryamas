@@ -53,6 +53,7 @@ export function BankReconciliationPage() {
   const [wizardInitialMode, setWizardInitialMode] = useState<"auto" | "manual" | "multi" | "settlement" | "cash_deposit" | undefined>(undefined);
   const [wizardPreSelectedStatement, setWizardPreSelectedStatement] = useState<BankStatementWithMatch | undefined>(undefined);
   const [nonPosStatement, setNonPosStatement] = useState<BankStatementWithMatch | null>(null);
+  const [undoTarget, setUndoTarget] = useState<string | null>(null);
 
   // ─── Filter/page state ───
   const [filtersApplied, setFiltersApplied] = useState(false);
@@ -299,10 +300,7 @@ export function BankReconciliationPage() {
 
   // Undo remains outside wizard (row-level action)
   const handleUndo = async (statementId: string) => {
-    if (confirm("Apakah Anda yakin ingin membatalkan rekonsiliasi ini?")) {
-      await undoReconciliation(statementId);
-      refreshData();
-    }
+    setUndoTarget(statementId);
   };
 
   const handleNonPosReconcile = useCallback((item: BankStatementWithMatch) => {
@@ -458,6 +456,21 @@ export function BankReconciliationPage() {
         onSettlementConfirm={handleSettlementConfirm}
         onCashDepositConfirm={handleCashDepositConfirm}
       />
+
+      {/* ─── Undo Reconciliation Confirm ─── */}
+      {undoTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setUndoTarget(null)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Batalkan Rekonsiliasi</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Apakah Anda yakin ingin membatalkan rekonsiliasi ini?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setUndoTarget(null)} className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Batal</button>
+              <button onClick={async () => { await undoReconciliation(undoTarget); setUndoTarget(null); refreshData(); }} className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700">Ya, Batalkan</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Non-POS Reconcile Modal ─── */}
       <NonPosReconcileModal

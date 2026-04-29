@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useFailedTransactionsStore } from '../store/failedTransactions.store'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { FailedTransactionDetailModal } from '../components/FailedTransactionDetailModal'
 import { FAILED_TRANSACTIONS_MESSAGES } from '@/utils/messages'
 
@@ -18,6 +19,8 @@ export const FailedTransactionsPage: React.FC = () => {
   const toast = useToast()
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
   
   const {
     transactions,
@@ -91,28 +94,30 @@ export const FailedTransactionsPage: React.FC = () => {
   }, [selectedIds, batchFixTransactions, clearSelection, toast])
 
   const handleDelete = useCallback(async (id: string) => {
-    if (!confirm('Yakin ingin menghapus transaksi gagal ini secara permanen?')) {
-      return
-    }
+    setDeleteTarget(id)
+  }, [])
 
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
     try {
-      await deleteTransaction(id)
+      await deleteTransaction(deleteTarget)
       toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_DELETED)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_DELETE_FAILED)
+    } finally {
+      setDeleteTarget(null)
     }
-  }, [deleteTransaction, toast])
+  }, [deleteTarget, deleteTransaction, toast])
 
   const handleBatchDelete = useCallback(async () => {
     if (selectedIds.size === 0) {
       toast.warning(FAILED_TRANSACTIONS_MESSAGES.NO_FAILED_TRANSACTIONS)
       return
     }
+    setBatchDeleteConfirm(true)
+  }, [selectedIds, toast])
 
-    if (!confirm(`Yakin ingin menghapus ${selectedIds.size} transaksi secara permanen?`)) {
-      return
-    }
-
+  const confirmBatchDelete = useCallback(async () => {
     for (const id of selectedIds) {
       try {
         await deleteTransaction(id)
@@ -120,9 +125,9 @@ export const FailedTransactionsPage: React.FC = () => {
         console.error('Failed to delete:', id, error)
       }
     }
-
     toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_SELECTED_DELETED)
     clearSelection()
+    setBatchDeleteConfirm(false)
   }, [selectedIds, deleteTransaction, clearSelection, toast])
 
   const getStatusBadge = (status: string) => {
@@ -394,6 +399,28 @@ export const FailedTransactionsPage: React.FC = () => {
           onDelete={handleDeleteFromModal}
         />
       )}
+
+      {/* Delete Single Confirm */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Hapus Transaksi"
+        message="Yakin ingin menghapus transaksi gagal ini secara permanen?"
+        confirmText="Hapus"
+        variant="danger"
+      />
+
+      {/* Batch Delete Confirm */}
+      <ConfirmModal
+        isOpen={batchDeleteConfirm}
+        onClose={() => setBatchDeleteConfirm(false)}
+        onConfirm={confirmBatchDelete}
+        title="Hapus Transaksi Terpilih"
+        message={`Yakin ingin menghapus ${selectedIds.size} transaksi secara permanen?`}
+        confirmText="Hapus Semua"
+        variant="danger"
+      />
     </div>
   )
 }

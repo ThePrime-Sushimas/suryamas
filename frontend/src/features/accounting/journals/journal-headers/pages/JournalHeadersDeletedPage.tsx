@@ -1,6 +1,8 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderTable } from '../components/JournalHeaderTable'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
@@ -8,8 +10,10 @@ import { Pagination } from '@/components/ui/Pagination'
 
 export function JournalHeadersDeletedPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const permissions = useJournalPermissions()
   const { journals, loading, pagination, fetchJournals, setPage, setLimit, restoreJournal } = useJournalHeadersStore()
+  const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
 
   useEffect(() => {
     fetchJournals({ show_deleted: true })
@@ -34,9 +38,19 @@ export function JournalHeadersDeletedPage() {
   }, [setLimit, fetchJournals])
 
   const handleRestore = async (id: string) => {
-    if (confirm('Are you sure you want to restore this journal?')) {
-      await restoreJournal(id)
+    setRestoreTarget(id)
+  }
+
+  const confirmRestore = async () => {
+    if (!restoreTarget) return
+    try {
+      await restoreJournal(restoreTarget)
+      toast.success('Jurnal berhasil direstore')
       fetchJournals({ show_deleted: true })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal merestore jurnal')
+    } finally {
+      setRestoreTarget(null)
     }
   }
 
@@ -87,6 +101,17 @@ export function JournalHeadersDeletedPage() {
           loading={loading}
         />
       )}
+
+      {/* Restore Confirm */}
+      <ConfirmModal
+        isOpen={!!restoreTarget}
+        onClose={() => setRestoreTarget(null)}
+        onConfirm={confirmRestore}
+        title="Restore Journal"
+        message="Are you sure you want to restore this journal?"
+        confirmText="Restore"
+        variant="success"
+      />
     </div>
   )
 }

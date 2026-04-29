@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/features/users'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type { User } from '@/features/users'
 import UserTable from '../components/UserTable'
 
@@ -13,6 +14,7 @@ export default function UsersPage() {
   const [selectedBranch, setSelectedBranch] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(() => new Set())
+  const [removeRoleTarget, setRemoveRoleTarget] = useState<string | null>(null)
   const itemsPerPage = 10
   const navigate = useNavigate()
   const { error: showError, success } = useToast()
@@ -60,13 +62,19 @@ export default function UsersPage() {
   }, [users])
 
   const handleDelete = async (employeeId: string) => {
-    if (!confirm('Remove role from this employee?')) return
+    setRemoveRoleTarget(employeeId)
+  }
+
+  const confirmRemoveRole = async () => {
+    if (!removeRoleTarget) return
     try {
-      await usersApi.removeRole(employeeId)
+      await usersApi.removeRole(removeRoleTarget)
       success('Role removed successfully')
       await loadData()
     } catch (error: unknown) {
       showError(error instanceof Error ? error.message : 'Failed to remove role')
+    } finally {
+      setRemoveRoleTarget(null)
     }
   }
 
@@ -161,6 +169,17 @@ export default function UsersPage() {
           </button>
         </div>
       )}
+
+      {/* Remove Role Confirm */}
+      <ConfirmModal
+        isOpen={!!removeRoleTarget}
+        onClose={() => setRemoveRoleTarget(null)}
+        onConfirm={confirmRemoveRole}
+        title="Remove Role"
+        message="Remove role from this employee?"
+        confirmText="Remove"
+        variant="danger"
+      />
     </div>
   )
 }

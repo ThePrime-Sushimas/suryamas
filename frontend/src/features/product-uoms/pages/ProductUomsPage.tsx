@@ -21,6 +21,8 @@ export default function ProductUomsPage() {
   const [showDeleted, setShowDeleted] = useState(false)
   const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null)
 
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+
   useEffect(() => {
     if (productId) {
       fetchUoms(productId, showDeleted)
@@ -105,9 +107,9 @@ export default function ProductUomsPage() {
   const handleCancel = () => {
     if (isSubmitting) return
     
-    if (showForm) {
-      const hasChanges = editingUom !== undefined
-      if (hasChanges && !confirm('Discard changes?')) return
+    if (showForm && editingUom !== undefined) {
+      setShowDiscardConfirm(true)
+      return
     }
     
     setShowForm(false)
@@ -213,6 +215,17 @@ export default function ProductUomsPage() {
         cancelText="Cancel"
         variant="danger"
         isLoading={isSubmitting}
+      />
+
+      {/* Discard Changes Confirm */}
+      <ConfirmModal
+        isOpen={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        onConfirm={() => { setShowDiscardConfirm(false); setShowForm(false); setEditingUom(undefined) }}
+        title="Discard Changes"
+        message="Discard changes?"
+        confirmText="Discard"
+        variant="warning"
       />
     </div>
   )

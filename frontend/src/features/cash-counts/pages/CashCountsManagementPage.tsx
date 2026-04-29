@@ -153,6 +153,7 @@ export function CashCountsManagementPage() {
   const [deleteTarget, setDeleteTarget] = useState<CashDeposit | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<CashDeposit | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [revertTarget, setRevertTarget] = useState<CashDeposit | null>(null)
 
   // ========== Reference Data ==========
   const [paymentMethods, setPaymentMethods] = useState<{ id: number; name: string }[]>([])
@@ -770,15 +771,7 @@ export function CashCountsManagementPage() {
                                 )}
                                 {dep.status === 'DEPOSITED' && (
                                   <button
-                                    onClick={async () => {
-                                      if (!confirm('Hapus setoran ini? Cash counts akan kembali ke status COUNTED.')) return
-                                      try {
-                                        await cashCountsApi.revertDeposit(dep.id)
-                                        fetchDeposits()
-                                      } catch (err: any) {
-                                        alert(err?.response?.data?.message || 'Gagal membatalkan')
-                                      }
-                                    }}
+                                    onClick={() => setRevertTarget(dep)}
                                     className="p-1 text-gray-400 hover:text-amber-600 rounded"
                                     title="Batalkan Konfirmasi"
                                   >
@@ -945,6 +938,28 @@ export function CashCountsManagementPage() {
         confirmText="Hapus"
         variant="danger"
         isLoading={isDeleting}
+      />
+
+      {/* Revert Deposit Confirm */}
+      <ConfirmModal
+        isOpen={!!revertTarget}
+        onClose={() => setRevertTarget(null)}
+        onConfirm={async () => {
+          if (!revertTarget) return
+          try {
+            await cashCountsApi.revertDeposit(revertTarget.id)
+            toast.success('Setoran berhasil dibatalkan')
+            fetchDeposits()
+          } catch (err: any) {
+            toast.error(err?.response?.data?.message || 'Gagal membatalkan')
+          } finally {
+            setRevertTarget(null)
+          }
+        }}
+        title="Batalkan Konfirmasi Setoran"
+        message="Hapus setoran ini? Cash counts akan kembali ke status COUNTED."
+        confirmText="Batalkan"
+        variant="warning"
       />
 
       {/* Confirm Deposit */}

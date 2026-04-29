@@ -3,7 +3,9 @@ import { posStagingApi } from '../api/pos-staging.api'
 import { branchesApi } from '@/features/branches/api/branches.api'
 import { paymentMethodsApi } from '@/features/payment-methods/api/paymentMethods.api'
 import { usePermission } from '@/features/branch_context/hooks/usePermission'
+import { useToast } from '@/contexts/ToastContext'
 import { AlertCircle } from 'lucide-react'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type {
   StagingTable,
   StagingStatus,
@@ -56,6 +58,7 @@ function getRowName(table: StagingTable, row: StagingRow): string {
 
 export default function PosStagingPage() {
   const { hasPermission, isLoaded } = usePermission('pos_imports', 'view')
+  const toast = useToast()
   
   const [activeTable, setActiveTable] = useState<StagingTable>('branches')
   const [statusFilter, setStatusFilter] = useState<StagingStatus | ''>('pending')
@@ -68,6 +71,7 @@ export default function PosStagingPage() {
   const [branches, setBranches] = useState<Branch[]>([])
   const [paymentMethodOptions, setPaymentMethodOptions] = useState<PaymentMethodOption[]>([])
   const [mappingId, setMappingId] = useState<Record<number, string>>({})
+  const [ignoreConfirm, setIgnoreConfirm] = useState<StagingRow | null>(null)
 
   const LIMIT = 50
 
@@ -129,15 +133,14 @@ export default function PosStagingPage() {
     const extra: Record<string, string> = {}
     if (activeTable === 'branches' || activeTable === 'payment_methods') {
       const mid = mappingId[posId]
-      if (!mid) { alert('Pilih mapping terlebih dahulu sebelum approve.'); return }
+      if (!mid) { toast.warning('Pilih mapping terlebih dahulu sebelum approve.'); return }
       extra.mapped_id = mid
     }
     handleAction(posId, 'approved', extra)
   }
 
   const handleIgnore = (row: StagingRow) => {
-    if (!confirm(`Abaikan "${getRowName(activeTable, row)}"?`)) return
-    handleAction(row.pos_id, 'ignored')
+    setIgnoreConfirm(row)
   }
 
   const handleResetToPending = (row: StagingRow) => {
@@ -423,6 +426,20 @@ export default function PosStagingPage() {
           </button>
         </div>
       )}
+
+      {/* Ignore Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!ignoreConfirm}
+        onClose={() => setIgnoreConfirm(null)}
+        onConfirm={() => {
+          if (ignoreConfirm) handleAction(ignoreConfirm.pos_id, 'ignored')
+          setIgnoreConfirm(null)
+        }}
+        title="Abaikan Item"
+        message={ignoreConfirm ? `Abaikan "${getRowName(activeTable, ignoreConfirm)}"?` : ''}
+        confirmText="Abaikan"
+        variant="warning"
+      />
     </div>
   )
 }
