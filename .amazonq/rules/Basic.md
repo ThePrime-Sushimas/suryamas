@@ -108,9 +108,11 @@ Gunakan:
 ❌ 7. Error Handling
 Rules:
 Gunakan custom error:
-NotFoundError
-BusinessRuleError
-❌ Tidak boleh throw Error biasa
+- NotFoundError, BusinessRuleError, ConflictError, dll.
+- ❌ Tidak boleh throw Error biasa
+- ✅ WAJIB: Daftarkan error class baru di `src/config/error-registry.ts` untuk pemetaan status code & module tracking.
+- ✅ WAJIB: Gunakan `await handleError(res, error, req, context)` di controller.
+- ✅ WAJIB: Pass `context` (objek metadata) untuk mempermudah debugging di monitoring dashboard.
 📋 8. Global Standards
 Code Quality
 TypeScript strict
@@ -262,13 +264,14 @@ Sebelum mengerjakan task apapun, AI WAJIB membaca:
 Dari pengalaman development sebelumnya, berikut aturan tambahan:
 
 ### Backend
-1. `handleError(res, error, req)` — SELALU pass `req` supaya error monitoring dapat info user, route, module
-2. Jangan throw generic `new Error()` — pakai custom error class dari `*.errors.ts`
-3. Schema validation: cross-validate compare periods, UUID regex untuk `branch_ids`
-4. Setelah ubah `.ts`, WAJIB rebuild: `cd backend && npx tsc`
-5. `company_id` dari branch context (`req.context.company_id`), BUKAN dari query param
-6. Retained earnings di Balance Sheet = company-level, BUKAN per-branch
-7. S3Client (Cloudflare R2) WAJIB pakai `forcePathStyle: true`
+1. `handleError(res, error, req, context)` — SELALU `await` karena bersifat async. Pass `req` untuk info user/route, dan `context` untuk metadata spesifik (ID, query, dll).
+2. Jika TypeScript error saat pass `req` ke `handleError` karena custom type (Query/Body), gunakan `req as any`.
+3. Jangan throw generic `new Error()` — pakai custom error class dari `*.errors.ts` dan daftarkan di `ERROR_REGISTRY`.
+4. Schema validation: cross-validate compare periods, UUID regex untuk `branch_ids`
+5. Setelah ubah `.ts`, WAJIB rebuild: `cd backend && npx tsc`
+6. `company_id` dari branch context (`req.context.company_id`), BUKAN dari query param
+7. Lazy Initialization: Gunakan pattern getter (misal `getS3()`) untuk service eksternal agar env vars ter-load dengan benar (menghindari error saat cold start).
+8. S3Client (Cloudflare R2) WAJIB pakai `forcePathStyle: true`
 
 ### Frontend
 1. Jangan hardcode labels — pakai data dari DB/COA hierarchy
