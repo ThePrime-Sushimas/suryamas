@@ -68,6 +68,11 @@ export default function DashboardSalesPage() {
     todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === todayStr) || []
   , [todaySales.data, todayStr])
 
+  const todayNonVoid = useMemo(() => todaySalesData.filter(r => !isVoid(r)), [todaySalesData])
+  const todayVoidData = useMemo(() => todaySalesData.filter(isVoid), [todaySalesData])
+  const todayVoidTotal = useMemo(() => todayVoidData.reduce((s, r) => s + r.grand_total, 0), [todayVoidData])
+  const todayVoidTrx = useMemo(() => todayVoidData.reduce((s, r) => s + (r.void_transaction_count ?? 0), 0), [todayVoidData])
+
   const yesterdayData = useMemo(() =>
     todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === yesterdayStr) || []
   , [todaySales.data, yesterdayStr])
@@ -79,6 +84,8 @@ export default function DashboardSalesPage() {
       return d >= appliedFrom! && d <= appliedTo!
     })
   }, [rangeSales.data, appliedFrom, appliedTo, hasApplied])
+
+  const rangeNonVoid = useMemo(() => rangeData.filter(r => !isVoid(r)), [rangeData])
 
   const todayTotal = useMemo(() => todaySalesData.filter(r => !isVoid(r)).reduce((s, r) => s + r.grand_total, 0), [todaySalesData])
   const todayFee = useMemo(() => todaySalesData.filter(r => !isVoid(r)).reduce((s, r) => s + r.total_fee_amount, 0), [todaySalesData])
@@ -210,8 +217,43 @@ export default function DashboardSalesPage() {
         )}
       </div>
 
-      {/* ── Detail Hari Ini ── */}
-      <SalesOverview data={todaySalesData} isLoading={todaySales.isLoading} isFetching={todaySales.isFetching} onRefresh={() => todaySales.refetch()} />
+      {/* ── Detail Hari Ini + VOID ── */}
+      <div className={`grid gap-4 items-start ${!todaySales.isLoading && todayVoidTrx > 0 ? 'grid-cols-1 lg:grid-cols-[1fr_380px]' : 'grid-cols-1'}`}>
+        <SalesOverview data={todayNonVoid} isLoading={todaySales.isLoading} isFetching={todaySales.isFetching} onRefresh={() => todaySales.refetch()} />
+
+        {!todaySales.isLoading && todayVoidTrx > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-rose-200 dark:border-rose-800/40 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-rose-100 dark:border-rose-800/30 flex items-center justify-between bg-rose-50/50 dark:bg-rose-900/10">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                <h3 className="text-xs font-medium text-rose-600 dark:text-rose-400 uppercase tracking-wide">VOID Hari Ini</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-rose-400 bg-rose-100 dark:bg-rose-900/30 px-2 py-0.5 rounded-full">{todayVoidTrx} trx</span>
+                <span className="text-xs font-bold text-rose-600 dark:text-rose-400">{fmt(todayVoidTotal)}</span>
+              </div>
+            </div>
+            <div className="divide-y divide-rose-100 dark:divide-rose-800/30 flex-1 overflow-y-auto max-h-80">
+              {todayVoidData.map((r, i) => (
+                <div key={i} className="px-4 py-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-medium text-gray-800 dark:text-gray-200">{r.branch_name || 'Unknown'}</span>
+                      <span className="text-[10px] text-gray-400 ml-2">{r.void_transaction_count ?? 0} trx</span>
+                    </div>
+                    <span className="text-xs font-medium text-rose-600 dark:text-rose-400 line-through">{fmt(r.grand_total)}</span>
+                  </div>
+                  {r.skip_reason && (
+                    <p className="text-[10px] text-rose-500 dark:text-rose-400/70 mt-1 bg-rose-50 dark:bg-rose-900/20 px-2 py-1 rounded">
+                      {r.skip_reason}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Range Section ── */}
       {!hasApplied ? (
@@ -226,7 +268,7 @@ export default function DashboardSalesPage() {
         <div className="space-y-4">
           {/* Chart + Sidebar */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_530px] gap-4 items-start">
-            <DailySalesChart data={rangeData} isLoading={rangeSales.isLoading} />
+            <DailySalesChart data={rangeNonVoid} isLoading={rangeSales.isLoading} />
             <SidebarTabs
               branchRanking={branchRanking} paymentMethods={paymentMethods} pmTotal={pmTotal}
               companies={companies} activePmCompany={activePmCompany} onCompanyTab={setPmCompanyTab}
