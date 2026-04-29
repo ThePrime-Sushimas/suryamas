@@ -63,14 +63,16 @@ export default function Layout() {
                 <Menu size={20} />
               </button>
               <Link to="/" className="flex items-center">
-                <div className="h-10 w-10 bg-linear-to-br from-(--color-primary-gradient-start) flex items-center justify-center text-white font-bold mr-3">
-                  SIS
+                <div className="h-10 w-7 bg-[#C53030] rounded-lg flex flex-col items-center justify-center mr-3 gap-0 border border-[#D4A843]/30">
+                  <span className="text-[10px] font-black text-white leading-none">S</span>
+                  <span className="text-[10px] font-black text-white leading-none">I</span>
+                  <span className="text-[10px] font-black text-white leading-none">S</span>
                 </div>
                 <div className="hidden sm:block">
-                  <div className="text-xl font-bold text-gray-800 dark:text-white">
-                    Sushimas
+                  <div className="text-xl text-red-700 dark:text-white" style={{ fontFamily: "'Gang of Three', sans-serif" }}>
+                    SUSHIMAS
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
+                  <div className="text-xs text-red-700 dark:text-yellow-400 -mt-1">
                     Internal System V.2
                   </div>
                 </div>
