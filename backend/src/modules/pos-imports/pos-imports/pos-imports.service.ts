@@ -27,13 +27,11 @@ import {
 import { storageService } from "../../../services/storage.service";
 import { logInfo, logError, logWarn } from "../../../config/logger";
 
-const TEMP_BUCKET = 'pos-imports-temp'
+const TEMP_BUCKET = 'posimportstemp'
 import { jobsService } from "../../jobs/jobs.service";
 import { AuditService } from "../../monitoring/monitoring.service";
 import type {
   PosImport,
-  CreatePosImportDto,
-  UpdatePosImportDto,
   PosImportFilter,
 } from "./pos-imports.types";
 import type {

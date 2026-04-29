@@ -7,14 +7,12 @@ import { Response } from 'express'
 import { posImportsService } from './pos-imports.service'
 import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
 import { sendSuccess, sendError } from '../../../utils/response.util'
+import { handleError } from '../../../utils/error-handler.util'
 
 import { getParamString } from '../../../utils/validation.util'
 import { logError, logInfo } from '../../../config/logger'
 import { jobsService } from '../../jobs/jobs.service'
 import type { AuthenticatedRequest, AuthenticatedQueryRequest } from '../../../types/request.types'
-import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
-import type { UploadPosFileInput, ConfirmImportInput, UpdateStatusInput } from './pos-imports.schema'
-
 class PosImportsController {
   /**
    * List POS imports
@@ -42,7 +40,7 @@ class PosImportsController {
     } catch (error) {
       console.error('PosImportsController list error:', error)
       logError('PosImportsController list error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -63,7 +61,7 @@ class PosImportsController {
       return sendSuccess(res, posImport)
     } catch (error) {
       logError('PosImportsController getById error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -95,7 +93,7 @@ class PosImportsController {
       })
     } catch (error) {
       logError('PosImportsController getLines error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -119,7 +117,7 @@ class PosImportsController {
       return res.send(buffer)
     } catch (error) {
       logError('PosImportsController export error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -141,7 +139,7 @@ class PosImportsController {
       return sendSuccess(res, summary, 'Summary retrieved')
     } catch (error) {
       logError('PosImportsController getSummary error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -185,7 +183,7 @@ class PosImportsController {
       }, 'File analyzed successfully. Review duplicates and click Confirm to start import.')
     } catch (error) {
       logError('PosImportsController upload error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -215,7 +213,7 @@ class PosImportsController {
       }, 'Import confirmed. Job is being processed in the background.')
     } catch (error) {
       logError('PosImportsController confirm error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -241,7 +239,7 @@ class PosImportsController {
       return sendSuccess(res, posImport, 'Status updated successfully')
     } catch (error) {
       logError('PosImportsController updateStatus error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -266,7 +264,7 @@ class PosImportsController {
       return sendSuccess(res, null, 'Import deleted successfully')
     } catch (error) {
       logError('PosImportsController delete error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 
@@ -329,7 +327,7 @@ class PosImportsController {
       }, 'Export job created', 201)
     } catch (error) {
       logError('Failed to create export job', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Failed to create export job')
+      return handleError(res, error, req)
     }
   }
 
@@ -354,7 +352,7 @@ class PosImportsController {
       return sendSuccess(res, posImport, 'Import restored successfully')
     } catch (error) {
       logError('PosImportsController restore error', { error })
-      return sendError(res, error instanceof Error ? error.message : 'Unknown error')
+      return handleError(res, error, req)
     }
   }
 }

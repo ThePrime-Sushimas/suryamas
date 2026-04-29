@@ -6,6 +6,7 @@ import { Response } from 'express'
 import { AuthRequest } from '../../../types/common.types'
 import { posTransactionsService } from './pos-transactions.service'
 import { sendSuccess, sendError } from '../../../utils/response.util'
+import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { jobsService } from '../../jobs'
 
@@ -52,7 +53,7 @@ export const list = async (req: AuthRequest, res: Response) => {
 
     sendSuccess(res, result, 'Transactions retrieved successfully')
   } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to fetch transactions', 500)
+    handleError(res, error, req)
   }
 }
 
@@ -111,6 +112,6 @@ export const exportToExcel = async (req: AuthRequest, res: Response) => {
 
     sendSuccess(res, { job_id: job.id }, 'Export job created successfully')
   } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to create export job', 500)
+    handleError(res, error, req)
   }
 }
