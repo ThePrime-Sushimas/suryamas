@@ -19,7 +19,7 @@ export class AuthController {
       const result = await authService.register(email, password, employee_id)
       sendSuccess(res, { user: result.user, employee: result.employeeName }, 'Registration successful', 201)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -29,7 +29,7 @@ export class AuthController {
       const session = await authService.login(email, password)
       sendSuccess(res, session, 'Login successful')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -39,7 +39,7 @@ export class AuthController {
       if (userId) await authService.logout(userId)
       sendSuccess(res, null, 'Logout successful')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -49,7 +49,7 @@ export class AuthController {
       await authService.forgotPassword(email)
       sendSuccess(res, null, 'Password reset email sent')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -59,7 +59,7 @@ export class AuthController {
       await authService.resetPassword(recovery_token || '', password)
       sendSuccess(res, null, 'Password updated successfully')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 }

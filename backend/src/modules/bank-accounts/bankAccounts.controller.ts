@@ -28,7 +28,7 @@ export class BankAccountsController {
       const account = await bankAccountsService.createBankAccount(req.validated.body, userId)
       sendSuccess(res, account, 'Bank account created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -37,7 +37,7 @@ export class BankAccountsController {
       const result = await bankAccountsService.getBankAccounts(req.validated.query)
       sendSuccess(res, result.data, 'Bank accounts retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -47,7 +47,7 @@ export class BankAccountsController {
       const account = await bankAccountsService.getBankAccountById(id)
       sendSuccess(res, account, 'Bank account retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -58,7 +58,7 @@ export class BankAccountsController {
       const account = await bankAccountsService.updateBankAccount(id, req.validated.body, userId)
       sendSuccess(res, account, 'Bank account updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -69,7 +69,7 @@ export class BankAccountsController {
       await bankAccountsService.deleteBankAccount(id, employeeId)
       sendSuccess(res, null, 'Bank account deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -80,7 +80,7 @@ export class BankAccountsController {
       const accounts = await bankAccountsService.getBankAccountsByOwner(ownerType as OwnerType, ownerId)
       sendSuccess(res, accounts, 'Bank accounts retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

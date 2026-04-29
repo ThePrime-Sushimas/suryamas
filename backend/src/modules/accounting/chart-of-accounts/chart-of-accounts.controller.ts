@@ -92,7 +92,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, result.data, 'Chart of accounts retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('LIST', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -125,7 +125,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, result.data, 'Chart of accounts retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('SEARCH', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -155,7 +155,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, tree, 'Chart of accounts tree retrieved')
     } catch (error) {
       this.logResponse('GET_TREE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -190,7 +190,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, account, 'Chart of account created', 201)
     } catch (error) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -212,7 +212,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, account)
     } catch (error) {
       this.logResponse('GET_BY_ID', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -242,7 +242,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, account, 'Chart of account updated')
     } catch (error) {
       this.logResponse('UPDATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -269,7 +269,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, null, 'Chart of account deleted')
     } catch (error) {
       this.logResponse('DELETE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -284,7 +284,7 @@ export class ChartOfAccountsController {
       const options = await chartOfAccountsService.getFilterOptions(companyId)
       sendSuccess(res, options)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -307,7 +307,7 @@ export class ChartOfAccountsController {
         'chart-of-accounts'
       )
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -325,7 +325,7 @@ export class ChartOfAccountsController {
       
       return handleImportPreview(req, res, (buffer) => chartOfAccountsService.previewImport(buffer))
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -343,7 +343,7 @@ export class ChartOfAccountsController {
         (buffer, skip) => chartOfAccountsService.importFromExcel(buffer, skip, companyId, req.user!.id)
       )
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -370,7 +370,7 @@ export class ChartOfAccountsController {
       await chartOfAccountsService.bulkUpdateStatus(ids, is_active, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -396,7 +396,7 @@ export class ChartOfAccountsController {
       await chartOfAccountsService.bulkDelete(ids, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -423,7 +423,7 @@ export class ChartOfAccountsController {
       sendSuccess(res, null, 'Chart of account restored')
     } catch (error) {
       this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -449,7 +449,7 @@ export class ChartOfAccountsController {
       await chartOfAccountsService.bulkRestore(ids, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk restore completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

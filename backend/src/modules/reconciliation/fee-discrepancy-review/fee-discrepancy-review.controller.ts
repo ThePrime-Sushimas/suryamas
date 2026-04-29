@@ -23,7 +23,7 @@ class FeeDiscrepancyReviewController {
         limit: query.limit,
       })
     } catch (error) {
-      await handleError(res, error)
+      await handleError(res, error, req)
     }
   }
 
@@ -33,7 +33,7 @@ class FeeDiscrepancyReviewController {
       const result = await feeDiscrepancyReviewService.getSummary(companyId, req.validated.query)
       sendSuccess(res, result)
     } catch (error) {
-      await handleError(res, error)
+      await handleError(res, error, req)
     }
   }
 
@@ -52,7 +52,7 @@ class FeeDiscrepancyReviewController {
 
       sendSuccess(res, { source, sourceId, status }, 'Status updated')
     } catch (error) {
-      await handleError(res, error)
+      await handleError(res, error, req)
     }
   }
 
@@ -71,7 +71,7 @@ class FeeDiscrepancyReviewController {
 
       sendSuccess(res, result, 'Jurnal koreksi berhasil dibuat')
     } catch (error) {
-      await handleError(res, error)
+      await handleError(res, error, req)
     }
   }
 
@@ -86,7 +86,7 @@ class FeeDiscrepancyReviewController {
 
       sendSuccess(res, { source, sourceId }, 'Koreksi berhasil di-undo')
     } catch (error) {
-      await handleError(res, error)
+      await handleError(res, error, req)
     }
   }
 }

@@ -15,7 +15,7 @@ export class BranchesController {
       const result = await branchesService.list({ page, limit, offset }, req.sort, req.queryFilter)
       sendSuccess(res, result.data, 'Branches retrieved', 200, result.pagination)
     } catch (error: unknown) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -24,7 +24,7 @@ export class BranchesController {
       const branch = await branchesService.create(req.validated.body, req.user!.id)
       sendSuccess(res, branch, 'Branch created', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -34,7 +34,7 @@ export class BranchesController {
       const branch = await branchesService.update(params.id, body, req.user!.id)
       sendSuccess(res, branch, 'Branch updated')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -44,7 +44,7 @@ export class BranchesController {
       const branch = await branchesService.getById(id)
       sendSuccess(res, branch, 'Branch retrieved')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -54,7 +54,7 @@ export class BranchesController {
       await branchesService.delete(id, req.user.id)
       sendSuccess(res, null, 'Branch deleted')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
   
@@ -65,7 +65,7 @@ export class BranchesController {
       const result = await branchesService.search(q, { page, limit, offset }, req.sort, req.queryFilter)
       sendSuccess(res, result.data, 'Search completed', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -74,7 +74,7 @@ export class BranchesController {
       const options = await branchesService.getFilterOptions()
       sendSuccess(res, options, 'Filter options retrieved')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, _req)
     }
   }
 
@@ -83,7 +83,7 @@ export class BranchesController {
       const branches = await branchesService.minimalActive()
       sendSuccess(res, branches, 'Branches retrieved')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, _req)
     }
   }
 
@@ -93,7 +93,7 @@ export class BranchesController {
       await branchesService.bulkUpdateStatus(ids, status, req.user!.id)
       sendSuccess(res, null, 'Status updated')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

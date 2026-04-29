@@ -33,7 +33,7 @@ export class IncomeStatementController {
 
       sendSuccess(res, result, 'Income statement retrieved', 200)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

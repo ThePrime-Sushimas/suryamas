@@ -79,7 +79,7 @@ export class AccountingPurposeAccountsController {
       sendSuccess(res, result.data, 'Purpose account mappings retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('LIST', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -107,7 +107,7 @@ export class AccountingPurposeAccountsController {
       sendSuccess(res, purposeAccount, 'Purpose account mapping created', 201)
     } catch (error) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -129,7 +129,7 @@ export class AccountingPurposeAccountsController {
       sendSuccess(res, purposeAccount)
     } catch (error) {
       this.logResponse('GET_BY_ID', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -164,7 +164,7 @@ export class AccountingPurposeAccountsController {
       sendSuccess(res, purposeAccount, 'Purpose account mapping updated')
     } catch (error) {
       this.logResponse('UPDATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -191,7 +191,7 @@ export class AccountingPurposeAccountsController {
       sendSuccess(res, null, 'Purpose account mapping deleted')
     } catch (error) {
       this.logResponse('DELETE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -218,7 +218,7 @@ export class AccountingPurposeAccountsController {
       
       sendSuccess(res, purposeAccounts, 'Bulk create completed', 201)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -245,7 +245,7 @@ export class AccountingPurposeAccountsController {
       
       sendSuccess(res, null, 'Bulk remove completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -271,7 +271,7 @@ export class AccountingPurposeAccountsController {
       await accountingPurposeAccountsService.bulkUpdateStatus(ids, is_active, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -294,7 +294,7 @@ export class AccountingPurposeAccountsController {
         'accounting-purpose-accounts'
       )
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -320,7 +320,7 @@ export class AccountingPurposeAccountsController {
       sendSuccess(res, result.data, 'Deleted purpose account mappings retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('LIST_DELETED', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -347,7 +347,7 @@ export class AccountingPurposeAccountsController {
       sendSuccess(res, null, 'Purpose account mapping restored')
     } catch (error) {
       this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

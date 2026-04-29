@@ -17,42 +17,42 @@ export class CashCountsController {
       const { start_date, end_date, payment_method_id } = req.validated.query
       const result = await cashCountsService.preview(start_date, end_date, payment_method_id, req.context?.company_id!)
       sendSuccess(res, result, 'Preview loaded')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   create = withValidated(async (req: ValidatedAuthRequest<typeof createCashCountSchema>, res: Response) => {
     try {
       const result = await cashCountsService.create(req.validated.body, req.context?.company_id!, req.context?.employee_id)
       sendSuccess(res, result, 'Cash count created', 201)
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   list = withValidated(async (req: ValidatedAuthRequest<typeof cashCountListQuerySchema>, res: Response) => {
     try {
       const result = await cashCountsService.list(req.validated.query, req.context?.company_id!)
       sendSuccess(res, result.data, 'Cash counts retrieved', 200, result.pagination)
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   findById = withValidated(async (req: ValidatedAuthRequest<typeof cashCountIdSchema>, res: Response) => {
     try {
       const result = await cashCountsService.getById(req.validated.params.id)
       sendSuccess(res, result, 'Cash count retrieved')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   updatePhysicalCount = withValidated(async (req: ValidatedAuthRequest<typeof updatePhysicalCountSchema>, res: Response) => {
     try {
       const result = await cashCountsService.updatePhysicalCount(req.validated.params.id, req.validated.body, req.context?.employee_id)
       sendSuccess(res, result, 'Physical count updated')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   createDeposit = withValidated(async (req: ValidatedAuthRequest<typeof createDepositSchema>, res: Response) => {
     try {
       const result = await cashCountsService.createDeposit(req.validated.body, req.context?.company_id!, req.context?.employee_id)
       sendSuccess(res, result, 'Deposit created', 201)
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   confirmDeposit = async (req: any, res: Response) => {
@@ -70,21 +70,21 @@ export class CashCountsController {
       const depositedAt = req.body?.deposited_at || new Date().toISOString().split('T')[0]
       const result = await cashCountsService.confirmDeposit(id, { proof_url: uploaded.publicUrl, deposited_at: depositedAt }, req.context?.employee_id)
       sendSuccess(res, result, 'Deposit confirmed')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   }
 
   revertDeposit = withValidated(async (req: ValidatedAuthRequest<typeof depositIdSchema>, res: Response) => {
     try {
       await cashCountsService.revertDeposit(req.validated.params.id, req.context?.employee_id)
       sendSuccess(res, null, 'Deposit deleted, cash counts reverted to COUNTED')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   getDeposit = withValidated(async (req: ValidatedAuthRequest<typeof depositIdSchema>, res: Response) => {
     try {
       const result = await cashCountsService.getDeposit(req.validated.params.id)
       sendSuccess(res, result, 'Deposit retrieved')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   listDeposits = withValidated(async (req: ValidatedAuthRequest<typeof depositListQuerySchema>, res: Response) => {
@@ -92,28 +92,28 @@ export class CashCountsController {
       const { page, limit } = req.validated.query
       const result = await cashCountsService.listDeposits(req.context?.company_id!, page, limit)
       sendSuccess(res, result.data, 'Deposits retrieved', 200, result.pagination)
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   deleteDeposit = withValidated(async (req: ValidatedAuthRequest<typeof depositIdSchema>, res: Response) => {
     try {
       await cashCountsService.deleteDeposit(req.validated.params.id, req.context?.employee_id)
       sendSuccess(res, null, 'Deposit deleted')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   close = withValidated(async (req: ValidatedAuthRequest<typeof cashCountIdSchema>, res: Response) => {
     try {
       const result = await cashCountsService.close(req.validated.params.id, req.context?.employee_id)
       sendSuccess(res, result, 'Cash count closed')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   delete = withValidated(async (req: ValidatedAuthRequest<typeof cashCountIdSchema>, res: Response) => {
     try {
       await cashCountsService.delete(req.validated.params.id, req.context?.employee_id)
       sendSuccess(res, null, 'Cash count deleted')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 
   capitalReport = withValidated(async (req: ValidatedAuthRequest<typeof capitalReportSchema>, res: Response) => {
@@ -121,7 +121,7 @@ export class CashCountsController {
       const { start_date, end_date } = req.validated.query
       const result = await cashCountsService.getCapitalTopUpReport(req.context?.company_id!, start_date, end_date)
       sendSuccess(res, result, 'Capital top up report')
-    } catch (error: any) { handleError(res, error) }
+    } catch (error: any) { handleError(res, error, req) }
   })
 }
 

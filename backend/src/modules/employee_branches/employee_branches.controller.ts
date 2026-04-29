@@ -19,7 +19,7 @@ export class EmployeeBranchesController {
       const data = await employeeBranchesService.getMyBranches(req.user.id)
       sendSuccess(res, data)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -36,7 +36,7 @@ export class EmployeeBranchesController {
         sendSuccess(res, result.data, 'Employee branches retrieved', 200, result.pagination)
       }
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -46,7 +46,7 @@ export class EmployeeBranchesController {
       const data = await employeeBranchesService.getByEmployeeId(employeeId)
       sendSuccess(res, data)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -56,7 +56,7 @@ export class EmployeeBranchesController {
       const data = await employeeBranchesService.getById(id)
       sendSuccess(res, data)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -67,7 +67,7 @@ export class EmployeeBranchesController {
       const result = await employeeBranchesService.getByBranchId(branchId, query)
       sendSuccess(res, result.data, 'Employee branches retrieved', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -77,7 +77,7 @@ export class EmployeeBranchesController {
       const data = await employeeBranchesService.getPrimaryBranch(employeeId)
       sendSuccess(res, data)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -87,7 +87,7 @@ export class EmployeeBranchesController {
       const result = await employeeBranchesService.create(validated, req.user?.id)
       sendSuccess(res, result, 'Employee branch assignment created', 201)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -98,7 +98,7 @@ export class EmployeeBranchesController {
       const result = await employeeBranchesService.update(id, body, req.user?.id)
       sendSuccess(res, result, 'Employee branch assignment updated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -109,7 +109,7 @@ export class EmployeeBranchesController {
       await employeeBranchesService.setPrimaryBranch(employeeId, branchId, req.user?.id)
       sendSuccess(res, null, 'Primary branch set successfully')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -119,7 +119,7 @@ export class EmployeeBranchesController {
       await employeeBranchesService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Employee branch assignment deleted')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -130,7 +130,7 @@ export class EmployeeBranchesController {
       await employeeBranchesService.deleteByEmployeeAndBranch(employeeId, branchId, req.user?.id)
       sendSuccess(res, null, 'Employee branch assignment deleted')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -140,7 +140,7 @@ export class EmployeeBranchesController {
       await employeeBranchesService.bulkDelete(ids, req.user?.id)
       sendSuccess(res, null, `${ids.length} employee branch assignments deleted`)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -150,7 +150,7 @@ export class EmployeeBranchesController {
       const result = await employeeBranchesService.suspend(id, req.user?.id)
       sendSuccess(res, result, 'Employee branch access suspended')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -160,7 +160,7 @@ export class EmployeeBranchesController {
       const result = await employeeBranchesService.activate(id, req.user?.id)
       sendSuccess(res, result, 'Employee branch access activated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

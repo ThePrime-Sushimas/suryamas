@@ -73,7 +73,7 @@ export class PaymentMethodsController {
       sendSuccess(res, result.data, 'Payment methods retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('LIST', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -103,7 +103,7 @@ export class PaymentMethodsController {
       sendSuccess(res, paymentMethod, 'Payment method created', 201)
     } catch (error) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -123,7 +123,7 @@ export class PaymentMethodsController {
       sendSuccess(res, paymentMethod)
     } catch (error) {
       this.logResponse('GET_BY_ID', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -149,7 +149,7 @@ export class PaymentMethodsController {
       sendSuccess(res, paymentMethod, 'Payment method updated')
     } catch (error) {
       this.logResponse('UPDATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -169,7 +169,7 @@ export class PaymentMethodsController {
       sendSuccess(res, null, 'Payment method deleted')
     } catch (error) {
       this.logResponse('DELETE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -193,7 +193,7 @@ export class PaymentMethodsController {
       await paymentMethodsService.bulkUpdateStatus(ids, is_active, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -216,7 +216,7 @@ export class PaymentMethodsController {
       await paymentMethodsService.bulkDelete(ids, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -238,7 +238,7 @@ export class PaymentMethodsController {
         'payment-methods'
       )
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -248,7 +248,7 @@ export class PaymentMethodsController {
       const options = await paymentMethodsService.getOptions(companyId)
       sendSuccess(res, options, 'Payment method options retrieved')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

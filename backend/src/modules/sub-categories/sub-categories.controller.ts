@@ -31,7 +31,7 @@ export class SubCategoriesController {
       const result = await subCategoriesService.list({ page, limit }, req.sort, categoryId)
       sendSuccess(res, result.data, 'SubCategories retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -42,7 +42,7 @@ export class SubCategoriesController {
       const result = await subCategoriesService.trash({ page, limit }, req.sort)
       sendSuccess(res, result.data, 'Trash retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -54,7 +54,7 @@ export class SubCategoriesController {
       const result = await subCategoriesService.search(q, { page, limit }, req.sort)
       sendSuccess(res, result.data, 'Search completed', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -69,7 +69,7 @@ export class SubCategoriesController {
 
       sendSuccess(res, subCategory, 'SubCategory retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -79,7 +79,7 @@ export class SubCategoriesController {
       const subCategories = await subCategoriesService.getByCategory(categoryId)
       sendSuccess(res, subCategories, 'SubCategories retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -88,7 +88,7 @@ export class SubCategoriesController {
       const subCategory = await subCategoriesService.create(req.validated.body, (req as any).user?.id)
       sendSuccess(res, subCategory, 'SubCategory created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -98,7 +98,7 @@ export class SubCategoriesController {
       const subCategory = await subCategoriesService.update(id, req.validated.body, (req as any).user?.id)
       sendSuccess(res, subCategory, 'SubCategory updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -108,7 +108,7 @@ export class SubCategoriesController {
       await subCategoriesService.delete(id, req.user?.id)
       sendSuccess(res, null, 'SubCategory deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -119,7 +119,7 @@ export class SubCategoriesController {
       const subCategory = await subCategoriesService.getById(id)
       sendSuccess(res, subCategory, 'SubCategory restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -129,7 +129,7 @@ export class SubCategoriesController {
       await subCategoriesService.bulkDelete(ids, (req as any).user?.id)
       sendSuccess(res, null, 'SubCategories deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 }

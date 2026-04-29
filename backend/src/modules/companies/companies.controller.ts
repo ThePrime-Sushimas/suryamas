@@ -24,7 +24,7 @@ export class CompaniesController {
       const result = await companiesService.list({ ...req.pagination, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Companies retrieved', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -35,7 +35,7 @@ export class CompaniesController {
       const result = await companiesService.search(q as string, { ...req.pagination, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Companies retrieved', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -49,7 +49,7 @@ export class CompaniesController {
       })
       sendSuccess(res, company, 'Company created', 201)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -58,7 +58,7 @@ export class CompaniesController {
       const company = await companiesService.getById(getParamString(req.params.id))
       sendSuccess(res, company)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -72,7 +72,7 @@ export class CompaniesController {
       })
       sendSuccess(res, company, 'Company updated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -85,7 +85,7 @@ export class CompaniesController {
       })
       sendSuccess(res, null, 'Company deleted')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -94,7 +94,7 @@ export class CompaniesController {
       const options = await companiesService.getFilterOptions()
       sendSuccess(res, options)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -171,7 +171,7 @@ export class CompaniesController {
       }, 'Export job created', 201)
     } catch (error: any) {
       logError('Failed to create export job', { error: error.message })
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -283,7 +283,7 @@ export class CompaniesController {
       }, 'Import job created', 201)
     } catch (error: any) {
       logError('Failed to create import job', { error: error.message })
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -297,7 +297,7 @@ export class CompaniesController {
       await companiesService.bulkUpdateStatus(ids, status, req.user!.id)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -307,7 +307,7 @@ export class CompaniesController {
       await companiesService.bulkDelete(ids, req.user!.id)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

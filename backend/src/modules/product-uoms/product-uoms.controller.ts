@@ -26,7 +26,7 @@ export class ProductUomsController {
       const uoms = await productUomsService.getByProductId(productId, includeDeleted === 'true')
       sendSuccess(res, uoms, 'UOMs retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -36,7 +36,7 @@ export class ProductUomsController {
       const uom = await productUomsService.create(productId, req.validated.body, (req as any).user?.id)
       sendSuccess(res, uom, 'UOM created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -46,7 +46,7 @@ export class ProductUomsController {
       const uom = await productUomsService.update(uomId, req.validated.body, (req as any).user?.id)
       sendSuccess(res, uom, 'UOM updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -56,7 +56,7 @@ export class ProductUomsController {
       await productUomsService.delete(uomId, req.user?.id)
       sendSuccess(res, null, 'UOM deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -66,7 +66,7 @@ export class ProductUomsController {
       const uom = await productUomsService.restore(uomId, req.user?.id)
       sendSuccess(res, uom, 'UOM restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

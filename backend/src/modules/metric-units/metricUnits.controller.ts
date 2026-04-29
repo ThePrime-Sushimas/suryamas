@@ -24,7 +24,7 @@ export class MetricUnitsController {
       const result = await metricUnitsService.list({ ...req.pagination, offset }, req.sort, filter)
       sendSuccess(res, result.data, 'Success', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -34,7 +34,7 @@ export class MetricUnitsController {
       const result = await metricUnitsService.listActive({ ...req.pagination, offset }, req.sort)
       sendSuccess(res, result.data, 'Success', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -45,7 +45,7 @@ export class MetricUnitsController {
       logInfo('Metric unit retrieved', { id: getParamString(req.params.id), userId: req.user?.id })
       sendSuccess(res, metricUnit)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -56,7 +56,7 @@ export class MetricUnitsController {
       logInfo('Metric unit created', { id: metricUnit.id, userId: req.user?.id })
       sendSuccess(res, metricUnit, 'Created', 201)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -67,7 +67,7 @@ export class MetricUnitsController {
       logInfo('Metric unit updated', { id: params.id, userId: req.user?.id })
       sendSuccess(res, metricUnit, 'Updated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -78,7 +78,7 @@ export class MetricUnitsController {
       logInfo('Metric unit deleted', { id: getParamString(req.params.id), userId: req.user?.id })
       sendSuccess(res, null, 'Deleted')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -89,7 +89,7 @@ export class MetricUnitsController {
       logInfo('Metric unit restored', { id: getParamString(req.params.id), userId: req.user?.id })
       sendSuccess(res, metricUnit, 'Restored')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -100,7 +100,7 @@ export class MetricUnitsController {
       logInfo('Bulk status updated', { count: ids.length, is_active, userId: req.user?.id })
       sendSuccess(res, null, 'Updated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -109,7 +109,7 @@ export class MetricUnitsController {
       const options = metricUnitsService.filterOptions()
       sendSuccess(res, options)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

@@ -35,7 +35,7 @@ export class PaymentTermsController {
 
       sendSuccess(res, result.data, 'Payment terms retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -47,7 +47,7 @@ export class PaymentTermsController {
 
       sendSuccess(res, term, 'Payment term retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -62,7 +62,7 @@ export class PaymentTermsController {
       logInfo('Payment term created via API', { termId: term.id, userId })
       sendSuccess(res, term, 'Payment term created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -78,7 +78,7 @@ export class PaymentTermsController {
       logInfo('Payment term updated via API', { termId: id, userId })
       sendSuccess(res, term, 'Payment term updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -89,7 +89,7 @@ export class PaymentTermsController {
       await paymentTermsService.delete(id, userId)
       sendSuccess(res, null, 'Payment term deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -100,7 +100,7 @@ export class PaymentTermsController {
       const term = await paymentTermsService.restore(id, userId)
       sendSuccess(res, term, 'Payment term restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -109,7 +109,7 @@ export class PaymentTermsController {
       const terms = await paymentTermsService.minimalActive()
       sendSuccess(res, terms, 'Payment terms retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

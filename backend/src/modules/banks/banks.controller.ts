@@ -24,7 +24,7 @@ export class BanksController {
       const bank = await banksService.createBank(req.validated.body, userId)
       sendSuccess(res, bank, 'Bank created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -33,7 +33,7 @@ export class BanksController {
       const result = await banksService.getBanks(req.validated.query)
       sendSuccess(res, result.data, 'Banks retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -43,7 +43,7 @@ export class BanksController {
       const bank = await banksService.getBankById(id)
       sendSuccess(res, bank, 'Bank retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -54,7 +54,7 @@ export class BanksController {
       const bank = await banksService.updateBank(id, req.validated.body, userId)
       sendSuccess(res, bank, 'Bank updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -65,7 +65,7 @@ export class BanksController {
       await banksService.deleteBank(id, userId)
       sendSuccess(res, null, 'Bank deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -74,7 +74,7 @@ export class BanksController {
       const options = await banksService.getBankOptions()
       sendSuccess(res, options, 'Bank options retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

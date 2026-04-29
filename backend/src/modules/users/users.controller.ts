@@ -30,7 +30,7 @@ export class UsersController {
       const users = await this.service.getAllUsers()
       sendSuccess(res, users, 'Users retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -45,7 +45,7 @@ export class UsersController {
 
       sendSuccess(res, user, 'User retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -60,7 +60,7 @@ export class UsersController {
 
       sendSuccess(res, userRole, 'User role retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -70,7 +70,7 @@ export class UsersController {
       const result = await this.service.assignRoleByEmployeeId(params.userId, body.role_id, req.user?.id)
       sendSuccess(res, result, 'Role assigned successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -80,7 +80,7 @@ export class UsersController {
       await this.service.removeRoleByEmployeeId(userId, req.user?.id)
       sendSuccess(res, null, 'Role removed successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

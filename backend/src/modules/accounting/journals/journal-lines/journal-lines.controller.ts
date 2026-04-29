@@ -28,7 +28,7 @@ export class JournalLinesController {
       const lines = await journalLinesService.getByJournalHeaderId(journalId, companyId)
       sendSuccess(res, lines, 'Journal lines retrieved')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -44,7 +44,7 @@ export class JournalLinesController {
       const line = await journalLinesService.getById(id, companyId)
       sendSuccess(res, line, 'Journal line retrieved')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -81,7 +81,7 @@ export class JournalLinesController {
         }
       }, 'Journal lines by account retrieved')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -111,7 +111,7 @@ export class JournalLinesController {
 
       sendSuccess(res, result.data, 'Journal lines retrieved', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

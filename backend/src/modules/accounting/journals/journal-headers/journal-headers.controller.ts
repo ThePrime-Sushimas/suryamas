@@ -39,7 +39,7 @@ export class JournalHeadersController {
       
       sendSuccess(res, result.data, 'Journals retrieved', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -57,7 +57,7 @@ export class JournalHeadersController {
       
       sendSuccess(res, result.data, 'Journals with lines retrieved', 200, result.pagination)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -67,7 +67,7 @@ export class JournalHeadersController {
       const journal = await journalHeadersService.getById(getParamString(req.params.id), companyId)
       sendSuccess(res, journal)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -80,7 +80,7 @@ export class JournalHeadersController {
       )
       sendSuccess(res, result)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -101,7 +101,7 @@ export class JournalHeadersController {
       
       sendSuccess(res, journal, 'Journal created', 201)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -120,7 +120,7 @@ export class JournalHeadersController {
       
       sendSuccess(res, journal, 'Journal updated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -133,7 +133,7 @@ export class JournalHeadersController {
       await journalHeadersService.delete(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal deleted')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -146,7 +146,7 @@ export class JournalHeadersController {
       await journalHeadersService.submit(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal submitted for approval')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -159,7 +159,7 @@ export class JournalHeadersController {
       await journalHeadersService.approve(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal approved')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -178,7 +178,7 @@ export class JournalHeadersController {
       
       sendSuccess(res, null, 'Journal rejected')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -191,7 +191,7 @@ export class JournalHeadersController {
       await journalHeadersService.post(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal posted to ledger')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -215,7 +215,7 @@ export class JournalHeadersController {
       
       sendSuccess(res, reversal, 'Journal reversed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -228,7 +228,7 @@ export class JournalHeadersController {
       await journalHeadersService.restore(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal restored')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -241,7 +241,7 @@ export class JournalHeadersController {
       await journalHeadersService.forceDelete(getParamString(req.params.id), employeeId, companyId)
       sendSuccess(res, null, 'Journal force deleted')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

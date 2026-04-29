@@ -32,7 +32,7 @@ export class RolesController {
       const roles = await this.service.getAll()
       sendSuccess(res, roles, 'Roles retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -47,7 +47,7 @@ export class RolesController {
 
       sendSuccess(res, role, 'Role retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -59,7 +59,7 @@ export class RolesController {
       }, req.user?.id)
       sendSuccess(res, role, 'Role created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -72,7 +72,7 @@ export class RolesController {
       })
       sendSuccess(res, role, 'Role updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -87,7 +87,7 @@ export class RolesController {
 
       sendSuccess(res, null, 'Role deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

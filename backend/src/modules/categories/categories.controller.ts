@@ -34,7 +34,7 @@ export class CategoriesController {
         message: 'Categories retrieved successfully',
       })
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -50,7 +50,7 @@ export class CategoriesController {
         message: 'Trash retrieved successfully',
       })
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -67,7 +67,7 @@ export class CategoriesController {
         message: 'Search completed',
       })
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -77,7 +77,7 @@ export class CategoriesController {
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -86,7 +86,7 @@ export class CategoriesController {
       const category = await categoriesService.create(req.validated.body, req.user?.id)
       sendSuccess(res, category, 'Category created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -96,7 +96,7 @@ export class CategoriesController {
       const category = await categoriesService.update(params.id, body, req.user?.id)
       sendSuccess(res, category, 'Category updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -106,7 +106,7 @@ export class CategoriesController {
       await categoriesService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Category deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -117,7 +117,7 @@ export class CategoriesController {
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -127,7 +127,7 @@ export class CategoriesController {
       await categoriesService.bulkDelete(ids, req.user?.id)
       sendSuccess(res, null, 'Categories deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -137,7 +137,7 @@ export class CategoriesController {
       const category = await categoriesService.updateStatus(params.id, body.is_active, req.user?.id)
       sendSuccess(res, category, 'Category status updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 }

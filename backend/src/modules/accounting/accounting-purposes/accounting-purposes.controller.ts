@@ -95,7 +95,7 @@ export class AccountingPurposesController {
       sendSuccess(res, result.data, 'Accounting purposes retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('LIST', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -128,7 +128,7 @@ export class AccountingPurposesController {
       sendSuccess(res, result.data, 'Accounting purposes retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('SEARCH', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -164,7 +164,7 @@ export class AccountingPurposesController {
       sendSuccess(res, purpose, 'Accounting purpose created', 201)
     } catch (error) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -186,7 +186,7 @@ export class AccountingPurposesController {
       sendSuccess(res, purpose)
     } catch (error) {
       this.logResponse('GET_BY_ID', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -221,7 +221,7 @@ export class AccountingPurposesController {
       sendSuccess(res, purpose, 'Accounting purpose updated')
     } catch (error) {
       this.logResponse('UPDATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -253,7 +253,7 @@ export class AccountingPurposesController {
       sendSuccess(res, null, 'Accounting purpose deleted')
     } catch (error) {
       this.logResponse('DELETE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -268,7 +268,7 @@ export class AccountingPurposesController {
       const options = await accountingPurposesService.getFilterOptions(companyId, correlationId)
       sendSuccess(res, options)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -291,7 +291,7 @@ export class AccountingPurposesController {
         'accounting-purposes'
       )
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -308,7 +308,7 @@ export class AccountingPurposesController {
       
       return handleImportPreview(req, res, (buffer) => accountingPurposesService.previewImport(buffer, correlationId))
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -326,7 +326,7 @@ export class AccountingPurposesController {
         (buffer, skip) => accountingPurposesService.importFromExcel(buffer, skip, companyId, req.user!.id, correlationId)
       )
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -352,7 +352,7 @@ export class AccountingPurposesController {
       await accountingPurposesService.bulkUpdateStatus(ids, is_active, req.user!.id, companyId, correlationId)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -377,7 +377,7 @@ export class AccountingPurposesController {
       await accountingPurposesService.bulkDelete(ids, req.user!.id, companyId, correlationId)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -404,7 +404,7 @@ export class AccountingPurposesController {
       sendSuccess(res, null, 'Accounting purpose restored')
     } catch (error) {
       this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -425,7 +425,7 @@ export class AccountingPurposesController {
       await accountingPurposesService.bulkRestore(ids, req.user!.id, companyId, correlationId)
       sendSuccess(res, null, 'Bulk restore completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

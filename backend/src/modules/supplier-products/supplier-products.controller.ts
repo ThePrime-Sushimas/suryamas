@@ -36,7 +36,7 @@ export class SupplierProductsController {
       
       sendSuccess(res, result.data, 'Supplier products retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -49,7 +49,7 @@ export class SupplierProductsController {
 
       sendSuccess(res, supplierProduct, 'Supplier product retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -61,7 +61,7 @@ export class SupplierProductsController {
       const supplierProducts = await supplierProductsService.findBySupplier(supplierId, includeRelations)
       sendSuccess(res, supplierProducts, 'Supplier products retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -73,7 +73,7 @@ export class SupplierProductsController {
       const supplierProducts = await supplierProductsService.findByProduct(product_id, includeRelations)
       sendSuccess(res, supplierProducts, 'Supplier products retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -95,7 +95,7 @@ export class SupplierProductsController {
       
       sendSuccess(res, supplierProduct, 'Supplier product created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -116,7 +116,7 @@ export class SupplierProductsController {
       
       sendSuccess(res, supplierProduct, 'Supplier product updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -127,7 +127,7 @@ export class SupplierProductsController {
       
       sendSuccess(res, null, 'Supplier product deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -138,7 +138,7 @@ export class SupplierProductsController {
       
       sendSuccess(res, supplierProduct, 'Supplier product restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -149,7 +149,7 @@ export class SupplierProductsController {
       
       sendSuccess(res, null, 'Supplier products restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -160,7 +160,7 @@ export class SupplierProductsController {
       
       sendSuccess(res, null, 'Supplier products deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -169,7 +169,7 @@ export class SupplierProductsController {
       const options = await supplierProductsService.getActiveOptions()
       sendSuccess(res, options, 'Active supplier products retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -202,7 +202,7 @@ export class SupplierProductsController {
       res.setHeader('Content-Disposition', `attachment; filename=supplier-products-${Date.now()}.csv`)
       res.send(csv)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

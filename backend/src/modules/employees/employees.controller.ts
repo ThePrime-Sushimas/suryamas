@@ -26,7 +26,7 @@ export class EmployeesController {
       })
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -35,7 +35,7 @@ export class EmployeesController {
       const result = await employeesService.getUnassigned(req.pagination)
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
   
@@ -45,7 +45,7 @@ export class EmployeesController {
       logInfo('Employee created', { employee_id: employee.employee_id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee created', 201)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -68,7 +68,7 @@ export class EmployeesController {
       
       res.json({ success: true, data: result.data, pagination: result.pagination })
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -77,7 +77,7 @@ export class EmployeesController {
       const options = await employeesService.getFilterOptions()
       sendSuccess(res, options)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -86,7 +86,7 @@ export class EmployeesController {
       const employees = await employeesService.autocomplete(req.query.q as string || '')
       sendSuccess(res, employees)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -95,7 +95,7 @@ export class EmployeesController {
       const employee = await employeesService.getProfile(req.user.id)
       sendSuccess(res, employee)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -105,7 +105,7 @@ export class EmployeesController {
       logInfo('Profile updated', { user: req.user!.id })
       sendSuccess(res, employee, 'Profile updated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -114,7 +114,7 @@ export class EmployeesController {
       const employee = await employeesService.getById(getParamString(req.params.id))
       sendSuccess(res, employee)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -125,7 +125,7 @@ export class EmployeesController {
       logInfo('Employee updated', { id: params.id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee updated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -135,7 +135,7 @@ export class EmployeesController {
       logInfo('Employee deleted', { id: getParamString(req.params.id), user: req.user.id })
       sendSuccess(res, null, 'Employee deleted')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -145,7 +145,7 @@ export class EmployeesController {
       logInfo('Employee restored', { id: getParamString(req.params.id), user: req.user.id })
       sendSuccess(res, null, 'Employee restored')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -157,7 +157,7 @@ export class EmployeesController {
       logInfo('Profile picture uploaded', { url, user: req.user.id })
       sendSuccess(res, { profile_picture: url }, 'Profile picture uploaded')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -221,7 +221,7 @@ export class EmployeesController {
       }, 'Export job created', 201)
     } catch (error: any) {
       logError('Failed to create export job', { error: error.message })
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -307,7 +307,7 @@ export class EmployeesController {
       }, 'Import job created', 201)
     } catch (error: any) {
       logError('Failed to create import job', { error: error.message })
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -322,7 +322,7 @@ export class EmployeesController {
       logInfo('Bulk update active', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees updated')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -334,7 +334,7 @@ export class EmployeesController {
       logInfo('Update active', { id, is_active, user: req.user!.id })
       sendSuccess(res, null, `Employee ${is_active ? 'activated' : 'deactivated'}`)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -345,7 +345,7 @@ export class EmployeesController {
       logInfo('Bulk delete', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees deleted')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -356,7 +356,7 @@ export class EmployeesController {
       logInfo('Bulk restore', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees restored')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

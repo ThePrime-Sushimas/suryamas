@@ -31,7 +31,7 @@ export class TrialBalanceController {
 
       sendSuccess(res, rows, 'Trial balance retrieved', 200)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

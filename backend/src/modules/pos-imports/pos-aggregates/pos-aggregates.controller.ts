@@ -39,7 +39,7 @@ export class PosAggregatesController {
       const transaction = await posAggregatesService.createTransaction(req.validated.body as any)
       sendSuccess(res, transaction, 'Aggregated transaction created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -55,7 +55,7 @@ export class PosAggregatesController {
       )
       sendSuccess(res, result.data, 'Aggregated transactions retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -69,7 +69,7 @@ export class PosAggregatesController {
       const transaction = await posAggregatesService.getTransactionById(id)
       sendSuccess(res, transaction, 'Aggregated transaction retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -87,7 +87,7 @@ export class PosAggregatesController {
       )
       sendSuccess(res, transaction, 'Aggregated transaction updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -102,7 +102,7 @@ export class PosAggregatesController {
       await posAggregatesService.deleteTransaction(id, employeeId)
       sendSuccess(res, null, 'Aggregated transaction deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -116,7 +116,7 @@ export class PosAggregatesController {
       await posAggregatesService.restoreTransaction(id)
       sendSuccess(res, null, 'Aggregated transaction restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -135,7 +135,7 @@ export class PosAggregatesController {
       await posAggregatesService.reconcileTransaction(id, reconciledBy, reason)
       sendSuccess(res, null, 'Transaction reconciled successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -149,7 +149,7 @@ export class PosAggregatesController {
       const count = await posAggregatesService.reconcileBatch(transaction_ids, reconciled_by)
       sendSuccess(res, { reconciled_count: count }, `${count} transactions reconciled successfully`)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -167,7 +167,7 @@ export class PosAggregatesController {
         failed_count: result.failed.length
       })
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -184,7 +184,7 @@ export class PosAggregatesController {
         skipped: result.skipped
       })
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -240,7 +240,7 @@ export class PosAggregatesController {
       )
       sendSuccess(res, summary, 'Summary retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -257,7 +257,7 @@ export class PosAggregatesController {
       await posAggregatesService.assignJournal(id, journal_id)
       sendSuccess(res, null, 'Journal assigned successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -275,7 +275,7 @@ export class PosAggregatesController {
       )
       sendSuccess(res, { exists }, 'Source check completed')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -294,7 +294,7 @@ export class PosAggregatesController {
       )
       sendSuccess(res, transactions, 'Unreconciled transactions retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -310,7 +310,7 @@ export class PosAggregatesController {
       )
       sendSuccess(res, result.data, 'Failed transactions retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -324,7 +324,7 @@ export class PosAggregatesController {
       const transaction = await posAggregatesService.getFailedTransactionById(id)
       sendSuccess(res, transaction, 'Failed transaction retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -338,7 +338,7 @@ export class PosAggregatesController {
       const transaction = await posAggregatesService.fixFailedTransaction(id, req.validated.body)
       sendSuccess(res, transaction, 'Failed transaction fixed successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -358,7 +358,7 @@ export class PosAggregatesController {
         failed_count: result.failed.length
       })
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -373,7 +373,7 @@ export class PosAggregatesController {
       await posAggregatesService.deleteFailedTransaction(id, employeeId)
       sendSuccess(res, null, 'Failed transaction deleted permanently')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -389,7 +389,7 @@ export class PosAggregatesController {
       )
       sendSuccess(res, result, `Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 }

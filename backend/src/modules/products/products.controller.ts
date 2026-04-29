@@ -48,7 +48,7 @@ export class ProductsController {
       
       sendSuccess(res, result.data, 'Products retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -69,7 +69,7 @@ export class ProductsController {
       
       sendSuccess(res, result.data, 'Search completed', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -80,7 +80,7 @@ export class ProductsController {
       const product = await productsService.findById(params.id, includeDeleted)
       sendSuccess(res, product, 'Product retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -101,7 +101,7 @@ export class ProductsController {
       })
       sendSuccess(res, product, 'Product created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -119,7 +119,7 @@ export class ProductsController {
       })
       sendSuccess(res, product, 'Product updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -129,7 +129,7 @@ export class ProductsController {
       await productsService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Product deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -139,7 +139,7 @@ export class ProductsController {
       await productsService.bulkDelete(ids, (req as any).user?.id)
       sendSuccess(res, null, 'Products deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -149,7 +149,7 @@ export class ProductsController {
       await productsService.bulkUpdateStatus(ids, status as ProductStatus, (req as any).user?.id)
       sendSuccess(res, null, 'Status updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -158,7 +158,7 @@ export class ProductsController {
       const options = await productsService.getFilterOptions()
       sendSuccess(res, options, 'Filter options retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -167,7 +167,7 @@ export class ProductsController {
       const products = await productsService.minimalActive()
       sendSuccess(res, products, 'Products retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -180,7 +180,7 @@ export class ProductsController {
       )
       sendSuccess(res, { exists }, 'Check completed')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -190,7 +190,7 @@ export class ProductsController {
       const product = await productsService.restore(params.id, (req as any).user?.id)
       sendSuccess(res, product, 'Product restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -200,7 +200,7 @@ export class ProductsController {
       await productsService.bulkRestore(ids, (req as any).user?.id)
       sendSuccess(res, null, 'Products restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -215,7 +215,7 @@ export class ProductsController {
       res.setHeader('Content-Disposition', 'attachment; filename=products.xlsx')
       res.send(buffer)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -284,7 +284,7 @@ export class ProductsController {
       }, 'Export job created', 201)
     } catch (error: any) {
       logError('Failed to create export job', { error: error.message })
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -301,7 +301,7 @@ export class ProductsController {
       const preview = await productsImportService.preview(req.file.buffer)
       sendSuccess(res, preview, 'Import preview generated')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -314,7 +314,7 @@ export class ProductsController {
       const result = await productsImportService.import(req.file.buffer, req.user?.id)
       sendSuccess(res, result, 'Import completed')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -415,7 +415,7 @@ export class ProductsController {
       }, 'Import job created', 201)
     } catch (error: any) {
       logError('Failed to create import job', { error: error.message })
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

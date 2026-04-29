@@ -28,7 +28,7 @@ export class PricelistsController {
       const pricelist = await pricelistsService.createPricelist(body, userId)
       sendSuccess(res, pricelist, 'Pricelist created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -38,7 +38,7 @@ export class PricelistsController {
       const result = await pricelistsService.getPricelists(query)
       sendSuccess(res, result.data, 'Pricelists retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -48,7 +48,7 @@ export class PricelistsController {
       const pricelist = await pricelistsService.getPricelistById(params.id)
       sendSuccess(res, pricelist, 'Pricelist retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -59,7 +59,7 @@ export class PricelistsController {
       const pricelist = await pricelistsService.updatePricelist(params.id, body, userId)
       sendSuccess(res, pricelist, 'Pricelist updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -70,7 +70,7 @@ export class PricelistsController {
       await pricelistsService.deletePricelist(params.id, userId)
       sendSuccess(res, null, 'Pricelist deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -81,7 +81,7 @@ export class PricelistsController {
       const pricelist = await pricelistsService.approvePricelist(params.id, body, userId)
       sendSuccess(res, pricelist, `Pricelist ${body.status.toLowerCase()} successfully`)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -92,7 +92,7 @@ export class PricelistsController {
       const pricelist = await pricelistsService.restorePricelist(params.id, userId)
       sendSuccess(res, pricelist, 'Pricelist restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -106,7 +106,7 @@ export class PricelistsController {
       }
       sendSuccess(res, pricelist, 'Price found successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 }

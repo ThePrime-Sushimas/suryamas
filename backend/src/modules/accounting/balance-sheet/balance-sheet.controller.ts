@@ -31,7 +31,7 @@ export class BalanceSheetController {
 
       sendSuccess(res, result, 'Balance sheet retrieved', 200)
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }

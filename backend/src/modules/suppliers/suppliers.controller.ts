@@ -29,7 +29,7 @@ export class SuppliersController {
       }, userId)
       sendSuccess(res, supplier, 'Supplier created successfully', 201)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -42,7 +42,7 @@ export class SuppliersController {
       } as SupplierListQuery)
       sendSuccess(res, result.data, 'Suppliers retrieved successfully', 200, result.pagination)
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -52,7 +52,7 @@ export class SuppliersController {
       const supplier = await suppliersService.getSupplierById(params.id)
       sendSuccess(res, supplier, 'Supplier retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -66,7 +66,7 @@ export class SuppliersController {
       }, userId)
       sendSuccess(res, supplier, 'Supplier updated successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -77,7 +77,7 @@ export class SuppliersController {
       await suppliersService.deleteSupplier(params.id, userId)
       sendSuccess(res, null, 'Supplier deleted successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 
@@ -86,7 +86,7 @@ export class SuppliersController {
       const options = await suppliersService.getSupplierOptions()
       sendSuccess(res, options, 'Supplier options retrieved successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -97,7 +97,7 @@ export class SuppliersController {
       const supplier = await suppliersService.restoreSupplier(params.id, userId)
       sendSuccess(res, supplier, 'Supplier restored successfully')
     } catch (error: any) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   })
 }

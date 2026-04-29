@@ -84,7 +84,7 @@ export class FiscalPeriodsController {
       sendSuccess(res, result.data, 'Fiscal periods retrieved', 200, result.pagination)
     } catch (error) {
       this.logResponse('LIST', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -118,7 +118,7 @@ export class FiscalPeriodsController {
       sendSuccess(res, period, 'Fiscal period created', 201)
     } catch (error) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -140,7 +140,7 @@ export class FiscalPeriodsController {
       sendSuccess(res, period)
     } catch (error) {
       this.logResponse('GET_BY_ID', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -170,7 +170,7 @@ export class FiscalPeriodsController {
       sendSuccess(res, period, 'Fiscal period updated')
     } catch (error) {
       this.logResponse('UPDATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -207,7 +207,7 @@ export class FiscalPeriodsController {
       sendSuccess(res, period, 'Fiscal period closed')
     } catch (error) {
       this.logResponse('CLOSE_PERIOD', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -239,7 +239,7 @@ export class FiscalPeriodsController {
       sendSuccess(res, null, 'Fiscal period deleted')
     } catch (error) {
       this.logResponse('DELETE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -264,7 +264,7 @@ export class FiscalPeriodsController {
       await fiscalPeriodsService.bulkDelete(ids, req.user!.id, companyId, correlationId)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -291,7 +291,7 @@ export class FiscalPeriodsController {
       sendSuccess(res, null, 'Fiscal period restored')
     } catch (error) {
       this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -312,7 +312,7 @@ export class FiscalPeriodsController {
       await fiscalPeriodsService.bulkRestore(ids, req.user!.id, companyId, correlationId)
       sendSuccess(res, null, 'Bulk restore completed')
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 
@@ -335,7 +335,7 @@ export class FiscalPeriodsController {
         'fiscal-periods'
       )
     } catch (error) {
-      handleError(res, error)
+      handleError(res, error, req)
     }
   }
 }
