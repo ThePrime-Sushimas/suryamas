@@ -346,6 +346,11 @@ const IncomeStatementPage = lazy(() =>
     default: m.IncomeStatementPage,
   }))
 );
+const BalanceSheetPage = lazy(() =>
+  import("./features/accounting/balance-sheet").then((m) => ({
+    default: m.BalanceSheetPage,
+  }))
+);
 const PosAggregatesPage = lazy(() =>
   import("./features/pos-aggregates").then((m) => ({
     default: m.PosAggregatesPage,
@@ -1262,6 +1267,16 @@ function App() {
                       <RequirePermission module="income_statement">
                         <Suspense fallback={<LoadingFallback />}>
                           <IncomeStatementPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="accounting/balance-sheet"
+                    element={
+                      <RequirePermission module="balance_sheet">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <BalanceSheetPage />
                         </Suspense>
                       </RequirePermission>
                     }

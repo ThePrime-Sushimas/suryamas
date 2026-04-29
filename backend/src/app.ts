@@ -32,6 +32,7 @@ import journalHeadersRoutes from "./modules/accounting/journals/journal-headers/
 import journalLinesRoutes from "./modules/accounting/journals/journal-lines/journal-lines.routes";
 import trialBalanceRoutes from "./modules/accounting/trial-balance/trial-balance.routes";
 import incomeStatementRoutes from "./modules/accounting/income-statement/income-statement.routes";
+import balanceSheetRoutes from "./modules/accounting/balance-sheet/balance-sheet.routes";
 import posImportsRoutes from "./modules/pos-imports/pos-imports/pos-imports.routes";
 import posAggregatesRoutes from "./modules/pos-imports/pos-aggregates/pos-aggregates.routes";
 import posTransactionsRoutes from "./modules/pos-imports/pos-transactions/pos-transactions.routes";
@@ -116,6 +117,7 @@ app.use("/api/v1/accounting/journals", journalHeadersRoutes);
 app.use("/api/v1/accounting/journal-lines", journalLinesRoutes);
 app.use("/api/v1/accounting/trial-balance", trialBalanceRoutes);
 app.use("/api/v1/accounting/income-statement", incomeStatementRoutes);
+app.use("/api/v1/accounting/balance-sheet", balanceSheetRoutes);
 app.use("/api/v1/pos-sync", posSyncRoutes);
 app.use("/api/v1/pos-sync-aggregates", posSyncAggregatesRoutes);
 app.use("/api/v1/pos-imports", posImportsRoutes);

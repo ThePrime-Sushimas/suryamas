@@ -3,6 +3,7 @@ import { Download, AlertCircle, Search, TrendingUp, TrendingDown, ArrowUpDown } 
 import { useIncomeStatement } from '../api/incomeStatement.api'
 import { useIncomeStatementStore } from '../store/incomeStatement.store'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
+import { escapeCsv } from '@/utils/csv.utils'
 import type { IncomeStatementRow } from '../types/income-statement.types'
 
 const BASE_COLS = 5
@@ -97,8 +98,8 @@ function exportCsv(rows: IncomeStatementRow[], dateFrom: string, dateTo: string,
     ...(hasCompare ? ['Compare Amount', 'Change %'] : [])].join(';')
   const lines = rows.map((r, i) => {
     const amt = rowAmount(r)
-    const base = [i + 1, r.account_type, r.group_label || '', r.account_code, `"${r.account_name}"`,
-      `"${r.branch_name ?? 'All'}"`, amt]
+    const base = [i + 1, r.account_type, r.group_label || '', r.account_code, escapeCsv(r.account_name),
+      escapeCsv(r.branch_name ?? 'All'), amt]
     if (hasCompare) {
       const cAmt = compareRowAmount(r)
       const pct = pctChange(amt, cAmt)
@@ -277,7 +278,7 @@ export default function IncomeStatementPage() {
       ) : isError ? (
         <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl p-12 text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 dark:text-red-400">{error instanceof Error ? error.message : 'Error'}</p>
+          <p className="text-red-600 dark:text-red-400">{error instanceof Error && error.message.includes('400') ? error.message : 'Terjadi kesalahan. Silakan coba lagi.'}</p>
         </div>
       ) : data && data.rows.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">

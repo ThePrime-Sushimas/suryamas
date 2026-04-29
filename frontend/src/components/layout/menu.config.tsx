@@ -217,6 +217,13 @@ export const menuItems: MenuItem[] = [
             module: "income_statement",
           },
           {
+            id: "balance-sheet",
+            name: "Neraca",
+            href: "/accounting/balance-sheet",
+            icon: <Scale size={16} />,
+            module: "balance_sheet",
+          },
+          {
             id: "fee_discrepancy-review",
             name: "Fee Discrepancy Review",
             href: "bank-reconciliation/fee-discrepancy-review",
