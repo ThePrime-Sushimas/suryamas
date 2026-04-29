@@ -16,7 +16,8 @@ import {
   Shield,
   Activity,
   Coins,
-  Scale
+  Scale,
+  TrendingUp
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -206,7 +207,14 @@ export const menuItems: MenuItem[] = [
             name: "Neraca Saldo",
             href: "/accounting/trial-balance",
             icon: <Scale size={16} />,
-            module: "journals",  // reuse journals permission
+            module: "trial_balance",
+          },
+          {
+            id: "income-statement",
+            name: "Laba Rugi",
+            href: "/accounting/income-statement",
+            icon: <TrendingUp size={16} />,
+            module: "income_statement",
           },
           {
             id: "fee_discrepancy-review",

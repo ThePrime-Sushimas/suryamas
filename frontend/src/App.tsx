@@ -341,6 +341,11 @@ const TrialBalancePage = lazy(() =>
     default: m.TrialBalancePage,
   }))
 );
+const IncomeStatementPage = lazy(() =>
+  import("./features/accounting/income-statement").then((m) => ({
+    default: m.IncomeStatementPage,
+  }))
+);
 const PosAggregatesPage = lazy(() =>
   import("./features/pos-aggregates").then((m) => ({
     default: m.PosAggregatesPage,
@@ -1244,9 +1249,19 @@ function App() {
                   <Route
                     path="accounting/trial-balance"
                     element={
-                      <RequirePermission module="journals">
+                      <RequirePermission module="trial_balance">
                         <Suspense fallback={<LoadingFallback />}>
                           <TrialBalancePage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="accounting/income-statement"
+                    element={
+                      <RequirePermission module="income_statement">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <IncomeStatementPage />
                         </Suspense>
                       </RequirePermission>
                     }

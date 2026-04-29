@@ -17,7 +17,7 @@ router.use(authenticate, resolveBranchContext)
  */
 router.get(
   '/',
-  canView('journals'),
+  canView('trial_balance'),
   validateSchema(trialBalanceQuerySchema),
   (req, res) => trialBalanceController.get(req as any, res)
 )
