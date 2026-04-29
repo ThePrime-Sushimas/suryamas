@@ -4,6 +4,7 @@ import {
   ArrowLeft, Edit, Clock, XCircle, AlertCircle, 
   Calendar, FileText, Banknote, Building2, Tag
 } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderForm } from '../components/JournalHeaderForm'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
@@ -15,6 +16,7 @@ import { JournalTypeBadge } from '../components/JournalTypeBadge'
 export function JournalHeaderEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const toast = useToast()
   const permissions = useJournalPermissions()
   const { selectedJournal, loading, fetchJournalById, updateJournal } = useJournalHeadersStore()
 
@@ -26,10 +28,15 @@ export function JournalHeaderEditPage() {
 
   const handleSubmit = useCallback(async (dto: UpdateJournalDto) => {
     if (id) {
-      await updateJournal(id, dto)
-      navigate('/accounting/journals')
+      try {
+        await updateJournal(id, dto)
+        toast.success('Jurnal berhasil diupdate')
+        navigate('/accounting/journals')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Gagal mengupdate jurnal')
+      }
     }
-  }, [id, updateJournal, navigate])
+  }, [id, updateJournal, navigate, toast])
 
   const handleCancel = useCallback(() => {
     navigate('/accounting/journals')

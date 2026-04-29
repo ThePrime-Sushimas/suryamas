@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '@/contexts/ToastContext'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
 import { FiscalPeriodFilters } from '../components/FiscalPeriodFilters'
 import { FiscalPeriodTable } from '../components/FiscalPeriodTable'
@@ -9,6 +10,7 @@ import type { FiscalPeriodWithDetails } from '../types/fiscal-period.types'
 
 export function FiscalPeriodsListPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const {
     periods,
     loading,
@@ -46,7 +48,12 @@ export function FiscalPeriodsListPage() {
 
   const handleDeleteConfirm = async () => {
     if (confirmModal.periodId) {
-      await deletePeriod(confirmModal.periodId)
+      try {
+        await deletePeriod(confirmModal.periodId)
+        toast.success('Fiscal period berhasil dihapus')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Gagal menghapus fiscal period')
+      }
     }
     setConfirmModal({ isOpen: false, periodId: null })
   }
@@ -56,11 +63,21 @@ export function FiscalPeriodsListPage() {
   }
 
   const handleRestore = async (id: string) => {
-    await restorePeriod(id)
+    try {
+      await restorePeriod(id)
+      toast.success('Fiscal period berhasil direstore')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal merestore fiscal period')
+    }
   }
 
   const handleExport = async () => {
-    await exportPeriods()
+    try {
+      await exportPeriods()
+      toast.success('Export berhasil')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal export')
+    }
   }
 
   const handlePageChange = (newPage: number) => {

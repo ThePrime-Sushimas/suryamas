@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useToast } from '@/contexts/ToastContext'
 import { usersApi } from '@/features/users'
 import type { User } from '@/features/users'
 import { permissionsApi } from '@/features/permissions'
@@ -10,6 +11,7 @@ const inputCls = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 r
 export default function UserEditPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const toast = useToast()
   const [user, setUser] = useState<User | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRole, setSelectedRole] = useState('')
@@ -41,9 +43,12 @@ export default function UserEditPage() {
     setError(null)
     try {
       await usersApi.assignRole(id, selectedRole)
+      toast.success('Role berhasil diupdate')
       navigate('/users')
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Failed to update role')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update role'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }

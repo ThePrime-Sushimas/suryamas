@@ -11,6 +11,7 @@ import {
   CreditCard,
   Building,
 } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 import { useSettlementGroup, useDeleteSettlementGroup } from '../hooks/useSettlementGroups';
 import { SettlementStatusBadge } from '../components/SettlementStatusBadge';
 import { DifferenceIndicator } from '../components/DifferenceIndicator';
@@ -63,6 +64,7 @@ function StatusHeader({ status }: { status: string | undefined }) {
 export default function SettlementGroupDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const { data: sg, isLoading, error } = useSettlementGroup(id || '');
   const deleteMutation = useDeleteSettlementGroup();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -73,9 +75,10 @@ export default function SettlementGroupDetailPage() {
     if (!id) return;
     try {
       await deleteMutation.mutateAsync(id);
+      toast.success('Settlement group berhasil dihapus');
       navigate('/bank-reconciliation/settlement-groups');
     } catch (err) {
-      console.error('Error deleting settlement group:', err);
+      toast.error(err instanceof Error ? err.message : 'Gagal menghapus settlement group');
     } finally {
       setShowDeleteModal(false);
     }

@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '@/contexts/ToastContext'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
 import { FiscalPeriodTable } from '../components/FiscalPeriodTable'
 import { Pagination } from '@/components/ui/Pagination'
 
 export function FiscalPeriodsDeletedPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const { periods, loading, pagination, fetchPeriods, restorePeriod, setFilters, setPage, setLimit } = useFiscalPeriodsStore()
 
   useEffect(() => {
@@ -56,7 +58,14 @@ export function FiscalPeriodsDeletedPage() {
               periods={deletedPeriods}
               onEdit={() => {}}
               onDelete={() => {}}
-              onRestore={restorePeriod}
+              onRestore={async (id: string) => {
+                try {
+                  await restorePeriod(id)
+                  toast.success('Fiscal period berhasil direstore')
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Gagal merestore')
+                }
+              }}
               onRefresh={fetchPeriods}
               canUpdate={true}
               canDelete={false}

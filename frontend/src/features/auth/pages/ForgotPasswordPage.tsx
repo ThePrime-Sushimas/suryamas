@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '@/lib/axios'
+import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 
 export default function ForgotPasswordPage() {
@@ -8,6 +9,7 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const toast = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -16,8 +18,11 @@ export default function ForgotPasswordPage() {
     try {
       await api.post('/auth/forgot-password', { email })
       setSuccess(true)
+      toast.success('Email reset password berhasil dikirim')
     } catch (err) {
-      setError(parseApiError(err, 'Failed to send reset email'))
+      const msg = parseApiError(err, 'Failed to send reset email')
+      setError(msg)
+      toast.error(msg)
     } finally {
       setIsLoading(false)
     }

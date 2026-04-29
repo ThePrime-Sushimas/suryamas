@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowUpDown, Trash2 } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
@@ -12,6 +13,7 @@ import { GenerateBankRecJournalsButton } from '../components/GenerateBankRecJour
 
 export function JournalHeadersListPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const permissions = useJournalPermissions()
   const {
     journals,
@@ -47,7 +49,12 @@ export function JournalHeadersListPage() {
 
   const handleConfirmDelete = async () => {
     if (deleteConfirm.id) {
-      await deleteJournal(deleteConfirm.id)
+      try {
+        await deleteJournal(deleteConfirm.id)
+        toast.success('Jurnal berhasil dihapus')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Gagal menghapus jurnal')
+      }
     }
     setDeleteConfirm({ isOpen: false, id: null })
   }

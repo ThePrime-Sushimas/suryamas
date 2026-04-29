@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useToast } from '@/contexts/ToastContext'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
 import { FiscalPeriodForm } from '../components/FiscalPeriodForm'
 import type { UpdateFiscalPeriodDto } from '../types/fiscal-period.types'
@@ -7,6 +8,7 @@ import type { UpdateFiscalPeriodDto } from '../types/fiscal-period.types'
 export function FiscalPeriodEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const toast = useToast()
   const { selectedPeriod, loading, error, fetchPeriodById, updatePeriod } = useFiscalPeriodsStore()
 
   // Fetch period data when id changes
@@ -19,9 +21,14 @@ export function FiscalPeriodEditPage() {
 
   const handleSubmit = useCallback(async (dto: UpdateFiscalPeriodDto) => {
     if (!id) return
-    await updatePeriod(id, dto)
-    navigate('/accounting/fiscal-periods')
-  }, [id, updatePeriod, navigate])
+    try {
+      await updatePeriod(id, dto)
+      toast.success('Fiscal period berhasil diupdate')
+      navigate('/accounting/fiscal-periods')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal mengupdate fiscal period')
+    }
+  }, [id, updatePeriod, navigate, toast])
 
   const handleCancel = useCallback(() => {
     navigate('/accounting/fiscal-periods')

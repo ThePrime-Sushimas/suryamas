@@ -1,24 +1,24 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '@/contexts/ToastContext'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
 import { FiscalPeriodForm } from '../components/FiscalPeriodForm'
 import type { CreateFiscalPeriodDto } from '../types/fiscal-period.types'
 
 export function FiscalPeriodFormPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const { createPeriod } = useFiscalPeriodsStore()
 
   const handleSubmit = useCallback(async (dto: CreateFiscalPeriodDto) => {
     try {
       await createPeriod(dto)
+      toast.success('Fiscal period berhasil dibuat')
       navigate('/accounting/fiscal-periods')
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('network')) {
-        throw new Error('Network error. Please check your connection and try again.')
-      }
-      throw error
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal membuat fiscal period')
     }
-  }, [createPeriod, navigate])
+  }, [createPeriod, navigate, toast])
 
   const handleCancel = useCallback(() => {
     navigate('/accounting/fiscal-periods')

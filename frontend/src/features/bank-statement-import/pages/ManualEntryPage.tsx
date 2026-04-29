@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useToast } from '@/contexts/ToastContext'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
 import { bankAccountsApi } from '../../bank-accounts/api/bankAccounts.api'
 import { useBranchContextStore } from '../../branch_context'
@@ -91,8 +92,7 @@ export function ManualEntryPanel() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const globalToast = useToast()
 
   useEffect(() => {
     if (!companyId) return
@@ -151,12 +151,6 @@ export function ManualEntryPanel() {
       })
     }
   }, [bankAccountId, fetchEntries])
-
-  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-    if (toastTimer.current) clearTimeout(toastTimer.current)
-    setToast({ message, type })
-    toastTimer.current = setTimeout(() => setToast(null), 2500)
-  }, [])
 
   const toggleMonth = (m: string) => {
     setExpanded(prev => prev === m ? null : m)
@@ -226,12 +220,12 @@ export function ManualEntryPanel() {
         await bankStatementImportApi.manualBulkEntry({ bank_account_id: Number(bankAccountId), entries })
       }
 
-      showToast(`${entries.length} entry disimpan`)
+      globalToast.success(`${entries.length} entry disimpan`)
       setDrafts(prev => ({ ...prev, [month]: [] }))
       await fetchEntries(bankAccountId)
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } }
-      showToast(axiosErr?.response?.data?.error || 'Gagal menyimpan', 'error')
+      globalToast.error(axiosErr?.response?.data?.error || 'Gagal menyimpan')
     } finally {
       setSaving(false)
     }
@@ -246,7 +240,7 @@ export function ManualEntryPanel() {
       } else {
         await bankStatementImportApi.hardDeleteBulkStatements(ids)
       }
-      showToast(`${ids.length} entry dihapus`)
+      globalToast.success(`${ids.length} entry dihapus`)
       setSelected(new Set())
       const data = await fetchEntries(bankAccountId)
       if (data && expanded && !data.find(g => g.month === expanded)) {
@@ -254,7 +248,7 @@ export function ManualEntryPanel() {
       }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } }
-      showToast(axiosErr?.response?.data?.error || 'Gagal menghapus', 'error')
+      globalToast.error(axiosErr?.response?.data?.error || 'Gagal menghapus')
     } finally {
       setDeleting(false)
     }
@@ -478,11 +472,6 @@ export function ManualEntryPanel() {
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg text-[13px] text-white shadow-lg ${toast.type === 'success' ? 'bg-gray-900 dark:bg-gray-100 dark:text-gray-900' : 'bg-red-600'}`}>
-          {toast.message}
-        </div>
-      )}
     </div>
   )
 }

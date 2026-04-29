@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useBranchContext } from '@/features/branch_context'
+import { useToast } from '@/contexts/ToastContext'
 import { useAccountingPurposesStore } from '../store/accountingPurposes.store'
 import { AccountingPurposeForm } from '../components/AccountingPurposeForm'
 import type { CreateAccountingPurposeDto, UpdateAccountingPurposeDto, AccountingPurpose } from '../types/accounting-purpose.types'
@@ -21,6 +22,7 @@ export const AccountingPurposeFormPage = ({
   onSuccess
 }: AccountingPurposeFormPageProps) => {
   const currentBranch = useBranchContext()
+  const toast = useToast()
   const { createPurpose, updatePurpose, loading, error, clearError } = useAccountingPurposesStore()
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -42,14 +44,17 @@ export const AccountingPurposeFormPage = ({
 
       if (isEdit && purposeId) {
         await updatePurpose(purposeId, data as UpdateAccountingPurposeDto)
+        toast.success('Accounting purpose berhasil diupdate')
       } else {
         await createPurpose(data as CreateAccountingPurposeDto)
+        toast.success('Accounting purpose berhasil dibuat')
       }
       
       onSuccess()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Operation failed'
       setSubmitError(message)
+      toast.error(message)
     }
   }
 

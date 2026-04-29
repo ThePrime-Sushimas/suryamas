@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, BookOpen, FileText } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
 import { useJournalHeadersStore } from '../store/journalHeaders.store'
 import { JournalHeaderForm } from '../components/JournalHeaderForm'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
@@ -16,6 +17,7 @@ import type { CreateJournalDto, UpdateJournalDto } from '../types/journal-header
 
 export function JournalHeaderFormPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const permissions = useJournalPermissions()
   const { createJournal } = useJournalHeadersStore()
   // const [showTemplates, setShowTemplates] = useState(false)
@@ -47,9 +49,14 @@ export function JournalHeaderFormPage() {
   // ]
 
   const handleSubmit = useCallback(async (dto: CreateJournalDto | UpdateJournalDto) => {
-    await createJournal(dto as CreateJournalDto)
-    navigate('/accounting/journals')
-  }, [createJournal, navigate])
+    try {
+      await createJournal(dto as CreateJournalDto)
+      toast.success('Jurnal berhasil dibuat')
+      navigate('/accounting/journals')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal membuat jurnal')
+    }
+  }, [createJournal, navigate, toast])
 
   const handleCancel = useCallback(() => {
     navigate('/accounting/journals')

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useBranchContext } from '@/features/branch_context'
+import { useToast } from '@/contexts/ToastContext'
 import { AccountingPurposesListPage } from './AccountingPurposesListPage'
 import { AccountingPurposeFormPage } from './AccountingPurposeFormPage'
 import { AccountingPurposeDetailPage } from './AccountingPurposeDetailPage'
@@ -19,6 +20,7 @@ export const AccountingPurposesPage = () => {
   const [selectedPurpose, setSelectedPurpose] = useState<AccountingPurpose | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null })
   const [restoreConfirm, setRestoreConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null })
+  const toast = useToast()
   const { deletePurpose, restorePurpose, fetchPurposeById } = useAccountingPurposesStore()
   
   // Handle URL parameter for direct access to detail page
@@ -59,8 +61,8 @@ export const AccountingPurposesPage = () => {
       setSelectedPurposeId(id)
       setSelectedPurpose(purpose)
       setCurrentView('edit')
-    } catch (error) {
-      console.error('Failed to fetch purpose for editing:', error)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal memuat data')
     }
   }
 
@@ -72,11 +74,12 @@ export const AccountingPurposesPage = () => {
     if (!deleteConfirm.id) return
     try {
       await deletePurpose(deleteConfirm.id)
+      toast.success('Accounting purpose berhasil dihapus')
       setDeleteConfirm({ open: false, id: null })
       setCurrentView('list')
       navigate('/accounting-purposes')
-    } catch (error) {
-      console.error('Failed to delete purpose:', error)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal menghapus accounting purpose')
     }
   }
 
@@ -88,11 +91,12 @@ export const AccountingPurposesPage = () => {
     if (!restoreConfirm.id) return
     try {
       await restorePurpose(restoreConfirm.id)
+      toast.success('Accounting purpose berhasil direstore')
       setRestoreConfirm({ open: false, id: null })
       setCurrentView('list')
       navigate('/accounting-purposes')
-    } catch (error) {
-      console.error('Failed to restore purpose:', error)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal merestore accounting purpose')
     }
   }
 
