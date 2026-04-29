@@ -55,7 +55,7 @@ setErrorToast((message: string) => {
 // Request interceptor - add auth token and branch context
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    const token = localStorage.getItem('token')
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -141,7 +141,7 @@ api.interceptors.response.use(
             }
           } catch (refreshError) {
             localStorage.removeItem('token')
-            sessionStorage.removeItem('token')
+            localStorage.removeItem('remember')
             localStorage.removeItem('refreshToken')
             
             // Show toast and redirect

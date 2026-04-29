@@ -30,7 +30,7 @@ let _checkAuthPromise: Promise<void> | null = null
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  token: localStorage.getItem('token') || sessionStorage.getItem('token'),
+  token: localStorage.getItem('token'),
   isLoading: false,
   isInitialized: false,
 
@@ -41,11 +41,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         email,
         password,
       })
-      const storage = remember ? localStorage : sessionStorage
-      storage.setItem('token', data.data.access_token)
-      // Clear the other storage
-      if (remember) sessionStorage.removeItem('token')
-      else localStorage.removeItem('token')
+      // Always use localStorage so token works across tabs
+      // "remember" controls whether we also set a flag to persist after browser close
+      localStorage.setItem('token', data.data.access_token)
+      if (remember) localStorage.setItem('remember', 'true')
+      else localStorage.removeItem('remember')
       set({ token: data.data.access_token })
       
       // Fetch full profile data
@@ -69,7 +69,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await api.post('/auth/logout')
     } finally {
       localStorage.removeItem('token')
-      sessionStorage.removeItem('token')
+      localStorage.removeItem('remember')
       set({ user: null, token: null })
       
       // Clear branch context and permissions
@@ -84,7 +84,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Dedup: reuse in-flight promise (React StrictMode double-mount)
     if (_checkAuthPromise) return _checkAuthPromise
     _checkAuthPromise = (async () => {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+      const token = localStorage.getItem('token')
       if (!token) {
         set({ user: null, token: null, isInitialized: true })
         return
@@ -94,7 +94,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: data.data, token, isInitialized: true })
       } catch {
         localStorage.removeItem('token')
-        sessionStorage.removeItem('token')
+        localStorage.removeItem('remember')
         set({ user: null, token: null, isInitialized: true })
       } finally {
         _checkAuthPromise = null
