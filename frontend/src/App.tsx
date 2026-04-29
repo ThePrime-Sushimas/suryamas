@@ -10,10 +10,10 @@ import { ToastProvider } from "./contexts/ToastContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RequirePermission } from "./components/RequirePermission";
 import Layout from "./components/layout/Layout";
-import LoginPage from "./pages/auth/LoginPage";
-import RegisterPage from "./pages/auth/RegisterPage";
-import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
+import LoginPage from "./features/auth/pages/LoginPage";
+import RegisterPage from "./features/auth/pages/RegisterPage";
+import ForgotPasswordPage from "./features/auth/pages/ForgotPasswordPage";
+import ResetPasswordPage from "./features/auth/pages/ResetPasswordPage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Create a client

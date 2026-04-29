@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import api from '../../lib/axios'
-import { parseApiError } from '../../lib/errorParser'
+import api from '@/lib/axios'
+import { parseApiError } from '@/lib/errorParser'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')

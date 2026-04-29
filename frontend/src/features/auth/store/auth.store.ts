@@ -20,7 +20,7 @@ interface AuthState {
   token: string | null
   isLoading: boolean
   isInitialized: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string, remember?: boolean) => Promise<void>
   register: (email: string, password: string, employee_id: string) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
@@ -30,18 +30,22 @@ let _checkAuthPromise: Promise<void> | null = null
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  token: localStorage.getItem('token'),
+  token: localStorage.getItem('token') || sessionStorage.getItem('token'),
   isLoading: false,
   isInitialized: false,
 
-  login: async (email, password) => {
+  login: async (email, password, remember) => {
     set({ isLoading: true })
     try {
       const { data } = await api.post<ApiResponse<{ access_token: string; user: User }>>('/auth/login', {
         email,
         password,
       })
-      localStorage.setItem('token', data.data.access_token)
+      const storage = remember ? localStorage : sessionStorage
+      storage.setItem('token', data.data.access_token)
+      // Clear the other storage
+      if (remember) sessionStorage.removeItem('token')
+      else localStorage.removeItem('token')
       set({ token: data.data.access_token })
       
       // Fetch full profile data
@@ -65,6 +69,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await api.post('/auth/logout')
     } finally {
       localStorage.removeItem('token')
+      sessionStorage.removeItem('token')
       set({ user: null, token: null })
       
       // Clear branch context and permissions
@@ -89,6 +94,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: data.data, token, isInitialized: true })
       } catch {
         localStorage.removeItem('token')
+        sessionStorage.removeItem('token')
         set({ user: null, token: null, isInitialized: true })
       } finally {
         _checkAuthPromise = null

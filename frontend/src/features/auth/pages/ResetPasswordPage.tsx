@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import api from '../../lib/axios'
+import api from '@/lib/axios'
 import { useToast } from '@/contexts/ToastContext'
-import { parseApiError } from '../../lib/errorParser'
+import { parseApiError } from '@/lib/errorParser'
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
