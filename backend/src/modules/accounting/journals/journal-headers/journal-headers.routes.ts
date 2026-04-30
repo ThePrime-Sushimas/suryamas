@@ -36,6 +36,10 @@ router.get('/with-lines', canView('journals'), queryMiddleware({
 }), (req, res) => 
   journalHeadersController.listWithLines(req as AuthenticatedQueryRequest, res))
 
+// Status counts (for dashboard)
+router.get('/status-counts', canView('journals'), (req, res) =>
+  journalHeadersController.statusCounts(req as AuthenticatedRequest, res))
+
 // Get journal completeness (unreconciled channels)
 router.get('/:id/completeness', canView('journals'), validateSchema(journalIdSchema), (req, res) =>
   journalHeadersController.getCompleteness(req as AuthenticatedRequest, res))

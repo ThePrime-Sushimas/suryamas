@@ -50,22 +50,30 @@ export const usePosSalesRange = (dateFrom: string, dateTo: string) => {
 }
 
 // Bank Reconciliation summary
-export const useReconSummary = () =>
-  useQuery({
-    queryKey: ['dashboard', 'recon-summary'],
+export const useReconSummary = () => {
+  const now = new Date()
+  const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  const endDate = fmtD(now)
+
+  return useQuery({
+    queryKey: ['dashboard', 'recon-summary', startDate, endDate],
     queryFn: async () => {
-      const { data } = await api.get('/reconciliation/bank/summary')
-      return data.data as {
-        total_statements: number
-        reconciled_count: number
-        unreconciled_count: number
-        discrepancy_count: number
-        reconciled_amount: number
-        unreconciled_amount: number
+      const { data } = await api.get('/reconciliation/bank/summary', {
+        params: { startDate, endDate },
+      })
+      const d = data.data as Record<string, number>
+      return {
+        total_statements: d.totalStatements ?? 0,
+        reconciled_count: d.totalStatements ? (d.totalStatements - (d.unreconciled ?? 0)) : 0,
+        unreconciled_count: d.unreconciled ?? 0,
+        discrepancy_count: d.discrepancies ?? 0,
+        reconciled_amount: 0,
+        unreconciled_amount: d.totalDifference ?? 0,
       }
     },
     staleTime: 2 * 60_000,
   })
+}
 
 // Cash Count deposits pending
 export const useCashCountPending = () =>
@@ -185,22 +193,21 @@ export const useFailedTransactionsCount = () =>
     },
   })
 
-// Journal summary — count by status
+// Journal summary — count by status (single query)
 export const useJournalSummary = () =>
   useQuery({
     queryKey: ['dashboard', 'journal-summary'],
     queryFn: async () => {
-      const [all, posted, draft, approved] = await Promise.all([
-        api.get('/accounting/journals', { params: { limit: 1, page: 1 } }),
-        api.get('/accounting/journals', { params: { limit: 1, page: 1, status: 'POSTED' } }),
-        api.get('/accounting/journals', { params: { limit: 1, page: 1, status: 'DRAFT' } }),
-        api.get('/accounting/journals', { params: { limit: 1, page: 1, status: 'APPROVED' } }),
-      ])
+      const { data } = await api.get('/accounting/journals/status-counts')
+      const counts = data.data as Record<string, number>
       return {
-        total: all.data.pagination?.total || 0,
-        posted: posted.data.pagination?.total || 0,
-        draft: draft.data.pagination?.total || 0,
-        approved: approved.data.pagination?.total || 0,
+        total: Object.values(counts).reduce((s, c) => s + c, 0),
+        posted: counts.POSTED || 0,
+        draft: counts.DRAFT || 0,
+        approved: counts.APPROVED || 0,
+        submitted: counts.SUBMITTED || 0,
+        rejected: counts.REJECTED || 0,
+        reversed: counts.REVERSED || 0,
       }
     },
     staleTime: 5 * 60_000,
@@ -217,5 +224,27 @@ export const useFeeDiscrepancySummary = (dateFrom: string, dateTo: string) => {
     },
     enabled: !!dateFrom && !!dateTo,
     retry: false,
+    staleTime: 3 * 60_000,
   })
 }
+
+// Balance Sheet health check
+export const useBalanceSheetHealth = (companyId: string | undefined) =>
+  useQuery({
+    queryKey: ['dashboard', 'balance-sheet-health', companyId],
+    queryFn: async () => {
+      const today = fmtD(new Date())
+      const { data } = await api.get('/accounting/balance-sheet', {
+        params: { as_of_date: today },
+      })
+      const summary = data.data?.summary
+      return {
+        is_balanced: summary?.is_balanced ?? true,
+        total_asset: Number(summary?.total_asset ?? 0),
+        total_liability_equity: Number(summary?.total_liability_equity ?? 0),
+        difference: Number(summary?.total_asset ?? 0) - Number(summary?.total_liability_equity ?? 0),
+      }
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  })
