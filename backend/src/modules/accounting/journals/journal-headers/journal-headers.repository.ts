@@ -277,13 +277,19 @@ export class JournalHeadersRepository {
     return map
   }
 
-  async getStatusCounts(companyId: string): Promise<Record<string, number>> {
+  async getStatusCounts(companyId: string, dateFrom?: string, dateTo?: string): Promise<Record<string, number>> {
+    const params: any[] = [companyId]
+    let dateFilter = ''
+    if (dateFrom && dateTo) {
+      params.push(dateFrom, dateTo)
+      dateFilter = ` AND journal_date >= $${params.length - 1} AND journal_date <= $${params.length}`
+    }
     const { rows } = await pool.query(
       `SELECT status, COUNT(*)::int AS count
        FROM journal_headers
-       WHERE company_id = $1 AND deleted_at IS NULL
+       WHERE company_id = $1 AND deleted_at IS NULL${dateFilter}
        GROUP BY status`,
-      [companyId]
+      params
     )
     const counts: Record<string, number> = { DRAFT: 0, SUBMITTED: 0, APPROVED: 0, POSTED: 0, REJECTED: 0, REVERSED: 0 }
     for (const r of rows) counts[r.status] = r.count

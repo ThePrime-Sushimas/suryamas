@@ -20,7 +20,7 @@ type SalesRow = {
   skip_reason: string | null
 }
 
-const fmtD = (d: Date) =>
+export const fmtD = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 function dayBefore(dateStr: string): string {
@@ -50,10 +50,10 @@ export const usePosSalesRange = (dateFrom: string, dateTo: string) => {
 }
 
 // Bank Reconciliation summary
-export const useReconSummary = () => {
+export const useReconSummary = (startDateOverride?: string, endDateOverride?: string) => {
   const now = new Date()
-  const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  const endDate = fmtD(now)
+  const startDate = startDateOverride ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  const endDate = endDateOverride ?? fmtD(now)
 
   return useQuery({
     queryKey: ['dashboard', 'recon-summary', startDate, endDate],
@@ -193,12 +193,15 @@ export const useFailedTransactionsCount = () =>
     },
   })
 
-// Journal summary — count by status (single query)
-export const useJournalSummary = () =>
+// Journal summary — count by status, optionally filtered by date range
+export const useJournalSummary = (dateFrom?: string, dateTo?: string) =>
   useQuery({
-    queryKey: ['dashboard', 'journal-summary'],
+    queryKey: ['dashboard', 'journal-summary', dateFrom, dateTo],
     queryFn: async () => {
-      const { data } = await api.get('/accounting/journals/status-counts')
+      const params: Record<string, string> = {}
+      if (dateFrom) params.date_from = dateFrom
+      if (dateTo) params.date_to = dateTo
+      const { data } = await api.get('/accounting/journals/status-counts', { params })
       const counts = data.data as Record<string, number>
       return {
         total: Object.values(counts).reduce((s, c) => s + c, 0),
@@ -210,7 +213,7 @@ export const useJournalSummary = () =>
         reversed: counts.REVERSED || 0,
       }
     },
-    staleTime: 5 * 60_000,
+    staleTime: 3 * 60_000,
   })
 
 // Fee discrepancy summary
@@ -229,13 +232,13 @@ export const useFeeDiscrepancySummary = (dateFrom: string, dateTo: string) => {
 }
 
 // Balance Sheet health check
-export const useBalanceSheetHealth = (companyId: string | undefined) =>
+export const useBalanceSheetHealth = (companyId: string | undefined, asOfDate?: string) =>
   useQuery({
-    queryKey: ['dashboard', 'balance-sheet-health', companyId],
+    queryKey: ['dashboard', 'balance-sheet-health', companyId, asOfDate],
     queryFn: async () => {
-      const today = fmtD(new Date())
+      const date = asOfDate || fmtD(new Date())
       const { data } = await api.get('/accounting/balance-sheet', {
-        params: { as_of_date: today },
+        params: { as_of_date: date },
       })
       const summary = data.data?.summary
       return {

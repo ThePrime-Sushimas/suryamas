@@ -247,7 +247,9 @@ export class JournalHeadersController {
   async statusCounts(req: AuthenticatedRequest, res: Response) {
     try {
       const companyId = String(req.context?.company_id)
-      const result = await journalHeadersService.getStatusCounts(companyId)
+      const dateFrom = req.query?.date_from as string | undefined
+      const dateTo = req.query?.date_to as string | undefined
+      const result = await journalHeadersService.getStatusCounts(companyId, dateFrom, dateTo)
       sendSuccess(res, result, 'Journal status counts retrieved', 200)
     } catch (error) {
       await handleError(res, error, req as any)

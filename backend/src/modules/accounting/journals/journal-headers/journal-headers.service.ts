@@ -240,8 +240,8 @@ export class JournalHeadersService {
       })),
     }
   }
-  async getStatusCounts(companyId: string): Promise<Record<string, number>> {
-    return journalHeadersRepository.getStatusCounts(companyId)
+  async getStatusCounts(companyId: string, dateFrom?: string, dateTo?: string): Promise<Record<string, number>> {
+    return journalHeadersRepository.getStatusCounts(companyId, dateFrom, dateTo)
   }
 }
 
