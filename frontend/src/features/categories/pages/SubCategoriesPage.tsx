@@ -7,15 +7,8 @@ import { useBulkSelection } from '@/hooks/_shared/useBulkSelection'
 import BulkActionBar from '@/components/BulkActionBar'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import Pagination from '@/components/ui/Pagination'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { FolderTree, Plus, Search, Filter, X } from 'lucide-react'
-
-function debounce(fn: (value: string) => void, delay: number) {
-  let timeoutId: ReturnType<typeof setTimeout>
-  return (value: string) => {
-    clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(value), delay)
-  }
-}
 
 type ConfirmState = {
   open: boolean
@@ -48,6 +41,7 @@ export default function SubCategoriesPage() {
   } = useCategoriesStore()
   
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 400)
   const [categoryFilter, setCategoryFilter] = useState('')
   const [deletedFilter, setDeletedFilter] = useState('false')
   const [showFilter, setShowFilter] = useState(false)
@@ -64,48 +58,21 @@ export default function SubCategoriesPage() {
     isAllSelected
   } = useBulkSelection(subCategories)
 
-  // Fetch data when page/limit changes
   const fetchData = useCallback(() => {
-    if (search) {
-      searchSubCategories(search, subPage, subLimit)
+    if (debouncedSearch) {
+      searchSubCategories(debouncedSearch, subPage, subLimit)
     } else {
       fetchSubCategories(subPage, subLimit, categoryFilter, deletedFilter)
     }
-  }, [subPage, subLimit, search, categoryFilter, deletedFilter, fetchSubCategories, searchSubCategories])
+  }, [subPage, subLimit, debouncedSearch, categoryFilter, deletedFilter, fetchSubCategories, searchSubCategories])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  const debouncedSearch = useMemo(
-    () => debounce((value: string) => {
-      setSubPage(1) // Reset to page 1 when searching
-      if (value) {
-        searchSubCategories(value, 1, subLimit)
-      } else {
-        fetchSubCategories(1, subLimit, categoryFilter, deletedFilter)
-      }
-    }, 300),
-    [searchSubCategories, fetchSubCategories, categoryFilter, deletedFilter, subLimit, setSubPage]
-  )
-
   useEffect(() => {
     fetchCategories(1, 1000)
   }, [fetchCategories])
-
-  // Fetch data when filters change
-  useEffect(() => {
-    setSubPage(1) // Reset to page 1 when filters change
-    if (search) {
-      searchSubCategories(search, 1, subLimit)
-    } else {
-      fetchSubCategories(1, subLimit, categoryFilter, deletedFilter)
-    }
-  }, [categoryFilter, deletedFilter, search, subLimit, searchSubCategories, fetchSubCategories, setSubPage])
-
-  useEffect(() => {
-    debouncedSearch(search)
-  }, [search, debouncedSearch])
 
   // Pagination handlers
   const handlePageChange = (newPage: number) => {
@@ -120,11 +87,11 @@ export default function SubCategoriesPage() {
   const handleDelete = useCallback((id: string, name: string) => {
     setConfirm({
       open: true,
-      title: 'Delete Sub-Category',
-      message: `Delete "${name}" permanently? This action cannot be undone.`,
+      title: 'Hapus Sub-Kategori',
+      message: `Hapus "${name}" secara permanen? Tindakan ini tidak dapat dibatalkan.`,
       action: async () => {
         await deleteSubCategory(id)
-        success('Sub-category deleted successfully')
+        success('Sub-kategori berhasil dihapus')
         clearSelection()
         // Refresh data after delete
         fetchData()
@@ -135,11 +102,11 @@ export default function SubCategoriesPage() {
   const handleRestore = useCallback((id: string, name: string) => {
     setConfirm({
       open: true,
-      title: 'Restore Sub-Category',
+      title: 'Restore Sub-Kategori',
       message: `Restore "${name}"?`,
       action: async () => {
         await restoreSubCategory(id)
-        success('Sub-category restored successfully')
+        success('Sub-kategori berhasil direstore')
         clearSelection()
         // Refresh data after restore
         fetchData()
@@ -159,11 +126,11 @@ export default function SubCategoriesPage() {
     
     setConfirm({
       open: true,
-      title: 'Delete Multiple Sub-Categories',
-      message: `Delete ${validIds.length} sub-category(ies)? This action cannot be undone.`,
+      title: 'Hapus Beberapa Sub-Kategori',
+      message: `Hapus ${validIds.length} sub-kategori? Tindakan ini tidak dapat dibatalkan.`,
       action: async () => {
         await bulkDeleteSubCategories(validIds)
-        success(`${validIds.length} sub-category(ies) deleted`)
+        success(`${validIds.length} sub-kategori berhasil dihapus`)
         clearSelection()
         // Refresh data after bulk delete
         fetchData()
@@ -183,13 +150,13 @@ export default function SubCategoriesPage() {
     
     setConfirm({
       open: true,
-      title: 'Restore Multiple Sub-Categories',
-      message: `Restore ${validIds.length} sub-category(ies)?`,
+      title: 'Restore Beberapa Sub-Kategori',
+      message: `Restore ${validIds.length} sub-kategori?`,
       action: async () => {
         for (const id of validIds) {
           await restoreSubCategory(id)
         }
-        success(`${validIds.length} sub-category(ies) restored`)
+        success(`${validIds.length} sub-kategori berhasil direstore`)
         clearSelection()
         // Refresh data after bulk restore
         fetchData()
@@ -203,7 +170,7 @@ export default function SubCategoriesPage() {
     try {
       await confirm.action()
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Action failed'
+      const message = e instanceof Error ? e.message : 'Terjadi kesalahan'
       toastError(message)
     } finally {
       setIsConfirming(false)
@@ -334,10 +301,22 @@ export default function SubCategoriesPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="animate-pulse">
+              <div className="h-10 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600" />
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-4 px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/3" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/4" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
               <SubCategoryTable
                 subCategories={subCategories}
                 onView={id => navigate(`/sub-categories/${id}`)}
@@ -374,7 +353,7 @@ export default function SubCategoriesPage() {
           message={confirm.message}
           onConfirm={handleConfirm}
           onClose={() => !isConfirming && setConfirm(null)}
-          confirmText={isConfirming ? 'Processing...' : 'Confirm'}
+          confirmText={isConfirming ? 'Memproses...' : 'Konfirmasi'}
           variant="danger"
           isLoading={isConfirming}
         />

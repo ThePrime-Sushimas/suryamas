@@ -7,15 +7,8 @@ import { useBulkSelection } from '@/hooks/_shared/useBulkSelection'
 import BulkActionBar from '@/components/BulkActionBar'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import Pagination from '@/components/ui/Pagination'
-import { FolderOpen, Plus, Search, Filter, X } from 'lucide-react'
-
-function debounce(fn: (value: string) => void, delay: number) {
-  let timeoutId: ReturnType<typeof setTimeout>
-  return (value: string) => {
-    clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(value), delay)
-  }
-}
+import { useDebounce } from '@/hooks/_shared/useDebounce'
+import { FolderOpen, Plus, Search, Filter, X, AlertCircle } from 'lucide-react'
 
 type ConfirmState = {
   open: boolean
@@ -47,6 +40,7 @@ export default function CategoriesPage() {
   } = useCategoriesStore()
   
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 400)
   const [statusFilter, setStatusFilter] = useState('')
   const [deletedFilter, setDeletedFilter] = useState('false')
   const [showFilter, setShowFilter] = useState(false)
@@ -63,34 +57,17 @@ export default function CategoriesPage() {
     isAllSelected
   } = useBulkSelection(categories)
 
-  // Fetch data when page/limit changes
   const fetchData = useCallback(() => {
-    if (search) {
-      searchCategories(search, page, limit)
+    if (debouncedSearch) {
+      searchCategories(debouncedSearch, page, limit)
     } else {
       fetchCategories(page, limit, statusFilter, deletedFilter)
     }
-  }, [page, limit, search, statusFilter, deletedFilter, fetchCategories, searchCategories])
+  }, [page, limit, debouncedSearch, statusFilter, deletedFilter, fetchCategories, searchCategories])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
-
-  const debouncedSearch = useMemo(
-    () => debounce((value: string) => {
-      setPage(1) // Reset to page 1 when searching
-      if (value) {
-        searchCategories(value, 1, limit)
-      } else {
-        fetchCategories(1, limit, statusFilter, deletedFilter)
-      }
-    }, 300),
-    [searchCategories, fetchCategories, statusFilter, deletedFilter, limit, setPage]
-  )
-
-  useEffect(() => {
-    debouncedSearch(search)
-  }, [search, debouncedSearch])
 
   // Pagination handlers
   const handlePageChange = (newPage: number) => {
@@ -105,11 +82,11 @@ export default function CategoriesPage() {
   const handleDelete = useCallback((id: string, name: string) => {
     setConfirm({
       open: true,
-      title: 'Delete Category',
-      message: `Delete "${name}" permanently? This action cannot be undone.`,
+      title: 'Hapus Kategori',
+      message: `Hapus "${name}" secara permanen? Tindakan ini tidak dapat dibatalkan.`,
       action: async () => {
         await deleteCategory(id)
-        success('Category deleted successfully')
+        success('Kategori berhasil dihapus')
         clearSelection()
         // Refresh data after delete
         fetchData()
@@ -120,11 +97,11 @@ export default function CategoriesPage() {
   const handleRestore = useCallback((id: string, name: string) => {
     setConfirm({
       open: true,
-      title: 'Restore Category',
+      title: 'Restore Kategori',
       message: `Restore "${name}"?`,
       action: async () => {
         await restoreCategory(id)
-        success('Category restored successfully')
+        success('Kategori berhasil direstore')
         clearSelection()
         // Refresh data after restore
         fetchData()
@@ -144,11 +121,11 @@ export default function CategoriesPage() {
     
     setConfirm({
       open: true,
-      title: 'Delete Multiple Categories',
-      message: `Delete ${validIds.length} category(ies)? This action cannot be undone.`,
+      title: 'Hapus Beberapa Kategori',
+      message: `Hapus ${validIds.length} kategori? Tindakan ini tidak dapat dibatalkan.`,
       action: async () => {
         await bulkDeleteCategories(validIds)
-        success(`${validIds.length} category(ies) deleted`)
+        success(`${validIds.length} kategori berhasil dihapus`)
         clearSelection()
         // Refresh data after bulk delete
         fetchData()
@@ -168,13 +145,13 @@ export default function CategoriesPage() {
     
     setConfirm({
       open: true,
-      title: 'Restore Multiple Categories',
-      message: `Restore ${validIds.length} category(ies)?`,
+      title: 'Restore Beberapa Kategori',
+      message: `Restore ${validIds.length} kategori?`,
       action: async () => {
         for (const id of validIds) {
           await restoreCategory(id)
         }
-        success(`${validIds.length} category(ies) restored`)
+        success(`${validIds.length} kategori berhasil direstore`)
         clearSelection()
         // Refresh data after bulk restore
         fetchData()
@@ -194,13 +171,13 @@ export default function CategoriesPage() {
     
     setConfirm({
       open: true,
-      title: isActive ? 'Set Active' : 'Set Inactive',
-      message: `Update ${validIds.length} category(ies) to ${isActive ? 'Active' : 'Inactive'}?`,
+      title: isActive ? 'Set Aktif' : 'Set Nonaktif',
+      message: `Update ${validIds.length} kategori menjadi ${isActive ? 'Aktif' : 'Nonaktif'}?`,
       action: async () => {
         for (const id of validIds) {
           await updateCategoryStatus(id, isActive)
         }
-        success(`${validIds.length} category(ies) updated`)
+        success(`${validIds.length} kategori berhasil diupdate`)
         clearSelection()
       }
     })
@@ -212,7 +189,7 @@ export default function CategoriesPage() {
     try {
       await confirm.action()
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Action failed'
+      const message = e instanceof Error ? e.message : 'Terjadi kesalahan'
       toastError(message)
     } finally {
       setIsConfirming(false)
@@ -344,10 +321,22 @@ export default function CategoriesPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="animate-pulse">
+              <div className="h-10 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600" />
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-4 px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/3" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
               <CategoryTable
                 categories={categories}
                 onView={id => navigate(`/categories/${id}`)}
@@ -384,7 +373,7 @@ export default function CategoriesPage() {
           message={confirm.message}
           onConfirm={handleConfirm}
           onClose={() => !isConfirming && setConfirm(null)}
-          confirmText={isConfirming ? 'Processing...' : 'Confirm'}
+          confirmText={isConfirming ? 'Memproses...' : 'Konfirmasi'}
           variant="danger"
           isLoading={isConfirming}
         />
