@@ -155,7 +155,7 @@ export const CompanyForm = ({ initialData, isEdit, onSubmit, isLoading }: Compan
       <div className="flex gap-3 pt-2">
         <button type="submit" disabled={isLoading}
           className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-sm">
-          {isLoading ? 'Menyimpan...' : isEdit ? 'Update' : 'Buat Company'}
+          {isLoading ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Buat Perusahaan'}
         </button>
       </div>
     </form>

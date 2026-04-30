@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { companiesApi } from '../api/companies.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { Company, CreateCompanyDto, UpdateCompanyDto } from '../types'
 
 interface Pagination {
@@ -11,27 +12,16 @@ interface Pagination {
   hasPrev: boolean
 }
 
-interface CompanyFilters extends Record<string, unknown> {
-  status?: string
-  company_type?: string
-  search?: string
-}
-
 interface CompaniesState {
   companies: Company[]
   selectedCompany: Company | null
   loading: boolean
+  mutationLoading: boolean
   error: string | null
   pagination: Pagination
-  filters: CompanyFilters
-  searchQuery: string
-  lastFetchedAt: number | null
-  
-  fetchCompanies: (page: number, limit: number, sort?: { field: string; order: string }, filter?: Record<string, unknown>) => Promise<void>
-  searchCompanies: (q: string, page: number, limit: number, filter?: Record<string, unknown>) => Promise<void>
-  setPage: (page: number) => void
-  setPageSize: (limit: number) => void
-  setFilters: (filters: CompanyFilters) => void
+
+  fetchPage: (page: number, limit?: number, sort?: { field: string; order: string }, filter?: Record<string, unknown>) => Promise<void>
+  searchPage: (q: string, page: number, limit?: number, filter?: Record<string, unknown>) => Promise<void>
   getCompanyById: (id: string) => Promise<Company>
   createCompany: (data: CreateCompanyDto) => Promise<Company>
   updateCompany: (id: string, data: UpdateCompanyDto) => Promise<Company>
@@ -41,82 +31,42 @@ interface CompaniesState {
   reset: () => void
 }
 
-const initialState = {
-  companies: [],
-  selectedCompany: null,
-  loading: false,
-  error: null,
-  pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
-  filters: {},
-  searchQuery: '',
-  lastFetchedAt: null as number | null
+const initialPagination: Pagination = { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false }
+
+const buildPagination = (p: { total: number; page: number; limit: number }): Pagination => {
+  const totalPages = Math.ceil(p.total / p.limit)
+  return { page: p.page, limit: p.limit, total: p.total, totalPages, hasNext: p.page < totalPages, hasPrev: p.page > 1 }
 }
 
 export const useCompaniesStore = create<CompaniesState>((set, get) => ({
-  ...initialState,
+  companies: [],
+  selectedCompany: null,
+  loading: false,
+  mutationLoading: false,
+  error: null,
+  pagination: initialPagination,
 
-  fetchCompanies: async (page, limit, sort, filter) => {
-    set({ loading: true, error: null, filters: filter || {}, searchQuery: '' })
+  fetchPage: async (page, limit, sort, filter) => {
+    const currentLimit = limit ?? get().pagination.limit
+    set(state => ({ loading: true, error: null, pagination: { ...state.pagination, page, limit: currentLimit } }))
     try {
-      const res = await companiesApi.list(page, limit, sort, filter)
-      const totalPages = Math.ceil(res.pagination.total / res.pagination.limit)
-      set({ 
-        companies: res.data, 
-        loading: false,
-        lastFetchedAt: Date.now(),
-        pagination: {
-          page: res.pagination.page,
-          limit: res.pagination.limit,
-          total: res.pagination.total,
-          totalPages,
-          hasNext: res.pagination.page < totalPages,
-          hasPrev: res.pagination.page > 1
-        }
-      })
+      const res = await companiesApi.list(page, currentLimit, sort, filter)
+      set({ companies: res.data, loading: false, pagination: buildPagination(res.pagination) })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch companies'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal memuat data perusahaan'), loading: false })
     }
   },
 
-  searchCompanies: async (q, page, limit, filter) => {
-    set({ loading: true, error: null, searchQuery: q, filters: filter || {} })
+  searchPage: async (q, page, limit, filter) => {
+    const currentLimit = limit ?? get().pagination.limit
+    set(state => ({ loading: true, error: null, pagination: { ...state.pagination, page, limit: currentLimit } }))
     try {
-      const res = await companiesApi.search(q, page, limit, filter)
-      const totalPages = Math.ceil(res.pagination.total / res.pagination.limit)
-      set({ 
-        companies: res.data, 
-        loading: false,
-        pagination: {
-          page: res.pagination.page,
-          limit: res.pagination.limit,
-          total: res.pagination.total,
-          totalPages,
-          hasNext: res.pagination.page < totalPages,
-          hasPrev: res.pagination.page > 1
-        }
-      })
+      const res = await companiesApi.search(q, page, currentLimit, filter)
+      set({ companies: res.data, loading: false, pagination: buildPagination(res.pagination) })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to search companies'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal mencari perusahaan'), loading: false })
     }
   },
-
-  setPage: (page: number) => {
-    set(state => ({ pagination: { ...state.pagination, page } }))
-  },
-
-  setPageSize: (limit: number) => {
-    set(state => ({ 
-      pagination: { ...state.pagination, page: 1, limit }
-    }))
-  },
-
-  setFilters: (filters: CompanyFilters) => {
-    set({ filters, pagination: { ...get().pagination, page: 1 }, searchQuery: '' })
-    get().fetchCompanies(1, get().pagination.limit, undefined, filters)
-  },
-
 
   getCompanyById: async (id) => {
     set({ loading: true, error: null })
@@ -125,78 +75,60 @@ export const useCompaniesStore = create<CompaniesState>((set, get) => ({
       set({ selectedCompany: company, loading: false })
       return company
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Company not found'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Perusahaan tidak ditemukan'), loading: false })
       throw error
     }
   },
 
   createCompany: async (data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const company = await companiesApi.create(data)
-      set({ loading: false })
+      set({ mutationLoading: false })
       return company
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create company'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal membuat perusahaan'), mutationLoading: false })
       throw error
     }
   },
 
   updateCompany: async (id, data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const company = await companiesApi.update(id, data)
       set(state => ({
         companies: state.companies.map(c => c.id === id ? company : c),
-        loading: false
+        mutationLoading: false
       }))
       return company
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update company'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal mengupdate perusahaan'), mutationLoading: false })
       throw error
     }
   },
 
   deleteCompany: async (id) => {
-    const prev = get().companies
-    // Optimistic update: change status to inactive locally
-    set(state => ({ 
-      companies: state.companies.map(c => c.id === id ? { ...c, status: 'inactive' as const } : c)
-    }))
+    set({ mutationLoading: true, error: null })
     try {
       await companiesApi.delete(id)
+      set({ mutationLoading: false })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete company'
-      set({ companies: prev, error: message })
+      set({ error: parseApiError(error, 'Gagal menghapus perusahaan'), mutationLoading: false })
       throw error
     }
   },
 
   bulkDelete: async (ids) => {
-    const prev = get().companies
-    set(state => ({ companies: state.companies.filter(c => !ids.includes(c.id)) }))
+    set({ mutationLoading: true, error: null })
     try {
       await companiesApi.bulkDelete(ids)
+      set({ mutationLoading: false })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete companies'
-      set({ companies: prev, error: message })
+      set({ error: parseApiError(error, 'Gagal menghapus perusahaan'), mutationLoading: false })
       throw error
     }
   },
 
   clearError: () => set({ error: null }),
-
-  reset: () => set({
-    companies: [],
-    selectedCompany: null,
-    loading: false,
-    error: null,
-    pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
-    filters: {},
-    searchQuery: '',
-    lastFetchedAt: null
-  })
+  reset: () => set({ companies: [], selectedCompany: null, loading: false, mutationLoading: false, error: null, pagination: initialPagination })
 }))

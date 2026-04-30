@@ -98,7 +98,10 @@ export class CompaniesRepository {
     const placeholders = companies.map((_, i) =>
       `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`
     ).join(', ')
-    const values = companies.flatMap(c => keys.map(k => (c as unknown as Record<string, unknown>)[k] ?? null))
+    const values = companies.flatMap(c => {
+      const record = c as unknown as Record<string, unknown>
+      return keys.map(k => record[k] ?? null)
+    })
     await pool.query(`INSERT INTO companies (${cols}) VALUES ${placeholders}`, values)
   }
 

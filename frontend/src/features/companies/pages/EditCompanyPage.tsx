@@ -9,7 +9,7 @@ import type { UpdateCompanyDto } from '../types'
 export default function EditCompanyPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { selectedCompany, loading, getCompanyById, updateCompany, reset } = useCompaniesStore()
+  const { selectedCompany, loading, getCompanyById, updateCompany, mutationLoading, reset } = useCompaniesStore()
   const toast = useToast()
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function EditCompanyPage() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Company</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Perusahaan</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">{selectedCompany?.company_name || 'Loading...'}</p>
           </div>
         </div>
@@ -64,7 +64,7 @@ export default function EditCompanyPage() {
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-            <CompanyForm initialData={selectedCompany} isEdit onSubmit={handleSubmit} isLoading={loading} />
+            <CompanyForm initialData={selectedCompany} isEdit onSubmit={handleSubmit} isLoading={mutationLoading} />
           </div>
         )}
       </div>

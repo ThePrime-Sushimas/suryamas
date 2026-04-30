@@ -1,5 +1,5 @@
 import { companiesRepository, CompaniesRepository } from './companies.repository'
-import { Company, CreateCompanyDTO, UpdateCompanyDTO } from './companies.types'
+import { Company, CreateCompanyDTO, UpdateCompanyDTO, CompanyFilterParams } from './companies.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
@@ -11,12 +11,12 @@ import { logInfo, logError } from '../../config/logger'
 export class CompaniesService {
   constructor(private repository: CompaniesRepository = companiesRepository) {}
 
-  async list(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<PaginatedResponse<Company>> {
+  async list(pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: CompanyFilterParams): Promise<PaginatedResponse<Company>> {
     const { data, total } = await companiesRepository.findAll(pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
-  async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: any): Promise<PaginatedResponse<Company>> {
+  async search(searchTerm: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: CompanyFilterParams): Promise<PaginatedResponse<Company>> {
     const { data, total } = await companiesRepository.search(searchTerm, pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
@@ -42,18 +42,19 @@ export class CompaniesService {
       await AuditService.log('CREATE', 'company', company.id, userId, null, company)
       logInfo('Company created successfully', { company_id: company.id })
       return company
-    } catch (error: any) {
-      if (error.code === '23505') {
-        if (error.message?.includes('company_code') || error.constraint?.includes('company_code')) {
+    } catch (error: unknown) {
+      const dbErr = error as { code?: string; message?: string; constraint?: string }
+      if (dbErr.code === '23505') {
+        if (dbErr.message?.includes('company_code') || dbErr.constraint?.includes('company_code')) {
           logError('Duplicate company code', { company_code: data.company_code })
           throw CompanyErrors.CODE_EXISTS(data.company_code)
         }
-        if (error.message?.includes('npwp') || error.constraint?.includes('npwp')) {
+        if (dbErr.message?.includes('npwp') || dbErr.constraint?.includes('npwp')) {
           logError('Duplicate NPWP', { npwp: data.npwp })
           throw CompanyErrors.NPWP_EXISTS(data.npwp)
         }
       }
-      logError('Failed to create company', { error: error.message, user: userId })
+      logError('Failed to create company', { error: dbErr.message, user: userId })
       throw error
     }
   }
@@ -88,14 +89,15 @@ export class CompaniesService {
       await AuditService.log('UPDATE', 'company', id, userId, existing, company)
       logInfo('Company updated successfully', { company_id: id })
       return company
-    } catch (error: any) {
-      if (error.code === '23505') {
-        if (error.message?.includes('npwp') || error.constraint?.includes('npwp')) {
+    } catch (error: unknown) {
+      const dbErr = error as { code?: string; message?: string; constraint?: string }
+      if (dbErr.code === '23505') {
+        if (dbErr.message?.includes('npwp') || dbErr.constraint?.includes('npwp')) {
           logError('Duplicate NPWP on update', { npwp: data.npwp })
           throw CompanyErrors.NPWP_EXISTS()
         }
       }
-      logError('Failed to update company', { error: error.message, company_id: id })
+      logError('Failed to update company', { error: dbErr.message, company_id: id })
       throw error
     }
   }
@@ -119,11 +121,11 @@ export class CompaniesService {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const invalidIds = ids.filter(id => !uuidRegex.test(id))
     if (invalidIds.length > 0) {
-      throw new Error(`Invalid UUID format: ${invalidIds.join(', ')}`)
+      throw CompanyErrors.REQUIRED_FIELD(`Valid UUID (invalid: ${invalidIds.join(', ')})`)
     }
 
-    if (!CompanyConfig.STATUSES.includes(status as any)) {
-      throw new Error(`Invalid status: ${status}. Valid statuses: ${CompanyConfig.STATUSES.join(', ')}`)
+    if (!CompanyConfig.STATUSES.includes(status as typeof CompanyConfig.STATUSES[number])) {
+      throw CompanyErrors.INVALID_STATUS(status, [...CompanyConfig.STATUSES])
     }
 
     await this.repository.bulkUpdateStatus(ids, status)
@@ -137,7 +139,7 @@ export class CompaniesService {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const invalidIds = ids.filter(id => !uuidRegex.test(id))
     if (invalidIds.length > 0) {
-      throw new Error(`Invalid UUID format: ${invalidIds.join(', ')}`)
+      throw CompanyErrors.REQUIRED_FIELD(`Valid UUID (invalid: ${invalidIds.join(', ')})`)
     }
 
     await this.repository.bulkDelete(ids)
@@ -149,7 +151,7 @@ export class CompaniesService {
     return await this.repository.getFilterOptions()
   }
 
-  async exportToExcel(filter?: any): Promise<Buffer> {
+  async exportToExcel(filter?: CompanyFilterParams): Promise<Buffer> {
     logInfo('Exporting companies to Excel', { filter })
     const data = await this.repository.exportData(filter, CompanyConfig.EXPORT.MAX_ROWS)
     const columns = [
@@ -167,11 +169,11 @@ export class CompaniesService {
     return await ExportService.generateExcel(data, columns)
   }
 
-  async previewImport(buffer: Buffer): Promise<any[]> {
+  async previewImport(buffer: Buffer): Promise<Record<string, unknown>[]> {
     return await ImportService.parseExcel(buffer)
   }
 
-  async importFromExcel(buffer: Buffer, skipDuplicates: boolean): Promise<any> {
+  async importFromExcel(buffer: Buffer, skipDuplicates: boolean) {
     logInfo('Importing companies from Excel', { skipDuplicates })
     const rows = await ImportService.parseExcel(buffer)
     const requiredFields = ['company_code', 'company_name']

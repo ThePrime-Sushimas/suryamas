@@ -8,7 +8,7 @@ import type { CreateCompanyDto } from '../types'
 
 export default function CreateCompanyPage() {
   const navigate = useNavigate()
-  const { createCompany, loading, reset } = useCompaniesStore()
+  const { createCompany, mutationLoading, reset } = useCompaniesStore()
   const toast = useToast()
 
   useEffect(() => { return () => reset() }, [reset])
@@ -32,13 +32,13 @@ export default function CreateCompanyPage() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create Company</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tambah Perusahaan</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Tambah perusahaan baru</p>
           </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <CompanyForm onSubmit={handleSubmit} isLoading={loading} />
+          <CompanyForm onSubmit={handleSubmit} isLoading={mutationLoading} />
         </div>
       </div>
     </div>

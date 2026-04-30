@@ -13,11 +13,11 @@ const inputCls = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 r
 const labelCls = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
 
 export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchFormProps) => {
-  const { companies, fetchCompanies } = useCompaniesStore()
+  const { companies, fetchPage } = useCompaniesStore()
 
   useEffect(() => {
-    if (companies.length === 0) fetchCompanies(1, 1000)
-  }, [fetchCompanies, companies.length])
+    if (companies.length === 0) fetchPage(1, 1000)
+  }, [fetchPage, companies.length])
 
   const [formData, setFormData] = useState({
     company_id: initialData?.company_id || '',

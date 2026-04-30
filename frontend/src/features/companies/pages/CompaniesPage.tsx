@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyTable } from '../components/CompanyTable'
@@ -15,10 +15,7 @@ type CompanyFilter = {
 
 export default function CompaniesPage() {
   const navigate = useNavigate()
-  const {
-    companies, loading, error: storeError, pagination,
-    fetchCompanies, searchCompanies, deleteCompany, reset, setPage, setPageSize, setFilters, clearError,
-  } = useCompaniesStore()
+  const { companies, loading, error: storeError, pagination, fetchPage, searchPage, deleteCompany, reset, clearError } = useCompaniesStore()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<CompanyFilter>({ status: 'active' })
   const [showFilter, setShowFilter] = useState(false)
@@ -35,43 +32,27 @@ export default function CompaniesPage() {
     return count
   }, [filter.status, filter.company_type])
 
-  const doFetch = useCallback((page: number) => {
+  const doFetch = useCallback((page: number, limit?: number) => {
+    const effectiveLimit = limit ?? pagination.limit
     if (debouncedSearch) {
-      searchCompanies(debouncedSearch, page, pagination.limit, filter)
+      searchPage(debouncedSearch, page, effectiveLimit, filter)
     } else {
-      fetchCompanies(page, pagination.limit, undefined, filter)
+      fetchPage(page, effectiveLimit, undefined, filter)
     }
-  }, [debouncedSearch, filter, pagination.limit, searchCompanies, fetchCompanies])
+  }, [debouncedSearch, filter, pagination.limit, searchPage, fetchPage])
 
-  // When search or filter changes → reset to page 1 and fetch
-  const skipNextPageEffect = useRef(false)
   useEffect(() => {
-    if (pagination.page !== 1) {
-      skipNextPageEffect.current = true
-      setPage(1)
-    }
     doFetch(1)
   }, [debouncedSearch, filter]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When pagination changes (user clicks page or changes page size) → fetch
-  const isFirstRender = useRef(true)
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false
-      return
-    }
-    if (skipNextPageEffect.current) {
-      skipNextPageEffect.current = false
-      return
-    }
-    doFetch(pagination.page)
-  }, [pagination.page, pagination.limit]) // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => { return () => { reset() } }, [reset])
+
+  const handlePageChange = useCallback((page: number) => doFetch(page), [doFetch])
+  const handleLimitChange = useCallback((limit: number) => doFetch(1, limit), [doFetch])
 
   const handleDeleteClick = useCallback((id: string) => {
     const company = companies.find(c => c.id === id)
-    setConfirm({ open: true, id, name: company?.company_name || 'this company' })
+    setConfirm({ open: true, id, name: company?.company_name || 'perusahaan ini' })
   }, [companies])
 
   const handleConfirmDelete = useCallback(async () => {
@@ -79,15 +60,15 @@ export default function CompaniesPage() {
     setIsDeleting(true)
     try {
       await deleteCompany(confirm.id)
-      toast.success('Company berhasil dihapus')
-      fetchCompanies(pagination.page, pagination.limit)
+      toast.success('Perusahaan berhasil dihapus')
+      doFetch(1)
     } catch {
       toast.error('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setIsDeleting(false)
       setConfirm(null)
     }
-  }, [confirm, deleteCompany, fetchCompanies, pagination.page, pagination.limit, toast])
+  }, [confirm, deleteCompany, doFetch, toast])
 
   const setFilterKey = useCallback(
     <K extends keyof CompanyFilter>(key: K, value?: CompanyFilter[K]) => {
@@ -97,8 +78,7 @@ export default function CompaniesPage() {
         else newFilter[key] = value
         return newFilter
       })
-    },
-    []
+    }, []
   )
 
   return (
@@ -109,13 +89,13 @@ export default function CompaniesPage() {
           <div className="flex items-center gap-3">
             <Building2 className="w-6 h-6 text-blue-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Companies</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Perusahaan</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} total</p>
             </div>
           </div>
           <button onClick={() => navigate('/companies/new')}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            <Plus className="w-4 h-4" /> Create Company
+            <Plus className="w-4 h-4" /> Tambah Perusahaan
           </button>
         </div>
       </div>
@@ -125,7 +105,7 @@ export default function CompaniesPage() {
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search companies..." value={search}
+            <input type="text" placeholder="Cari perusahaan..." value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             {search && (
@@ -152,18 +132,18 @@ export default function CompaniesPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
               <select value={filter.status || ''} onChange={e => setFilterKey('status', (e.target.value || undefined) as CompanyFilter['status'])}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="suspended">Suspended</option>
-                <option value="closed">Closed</option>
+                <option value="">Semua Status</option>
+                <option value="active">Aktif</option>
+                <option value="inactive">Nonaktif</option>
+                <option value="suspended">Ditangguhkan</option>
+                <option value="closed">Ditutup</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Type</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipe Perusahaan</label>
               <select value={filter.company_type || ''} onChange={e => setFilterKey('company_type', (e.target.value || undefined) as CompanyFilter['company_type'])}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                <option value="">All Types</option>
+                <option value="">Semua Tipe</option>
                 <option value="PT">PT</option>
                 <option value="CV">CV</option>
                 <option value="Firma">Firma</option>
@@ -181,7 +161,7 @@ export default function CompaniesPage() {
           <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl p-8 text-center">
             <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
             <p className="text-sm text-red-600 dark:text-red-400 mb-3">Terjadi kesalahan saat memuat data.</p>
-            <button onClick={() => { clearError(); fetchCompanies(pagination.page, pagination.limit, undefined, filter) }}
+            <button onClick={() => { clearError(); doFetch(1) }}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">Coba Lagi</button>
           </div>
         ) : loading ? (
@@ -211,8 +191,8 @@ export default function CompaniesPage() {
             {pagination.total > 0 && (
               <Pagination
                 pagination={pagination}
-                onPageChange={setPage}
-                onLimitChange={setPageSize}
+                onPageChange={handlePageChange}
+                onLimitChange={handleLimitChange}
                 currentLength={companies.length}
                 loading={loading}
               />
@@ -223,8 +203,8 @@ export default function CompaniesPage() {
 
       <ConfirmModal
         isOpen={confirm?.open || false}
-        title="Hapus Company"
-        message={`Yakin ingin menghapus "${confirm?.name}"? Status akan diubah menjadi inactive.`}
+        title="Hapus Perusahaan"
+        message={`Yakin ingin menghapus "${confirm?.name}"? Status akan diubah menjadi nonaktif.`}
         confirmText={isDeleting ? 'Menghapus...' : 'Hapus'}
         cancelText="Batal"
         variant="danger"

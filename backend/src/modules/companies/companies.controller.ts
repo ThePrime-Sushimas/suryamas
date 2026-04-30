@@ -1,64 +1,57 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { companiesService } from './companies.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
-
 import { getParamString } from '../../utils/validation.util'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema, bulkDeleteSchema } from './companies.schema'
-import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
-import type { AuthRequest } from '../../types/common.types'
+import { CompanyErrors } from './companies.errors'
 import { jobsService, jobsRepository } from '../jobs'
 
 export class CompaniesController {
-  // ============================================
-  // LIST & SEARCH
-  // ============================================
-
-  async list(req: AuthenticatedQueryRequest, res: Response) {
+  async list(req: Request, res: Response) {
     try {
       const { offset } = getPaginationParams(req.query)
-      const result = await companiesService.list({ ...req.pagination, offset }, req.sort, req.filterParams)
+      const pagination = req.pagination ?? { page: 1, limit: 50 }
+      const result = await companiesService.list({ ...pagination, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Companies retrieved', 200, result.pagination)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list' })
     }
   }
 
-  async search(req: AuthenticatedQueryRequest, res: Response) {
+  async search(req: Request, res: Response) {
     try {
-      const { q } = req.query
+      const q = req.query.q as string
       const { offset } = getPaginationParams(req.query)
-      const result = await companiesService.search(q as string, { ...req.pagination, offset }, req.sort, req.filterParams)
+      const pagination = req.pagination ?? { page: 1, limit: 50 }
+      const result = await companiesService.search(q, { ...pagination, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Companies retrieved', 200, result.pagination)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'search', query: req.query.q })
     }
   }
 
   async create(req: ValidatedAuthRequest<typeof createCompanySchema>, res: Response) {
     try {
       const company = await companiesService.create(req.validated.body, req.user!.id)
-      logInfo('Company created', {
-        company_id: company.id,
-        company_code: company.company_code,
-        user: req.user!.id
-      })
+      logInfo('Company created', { company_id: company.id, company_code: company.company_code, user: req.user!.id })
       sendSuccess(res, company, 'Company created', 201)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create' })
     }
   }
 
-  async getById(req: AuthenticatedRequest, res: Response) {
+  async getById(req: Request, res: Response) {
     try {
-      const company = await companiesService.getById(getParamString(req.params.id))
+      const id = getParamString(req.params.id)
+      const company = await companiesService.getById(id)
       sendSuccess(res, company)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'getById', id: req.params.id })
     }
   }
 
@@ -66,59 +59,42 @@ export class CompaniesController {
     try {
       const { body, params } = req.validated
       const company = await companiesService.update(params.id, body, req.user!.id)
-      logInfo('Company updated', {
-        company_id: params.id,
-        user: req.user!.id
-      })
+      logInfo('Company updated', { company_id: params.id, user: req.user!.id })
       sendSuccess(res, company, 'Company updated')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update', id: req.validated.params.id })
     }
   }
 
-  async delete(req: AuthenticatedRequest, res: Response) {
+  async delete(req: Request, res: Response) {
     try {
-      await companiesService.delete(getParamString(req.params.id), req.user.id)
-      logInfo('Company deleted', {
-        company_id: getParamString(req.params.id),
-        user: req.user.id
-      })
+      const id = getParamString(req.params.id)
+      await companiesService.delete(id, req.user!.id)
+      logInfo('Company deleted', { company_id: id, user: req.user!.id })
       sendSuccess(res, null, 'Company deleted')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete', id: req.params.id })
     }
   }
 
-  async getFilterOptions(req: AuthenticatedRequest, res: Response) {
+  async getFilterOptions(req: Request, res: Response) {
     try {
       const options = await companiesService.getFilterOptions()
       sendSuccess(res, options)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'getFilterOptions' })
     }
   }
 
-  // ============================================
-  // EXPORT (LEGACY)
-  // ============================================
-
-  async generateExportToken(req: AuthenticatedRequest, res: Response) {
+  async generateExportToken(req: Request, res: Response) {
     return handleExportToken(req, res)
   }
 
-  async exportData(req: AuthenticatedRequest, res: Response) {
+  async exportData(req: Request, res: Response) {
     return handleExport(req, res, (filter) => companiesService.exportToExcel(filter), 'companies')
   }
 
-  // ============================================
-  // EXPORT (JOB-BASED - NEW)
-  // ============================================
-
-  /**
-   * Create export job for companies
-   * POST /api/v1/companies/export/job
-   */
-  async createExportJob(req: AuthRequest, res: Response) {
+  async createExportJob(req: Request, res: Response) {
     try {
       const userId = req.user!.id
       const companyId = req.context?.company_id
@@ -127,18 +103,15 @@ export class CompaniesController {
         return sendError(res, 'Company context required', 400)
       }
 
-      // Check for existing active job
       const hasActiveJob = await jobsRepository.hasActiveJob(userId)
       if (hasActiveJob) {
         return sendError(res, 'You already have an active job. Please wait for it to complete.', 429)
       }
 
-      // Extract filter from query params with type checking
       const filter: Record<string, unknown> = {}
       if (typeof req.query.search === 'string') filter.search = req.query.search
       if (typeof req.query.status === 'string') filter.status = req.query.status
 
-      // Create the export job
       const job = await jobsService.createJob({
         user_id: userId,
         company_id: companyId,
@@ -154,48 +127,30 @@ export class CompaniesController {
 
       logInfo('Companies export job created', { job_id: job.id, user_id: userId })
 
-      // Trigger background processing
       const { jobWorker } = await import('../jobs/jobs.worker')
-      jobWorker.processJob(job.id).catch(error => {
-        logError('Companies export job processing error', { job_id: job.id, error })
+      jobWorker.processJob(job.id).catch(err => {
+        logError('Companies export job processing error', { job_id: job.id, error: err })
       })
 
       sendSuccess(res, {
-        job_id: job.id,
-        status: job.status,
-        name: job.name,
-        type: job.type,
-        module: job.module,
-        created_at: job.created_at,
+        job_id: job.id, status: job.status, name: job.name,
+        type: job.type, module: job.module, created_at: job.created_at,
         message: 'Export job created successfully. Processing in background.'
       }, 'Export job created', 201)
-    } catch (error: any) {
-      logError('Failed to create export job', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'createExportJob' })
     }
   }
 
-  // ============================================
-  // IMPORT (LEGACY)
-  // ============================================
-
-  async previewImport(req: AuthenticatedRequest, res: Response) {
+  async previewImport(req: Request, res: Response) {
     return handleImportPreview(req, res, (buffer) => companiesService.previewImport(buffer))
   }
 
-  async importData(req: AuthenticatedRequest, res: Response) {
+  async importData(req: Request, res: Response) {
     return handleImport(req, res, (buffer, skip) => companiesService.importFromExcel(buffer, skip))
   }
 
-  // ============================================
-  // IMPORT (JOB-BASED - NEW)
-  // ============================================
-
-  /**
-   * Create import job for companies
-   * POST /api/v1/companies/import/job
-   */
-  async createImportJob(req: AuthRequest, res: Response) {
+  async createImportJob(req: Request, res: Response) {
     try {
       const userId = req.user!.id
       const companyId = req.context?.company_id
@@ -204,13 +159,11 @@ export class CompaniesController {
         return sendError(res, 'Company context required', 400)
       }
 
-      // Use multer to parse multipart/form-data
-      const file = (req as any).file
+      const file = (req as Request & { file?: Express.Multer.File }).file
       if (!file) {
         return sendError(res, 'No file uploaded', 400)
       }
 
-      // Check file type
       const allowedMimeTypes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.ms-excel',
@@ -220,26 +173,21 @@ export class CompaniesController {
         return sendError(res, 'Invalid file type. Only Excel files (.xlsx, .xls) are allowed', 400)
       }
 
-      // Check file size (10MB limit)
       const maxSize = 10 * 1024 * 1024
       if (file.size > maxSize) {
         return sendError(res, `File size exceeds maximum limit of ${maxSize / (1024 * 1024)}MB`, 400)
       }
 
-      // Check for existing active job
       const hasActiveJob = await jobsRepository.hasActiveJob(userId)
       if (hasActiveJob) {
         return sendError(res, 'You already have an active job. Please wait for it to complete.', 429)
       }
 
-      // Save file to temp location
       const { saveTempFile } = await import('../jobs/jobs.util')
       const filePath = await saveTempFile(file.buffer, `companies_import_${Date.now()}.xlsx`)
 
-      // Parse skipDuplicates from body
       const skipDuplicates = req.body.skipDuplicates === 'true' || req.body.skipDuplicates === true
 
-      // Create the import job
       const job = await jobsService.createJob({
         user_id: userId,
         company_id: companyId,
@@ -257,47 +205,31 @@ export class CompaniesController {
         }
       })
 
-      logInfo('Companies import job created', { 
-        job_id: job.id, 
-        file_name: file.originalname,
-        file_size: file.size,
-        user_id: userId 
-      })
+      logInfo('Companies import job created', { job_id: job.id, file_name: file.originalname, file_size: file.size, user_id: userId })
 
-      // Trigger background processing
       const { jobWorker } = await import('../jobs/jobs.worker')
-      jobWorker.processJob(job.id).catch(error => {
-        logError('Companies import job processing error', { job_id: job.id, error })
+      jobWorker.processJob(job.id).catch(err => {
+        logError('Companies import job processing error', { job_id: job.id, error: err })
       })
 
       sendSuccess(res, {
-        job_id: job.id,
-        status: job.status,
-        name: job.name,
-        type: job.type,
-        module: job.module,
-        created_at: job.created_at,
-        file_name: file.originalname,
-        file_size: file.size,
+        job_id: job.id, status: job.status, name: job.name,
+        type: job.type, module: job.module, created_at: job.created_at,
+        file_name: file.originalname, file_size: file.size,
         message: 'Import job created successfully. Processing in background.'
       }, 'Import job created', 201)
-    } catch (error: any) {
-      logError('Failed to create import job', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'createImportJob' })
     }
   }
-
-  // ============================================
-  // BULK OPERATIONS
-  // ============================================
 
   async bulkUpdateStatus(req: ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res: Response) {
     try {
       const { ids, status } = req.validated.body
       await companiesService.bulkUpdateStatus(ids, status, req.user!.id)
       sendSuccess(res, null, 'Bulk status update completed')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulkUpdateStatus' })
     }
   }
 
@@ -306,11 +238,10 @@ export class CompaniesController {
       const { ids } = req.validated.body
       await companiesService.bulkDelete(ids, req.user!.id)
       sendSuccess(res, null, 'Bulk delete completed')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulkDelete' })
     }
   }
 }
 
 export const companiesController = new CompaniesController()
-

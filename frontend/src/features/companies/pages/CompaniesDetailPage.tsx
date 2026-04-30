@@ -67,9 +67,9 @@ function CompanyDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
         <div className="max-w-5xl mx-auto text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400 mb-4">Company tidak ditemukan</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Perusahaan tidak ditemukan</p>
           <button onClick={() => navigate('/companies')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            Kembali ke List
+            Kembali ke Daftar
           </button>
         </div>
       </div>
@@ -114,8 +114,8 @@ function CompanyDetailPage() {
           {/* Tabs */}
           <div className="border-b border-gray-200 dark:border-gray-700 px-6">
             <div className="flex gap-4">
-              <button onClick={() => setActiveTab('overview')} className={tabCls(activeTab === 'overview')}>Overview</button>
-              <button onClick={() => setActiveTab('bank-accounts')} className={tabCls(activeTab === 'bank-accounts')}>Bank Accounts</button>
+              <button onClick={() => setActiveTab('overview')} className={tabCls(activeTab === 'overview')}>Ringkasan</button>
+              <button onClick={() => setActiveTab('bank-accounts')} className={tabCls(activeTab === 'bank-accounts')}>Rekening Bank</button>
             </div>
           </div>
 
@@ -123,12 +123,12 @@ function CompanyDetailPage() {
           <div className="p-6">
             {activeTab === 'overview' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <InfoItem label="Company Code" value={selectedCompany.company_code} />
-                <InfoItem label="Company Type" value={selectedCompany.company_type} />
+                <InfoItem label="Kode Perusahaan" value={selectedCompany.company_code} />
+                <InfoItem label="Tipe Perusahaan" value={selectedCompany.company_type} />
                 <InfoItem label="Status" value={<StatusBadge status={selectedCompany.status} />} />
                 <InfoItem label="NPWP" value={selectedCompany.npwp || '-'} />
                 <InfoItem label="Email" value={selectedCompany.email || '-'} />
-                <InfoItem label="Phone" value={selectedCompany.phone || '-'} />
+                <InfoItem label="Telepon" value={selectedCompany.phone || '-'} />
                 <InfoItem label="Website" value={selectedCompany.website || '-'} className="sm:col-span-2" />
               </div>
             )}

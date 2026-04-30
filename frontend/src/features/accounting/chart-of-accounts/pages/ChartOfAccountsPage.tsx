@@ -62,7 +62,7 @@ const filterTree = (tree: ChartOfAccountTreeNode[], searchTerm: string): ChartOf
 export default function ChartOfAccountsPage() {
   const navigate = useNavigate()
   const currentBranch = useBranchContext()
-  const { companies, fetchCompanies } = useCompaniesStore()
+  const { companies, fetchPage } = useCompaniesStore()
   const { 
     tree, 
     loading, 
@@ -147,9 +147,9 @@ export default function ChartOfAccountsPage() {
   useEffect(() => {
     // Only fetch if companies list is empty
     if (companies.length === 0) {
-      fetchCompanies(1, 100) // Load companies to get company name
+      fetchPage(1, 100) // Load companies to get company name
     }
-  }, [fetchCompanies, companies.length])
+  }, [fetchPage, companies.length])
 
   useEffect(() => {
     return () => {
