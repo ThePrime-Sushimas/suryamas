@@ -17,11 +17,31 @@ import {
   Activity,
   Coins,
   Scale,
-  TrendingUp
+  TrendingUp,
+  Layers,
+  BookOpen,
+  CreditCard,
+  ArrowLeftRight,
+  ClipboardList,
+  GitMerge,
+  Banknote,
+  BarChart3,
+  Tag,
+  Ruler,
+  Receipt,
+  ScanLine,
+  Database,
+  FolderKanban,
+  RefreshCcw,
+  FileCheck,
+  PieChart,
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
 export const menuItems: MenuItem[] = [
+  // ─────────────────────────────────────────────
+  // 1. DASHBOARD
+  // ─────────────────────────────────────────────
   {
     id: "dashboard",
     name: "Dashboard",
@@ -31,15 +51,22 @@ export const menuItems: MenuItem[] = [
         id: "dashboard-sales",
         name: "Sales",
         href: "/dashboard/sales",
-        icon: <LayoutDashboard size={16} />,
+        icon: <TrendingUp size={16} />,
         module: "dashboard_sales",
       },
       {
         id: "dashboard-accounting",
         name: "Accounting",
         href: "/dashboard/accounting",
-        icon: <Calculator size={16} />,
+        icon: <BarChart3 size={16} />,
         module: "dashboard_accounting",
+      },
+      {
+        id: "dashboard-finance",
+        name: "Finance",
+        href: "/dashboard/finance",
+        icon: <PieChart size={16} />,
+        module: "dashboard_finance",
       },
       {
         id: "dashboard-hrd",
@@ -48,19 +75,16 @@ export const menuItems: MenuItem[] = [
         icon: <Users size={16} />,
         module: "dashboard_hrd",
       },
-      {
-        id: "dashboard-finance",
-        name: "Finance",
-        href: "/dashboard/finance",
-        icon: <DollarSign size={16} />,
-        module: "dashboard_finance",
-      },
     ],
   },
+
+  // ─────────────────────────────────────────────
+  // 2. MASTER DATA — setup awal, jarang diubah
+  // ─────────────────────────────────────────────
   {
     id: "master-data",
     name: "Master Data",
-    icon: <Package size={18} />,
+    icon: <Database size={18} />,
     submenu: [
       {
         id: "companies",
@@ -80,42 +104,46 @@ export const menuItems: MenuItem[] = [
         id: "categories",
         name: "Categories",
         href: "/categories",
-        icon: <Package size={16} />,
+        icon: <FolderKanban size={16} />,
         module: "categories",
       },
       {
         id: "sub-categories",
         name: "Sub Categories",
         href: "/sub-categories",
-        icon: <Package size={16} />,
+        icon: <Tag size={16} />,
         module: "sub_categories",
       },
       {
         id: "metric-units",
         name: "Metric Units",
         href: "/metric-units",
-        icon: <Package size={16} />,
+        icon: <Ruler size={16} />,
         module: "metric_units",
       },
       {
         id: "payment-terms",
         name: "Payment Terms",
         href: "/payment-terms",
-        icon: <Package size={16} />,
+        icon: <ClipboardList size={16} />,
         module: "payment_terms",
       },
       {
         id: "payment-methods",
         name: "Payment Methods",
         href: "/payment-methods",
-        icon: <DollarSign size={16} />,
+        icon: <CreditCard size={16} />,
         module: "payment_methods",
       },
     ],
   },
+
+  // ─────────────────────────────────────────────
+  // 3. PRODUK & SUPPLIER
+  // ─────────────────────────────────────────────
   {
     id: "products",
-    name: "Products",
+    name: "Products & Suppliers",
     icon: <ShoppingCart size={18} />,
     submenu: [
       {
@@ -136,27 +164,140 @@ export const menuItems: MenuItem[] = [
         id: "supplier-products",
         name: "Supplier Products",
         href: "/supplier-products",
-        icon: <ShoppingCart size={16} />,
+        icon: <Layers size={16} />,
         module: "supplier_products",
       },
       {
         id: "pricelists",
         name: "Pricelists",
         href: "/pricelists",
-        icon: <DollarSign size={16} />,
+        icon: <Receipt size={16} />,
         module: "pricelists",
       },
     ],
   },
+
+  // ─────────────────────────────────────────────
+  // 4. POS MANAGEMENT — input data harian
+  //    Flow: Import → Staging → Transactions → Aggregates
+  // ─────────────────────────────────────────────
+  {
+    id: "pos",
+    name: "POS Management",
+    icon: <ScanLine size={18} />,
+    submenu: [
+      {
+        id: "pos-imports",
+        name: "POS Imports",
+        href: "/pos-imports",
+        icon: <FileSpreadsheet size={16} />,
+        module: "pos_imports",
+      },
+      {
+        id: "pos-staging",
+        name: "POS Staging",
+        href: "/pos-staging",
+        icon: <Database size={16} />,
+        module: "pos_imports",
+      },
+      {
+        id: "pos-transactions",
+        name: "POS Transactions",
+        href: "/pos-transactions",
+        icon: <ClipboardList size={16} />,
+        module: "pos_imports",
+      },
+      {
+        id: "pos-sync-aggregates",
+        name: "POS Sync Aggregates",
+        href: "/pos-sync-aggregates",
+        icon: <RefreshCcw size={16} />,
+        module: "pos_imports",
+      },
+      {
+        id: "pos-aggregates",
+        name: "POS Aggregates",
+        href: "/pos-aggregates",
+        icon: <GitMerge size={16} />,
+        module: "pos_aggregates",
+      },
+      {
+        id: "failed-transactions",
+        name: "Failed Transactions",
+        href: "/pos-aggregates/failed-transactions",
+        icon: <AlertTriangle size={16} />,
+        module: "pos_aggregates",
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // 5. BANKING & REKONSILIASI — proses matching
+  //    Flow: Import Bank → Rekonsiliasi → Settlement → Voucher → Cash
+  // ─────────────────────────────────────────────
+  {
+    id: "banking",
+    name: "Banking & Reconciliation",
+    icon: <Banknote size={18} />,
+    submenu: [
+      {
+        id: "bank-statement-imports",
+        name: "Bank Statement Imports",
+        href: "/bank-statement-import",
+        icon: <FileSpreadsheet size={16} />,
+        module: "bank_statement_imports",
+      },
+      {
+        id: "bank-reconciliation",
+        name: "Bank Reconciliation",
+        href: "/bank-reconciliation",
+        icon: <ArrowLeftRight size={16} />,
+        module: "bank_reconciliation",
+      },
+      {
+        id: "settlement-groups",
+        name: "Settlement Groups",
+        href: "/bank-reconciliation/settlement-groups",
+        icon: <FileCheck size={16} />,
+        module: "bank_reconciliation",
+      },
+      {
+        id: "cash-flow",
+        name: "Cash Flow",
+        href: "/cash-flow",
+        icon: <Activity size={16} />,
+        module: "cash_flow",
+      },
+      {
+        id: "cash-counts",
+        name: "Cash Count",
+        href: "/cash-counts",
+        icon: <Coins size={16} />,
+        module: "cash_counts",
+      },
+      {
+        id: "fee_discrepancy-review",
+        name: "Fee Discrepancy Review",
+        href: "bank-reconciliation/fee-discrepancy-review",
+        icon: <ShieldCheck size={16} />,
+        module: "fee_discrepancy_review",
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // 6. ACCOUNTING & LAPORAN — output/hasil akhir
+  //    Flow: Setup CoA → Jurnal → Laporan
+  // ─────────────────────────────────────────────
   {
     id: "accounting",
     name: "Accounting",
-    icon: <Calculator size={18} />,
+    icon: <BookOpen size={18} />,
     submenu: [
-      // Core Accounting
+      // Chart of Accounts & Setup
       {
         id: "accounting-core",
-        name: "Core Accounting",
+        name: "Chart of Accounts",
         icon: <Calculator size={16} />,
         submenu: [
           {
@@ -170,38 +311,46 @@ export const menuItems: MenuItem[] = [
             id: "accounting-purposes",
             name: "Accounting Purposes",
             href: "/accounting-purposes",
-            icon: <Calculator size={16} />,
+            icon: <ClipboardList size={16} />,
             module: "accounting_purposes",
           },
           {
             id: "accounting-purpose-accounts",
             name: "Purpose Accounts",
             href: "/accounting-purpose-accounts",
-            icon: <Calculator size={16} />,
+            icon: <Layers size={16} />,
             module: "accounting_purpose_accounts",
           },
         ],
       },
-      // Period & Journals
+      // Period & Jurnal
       {
         id: "accounting-periods",
         name: "Period & Journals",
-        icon: <Calculator size={16} />,
+        icon: <BookOpen size={16} />,
         submenu: [
           {
             id: "fiscal-periods",
             name: "Fiscal Periods",
             href: "/accounting/fiscal-periods",
-            icon: <Calculator size={16} />,
+            icon: <DollarSign size={16} />,
             module: "fiscal_periods",
           },
           {
             id: "journal-entries",
             name: "Journal Entries",
             href: "/accounting/journals",
-            icon: <Calculator size={16} />,
+            icon: <FileSpreadsheet size={16} />,
             module: "journals",
           },
+        ],
+      },
+      // Laporan Keuangan
+      {
+        id: "accounting-reports",
+        name: "Financial Reports",
+        icon: <BarChart3 size={16} />,
+        submenu: [
           {
             id: "trial-balance",
             name: "Neraca Saldo",
@@ -223,110 +372,14 @@ export const menuItems: MenuItem[] = [
             icon: <Scale size={16} />,
             module: "balance_sheet",
           },
-          {
-            id: "fee_discrepancy-review",
-            name: "Fee Discrepancy Review",
-            href: "bank-reconciliation/fee-discrepancy-review",
-            icon: <AlertTriangle size={16} />,
-            module: "fee_discrepancy_review",
-          }
-        ],
-      },
-      // POS Management
-      {
-        id: "accounting-pos",
-        name: "POS Management",
-        icon: <FileSpreadsheet size={16} />,
-        submenu: [
-          {
-            id: "pos-imports",
-            name: "POS Imports",
-            href: "/pos-imports",
-            icon: <FileSpreadsheet size={16} />,
-            module: "pos_imports",
-          },
-          {
-            id: "pos-staging",
-            name: "POS Staging",
-            href: "/pos-staging",
-            icon: <FileSpreadsheet size={16} />,
-            module: "pos_imports",
-          },
-          {
-            id: "pos-transactions",
-            name: "POS Transactions",
-            href: "/pos-transactions",
-            icon: <FileSpreadsheet size={16} />,
-            module: "pos_imports",
-          },
-          {
-            id: "pos-sync-aggregates",
-            name: "POS Sync Aggregates",
-            href: "/pos-sync-aggregates",
-            icon: <FileSpreadsheet size={16} />,
-            module: "pos_imports",
-          },
-          {
-            id: "pos-aggregates",
-            name: "POS Aggregates",
-            href: "/pos-aggregates",
-            icon: <FileSpreadsheet size={16} />,
-            module: "pos_aggregates",
-          },
-          {
-            id: "failed-transactions",
-            name: "Failed Transactions",
-            href: "/pos-aggregates/failed-transactions",
-            icon: <AlertTriangle size={16} />,
-            module: "pos_aggregates",
-          },
-        ],
-      },
-      // Banking
-      {
-        id: "accounting-banking",
-        name: "Banking",
-        icon: <ShieldCheck size={16} />,
-        submenu: [
-          {
-            id: "bank-statement-imports",
-            name: "Bank Statement Imports",
-            href: "/bank-statement-import",
-            icon: <FileSpreadsheet size={16} />,
-            module: "bank_statement_imports",
-          },
-          {
-            id: "bank-reconciliation",
-            name: "Bank Reconciliation",
-            href: "/bank-reconciliation",
-            icon: <ShieldCheck size={16} />,
-            module: "bank_reconciliation",
-          },
-          {
-            id: "cash-flow",
-            name: "Cash Flow",
-            href: "/cash-flow",
-            icon: <Activity size={16} />,
-            module: "cash_flow",
-          },
-          {
-            id: "settlement-groups",
-            name: "Settlement Groups",
-            href: "/bank-reconciliation/settlement-groups",
-            icon: <FileSpreadsheet size={16} />,
-            module: "bank_reconciliation",
-          },
-          {
-            id: "cash-counts",
-            name: "Cash Count",
-            href: "/cash-counts",
-            icon: <Coins size={16} />,
-            module: "cash_counts",
-          },
         ],
       },
     ],
   },
+
+  // ─────────────────────────────────────────────
+  // 7. HUMAN RESOURCES
+  // ─────────────────────────────────────────────
   {
     id: "hr",
     name: "Human Resources",
@@ -348,6 +401,10 @@ export const menuItems: MenuItem[] = [
       },
     ],
   },
+
+  // ─────────────────────────────────────────────
+  // 8. SETTINGS & SYSTEM
+  // ─────────────────────────────────────────────
   {
     id: "settings",
     name: "Settings",

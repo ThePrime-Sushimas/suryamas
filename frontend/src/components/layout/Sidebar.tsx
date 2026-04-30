@@ -32,7 +32,12 @@ interface SidebarProps {
   sidebarRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-export const Sidebar = ({ isOpen, isCollapsed, onNavigate, sidebarRef }: SidebarProps) => {
+export const Sidebar = ({
+  isOpen,
+  isCollapsed,
+  onNavigate,
+  sidebarRef,
+}: SidebarProps) => {
   const { permissions, isLoaded } = usePermissionStore();
 
   const filteredMenuItems = useMemo(() => {
@@ -44,23 +49,48 @@ export const Sidebar = ({ isOpen, isCollapsed, onNavigate, sidebarRef }: Sidebar
     <div
       ref={sidebarRef}
       className={`
-        fixed top-16 bottom-0 left-0 z-30 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-all duration-200 ease-in-out lg:static lg:translate-x-0 lg:shadow-none
+        fixed top-16 bottom-0 left-0 z-30
+        bg-white dark:bg-gray-800
+        border-r border-gray-200 dark:border-gray-700
+        transform transition-all duration-200 ease-in-out
+        lg:static lg:translate-x-0 lg:shadow-none
         ${isOpen ? "translate-x-0 shadow-xl" : "-translate-x-full"}
-        ${isCollapsed ? "lg:w-16" : "lg:w-64"}
+        ${isCollapsed ? "lg:w-[68px]" : "lg:w-64"}
         w-64
       `}
     >
-      <nav className="mt-4 px-4 h-full overflow-y-auto">
-        <div className="space-y-1">
-          {filteredMenuItems.map((item) => (
-            <MenuItemComponent
-              key={item.id}
-              item={item}
-              level={0}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </div>
+      <nav
+        className={`
+          mt-2 h-full overflow-y-auto overflow-x-hidden
+          ${isCollapsed ? "px-2" : "px-3"}
+        `}
+      >
+        {/* Collapsed: hanya icon, tanpa label */}
+        {isCollapsed ? (
+          <div className="space-y-1 pb-6">
+            {filteredMenuItems.map((item) => (
+              <MenuItemComponent
+                key={item.id}
+                item={item}
+                level={0}
+                onNavigate={onNavigate}
+                isCollapsed={true}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-0.5 pb-6">
+            {filteredMenuItems.map((item) => (
+              <MenuItemComponent
+                key={item.id}
+                item={item}
+                level={0}
+                onNavigate={onNavigate}
+                isCollapsed={false}
+              />
+            ))}
+          </div>
+        )}
       </nav>
     </div>
   );
