@@ -1,6 +1,5 @@
 import api from '@/lib/axios'
 import type { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto, SortParams, FilterParams, FilterOptions, PaginationParams } from '../types'
-import { getErrorMessage } from '../utils/errors'
 
 interface ApiResponse<T> {
   success: boolean
@@ -14,144 +13,49 @@ interface PaginatedResponse<T> {
   pagination: PaginationParams
 }
 
-interface ListParams {
-  page: number
-  limit: number
-  sort?: string
-  order?: 'asc' | 'desc'
-  metric_type?: string
-  is_active?: boolean
-  q?: string
-}
-
-const handleApiCall = async <T>(
-  apiCall: () => Promise<T>,
-  errorMessage = 'Operation failed'
-): Promise<T> => {
-  try {
-    return await apiCall()
-  } catch (error: unknown) {
-    if (error && typeof error === 'object' && 'response' in error) {
-      const axiosError = error as { response?: { data?: { error?: string } } }
-      const message = axiosError.response?.data?.error || errorMessage
-      throw new Error(message)
-    }
-    throw new Error(getErrorMessage(error) || errorMessage)
-  }
-}
-
-const validatePagination = (page: number, limit: number) => {
-  if (page < 1) throw new Error('Page must be >= 1')
-  if (limit < 1 || limit > 100) throw new Error('Limit must be 1-100')
-}
-
-class RequestManager {
-  private controllers = new Map<string, AbortController>()
-  
-  getSignal(key: string): AbortSignal {
-    this.abort(key)
-    const controller = new AbortController()
-    this.controllers.set(key, controller)
-    return controller.signal
-  }
-  
-  abort(key: string) {
-    const controller = this.controllers.get(key)
-    if (controller) {
-      controller.abort()
-      this.controllers.delete(key)
-    }
-  }
-  
-  cleanup(key: string) {
-    this.controllers.delete(key)
-  }
-}
-
-const requestManager = new RequestManager()
-
 export const metricUnitsApi = {
   list: async (page = 1, limit = 25, sort?: SortParams | null, filter?: FilterParams | null) => {
-    return handleApiCall(async () => {
-      validatePagination(page, limit)
-      
-      const signal = requestManager.getSignal('list')
-      
-      const params: ListParams = { page, limit }
-      if (sort) {
-        params.sort = sort.field
-        params.order = sort.order
-      }
-      if (filter) {
-        Object.assign(params, filter)
-      }
-      
-      try {
-        const res = await api.get<PaginatedResponse<MetricUnit>>('/metric-units', { 
-          params,
-          signal
-        })
-        requestManager.cleanup('list')
-        return res.data
-      } catch (error) {
-        requestManager.cleanup('list')
-        throw error
-      }
-    }, 'Failed to fetch metric units')
-  },
-
-  listActive: async (page = 1, limit = 25) => {
-    return handleApiCall(async () => {
-      validatePagination(page, limit)
-      const res = await api.get<PaginatedResponse<MetricUnit>>('/metric-units/active', { params: { page, limit } })
-      return res.data
-    }, 'Failed to fetch active metric units')
+    const params: Record<string, string | number | boolean> = { page, limit }
+    if (sort) { params.sort = sort.field; params.order = sort.order }
+    if (filter) {
+      if (filter.metric_type) params.metric_type = filter.metric_type
+      if (filter.is_active !== undefined) params.is_active = filter.is_active
+      if (filter.q) params.q = filter.q
+    }
+    const res = await api.get<PaginatedResponse<MetricUnit>>('/metric-units', { params })
+    return res.data
   },
 
   getById: async (id: string) => {
-    return handleApiCall(async () => {
-      const res = await api.get<ApiResponse<MetricUnit>>(`/metric-units/${id}`)
-      return res.data.data
-    }, 'Failed to fetch metric unit')
+    const res = await api.get<ApiResponse<MetricUnit>>(`/metric-units/${id}`)
+    return res.data.data
   },
 
   create: async (data: CreateMetricUnitDto) => {
-    return handleApiCall(async () => {
-      const res = await api.post<ApiResponse<MetricUnit>>('/metric-units', data)
-      return res.data.data
-    }, 'Failed to create metric unit')
+    const res = await api.post<ApiResponse<MetricUnit>>('/metric-units', data)
+    return res.data.data
   },
 
   update: async (id: string, data: UpdateMetricUnitDto) => {
-    return handleApiCall(async () => {
-      const res = await api.put<ApiResponse<MetricUnit>>(`/metric-units/${id}`, data)
-      return res.data.data
-    }, 'Failed to update metric unit')
+    const res = await api.put<ApiResponse<MetricUnit>>(`/metric-units/${id}`, data)
+    return res.data.data
   },
 
   delete: async (id: string) => {
-    return handleApiCall(async () => {
-      await api.delete(`/metric-units/${id}`)
-    }, 'Failed to delete metric unit')
+    await api.delete(`/metric-units/${id}`)
   },
 
   restore: async (id: string) => {
-    return handleApiCall(async () => {
-      const res = await api.post<ApiResponse<MetricUnit>>(`/metric-units/${id}/restore`)
-      return res.data.data
-    }, 'Failed to restore metric unit')
+    const res = await api.post<ApiResponse<MetricUnit>>(`/metric-units/${id}/restore`)
+    return res.data.data
   },
 
   bulkUpdateStatus: async (ids: string[], is_active: boolean) => {
-    return handleApiCall(async () => {
-      await api.post('/metric-units/bulk/status', { ids, is_active })
-    }, 'Failed to update status')
+    await api.post('/metric-units/bulk/status', { ids, is_active })
   },
 
   getFilterOptions: async () => {
-    return handleApiCall(async () => {
-      const res = await api.get<ApiResponse<FilterOptions>>('/metric-units/filter-options')
-      return res.data.data
-    }, 'Failed to fetch filter options')
+    const res = await api.get<ApiResponse<FilterOptions>>('/metric-units/filter-options')
+    return res.data.data
   }
 }

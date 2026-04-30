@@ -7,64 +7,59 @@ interface MetricUnitsState {
   metricUnits: MetricUnit[]
   currentMetricUnit: MetricUnit | null
   loading: boolean
+  mutationLoading: boolean
   error: string | null
   pagination: PaginationParams
   sort: SortParams | null
-  filter: FilterParams | null
   filterOptions: FilterOptions | null
   currentRequestId: number
   
-  fetchMetricUnits: (page?: number, limit?: number) => Promise<void>
+  fetchMetricUnits: (page?: number, limit?: number, sort?: SortParams | null, filter?: FilterParams | null) => Promise<void>
+  fetchPage: (page: number, limit?: number, sort?: SortParams | null, filter?: FilterParams | null) => Promise<void>
   fetchMetricUnitById: (id: string) => Promise<MetricUnit>
-  searchMetricUnits: (q: string) => Promise<void>
   createMetricUnit: (data: CreateMetricUnitDto) => Promise<MetricUnit>
   updateMetricUnit: (id: string, data: UpdateMetricUnitDto) => Promise<MetricUnit>
   deleteMetricUnit: (id: string) => Promise<void>
   restoreMetricUnit: (id: string) => Promise<void>
   bulkUpdateStatus: (ids: string[], isActive: boolean) => Promise<void>
   fetchFilterOptions: () => Promise<void>
-  setPage: (page: number) => void
-  setLimit: (limit: number) => void
-  setSort: (sort: SortParams | null) => void
-  setFilter: (filter: FilterParams | null) => void
   clearError: () => void
-  reset: () => void
 }
 
-const initialState = {
+const initialPagination: PaginationParams = { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false }
+
+export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
   metricUnits: [],
   currentMetricUnit: null,
   loading: false,
+  mutationLoading: false,
   error: null,
-  pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+  pagination: initialPagination,
   sort: null,
-  filter: null,
   filterOptions: null,
-  currentRequestId: 0
-}
+  currentRequestId: 0,
 
-export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
-  ...initialState,
-
-  fetchMetricUnits: async (page, limit) => {
+  fetchMetricUnits: async (page, limit, sort, filter) => {
     const requestId = get().currentRequestId + 1
+    const p = page ?? get().pagination.page
+    const l = limit ?? get().pagination.limit
+    const s = sort !== undefined ? sort : get().sort
+
     set({ currentRequestId: requestId, loading: true, error: null })
-    
-    const state = get()
-    const currentPage = page ?? state.pagination.page
-    const currentLimit = limit ?? state.pagination.limit
-    
     try {
-      const res = await metricUnitsApi.list(currentPage, currentLimit, state.sort, state.filter)
-      
-      if (get().currentRequestId === requestId) {
-        set({ metricUnits: res.data, pagination: res.pagination, loading: false })
-      }
+      const res = await metricUnitsApi.list(p, l, s, filter)
+      if (get().currentRequestId !== requestId) return
+      set({ metricUnits: res.data, pagination: res.pagination, loading: false })
     } catch (error: unknown) {
-      if (get().currentRequestId === requestId) {
-        set({ error: getErrorMessage(error), loading: false })
-      }
+      if (get().currentRequestId !== requestId) return
+      set({ error: getErrorMessage(error), loading: false })
     }
+  },
+
+  fetchPage: (page, limit?, sort?, filter?) => {
+    const l = limit ?? get().pagination.limit
+    set(state => ({ pagination: { ...state.pagination, page, limit: l } }))
+    return get().fetchMetricUnits(page, l, sort, filter)
   },
 
   fetchMetricUnitById: async (id) => {
@@ -79,86 +74,69 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
     }
   },
 
-  searchMetricUnits: async (q) => {
-    const currentPagination = get().pagination
-    set({ 
-      filter: { q }, 
-      pagination: { ...currentPagination, page: 1 } 
-    })
-    await get().fetchMetricUnits()
-  },
-
   createMetricUnit: async (data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const metricUnit = await metricUnitsApi.create(data)
-      set(state => ({
-        metricUnits: [metricUnit, ...state.metricUnits],
-        pagination: { ...state.pagination, total: state.pagination.total + 1 },
-        loading: false
-      }))
+      set({ mutationLoading: false })
       return metricUnit
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), loading: false })
+      set({ error: getErrorMessage(error), mutationLoading: false })
       throw error
     }
   },
 
   updateMetricUnit: async (id, data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const metricUnit = await metricUnitsApi.update(id, data)
       set(state => ({
         metricUnits: state.metricUnits.map(m => m.id === id ? metricUnit : m),
         currentMetricUnit: state.currentMetricUnit?.id === id ? metricUnit : state.currentMetricUnit,
-        loading: false
+        mutationLoading: false
       }))
       return metricUnit
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), loading: false })
+      set({ error: getErrorMessage(error), mutationLoading: false })
       throw error
     }
   },
 
   deleteMetricUnit: async (id) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       await metricUnitsApi.delete(id)
-      set(state => ({
-        metricUnits: state.metricUnits.filter(m => m.id !== id),
-        pagination: { ...state.pagination, total: state.pagination.total - 1 },
-        loading: false
-      }))
+      set({ mutationLoading: false })
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), loading: false })
+      set({ error: getErrorMessage(error), mutationLoading: false })
       throw error
     }
   },
 
   restoreMetricUnit: async (id) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const metricUnit = await metricUnitsApi.restore(id)
       set(state => ({
         metricUnits: state.metricUnits.map(m => m.id === id ? metricUnit : m),
-        loading: false
+        mutationLoading: false
       }))
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), loading: false })
+      set({ error: getErrorMessage(error), mutationLoading: false })
       throw error
     }
   },
 
   bulkUpdateStatus: async (ids, isActive) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       await metricUnitsApi.bulkUpdateStatus(ids, isActive)
       set(state => ({
         metricUnits: state.metricUnits.map(m => ids.includes(m.id) ? { ...m, is_active: isActive } : m),
-        loading: false
+        mutationLoading: false
       }))
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), loading: false })
+      set({ error: getErrorMessage(error), mutationLoading: false })
       throw error
     }
   },
@@ -167,30 +145,8 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
     try {
       const options = await metricUnitsApi.getFilterOptions()
       set({ filterOptions: options })
-    } catch (error: unknown) {
-      console.error('Failed to fetch filter options:', error)
-    }
+    } catch (_) { /* silent */ }
   },
 
-  setPage: (page) => {
-    set(state => ({ pagination: { ...state.pagination, page } }))
-  },
-
-  setLimit: (limit) => {
-    set(state => ({ pagination: { ...state.pagination, limit, page: 1 } }))
-  },
-
-  setSort: (sort) => {
-    set({ sort })
-    get().fetchMetricUnits()
-  },
-
-  setFilter: (filter) => {
-    set({ filter, pagination: { ...get().pagination, page: 1 } })
-    get().fetchMetricUnits()
-  },
-
-  clearError: () => set({ error: null }),
-  
-  reset: () => set(initialState)
+  clearError: () => set({ error: null })
 }))

@@ -9,7 +9,7 @@ import type { CreateMetricUnitDto } from '../types'
 export default function CreateMetricUnitPage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { createMetricUnit, loading, filterOptions, fetchFilterOptions } = useMetricUnitsStore()
+  const { createMetricUnit, mutationLoading, filterOptions, fetchFilterOptions } = useMetricUnitsStore()
 
   useEffect(() => {
     if (!filterOptions) fetchFilterOptions()
@@ -39,7 +39,7 @@ export default function CreateMetricUnitPage() {
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <MetricUnitForm onSubmit={handleSubmit} isLoading={loading} metricTypes={filterOptions?.metric_types} />
+          <MetricUnitForm onSubmit={handleSubmit} isLoading={mutationLoading} metricTypes={filterOptions?.metric_types} />
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { banksApi } from '../api/banks.api'
-import type { Bank, BankOption, CreateBankDto, UpdateBankDto, PaginationMeta } from '../types'
+import type { Bank, BankOption, CreateBankDto, UpdateBankDto, BankListQuery, PaginationMeta } from '../types'
 
 interface BanksState {
   banks: Bank[]
@@ -10,13 +10,11 @@ interface BanksState {
   fetchLoading: boolean
   mutationLoading: boolean
   error: string | null
-  searchQuery: string
-  activeFilter: boolean | undefined
+  currentRequestId: number
   
-  fetchBanks: (page?: number, limit?: number) => Promise<void>
+  fetchBanks: (query?: BankListQuery) => Promise<void>
+  fetchPage: (page: number, limit?: number, query?: Omit<BankListQuery, 'page' | 'limit'>) => Promise<void>
   fetchBankById: (id: number) => Promise<Bank>
-  searchBanks: (search: string) => void
-  filterByStatus: (isActive: boolean | undefined) => void
   createBank: (data: CreateBankDto) => Promise<Bank>
   updateBank: (id: number, data: UpdateBankDto) => Promise<Bank>
   deleteBank: (id: number) => Promise<void>
@@ -24,42 +22,36 @@ interface BanksState {
   clearError: () => void
 }
 
-const initialState = {
+const initialPagination: PaginationMeta = { page: 1, limit: 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false }
+
+export const useBanksStore = create<BanksState>((set, get) => ({
   banks: [],
   currentBank: null,
   options: [],
-  pagination: { page: 1, limit: 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+  pagination: initialPagination,
   fetchLoading: false,
   mutationLoading: false,
   error: null,
-  searchQuery: '',
-  activeFilter: undefined
-}
+  currentRequestId: 0,
 
-export const useBanksStore = create<BanksState>((set, get) => ({
-  ...initialState,
-
-  fetchBanks: async (page = 1, limit = 10) => {
-    set({ fetchLoading: true, error: null })
-    
+  fetchBanks: async (query = {}) => {
+    const requestId = get().currentRequestId + 1
+    set({ currentRequestId: requestId, fetchLoading: true, error: null })
     try {
-      const { searchQuery, activeFilter } = get()
-      const res = await banksApi.list({ 
-        page, 
-        limit, 
-        search: searchQuery || undefined,
-        is_active: activeFilter 
-      })
-      
-      set({
-        banks: res.data,
-        pagination: res.pagination,
-        fetchLoading: false
-      })
+      const res = await banksApi.list(query)
+      if (get().currentRequestId !== requestId) return
+      set({ banks: res.data, pagination: res.pagination, fetchLoading: false })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch banks'
+      if (get().currentRequestId !== requestId) return
+      const message = error instanceof Error ? error.message : 'Gagal memuat data bank'
       set({ error: message, fetchLoading: false })
     }
+  },
+
+  fetchPage: (page, limit?, query?) => {
+    const l = limit ?? get().pagination.limit
+    set(state => ({ pagination: { ...state.pagination, page, limit: l } }))
+    return get().fetchBanks({ ...query, page, limit: l })
   },
 
   fetchBankById: async (id) => {
@@ -69,20 +61,10 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       set({ currentBank: bank, fetchLoading: false })
       return bank
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch bank'
+      const message = error instanceof Error ? error.message : 'Gagal memuat data bank'
       set({ error: message, fetchLoading: false })
       throw error
     }
-  },
-
-  searchBanks: (search) => {
-    set({ searchQuery: search })
-    get().fetchBanks(1, get().pagination.limit)
-  },
-
-  filterByStatus: (isActive) => {
-    set({ activeFilter: isActive })
-    get().fetchBanks(1, get().pagination.limit)
   },
 
   createBank: async (data) => {
@@ -90,10 +72,9 @@ export const useBanksStore = create<BanksState>((set, get) => ({
     try {
       const bank = await banksApi.create(data)
       set({ mutationLoading: false })
-      get().fetchBanks(get().pagination.page, get().pagination.limit)
       return bank
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create bank'
+      const message = error instanceof Error ? error.message : 'Gagal membuat bank'
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -110,7 +91,7 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       }))
       return bank
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update bank'
+      const message = error instanceof Error ? error.message : 'Gagal memperbarui bank'
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -121,9 +102,8 @@ export const useBanksStore = create<BanksState>((set, get) => ({
     try {
       await banksApi.delete(id)
       set({ mutationLoading: false })
-      get().fetchBanks(get().pagination.page, get().pagination.limit)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete bank'
+      const message = error instanceof Error ? error.message : 'Gagal menghapus bank'
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -134,7 +114,7 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       const options = await banksApi.getOptions()
       set({ options })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch bank options'
+      const message = error instanceof Error ? error.message : 'Gagal memuat opsi bank'
       set({ error: message })
     }
   },

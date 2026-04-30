@@ -10,7 +10,7 @@ export default function EditMetricUnitPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
-  const { currentMetricUnit, loading, filterOptions, updateMetricUnit, fetchFilterOptions } = useMetricUnitsStore()
+  const { currentMetricUnit, loading, mutationLoading, filterOptions, updateMetricUnit, fetchFilterOptions } = useMetricUnitsStore()
 
   useEffect(() => {
     if (!filterOptions) fetchFilterOptions()
@@ -64,7 +64,7 @@ export default function EditMetricUnitPage() {
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-            <MetricUnitForm initialData={currentMetricUnit} isEdit onSubmit={handleSubmit} isLoading={loading} metricTypes={filterOptions?.metric_types} />
+            <MetricUnitForm initialData={currentMetricUnit} isEdit onSubmit={handleSubmit} isLoading={mutationLoading} metricTypes={filterOptions?.metric_types} />
           </div>
         )}
       </div>

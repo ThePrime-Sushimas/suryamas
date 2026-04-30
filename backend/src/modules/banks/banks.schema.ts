@@ -40,6 +40,6 @@ export const bankListQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(100).default(10),
     search: z.string().trim().optional(),
-    is_active: z.coerce.boolean().optional(),
+    is_active: z.preprocess(val => val === 'true' || val === true, z.boolean()).optional(),
   }),
 })

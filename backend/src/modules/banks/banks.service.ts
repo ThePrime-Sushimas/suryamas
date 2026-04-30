@@ -1,5 +1,5 @@
 import { banksRepository } from './banks.repository'
-import { Bank, CreateBankDto, UpdateBankDto, BankListQuery, BankOption } from './banks.types'
+import type { Bank, CreateBankDto, UpdateBankDto, BankListQuery, BankOption } from './banks.types'
 import { BankNotFoundError, BankCodeAlreadyExistsError, BankInUseError } from './banks.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 import { cache } from '../../utils/cache.util'
@@ -87,7 +87,7 @@ export class BanksService {
   }
 
   async getBanks(query: BankListQuery) {
-    const { page, limit, offset } = getPaginationParams(query as any)
+    const { page, limit, offset } = getPaginationParams(query as { page?: number; limit?: number })
     const { data, total } = await banksRepository.findAll({ limit, offset }, query)
     
     return createPaginatedResponse(data, total, page, limit)

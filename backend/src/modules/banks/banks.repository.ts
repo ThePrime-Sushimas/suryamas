@@ -1,6 +1,5 @@
 import { pool } from '../../config/db'
-import { Bank, CreateBankDto, UpdateBankDto, BankListQuery, BankOption } from './banks.types'
-import { DatabaseError } from '../../utils/error-handler.util'
+import type { Bank, CreateBankDto, UpdateBankDto, BankListQuery, BankOption } from './banks.types'
 import { logDebug, logError } from '../../config/logger'
 
 export class BanksRepository {
@@ -51,7 +50,7 @@ export class BanksRepository {
   }
 
   async create(data: CreateBankDto): Promise<Bank> {
-    const insertData = { ...data, is_active: data.is_active ?? true }
+    const insertData: Record<string, unknown> = { ...data, is_active: data.is_active ?? true }
     const keys = Object.keys(insertData)
     const values = Object.values(insertData)
     const { rows } = await pool.query(

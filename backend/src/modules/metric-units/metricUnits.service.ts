@@ -1,10 +1,10 @@
 import { metricUnitsRepository } from './metricUnits.repository'
-import { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
-import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
+import type { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
+import type { PaginatedResponse } from '../../utils/pagination.util'
+import { createPaginatedResponse } from '../../utils/pagination.util'
 import { AuditService } from '../monitoring/monitoring.service'
 import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
-import { MetricUnitNotFoundError, DuplicateMetricUnitError } from './metric-units.errors'
-import { logError, logWarn } from '../../config/logger'
+import { MetricUnitNotFoundError } from './metric-units.errors'
 
 export class MetricUnitsService {
   /**

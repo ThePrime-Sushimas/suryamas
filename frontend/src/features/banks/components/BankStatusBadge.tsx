@@ -10,7 +10,7 @@ export const BankStatusBadge = ({ isActive }: BankStatusBadgeProps) => {
         : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-400'
     }`}>
       <span className={`mr-1 h-1.5 w-1.5 rounded-full ${isActive ? 'bg-green-600 dark:bg-green-400' : 'bg-gray-600 dark:bg-gray-500'}`} />
-      {isActive ? 'Active' : 'Inactive'}
+      {isActive ? 'Aktif' : 'Tidak Aktif'}
     </span>
   )
 }

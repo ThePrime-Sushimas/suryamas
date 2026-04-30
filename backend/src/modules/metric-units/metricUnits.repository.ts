@@ -1,5 +1,5 @@
 import { pool } from '../../config/db'
-import { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
+import type { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto } from './metricUnits.types'
 import { METRIC_UNIT_CONFIG } from './metricUnits.constants'
 import { DuplicateMetricUnitError } from './metric-units.errors'
 

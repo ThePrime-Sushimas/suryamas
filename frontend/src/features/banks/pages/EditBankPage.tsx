@@ -16,7 +16,7 @@ export const EditBankPage = () => {
   useEffect(() => {
     if (id) {
       fetchBankById(Number(id)).catch(() => {
-        toast.error('Bank not found')
+        toast.error('Bank tidak ditemukan')
         navigate('/settings/banks')
       })
     }
@@ -26,18 +26,22 @@ export const EditBankPage = () => {
     if (!id) return
     try {
       await updateBank(Number(id), { bank_name: data.bank_name, is_active: data.is_active })
-      toast.success('Bank updated successfully')
+      toast.success('Bank berhasil diperbarui')
       navigate('/settings/banks')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update bank')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal memperbarui bank')
     }
   }
 
   if (fetchLoading || !currentBank) {
     return (
       <div className="p-4 sm:p-6 max-w-3xl mx-auto min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-center text-gray-500 dark:text-gray-400">Loading...</p>
+        <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-6" />
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          ))}
         </div>
       </div>
     )
@@ -45,8 +49,8 @@ export const EditBankPage = () => {
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto min-h-screen bg-gray-50 dark:bg-gray-900">
-      <button onClick={() => navigate('/settings/banks')} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors text-sm">
-        <ArrowLeft className="h-4 w-4" /> Back to Banks
+      <button onClick={() => navigate('/settings/banks')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 mb-6">
+        <ArrowLeft size={20} />
       </button>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Bank</h1>

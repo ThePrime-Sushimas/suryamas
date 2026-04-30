@@ -4,8 +4,8 @@ import type { MetricUnit, CreateMetricUnitDto, MetricType } from '../types'
 
 const metricUnitSchema = z.object({
   metric_type: z.enum(['Unit', 'Volume', 'Weight']),
-  unit_name: z.string().min(1, 'Unit name is required').max(100, 'Max 100 characters').trim(),
-  notes: z.string().max(500, 'Max 500 characters').optional().nullable(),
+  unit_name: z.string().min(1, 'Nama satuan wajib diisi').max(100, 'Maksimal 100 karakter').trim(),
+  notes: z.string().max(500, 'Maksimal 500 karakter').optional().nullable(),
   is_active: z.boolean()
 })
 
@@ -138,14 +138,14 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="metric_type" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Metric Type *</label>
+        <label htmlFor="metric_type" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tipe Satuan *</label>
         <select 
           id="metric_type"
           name="metric_type" 
           value={formData.metric_type} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={isLoading}
           aria-invalid={!!errors.metric_type}
           aria-describedby={errors.metric_type ? 'metric_type-error' : undefined}
@@ -160,14 +160,14 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
       </div>
       
       <div>
-        <label htmlFor="unit_name" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Unit Name *</label>
+        <label htmlFor="unit_name" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Nama Satuan *</label>
         <input 
           id="unit_name"
           name="unit_name" 
           value={formData.unit_name} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={isLoading}
           maxLength={100}
           aria-invalid={!!errors.unit_name}
@@ -179,14 +179,14 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
       </div>
       
       <div>
-        <label htmlFor="notes" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Notes</label>
+        <label htmlFor="notes" className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Catatan</label>
         <textarea 
           id="notes"
           name="notes" 
           value={formData.notes || ''} 
           onChange={handleChange}
           onBlur={handleBlur}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           rows={3}
           disabled={isLoading}
           maxLength={500}
@@ -209,16 +209,16 @@ export const MetricUnitForm = ({ initialData, isEdit, onSubmit, isLoading, metri
             className="mr-2 w-4 h-4"
             disabled={isLoading}
           />
-          <span className="text-sm font-medium">Active</span>
+          <span className="text-sm font-medium">Aktif</span>
         </label>
       </div>
       
       <button 
         type="submit" 
         disabled={isLoading || isSubmitting || Object.keys(errors).length > 0 || (isEdit && !hasChanges())}
-        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
       >
-        {isLoading || isSubmitting ? 'Saving...' : isEdit ? (hasChanges() ? 'Update' : 'No Changes') : 'Create'}
+        {isLoading || isSubmitting ? 'Menyimpan...' : isEdit ? (hasChanges() ? 'Perbarui' : 'Tidak Ada Perubahan') : 'Buat'}
       </button>
     </form>
   )

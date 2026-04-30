@@ -1,26 +1,17 @@
-import { Pencil, Trash2, RotateCcw } from 'lucide-react'
+import { Pencil, Trash2, RotateCcw, Ruler } from 'lucide-react'
 import type { MetricUnit } from '../types'
+
+const TABLE_COLS = 5
 
 interface MetricUnitTableProps {
   metricUnits: MetricUnit[]
+  loading: boolean
   onEdit: (id: string) => void
   onDelete: (unit: MetricUnit) => void
   onRestore: (unit: MetricUnit) => void
 }
 
-export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore }: MetricUnitTableProps) => {
-  if (metricUnits.length === 0) {
-    return (
-      <div className="p-12 text-center">
-        <svg className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-        </svg>
-        <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Tidak ada satuan</h3>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Mulai dengan membuat satuan baru.</p>
-      </div>
-    )
-  }
-
+export const MetricUnitTable = ({ metricUnits, loading, onEdit, onDelete, onRestore }: MetricUnitTableProps) => {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -34,7 +25,25 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore }: Me
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {metricUnits.map(unit => (
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i}>
+                {Array.from({ length: TABLE_COLS }).map((_, j) => (
+                  <td key={j} className="px-4 py-3">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : metricUnits.length === 0 ? (
+            <tr>
+              <td colSpan={TABLE_COLS} className="px-6 py-16 text-center">
+                <Ruler className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                <p className="text-gray-500 dark:text-gray-400 font-medium">Tidak ada satuan ditemukan</p>
+                <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Coba ubah filter atau tambah satuan baru</p>
+              </td>
+            </tr>
+          ) : metricUnits.map(unit => (
             <tr key={unit.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
               <td className="px-4 py-3 text-gray-900 dark:text-white">{unit.metric_type}</td>
               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{unit.unit_name}</td>
@@ -49,7 +58,7 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore }: Me
                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                     : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                 }`}>
-                  {unit.is_active ? 'Aktif' : 'Nonaktif'}
+                  {unit.is_active ? 'Aktif' : 'Tidak Aktif'}
                 </span>
               </td>
               <td className="px-4 py-3 text-center">
@@ -62,7 +71,7 @@ export const MetricUnitTable = ({ metricUnits, onEdit, onDelete, onRestore }: Me
                       <Trash2 className="w-4 h-4" />
                     </button>
                   ) : (
-                    <button onClick={() => onRestore(unit)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Restore">
+                    <button onClick={() => onRestore(unit)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Pulihkan">
                       <RotateCcw className="w-4 h-4" />
                     </button>
                   )}
