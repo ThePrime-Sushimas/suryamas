@@ -10,7 +10,7 @@ import type { SubCategory, CreateSubCategoryDto, UpdateSubCategoryDto } from '..
 export default function EditSubCategoryPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { updateSubCategory, loading: updating } = useCategoriesStore()
+  const { updateSubCategory, mutationLoading } = useCategoriesStore()
   const [subCategory, setSubCategory] = useState<SubCategory | null>(null)
   const [loading, setLoading] = useState(true)
   const toast = useToast()
@@ -65,7 +65,7 @@ export default function EditSubCategoryPage() {
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-            <SubCategoryForm initialData={subCategory} isEdit onSubmit={handleSubmit} isLoading={updating} />
+            <SubCategoryForm initialData={subCategory} isEdit onSubmit={handleSubmit} isLoading={mutationLoading} />
           </div>
         )}
       </div>

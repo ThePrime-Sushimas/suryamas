@@ -10,7 +10,7 @@ import type { Category, CreateCategoryDto, UpdateCategoryDto } from '../types'
 export default function EditCategoryPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { updateCategory, loading: updating } = useCategoriesStore()
+  const { updateCategory, mutationLoading } = useCategoriesStore()
   const [category, setCategory] = useState<Category | null>(null)
   const [loading, setLoading] = useState(true)
   const toast = useToast()
@@ -65,7 +65,7 @@ export default function EditCategoryPage() {
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-            <CategoryForm initialData={category} isEdit onSubmit={handleSubmit} isLoading={updating} />
+            <CategoryForm initialData={category} isEdit onSubmit={handleSubmit} isLoading={mutationLoading} />
           </div>
         )}
       </div>

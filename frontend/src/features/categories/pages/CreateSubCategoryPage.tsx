@@ -7,7 +7,7 @@ import type { CreateSubCategoryDto, UpdateSubCategoryDto } from '../types'
 
 export default function CreateSubCategoryPage() {
   const navigate = useNavigate()
-  const { createSubCategory, loading } = useCategoriesStore()
+  const { createSubCategory, mutationLoading } = useCategoriesStore()
   const toast = useToast()
 
   const handleSubmit = async (data: CreateSubCategoryDto | UpdateSubCategoryDto) => {
@@ -34,7 +34,7 @@ export default function CreateSubCategoryPage() {
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <SubCategoryForm onSubmit={handleSubmit} isLoading={loading} />
+          <SubCategoryForm onSubmit={handleSubmit} isLoading={mutationLoading} />
         </div>
       </div>
     </div>

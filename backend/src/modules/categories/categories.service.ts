@@ -130,8 +130,8 @@ export class CategoriesService {
       }
 
       logInfo('Category deleted', { id })
-    } catch (error: any) {
-      logError('Delete category failed', { id, error: error.message })
+    } catch (error: unknown) {
+      logError('Delete category failed', { id, error: error instanceof Error ? error.message : 'Unknown error' })
       throw error
     }
   }
@@ -145,15 +145,15 @@ export class CategoriesService {
       }
 
       logInfo('Category restored', { id })
-    } catch (error: any) {
-      logError('Restore category failed', { id, error: error.message })
+    } catch (error: unknown) {
+      logError('Restore category failed', { id, error: error instanceof Error ? error.message : 'Unknown error' })
       throw error
     }
   }
 
   async bulkDelete(ids: string[], userId?: string): Promise<void> {
     if (!ids || ids.length === 0) {
-      throw new Error('Please select at least one category')
+      throw CategoryErrors.VALIDATION_ERROR('Please select at least one category')
     }
 
     try {
@@ -164,8 +164,8 @@ export class CategoriesService {
       }
 
       logInfo('Bulk delete completed', { count: ids.length })
-    } catch (error: any) {
-      logError('Bulk delete failed', { ids, error: error.message })
+    } catch (error: unknown) {
+      logError('Bulk delete failed', { ids, error: error instanceof Error ? error.message : 'Unknown error' })
       throw error
     }
   }

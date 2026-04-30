@@ -11,21 +11,20 @@ interface SubCategoryFormProps {
 }
 
 export const SubCategoryForm = ({ initialData, isEdit, onSubmit, isLoading }: SubCategoryFormProps) => {
-  const { categories, fetchCategories } = useCategoriesStore()
+  const { categories, fetchAllCategories } = useCategoriesStore()
   const [formData, setFormData] = useState({
     category_id: initialData?.category_id || '',
     sub_category_code: initialData?.sub_category_code || '',
     sub_category_name: initialData?.sub_category_name || '',
     description: initialData?.description || '',
-    sort_order: initialData?.sort_order || 0
+    sort_order: initialData?.sort_order || 0,
   })
   const [existingCodes, setExistingCodes] = useState<string[]>([])
 
   useEffect(() => {
-    fetchCategories(1, 1000, 'true')
-  }, [fetchCategories])
+    fetchAllCategories()
+  }, [fetchAllCategories])
 
-  // Fetch existing sub-category codes when category changes
   useEffect(() => {
     if (formData.category_id && !isEdit) {
       subCategoriesApi.getByCategoryId(formData.category_id)
@@ -43,64 +42,59 @@ export const SubCategoryForm = ({ initialData, isEdit, onSubmit, isLoading }: Su
     await onSubmit(isEdit ? {
       sub_category_name: formData.sub_category_name,
       description: formData.description,
-      sort_order: Number(formData.sort_order)
+      sort_order: Number(formData.sort_order),
     } : formData)
   }
 
   const isDuplicateCode = !isEdit && existingCodes.includes(formData.sub_category_code)
+  const inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none'
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {!isEdit && (
         <>
           <div>
-            <label className="block text-sm font-medium mb-2">Category *</label>
-            <select 
-              name="category_id" 
-              value={formData.category_id} 
-              onChange={handleChange} 
-              className="w-full px-3 py-2 border rounded-md" 
-              required
-            >
-              <option value="">Select Category</option>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kategori *</label>
+            <select name="category_id" value={formData.category_id} onChange={handleChange} className={inputClass} required>
+              <option value="">Pilih Kategori</option>
               {categories.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.category_name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium">Sub-Category Code *</label>
-            <input 
-              name="sub_category_code" 
-              value={formData.sub_category_code} 
-              onChange={handleChange} 
-              className={`w-full px-3 py-2 border rounded-md ${isDuplicateCode ? 'border-red-500' : ''}`}
-              required 
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kode Sub-Kategori *</label>
+            <input
+              name="sub_category_code"
+              value={formData.sub_category_code}
+              onChange={handleChange}
+              className={`${inputClass} ${isDuplicateCode ? 'border-red-500' : ''}`}
+              required
             />
             {isDuplicateCode && (
-              <p className="text-red-500 text-sm mt-1">Code already exists for this category</p>
+              <p className="text-red-500 text-sm mt-1">Kode sudah digunakan untuk kategori ini</p>
             )}
           </div>
         </>
       )}
       <div>
-        <label className="block text-sm font-medium">Sub-Category Name *</label>
-        <input name="sub_category_name" value={formData.sub_category_name} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" required />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nama Sub-Kategori *</label>
+        <input name="sub_category_name" value={formData.sub_category_name} onChange={handleChange} className={inputClass} required />
       </div>
       <div>
-        <label className="block text-sm font-medium">Description</label>
-        <textarea name="description" value={formData.description} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" rows={3} />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deskripsi</label>
+        <textarea name="description" value={formData.description} onChange={handleChange} className={inputClass} rows={3} />
       </div>
       <div>
-        <label className="block text-sm font-medium">Sort Order</label>
-        <input type="number" name="sort_order" value={formData.sort_order} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Urutan</label>
+        <input type="number" name="sort_order" value={formData.sort_order} onChange={handleChange} className={inputClass} />
       </div>
-      <button 
-        type="submit" 
-        disabled={isLoading || isDuplicateCode} 
-        className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+      <button
+        type="submit"
+        disabled={isLoading || isDuplicateCode}
+        className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
       >
-        {isLoading ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+        {isLoading ? 'Menyimpan...' : isEdit ? 'Perbarui' : 'Buat'}
       </button>
     </form>
   )

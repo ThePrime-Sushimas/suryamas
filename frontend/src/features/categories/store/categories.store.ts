@@ -6,55 +6,66 @@ interface CategoriesState {
   categories: Category[]
   subCategories: SubCategory[]
   loading: boolean
+  mutationLoading: boolean
   error: string | null
-  
-  // Categories Pagination state
+
+  // Categories Pagination
   page: number
   limit: number
   total: number
   totalPages: number
   hasNext: boolean
   hasPrev: boolean
-  
-  // SubCategories Pagination state
+
+  // SubCategories Pagination
   subPage: number
   subLimit: number
   subTotal: number
   subTotalPages: number
   subHasNext: boolean
   subHasPrev: boolean
-  
-  fetchCategories: (page?: number, limit?: number, isActive?: string, isDeleted?: string) => Promise<void>
-  searchCategories: (q: string, page?: number, limit?: number) => Promise<void>
+
+  // Combined actions
+  fetchPage: (page: number, limit?: number, isActive?: string, isDeleted?: string) => Promise<void>
+  searchPage: (q: string, page: number, limit?: number) => Promise<void>
+  fetchSubPage: (page: number, limit?: number, categoryId?: string, isDeleted?: string) => Promise<void>
+  searchSubPage: (q: string, page: number, limit?: number) => Promise<void>
+
+  // Mutations
   createCategory: (data: CreateCategoryDto) => Promise<Category>
   updateCategory: (id: string, data: UpdateCategoryDto) => Promise<Category>
   deleteCategory: (id: string) => Promise<void>
   bulkDeleteCategories: (ids: string[]) => Promise<void>
   updateCategoryStatus: (id: string, isActive: boolean) => Promise<void>
   restoreCategory: (id: string) => Promise<void>
-  
-  fetchSubCategories: (page?: number, limit?: number, categoryId?: string, isDeleted?: string) => Promise<void>
-  searchSubCategories: (q: string, page?: number, limit?: number) => Promise<void>
+
   createSubCategory: (data: CreateSubCategoryDto) => Promise<SubCategory>
   updateSubCategory: (id: string, data: UpdateSubCategoryDto) => Promise<SubCategory>
   deleteSubCategory: (id: string) => Promise<void>
   bulkDeleteSubCategories: (ids: string[]) => Promise<void>
   restoreSubCategory: (id: string) => Promise<void>
-  
+
+  // Utility to fetch all categories (for dropdowns)
+  fetchAllCategories: () => Promise<void>
+
   clearError: () => void
-  setPage: (page: number) => void
-  setLimit: (limit: number) => void
-  setSubPage: (page: number) => void
-  setSubLimit: (limit: number) => void
+}
+
+function extractError(error: unknown, fallback: string): string {
+  if (error instanceof Error && 'response' in error) {
+    const resp = (error as { response?: { data?: { error?: string } } }).response
+    return resp?.data?.error || fallback
+  }
+  return fallback
 }
 
 export const useCategoriesStore = create<CategoriesState>((set, get) => ({
   categories: [],
   subCategories: [],
   loading: false,
+  mutationLoading: false,
   error: null,
-  
-  // Initial categories pagination state
+
   page: 1,
   limit: 10,
   total: 0,
@@ -62,7 +73,6 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
   hasNext: false,
   hasPrev: false,
 
-  // Initial subCategories pagination state
   subPage: 1,
   subLimit: 10,
   subTotal: 0,
@@ -70,88 +80,113 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
   subHasNext: false,
   subHasPrev: false,
 
-  fetchCategories: async (page = 1, limit = 10, isActive?: string, isDeleted?: string) => {
-    set({ loading: true, error: null })
+  fetchPage: async (page, limit?, isActive?, isDeleted?) => {
+    const l = limit ?? get().limit
+    set({ loading: true, error: null, page, limit: l })
     try {
-      let res
-      if (isDeleted === 'true') {
-        res = await categoriesApi.trash(page, limit)
-      } else {
-        res = await categoriesApi.list(page, limit, isActive)
-      }
+      const res = isDeleted === 'true'
+        ? await categoriesApi.trash(page, l)
+        : await categoriesApi.list(page, l, isActive)
       const total = res.pagination?.total || 0
-      const totalPages = Math.ceil(total / limit)
-      set({ 
-        categories: res.data, 
+      const totalPages = Math.ceil(total / l)
+      set({
+        categories: res.data,
         loading: false,
-        page,
-        limit,
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       })
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to fetch categories'
-      set({ error: message || 'Failed to fetch categories', loading: false })
+      set({ error: extractError(error, 'Gagal memuat kategori'), loading: false })
     }
   },
 
-  searchCategories: async (q, page = 1, limit = 10) => {
-    set({ loading: true, error: null })
+  searchPage: async (q, page, limit?) => {
+    const l = limit ?? get().limit
+    set({ loading: true, error: null, page, limit: l })
     try {
-      const res = await categoriesApi.search(q, page, limit)
+      const res = await categoriesApi.search(q, page, l)
       const total = res.pagination?.total || 0
-      const totalPages = Math.ceil(total / limit)
-      set({ 
-        categories: res.data, 
+      const totalPages = Math.ceil(total / l)
+      set({
+        categories: res.data,
         loading: false,
-        page,
-        limit,
         total,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasPrev: page > 1,
       })
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to search categories'
-      set({ error: message || 'Failed to search categories', loading: false })
+      set({ error: extractError(error, 'Gagal mencari kategori'), loading: false })
+    }
+  },
+
+  fetchSubPage: async (page, limit?, categoryId?, isDeleted?) => {
+    const l = limit ?? get().subLimit
+    set({ loading: true, error: null, subPage: page, subLimit: l })
+    try {
+      const res = isDeleted === 'true'
+        ? await subCategoriesApi.trash(page, l)
+        : await subCategoriesApi.list(page, l, categoryId)
+      const total = res.pagination?.total || 0
+      const totalPages = Math.ceil(total / l)
+      set({
+        subCategories: res.data,
+        loading: false,
+        subTotal: total,
+        subTotalPages: totalPages,
+        subHasNext: page < totalPages,
+        subHasPrev: page > 1,
+      })
+    } catch (error: unknown) {
+      set({ error: extractError(error, 'Gagal memuat sub-kategori'), loading: false })
+    }
+  },
+
+  searchSubPage: async (q, page, limit?) => {
+    const l = limit ?? get().subLimit
+    set({ loading: true, error: null, subPage: page, subLimit: l })
+    try {
+      const res = await subCategoriesApi.search(q, page, l)
+      const total = res.pagination?.total || 0
+      const totalPages = Math.ceil(total / l)
+      set({
+        subCategories: res.data,
+        loading: false,
+        subTotal: total,
+        subTotalPages: totalPages,
+        subHasNext: page < totalPages,
+        subHasPrev: page > 1,
+      })
+    } catch (error: unknown) {
+      set({ error: extractError(error, 'Gagal mencari sub-kategori'), loading: false })
     }
   },
 
   createCategory: async (data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const category = await categoriesApi.create(data)
-      set({ loading: false })
+      set({ mutationLoading: false })
       return category
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to create category'
-      set({ error: message || 'Failed to create category', loading: false })
+      set({ error: extractError(error, 'Gagal membuat kategori'), mutationLoading: false })
       throw error
     }
   },
 
   updateCategory: async (id, data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const category = await categoriesApi.update(id, data)
       set(state => ({
         categories: state.categories.map(c => c.id === id ? category : c),
-        loading: false
+        mutationLoading: false,
       }))
       return category
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to update category'
-      set({ error: message || 'Failed to update category', loading: false })
+      set({ error: extractError(error, 'Gagal mengupdate kategori'), mutationLoading: false })
       throw error
     }
   },
@@ -161,21 +196,8 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ categories: state.categories.filter(c => c.id !== id) }))
     try {
       await categoriesApi.delete(id)
-      // Update total after delete
-      const { total, limit, page } = get()
-      const newTotal = total - 1
-      const newTotalPages = Math.ceil(newTotal / limit)
-      set({ 
-        total: newTotal,
-        totalPages: newTotalPages,
-        hasNext: page < newTotalPages,
-        hasPrev: page > 1
-      })
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to delete category'
-      set({ categories: prev, error: message || 'Failed to delete category' })
+      set({ categories: prev, error: extractError(error, 'Gagal menghapus kategori') })
       throw error
     }
   },
@@ -185,21 +207,8 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ categories: state.categories.filter(c => !ids.includes(c.id)) }))
     try {
       await categoriesApi.bulkDelete(ids)
-      // Update total after bulk delete
-      const { total, limit, page } = get()
-      const newTotal = total - ids.length
-      const newTotalPages = Math.ceil(newTotal / limit)
-      set({ 
-        total: newTotal,
-        totalPages: newTotalPages,
-        hasNext: page < newTotalPages,
-        hasPrev: page > 1
-      })
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to bulk delete categories'
-      set({ categories: prev, error: message || 'Failed to bulk delete categories' })
+      set({ categories: prev, error: extractError(error, 'Gagal menghapus kategori') })
       throw error
     }
   },
@@ -207,127 +216,50 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
   updateCategoryStatus: async (id, isActive) => {
     const prev = get().categories
     set(state => ({
-      categories: state.categories.map(c => c.id === id ? { ...c, is_active: isActive } : c)
+      categories: state.categories.map(c => c.id === id ? { ...c, is_active: isActive } : c),
     }))
     try {
       await categoriesApi.updateStatus(id, isActive)
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to update status'
-      set({ categories: prev, error: message || 'Failed to update status' })
+      set({ categories: prev, error: extractError(error, 'Gagal mengupdate status') })
       throw error
     }
   },
 
   restoreCategory: async (id) => {
     const prev = get().categories
-    set(state => ({
-      categories: state.categories.filter(c => c.id !== id)
-    }))
+    set(state => ({ categories: state.categories.filter(c => c.id !== id) }))
     try {
       await categoriesApi.restore(id)
-      // Update total after restore
-      const { total, limit, page } = get()
-      const newTotal = total + 1
-      const newTotalPages = Math.ceil(newTotal / limit)
-      set({ 
-        total: newTotal,
-        totalPages: newTotalPages,
-        hasNext: page < newTotalPages,
-        hasPrev: page > 1
-      })
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to restore category'
-      set({ categories: prev, error: message || 'Failed to restore category' })
+      set({ categories: prev, error: extractError(error, 'Gagal merestore kategori') })
       throw error
     }
   },
 
-  fetchSubCategories: async (page = 1, limit = 10, categoryId, isDeleted?: string) => {
-    set({ loading: true, error: null })
-    try {
-      let res
-      if (isDeleted === 'true') {
-        res = await subCategoriesApi.trash(page, limit)
-      } else {
-        res = await subCategoriesApi.list(page, limit, categoryId)
-      }
-      const total = res.pagination?.total || 0
-      const totalPages = Math.ceil(total / limit)
-      set({ 
-        subCategories: res.data, 
-        loading: false,
-        subPage: page,
-        subLimit: limit,
-        subTotal: total,
-        subTotalPages: totalPages,
-        subHasNext: page < totalPages,
-        subHasPrev: page > 1
-      })
-    } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to fetch sub-categories'
-      set({ error: message || 'Failed to fetch sub-categories', loading: false })
-    }
-  },
-
-  searchSubCategories: async (q, page = 1, limit = 10) => {
-    set({ loading: true, error: null })
-    try {
-      const res = await subCategoriesApi.search(q, page, limit)
-      const total = res.pagination?.total || 0
-      const totalPages = Math.ceil(total / limit)
-      set({ 
-        subCategories: res.data, 
-        loading: false,
-        subPage: page,
-        subLimit: limit,
-        subTotal: total,
-        subTotalPages: totalPages,
-        subHasNext: page < totalPages,
-        subHasPrev: page > 1
-      })
-    } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to search sub-categories'
-      set({ error: message || 'Failed to search sub-categories', loading: false })
-    }
-  },
-
   createSubCategory: async (data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const subCategory = await subCategoriesApi.create(data)
-      set({ loading: false })
+      set({ mutationLoading: false })
       return subCategory
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to create sub-category'
-      set({ error: message || 'Failed to create sub-category', loading: false })
+      set({ error: extractError(error, 'Gagal membuat sub-kategori'), mutationLoading: false })
       throw error
     }
   },
 
   updateSubCategory: async (id, data) => {
-    set({ loading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const subCategory = await subCategoriesApi.update(id, data)
       set(state => ({
         subCategories: state.subCategories.map(sc => sc.id === id ? subCategory : sc),
-        loading: false
+        mutationLoading: false,
       }))
       return subCategory
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to update sub-category'
-      set({ error: message || 'Failed to update sub-category', loading: false })
+      set({ error: extractError(error, 'Gagal mengupdate sub-kategori'), mutationLoading: false })
       throw error
     }
   },
@@ -337,21 +269,8 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ subCategories: state.subCategories.filter(sc => sc.id !== id) }))
     try {
       await subCategoriesApi.delete(id)
-      // Update total after delete
-      const { subTotal, subLimit, subPage } = get()
-      const newTotal = subTotal - 1
-      const newTotalPages = Math.ceil(newTotal / subLimit)
-      set({ 
-        subTotal: newTotal,
-        subTotalPages: newTotalPages,
-        subHasNext: subPage < newTotalPages,
-        subHasPrev: subPage > 1
-      })
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to delete sub-category'
-      set({ subCategories: prev, error: message || 'Failed to delete sub-category' })
+      set({ subCategories: prev, error: extractError(error, 'Gagal menghapus sub-kategori') })
       throw error
     }
   },
@@ -361,21 +280,8 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ subCategories: state.subCategories.filter(sc => !ids.includes(sc.id)) }))
     try {
       await subCategoriesApi.bulkDelete(ids)
-      // Update total after bulk delete
-      const { subTotal, subLimit, subPage } = get()
-      const newTotal = subTotal - ids.length
-      const newTotalPages = Math.ceil(newTotal / subLimit)
-      set({ 
-        subTotal: newTotal,
-        subTotalPages: newTotalPages,
-        subHasNext: subPage < newTotalPages,
-        subHasPrev: subPage > 1
-      })
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to bulk delete sub-categories'
-      set({ subCategories: prev, error: message || 'Failed to bulk delete sub-categories' })
+      set({ subCategories: prev, error: extractError(error, 'Gagal menghapus sub-kategori') })
       throw error
     }
   },
@@ -385,33 +291,20 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     set(state => ({ subCategories: state.subCategories.filter(sc => sc.id !== id) }))
     try {
       await subCategoriesApi.restore(id)
-      // Update total after restore
-      const { subTotal, subLimit, subPage } = get()
-      const newTotal = subTotal + 1
-      const newTotalPages = Math.ceil(newTotal / subLimit)
-      set({ 
-        subTotal: newTotal,
-        subTotalPages: newTotalPages,
-        subHasNext: subPage < newTotalPages,
-        subHasPrev: subPage > 1
-      })
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : 'Failed to restore sub-category'
-      set({ subCategories: prev, error: message || 'Failed to restore sub-category' })
+      set({ subCategories: prev, error: extractError(error, 'Gagal merestore sub-kategori') })
       throw error
     }
   },
 
-  clearError: () => set({ error: null }),
-  
-  setPage: (page) => set({ page }),
-  
-  setLimit: (limit) => set({ limit }),
-  
-  setSubPage: (subPage) => set({ subPage }),
-  
-  setSubLimit: (subLimit) => set({ subLimit })
-}))
+  fetchAllCategories: async () => {
+    try {
+      const res = await categoriesApi.list(1, 1000, 'true')
+      set({ categories: res.data })
+    } catch {
+      // silent — used for dropdowns
+    }
+  },
 
+  clearError: () => set({ error: null }),
+}))

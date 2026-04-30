@@ -7,7 +7,7 @@ import type { CreateCategoryDto, UpdateCategoryDto } from '../types'
 
 export default function CreateCategoryPage() {
   const navigate = useNavigate()
-  const { createCategory, loading } = useCategoriesStore()
+  const { createCategory, mutationLoading } = useCategoriesStore()
   const toast = useToast()
 
   const handleSubmit = async (data: CreateCategoryDto | UpdateCategoryDto) => {
@@ -34,7 +34,7 @@ export default function CreateCategoryPage() {
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <CategoryForm onSubmit={handleSubmit} isLoading={loading} />
+          <CategoryForm onSubmit={handleSubmit} isLoading={mutationLoading} />
         </div>
       </div>
     </div>

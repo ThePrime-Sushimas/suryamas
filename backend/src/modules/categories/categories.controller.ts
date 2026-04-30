@@ -1,4 +1,4 @@
-import { Response } from 'express'
+import type { Response } from 'express'
 import { categoriesService } from './categories.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
@@ -6,7 +6,7 @@ import { withValidated } from '../../utils/handler'
 import { getParamString, getQueryString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { AuthRequest } from '../../types/common.types'
-import {
+import type {
   CreateCategorySchema,
   UpdateCategorySchema,
   UpdateStatusSchema,
@@ -18,9 +18,10 @@ type UpdateCategoryReq = ValidatedAuthRequest<typeof UpdateCategorySchema>
 type UpdateStatusReq = ValidatedAuthRequest<typeof UpdateStatusSchema>
 type BulkDeleteReq = ValidatedAuthRequest<typeof BulkDeleteSchema>
 
+interface SortInfo { field: string; order: 'asc' | 'desc' }
 
 export class CategoriesController {
-  list = async (req: AuthRequest & { sort?: any }, res: Response): Promise<void> => {
+  list = async (req: AuthRequest & { sort?: SortInfo }, res: Response): Promise<void> => {
     try {
       const page = parseInt(req.query.page as string) || 1
       const limit = parseInt(req.query.limit as string) || 10
@@ -33,12 +34,12 @@ export class CategoriesController {
         pagination: result.pagination,
         message: 'Categories retrieved successfully',
       })
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req as AuthRequest, { method: 'list', page: req.query.page })
     }
   }
 
-  trash = async (req: AuthRequest & { sort?: any }, res: Response): Promise<void> => {
+  trash = async (req: AuthRequest & { sort?: SortInfo }, res: Response): Promise<void> => {
     try {
       const page = parseInt(getQueryString(req.query.page) || '1') || 1
       const limit = parseInt(getQueryString(req.query.limit) || '10') || 10
@@ -49,12 +50,12 @@ export class CategoriesController {
         pagination: result.pagination,
         message: 'Trash retrieved successfully',
       })
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req as AuthRequest, { method: 'trash' })
     }
   }
 
-  search = async (req: AuthRequest & { sort?: any }, res: Response): Promise<void> => {
+  search = async (req: AuthRequest & { sort?: SortInfo }, res: Response): Promise<void> => {
     try {
       const q = getQueryString(req.query.q) || ''
       const page = parseInt(getQueryString(req.query.page) || '1') || 1
@@ -66,8 +67,8 @@ export class CategoriesController {
         pagination: result.pagination,
         message: 'Search completed',
       })
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req as AuthRequest, { method: 'search', q: req.query.q })
     }
   }
 
@@ -76,8 +77,8 @@ export class CategoriesController {
       const id = getParamString(req.params.id)
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { method: 'getById', id: req.params.id })
     }
   }
 
@@ -85,8 +86,8 @@ export class CategoriesController {
     try {
       const category = await categoriesService.create(req.validated.body, req.user?.id)
       sendSuccess(res, category, 'Category created successfully', 201)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req as unknown as AuthRequest, { method: 'create' })
     }
   })
 
@@ -95,8 +96,8 @@ export class CategoriesController {
       const { params, body } = req.validated
       const category = await categoriesService.update(params.id, body, req.user?.id)
       sendSuccess(res, category, 'Category updated successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req as unknown as AuthRequest, { method: 'update', id: req.validated.params.id })
     }
   })
 
@@ -105,8 +106,8 @@ export class CategoriesController {
       const id = getParamString(req.params.id)
       await categoriesService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Category deleted successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { method: 'delete', id: req.params.id })
     }
   }
 
@@ -116,8 +117,8 @@ export class CategoriesController {
       await categoriesService.restore(id, req.user?.id)
       const category = await categoriesService.getById(id)
       sendSuccess(res, category, 'Category restored successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { method: 'restore', id: req.params.id })
     }
   }
 
@@ -126,8 +127,8 @@ export class CategoriesController {
       const { ids } = req.validated.body
       await categoriesService.bulkDelete(ids, req.user?.id)
       sendSuccess(res, null, 'Categories deleted successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req as unknown as AuthRequest, { method: 'bulkDelete', count: req.validated.body.ids.length })
     }
   })
 
@@ -136,11 +137,10 @@ export class CategoriesController {
       const { params, body } = req.validated
       const category = await categoriesService.updateStatus(params.id, body.is_active, req.user?.id)
       sendSuccess(res, category, 'Category status updated successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req as unknown as AuthRequest, { method: 'updateStatus', id: req.validated.params.id })
     }
   })
 }
 
 export const categoriesController = new CategoriesController()
-
