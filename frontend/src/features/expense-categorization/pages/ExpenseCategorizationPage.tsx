@@ -84,6 +84,16 @@ export default function ExpenseCategorizationPage() {
   const rules = useExpenseRules()
   const purposes = useExpensePurposes()
   const uncategorized = useUncategorized(queryParams)
+
+  const groupedPurposes = useMemo(() => {
+    const groups = new Map<string, AccountingPurposeOption[]>()
+    for (const p of purposes.data || []) {
+      const key = p.applied_to || 'OTHER'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(p)
+    }
+    return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [purposes.data])
   const createRule = useCreateRule()
   const updateRule = useUpdateRule()
   const deleteRule = useDeleteRule()
@@ -216,7 +226,7 @@ export default function ExpenseCategorizationPage() {
               <select value={filterPurpose} onChange={e => setFilterPurpose(e.target.value)}
                 className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]">
                 <option value="">Semua Kategori</option>
-                {(purposes.data || []).map(p => <option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>)}
+                {groupedPurposes.map(([group, items]) => (<optgroup key={group} label={group}>{items.map(p => (<option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>))}</optgroup>))}
               </select>
               <select value={filterCategorized} onChange={e => setFilterCategorized(e.target.value as '' | 'true' | 'false')}
                 className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
@@ -245,7 +255,7 @@ export default function ExpenseCategorizationPage() {
                 <select value={assignPurposeId} onChange={e => setAssignPurposeId(e.target.value)}
                   className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[200px]">
                   <option value="">Pilih kategori...</option>
-                  {(purposes.data || []).map(p => <option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>)}
+                  {groupedPurposes.map(([group, items]) => (<optgroup key={group} label={group}>{items.map(p => (<option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>))}</optgroup>))}
                 </select>
                 <button onClick={handleManualCategorize} disabled={!assignPurposeId || manualCategorize.isPending}
                   className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-40">Assign</button>
@@ -345,7 +355,7 @@ export default function ExpenseCategorizationPage() {
                 <select value={rulePurposeId} onChange={e => setRulePurposeId(e.target.value)}
                   className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                   <option value="">Pilih purpose...</option>
-                  {(purposes.data || []).map(p => <option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>)}
+                  {groupedPurposes.map(([group, items]) => (<optgroup key={group} label={group}>{items.map(p => (<option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>))}</optgroup>))}
                 </select>
                 <input type="number" value={rulePriority} onChange={e => setRulePriority(Number(e.target.value))} min={1} max={9999}
                   className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="Priority" />
@@ -399,7 +409,7 @@ export default function ExpenseCategorizationPage() {
                           <select value={rulePurposeId} onChange={e => setRulePurposeId(e.target.value)}
                             className="w-full px-2 py-1.5 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                             <option value="">Pilih...</option>
-                            {(purposes.data || []).map(p => <option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>)}
+                            {groupedPurposes.map(([group, items]) => (<optgroup key={group} label={group}>{items.map(p => (<option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>))}</optgroup>))}
                           </select>
                         </td>
                         <td className="px-2 py-1.5">

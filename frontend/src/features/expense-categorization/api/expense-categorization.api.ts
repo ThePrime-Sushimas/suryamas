@@ -32,18 +32,8 @@ export const useExpensePurposes = () =>
   useQuery({
     queryKey: KEYS.purposes,
     queryFn: async () => {
-      const [expenseRes, bankRes, purchaseRes, cashRes] = await Promise.all([
-        api.get('/accounting-purposes', { params: { applied_to: 'EXPENSE', limit: 100 } }),
-        api.get('/accounting-purposes', { params: { applied_to: 'BANK', limit: 100 } }),
-        api.get('/accounting-purposes', { params: { applied_to: 'PURCHASE', limit: 100 } }),
-        api.get('/accounting-purposes', { params: { applied_to: 'CASH', limit: 100 } }),
-      ])
-      return [
-        ...(expenseRes.data.data || []),
-        ...(bankRes.data.data || []),
-        ...(purchaseRes.data.data || []),
-        ...(cashRes.data.data || []),
-      ] as AccountingPurposeOption[]
+      const { data } = await api.get('/accounting-purposes', { params: { limit: 200 } })
+      return (data.data || []) as AccountingPurposeOption[]
     },
     staleTime: 5 * 60_000,
   })
