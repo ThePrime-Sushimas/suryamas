@@ -358,29 +358,15 @@ export class CashFlowSalesRepository {
   async reorderGroups(companyId: string, orderedIds: string[]): Promise<void> {
     if (orderedIds.length === 0) return
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      const now = new Date().toISOString()
-      
-      for (let i = 0; i < orderedIds.length; i++) {
-        const id = orderedIds[i]
-        const { rowCount } = await client.query(
-          `UPDATE payment_method_groups SET display_order = $1, updated_at = $2 WHERE id = $3 AND company_id = $4`,
-          [i, now, id, companyId]
-        )
-        if (rowCount === 0) {
-           throw new Error(`Group ${id} not found or not in company`)
-        }
-      }
-      
-      await client.query('COMMIT')
-    } catch (error: any) {
-      await client.query('ROLLBACK')
-      logError('CashFlowSalesRepository.reorderGroups failed', { error: error.message })
-      throw new DatabaseError(`Reorder failed: ${error.message}`, { cause: error })
-    } finally {
-      client.release()
+    const orders = orderedIds.map((_, i) => i)
+    const { rowCount } = await pool.query(
+      `UPDATE payment_method_groups SET display_order = v.ord, updated_at = NOW()
+       FROM (SELECT UNNEST($1::uuid[]) AS id, UNNEST($2::int[]) AS ord) v
+       WHERE payment_method_groups.id = v.id AND payment_method_groups.company_id = $3`,
+      [orderedIds, orders, companyId]
+    )
+    if (rowCount !== orderedIds.length) {
+      throw new DatabaseError(`Reorder failed: expected ${orderedIds.length} updates, got ${rowCount}`)
     }
   }
 
@@ -744,6 +730,26 @@ export class CashFlowSalesRepository {
     `
     const { rows } = await pool.query(query, [bankAccountId, companyId, fromDate, toDate])
     return Number(rows[0].net || 0)
+  }
+
+  async getPeriodTotals(
+    bankAccountId: number, companyId: string,
+    dateFrom: string, dateTo: string
+  ): Promise<{ total_credit: number; total_debit: number }> {
+    const query = `
+      SELECT 
+        COALESCE(SUM(credit_amount), 0) as total_credit,
+        COALESCE(SUM(debit_amount), 0) as total_debit
+      FROM bank_statements
+      WHERE bank_account_id = $1::bigint AND company_id = $2
+        AND transaction_date >= $3::date AND transaction_date <= $4::date
+        AND deleted_at IS NULL
+    `
+    const { rows } = await pool.query(query, [bankAccountId, companyId, dateFrom, dateTo])
+    return {
+      total_credit: Number(rows[0].total_credit),
+      total_debit: Number(rows[0].total_debit),
+    }
   }
 
   async getPendingCount(

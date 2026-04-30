@@ -9,7 +9,7 @@ export const createPeriodBalanceSchema = z.object({
     bank_account_id: z.coerce.number().int().positive(),
     period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    opening_balance: z.number().min(0),
+    opening_balance: z.number(),
     source: z.enum(['MANUAL', 'AUTO_PREV_PERIOD']).optional().default('MANUAL'),
     previous_period_id: z.string().uuid().nullable().optional(),
     notes: z.string().max(500).nullable().optional(),

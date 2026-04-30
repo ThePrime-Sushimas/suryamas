@@ -175,7 +175,7 @@ export class CashFlowSalesService {
       } as any
     }
 
-    const [salesResult, cashDeposits, { rows: rawRows, total }, pendingInfo] = await Promise.all([
+    const [salesResult, cashDeposits, { rows: rawRows, total }, pendingInfo, periodTotals] = await Promise.all([
       cashFlowSalesRepository.getSalesBreakdown(params),
       cashFlowSalesRepository.getCashDepositBreakdown(
         params.bank_account_id, params.company_id,
@@ -183,6 +183,10 @@ export class CashFlowSalesService {
       ),
       cashFlowSalesRepository.getRunningBalanceWithSales(params, page, limit),
       cashFlowSalesRepository.getPendingCount(
+        params.bank_account_id, params.company_id,
+        params.date_from, params.date_to
+      ),
+      cashFlowSalesRepository.getPeriodTotals(
         params.bank_account_id, params.company_id,
         params.date_from, params.date_to
       ),
@@ -231,7 +235,7 @@ export class CashFlowSalesService {
       }
     })
 
-    const totalExpense = rawRows.reduce((s: number, r: any) => s + (r.debit_amount || 0), 0)
+    const totalExpense = periodTotals.total_debit
 
     const totalIncome = mergedGroups.reduce((s, g) => s + g.subtotal, 0)
 
