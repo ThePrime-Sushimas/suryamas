@@ -46,6 +46,14 @@ export const autoCategorizeSchema = z.object({
   }),
 })
 
+export const generateJournalSchema = z.object({
+  body: z.object({
+    statement_ids: z.array(z.coerce.number().int().positive()).min(1).max(500),
+    journal_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    description: z.string().max(500).optional(),
+  }),
+})
+
 export const listUncategorizedSchema = z.object({
   query: z.object({
     bank_account_id: z.coerce.number().int().positive().optional(),

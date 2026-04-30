@@ -1,6 +1,7 @@
 import { expenseCategorizationRepository } from './expense-categorization.repository'
+import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { AuditService } from '../monitoring/monitoring.service'
-import { RuleNotFoundError, RuleDuplicateError } from './expense-categorization.errors'
+import { RuleNotFoundError, RuleDuplicateError, NoEligibleStatementsError } from './expense-categorization.errors'
 import type { ExpenseAutoRule, CreateRuleDto, UpdateRuleDto, CategorizeResult } from './expense-categorization.types'
 
 export class ExpenseCategorizationService {
@@ -152,6 +153,76 @@ export class ExpenseCategorizationService {
     page: number, limit: number
   ) {
     return expenseCategorizationRepository.listUncategorized(companyId, filters, page, limit)
+  }
+
+  // ── Generate Journal ──
+
+  async generateJournal(
+    companyId: string,
+    statementIds: number[],
+    userId: string,
+    options?: { journal_date?: string; description?: string }
+  ): Promise<{ journal_id: string; journal_number: string; lines_count: number; total_amount: number }> {
+    const stmts = await expenseCategorizationRepository.getStatementsForJournal(statementIds, companyId)
+    if (stmts.length === 0) throw new NoEligibleStatementsError()
+
+    const incomplete = stmts.filter(s => s.debit_accounts.length === 0 || s.credit_accounts.length === 0)
+    if (incomplete.length > 0) {
+      const codes = incomplete.map(s => s.purpose_code).join(', ')
+      throw new Error(`Purpose ${codes} belum punya mapping COA lengkap. Setup di Accounting Purpose Accounts.`)
+    }
+
+    // Use provided date, or latest transaction date from selected statements
+    const latestDate = stmts.reduce((max, s) => s.transaction_date > max ? s.transaction_date : max, stmts[0].transaction_date)
+    const journalDate = options?.journal_date || latestDate
+    const lines: Array<{ line_number: number; account_id: string; description: string; debit_amount: number; credit_amount: number }> = []
+    let lineNum = 0
+    let totalAmount = 0
+
+    for (const stmt of stmts) {
+      // Note: uses first account per side (priority=1). Multi-account per side is a known limitation.
+      const debitAccount = stmt.debit_accounts[0]
+      const creditAccount = stmt.credit_accounts[0]
+      const desc = `${stmt.purpose_name} — ${stmt.description.substring(0, 100)}`
+
+      lineNum++
+      lines.push({ line_number: lineNum, account_id: debitAccount.account_id, description: desc, debit_amount: stmt.debit_amount, credit_amount: 0 })
+      lineNum++
+      lines.push({ line_number: lineNum, account_id: creditAccount.account_id, description: desc, debit_amount: 0, credit_amount: stmt.debit_amount })
+      totalAmount += stmt.debit_amount
+    }
+
+    const journal = await journalHeadersService.create({
+      company_id: companyId,
+      journal_date: journalDate,
+      journal_type: 'GENERAL',
+      description: options?.description || `Expense Journal — ${stmts.length} transaksi`,
+      source_module: 'expense_categorization',
+      reference_type: 'bank_statement',
+      lines,
+    }, userId)
+
+    try {
+      await expenseCategorizationRepository.linkJournalToStatements(
+        stmts.map(s => s.id), journal.id, companyId
+      )
+    } catch (linkErr) {
+      await journalHeadersService.forceDelete(journal.id, userId, companyId).catch(() => {})
+      throw linkErr
+    }
+
+    await AuditService.log('CREATE', 'expense_journal', journal.id, userId, undefined, {
+      statement_ids: stmts.map(s => s.id),
+      journal_number: journal.journal_number,
+      total_amount: totalAmount,
+    })
+
+    return {
+      journal_id: journal.id,
+      journal_number: journal.journal_number,
+      lines_count: lines.length,
+      total_amount: totalAmount,
+    }
   }
 }
 

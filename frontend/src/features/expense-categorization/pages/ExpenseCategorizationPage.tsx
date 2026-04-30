@@ -6,7 +6,7 @@ import { Pagination } from '@/components/ui/Pagination'
 import {
   useExpenseRules, useUncategorized, useExpensePurposes,
   useCreateRule, useUpdateRule, useDeleteRule,
-  useAutoCategorize, useManualCategorize, useUncategorize,
+  useAutoCategorize, useManualCategorize, useUncategorize, useGenerateJournal,
 } from '../api/expense-categorization.api'
 import type { AccountingPurposeOption, CategorizeResult, ExpenseAutoRule } from '../types/expense-categorization.types'
 
@@ -90,6 +90,7 @@ export default function ExpenseCategorizationPage() {
   const autoCategorize = useAutoCategorize()
   const manualCategorize = useManualCategorize()
   const uncategorizeMutation = useUncategorize()
+  const generateJournal = useGenerateJournal()
 
   const clearFilters = () => { setFilterPurpose(''); setFilterCategorized(''); setSearchInput(''); setDebouncedSearch('') }
 
@@ -99,7 +100,7 @@ export default function ExpenseCategorizationPage() {
   }, [])
 
   const startEditRule = useCallback((r: ExpenseAutoRule) => {
-    setEditingRuleId(r.id); setShowRuleForm(true)
+    setEditingRuleId(r.id)
     setRulePattern(r.pattern); setRuleMatchType(r.match_type)
     setRulePurposeId(r.purpose_id); setRulePriority(r.priority)
   }, [])
@@ -156,6 +157,17 @@ export default function ExpenseCategorizationPage() {
       toast.success(`${result.count} transaksi di-uncategorize`)
       setSelectedIds(new Set())
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal uncategorize') }
+  }
+
+  const handleGenerateJournal = async () => {
+    if (selectedIds.size === 0) return
+    const eligible = stmts.filter(s => selectedIds.has(Number(s.id)) && s.purpose_id)
+    if (eligible.length === 0) { toast.warning('Pilih transaksi yang sudah dikategorikan'); return }
+    try {
+      const result = await generateJournal.mutateAsync({ statement_ids: eligible.map(s => Number(s.id)) })
+      toast.success(`Journal ${result.journal_number} dibuat — ${result.lines_count} lines, ${fmt(result.total_amount)}`)
+      setSelectedIds(new Set())
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal generate journal') }
   }
 
   const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -239,6 +251,10 @@ export default function ExpenseCategorizationPage() {
                   className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-40">Assign</button>
                 <button onClick={handleUncategorize} disabled={uncategorizeMutation.isPending}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700">Clear</button>
+                <button onClick={handleGenerateJournal} disabled={generateJournal.isPending}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40">
+                  {generateJournal.isPending ? 'Generating...' : '📝 Generate Journal'}
+                </button>
               </>
             )}
           </div>
@@ -366,8 +382,51 @@ export default function ExpenseCategorizationPage() {
                 ) : (rules.data || []).map(r => {
                   const badge = getPurposeBadge(r.purpose_name || null)
                   const isEditing = editingRuleId === r.id
+                  if (isEditing) {
+                    return (
+                      <tr key={r.id} className="bg-blue-50/50 dark:bg-blue-900/10">
+                        <td className="px-2 py-1.5">
+                          <input value={rulePattern} onChange={e => setRulePattern(e.target.value)}
+                            className="w-full px-2 py-1.5 text-sm font-mono border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <select value={ruleMatchType} onChange={e => setRuleMatchType(e.target.value)}
+                            className="w-full px-2 py-1.5 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            {Object.entries(MATCH_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <select value={rulePurposeId} onChange={e => setRulePurposeId(e.target.value)}
+                            className="w-full px-2 py-1.5 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="">Pilih...</option>
+                            {(purposes.data || []).map(p => <option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="number" value={rulePriority} onChange={e => setRulePriority(Number(e.target.value))} min={1} max={9999}
+                            className="w-full px-2 py-1.5 text-sm text-center border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${r.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+                            {r.is_active ? 'Aktif' : 'Nonaktif'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={handleSaveRule} disabled={updateRule.isPending}
+                              className="p-1 text-emerald-600 hover:text-emerald-700 rounded" title="Simpan">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button onClick={resetRuleForm} className="p-1 text-gray-400 hover:text-gray-600 rounded" title="Batal">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
                   return (
-                    <tr key={r.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${isEditing ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                    <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <td className="px-3 py-2.5 font-mono text-gray-900 dark:text-white">{r.pattern}</td>
                       <td className="px-3 py-2.5 text-gray-500">{MATCH_LABELS[r.match_type] || r.match_type}</td>
                       <td className="px-3 py-2.5">

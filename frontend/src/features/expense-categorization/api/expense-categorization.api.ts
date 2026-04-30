@@ -32,11 +32,18 @@ export const useExpensePurposes = () =>
   useQuery({
     queryKey: KEYS.purposes,
     queryFn: async () => {
-      const [expenseRes, bankRes] = await Promise.all([
+      const [expenseRes, bankRes, purchaseRes, cashRes] = await Promise.all([
         api.get('/accounting-purposes', { params: { applied_to: 'EXPENSE', limit: 100 } }),
         api.get('/accounting-purposes', { params: { applied_to: 'BANK', limit: 100 } }),
+        api.get('/accounting-purposes', { params: { applied_to: 'PURCHASE', limit: 100 } }),
+        api.get('/accounting-purposes', { params: { applied_to: 'CASH', limit: 100 } }),
       ])
-      return [...(expenseRes.data.data || []), ...(bankRes.data.data || [])] as AccountingPurposeOption[]
+      return [
+        ...(expenseRes.data.data || []),
+        ...(bankRes.data.data || []),
+        ...(purchaseRes.data.data || []),
+        ...(cashRes.data.data || []),
+      ] as AccountingPurposeOption[]
     },
     staleTime: 5 * 60_000,
   })
@@ -109,6 +116,21 @@ export const useUncategorize = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expense-categorization', 'uncategorized'] })
       qc.invalidateQueries({ queryKey: ['cash-flow'] })
+    },
+  })
+}
+
+export const useGenerateJournal = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { statement_ids: number[]; journal_date?: string; description?: string }) => {
+      const { data } = await api.post('/expense-categorization/generate-journal', body)
+      return data.data as { journal_id: string; journal_number: string; lines_count: number; total_amount: number }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expense-categorization', 'uncategorized'] })
+      qc.invalidateQueries({ queryKey: ['cash-flow'] })
+      qc.invalidateQueries({ queryKey: ['dashboard', 'journal-summary'] })
     },
   })
 }

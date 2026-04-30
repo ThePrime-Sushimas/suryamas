@@ -3,11 +3,12 @@ import { expenseCategorizationService } from './expense-categorization.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { withValidated } from '../../utils/handler'
+import { requireEmployee, getEmployeeId } from '../../utils/employee.util'
 import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createRuleSchema, updateRuleSchema, deleteRuleSchema,
   categorizeManualSchema, uncategorizeSchema, autoCategorizeSchema,
-  listUncategorizedSchema,
+  listUncategorizedSchema, generateJournalSchema,
 } from './expense-categorization.schema'
 
 type CreateRuleReq = ValidatedAuthRequest<typeof createRuleSchema>
@@ -17,6 +18,7 @@ type CategorizeManualReq = ValidatedAuthRequest<typeof categorizeManualSchema>
 type UncategorizeReq = ValidatedAuthRequest<typeof uncategorizeSchema>
 type AutoCategorizeReq = ValidatedAuthRequest<typeof autoCategorizeSchema>
 type ListUncategorizedReq = ValidatedAuthRequest<typeof listUncategorizedSchema>
+type GenerateJournalReq = ValidatedAuthRequest<typeof generateJournalSchema>
 
 export class ExpenseCategorizationController {
 
@@ -91,6 +93,20 @@ export class ExpenseCategorizationController {
       sendSuccess(res, data, 'Uncategorized statements retrieved', 200, {
         total, page: q.page, limit: q.limit, totalPages, hasNext: q.page < totalPages, hasPrev: q.page > 1,
       })
+    } catch (error) { await handleError(res, error, req as any) }
+  })
+
+  generateJournal = withValidated(async (req: GenerateJournalReq, res: Response) => {
+    try {
+      requireEmployee(req as any)
+      const employeeId = getEmployeeId(req as any)
+      const result = await expenseCategorizationService.generateJournal(
+        String(req.context?.company_id),
+        req.validated.body.statement_ids,
+        employeeId,
+        { journal_date: req.validated.body.journal_date, description: req.validated.body.description }
+      )
+      sendSuccess(res, result, `Journal ${result.journal_number} created with ${result.lines_count} lines`, 201)
     } catch (error) { await handleError(res, error, req as any) }
   })
 }

@@ -8,7 +8,7 @@ import { PermissionService } from '../../services/permission.service'
 import {
   createRuleSchema, updateRuleSchema, deleteRuleSchema,
   categorizeManualSchema, uncategorizeSchema, autoCategorizeSchema,
-  listUncategorizedSchema,
+  listUncategorizedSchema, generateJournalSchema,
 } from './expense-categorization.schema'
 
 PermissionService.registerModule('cash_flow', 'Cash Flow & Expense Categorization').catch((error) => {
@@ -33,5 +33,8 @@ router.post('/uncategorize', canUpdate(MODULE), validateSchema(uncategorizeSchem
 
 // List uncategorized
 router.get('/uncategorized', canView(MODULE), validateSchema(listUncategorizedSchema), expenseCategorizationController.listUncategorized)
+
+// Generate journal from categorized statements
+router.post('/generate-journal', canInsert(MODULE), validateSchema(generateJournalSchema), expenseCategorizationController.generateJournal)
 
 export default router

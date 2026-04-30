@@ -283,8 +283,8 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 409,
     category: 'expense_categorization',
   },
-  AlreadyCategorizedError: {
-    name: 'AlreadyCategorizedError',
+  NoEligibleStatementsError: {
+    name: 'NoEligibleStatementsError',
     importPath: '../modules/expense-categorization/expense-categorization.errors',
     defaultStatusCode: 422,
     category: 'expense_categorization',

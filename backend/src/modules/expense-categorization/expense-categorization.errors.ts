@@ -14,9 +14,9 @@ export class RuleDuplicateError extends ConflictError {
   }
 }
 
-export class AlreadyCategorizedError extends BusinessRuleError {
-  constructor(statementId: string) {
-    super(`Statement ${statementId} already has a journal`, { rule: 'already_journaled', statementId })
-    this.name = 'AlreadyCategorizedError'
+export class NoEligibleStatementsError extends BusinessRuleError {
+  constructor() {
+    super('No eligible statements found — semua sudah dijurnal atau belum dikategorikan', { rule: 'no_eligible_statements' })
+    this.name = 'NoEligibleStatementsError'
   }
 }

@@ -173,6 +173,60 @@ export class ExpenseCategorizationRepository {
     )
     return rows
   }
+  async getStatementsForJournal(statementIds: number[], companyId: string): Promise<Array<{
+    id: number; transaction_date: string; description: string; debit_amount: number;
+    purpose_id: string; purpose_code: string; purpose_name: string;
+    debit_accounts: Array<{ account_id: string; account_code: string; account_name: string; priority: number }>;
+    credit_accounts: Array<{ account_id: string; account_code: string; account_name: string; priority: number }>;
+  }>> {
+    const { rows } = await pool.query(
+      `SELECT bs.id, bs.transaction_date, bs.description, bs.debit_amount,
+              bs.purpose_id, ap.purpose_code, ap.purpose_name
+       FROM bank_statements bs
+       JOIN accounting_purposes ap ON bs.purpose_id = ap.id
+       WHERE bs.id = ANY($1::bigint[]) AND bs.company_id = $2
+         AND bs.purpose_id IS NOT NULL AND bs.journal_id IS NULL
+         AND bs.debit_amount > 0 AND bs.deleted_at IS NULL`,
+      [statementIds, companyId]
+    )
+    if (rows.length === 0) return []
+
+    const purposeIds = [...new Set(rows.map(r => r.purpose_id))]
+    const { rows: mappings } = await pool.query(
+      `SELECT apa.purpose_id, apa.side, apa.account_id, apa.priority,
+              coa.account_code, coa.account_name
+       FROM accounting_purpose_accounts apa
+       JOIN chart_of_accounts coa ON apa.account_id = coa.id
+       WHERE apa.purpose_id = ANY($1::uuid[]) AND apa.company_id = $2
+         AND apa.is_active = true AND apa.deleted_at IS NULL
+       ORDER BY apa.priority ASC`,
+      [purposeIds, companyId]
+    )
+
+    const mappingsByPurpose = new Map<string, { debit: typeof mappings; credit: typeof mappings }>()
+    for (const m of mappings) {
+      if (!mappingsByPurpose.has(m.purpose_id)) mappingsByPurpose.set(m.purpose_id, { debit: [], credit: [] })
+      mappingsByPurpose.get(m.purpose_id)![m.side === 'DEBIT' ? 'debit' : 'credit'].push(m)
+    }
+
+    return rows.map(r => {
+      const pm = mappingsByPurpose.get(r.purpose_id) || { debit: [], credit: [] }
+      return {
+        ...r, debit_amount: Number(r.debit_amount),
+        debit_accounts: pm.debit.map(m => ({ account_id: m.account_id, account_code: m.account_code, account_name: m.account_name, priority: m.priority })),
+        credit_accounts: pm.credit.map(m => ({ account_id: m.account_id, account_code: m.account_code, account_name: m.account_name, priority: m.priority })),
+      }
+    })
+  }
+
+  async linkJournalToStatements(statementIds: number[], journalId: string, companyId: string): Promise<number> {
+    const { rowCount } = await pool.query(
+      `UPDATE bank_statements SET journal_id = $1
+       WHERE id = ANY($2::bigint[]) AND company_id = $3 AND deleted_at IS NULL`,
+      [journalId, statementIds, companyId]
+    )
+    return rowCount ?? 0
+  }
 }
 
 export const expenseCategorizationRepository = new ExpenseCategorizationRepository()
