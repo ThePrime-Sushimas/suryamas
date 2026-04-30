@@ -305,7 +305,7 @@ export default function ExpenseCategorizationPage() {
                             className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-violet-600" />
                         </td>
                         <td className="px-3 py-2.5 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(s.transaction_date)}</td>
-                        <td className="px-3 py-2.5 text-gray-900 dark:text-white max-w-xs truncate" title={s.description}>{s.description}</td>
+                        <td className="px-3 py-2.5 text-gray-900 dark:text-white max-w-xs " title={s.description}>{s.description}</td>
                         <td className="px-3 py-2.5 text-right font-mono text-gray-900 dark:text-white">{fmt(s.debit_amount)}</td>
                         <td className="px-3 py-2.5">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>
