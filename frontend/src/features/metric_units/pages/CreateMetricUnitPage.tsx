@@ -1,10 +1,10 @@
-import { useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 import { useMetricUnitsStore } from '../store/metricUnits.store'
 import { MetricUnitForm } from '../components/MetricUnitForm'
 import { useToast } from '@/contexts/ToastContext'
 import type { CreateMetricUnitDto } from '../types'
-import { getErrorMessage } from '../utils/errors'
 
 export default function CreateMetricUnitPage() {
   const navigate = useNavigate()
@@ -12,52 +12,35 @@ export default function CreateMetricUnitPage() {
   const { createMetricUnit, loading, filterOptions, fetchFilterOptions } = useMetricUnitsStore()
 
   useEffect(() => {
-    if (!filterOptions) {
-      fetchFilterOptions()
-    }
+    if (!filterOptions) fetchFilterOptions()
   }, [filterOptions, fetchFilterOptions])
 
   const handleSubmit = async (data: CreateMetricUnitDto) => {
     try {
       await createMetricUnit(data)
-      toast.success('Metric unit created successfully')
+      toast.success('Satuan berhasil dibuat')
       navigate('/metric-units')
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error))
+    } catch {
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     }
   }
 
-  const handleCancel = () => {
-    navigate('/metric-units')
-  }
-
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="mb-6">
-        <button
-          onClick={handleCancel}
-          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium mb-2 flex items-center gap-1"
-        >
-          ← Back to Metric Units
-        </button>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create Metric Unit</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Add a new unit type for measurements</p>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-gray-900/50 p-6">
-        <MetricUnitForm 
-          onSubmit={handleSubmit} 
-          isLoading={loading}
-          metricTypes={filterOptions?.metric_types}
-        />
-        
-        <button
-          onClick={handleCancel}
-          className="w-full mt-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          disabled={loading}
-        >
-          Cancel
-        </button>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate('/metric-units')}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300">
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tambah Satuan</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Buat satuan ukur baru</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <MetricUnitForm onSubmit={handleSubmit} isLoading={loading} metricTypes={filterOptions?.metric_types} />
+        </div>
       </div>
     </div>
   )

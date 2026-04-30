@@ -89,10 +89,10 @@ export default function MetricUnitsPage() {
     setIsDeleting(true)
     try {
       await deleteMetricUnit(metricUnitToDelete.id)
-      toast.success('Metric unit deleted successfully')
+      toast.success('Satuan berhasil dihapus')
       fetchMetricUnits()
     } catch {
-      toast.error('Failed to delete metric unit')
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setIsDeleting(false)
       setMetricUnitToDelete(null)
@@ -112,10 +112,10 @@ export default function MetricUnitsPage() {
     setIsRestoring(true)
     try {
       await restoreMetricUnit(metricUnitToRestore.id)
-      toast.success('Metric unit restored successfully')
+      toast.success('Satuan berhasil direstore')
       fetchMetricUnits()
     } catch {
-      toast.error('Failed to restore metric unit')
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setIsRestoring(false)
       setMetricUnitToRestore(null)
@@ -252,7 +252,6 @@ export default function MetricUnitsPage() {
                 onEdit={id => navigate(`/metric-units/${id}/edit`)} 
                 onDelete={handleDelete}
                 onRestore={handleRestore}
-                loading={loading}
               />
             </div>
             
@@ -275,10 +274,10 @@ export default function MetricUnitsPage() {
         isOpen={!!metricUnitToDelete}
         onClose={handleCloseDeleteModal}
         onConfirm={handleConfirmDelete}
-        title="Delete Metric Unit"
-        message={`Are you sure you want to delete "${metricUnitToDelete?.unit_name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title="Hapus Satuan"
+        message={`Yakin ingin menghapus "${metricUnitToDelete?.unit_name}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Hapus"
+        cancelText="Batal"
         variant="danger"
         isLoading={isDeleting}
       />
@@ -288,10 +287,10 @@ export default function MetricUnitsPage() {
         isOpen={!!metricUnitToRestore}
         onClose={handleCloseRestoreModal}
         onConfirm={handleConfirmRestore}
-        title="Restore Metric Unit"
-        message={`Are you sure you want to restore "${metricUnitToRestore?.unit_name}"?`}
+        title="Restore Satuan"
+        message={`Yakin ingin merestore "${metricUnitToRestore?.unit_name}"?`}
         confirmText="Restore"
-        cancelText="Cancel"
+        cancelText="Batal"
         variant="success"
         isLoading={isRestoring}
       />
