@@ -840,6 +840,7 @@ function ActionButtonsCard({
         <h3 className="font-semibold text-gray-900 dark:text-white">Aksi</h3>
       </div>
       <div className="p-4 space-y-3">
+        {/* Primary actions first */}
         {canSubmit && (
           <button
             onClick={handleSubmit}
@@ -860,16 +861,6 @@ function ActionButtonsCard({
             <span className="font-medium">Setujui</span>
           </button>
         )}
-        {canReject && (
-          <button
-            onClick={() => setShowRejectModal(true)}
-            disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <XCircle size={18} />
-            <span className="font-medium">Tolak</span>
-          </button>
-        )}
         {canPost && (
           <button
             onClick={handlePost}
@@ -888,6 +879,18 @@ function ActionButtonsCard({
           >
             <RotateCcw size={18} />
             <span className="font-medium">Balikkan Jurnal</span>
+          </button>
+        )}
+
+        {/* Destructive/secondary action last with outline style */}
+        {canReject && (
+          <button
+            onClick={() => setShowRejectModal(true)}
+            disabled={mutating}
+            className="w-full flex items-center gap-3 px-4 py-3 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <XCircle size={18} />
+            <span className="font-medium">Tolak</span>
           </button>
         )}
       </div>
