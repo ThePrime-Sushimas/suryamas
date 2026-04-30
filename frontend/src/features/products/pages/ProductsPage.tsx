@@ -29,8 +29,8 @@ export default function ProductsPage() {
     toggleSelectAll,
     clearSelection,
     clearError,
-    setPage,
-    setLimit
+    fetchPage,
+    searchPage
   } = useProductsStore()
 
   const { success, error: showError } = useToast()
@@ -55,29 +55,26 @@ export default function ProductsPage() {
     return count
   }, [statusFilter, typeFilter, showDeletedFilter])
 
-  const loadProducts = useCallback((page: number, limit: number = pagination.limit) => {
+  const buildFilter = useCallback(() => {
     const filter: Record<string, string> = {}
     if (statusFilter) filter.status = statusFilter
     if (typeFilter) filter.product_type = typeFilter
-    
-    const filterObj = Object.keys(filter).length > 0 ? filter : undefined
-    
+    return Object.keys(filter).length > 0 ? filter : undefined
+  }, [statusFilter, typeFilter])
+
+  const doFetch = useCallback((page: number, limit?: number) => {
+    const filterObj = buildFilter()
     if (debouncedSearch) {
-      searchProducts(debouncedSearch, page, limit, showDeletedFilter)
+      searchPage(debouncedSearch, page, limit, showDeletedFilter, filterObj)
     } else {
-      fetchProducts(page, limit, undefined, filterObj, showDeletedFilter)
+      fetchPage(page, limit, undefined, filterObj, showDeletedFilter)
     }
-  }, [debouncedSearch, statusFilter, typeFilter, pagination.limit, fetchProducts, searchProducts, showDeletedFilter])
+  }, [debouncedSearch, buildFilter, showDeletedFilter, fetchPage, searchPage])
 
-  // Reset to page 1 when filters/search change
+  // Search or filter changes → reset to page 1 and fetch (single action, no double-fetch)
   useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter, typeFilter, showDeletedFilter, setPage])
-
-  // Fetch when page or limit changes (single source of fetch)
-  useEffect(() => {
-    loadProducts(pagination.page, pagination.limit)
-  }, [pagination.page, pagination.limit, loadProducts])
+    doFetch(1)
+  }, [debouncedSearch, statusFilter, typeFilter, showDeletedFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (storeError) {
@@ -102,7 +99,7 @@ export default function ProductsPage() {
       success('Product deleted successfully')
       setDeleteDialogOpen(false)
       setProductToDelete(null)
-      loadProducts(pagination.page)
+      doFetch(pagination.page)
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to delete product')
     }
@@ -112,7 +109,7 @@ export default function ProductsPage() {
     try {
       await restoreProduct(id)
       success('Product restored successfully')
-      loadProducts(pagination.page)
+      doFetch(pagination.page)
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to restore product')
     }
@@ -132,7 +129,7 @@ export default function ProductsPage() {
       await bulkDelete(selectedIds)
       success(`${selectedIds.length} product(s) deleted successfully`)
       setBulkDeleteDialogOpen(false)
-      loadProducts(pagination.page)
+      doFetch(pagination.page)
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to delete products')
     }
@@ -152,18 +149,18 @@ export default function ProductsPage() {
       await bulkRestore(selectedIds)
       success(`${selectedIds.length} product(s) restored successfully`)
       setBulkRestoreDialogOpen(false)
-      loadProducts(pagination.page)
+      doFetch(pagination.page)
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to restore products')
     }
   }
 
   const handlePageChange = (newPage: number) => {
-    setPage(newPage)
+    doFetch(newPage)
   }
 
   const handleLimitChange = (newLimit: number) => {
-    setLimit(newLimit)
+    doFetch(1, newLimit)
   }
 
   const hasDeletedSelected = selectedIds.some(id => products.find(p => p.id === id)?.is_deleted)

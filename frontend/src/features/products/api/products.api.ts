@@ -26,9 +26,11 @@ export const productsApi = {
     }
   },
 
-  search: async (q: string, page = 1, limit = 10, includeDeleted = false, signal?: AbortSignal) => {
+  search: async (q: string, page = 1, limit = 10, includeDeleted = false, filter?: Record<string, unknown>, signal?: AbortSignal) => {
     try {
-      const res = await api.get<PaginatedResponse<Product>>('/products/search', { params: { q, page, limit, includeDeleted }, signal })
+      const params: Record<string, unknown> = { q, page, limit, includeDeleted }
+      if (filter) Object.assign(params, filter)
+      const res = await api.get<PaginatedResponse<Product>>('/products/search', { params, signal })
       return res.data
     } catch (error) {
       return handleApiError(error)

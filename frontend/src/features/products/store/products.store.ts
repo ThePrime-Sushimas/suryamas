@@ -24,7 +24,7 @@ interface ProductsState {
   
   fetchProducts: (page?: number, limit?: number, sort?: Record<string, unknown>, filter?: Record<string, unknown>, includeDeleted?: boolean) => Promise<void>
   fetchProductById: (id: string) => Promise<Product>
-  searchProducts: (q: string, page?: number, limit?: number, includeDeleted?: boolean) => Promise<void>
+  searchProducts: (q: string, page?: number, limit?: number, includeDeleted?: boolean, filter?: Record<string, unknown>) => Promise<void>
   createProduct: (data: CreateProductDto) => Promise<Product>
   updateProduct: (id: string, data: UpdateProductDto) => Promise<Product>
   deleteProduct: (id: string) => Promise<void>
@@ -43,6 +43,8 @@ interface ProductsState {
   clearError: () => void
   setPage: (page: number) => void
   setLimit: (limit: number) => void
+  fetchPage: (page: number, limit?: number, sort?: Record<string, unknown>, filter?: Record<string, unknown>, includeDeleted?: boolean) => Promise<void>
+  searchPage: (q: string, page: number, limit?: number, includeDeleted?: boolean, filter?: Record<string, unknown>) => Promise<void>
 }
 
 const initialState = {
@@ -95,12 +97,12 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     }
   },
 
-  searchProducts: async (q, page = 1, limit = 10, includeDeleted = false) => {
+  searchProducts: async (q, page = 1, limit = 10, includeDeleted = false, filter) => {
     const requestId = get().currentRequestId + 1
     set({ currentRequestId: requestId, fetchLoading: true, error: null })
     
     try {
-      const res = await productsApi.search(q, page, limit, includeDeleted)
+      const res = await productsApi.search(q, page, limit, includeDeleted, filter)
       
       if (get().currentRequestId === requestId) {
         set({
@@ -289,5 +291,17 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   
   setLimit: (limit: number) => {
     set(state => ({ pagination: { ...state.pagination, page: 1, limit } }))
+  },
+
+  fetchPage: (page: number, limit?: number, sort?: Record<string, unknown>, filter?: Record<string, unknown>, includeDeleted?: boolean) => {
+    const l = limit ?? get().pagination.limit
+    set(state => ({ pagination: { ...state.pagination, page, limit: l } }))
+    return get().fetchProducts(page, l, sort, filter, includeDeleted)
+  },
+
+  searchPage: (q: string, page: number, limit?: number, includeDeleted?: boolean, filter?: Record<string, unknown>) => {
+    const l = limit ?? get().pagination.limit
+    set(state => ({ pagination: { ...state.pagination, page, limit: l } }))
+    return get().searchProducts(q, page, l, includeDeleted, filter)
   }
 }))

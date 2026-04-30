@@ -76,7 +76,15 @@
 15. Confirm: pakai `ConfirmModal` component, bukan native `confirm()`
 16. Repository: jangan wrap try/catch kalau tidak ada transformasi error meaningful — biarkan bubble up
 17. Summary/totals: query terpisah untuk seluruh periode, jangan hitung dari paginated rows
-18. Zustand store: kalau `setPage`/`setPageSize` hanya update state, WAJIB ada `useEffect` di page untuk trigger fetch saat pagination berubah
+18. **Pagination + Search/Filter fetch pattern (STANDAR RESMI)**:
+    - Store WAJIB punya combined action `fetchPage(page, limit?, ...params)` yang **gabung state update + fetch** dalam satu call. JANGAN pisah `setPage()` + `fetchData()` karena menyebabkan double-fetch.
+    - Page component buat satu `doFetch(page, limit?)` callback via `useCallback` yang build filter dari local state lalu panggil store `fetchPage`/`searchPage`.
+    - Search/filter berubah → `useEffect` panggil `doFetch(1)` (reset ke page 1). Deps: hanya trigger values (`debouncedSearch`, `statusFilter`, dll), BUKAN store functions.
+    - User klik pagination → `handlePageChange` langsung panggil `doFetch(newPage)`. TANPA useEffect, TANPA `setPage` terpisah.
+    - User ubah page size → `handleLimitChange` langsung panggil `doFetch(1, newLimit)`.
+    - ❌ DILARANG: `setPage()` di satu tempat + `useEffect([pagination.page])` fetch di tempat lain — ini sumber double-fetch.
+    - ❌ DILARANG: `skipNextPageEffect` ref atau `isFirstRender` ref sebagai workaround — tanda pattern-nya salah.
+    - Contoh reference: `frontend/src/features/products/pages/ProductsPage.tsx`
 19. Form error: biarkan parent handle via toast, jangan double display error di form + toast
 20. Styling konsisten: `rounded-lg` (bukan `rounded-md`), `border border-gray-200 dark:border-gray-700` untuk card/table
 21. Label/message: pakai Bahasa Indonesia untuk UI user-facing, English untuk technical/developer
@@ -85,7 +93,7 @@
 24. Empty state: pakai icon + pesan informatif, bukan hanya text kosong
 25. Error state di list page: tampilkan error card dengan tombol "Coba Lagi", bukan halaman kosong
 26. Header page: pakai `ArrowLeft` untuk back navigation, bukan "✕" atau "Back to List" button terpisah
-27. Filter + fetch race condition: kalau store punya `RequestManager` yang cancel previous request, jangan panggil `setPage()` + `fetchData()` bersamaan — `setPage` trigger pagination useEffect yang juga fetch, menyebabkan double request + cancellation. Gunakan `setTimeout(() => fetch(), 0)` atau gabungkan filter+page update dalam satu action
+27. (Digabung ke #18 — lihat convention #18 untuk standar resmi pagination + search/filter fetch pattern)
 28. Filter di useEffect deps: JANGAN masukkan `filter` object ke useEffect deps kalau body useEffect juga call `setFilter` — infinite loop. Deps hanya untuk trigger value (search, page), bukan untuk state yang di-mutate di body
 
 ---
