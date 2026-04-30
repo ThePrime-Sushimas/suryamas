@@ -1,34 +1,43 @@
 import { useNavigate } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 import { useBranchesStore } from '../store/branches.store'
 import { BranchForm } from '../components/BranchForm'
-import type { CreateBranchDto } from '../types'
 import { useToast } from '@/contexts/ToastContext'
+import type { CreateBranchDto } from '../types'
 
 export default function CreateBranchPage() {
   const navigate = useNavigate()
   const { createBranch, loading } = useBranchesStore()
-  const { success, error } = useToast()
+  const toast = useToast()
 
   const handleSubmit = async (data: unknown) => {
     try {
       await createBranch(data as CreateBranchDto)
-      success('Branch created successfully')
+      toast.success('Branch berhasil dibuat')
       navigate('/branches')
-    } catch (err) {
-      const errorMessage = err instanceof Error && 'response' in err && typeof err.response === 'object' && err.response && 'data' in err.response && typeof err.response.data === 'object' && err.response.data && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to create branch'
-      error(errorMessage)
+    } catch {
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     }
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold dark:text-white">Create Branch</h1>
-        <button onClick={() => navigate('/branches')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-          ✕
-        </button>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate('/branches')}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300">
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tambah Branch</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Buat cabang baru</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <BranchForm onSubmit={handleSubmit} isLoading={loading} />
+        </div>
       </div>
-      <BranchForm onSubmit={handleSubmit} isLoading={loading} />
     </div>
   )
 }

@@ -204,6 +204,7 @@ export default function CompaniesPage() {
         title="Hapus Company"
         message={`Yakin ingin menghapus "${confirm?.name}"? Status akan diubah menjadi inactive.`}
         confirmText={isDeleting ? 'Menghapus...' : 'Hapus'}
+        cancelText="Batal"
         variant="danger"
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}

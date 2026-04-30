@@ -122,9 +122,8 @@ function BranchDetailPage() {
             .catch(() => setEmployees([]))
         )
         await Promise.all(promises)
-      } catch (err) {
-        console.error('Failed to fetch branch:', err)
-        setError('Failed to load branch details. Please try again.')
+      } catch {
+        setError('Gagal memuat detail branch. Silakan coba lagi.')
       } finally {
         setLoading(false)
       }
@@ -141,11 +140,11 @@ function BranchDetailPage() {
     setDeleting(true)
     try {
       await branchesApi.delete(id!)
-      success('Branch deleted successfully')
+      success('Branch berhasil dihapus')
       navigate('/branches')
     } catch (err) {
       console.error('Delete failed:', err)
-      showError('Failed to delete branch. Please try again.')
+      showError('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setDeleting(false)
       setIsDeleteModalOpen(false)
@@ -185,9 +184,8 @@ function BranchDetailPage() {
       await employeeBranchesApi.removeByEmployeeAndBranch(employeeToDelete.id, id!)
       setEmployees(prev => prev.filter(emp => emp.employee_id !== employeeToDelete.id))
       success('Employee berhasil dihapus dari cabang')
-    } catch (err) {
-      console.error('Failed to remove employee:', err)
-      showError('Gagal menghapus employee dari cabang')
+    } catch {
+      showError('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setDeletingEmployee(null)
       setEmployeeToDelete(null)
@@ -1160,10 +1158,10 @@ function BranchDetailPage() {
         isOpen={isDeleteModalOpen}
         onClose={handleCloseDeleteModal}
         onConfirm={handleConfirmDelete}
-        title="Delete Branch"
-        message="Are you sure you want to delete this branch? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
+        title="Hapus Branch"
+        message="Yakin ingin menghapus branch ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Hapus"
+        cancelText="Batal"
         variant="danger"
         isLoading={deleting}
       />
@@ -1173,10 +1171,10 @@ function BranchDetailPage() {
         isOpen={!!employeeToDelete}
         onClose={handleCloseEmployeeDeleteModal}
         onConfirm={handleConfirmRemoveEmployee}
-        title="Remove Employee from Branch"
-        message={`Are you sure you want to remove ${employeeToDelete?.name} from this branch? They will lose access to this branch's data and permissions.`}
-        confirmText="Remove"
-        cancelText="Cancel"
+        title="Hapus Employee dari Branch"
+        message={`Yakin ingin menghapus ${employeeToDelete?.name} dari branch ini? Akses ke data dan permission branch akan dicabut.`}
+        confirmText="Hapus"
+        cancelText="Batal"
         variant="danger"
         isLoading={!!deletingEmployee}
       />
