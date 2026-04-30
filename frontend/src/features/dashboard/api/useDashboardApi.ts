@@ -75,15 +75,24 @@ export const useReconSummary = (startDateOverride?: string, endDateOverride?: st
   })
 }
 
-// Cash Count deposits pending
+// Cash Count stats
 export const useCashCountPending = () =>
   useQuery({
     queryKey: ['dashboard', 'cash-count-pending'],
     queryFn: async () => {
-      const { data } = await api.get('/cash-counts/deposits', { params: { page: 1, limit: 5 } })
-      const deposits = data.data || []
-      const pendingCount = deposits.filter((d: { status: string }) => d.status === 'PENDING').length
-      return { pendingCount, recentDeposits: deposits.slice(0, 3) }
+      const [depositRes, countRes] = await Promise.all([
+        api.get('/cash-counts/deposits', { params: { page: 1, limit: 5 } }),
+        api.get('/cash-counts', { params: { page: 1, limit: 1 } }),
+      ])
+      const deposits = depositRes.data.data || []
+      const pendingDeposits = deposits.filter((d: { status: string }) => d.status === 'PENDING').length
+      const totalCashCounts = countRes.data.pagination?.total || 0
+      const countedNotDeposited = (countRes.data.data || []).filter((c: { status: string }) => c.status === 'COUNTED').length
+      return {
+        pendingCount: pendingDeposits,
+        countedNotDeposited,
+        totalCashCounts,
+      }
     },
     staleTime: 2 * 60_000,
   })
@@ -230,6 +239,23 @@ export const useFeeDiscrepancySummary = (dateFrom: string, dateTo: string) => {
     staleTime: 3 * 60_000,
   })
 }
+
+// Expense categorization stats
+export const useExpenseCategorizeStats = (dateFrom?: string, dateTo?: string) =>
+  useQuery({
+    queryKey: ['dashboard', 'expense-categorize-stats', dateFrom, dateTo],
+    queryFn: async () => {
+      const baseParams = { limit: 1, ...(dateFrom ? { date_from: dateFrom } : {}), ...(dateTo ? { date_to: dateTo } : {}) }
+      const [uncatRes, totalRes] = await Promise.all([
+        api.get('/expense-categorization/uncategorized', { params: { ...baseParams, categorized: 'false' } }),
+        api.get('/expense-categorization/uncategorized', { params: baseParams }),
+      ])
+      const uncategorized = uncatRes.data.pagination?.total ?? 0
+      const totalUnjournaled = totalRes.data.pagination?.total ?? 0
+      return { uncategorized, unjournaled: totalUnjournaled, categorized: totalUnjournaled - uncategorized }
+    },
+    staleTime: 3 * 60_000,
+  })
 
 // Balance Sheet health check
 export const useBalanceSheetHealth = (companyId: string | undefined, asOfDate?: string) =>

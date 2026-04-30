@@ -5,7 +5,7 @@ import {
   fmtD,
   useReconSummary, useCashCountPending, useFiscalPeriodsStatus,
   useJournalSummary, useFeeDiscrepancySummary, useFailedTransactionsCount,
-  useBalanceSheetHealth,
+  useBalanceSheetHealth, useExpenseCategorizeStats,
 } from '../api/useDashboardApi'
 import { useIncomeStatement } from '@/features/accounting/income-statement/api/incomeStatement.api'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
@@ -72,6 +72,7 @@ export default function DashboardAccountingPage() {
   const cashCount = useCashCountPending()
   const fiscalPeriods = useFiscalPeriodsStatus()
   const failedTrx = useFailedTransactionsCount()
+  const expenseStats = useExpenseCategorizeStats(appliedFrom, appliedTo)
 
   const qc = useQueryClient()
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -161,7 +162,12 @@ export default function DashboardAccountingPage() {
           reconciledCount={recon.data?.reconciled_count || 0}
           unreconciledCount={unreconciledCount}
           cashPending={cashCount.data?.pendingCount || 0}
+          cashCountedNotDeposited={cashCount.data?.countedNotDeposited || 0}
           feeDiscrepancyCount={feeDiscrepancyCount}
+          expenseUncategorized={expenseStats.data?.uncategorized || 0}
+          expenseUnjournaled={expenseStats.data?.unjournaled || 0}
+          journalDraft={journals.data?.draft || 0}
+          journalPosted={journals.data?.posted || 0}
         />
 
         {/* Sidebar */}
