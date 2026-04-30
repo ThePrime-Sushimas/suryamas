@@ -95,6 +95,106 @@
 26. Header page: pakai `ArrowLeft` untuk back navigation, bukan "✕" atau "Back to List" button terpisah
 27. (Digabung ke #18 — lihat convention #18 untuk standar resmi pagination + search/filter fetch pattern)
 28. Filter di useEffect deps: JANGAN masukkan `filter` object ke useEffect deps kalau body useEffect juga call `setFilter` — infinite loop. Deps hanya untuk trigger value (search, page), bukan untuk state yang di-mutate di body
+29. **Express global augmentation** (`backend/src/types/express.d.ts`): Extend `Express.Request` dengan `user`, `validated`, `sort`, `filterParams`, `queryFilter`, `context`, `permissions`. Controller TIDAK PERLU cast `req as any` atau `req as unknown as Request` — langsung pass `req`.
+30. **DTO audit fields**: `CreateXxxDto` dan `UpdateXxxDto` WAJIB include `created_by`/`updated_by` agar service layer tidak perlu `as unknown as XxxDto` cast.
+31. **FE error extraction**: Semua store WAJIB pakai `parseApiError()` dari `@/lib/errorParser`. DILARANG inline `error instanceof Error ? error.message : '...'` atau `'response' in error`.
+32. **handleError signature**: `await handleError(res, error, req, context)` — `req` langsung (tanpa cast berkat express.d.ts), `context` berisi metadata debugging (`{ action, id, query }`).
+33. **Repository type safety**: Gunakan `toRecord<T extends object>(obj: T): Record<string, unknown>` helper untuk bulk insert. DILARANG `as any` untuk row mapping.
+
+## 🔍 Module Compliance Status
+
+Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
+
+### Backend Controller Compliance
+
+| Module | `await` handleError | No `as any`/`as unknown` | `error: unknown` | `context` param | Express augmentation |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| branches | ✅ | ✅ | ✅ | ✅ | ✅ |
+| categories | ✅ | ✅ | ✅ | ✅ | ✅ |
+| suppliers | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
+| banks | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
+| metric-units | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
+| employees | ✅ | ✅ | ✅ | ✅ | ✅ |
+| employee_branches | ❌ | ✅ | ❌ | ❌ | ❌ |
+| auth | ❌ | ✅ | ❌ | ❌ | ❌ |
+| bank-accounts | ❌ | ✅ | ✅ | ❌ | ❌ |
+| cash-counts | ❌ | ✅ | ❌ `error: any` | ❌ | ❌ |
+| cash-flow | ❌ | ✅ | ❌ `error: any` | ❌ | ❌ |
+| companies | ❌ | ❌ `as any` | ❌ | ❌ | ❌ |
+| expense-categorization | ✅ | ❌ `as any` | ❌ | ❌ | ❌ |
+| payment-methods | ❌ | ❌ `as any` | ❌ | ❌ | ❌ |
+| payment-terms | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
+| permissions | ❌ | ✅ | ✅ | ❌ | ❌ |
+| pos-sync | ➖ | ❌ `as any` | ✅ | ➖ | ❌ |
+| pricelists | ❌ | ✅ | ✅ | ❌ | ❌ |
+| product-uoms | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
+| products | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
+| sub-categories | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
+| supplier-products | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
+| users | ❌ | ✅ | ✅ | ❌ | ❌ |
+| jobs | ❌ | ✅ | ❌ | ❌ | ❌ |
+| monitoring | ➖ | ✅ | ❌ | ➖ | ❌ |
+
+### Frontend Store Compliance (`parseApiError`)
+
+| Store | `parseApiError` | Inline error extraction |
+|-------|:---:|:---:|
+| branches | ✅ | ✅ removed |
+| categories | ✅ | ✅ removed |
+| banks | ❌ | `error instanceof Error` |
+| metric_units | ❌ | inline |
+| suppliers | ❌ | inline |
+| employees | ✅ | ✅ removed |
+| bank-accounts | ❌ | `error instanceof Error` |
+| bank-statement-import | ❌ | `error.response?.data` |
+| branch_context | ❌ | `error instanceof Error` |
+| companies | ❌ | `error instanceof Error` |
+| employee_branches | ❌ | inline |
+| payment-methods | ❌ | inline |
+| payment-terms | ❌ | inline |
+| permissions | ❌ | inline |
+| pricelists | ❌ | inline |
+| product-uoms | ❌ | inline |
+| products | ❌ | inline |
+| supplier-products | ❌ | inline |
+| users | ❌ | inline |
+| pos-aggregates | ❌ | inline |
+| pos-imports | ❌ | inline |
+| pos-sync-aggregates | ❌ | inline |
+| auth | ❌ | inline |
+| monitoring | ❌ | inline |
+| jobs | ❌ | inline |
+
+### Modules Fully Compliant (all conventions)
+- ✅ `branches` (backend + frontend)
+- ✅ `categories` (backend + frontend)
+- ✅ `employees` (backend + frontend)
+
+### Modules Partially Compliant (reviewed, some fixes applied)
+- 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
+- 🟡 `banks` (backend reviewed, controller still `as unknown`, FE store not yet parseApiError)
+- 🟡 `metric-units` (backend reviewed, controller still `as unknown`, FE store not yet parseApiError)
+
+### Modules Not Yet Reviewed
+- ⬜ `employee_branches`
+- ⬜ `auth`
+- ⬜ `bank-accounts`
+- ⬜ `cash-counts`
+- ⬜ `cash-flow`
+- ⬜ `companies`
+- ⬜ `expense-categorization`
+- ⬜ `payment-methods`
+- ⬜ `payment-terms`
+- ⬜ `permissions`
+- ⬜ `pos-sync`
+- ⬜ `pricelists`
+- ⬜ `product-uoms`
+- ⬜ `products`
+- ⬜ `sub-categories`
+- ⬜ `supplier-products`
+- ⬜ `users`
+- ⬜ `jobs`
+- ⬜ `monitoring`
 
 ---
 trigger: always_on
@@ -363,7 +463,7 @@ Dari pengalaman development sebelumnya, berikut aturan tambahan:
 
 ### Backend
 1. `handleError(res, error, req, context)` — SELALU `await` karena bersifat async. Pass `req` untuk info user/route, dan `context` untuk metadata spesifik (ID, query, dll).
-2. Jika TypeScript error saat pass `req` ke `handleError` karena custom type (Query/Body), gunakan `req as any`.
+2. ~~Jika TypeScript error saat pass `req` ke `handleError` karena custom type (Query/Body), gunakan `req as any`.~~ **DEPRECATED** — Gunakan Express global augmentation (`src/types/express.d.ts`). Controller langsung pass `req` tanpa cast. Lihat convention #29.
 3. Jangan throw generic `new Error()` — pakai custom error class dari `*.errors.ts` dan daftarkan di `ERROR_REGISTRY`.
 4. Schema validation: cross-validate compare periods, UUID regex untuk `branch_ids`
 5. Setelah ubah `.ts`, WAJIB rebuild: `cd backend && npx tsc`

@@ -8,7 +8,7 @@ import { branchesController } from './branches.controller'
 import { PermissionService } from '../../services/permission.service'
 import { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema, branchIdSchema } from './branches.schema'
 import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
-import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 
 const router = Router()
 

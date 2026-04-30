@@ -1,18 +1,25 @@
 import { pool } from '../../config/db'
-import { Branch, CreateBranchDto, UpdateBranchDto } from './branches.types'
+import type { Branch, CreateBranchDto, UpdateBranchDto } from './branches.types'
+import { BranchErrors } from './branches.errors'
+
+type BranchFilter = { status?: string; company_id?: string; city?: string; hari_operasional?: string }
+
+function toRecord<T extends object>(obj: T): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(obj))
+}
 
 export class BranchesRepository {
   async findAll(
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: { status?: string; company_id?: string; city?: string; hari_operasional?: string }
+    filter?: BranchFilter
   ): Promise<{ data: Branch[]; total: number }> {
     const validFields = ['branch_name', 'branch_code', 'status', 'city', 'hari_operasional', 'created_at']
     const sortField = sort && validFields.includes(sort.field) ? sort.field : 'branch_name'
     const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
 
     const conditions: string[] = []
-    const params: any[] = []
+    const params: (string | number | boolean)[] = []
 
     if (filter?.status) { params.push(filter.status); conditions.push(`status = $${params.length}`) }
     if (filter?.company_id) { params.push(filter.company_id); conditions.push(`company_id = $${params.length}`) }
@@ -39,14 +46,14 @@ export class BranchesRepository {
     searchTerm: string,
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any
+    filter?: BranchFilter
   ): Promise<{ data: Branch[]; total: number }> {
     const validFields = ['branch_name', 'branch_code', 'status', 'city', 'hari_operasional', 'created_at']
     const sortField = sort && validFields.includes(sort.field) ? sort.field : 'branch_name'
     const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
 
     const conditions: string[] = []
-    const params: any[] = []
+    const params: (string | number | boolean)[] = []
 
     if (searchTerm && searchTerm.trim()) {
       params.push(`%${searchTerm}%`)
@@ -121,9 +128,9 @@ export class BranchesRepository {
   async delete(id: string): Promise<void> {
     try {
       await pool.query(`DELETE FROM branches WHERE id = $1`, [id])
-    } catch (err: any) {
-      if (err.code === '23503') {
-        throw new Error('Branch is referenced and cannot be deleted')
+    } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && (err as Record<string, unknown>).code === '23503') {
+        throw BranchErrors.IN_USE(id)
       }
       throw err
     }
@@ -136,9 +143,9 @@ export class BranchesRepository {
     )
   }
 
-  async exportData(filter?: any): Promise<Branch[]> {
+  async exportData(filter?: BranchFilter): Promise<Branch[]> {
     const conditions: string[] = []
-    const params: any[] = []
+    const params: (string | number | boolean)[] = []
 
     if (filter?.status) { params.push(filter.status); conditions.push(`status = $${params.length}`) }
     if (filter?.company_id) { params.push(filter.company_id); conditions.push(`company_id = $${params.length}`) }
@@ -156,12 +163,12 @@ export class BranchesRepository {
   async getFilterOptions(): Promise<{ cities: string[]; statuses: string[]; hariOperasional: string[] }> {
     const { rows } = await pool.query(`SELECT city, status, hari_operasional FROM branches`)
 
-    const cities = [...new Set(rows.map((b: any) => b.city).filter(Boolean))] as string[]
-    const statuses = [...new Set(rows.map((b: any) => b.status).filter(Boolean))] as string[]
-    const hariOperasionalFlat = rows.flatMap((b: any) =>
-      Array.isArray(b.hari_operasional) ? b.hari_operasional : []
+    const cities = [...new Set(rows.map((b: Record<string, unknown>) => b.city as string).filter(Boolean))]
+    const statuses = [...new Set(rows.map((b: Record<string, unknown>) => b.status as string).filter(Boolean))]
+    const hariOperasionalFlat = rows.flatMap((b: Record<string, unknown>) =>
+      Array.isArray(b.hari_operasional) ? (b.hari_operasional as string[]) : []
     )
-    const hariOperasional = [...new Set(hariOperasionalFlat)] as string[]
+    const hariOperasional = [...new Set(hariOperasionalFlat)]
 
     cities.sort(); statuses.sort(); hariOperasional.sort()
     return { cities, statuses, hariOperasional }
@@ -174,7 +181,7 @@ export class BranchesRepository {
     const placeholders = branches.map((_, i) =>
       `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`
     ).join(', ')
-    const values = branches.flatMap(b => keys.map(k => (b as any)[k] ?? null))
+    const values = branches.flatMap(b => keys.map(k => toRecord(b)[k] ?? null))
     await pool.query(`INSERT INTO branches (${cols}) VALUES ${placeholders}`, values)
   }
 

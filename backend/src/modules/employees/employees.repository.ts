@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import { storageService } from '../../services/storage.service'
 import { EmployeeDB, EmployeeWithBranch, EmployeeFilter, PaginationParams } from './employees.types'
+import { EmployeeErrors } from './employees.errors'
 
 export class EmployeesRepository {
   private static filterOptionsCache: { branches: { id: string; branch_name: string }[]; positions: string[]; statuses: string[] } | null = null
@@ -51,7 +52,7 @@ export class EmployeesRepository {
 
   async create(data: Partial<EmployeeDB>): Promise<EmployeeDB> {
     const keys = Object.keys(data)
-    if (!keys.length) throw new Error('No data to insert')
+    if (!keys.length) throw EmployeeErrors.VALIDATION('No data to insert')
     const values = Object.values(data)
     const cols = keys.join(', ')
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ')
@@ -61,7 +62,7 @@ export class EmployeesRepository {
       EmployeesRepository.filterOptionsCache = null
       return rows[0]
     } catch (err: unknown) {
-      if ((err as { code?: string }).code === '23505') throw new Error('Employee ID already exists')
+      if ((err as { code?: string }).code === '23505') throw EmployeeErrors.CONFLICT()
       throw err
     }
   }
@@ -302,7 +303,7 @@ export class EmployeesRepository {
       'SELECT generate_employee_id($1::text, $2::date, $3::text) AS id',
       [branchName, joinDate, jobPosition]
     )
-    if (!rows[0]?.id) throw new Error('Failed to generate employee ID')
+    if (!rows[0]?.id) throw EmployeeErrors.GENERATE_ID_FAILED()
     return rows[0].id
   }
 

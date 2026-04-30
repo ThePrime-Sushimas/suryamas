@@ -125,6 +125,30 @@ export const ERROR_REGISTRY = {
   },
 
   // ============ CORE MODULES ============
+  EmployeeNotFoundError: {
+    name: 'EmployeeNotFoundError',
+    importPath: '../modules/employees/employees.errors',
+    defaultStatusCode: 404,
+    category: 'hr',
+  },
+  EmployeeConflictError: {
+    name: 'EmployeeConflictError',
+    importPath: '../modules/employees/employees.errors',
+    defaultStatusCode: 409,
+    category: 'hr',
+  },
+  EmployeeValidationError: {
+    name: 'EmployeeValidationError',
+    importPath: '../modules/employees/employees.errors',
+    defaultStatusCode: 400,
+    category: 'hr',
+  },
+  EmployeeBusinessError: {
+    name: 'EmployeeBusinessError',
+    importPath: '../modules/employees/employees.errors',
+    defaultStatusCode: 400,
+    category: 'hr',
+  },
   EmployeeBranchError: {
     name: 'EmployeeBranchError',
     importPath: '../modules/employee_branches/employee_branches.errors',

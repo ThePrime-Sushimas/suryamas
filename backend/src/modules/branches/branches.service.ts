@@ -1,12 +1,15 @@
 import { branchesRepository } from './branches.repository'
-import { Branch, CreateBranchDto } from './branches.types'
+import type { Branch, CreateBranchDto, UpdateBranchDto } from './branches.types'
 import { BranchErrors } from './branches.errors'
-import { CreateBranchInput, UpdateBranchInput } from './branches.schema'
+import type { CreateBranchInput, UpdateBranchInput } from './branches.schema'
 import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo } from '../../config/logger'
 
+interface SortInfo { field: string; order: 'asc' | 'desc' }
+interface FilterInfo { status?: string; company_id?: string; city?: string; hari_operasional?: string }
+
 export class BranchesService {
-  async list(pagination: { page: number; limit: number; offset: number }, sort?: any, filter?: any) {
+  async list(pagination: { page: number; limit: number; offset: number }, sort?: SortInfo, filter?: FilterInfo) {
     const { data, total } = await branchesRepository.findAll(
       { limit: pagination.limit, offset: pagination.offset },
       sort,
@@ -26,7 +29,7 @@ export class BranchesService {
     }
   }
 
-  async search(q: string, pagination: { page: number; limit: number; offset: number }, sort?: any, filter?: any) {
+  async search(q: string, pagination: { page: number; limit: number; offset: number }, sort?: SortInfo, filter?: FilterInfo) {
     const { data, total } = await branchesRepository.search(
       q,
       { limit: pagination.limit, offset: pagination.offset },
@@ -71,7 +74,7 @@ export class BranchesService {
       notes: dto.notes ?? null,
     }
 
-    const branch = await branchesRepository.create({ ...data, created_by: userId, updated_by: userId } as any)
+    const branch = await branchesRepository.create({ ...data, created_by: userId, updated_by: userId })
 
     if (userId) {
       await AuditService.log('CREATE', 'branch', branch.id, userId, undefined, branch)
@@ -85,11 +88,14 @@ export class BranchesService {
     const branch = await branchesRepository.findById(id)
     if (!branch) throw BranchErrors.NOT_FOUND()
 
-    const data = Object.fromEntries(
-      Object.entries(dto).filter(([, v]) => v !== undefined)
-    )
+    const updates: UpdateBranchDto = {
+      ...Object.fromEntries(
+        Object.entries(dto).filter(([, v]) => v !== undefined)
+      ) as UpdateBranchDto,
+      updated_by: userId,
+    }
 
-    const updated = await branchesRepository.updateById(id, { ...data, updated_by: userId } as any)
+    const updated = await branchesRepository.updateById(id, updates)
 
     if (userId) {
       await AuditService.log('UPDATE', 'branch', id, userId, branch, dto)
@@ -112,7 +118,7 @@ export class BranchesService {
     }
   }
 
-  private normalizeHariOperasional(value: any): string[] {
+  private normalizeHariOperasional(value: unknown): string[] {
     if (Array.isArray(value)) return value
     if (typeof value === 'string') {
       try {

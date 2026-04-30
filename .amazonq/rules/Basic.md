@@ -305,13 +305,16 @@ Dari pengalaman development sebelumnya, berikut aturan tambahan:
 
 ### Backend
 1. `handleError(res, error, req, context)` — SELALU `await` karena bersifat async. Pass `req` untuk info user/route, dan `context` untuk metadata spesifik (ID, query, dll).
-2. Jika TypeScript error saat pass `req` ke `handleError` karena custom type (Query/Body), gunakan `req as any`.
+2. ~~Jika TypeScript error saat pass `req` ke `handleError` karena custom type (Query/Body), gunakan `req as any`.~~ **DEPRECATED** — Gunakan Express global augmentation (`src/types/express.d.ts`). Controller langsung pass `req` tanpa cast.
 3. Jangan throw generic `new Error()` — pakai custom error class dari `*.errors.ts` dan daftarkan di `ERROR_REGISTRY`.
 4. Schema validation: cross-validate compare periods, UUID regex untuk `branch_ids`
 5. Setelah ubah `.ts`, WAJIB rebuild: `cd backend && npx tsc`
 6. `company_id` dari branch context (`req.context.company_id`), BUKAN dari query param
 7. Lazy Initialization: Gunakan pattern getter (misal `getS3()`) untuk service eksternal agar env vars ter-load dengan benar (menghindari error saat cold start).
 8. S3Client (Cloudflare R2) WAJIB pakai `forcePathStyle: true`
+9. **Express global augmentation** (`src/types/express.d.ts`): Extend `Express.Request` dengan `user`, `validated`, `sort`, `filterParams`, `queryFilter`, `context`, `permissions`. DILARANG cast `req as any` / `req as unknown as Request` di controller.
+10. **DTO audit fields**: `CreateXxxDto` / `UpdateXxxDto` WAJIB include `created_by` / `updated_by` agar service tidak perlu unsafe cast.
+11. **Repository type safety**: Gunakan `toRecord<T>()` helper untuk bulk insert. DILARANG `as any` untuk row mapping.
 
 ### Frontend
 1. Jangan hardcode labels — pakai data dari DB/COA hierarchy
@@ -324,6 +327,7 @@ Dari pengalaman development sebelumnya, berikut aturan tambahan:
 8. Error message 500 di frontend: tampilkan pesan generik, bukan detail teknis
 9. Akun tanpa parent di-group ke bucket `__ungrouped__` dengan label "Lainnya"
 10. Permission module harus terpisah per fitur (jangan gabung ke `journals`)
+11. **Error extraction**: Semua store WAJIB pakai `parseApiError()` dari `@/lib/errorParser`. DILARANG inline `error instanceof Error ? error.message : '...'`.
 
 ### Database & Migrasi
 1. Akses DB dari lokal: via SSH tunnel (`tunnel` command), JANGAN buka port 5432 di firewall

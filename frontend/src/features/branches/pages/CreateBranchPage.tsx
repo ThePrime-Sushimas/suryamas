@@ -7,7 +7,7 @@ import type { CreateBranchDto } from '../types'
 
 export default function CreateBranchPage() {
   const navigate = useNavigate()
-  const { createBranch, loading } = useBranchesStore()
+  const { createBranch, mutationLoading } = useBranchesStore()
   const toast = useToast()
 
   const handleSubmit = async (data: unknown) => {
@@ -35,7 +35,7 @@ export default function CreateBranchPage() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-          <BranchForm onSubmit={handleSubmit} isLoading={loading} />
+          <BranchForm onSubmit={handleSubmit} isLoading={mutationLoading} />
         </div>
       </div>
     </div>

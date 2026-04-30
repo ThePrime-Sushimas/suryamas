@@ -7,10 +7,9 @@ import { queryMiddleware } from '../../middleware/query.middleware'
 import { upload } from '../../middleware/upload.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
-import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
-import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
-import './employees.openapi' // Register OpenAPI docs
+import './employees.openapi'
 import rateLimit from 'express-rate-limit'
 
 // Auto-register employees module
@@ -35,38 +34,36 @@ router.use(authenticate, resolveBranchContext)
 router.get('/', canView('employees'), queryMiddleware({
   allowedSortFields: ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id']
 }), (req, res) => 
-  employeesController.list(req as AuthenticatedPaginatedRequest, res))
+  employeesController.list(req, res))
 
-// Get unassigned employees
 router.get('/unassigned', canView('employees'), queryMiddleware({
   allowedSortFields: ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id']
 }), (req, res) => 
-  employeesController.getUnassigned(req as AuthenticatedPaginatedRequest, res))
+  employeesController.getUnassigned(req, res))
 
-// Search with pagination
 router.get('/search', canView('employees'), queryMiddleware({
   allowedSortFields: ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id']
 }), validateSchema(EmployeeSearchSchema), (req, res) => 
-  employeesController.search(req as AuthenticatedPaginatedRequest, res))
+  employeesController.search(req, res))
 
 router.get('/autocomplete', canView('employees'), (req, res) => 
-  employeesController.autocomplete(req as AuthenticatedRequest, res))
+  employeesController.autocomplete(req, res))
 
 router.get('/filter-options', canView('employees'), (req, res) => 
-  employeesController.getFilterOptions(req as AuthenticatedRequest, res))
+  employeesController.getFilterOptions(req, res))
 
 // ============================================
 // PROFILE (no permission check - user can view own profile)
 // ============================================
 
 router.get('/profile', (req, res) => 
-  employeesController.getProfile(req as AuthenticatedRequest, res))
+  employeesController.getProfile(req, res))
 
 router.put('/profile', validateSchema(UpdateProfileSchema), (req, res) => 
   employeesController.updateProfile(req as ValidatedAuthRequest<typeof UpdateProfileSchema>, res))
 
 router.post('/profile/picture', upload.single('picture'), (req, res) => 
-  employeesController.uploadProfilePicture(req as AuthenticatedRequest, res))
+  employeesController.uploadProfilePicture(req, res))
 
 // ============================================
 // EXPORT & IMPORT (JOB-BASED)
@@ -76,15 +73,14 @@ router.post('/profile/picture', upload.single('picture'), (req, res) =>
 router.post('/export/job', 
   canView('employees'),
   exportImportLimiter,
-  (req, res) => employeesController.createExportJob(req as AuthenticatedRequest, res)
+  (req, res) => employeesController.createExportJob(req, res)
 )
 
-// Create import job - returns job ID immediately
 router.post('/import/job', 
   canInsert('employees'),
   upload.single('file'),
   exportImportLimiter,
-  (req, res) => employeesController.createImportJob(req as AuthenticatedRequest, res)
+  (req, res) => employeesController.createImportJob(req, res)
 )
 
 // ============================================
@@ -92,19 +88,19 @@ router.post('/import/job',
 // ============================================
 
 router.get('/export/token', canView('employees'), exportLimiter, (req, res) => 
-  employeesController.generateExportToken(req as AuthenticatedRequest, res))
+  employeesController.generateExportToken(req, res))
 
 router.get('/export', canView('employees'), queryMiddleware({
   allowedSortFields: ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id'],
   pagination: false
 }), exportLimiter, (req, res) => 
-  employeesController.exportData(req as AuthenticatedPaginatedRequest, res))
+  employeesController.exportData(req, res))
 
 router.post('/import/preview', canInsert('employees'), upload.single('file'), (req, res) => 
-  employeesController.previewImport(req as AuthenticatedRequest, res))
+  employeesController.previewImport(req, res))
 
 router.post('/import', canInsert('employees'), upload.single('file'), exportLimiter, (req, res) => 
-  employeesController.importData(req as AuthenticatedRequest, res))
+  employeesController.importData(req, res))
 
 // ============================================
 // BULK ACTIONS
@@ -127,16 +123,16 @@ router.post('/', canInsert('employees'), upload.single('profile_picture'), valid
   employeesController.create(req as ValidatedAuthRequest<typeof CreateEmployeeSchema>, res))
 
 router.get('/:id', canView('employees'), (req, res) => 
-  employeesController.getById(req as AuthenticatedRequest, res))
+  employeesController.getById(req, res))
 
 router.put('/:id', canUpdate('employees'), upload.single('profile_picture'), validateSchema(UpdateEmployeeSchema), (req, res) => 
   employeesController.update(req as ValidatedAuthRequest<typeof UpdateEmployeeSchema>, res))
 
 router.delete('/:id', canDelete('employees'), (req, res) => 
-  employeesController.delete(req as AuthenticatedRequest, res))
+  employeesController.delete(req, res))
 
 router.post('/:id/restore', canUpdate('employees'), (req, res) => 
-  employeesController.restore(req as AuthenticatedRequest, res))
+  employeesController.restore(req, res))
 
 router.patch('/:id/active', canUpdate('employees'), validateSchema(UpdateActiveSchema), (req, res) => 
   employeesController.updateActive(req as ValidatedAuthRequest<typeof UpdateActiveSchema>, res))

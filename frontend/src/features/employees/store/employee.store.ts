@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { employeesApi } from '../api/employees.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { EmployeeResponse, EmployeeFormData, FilterOptions, PaginationData } from '../types'
 
 interface EmployeeState {
@@ -7,15 +8,16 @@ interface EmployeeState {
   profile: EmployeeResponse | null
   filterOptions: FilterOptions | null
   pagination: PaginationData | null
-  isLoading: boolean
+  loading: boolean
+  mutationLoading: boolean
   error: string | null
-  
+
+  fetchPage: (page: number, limit: number, sort: string, order: 'asc' | 'desc', signal?: AbortSignal) => Promise<void>
+  searchPage: (query: string, page: number, limit: number, sort: string, order: 'asc' | 'desc', filter: Record<string, string>, signal?: AbortSignal) => Promise<void>
+  fetchFilterOptions: () => Promise<void>
   fetchProfile: () => Promise<void>
   updateProfile: (data: Partial<EmployeeFormData>) => Promise<void>
   uploadProfilePicture: (file: File) => Promise<void>
-  fetchEmployees: (sort?: string, order?: 'asc' | 'desc', page?: number, limit?: number, signal?: AbortSignal) => Promise<void>
-  searchEmployees: (query: string, sort?: string, order?: 'asc' | 'desc', filter?: Record<string, string>, page?: number, limit?: number, signal?: AbortSignal) => Promise<void>
-  fetchFilterOptions: () => Promise<void>
   createEmployee: (data: EmployeeFormData, file?: File) => Promise<EmployeeResponse>
   updateEmployee: (id: string, data: Partial<EmployeeFormData>, file?: File) => Promise<EmployeeResponse>
   deleteEmployee: (id: string) => Promise<void>
@@ -32,81 +34,31 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
   profile: null,
   filterOptions: null,
   pagination: null,
-  isLoading: false,
+  loading: false,
+  mutationLoading: false,
   error: null,
 
-  fetchProfile: async () => {
-    set({ isLoading: true, error: null })
-    try {
-      const profile = await employeesApi.getProfile()
-      set({ profile, isLoading: false })
-    } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to fetch profile'
-      set({ error: message || 'Failed to fetch profile', isLoading: false })
-      throw new Error(message || 'Failed to fetch profile')
-    }
-  },
-
-  updateProfile: async (updates) => {
-    set({ isLoading: true, error: null })
-    try {
-      const profile = await employeesApi.updateProfile(updates)
-      set({ profile, isLoading: false })
-    } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to update profile'
-      set({ error: message || 'Failed to update profile', isLoading: false })
-      throw new Error(message || 'Failed to update profile')
-    }
-  },
-
-  uploadProfilePicture: async (file) => {
-    set({ isLoading: true, error: null })
-    try {
-      const url = await employeesApi.uploadProfilePicture(file)
-      set(state => ({
-        profile: state.profile ? { ...state.profile, profile_picture: url } : null,
-        isLoading: false
-      }))
-    } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to upload picture'
-      set({ error: message || 'Failed to upload picture', isLoading: false })
-      throw new Error(message || 'Failed to upload picture')
-    }
-  },
-
-  fetchEmployees: async (sort = 'full_name', order = 'asc', page = 1, limit = 50, signal) => {
-    set({ isLoading: true, error: null })
+  fetchPage: async (page, limit, sort, order, signal) => {
+    set({ loading: true, error: null })
     try {
       const response = await employeesApi.list(page, limit, sort, order)
       if (signal?.aborted) return
-      set({ employees: response.data, pagination: response.pagination, isLoading: false })
+      set({ employees: response.data, pagination: response.pagination, loading: false })
     } catch (error: unknown) {
       if ((error instanceof Error && error.name === 'CanceledError') || signal?.aborted) return
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to fetch employees'
-      set({ error: message || 'Failed to fetch employees', isLoading: false })
+      set({ error: parseApiError(error, 'Gagal memuat karyawan'), loading: false })
     }
   },
 
-  searchEmployees: async (query, sort = 'full_name', order = 'asc', filter = {}, page = 1, limit = 50, signal) => {
-    set({ isLoading: true, error: null })
+  searchPage: async (query, page, limit, sort, order, filter, signal) => {
+    set({ loading: true, error: null })
     try {
       const response = await employeesApi.search(query, page, limit, sort, order, filter)
       if (signal?.aborted) return
-      set({ employees: response.data, pagination: response.pagination, isLoading: false })
+      set({ employees: response.data, pagination: response.pagination, loading: false })
     } catch (error: unknown) {
       if ((error instanceof Error && error.name === 'CanceledError') || signal?.aborted) return
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to search employees'
-      set({ error: message || 'Failed to search employees', isLoading: false })
+      set({ error: parseApiError(error, 'Gagal mencari karyawan'), loading: false })
     }
   },
 
@@ -114,41 +66,74 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       const filterOptions = await employeesApi.getFilterOptions()
       set({ filterOptions })
+    } catch (_) { /* silent */ }
+  },
+
+  fetchProfile: async () => {
+    set({ loading: true, error: null })
+    try {
+      const profile = await employeesApi.getProfile()
+      set({ profile, loading: false })
     } catch (error: unknown) {
-      console.error('Failed to fetch filter options:', error)
+      const msg = parseApiError(error, 'Gagal memuat profil')
+      set({ error: msg, loading: false })
+      throw new Error(msg)
+    }
+  },
+
+  updateProfile: async (updates) => {
+    set({ mutationLoading: true, error: null })
+    try {
+      const profile = await employeesApi.updateProfile(updates)
+      set({ profile, mutationLoading: false })
+    } catch (error: unknown) {
+      const msg = parseApiError(error, 'Gagal memperbarui profil')
+      set({ error: msg, mutationLoading: false })
+      throw new Error(msg)
+    }
+  },
+
+  uploadProfilePicture: async (file) => {
+    set({ mutationLoading: true, error: null })
+    try {
+      const url = await employeesApi.uploadProfilePicture(file)
+      set(state => ({
+        profile: state.profile ? { ...state.profile, profile_picture: url } : null,
+        mutationLoading: false
+      }))
+    } catch (error: unknown) {
+      const msg = parseApiError(error, 'Gagal mengunggah foto')
+      set({ error: msg, mutationLoading: false })
+      throw new Error(msg)
     }
   },
 
   createEmployee: async (data, file) => {
-    set({ isLoading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const employee = await employeesApi.create(data, file)
-      set({ isLoading: false })
+      set({ mutationLoading: false })
       return employee
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to create employee'
-      set({ error: message || 'Failed to create employee', isLoading: false })
-      throw new Error(message || 'Failed to create employee')
+      const msg = parseApiError(error, 'Gagal membuat karyawan')
+      set({ error: msg, mutationLoading: false })
+      throw new Error(msg)
     }
   },
 
   updateEmployee: async (id, data, file) => {
-    set({ isLoading: true, error: null })
+    set({ mutationLoading: true, error: null })
     try {
       const employee = await employeesApi.update(id, data, file)
       set(state => ({
         employees: state.employees.map(e => e.id === id ? employee : e),
-        isLoading: false
+        mutationLoading: false
       }))
       return employee
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to update employee'
-      set({ error: message || 'Failed to update employee', isLoading: false })
-      throw new Error(message || 'Failed to update employee')
+      const msg = parseApiError(error, 'Gagal memperbarui karyawan')
+      set({ error: msg, mutationLoading: false })
+      throw new Error(msg)
     }
   },
 
@@ -158,11 +143,8 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       await employeesApi.delete(id)
     } catch (error: unknown) {
-      set({ employees: prev })
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to delete employee'
-      throw new Error(message || 'Failed to delete employee')
+      set({ employees: prev, error: parseApiError(error, 'Gagal menghapus karyawan') })
+      throw error
     }
   },
 
@@ -173,10 +155,8 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
         employees: state.employees.map(e => e.id === id ? { ...e, deleted_at: null } : e)
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to restore employee'
-      throw new Error(message || 'Failed to restore employee')
+      set({ error: parseApiError(error, 'Gagal memulihkan karyawan') })
+      throw error
     }
   },
 
@@ -187,10 +167,8 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
         employees: state.employees.map(e => e.id === id ? { ...e, is_active: isActive } : e)
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to update employee'
-      throw new Error(message || 'Failed to update employee')
+      set({ error: parseApiError(error, 'Gagal memperbarui status karyawan') })
+      throw error
     }
   },
 
@@ -202,11 +180,8 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       await employeesApi.bulkUpdateActive(ids, isActive)
     } catch (error: unknown) {
-      set({ employees: prev })
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to update employees'
-      throw new Error(message || 'Failed to update employees')
+      set({ employees: prev, error: parseApiError(error, 'Gagal memperbarui karyawan') })
+      throw error
     }
   },
 
@@ -216,11 +191,8 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       await employeesApi.bulkDelete(ids)
     } catch (error: unknown) {
-      set({ employees: prev })
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to delete employees'
-      throw new Error(message || 'Failed to delete employees')
+      set({ employees: prev, error: parseApiError(error, 'Gagal menghapus karyawan') })
+      throw error
     }
   },
 
@@ -231,10 +203,8 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
         employees: state.employees.map(e => ids.includes(e.id) ? { ...e, deleted_at: null } : e)
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-        : 'Failed to restore employees'
-      throw new Error(message || 'Failed to restore employees')
+      set({ error: parseApiError(error, 'Gagal memulihkan karyawan') })
+      throw error
     }
   },
 

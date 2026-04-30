@@ -151,15 +151,15 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
       <div>
         <label className={labelCls}>Status</label>
         <select name="status" value={formData.status} onChange={handleChange} className={inputCls}>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="active">Aktif</option>
+          <option value="inactive">Nonaktif</option>
         </select>
       </div>
 
       <div className="flex gap-3 pt-2">
         <button type="submit" disabled={isLoading}
           className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-sm">
-          {isLoading ? 'Menyimpan...' : isEdit ? 'Update' : 'Buat Branch'}
+          {isLoading ? 'Menyimpan...' : isEdit ? 'Perbarui' : 'Buat Cabang'}
         </button>
       </div>
     </form>

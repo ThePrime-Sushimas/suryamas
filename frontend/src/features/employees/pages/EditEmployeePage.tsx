@@ -9,7 +9,7 @@ export default function EditEmployeePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { success, error: toastError } = useToast()
-  const { isLoading } = useEmployeeStore()
+  const { mutationLoading } = useEmployeeStore()
   
   const [employee, setEmployee] = useState<EmployeeResponse | null>(null)
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(true)
@@ -150,7 +150,7 @@ export default function EditEmployeePage() {
           initialData={initialData}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
-          isLoading={isLoading}
+          isLoading={mutationLoading}
           submitLabel="Update Employee"
         />
       </div>

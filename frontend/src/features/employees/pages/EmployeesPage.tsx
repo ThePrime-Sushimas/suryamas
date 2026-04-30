@@ -48,8 +48,8 @@ export default function EmployeesPage() {
 
   const {
     employees,
-    fetchEmployees,
-    searchEmployees,
+    fetchPage,
+    searchPage,
     deleteEmployee,
     restoreEmployee,
     updateEmployeeActive,
@@ -59,7 +59,7 @@ export default function EmployeesPage() {
     fetchFilterOptions,
     filterOptions,
     pagination,
-    isLoading
+    loading
   } = useEmployeeStore()
   const { fetchRecentJobs } = useJobsStore()
 
@@ -145,25 +145,16 @@ export default function EmployeesPage() {
   // Declarative data fetch with abort
   useEffect(() => {
     const controller = new AbortController()
-    const fetch = async () => {
-      try {
-        const filters = buildFilters(query)
-        const hasFilters = Object.keys(filters).length > 0
-        
-        if (query.search || hasFilters) {
-          await searchEmployees(query.search || '', query.sort, query.order, filters, query.page, query.limit, controller.signal)
-        } else {
-          await fetchEmployees(query.sort, query.order, query.page, query.limit, controller.signal)
-        }
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name !== 'CanceledError' && !controller.signal.aborted) {
-          console.error('Failed to load employees:', err)
-        }
-      }
+    const filters = buildFilters(query)
+    const hasFilters = Object.keys(filters).length > 0
+
+    if (query.search || hasFilters) {
+      searchPage(query.search || '', query.page, query.limit, query.sort, query.order, filters, controller.signal)
+    } else {
+      fetchPage(query.page, query.limit, query.sort, query.order, controller.signal)
     }
-    fetch()
     return () => controller.abort()
-  }, [query, buildFilters, searchEmployees, fetchEmployees])
+  }, [query, buildFilters, searchPage, fetchPage])
 
   // Auto-clear selection when page changes
   useEffect(() => {
@@ -469,11 +460,23 @@ export default function EmployeesPage() {
             </div>
           )}
           <div className="flex-1 overflow-y-auto">
-            {isLoading ? (
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">Loading...</div>
+            {loading ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
+                    <div className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-700" />
+                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : employees.length === 0 ? (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                {query.search ? 'No employees found' : 'No employees'}
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <p>{query.search ? 'Karyawan tidak ditemukan' : 'Belum ada karyawan'}</p>
               </div>
             ) : (
               employees.map(employee => (

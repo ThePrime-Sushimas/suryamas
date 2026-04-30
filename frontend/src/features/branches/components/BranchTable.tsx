@@ -1,4 +1,5 @@
-import { Eye, Pencil, Trash2 } from 'lucide-react'
+import { Eye, Pencil, Trash2, MapPin } from 'lucide-react'
+import { TableSkeleton } from '@/components/ui/Skeleton'
 import type { Branch, BranchStatus } from '../types'
 
 const statusColors: Record<BranchStatus, string> = {
@@ -8,6 +9,7 @@ const statusColors: Record<BranchStatus, string> = {
 
 interface BranchTableProps {
   branches: Branch[]
+  loading?: boolean
   onView: (id: string) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
@@ -15,16 +17,17 @@ interface BranchTableProps {
   canDelete: boolean
 }
 
-export const BranchTable = ({ branches, onView, onEdit, onDelete, canEdit, canDelete }: BranchTableProps) => {
+export const BranchTable = ({ branches, loading, onView, onEdit, onDelete, canEdit, canDelete }: BranchTableProps) => {
+  if (loading) {
+    return <TableSkeleton rows={6} columns={6} />
+  }
+
   if (branches.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
-        <svg className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Tidak ada branch</h3>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Mulai dengan membuat branch baru.</p>
+        <MapPin className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Tidak ada cabang</h3>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Mulai dengan membuat cabang baru.</p>
       </div>
     )
   }

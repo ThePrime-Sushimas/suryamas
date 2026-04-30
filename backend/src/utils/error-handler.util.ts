@@ -74,7 +74,7 @@ async function isModuleError(error: unknown, errorName: string): Promise<boolean
   return false
 }
 
-function persistHandledError(error: Error, statusCode: number, req?: { originalUrl?: string; method?: string; path?: string; headers?: Record<string, any>; user?: { id?: string } }, context?: Record<string, any>): void {
+function persistHandledError(error: Error, statusCode: number, req?: Request, context?: Record<string, unknown>): void {
   // Skip specific noisy client errors to prevent flood
   if (
     error.name === 'NotFoundError' ||
@@ -90,18 +90,18 @@ function persistHandledError(error: Error, statusCode: number, req?: { originalU
     errorName: error.name || 'Error',
     errorMessage: error.message,
     errorStack: error.stack,
-    errorType: (error as any).code || error.name || 'HANDLED_ERROR',
+    errorType: (error as AppError).code || error.name || 'HANDLED_ERROR',
     severity,
     module: pathParts[0] || 'api',
     submodule: pathParts[1],
-    userId: (req as any)?.user?.id,
+    userId: req?.user?.id,
     url: req?.originalUrl || '',
     route: req ? `${req.method} ${req.path}` : '',
     userAgent: req?.headers?.['user-agent'] || '',
     context, // Pass extra context as metadata
   }).catch(() => {})
 
-  const userId = (req as any)?.user?.id
+  const userId = req?.user?.id
   const lookupAndNotify = async () => {
     let userName: string | undefined
     if (userId) {
@@ -119,7 +119,7 @@ function persistHandledError(error: Error, statusCode: number, req?: { originalU
  * Main error handler function
  * Handles errors dari semua module menggunakan ErrorRegistry untuk dynamic loading
  */
-export const handleError = async (res: Response, error: unknown, req?: Request, context?: Record<string, any>): Promise<void> => {
+export const handleError = async (res: Response, error: unknown, req?: Request, context?: Record<string, unknown>): Promise<void> => {
   // ==========================================================================
   // BASE ERROR CLASSES (AppError subclasses) - Fast path
   // ==========================================================================
@@ -201,10 +201,10 @@ export const handleError = async (res: Response, error: unknown, req?: Request, 
       
       if (config) {
         const category = getErrorCategoryByName(config.name)
-        const statusCode = (error as any).statusCode || config.defaultStatusCode
+        const statusCode = (error as AppError).statusCode || config.defaultStatusCode
         logError(config.name, { message: error.message, category: config.category, module: config.name })
         persistHandledError(error, statusCode, req, context)
-        sendError(res, error.message, statusCode, { code: (error as any).code || config.name, category: config.category })
+        sendError(res, error.message, statusCode, { code: (error as AppError).code || config.name, category: config.category })
         return
       }
     }
@@ -244,10 +244,10 @@ export const handleError = async (res: Response, error: unknown, req?: Request, 
       if (await isModuleError(error, errorTypeName)) {
         const config = Object.values(ERROR_REGISTRY).find(c => c.name === errorTypeName)
         if (config) {
-          const statusCode = (error as any).statusCode || config.defaultStatusCode
+          const statusCode = (error as AppError).statusCode || config.defaultStatusCode
           logError(errorTypeName, { message: error.message })
           persistHandledError(error, statusCode, req, context)
-          sendError(res, error.message, statusCode, { code: (error as any).code || errorTypeName, category: config.category })
+          sendError(res, error.message, statusCode, { code: (error as AppError).code || errorTypeName, category: config.category })
           return
         }
       }

@@ -1,101 +1,98 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { employeesService } from './employees.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
-
 import { getParamString } from '../../utils/validation.util'
-import type { AuthenticatedPaginatedRequest, AuthenticatedRequest } from '../../types/request.types'
-import type { AuthRequest } from '../../types/common.types'
-import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
-import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { EmployeeErrors } from './employees.errors'
+import type { EmployeeFilter } from './employees.types'
+import type { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { jobsService } from '../jobs'
 
 export class EmployeesController {
-  // ============================================
-  // LIST & SEARCH
-  // ============================================
-
-  async list(req: AuthenticatedPaginatedRequest, res: Response) {
+  async list(req: Request, res: Response) {
     try {
+      const pagination = req.pagination ?? { page: 1, limit: 50 }
       const result = await employeesService.list({
-        ...req.pagination,
+        ...pagination,
         sort: req.query.sort as string,
         order: req.query.order as 'asc' | 'desc'
       })
       res.json({ success: true, data: result.data, pagination: result.pagination })
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_employees' })
     }
   }
 
-  async getUnassigned(req: AuthenticatedPaginatedRequest, res: Response) {
+  async getUnassigned(req: Request, res: Response) {
     try {
-      const result = await employeesService.getUnassigned(req.pagination)
+      const result = await employeesService.getUnassigned(req.pagination ?? { page: 1, limit: 50 })
       res.json({ success: true, data: result.data, pagination: result.pagination })
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_unassigned_employees' })
     }
   }
-  
+
   async create(req: ValidatedAuthRequest<typeof CreateEmployeeSchema>, res: Response) {
     try {
       const employee = await employeesService.create(req.validated.body, req.file, req.user!.id)
       logInfo('Employee created', { employee_id: employee.employee_id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee created', 201)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_employee' })
     }
   }
 
-  async search(req: AuthenticatedPaginatedRequest, res: Response) {
+  async search(req: Request, res: Response) {
     try {
-      const { q } = req.query as any
-      
-      const filters: any = {}
-      if (req.query.branch_name) filters.branch_name = req.query.branch_name
-      if (req.query.job_position) filters.job_position = req.query.job_position
-      if (req.query.status_employee) filters.status_employee = req.query.status_employee
+      const q = (req.query.q as string) || ''
+
+      const filters: EmployeeFilter = {}
+      if (req.query.branch_name) filters.branch_name = req.query.branch_name as string
+      if (req.query.job_position) filters.job_position = req.query.job_position as string
+      if (req.query.status_employee) filters.status_employee = req.query.status_employee as EmployeeFilter['status_employee']
       if (req.query.is_active !== undefined) filters.is_active = req.query.is_active === 'true'
       if (req.query.include_deleted !== undefined) filters.include_deleted = req.query.include_deleted === 'true'
-      
-      const result = await employeesService.search(q || '', {
-        ...req.pagination,
+
+      const pagination = req.pagination ?? { page: 1, limit: 50 }
+      const result = await employeesService.search(q, {
+        ...pagination,
         sort: req.query.sort as string,
         order: req.query.order as 'asc' | 'desc'
       }, filters)
-      
+
       res.json({ success: true, data: result.data, pagination: result.pagination })
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'search_employees', query: req.query.q })
     }
   }
 
-  async getFilterOptions(req: AuthenticatedRequest, res: Response) {
+  async getFilterOptions(req: Request, res: Response) {
     try {
       const options = await employeesService.getFilterOptions()
       sendSuccess(res, options)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_filter_options' })
     }
   }
 
-  async autocomplete(req: AuthenticatedRequest, res: Response) {
+  async autocomplete(req: Request, res: Response) {
     try {
       const employees = await employeesService.autocomplete(req.query.q as string || '')
       sendSuccess(res, employees)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'autocomplete_employees' })
     }
   }
 
-  async getProfile(req: AuthenticatedRequest, res: Response) {
+  async getProfile(req: Request, res: Response) {
     try {
-      const employee = await employeesService.getProfile(req.user.id)
+      const employee = await employeesService.getProfile(req.user!.id)
       sendSuccess(res, employee)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_profile' })
     }
   }
 
@@ -104,17 +101,17 @@ export class EmployeesController {
       const employee = await employeesService.updateProfile(req.user!.id, req.validated.body)
       logInfo('Profile updated', { user: req.user!.id })
       sendSuccess(res, employee, 'Profile updated')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_profile' })
     }
   }
 
-  async getById(req: AuthenticatedRequest, res: Response) {
+  async getById(req: Request, res: Response) {
     try {
       const employee = await employeesService.getById(getParamString(req.params.id))
       sendSuccess(res, employee)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_employee', id: req.params.id })
     }
   }
 
@@ -124,40 +121,42 @@ export class EmployeesController {
       const employee = await employeesService.update(params.id, body, req.file, req.user!.id)
       logInfo('Employee updated', { id: params.id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee updated')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_employee', id: req.validated?.params?.id })
     }
   }
 
-  async delete(req: AuthenticatedRequest, res: Response) {
+  async delete(req: Request, res: Response) {
     try {
-      await employeesService.delete(getParamString(req.params.id), req.user.id)
-      logInfo('Employee deleted', { id: getParamString(req.params.id), user: req.user.id })
+      const id = getParamString(req.params.id)
+      await employeesService.delete(id, req.user!.id)
+      logInfo('Employee deleted', { id, user: req.user!.id })
       sendSuccess(res, null, 'Employee deleted')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_employee', id: req.params.id })
     }
   }
 
-  async restore(req: AuthenticatedRequest, res: Response) {
+  async restore(req: Request, res: Response) {
     try {
-      await employeesService.restore(getParamString(req.params.id), req.user.id)
-      logInfo('Employee restored', { id: getParamString(req.params.id), user: req.user.id })
+      const id = getParamString(req.params.id)
+      await employeesService.restore(id, req.user!.id)
+      logInfo('Employee restored', { id, user: req.user!.id })
       sendSuccess(res, null, 'Employee restored')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'restore_employee', id: req.params.id })
     }
   }
 
-  async uploadProfilePicture(req: AuthenticatedRequest, res: Response) {
+  async uploadProfilePicture(req: Request, res: Response) {
     try {
-      if (!req.file) throw new Error('No file uploaded')
-      
-      const url = await employeesService.uploadProfilePicture(req.user.id, req.file)
-      logInfo('Profile picture uploaded', { url, user: req.user.id })
+      if (!req.file) throw EmployeeErrors.NO_FILE()
+
+      const url = await employeesService.uploadProfilePicture(req.user!.id, req.file)
+      logInfo('Profile picture uploaded', { url, user: req.user!.id })
       sendSuccess(res, { profile_picture: url }, 'Profile picture uploaded')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upload_profile_picture' })
     }
   }
 
@@ -165,23 +164,19 @@ export class EmployeesController {
   // EXPORT (LEGACY)
   // ============================================
 
-  async generateExportToken(req: AuthenticatedRequest, res: Response) {
+  async generateExportToken(req: Request, res: Response) {
     return handleExportToken(req, res)
   }
 
-  async exportData(req: AuthenticatedRequest, res: Response) {
+  async exportData(req: Request, res: Response) {
     return handleExport(req, res, (filter) => employeesService.exportToExcel(filter), 'employees')
   }
 
   // ============================================
-  // EXPORT (JOB-BASED - NEW)
+  // EXPORT (JOB-BASED)
   // ============================================
 
-  /**
-   * Create export job for employees
-   * POST /api/v1/employees/export/job
-   */
-  async createExportJob(req: AuthRequest, res: Response) {
+  async createExportJob(req: Request, res: Response) {
     try {
       const userId = req.user!.id
       const companyId = req.context?.company_id
@@ -194,7 +189,6 @@ export class EmployeesController {
       if (req.query.is_active) filter.is_active = req.query.is_active === 'true'
       if (req.query.search) filter.search = req.query.search
 
-      // Create job via service; service handle active job check
       const job = await jobsService.createJob({
         user_id: userId,
         company_id: companyId,
@@ -219,9 +213,9 @@ export class EmployeesController {
         created_at: job.created_at,
         message: 'Export job created successfully. Processing will run in background automatically.'
       }, 'Export job created', 201)
-    } catch (error: any) {
-      logError('Failed to create export job', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      logError('Failed to create export job', { error: error instanceof Error ? error.message : 'unknown' })
+      await handleError(res, error, req, { action: 'create_export_job' })
     }
   }
 
@@ -229,23 +223,19 @@ export class EmployeesController {
   // IMPORT (LEGACY)
   // ============================================
 
-  async previewImport(req: AuthenticatedRequest, res: Response) {
+  async previewImport(req: Request, res: Response) {
     return handleImportPreview(req, res, (buffer) => employeesService.previewImport(buffer))
   }
 
-  async importData(req: AuthenticatedRequest, res: Response) {
+  async importData(req: Request, res: Response) {
     return handleImport(req, res, (buffer, skip) => employeesService.importFromExcel(buffer, skip))
   }
 
   // ============================================
-  // IMPORT (JOB-BASED - NEW)
+  // IMPORT (JOB-BASED)
   // ============================================
 
-  /**
-   * Create import job for employees
-   * POST /api/v1/employees/import/job
-   */
-  async createImportJob(req: AuthRequest, res: Response) {
+  async createImportJob(req: Request, res: Response) {
     try {
       const userId = req.user!.id
       const companyId = req.context?.company_id
@@ -287,11 +277,11 @@ export class EmployeesController {
         }
       })
 
-      logInfo('Employees import job created', { 
-        job_id: job.id, 
+      logInfo('Employees import job created', {
+        job_id: job.id,
         file_name: req.file.originalname,
         file_size: req.file.size,
-        user_id: userId 
+        user_id: userId
       })
 
       sendSuccess(res, {
@@ -305,9 +295,9 @@ export class EmployeesController {
         file_size: req.file.size,
         message: 'Import job created successfully. Processing will run in background automatically.'
       }, 'Import job created', 201)
-    } catch (error: any) {
-      logError('Failed to create import job', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      logError('Failed to create import job', { error: error instanceof Error ? error.message : 'unknown' })
+      await handleError(res, error, req, { action: 'create_import_job' })
     }
   }
 
@@ -321,8 +311,8 @@ export class EmployeesController {
       await employeesService.bulkUpdateActive(ids, is_active)
       logInfo('Bulk update active', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees updated')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulk_update_active' })
     }
   }
 
@@ -333,8 +323,8 @@ export class EmployeesController {
       await employeesService.bulkUpdateActive([id], is_active)
       logInfo('Update active', { id, is_active, user: req.user!.id })
       sendSuccess(res, null, `Employee ${is_active ? 'activated' : 'deactivated'}`)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_active', id: req.validated?.params?.id })
     }
   }
 
@@ -344,8 +334,8 @@ export class EmployeesController {
       await employeesService.bulkDelete(ids)
       logInfo('Bulk delete', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees deleted')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulk_delete' })
     }
   }
 
@@ -355,11 +345,10 @@ export class EmployeesController {
       await employeesService.bulkRestore(ids)
       logInfo('Bulk restore', { count: ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees restored')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulk_restore' })
     }
   }
 }
 
 export const employeesController = new EmployeesController()
-

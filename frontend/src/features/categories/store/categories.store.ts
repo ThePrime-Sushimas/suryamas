@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { categoriesApi, subCategoriesApi } from '../api/categories.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { Category, SubCategory, CreateCategoryDto, UpdateCategoryDto, CreateSubCategoryDto, UpdateSubCategoryDto } from '../types'
 
 interface CategoriesState {
@@ -51,14 +52,6 @@ interface CategoriesState {
   clearError: () => void
 }
 
-function extractError(error: unknown, fallback: string): string {
-  if (error instanceof Error && 'response' in error) {
-    const resp = (error as { response?: { data?: { error?: string } } }).response
-    return resp?.data?.error || fallback
-  }
-  return fallback
-}
-
 export const useCategoriesStore = create<CategoriesState>((set, get) => ({
   categories: [],
   subCategories: [],
@@ -98,7 +91,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
         hasPrev: page > 1,
       })
     } catch (error: unknown) {
-      set({ error: extractError(error, 'Gagal memuat kategori'), loading: false })
+      set({ error: parseApiError(error, 'Gagal memuat kategori'), loading: false })
     }
   },
 
@@ -118,7 +111,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
         hasPrev: page > 1,
       })
     } catch (error: unknown) {
-      set({ error: extractError(error, 'Gagal mencari kategori'), loading: false })
+      set({ error: parseApiError(error, 'Gagal mencari kategori'), loading: false })
     }
   },
 
@@ -140,7 +133,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
         subHasPrev: page > 1,
       })
     } catch (error: unknown) {
-      set({ error: extractError(error, 'Gagal memuat sub-kategori'), loading: false })
+      set({ error: parseApiError(error, 'Gagal memuat sub-kategori'), loading: false })
     }
   },
 
@@ -160,7 +153,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
         subHasPrev: page > 1,
       })
     } catch (error: unknown) {
-      set({ error: extractError(error, 'Gagal mencari sub-kategori'), loading: false })
+      set({ error: parseApiError(error, 'Gagal mencari sub-kategori'), loading: false })
     }
   },
 
@@ -171,7 +164,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       set({ mutationLoading: false })
       return category
     } catch (error: unknown) {
-      set({ error: extractError(error, 'Gagal membuat kategori'), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal membuat kategori'), mutationLoading: false })
       throw error
     }
   },
@@ -186,7 +179,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       }))
       return category
     } catch (error: unknown) {
-      set({ error: extractError(error, 'Gagal mengupdate kategori'), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal mengupdate kategori'), mutationLoading: false })
       throw error
     }
   },
@@ -197,7 +190,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       await categoriesApi.delete(id)
     } catch (error: unknown) {
-      set({ categories: prev, error: extractError(error, 'Gagal menghapus kategori') })
+      set({ categories: prev, error: parseApiError(error, 'Gagal menghapus kategori') })
       throw error
     }
   },
@@ -208,7 +201,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       await categoriesApi.bulkDelete(ids)
     } catch (error: unknown) {
-      set({ categories: prev, error: extractError(error, 'Gagal menghapus kategori') })
+      set({ categories: prev, error: parseApiError(error, 'Gagal menghapus kategori') })
       throw error
     }
   },
@@ -221,7 +214,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       await categoriesApi.updateStatus(id, isActive)
     } catch (error: unknown) {
-      set({ categories: prev, error: extractError(error, 'Gagal mengupdate status') })
+      set({ categories: prev, error: parseApiError(error, 'Gagal mengupdate status') })
       throw error
     }
   },
@@ -232,7 +225,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       await categoriesApi.restore(id)
     } catch (error: unknown) {
-      set({ categories: prev, error: extractError(error, 'Gagal merestore kategori') })
+      set({ categories: prev, error: parseApiError(error, 'Gagal merestore kategori') })
       throw error
     }
   },
@@ -244,7 +237,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       set({ mutationLoading: false })
       return subCategory
     } catch (error: unknown) {
-      set({ error: extractError(error, 'Gagal membuat sub-kategori'), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal membuat sub-kategori'), mutationLoading: false })
       throw error
     }
   },
@@ -259,7 +252,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       }))
       return subCategory
     } catch (error: unknown) {
-      set({ error: extractError(error, 'Gagal mengupdate sub-kategori'), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal mengupdate sub-kategori'), mutationLoading: false })
       throw error
     }
   },
@@ -270,7 +263,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       await subCategoriesApi.delete(id)
     } catch (error: unknown) {
-      set({ subCategories: prev, error: extractError(error, 'Gagal menghapus sub-kategori') })
+      set({ subCategories: prev, error: parseApiError(error, 'Gagal menghapus sub-kategori') })
       throw error
     }
   },
@@ -281,7 +274,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       await subCategoriesApi.bulkDelete(ids)
     } catch (error: unknown) {
-      set({ subCategories: prev, error: extractError(error, 'Gagal menghapus sub-kategori') })
+      set({ subCategories: prev, error: parseApiError(error, 'Gagal menghapus sub-kategori') })
       throw error
     }
   },
@@ -292,7 +285,7 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     try {
       await subCategoriesApi.restore(id)
     } catch (error: unknown) {
-      set({ subCategories: prev, error: extractError(error, 'Gagal merestore sub-kategori') })
+      set({ subCategories: prev, error: parseApiError(error, 'Gagal merestore sub-kategori') })
       throw error
     }
   },

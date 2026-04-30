@@ -10,7 +10,7 @@ import type { Branch, UpdateBranchDto } from '../types'
 export default function EditBranchPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { updateBranch, loading: updating } = useBranchesStore()
+  const { updateBranch, mutationLoading } = useBranchesStore()
   const [branch, setBranch] = useState<Branch | null>(null)
   const [loading, setLoading] = useState(true)
   const toast = useToast()
@@ -65,7 +65,7 @@ export default function EditBranchPage() {
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
-            <BranchForm initialData={branch} isEdit onSubmit={handleSubmit} isLoading={updating} />
+            <BranchForm initialData={branch} isEdit onSubmit={handleSubmit} isLoading={mutationLoading} />
           </div>
         )}
       </div>

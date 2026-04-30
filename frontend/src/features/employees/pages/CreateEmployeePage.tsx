@@ -6,7 +6,7 @@ import { EmployeeForm } from '@/features/employees'
 import type { EmployeeFormData } from '@/features/employees/types'
 
 export default function CreateEmployeePage() {
-  const { createEmployee, isLoading } = useEmployeeStore()
+  const { createEmployee, mutationLoading } = useEmployeeStore()
   const navigate = useNavigate()
   const { success, error } = useToast()
 
@@ -32,7 +32,7 @@ export default function CreateEmployeePage() {
         <EmployeeForm
           onSubmit={handleSubmit}
           onCancel={handleCancel}
-          isLoading={isLoading}
+          isLoading={mutationLoading}
           submitLabel="Create Employee"
         />
       </div>

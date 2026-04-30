@@ -35,7 +35,7 @@ export class CategoriesController {
         message: 'Categories retrieved successfully',
       })
     } catch (error: unknown) {
-      await handleError(res, error, req as AuthRequest, { method: 'list', page: req.query.page })
+      await handleError(res, error, req, { method: 'list', page: req.query.page })
     }
   }
 
@@ -51,7 +51,7 @@ export class CategoriesController {
         message: 'Trash retrieved successfully',
       })
     } catch (error: unknown) {
-      await handleError(res, error, req as AuthRequest, { method: 'trash' })
+      await handleError(res, error, req, { method: 'trash' })
     }
   }
 
@@ -68,7 +68,7 @@ export class CategoriesController {
         message: 'Search completed',
       })
     } catch (error: unknown) {
-      await handleError(res, error, req as AuthRequest, { method: 'search', q: req.query.q })
+      await handleError(res, error, req, { method: 'search', q: req.query.q })
     }
   }
 
@@ -87,7 +87,7 @@ export class CategoriesController {
       const category = await categoriesService.create(req.validated.body, req.user?.id)
       sendSuccess(res, category, 'Category created successfully', 201)
     } catch (error: unknown) {
-      await handleError(res, error, req as unknown as AuthRequest, { method: 'create' })
+      await handleError(res, error, req, { method: 'create' })
     }
   })
 
@@ -97,7 +97,7 @@ export class CategoriesController {
       const category = await categoriesService.update(params.id, body, req.user?.id)
       sendSuccess(res, category, 'Category updated successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req as unknown as AuthRequest, { method: 'update', id: req.validated.params.id })
+      await handleError(res, error, req, { method: 'update', id: req.validated.params.id })
     }
   })
 
@@ -128,7 +128,7 @@ export class CategoriesController {
       await categoriesService.bulkDelete(ids, req.user?.id)
       sendSuccess(res, null, 'Categories deleted successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req as unknown as AuthRequest, { method: 'bulkDelete', count: req.validated.body.ids.length })
+      await handleError(res, error, req, { method: 'bulkDelete', count: req.validated.body.ids.length })
     }
   })
 
@@ -138,7 +138,7 @@ export class CategoriesController {
       const category = await categoriesService.updateStatus(params.id, body.is_active, req.user?.id)
       sendSuccess(res, category, 'Category status updated successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req as unknown as AuthRequest, { method: 'updateStatus', id: req.validated.params.id })
+      await handleError(res, error, req, { method: 'updateStatus', id: req.validated.params.id })
     }
   })
 }

@@ -1,10 +1,11 @@
 import { employeesRepository } from './employees.repository'
-import { EmployeeResponse, EmployeeCreatePayload, EmployeeUpdatePayload, EmployeeProfileUpdatePayload, EmployeeFilter, PaginationParams } from './employees.types'
+import { EmployeeResponse, EmployeeCreatePayload, EmployeeUpdatePayload, EmployeeProfileUpdatePayload, EmployeeFilter, PaginationParams, EmployeeDB, EmployeeWithBranch } from './employees.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { ImportService } from '../../services/import.service'
 import { AuditService } from '../monitoring/monitoring.service'
 import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
+import { EmployeeErrors } from './employees.errors'
 
 export class EmployeesService {
   async list(params: PaginationParams): Promise<PaginatedResponse<EmployeeResponse>> {
@@ -30,7 +31,7 @@ export class EmployeesService {
     await AuditService.log('CREATE', 'employee', employee.id, userId || null, null, employee)
 
     const fullEmployee = await employeesRepository.findById(employee.id)
-    if (!fullEmployee) throw new Error('Unable to retrieve employee data')
+    if (!fullEmployee) throw EmployeeErrors.NOT_FOUND(employee.id)
     
     return this.enrichWithComputed([fullEmployee])[0]
   }
@@ -50,17 +51,17 @@ export class EmployeesService {
 
   async getProfile(userId: string): Promise<EmployeeResponse> {
     const employee = await employeesRepository.findByUserId(userId)
-    if (!employee) throw new Error('Employee profile not found')
+    if (!employee) throw EmployeeErrors.PROFILE_NOT_FOUND()
     return this.enrichWithComputed([employee])[0]
   }
 
   async updateProfile(userId: string, payload: EmployeeProfileUpdatePayload): Promise<EmployeeResponse> {
-    const cleanedUpdates = this.cleanEmptyStrings(payload)
-    if (Object.keys(cleanedUpdates).length === 0) throw new Error('No changes to update')
+    const cleanedUpdates = this.cleanEmptyStrings(payload as unknown as Record<string, unknown>)
+    if (Object.keys(cleanedUpdates).length === 0) throw EmployeeErrors.NO_CHANGES()
 
     const employee = await employeesRepository.update(userId, cleanedUpdates)
     const fullEmployee = await employeesRepository.findByUserId(userId)
-    if (!fullEmployee) throw new Error('Unable to retrieve updated profile')
+    if (!fullEmployee) throw EmployeeErrors.PROFILE_NOT_FOUND()
     
     return this.enrichWithComputed([fullEmployee])[0]
   }
@@ -73,19 +74,19 @@ export class EmployeesService {
 
   async getById(id: string): Promise<EmployeeResponse> {
     const employee = await employeesRepository.findById(id)
-    if (!employee) throw new Error('Employee not found')
+    if (!employee) throw EmployeeErrors.NOT_FOUND(id)
     return this.enrichWithComputed([employee])[0]
   }
 
   async update(id: string, payload: EmployeeUpdatePayload, file?: Express.Multer.File, userId?: string): Promise<EmployeeResponse> {
-    const cleanedUpdates = this.cleanEmptyStrings(payload)
+    const cleanedUpdates = this.cleanEmptyStrings(payload as unknown as Record<string, unknown>)
     
     if (file) {
       const profilePictureUrl = await this.uploadFile(file, id)
       cleanedUpdates.profile_picture = profilePictureUrl
     }
     
-    if (Object.keys(cleanedUpdates).length === 0) throw new Error('No changes to update')
+    if (Object.keys(cleanedUpdates).length === 0) throw EmployeeErrors.NO_CHANGES()
 
     const oldEmployee = await employeesRepository.findById(id)
     const employee = await employeesRepository.updateById(id, cleanedUpdates)
@@ -93,7 +94,7 @@ export class EmployeesService {
     await AuditService.log('UPDATE', 'employee', id, userId || null, oldEmployee, employee)
 
     const fullEmployee = await employeesRepository.findById(id)
-    if (!fullEmployee) throw new Error('Unable to retrieve updated employee')
+    if (!fullEmployee) throw EmployeeErrors.NOT_FOUND(id)
     
     return this.enrichWithComputed([fullEmployee])[0]
   }
@@ -115,17 +116,17 @@ export class EmployeesService {
   }
 
   async bulkUpdateActive(ids: string[], isActive: boolean): Promise<void> {
-    if (ids.length === 0) throw new Error('Please select at least one employee')
+    if (ids.length === 0) throw EmployeeErrors.NO_SELECTION()
     await employeesRepository.bulkUpdateActive(ids, isActive)
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
-    if (ids.length === 0) throw new Error('Please select at least one employee')
+    if (ids.length === 0) throw EmployeeErrors.NO_SELECTION()
     await employeesRepository.bulkDelete(ids)
   }
 
   async bulkRestore(ids: string[]): Promise<void> {
-    if (ids.length === 0) throw new Error('Please select at least one employee')
+    if (ids.length === 0) throw EmployeeErrors.NO_SELECTION()
     await employeesRepository.bulkRestore(ids)
   }
 
@@ -169,11 +170,11 @@ export class EmployeesService {
     return await ExportService.generateExcel(enriched, columns)
   }
 
-  async previewImport(buffer: Buffer): Promise<any[]> {
+  async previewImport(buffer: Buffer): Promise<Record<string, unknown>[]> {
     return await ImportService.parseExcel(buffer)
   }
 
-  async importFromExcel(buffer: Buffer, skipDuplicates: boolean): Promise<any> {
+  async importFromExcel(buffer: Buffer, skipDuplicates: boolean) {
     const rows = await ImportService.parseExcel(buffer)
     const requiredFields = ['full_name', 'brand_name', 'join_date', 'job_position']
     
@@ -184,37 +185,37 @@ export class EmployeesService {
         let employeeId = row.employee_id
         if (!employeeId && row.brand_name && row.join_date && row.job_position) {
           employeeId = await this.generateEmployeeId({
-            brand_name: row.brand_name,
-            join_date: row.join_date,
-            job_position: row.job_position,
-          } as any)
+            brand_name: row.brand_name as string,
+            join_date: row.join_date as string,
+            job_position: row.job_position as string,
+          })
         }
         
         await employeesRepository.create({
           employee_id: employeeId,
-          full_name: row.full_name,
-          job_position: row.job_position,
-          brand_name: row.brand_name,
-          email: row.email,
-          mobile_phone: row.mobile_phone,
-          nik: row.nik,
-          birth_date: row.birth_date,
-          birth_place: row.birth_place,
-          gender: row.gender,
-          religion: row.religion,
-          marital_status: row.marital_status,
-          citizen_id_address: row.citizen_id_address,
-          join_date: row.join_date,
-          resign_date: row.resign_date,
-          sign_date: row.sign_date,
-          end_date: row.end_date,
-          status_employee: row.status_employee,
+          full_name: row.full_name as string,
+          job_position: row.job_position as string,
+          brand_name: row.brand_name as string,
+          email: row.email as string,
+          mobile_phone: row.mobile_phone as string,
+          nik: row.nik as string,
+          birth_date: row.birth_date as string,
+          birth_place: row.birth_place as string,
+          gender: row.gender as string,
+          religion: row.religion as string,
+          marital_status: row.marital_status as string,
+          citizen_id_address: row.citizen_id_address as string,
+          join_date: row.join_date as string,
+          resign_date: row.resign_date as string,
+          sign_date: row.sign_date as string,
+          end_date: row.end_date as string,
+          status_employee: row.status_employee as string,
           is_active: row.active === 'true' || row.active === true || row.is_active === 'true' || row.is_active === true,
-          ptkp_status: row.ptkp_status,
-          bank_name: row.bank_name,
-          bank_account: row.bank_account,
-          bank_account_holder: row.bank_account_holder,
-        })
+          ptkp_status: row.ptkp_status as string,
+          bank_name: row.bank_name as string,
+          bank_account: row.bank_account as string,
+          bank_account_holder: row.bank_account_holder as string,
+        } as Partial<EmployeeDB>)
       },
       skipDuplicates
     )
@@ -230,7 +231,7 @@ export class EmployeesService {
     return employeesRepository.getPublicUrl(fileName)
   }
 
-  private enrichWithComputed(data: any[]): EmployeeResponse[] {
+  private enrichWithComputed(data: EmployeeWithBranch[]): EmployeeResponse[] {
     return data.map(emp => ({
       ...emp,
       age: calculateAge(emp.birth_date),
@@ -238,7 +239,7 @@ export class EmployeesService {
     }))
   }
 
-  private cleanEmptyStrings(obj: any): any {
+  private cleanEmptyStrings(obj: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(
       Object.entries(obj)
         .map(([key, value]) => {

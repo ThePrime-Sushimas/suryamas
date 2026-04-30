@@ -143,7 +143,7 @@ function BranchDetailPage() {
       success('Branch berhasil dihapus')
       navigate('/branches')
     } catch (err) {
-      console.error('Delete failed:', err)
+      console.warn('Delete failed')
       showError('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setDeleting(false)
@@ -198,10 +198,23 @@ function BranchDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400 text-lg">Loading branch details...</p>
+      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 lg:p-8">
+        <div className="max-w-7xl mx-auto">
+          <button onClick={() => navigate('/branches')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 mb-6">
+            <ArrowLeft size={20} />
+          </button>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-pulse">
+            <div className="h-20 bg-gray-200 dark:bg-gray-700" />
+            <div className="p-8 space-y-6">
+              <div className="h-6 bg-gray-200 dark:bg-gray-600 rounded w-1/3" />
+              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-2/3" />
+              <div className="grid grid-cols-2 gap-6">
+                <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded" />
+                <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded" />
+              </div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/2" />
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -209,18 +222,22 @@ function BranchDetailPage() {
 
   if (!branch) {
     return (
-      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-        <div className="text-center max-w-md w-full">
-          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Branch Not Found</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">The branch you're looking for doesn't exist or has been removed.</p>
-          <button
-            onClick={() => navigate('/branches')}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors duration-200 w-full justify-center"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            Back to Branches
+      <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 lg:p-8">
+        <div className="max-w-7xl mx-auto">
+          <button onClick={() => navigate('/branches')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 mb-6">
+            <ArrowLeft size={20} />
           </button>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+            <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Cabang Tidak Ditemukan</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Cabang yang Anda cari tidak ada atau sudah dihapus.</p>
+            <button
+              onClick={() => navigate('/branches')}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Kembali
+            </button>
+          </div>
         </div>
       </div>
     )

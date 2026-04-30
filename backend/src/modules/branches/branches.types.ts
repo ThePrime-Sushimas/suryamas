@@ -44,6 +44,8 @@ export interface CreateBranchDto {
   notes?: string | null
   status?: BranchStatus
   manager_id?: string | null
+  created_by?: string | null
+  updated_by?: string | null
 }
 
 export interface UpdateBranchDto {
@@ -62,4 +64,5 @@ export interface UpdateBranchDto {
   jam_tutup?: string
   hari_operasional?: HariOperasional
   notes?: string | null
+  updated_by?: string | null
 }
