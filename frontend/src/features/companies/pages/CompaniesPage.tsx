@@ -5,7 +5,7 @@ import { CompanyTable } from '../components/CompanyTable'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
-import { Building2, Plus, Search, Filter, X } from 'lucide-react'
+import { Building2, Plus, Search, Filter, X, AlertCircle } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 
 type CompanyFilter = {
@@ -13,34 +13,21 @@ type CompanyFilter = {
   company_type?: 'PT' | 'CV' | 'Firma' | 'Koperasi' | 'Yayasan'
 }
 
-type ConfirmState = {
-  open: boolean
-  id: string
-  name: string
-}
-
 export default function CompaniesPage() {
   const navigate = useNavigate()
-  const { 
-    companies, 
-    loading, 
-    pagination, 
-    fetchCompanies, 
-    deleteCompany, 
-    reset,
-    setPage,
-    setPageSize,
-    setFilters
+  const {
+    companies, loading, error: storeError, pagination,
+    fetchCompanies, deleteCompany, reset, setPage, setPageSize, setFilters, clearError,
   } = useCompaniesStore()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<CompanyFilter>({ status: 'active' })
   const [showFilter, setShowFilter] = useState(false)
-  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const [confirm, setConfirm] = useState<{ open: boolean; id: string; name: string } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  
+
   const debouncedSearch = useDebounce(search, 500)
   const toast = useToast()
-  
+
   const activeFilterCount = useMemo(() => {
     let count = 0
     if (filter.status) count++
@@ -50,29 +37,16 @@ export default function CompaniesPage() {
 
   useEffect(() => {
     const newFilters = { ...filter } as Record<string, unknown>
-    if (debouncedSearch) {
-      newFilters.search = debouncedSearch
-    } else {
-      delete newFilters.search
-    }
+    if (debouncedSearch) newFilters.search = debouncedSearch
+    else delete newFilters.search
     setFilters(newFilters)
   }, [debouncedSearch, filter, setFilters])
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearch(value)
-  }, [])
-
-  useEffect(() => {
-    return () => { reset() }
-  }, [reset])
-
-  useEffect(() => {
-    fetchCompanies(1, pagination.limit, undefined, filter)
-  }, [])
-
   useEffect(() => {
     fetchCompanies(pagination.page, pagination.limit, undefined, filter)
-  }, [pagination.page, pagination.limit, fetchCompanies, filter])
+  }, [pagination.page, pagination.limit])
+
+  useEffect(() => { return () => { reset() } }, [reset])
 
   const handleDeleteClick = useCallback((id: string) => {
     const company = companies.find(c => c.id === id)
@@ -81,25 +55,18 @@ export default function CompaniesPage() {
 
   const handleConfirmDelete = useCallback(async () => {
     if (!confirm) return
-    
     setIsDeleting(true)
     try {
       await deleteCompany(confirm.id)
-      toast.success('Company deleted successfully')
+      toast.success('Company berhasil dihapus')
       fetchCompanies(pagination.page, pagination.limit)
     } catch {
-      toast.error('Failed to delete company')
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setIsDeleting(false)
       setConfirm(null)
     }
   }, [confirm, deleteCompany, fetchCompanies, pagination.page, pagination.limit, toast])
-
-  const handleCloseConfirm = useCallback(() => {
-    if (!isDeleting) {
-      setConfirm(null)
-    }
-  }, [isDeleting])
 
   const setFilterKey = useCallback(
     <K extends keyof CompanyFilter>(key: K, value?: CompanyFilter[K]) => {
@@ -124,12 +91,9 @@ export default function CompaniesPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} total</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate('/companies/new')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Create Company
+          <button onClick={() => navigate('/companies/new')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" /> Create Company
           </button>
         </div>
       </div>
@@ -139,49 +103,33 @@ export default function CompaniesPage() {
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search companies..."
-              value={search}
-              onChange={e => handleSearchChange(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
+            <input type="text" placeholder="Search companies..." value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             {search && (
-              <button
-                onClick={() => handleSearchChange('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              >
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
-          <button
-            onClick={() => setShowFilter(!showFilter)}
+          <button onClick={() => setShowFilter(!showFilter)}
             className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
-              showFilter 
-                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' 
-                : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
-            }`}
-          >
+              showFilter ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300'
+              : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
+            }`}>
             <Filter className="w-4 h-4" />
             {activeFilterCount > 0 && (
-              <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
-                {activeFilterCount}
-              </span>
+              <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">{activeFilterCount}</span>
             )}
           </button>
         </div>
 
-        {/* Filter Panel */}
         {showFilter && (
           <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
-              <select
-                value={filter.status || ''}
-                onChange={e => setFilterKey('status', (e.target.value || undefined) as CompanyFilter['status'])}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
+              <select value={filter.status || ''} onChange={e => setFilterKey('status', (e.target.value || undefined) as CompanyFilter['status'])}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 <option value="">All Status</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -191,11 +139,8 @@ export default function CompaniesPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Type</label>
-              <select
-                value={filter.company_type || ''}
-                onChange={e => setFilterKey('company_type', (e.target.value || undefined) as CompanyFilter['company_type'])}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
+              <select value={filter.company_type || ''} onChange={e => setFilterKey('company_type', (e.target.value || undefined) as CompanyFilter['company_type'])}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 <option value="">All Types</option>
                 <option value="PT">PT</option>
                 <option value="CV">CV</option>
@@ -204,12 +149,33 @@ export default function CompaniesPage() {
                 <option value="Yayasan">Yayasan</option>
               </select>
             </div>
+          </div>
+        )}
       </div>
-        )}        
+
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {loading ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
+        {storeError ? (
+          <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl p-8 text-center">
+            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+            <p className="text-sm text-red-600 dark:text-red-400 mb-3">Terjadi kesalahan saat memuat data.</p>
+            <button onClick={() => { clearError(); fetchCompanies(pagination.page, pagination.limit, undefined, filter) }}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">Coba Lagi</button>
+          </div>
+        ) : loading ? (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="animate-pulse">
+              <div className="h-10 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600" />
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-4 px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/4" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/5" />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <>
             <CompanyTable
@@ -220,7 +186,6 @@ export default function CompaniesPage() {
               canEdit={true}
               canDelete={true}
             />
-            
             {pagination.total > 0 && (
               <Pagination
                 pagination={pagination}
@@ -234,17 +199,16 @@ export default function CompaniesPage() {
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={confirm?.open || false}
-        title="Delete Company"
-        message={`Are you sure you want to delete "${confirm?.name}"? This will change the status to inactive.`}
-        confirmText={isDeleting ? 'Deleting...' : 'Delete'}
+        title="Hapus Company"
+        message={`Yakin ingin menghapus "${confirm?.name}"? Status akan diubah menjadi inactive.`}
+        confirmText={isDeleting ? 'Menghapus...' : 'Hapus'}
         variant="danger"
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}
-        onClose={handleCloseConfirm}
+        onClose={() => !isDeleting && setConfirm(null)}
       />
     </div>
-  
-</div>)}
+  )
+}

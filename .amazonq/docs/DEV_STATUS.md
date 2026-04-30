@@ -76,6 +76,15 @@
 15. Confirm: pakai `ConfirmModal` component, bukan native `confirm()`
 16. Repository: jangan wrap try/catch kalau tidak ada transformasi error meaningful — biarkan bubble up
 17. Summary/totals: query terpisah untuk seluruh periode, jangan hitung dari paginated rows
+18. Zustand store: kalau `setPage`/`setPageSize` hanya update state, WAJIB ada `useEffect` di page untuk trigger fetch saat pagination berubah
+19. Form error: biarkan parent handle via toast, jangan double display error di form + toast
+20. Styling konsisten: `rounded-lg` (bukan `rounded-md`), `border border-gray-200 dark:border-gray-700` untuk card/table
+21. Label/message: pakai Bahasa Indonesia untuk UI user-facing, English untuk technical/developer
+22. Action buttons di tabel: pakai icon (Eye, Pencil, Trash2), bukan text "Edit" / "Delete"
+23. Loading state: pakai skeleton (animate-pulse), bukan text "Loading..."
+24. Empty state: pakai icon + pesan informatif, bukan hanya text kosong
+25. Error state di list page: tampilkan error card dengan tombol "Coba Lagi", bukan halaman kosong
+26. Header page: pakai `ArrowLeft` untuk back navigation, bukan "✕" atau "Back to List" button terpisah
 
 ---
 trigger: always_on

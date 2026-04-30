@@ -1,5 +1,6 @@
-import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
 import { useCompaniesStore } from '../store/companies.store'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -9,7 +10,7 @@ function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { selectedCompany, loading, getCompanyById, deleteCompany, reset } = useCompaniesStore()
-  const { success, error } = useToast()
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState<'overview' | 'bank-accounts'>('overview')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -17,151 +18,162 @@ function CompanyDetailPage() {
   useEffect(() => {
     if (id) {
       getCompanyById(id).catch(() => {
-        error('Company not found')
+        toast.error('Company tidak ditemukan')
         navigate('/companies')
       })
     }
     return () => reset()
-  }, [id, getCompanyById, navigate, reset, error])
-
-  const handleDeleteClick = () => {
-    setShowDeleteConfirm(true)
-  }
+  }, [id, getCompanyById, navigate, reset, toast])
 
   const handleConfirmDelete = async () => {
     if (!id) return
-    
     setIsDeleting(true)
     try {
       await deleteCompany(id)
-      success('Company deleted successfully')
+      toast.success('Company berhasil dihapus')
       navigate('/companies')
     } catch {
-      error('Failed to delete company')
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setIsDeleting(false)
       setShowDeleteConfirm(false)
     }
   }
 
-  const handleCloseDeleteConfirm = () => {
-    if (!isDeleting) {
-      setShowDeleteConfirm(false)
-    }
-  }
-
-  if (loading) return <div className="p-6 text-center dark:text-gray-300">Loading...</div>
-  if (!selectedCompany) return <div className="p-6 text-center text-red-600 dark:text-red-400">Company not found</div>
-
-  return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="flex justify-between items-center p-6 border-b dark:border-gray-700">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedCompany.company_name}</h1>
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate(`/companies/${id}/edit`)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
-              Edit
-            </button>
-            <button
-              onClick={handleDeleteClick}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="border-b dark:border-gray-700">
-          <div className="flex gap-4 px-6">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`py-3 px-4 border-b-2 font-medium transition-colors ${
-                activeTab === 'overview'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Overview
-            </button>
-            <button
-              onClick={() => setActiveTab('bank-accounts')}
-              className={`py-3 px-4 border-b-2 font-medium transition-colors ${
-                activeTab === 'bank-accounts'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Bank Accounts
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          {activeTab === 'overview' && (
-            <div className="space-y-4">
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="p-6 animate-pulse space-y-4">
+              <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-1/3" />
+              <div className="h-10 bg-gray-100 dark:bg-gray-700 rounded" />
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Company Code</label>
-                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.company_code}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Company Type</label>
-                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.company_type}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Status</label>
-                  <p className="text-lg capitalize text-gray-900 dark:text-white">{selectedCompany.status}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">NPWP</label>
-                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.npwp || '-'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Email</label>
-                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.email || '-'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Phone</label>
-                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.phone || '-'}</p>
-                </div>
-                <div className="col-span-2">
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Website</label>
-                  <p className="text-lg text-gray-900 dark:text-white">{selectedCompany.website || '-'}</p>
-                </div>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i}>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/3 mb-2" />
+                    <div className="h-5 bg-gray-100 dark:bg-gray-700 rounded" />
+                  </div>
+                ))}
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-          {activeTab === 'bank-accounts' && selectedCompany.id && (
-            <BankAccountsSection ownerType="company" ownerId={selectedCompany.id} companyId={selectedCompany.id} />
-          )}
+  if (!selectedCompany) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+        <div className="max-w-5xl mx-auto text-center py-12">
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Company tidak ditemukan</p>
+          <button onClick={() => navigate('/companies')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Kembali ke List
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const tabCls = (active: boolean) =>
+    `py-3 px-4 border-b-2 font-medium text-sm transition-colors ${
+      active ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
+      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+    }`
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/companies')}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300">
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedCompany.company_name}</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{selectedCompany.company_code} · {selectedCompany.company_type}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => navigate(`/companies/${id}/edit`)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+              <Pencil className="w-4 h-4" /> Edit
+            </button>
+            <button onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+              <Trash2 className="w-4 h-4" /> Hapus
+            </button>
+          </div>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          {/* Tabs */}
+          <div className="border-b border-gray-200 dark:border-gray-700 px-6">
+            <div className="flex gap-4">
+              <button onClick={() => setActiveTab('overview')} className={tabCls(activeTab === 'overview')}>Overview</button>
+              <button onClick={() => setActiveTab('bank-accounts')} className={tabCls(activeTab === 'bank-accounts')}>Bank Accounts</button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            {activeTab === 'overview' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <InfoItem label="Company Code" value={selectedCompany.company_code} />
+                <InfoItem label="Company Type" value={selectedCompany.company_type} />
+                <InfoItem label="Status" value={<StatusBadge status={selectedCompany.status} />} />
+                <InfoItem label="NPWP" value={selectedCompany.npwp || '-'} />
+                <InfoItem label="Email" value={selectedCompany.email || '-'} />
+                <InfoItem label="Phone" value={selectedCompany.phone || '-'} />
+                <InfoItem label="Website" value={selectedCompany.website || '-'} className="sm:col-span-2" />
+              </div>
+            )}
+
+            {activeTab === 'bank-accounts' && selectedCompany.id && (
+              <BankAccountsSection ownerType="company" ownerId={selectedCompany.id} companyId={selectedCompany.id} />
+            )}
+          </div>
         </div>
       </div>
 
-      <button
-        onClick={() => navigate('/companies')}
-        className="mt-6 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600"
-      >
-        Back to List
-      </button>
-
-      {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={showDeleteConfirm}
-        title="Delete Company"
-        message={`Are you sure you want to delete "${selectedCompany?.company_name}"? This action cannot be undone.`}
-        confirmText={isDeleting ? 'Deleting...' : 'Delete'}
+        title="Hapus Company"
+        message={`Yakin ingin menghapus "${selectedCompany.company_name}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText={isDeleting ? 'Menghapus...' : 'Hapus'}
         variant="danger"
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}
-        onClose={handleCloseDeleteConfirm}
+        onClose={() => !isDeleting && setShowDeleteConfirm(false)}
       />
     </div>
+  )
+}
+
+function InfoItem({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+      <div className="text-sm font-medium text-gray-900 dark:text-white">{value}</div>
+    </div>
+  )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    inactive: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+    suspended: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    closed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  }
+  return (
+    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${styles[status] || styles.inactive}`}>
+      {status}
+    </span>
   )
 }
 
