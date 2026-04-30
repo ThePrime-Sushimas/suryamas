@@ -17,51 +17,55 @@ export function SupplierDetailPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'bank-accounts'>('overview')
 
   useEffect(() => {
-    const loadData = async () => {
-      if (!id) {
-        toast.error('Invalid supplier ID')
-        navigate('/suppliers')
-        return
-      }
-
-      try {
-        const data = await suppliersApi.getById(id)
-        setSupplier(data)
-      } catch (error) {
-        console.error('Failed to load supplier:', error)
-        toast.error('Failed to load supplier')
-        navigate('/suppliers')
-      } finally {
-        setLoading(false)
-      }
+    if (!id) {
+      toast.error('ID supplier tidak valid')
+      navigate('/suppliers')
+      return
     }
-    
-    loadData()
+
+    suppliersApi.getById(id)
+      .then(setSupplier)
+      .catch(() => {
+        toast.error('Gagal memuat data supplier')
+        navigate('/suppliers')
+      })
+      .finally(() => setLoading(false))
   }, [id, navigate, toast])
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center bg-gray-50 dark:bg-gray-900 min-h-screen">
-        <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+      <div className="p-6 max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="h-4 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6" />
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="h-8 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
+            <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          </div>
+          <div className="p-6 grid grid-cols-2 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i}>
+                <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
+                <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
 
-  if (!supplier) {
-    return null
-  }
+  if (!supplier) return null
 
   return (
     <div className="p-6 max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <button
         onClick={() => navigate('/suppliers')}
-        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6"
+        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 mb-6"
       >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Suppliers
+        <ArrowLeft size={20} />
       </button>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-start">
@@ -94,7 +98,7 @@ export function SupplierDetailPage() {
                   : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              Overview
+              Ringkasan
             </button>
             <button
               onClick={() => setActiveTab('bank-accounts')}
@@ -104,7 +108,7 @@ export function SupplierDetailPage() {
                   : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              Bank Accounts
+              Rekening Bank
             </button>
           </div>
         </div>
@@ -114,15 +118,15 @@ export function SupplierDetailPage() {
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Supplier Code</h3>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Kode Supplier</h3>
                 <p className="text-gray-900 dark:text-white">{supplier.supplier_code}</p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Supplier Name</h3>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Nama Supplier</h3>
                 <p className="text-gray-900 dark:text-white">{supplier.supplier_name}</p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Type</h3>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Tipe</h3>
                 <SupplierTypeBadge type={supplier.supplier_type} />
               </div>
               <div>
@@ -131,13 +135,13 @@ export function SupplierDetailPage() {
               </div>
               {supplier.contact_person && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Contact Person</h3>
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Kontak</h3>
                   <p className="text-gray-900 dark:text-white">{supplier.contact_person}</p>
                 </div>
               )}
               {supplier.phone && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Phone</h3>
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Telepon</h3>
                   <p className="text-gray-900 dark:text-white">{supplier.phone}</p>
                 </div>
               )}
@@ -149,7 +153,7 @@ export function SupplierDetailPage() {
               )}
               {supplier.address && (
                 <div className="md:col-span-2">
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Address</h3>
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Alamat</h3>
                   <p className="text-gray-900 dark:text-white">{supplier.address}</p>
                 </div>
               )}
@@ -164,4 +168,3 @@ export function SupplierDetailPage() {
     </div>
   )
 }
-

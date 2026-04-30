@@ -1,5 +1,5 @@
 import { suppliersRepository } from './suppliers.repository'
-import { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, SupplierOption } from './suppliers.types'
+import type { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, SupplierOption } from './suppliers.types'
 import { SupplierNotFoundError, SupplierCodeAlreadyExistsError } from './suppliers.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 import { AuditService } from '../monitoring/monitoring.service'
@@ -80,7 +80,7 @@ export class SuppliersService {
   }
 
   async getSuppliers(query: SupplierListQuery) {
-    const { page, limit, offset } = getPaginationParams(query as any)
+    const { page, limit, offset } = getPaginationParams(query as { page?: number; limit?: number })
     const { data, total } = await suppliersRepository.findAll({ limit, offset }, query)
     
     return createPaginatedResponse(data, total, page, limit)

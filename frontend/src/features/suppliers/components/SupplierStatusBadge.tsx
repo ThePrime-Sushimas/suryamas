@@ -11,7 +11,7 @@ export function SupplierStatusBadge({ isActive }: SupplierStatusBadgeProps) {
           : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
       }`}
     >
-      {isActive ? 'Active' : 'Inactive'}
+      {isActive ? 'Aktif' : 'Tidak Aktif'}
     </span>
   )
 }

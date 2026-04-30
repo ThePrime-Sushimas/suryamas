@@ -4,6 +4,7 @@ import { useSuppliersStore } from '../store/suppliers.store'
 import { suppliersApi } from '../api/suppliers.api'
 import { useToast } from '@/contexts/ToastContext'
 import { SupplierForm } from '../components/SupplierForm'
+import { ArrowLeft } from 'lucide-react'
 import type { UpdateSupplierDto, Supplier } from '../types/supplier.types'
 
 export function EditSupplierPage() {
@@ -16,70 +17,70 @@ export function EditSupplierPage() {
   const [supplier, setSupplier] = useState<Supplier | null>(null)
 
   useEffect(() => {
-    const loadData = async () => {
-      if (!id) {
-        toast.error('Invalid supplier ID')
-        navigate('/suppliers')
-        return
-      }
-
-      try {
-        const data = await suppliersApi.getById(id)
-        setSupplier(data)
-      } catch (error) {
-        console.error('Failed to load supplier:', error)
-        toast.error('Failed to load supplier')
-        navigate('/suppliers')
-      } finally {
-        setLoading(false)
-      }
+    if (!id) {
+      toast.error('ID supplier tidak valid')
+      navigate('/suppliers')
+      return
     }
-    
-    loadData()
+
+    suppliersApi.getById(id)
+      .then(setSupplier)
+      .catch(() => {
+        toast.error('Gagal memuat data supplier')
+        navigate('/suppliers')
+      })
+      .finally(() => setLoading(false))
   }, [id, navigate, toast])
 
   const handleSubmit = async (data: UpdateSupplierDto) => {
     try {
       await updateSupplier(id!, data)
-      toast.success('Supplier updated successfully')
+      toast.success('Supplier berhasil diperbarui')
       navigate('/suppliers')
     } catch {
-      toast.error('Failed to update supplier')
+      toast.error('Gagal memperbarui supplier')
     }
-  }
-
-  const handleCancel = () => {
-    navigate('/suppliers')
   }
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center bg-gray-50 dark:bg-gray-900 min-h-screen">
-        <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+      <div className="p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="h-4 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6" />
+        <div className="h-8 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
+        <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6" />
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          ))}
+        </div>
       </div>
     )
   }
 
-  if (!supplier) {
-    return null
-  }
+  if (!supplier) return null
 
   return (
     <div className="p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <button
+        onClick={() => navigate('/suppliers')}
+        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 mb-6"
+      >
+        <ArrowLeft size={20} />
+      </button>
+
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Supplier</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Update supplier information</p>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Perbarui informasi supplier</p>
       </div>
 
       <SupplierForm
         initialData={supplier}
         onSubmit={handleSubmit}
-        onCancel={handleCancel}
-        submitLabel="Update Supplier"
+        onCancel={() => navigate('/suppliers')}
+        submitLabel="Simpan Perubahan"
         isEdit
         loading={mutationLoading}
       />
     </div>
   )
 }
-

@@ -17,9 +17,9 @@ export const SUPPLIER_TYPE_OPTIONS = Object.entries(SUPPLIER_TYPES).map(([value,
 }))
 
 export const STATUS_OPTIONS = [
-  { value: '', label: 'All Status' },
-  { value: 'true', label: 'Active' },
-  { value: 'false', label: 'Inactive' },
+  { value: '', label: 'Semua Status' },
+  { value: 'true', label: 'Aktif' },
+  { value: 'false', label: 'Tidak Aktif' },
 ]
 
 export const RATING_OPTIONS = [1, 2, 3, 4, 5]

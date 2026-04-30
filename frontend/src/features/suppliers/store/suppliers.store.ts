@@ -1,16 +1,26 @@
 import { create } from 'zustand'
 import { suppliersApi } from '../api/suppliers.api'
-import type { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, PaginationParams } from '../types/supplier.types'
+import type { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery } from '../types/supplier.types'
+
+interface PaginationState {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
 
 interface SuppliersState {
   suppliers: Supplier[]
-  pagination: PaginationParams | null
+  pagination: PaginationState
   fetchLoading: boolean
   mutationLoading: boolean
   error: string | null
-  currentQuery: SupplierListQuery | null
+  currentRequestId: number
   
-  fetchSuppliers: (query?: SupplierListQuery, signal?: AbortSignal) => Promise<void>
+  fetchSuppliers: (query?: SupplierListQuery) => Promise<void>
+  fetchPage: (page: number, limit?: number, query?: Omit<SupplierListQuery, 'page' | 'limit'>) => Promise<void>
   createSupplier: (data: CreateSupplierDto) => Promise<Supplier>
   updateSupplier: (id: string, data: UpdateSupplierDto) => Promise<Supplier>
   deleteSupplier: (id: string) => Promise<void>
@@ -18,28 +28,37 @@ interface SuppliersState {
   clearError: () => void
 }
 
-export const useSuppliersStore = create<SuppliersState>((set) => ({
+const initialPagination: PaginationState = { page: 1, limit: 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false }
+
+export const useSuppliersStore = create<SuppliersState>((set, get) => ({
   suppliers: [],
-  pagination: null,
+  pagination: initialPagination,
   fetchLoading: false,
   mutationLoading: false,
   error: null,
-  currentQuery: null,
+  currentRequestId: 0,
 
-  fetchSuppliers: async (query = {}, signal) => {
-    set({ fetchLoading: true, error: null, currentQuery: query })
+  fetchSuppliers: async (query = {}) => {
+    const requestId = get().currentRequestId + 1
+    set({ currentRequestId: requestId, fetchLoading: true, error: null })
     try {
-      const res = await suppliersApi.list(query, signal)
-      if (signal?.aborted) return
+      const res = await suppliersApi.list(query)
+      if (get().currentRequestId !== requestId) return
       set({ suppliers: res.data, pagination: res.pagination, fetchLoading: false })
     } catch (error: unknown) {
-      if ((error instanceof Error && error.name === 'CanceledError') || signal?.aborted) return
+      if (get().currentRequestId !== requestId) return
       const message = error instanceof Error && 'response' in error
         ? (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.error
           || (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.message
         : error instanceof Error ? error.message : 'Failed to fetch suppliers'
       set({ error: message || 'Failed to fetch suppliers', fetchLoading: false })
     }
+  },
+
+  fetchPage: (page, limit?, query?) => {
+    const l = limit ?? get().pagination.limit
+    set(state => ({ pagination: { ...state.pagination, page, limit: l } }))
+    return get().fetchSuppliers({ ...query, page, limit: l })
   },
 
   createSupplier: async (data) => {

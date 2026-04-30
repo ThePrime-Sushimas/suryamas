@@ -1,5 +1,5 @@
 import { pool } from '../../config/db'
-import { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, SupplierOption } from './suppliers.types'
+import type { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, SupplierOption } from './suppliers.types'
 import { mapSupplierResponse, mapSupplierOption } from './suppliers.mapper'
 
 export class SuppliersRepository {
@@ -44,7 +44,7 @@ export class SuppliersRepository {
   }
 
   async create(data: CreateSupplierDto & { created_by?: string }): Promise<Supplier> {
-    const insertData = { ...data, lead_time_days: data.lead_time_days ?? 1, minimum_order: data.minimum_order ?? 0, is_active: data.is_active ?? true }
+    const insertData: Record<string, unknown> = { ...data, lead_time_days: data.lead_time_days ?? 1, minimum_order: data.minimum_order ?? 0, is_active: data.is_active ?? true }
     const keys = Object.keys(insertData)
     const values = Object.values(insertData)
     const { rows } = await pool.query(
@@ -55,7 +55,7 @@ export class SuppliersRepository {
   }
 
   async updateById(id: string, updates: UpdateSupplierDto & { updated_by?: string }): Promise<Supplier | null> {
-    const fullUpdates = { ...updates, updated_at: new Date().toISOString() }
+    const fullUpdates: Record<string, unknown> = { ...updates, updated_at: new Date().toISOString() }
     const keys = Object.keys(fullUpdates)
     const values = Object.values(fullUpdates)
     const { rows } = await pool.query(
