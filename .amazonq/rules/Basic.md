@@ -253,7 +253,47 @@ Menambahkan dokumentasi JSDoc pada hooks atau utilitas yang kompleks.
 Memastikan responsivitas (Mobile-first approach).
 
 
-📚 15. Project Context (WAJIB BACA)
+🔍 15. Search + Pagination Pattern (MANDATORY)
+
+Search SELALU dijalankan duluan, pagination diterapkan pada hasil search.
+
+### Flow
+1. User ketik search query
+2. Backend menerima `(query, page, limit)` — `WHERE` clause filter duluan, BARU `LIMIT/OFFSET` diterapkan pada hasil filter
+3. Frontend reset ke page 1 setiap kali search atau filter berubah
+4. `total` dari backend = jumlah row yang sudah difilter (BUKAN total seluruh tabel)
+5. Pagination UI dihitung berdasarkan `total` yang sudah difilter
+
+### Backend SQL Pattern (WAJIB)
+```sql
+-- ✅ BENAR: Filter dulu, baru paginate
+SELECT * FROM table
+WHERE name ILIKE '%query%'   -- filter first
+ORDER BY name
+LIMIT $limit OFFSET $offset  -- paginate the filtered result
+
+-- COUNT juga WAJIB pakai WHERE yang sama
+SELECT COUNT(*)::int AS total FROM table
+WHERE name ILIKE '%query%'   -- filtered count
+```
+
+❌ DILARANG:
+- Paginate dulu baru filter di memory
+- Pakai total row count seluruh tabel saat search aktif
+- Cache `total` dari request sebelumnya saat search/filter berubah
+
+### Frontend State Rules (WAJIB)
+- `debouncedSearch` atau `filter` berubah → reset page ke 1, fetch ulang
+- Page berubah (user klik pagination) → fetch dengan search/filter yang sedang aktif, JANGAN fetch tanpa filter
+- `total` dari response SELALU dipakai untuk hitung `totalPages`, BUKAN hardcode atau cache lama
+- Store `fetchList()` WAJIB baca `filter`/`search` dari current state (`get()`) — bukan dari parameter saja
+
+### Query Middleware
+- `q` param di-exclude dari `filterParams` oleh query middleware
+- Untuk search text, gunakan key `search` (bukan `q`) agar lolos ke `filterParams`
+- ATAU baca `req.query.q` secara manual di controller dan inject ke filter
+
+📚 16. Project Context (WAJIB BACA)
 
 Sebelum mengerjakan task apapun, AI WAJIB membaca:
 - `.amazonq/docs/INFRASTRUCTURE.md` — server, DB, tunnel, firewall, storage, monitoring, Telegram

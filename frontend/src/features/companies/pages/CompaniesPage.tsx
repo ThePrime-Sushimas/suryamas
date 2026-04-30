@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompaniesStore } from '../store/companies.store'
 import { CompanyTable } from '../components/CompanyTable'
@@ -17,7 +17,7 @@ export default function CompaniesPage() {
   const navigate = useNavigate()
   const {
     companies, loading, error: storeError, pagination,
-    fetchCompanies, deleteCompany, reset, setPage, setPageSize, setFilters, clearError,
+    fetchCompanies, searchCompanies, deleteCompany, reset, setPage, setPageSize, setFilters, clearError,
   } = useCompaniesStore()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<CompanyFilter>({ status: 'active' })
@@ -35,16 +35,37 @@ export default function CompaniesPage() {
     return count
   }, [filter.status, filter.company_type])
 
-  useEffect(() => {
-    const newFilters = { ...filter } as Record<string, unknown>
-    if (debouncedSearch) newFilters.search = debouncedSearch
-    else delete newFilters.search
-    setFilters(newFilters)
-  }, [debouncedSearch, filter, setFilters])
+  const doFetch = useCallback((page: number) => {
+    if (debouncedSearch) {
+      searchCompanies(debouncedSearch, page, pagination.limit, filter)
+    } else {
+      fetchCompanies(page, pagination.limit, undefined, filter)
+    }
+  }, [debouncedSearch, filter, pagination.limit, searchCompanies, fetchCompanies])
 
+  // When search or filter changes → reset to page 1 and fetch
+  const skipNextPageEffect = useRef(false)
   useEffect(() => {
-    fetchCompanies(pagination.page, pagination.limit, undefined, filter)
-  }, [pagination.page, pagination.limit])
+    if (pagination.page !== 1) {
+      skipNextPageEffect.current = true
+      setPage(1)
+    }
+    doFetch(1)
+  }, [debouncedSearch, filter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When pagination changes (user clicks page or changes page size) → fetch
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    if (skipNextPageEffect.current) {
+      skipNextPageEffect.current = false
+      return
+    }
+    doFetch(pagination.page)
+  }, [pagination.page, pagination.limit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { return () => { reset() } }, [reset])
 
@@ -70,13 +91,14 @@ export default function CompaniesPage() {
 
   const setFilterKey = useCallback(
     <K extends keyof CompanyFilter>(key: K, value?: CompanyFilter[K]) => {
-      const newFilter = { ...filter }
-      if (!value) delete newFilter[key]
-      else newFilter[key] = value
-      setFilter(newFilter)
-      setFilters(newFilter)
+      setFilter(prev => {
+        const newFilter = { ...prev }
+        if (!value) delete newFilter[key]
+        else newFilter[key] = value
+        return newFilter
+      })
     },
-    [filter, setFilters]
+    []
   )
 
   return (

@@ -6,7 +6,7 @@ export class PaymentTermsRepository {
   async findAll(
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: { is_active?: boolean; calculation_type?: CalculationType },
+    filter?: { is_active?: boolean; calculation_type?: CalculationType; search?: string },
     includeDeleted = false
   ): Promise<{ data: PaymentTerm[]; total: number }> {
     const conditions: string[] = []
@@ -16,6 +16,7 @@ export class PaymentTermsRepository {
     if (!includeDeleted) conditions.push('deleted_at IS NULL')
     if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`is_active = $${idx}`); idx++ }
     if (filter?.calculation_type) { params.push(filter.calculation_type); conditions.push(`calculation_type = $${idx}`); idx++ }
+    if (filter?.search) { params.push(`%${filter.search}%`); conditions.push(`(term_code ILIKE $${idx} OR term_name ILIKE $${idx} OR description ILIKE $${idx})`); idx++ }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
     const sortField = sort?.field === 'id' ? 'id_payment_term' : (sort?.field || 'term_name')

@@ -43,6 +43,7 @@ export default function PaymentTermsPage() {
     if (debouncedSearch) {
       searchPaymentTerms(debouncedSearch)
     } else {
+      setFilter(null)
       fetchPaymentTerms(1, pagination.limit)
     }
   }, [debouncedSearch])
@@ -52,11 +53,6 @@ export default function PaymentTermsPage() {
       usePaymentTermsStore.getState().reset()
     }
   }, [])
-
-  // Fetch data when page or limit changes (single source of fetch)
-  useEffect(() => {
-    fetchPaymentTerms(pagination.page, pagination.limit)
-  }, [pagination.page, pagination.limit, fetchPaymentTerms])
 
   const activeFilterCount = useMemo(
     () => (localFilter.calculation_type ? 1 : 0) + (localFilter.is_active ? 1 : 0) + (localFilter.include_deleted ? 1 : 0),
@@ -91,7 +87,6 @@ export default function PaymentTermsPage() {
   const handleFilterChange = (key: string, value: string) => {
     const newLocalFilter = { ...localFilter }
     
-    // Remove key if value is empty ("All" selected)
     if (!value) {
       delete newLocalFilter[key as keyof typeof newLocalFilter]
     } else {
@@ -107,9 +102,7 @@ export default function PaymentTermsPage() {
     if (search) apiFilter.q = search
     
     setFilter(Object.keys(apiFilter).length > 0 ? apiFilter : null)
-    // setFilter already resets page to 1 internally
-    // Use setTimeout to ensure store is updated before fetch
-    setTimeout(() => fetchPaymentTerms(1, pagination.limit), 0)
+    fetchPaymentTerms(1, pagination.limit)
   }
 
   return (

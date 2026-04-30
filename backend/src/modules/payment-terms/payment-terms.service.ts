@@ -22,7 +22,7 @@ export class PaymentTermsService {
   async list(
     pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: { is_active?: boolean; calculation_type?: CalculationType },
+    filter?: { is_active?: boolean; calculation_type?: CalculationType; search?: string },
     includeDeleted = false
   ) {
     const offset = calculateOffset(pagination.page, pagination.limit)

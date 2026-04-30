@@ -33,11 +33,6 @@ export const PaymentMethodsPage = () => {
   const [restoreData, setRestoreData] = useState<{ id: number; name: string } | null>(null)
 
   useEffect(() => {
-    fetchPaymentMethods()
-  }, [fetchPaymentMethods])
-
-  // Fetch data when page or limit changes
-  useEffect(() => {
     fetchPaymentMethods(page, limit)
   }, [page, limit, fetchPaymentMethods])
 

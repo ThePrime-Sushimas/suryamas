@@ -85,7 +85,7 @@ export interface FilterParams {
   payment_type?: PaymentType
   is_active?: boolean
   requires_bank_account?: boolean
-  q?: string
+  search?: string
 }
 
 export interface PaymentMethodOption {

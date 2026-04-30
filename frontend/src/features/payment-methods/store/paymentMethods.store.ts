@@ -46,7 +46,7 @@ const initialFilter: FilterParams = {
   payment_type: undefined,
   is_active: undefined,
   requires_bank_account: undefined,
-  q: undefined
+  search: undefined
 }
 
 const initialSort: SortParams = {

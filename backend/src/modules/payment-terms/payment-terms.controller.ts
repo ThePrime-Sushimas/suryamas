@@ -25,11 +25,15 @@ export class PaymentTermsController {
       const page = req.pagination?.page || parseInt(req.query.page as string) || 1
       const limit = req.pagination?.limit || parseInt(req.query.limit as string) || 10
       const includeDeleted = req.query.includeDeleted === 'true'
+      const q = req.query.q as string | undefined
+
+      const filter = { ...req.filterParams }
+      if (q) filter.search = q
 
       const result = await paymentTermsService.list(
         { page, limit },
         req.sort,
-        req.filterParams,
+        filter,
         includeDeleted
       )
 
