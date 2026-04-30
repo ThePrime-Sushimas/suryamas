@@ -115,7 +115,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | banks | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
 | metric-units | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
 | employees | ✅ | ✅ | ✅ | ✅ | ✅ |
-| employee_branches | ❌ | ✅ | ❌ | ❌ | ❌ |
+| employee_branches | ✅ | ✅ | ✅ | ✅ | ✅ |
 | auth | ❌ | ✅ | ❌ | ❌ | ❌ |
 | bank-accounts | ❌ | ✅ | ✅ | ❌ | ❌ |
 | cash-counts | ❌ | ✅ | ❌ `error: any` | ❌ | ❌ |
@@ -149,7 +149,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | bank-statement-import | ❌ | `error.response?.data` |
 | branch_context | ❌ | `error instanceof Error` |
 | companies | ❌ | `error instanceof Error` |
-| employee_branches | ❌ | inline |
+| employee_branches | ✅ | ✅ removed |
 | payment-methods | ❌ | inline |
 | payment-terms | ❌ | inline |
 | permissions | ❌ | inline |
@@ -169,6 +169,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `branches` (backend + frontend)
 - ✅ `categories` (backend + frontend)
 - ✅ `employees` (backend + frontend)
+- ✅ `employee_branches` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -176,7 +177,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - 🟡 `metric-units` (backend reviewed, controller still `as unknown`, FE store not yet parseApiError)
 
 ### Modules Not Yet Reviewed
-- ⬜ `employee_branches`
 - ⬜ `auth`
 - ⬜ `bank-accounts`
 - ⬜ `cash-counts`

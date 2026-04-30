@@ -3,10 +3,9 @@ import { employeeBranchesController } from './employee_branches.controller'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { CreateEmployeeBranchSchema, UpdateEmployeeBranchSchema, employeeBranchIdSchema, BulkDeleteSchema, employeeIdSchema, branchIdSchema } from './employee_branches.schema'
-import type { AuthenticatedRequest } from '../../types/request.types'
 
 PermissionService.registerModule('employee_branches', 'Employee Branch Management')
 
@@ -16,7 +15,7 @@ router.use(authenticate, resolveBranchContext)
 
 // Public endpoint - get current user's branches (no permission check)
 router.get('/me', (req, res) => 
-  employeeBranchesController.getMyBranches(req as AuthenticatedRequest, res))
+  employeeBranchesController.getMyBranches(req, res))
 
 router.get('/', canView('employee_branches'), (req, res) => 
   employeeBranchesController.list(req, res))
@@ -37,26 +36,26 @@ router.post('/bulk/delete', canDelete('employee_branches'), validateSchema(BulkD
   employeeBranchesController.bulkDelete(req as ValidatedAuthRequest<typeof BulkDeleteSchema>, res))
 
 router.put('/employee/:employeeId/branch/:branchId/primary', canUpdate('employee_branches'), validateSchema(employeeIdSchema), (req, res) =>
-  employeeBranchesController.setPrimaryBranch(req as AuthenticatedRequest, res)
+  employeeBranchesController.setPrimaryBranch(req, res)
 )
 
 router.put('/:id', canUpdate('employee_branches'), validateSchema(UpdateEmployeeBranchSchema), (req, res) => 
   employeeBranchesController.update(req as ValidatedAuthRequest<typeof UpdateEmployeeBranchSchema>, res))
 
 router.put('/:id/suspend', canUpdate('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res) => 
-  employeeBranchesController.suspend(req as AuthenticatedRequest, res))
+  employeeBranchesController.suspend(req, res))
 
 router.put('/:id/activate', canUpdate('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res) => 
-  employeeBranchesController.activate(req as AuthenticatedRequest, res))
+  employeeBranchesController.activate(req, res))
 
 router.get('/:id', canView('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res) => 
   employeeBranchesController.getById(req, res))
 
 router.delete('/:id', canDelete('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res) => 
-  employeeBranchesController.delete(req as AuthenticatedRequest, res))
+  employeeBranchesController.delete(req, res))
 
 router.delete('/employee/:employeeId/branch/:branchId', canDelete('employee_branches'), validateSchema(employeeIdSchema), (req, res) =>
-  employeeBranchesController.deleteByEmployeeAndBranch(req as AuthenticatedRequest, res)
+  employeeBranchesController.deleteByEmployeeAndBranch(req, res)
 )
 
 export default router

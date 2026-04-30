@@ -56,7 +56,7 @@ export class EmployeeBranchesService {
     }
   }
 
-  async listGrouped(params: PaginationParams): Promise<PaginatedResult<any>> {
+  async listGrouped(params: PaginationParams): Promise<PaginatedResult<Record<string, unknown>>> {
     const offset = (params.page - 1) * params.limit
     const { data, total } = await employeeBranchesRepository.findGroupedByEmployee(params.limit, offset, params.search)
 
@@ -224,14 +224,12 @@ export class EmployeeBranchesService {
     const existing = await employeeBranchesRepository.findById(id)
     if (!existing) throw EmployeeBranchErrors.NOT_FOUND()
 
-    // Prevent suspending primary branch
     if (existing.is_primary) {
-      throw new Error('Cannot suspend primary branch')
+      throw EmployeeBranchErrors.CANNOT_REMOVE_PRIMARY(existing.employee_id)
     }
 
-    // Prevent suspending already suspended branch
     if (existing.status === 'suspended') {
-      throw new Error('Branch is already suspended')
+      throw EmployeeBranchErrors.VALIDATION_ERROR('Branch is already suspended')
     }
 
     const updated = await employeeBranchesRepository.update(id, { status: 'suspended' })
@@ -251,9 +249,8 @@ export class EmployeeBranchesService {
     const existing = await employeeBranchesRepository.findById(id)
     if (!existing) throw EmployeeBranchErrors.NOT_FOUND()
 
-    // Prevent activating already active branch
     if (existing.status === 'active') {
-      throw new Error('Branch is already active')
+      throw EmployeeBranchErrors.VALIDATION_ERROR('Branch is already active')
     }
 
     const updated = await employeeBranchesRepository.update(id, { status: 'active' })

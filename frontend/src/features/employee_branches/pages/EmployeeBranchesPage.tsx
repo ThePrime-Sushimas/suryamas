@@ -121,10 +121,10 @@ export default function EmployeeBranchesPage() {
             <div className="p-12 text-center">
               <Users className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                {debouncedSearch ? 'No results found' : 'Belum ada penempatan'}
+                {debouncedSearch ? 'Tidak ada hasil ditemukan' : 'Belum ada penempatan'}
               </h3>
               <p className="text-gray-600 dark:text-gray-400 mb-4">
-                {debouncedSearch ? `No employees or branches match "${debouncedSearch}"` : 'Mulai dengan menambahkan penempatan karyawan ke cabang'}
+                {debouncedSearch ? `Tidak ada karyawan atau cabang yang cocok dengan "${debouncedSearch}"` : 'Mulai dengan menambahkan penempatan karyawan ke cabang'}
               </p>
               {!debouncedSearch && (
                 <button

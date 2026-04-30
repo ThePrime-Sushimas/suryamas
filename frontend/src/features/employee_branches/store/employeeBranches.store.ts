@@ -1,12 +1,12 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { employeeBranchesApi } from '../api/employeeBranches.api'
+import { parseApiError } from '@/lib/errorParser'
 import type {
   EmployeeBranch,
   EmployeeBranchListQuery,
   CreateEmployeeBranchDTO,
   UpdateEmployeeBranchDTO,
-  DomainError,
 } from '../api/types'
 
 type State = {
@@ -24,11 +24,11 @@ type State = {
     setPrimary: boolean
   }
   error: {
-    list: DomainError | null
-    detail: DomainError | null
-    create: DomainError | null
-    update: DomainError | null
-    remove: DomainError | null
+    list: string | null
+    detail: string | null
+    create: string | null
+    update: string | null
+    remove: string | null
   }
 }
 
@@ -63,8 +63,8 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
           limit: res.pagination.limit,
           loading: { ...s.loading, list: false },
         }))
-      } catch (err) {
-        set(s => ({ loading: { ...s.loading, list: false }, error: { ...s.error, list: err as DomainError } }))
+      } catch (err: unknown) {
+        set(s => ({ loading: { ...s.loading, list: false }, error: { ...s.error, list: parseApiError(err, 'Gagal memuat data penempatan') } }))
       }
     },
 
@@ -73,8 +73,8 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
       try {
         const data = await employeeBranchesApi.getById(id)
         set(s => ({ selected: data, loading: { ...s.loading, detail: false } }))
-      } catch (err) {
-        set(s => ({ loading: { ...s.loading, detail: false }, error: { ...s.error, detail: err as DomainError } }))
+      } catch (err: unknown) {
+        set(s => ({ loading: { ...s.loading, detail: false }, error: { ...s.error, detail: parseApiError(err, 'Gagal memuat detail penempatan') } }))
       }
     },
 
@@ -93,13 +93,13 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
           loading: { ...s.loading, create: false },
         }))
         return created
-      } catch (err) {
+      } catch (err: unknown) {
         // Rollback on error
         set(s => ({
           items: s.items.filter(i => i.id !== tempId),
           total: Math.max(0, s.total - 1),
           loading: { ...s.loading, create: false },
-          error: { ...s.error, create: err as DomainError },
+          error: { ...s.error, create: parseApiError(err, 'Gagal membuat penempatan') },
         }))
         return null
       }
@@ -120,12 +120,12 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
           loading: { ...s.loading, update: false },
         }))
         return updated
-      } catch (err) {
+      } catch (err: unknown) {
         // Rollback on error
         set(s => ({
           items: snapshot,
           loading: { ...s.loading, update: false },
-          error: { ...s.error, update: err as DomainError },
+          error: { ...s.error, update: parseApiError(err, 'Gagal memperbarui penempatan') },
         }))
         return null
       }
@@ -139,8 +139,8 @@ export const useEmployeeBranchesStore = create<State & Actions>()(
         await employeeBranchesApi.remove(id)
         set(s => ({ loading: { ...s.loading, remove: false } }))
         return true
-      } catch (err) {
-        set(s => ({ items: snapshot, total: snapshot.length, loading: { ...s.loading, remove: false }, error: { ...s.error, remove: err as DomainError } }))
+      } catch (err: unknown) {
+        set(s => ({ items: snapshot, total: snapshot.length, loading: { ...s.loading, remove: false }, error: { ...s.error, remove: parseApiError(err, 'Gagal menghapus penempatan') } }))
         return false
       }
     },

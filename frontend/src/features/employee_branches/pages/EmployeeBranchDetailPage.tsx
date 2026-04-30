@@ -5,6 +5,7 @@ import { usePermission } from '@/features/branch_context/hooks/usePermission'
 import { useEmployeeBranchDetail } from '../hooks/useEmployeeBranchDetail'
 import { employeeBranchesApi } from '../api/employeeBranches.api'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { EmployeeBranchDetailTable } from '../components/EmployeeBranchDetailTable'
 import { BranchAssignmentModal } from '../components/BranchAssignmentModal'
 import type { EmployeeBranch, CreateEmployeeBranchDTO, UpdateEmployeeBranchDTO, Role, BranchOption } from '../api/types'
@@ -40,7 +41,7 @@ export const EmployeeBranchDetailPage = () => {
       setRoles(rolesData)
       setBranchOptions(branchesData)
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : 'Failed to load options')
+      showError(parseApiError(err, 'Gagal memuat opsi'))
       setIsModalOpen(false)
     }
   }
@@ -56,32 +57,32 @@ export const EmployeeBranchDetailPage = () => {
     try {
       if (editingAssignment) {
         await employeeBranchesApi.update(editingAssignment.id, data as UpdateEmployeeBranchDTO)
-        success('Assignment updated successfully')
+        success('Penempatan berhasil diperbarui')
       } else {
         await employeeBranchesApi.create(data as CreateEmployeeBranchDTO)
-        success('Assignment created successfully')
+        success('Penempatan berhasil dibuat')
       }
       handleCloseModal()
       await refetch()
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : 'Operation failed')
+      showError(parseApiError(err, 'Operasi gagal'))
       throw err
     }
   }
 
   const handleDelete = async (assignment: EmployeeBranch) => {
-    try { await employeeBranchesApi.remove(assignment.id); success('Assignment deleted successfully'); refetch() }
-    catch (err: unknown) { showError(err instanceof Error ? err.message : 'Failed to delete') }
+    try { await employeeBranchesApi.remove(assignment.id); success('Penempatan berhasil dihapus'); refetch() }
+    catch (err: unknown) { showError(parseApiError(err, 'Gagal menghapus')) }
   }
 
   const handleSuspend = async (assignment: EmployeeBranch) => {
-    try { await employeeBranchesApi.suspend(assignment.id); success('Assignment suspended successfully'); refetch() }
-    catch (err: unknown) { showError(err instanceof Error ? err.message : 'Failed to suspend') }
+    try { await employeeBranchesApi.suspend(assignment.id); success('Akses cabang ditangguhkan'); refetch() }
+    catch (err: unknown) { showError(parseApiError(err, 'Gagal menangguhkan')) }
   }
 
   const handleActivate = async (assignment: EmployeeBranch) => {
-    try { await employeeBranchesApi.activate(assignment.id); success('Assignment activated successfully'); refetch() }
-    catch (err: unknown) { showError(err instanceof Error ? err.message : 'Failed to activate') }
+    try { await employeeBranchesApi.activate(assignment.id); success('Akses cabang diaktifkan'); refetch() }
+    catch (err: unknown) { showError(parseApiError(err, 'Gagal mengaktifkan')) }
   }
 
   if (isLoading) {
