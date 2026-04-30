@@ -15,7 +15,7 @@ export default function EditCompanyPage() {
   useEffect(() => {
     if (id) {
       getCompanyById(id).catch(() => {
-        toast.error('Company tidak ditemukan')
+        toast.error('Perusahaan tidak ditemukan')
         navigate('/companies')
       })
     }
@@ -26,7 +26,7 @@ export default function EditCompanyPage() {
     if (!id) return
     try {
       await updateCompany(id, data)
-      toast.success('Company berhasil diupdate')
+      toast.success('Perusahaan berhasil diperbarui')
       navigate('/companies')
     } catch {
       toast.error('Terjadi kesalahan. Silakan coba lagi.')
@@ -43,7 +43,7 @@ export default function EditCompanyPage() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Perusahaan</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{selectedCompany?.company_name || 'Loading...'}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{selectedCompany?.company_name || 'Memuat...'}</p>
           </div>
         </div>
 
@@ -60,7 +60,7 @@ export default function EditCompanyPage() {
           </div>
         ) : !selectedCompany ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400">Company tidak ditemukan</p>
+            <p className="text-gray-500 dark:text-gray-400">Perusahaan tidak ditemukan</p>
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">

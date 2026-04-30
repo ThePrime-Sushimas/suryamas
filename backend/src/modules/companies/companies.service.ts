@@ -185,13 +185,13 @@ export class CompaniesService {
         if (skipDuplicates) {
           const existingCode = await this.repository.findByCode(row.company_code)
           if (existingCode) {
-            throw new Error(`Duplicate company_code: ${row.company_code}`)
+            throw CompanyErrors.CODE_EXISTS(row.company_code)
           }
 
           if (row.npwp) {
             const existingNpwp = await this.repository.findByNpwp(row.npwp)
             if (existingNpwp) {
-              throw new Error(`Duplicate npwp: ${row.npwp}`)
+              throw CompanyErrors.NPWP_EXISTS(row.npwp)
             }
           }
         }

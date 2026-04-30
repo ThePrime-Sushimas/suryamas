@@ -16,7 +16,7 @@ export default function CreateCompanyPage() {
   const handleSubmit = async (data: Record<string, unknown>) => {
     try {
       await createCompany(data as CreateCompanyDto)
-      toast.success('Company berhasil dibuat')
+      toast.success('Perusahaan berhasil dibuat')
       navigate('/companies')
     } catch {
       toast.error('Terjadi kesalahan. Silakan coba lagi.')

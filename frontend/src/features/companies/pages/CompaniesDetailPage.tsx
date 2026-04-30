@@ -18,7 +18,7 @@ function CompanyDetailPage() {
   useEffect(() => {
     if (id) {
       getCompanyById(id).catch(() => {
-        toast.error('Company tidak ditemukan')
+        toast.error('Perusahaan tidak ditemukan')
         navigate('/companies')
       })
     }
@@ -30,7 +30,7 @@ function CompanyDetailPage() {
     setIsDeleting(true)
     try {
       await deleteCompany(id)
-      toast.success('Company berhasil dihapus')
+      toast.success('Perusahaan berhasil dihapus')
       navigate('/companies')
     } catch {
       toast.error('Terjadi kesalahan. Silakan coba lagi.')
@@ -142,7 +142,7 @@ function CompanyDetailPage() {
 
       <ConfirmModal
         isOpen={showDeleteConfirm}
-        title="Hapus Company"
+        title="Hapus Perusahaan"
         message={`Yakin ingin menghapus "${selectedCompany.company_name}"? Tindakan ini tidak dapat dibatalkan.`}
         confirmText={isDeleting ? 'Menghapus...' : 'Hapus'}
         variant="danger"

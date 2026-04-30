@@ -41,8 +41,14 @@ export default function CompaniesPage() {
     }
   }, [debouncedSearch, filter, pagination.limit, searchPage, fetchPage])
 
+  // Search/filter berubah → reset page 1
   useEffect(() => {
-    doFetch(1)
+    const effectiveLimit = pagination.limit
+    if (debouncedSearch) {
+      searchPage(debouncedSearch, 1, effectiveLimit, filter)
+    } else {
+      fetchPage(1, effectiveLimit, undefined, filter)
+    }
   }, [debouncedSearch, filter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { return () => { reset() } }, [reset])
