@@ -13,11 +13,10 @@ export default function CreatePaymentTermPage() {
   const handleSubmit = async (data: CreatePaymentTermDto) => {
     try {
       await createPaymentTerm(data)
-      toast.success('Payment term created successfully')
+      toast.success('Payment term berhasil dibuat')
       navigate('/payment-terms')
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create payment term'
-      toast.error(message)
+    } catch {
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     }
   }
 
@@ -26,17 +25,18 @@ export default function CreatePaymentTermPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-      <div className="mb-6">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <div className="mb-6 flex items-center gap-4">
         <button
           onClick={handleCancel}
-          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium mb-2 flex items-center gap-1"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Payment Terms
+          <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create Payment Term</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Define new payment terms for transactions</p>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tambah Payment Term</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Buat syarat pembayaran baru</p>
+        </div>
       </div>
       
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">

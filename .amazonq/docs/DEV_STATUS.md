@@ -85,6 +85,8 @@
 24. Empty state: pakai icon + pesan informatif, bukan hanya text kosong
 25. Error state di list page: tampilkan error card dengan tombol "Coba Lagi", bukan halaman kosong
 26. Header page: pakai `ArrowLeft` untuk back navigation, bukan "✕" atau "Back to List" button terpisah
+27. Filter + fetch race condition: kalau store punya `RequestManager` yang cancel previous request, jangan panggil `setPage()` + `fetchData()` bersamaan — `setPage` trigger pagination useEffect yang juga fetch, menyebabkan double request + cancellation. Gunakan `setTimeout(() => fetch(), 0)` atau gabungkan filter+page update dalam satu action
+28. Filter di useEffect deps: JANGAN masukkan `filter` object ke useEffect deps kalau body useEffect juga call `setFilter` — infinite loop. Deps hanya untuk trigger value (search, page), bukan untuk state yang di-mutate di body
 
 ---
 trigger: always_on

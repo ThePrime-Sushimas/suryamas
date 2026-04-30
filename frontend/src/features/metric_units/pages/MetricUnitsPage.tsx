@@ -136,6 +136,7 @@ export default function MetricUnitsPage() {
     if (search) apiFilter.q = search
     
     setFilter(apiFilter)
+    fetchMetricUnits(1, pagination.limit)
   }
 
   const paginationInfo = {

@@ -38,17 +38,14 @@ export default function PaymentTermsPage() {
 
   const debouncedSearch = useDebounce(search, 300)
 
-  // Reset to page 1 when search changes
   useEffect(() => {
     setPage(1)
     if (debouncedSearch) {
       searchPaymentTerms(debouncedSearch)
     } else {
-      const currentFilter = filter
-      const newFilter = currentFilter ? { ...currentFilter, q: undefined } : null
-      setFilter(newFilter)
+      fetchPaymentTerms(1, pagination.limit)
     }
-  }, [debouncedSearch, searchPaymentTerms, setFilter, filter, setPage])
+  }, [debouncedSearch])
 
   useEffect(() => {
     return () => {
@@ -80,14 +77,14 @@ export default function PaymentTermsPage() {
     try {
       if (deleteDialog.isRestore) {
         await restorePaymentTerm(deleteDialog.id)
-        toast.success('Payment term restored successfully')
+        toast.success('Payment term berhasil direstore')
       } else {
         await deletePaymentTerm(deleteDialog.id)
-        toast.success('Payment term deleted successfully')
+        toast.success('Payment term berhasil dihapus')
       }
       setDeleteDialog({ isOpen: false, id: null, name: '', isRestore: false })
     } catch {
-      toast.error(`Failed to ${deleteDialog.isRestore ? 'restore' : 'delete'} payment term`)
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     }
   }, [deleteDialog, deletePaymentTerm, restorePaymentTerm, toast])
 
@@ -110,7 +107,9 @@ export default function PaymentTermsPage() {
     if (search) apiFilter.q = search
     
     setFilter(Object.keys(apiFilter).length > 0 ? apiFilter : null)
-    fetchPaymentTerms()
+    // setFilter already resets page to 1 internally
+    // Use setTimeout to ensure store is updated before fetch
+    setTimeout(() => fetchPaymentTerms(1, pagination.limit), 0)
   }
 
   return (
@@ -177,6 +176,22 @@ export default function PaymentTermsPage() {
             onRestore={handleRestore}
             loading={loading}
           />
+
+          {loading && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="animate-pulse">
+                <div className="h-10 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600" />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex gap-4 px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/4" />
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {!loading && paymentTerms.length > 0 && (
             <Pagination

@@ -31,7 +31,7 @@ export default function PaymentTermDetailPage() {
         const data = await paymentTermsApi.getById(Number(id))
         setPaymentTerm(data)
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to load payment term'
+        const message = err instanceof Error ? err.message : 'Gagal memuat data'
         setError(message)
       } finally {
         setLoading(false)
