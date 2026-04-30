@@ -51,6 +51,7 @@ export function JournalHeaderDetailPage() {
   // Loading states for modal operations
   const [isPosting, setIsPosting] = useState(false)
   const [isReversing, setIsReversing] = useState(false)
+  const [isForceDeleting, setIsForceDeleting] = useState(false)
   const [completeness, setCompleteness] = useState<{
     is_complete: boolean
     total_channels: number
@@ -142,15 +143,17 @@ export function JournalHeaderDetailPage() {
   }
 
   const handleForceDelete = async () => {
+    setIsForceDeleting(true)
     try {
       await api.delete(`/accounting/journals/${id}/force`)
       setShowForceDeleteModal(false)
-      // Refresh store list with current filters before navigating
       await useJournalHeadersStore.getState().fetchJournals()
       toast.success('Jurnal berhasil dihapus (force delete)')
       navigate('/accounting/journals')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal menghapus jurnal')
+    } finally {
+      setIsForceDeleting(false)
     }
   }
 
@@ -657,6 +660,7 @@ export function JournalHeaderDetailPage() {
         confirmText="Force Delete"
         cancelText="Batal"
         variant="danger"
+        isLoading={isForceDeleting}
       />
 
       {/* Post Confirmation Modal */}
