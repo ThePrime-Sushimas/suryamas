@@ -175,7 +175,7 @@ export const posSyncAggregatesRepository = {
     paymentMethodId: number; branchId: string | null; branchName?: string | null;
   }) {
     const { rows } = await pool.query(
-      `SELECT * FROM supersede_manual_entries($1, $2, $3, $4, $5)`,
+      `SELECT * FROM supersede_manual_entries($1::uuid, $2::date, $3::integer, $4::uuid, $5::text)`,
       [params.supersededById, params.transactionDate, params.paymentMethodId, params.branchId ?? null, params.branchName ?? null]
     );
     return rows;
@@ -184,7 +184,7 @@ export const posSyncAggregatesRepository = {
   /** @deprecated — replaced by sync_pos_aggregates_batch RPC */
   async migrateReconciledPosToSync(posId: string, syncId: string): Promise<boolean> {
     const { rows } = await pool.query(
-      `SELECT migrate_reconciled_pos_to_sync($1, $2) AS result`,
+      `SELECT migrate_reconciled_pos_to_sync($1::uuid, $2::uuid) AS result`,
       [posId, syncId]
     );
     return rows[0]?.result ?? false;

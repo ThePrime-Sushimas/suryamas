@@ -55,7 +55,7 @@ export class JobsRepository {
   async create(dto: CreateJobDto): Promise<Job> {
     try {
       const { rows } = await pool.query(
-        'SELECT * FROM create_job_atomic($1, $2, $3, $4, $5, $6)',
+        'SELECT * FROM create_job_atomic($1::uuid, $2::uuid, $3::job_type_enum, $4::varchar, $5::varchar, $6::jsonb)',
         [dto.user_id, dto.company_id, dto.type, dto.module, dto.name, JSON.stringify(dto.metadata || {})]
       )
 
@@ -97,7 +97,7 @@ export class JobsRepository {
 
   async markAsProcessing(id: string): Promise<Job> {
     try {
-      const { rows } = await pool.query('SELECT * FROM mark_job_processing_atomic($1)', [id])
+      const { rows } = await pool.query('SELECT * FROM mark_job_processing_atomic($1::uuid)', [id])
       if (!rows[0]) throw JobErrors.NOT_FOUND()
       logInfo('Repository markAsProcessing success', { id })
       return rows[0] as Job
@@ -111,7 +111,7 @@ export class JobsRepository {
     try {
       const expiresAt = new Date(Date.now() + JOB_QUEUE_CONFIG.resultExpiration)
       const { rows } = await pool.query(
-        'SELECT * FROM complete_job_atomic($1, $2, $3, $4, $5, $6)',
+        'SELECT * FROM complete_job_atomic($1::uuid, $2::text, $3::text, $4::bigint, $5::timestamptz, $6::uuid)',
         [id, resultUrl, filePath, fileSize, expiresAt.toISOString(), userId]
       )
       if (!rows[0]) throw JobErrors.NOT_FOUND()
@@ -126,7 +126,7 @@ export class JobsRepository {
   async markAsFailed(id: string, userId: string, errorMessage: string): Promise<Job> {
     try {
       const { rows } = await pool.query(
-        'SELECT * FROM fail_job_atomic($1, $2, $3)',
+        'SELECT * FROM fail_job_atomic($1::uuid, $2::text, $3::uuid)',
         [id, errorMessage, userId]
       )
       if (!rows[0]) throw JobErrors.NOT_FOUND()
@@ -166,7 +166,7 @@ export class JobsRepository {
 
   async delete(id: string, userId: string): Promise<void> {
     try {
-      await pool.query('SELECT soft_delete_job($1, $2, $3)', [id, userId, userId])
+      await pool.query('SELECT soft_delete_job($1::uuid, $2::uuid, $3::uuid)', [id, userId, userId])
       logInfo('Repository soft delete success', { id, deleted_by: userId })
     } catch (error) {
       logError('Repository delete error', { id, user_id: userId, error })

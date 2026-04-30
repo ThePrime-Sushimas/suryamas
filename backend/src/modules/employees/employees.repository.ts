@@ -299,7 +299,7 @@ export class EmployeesRepository {
 
   async generateEmployeeId(branchName: string, joinDate: string, jobPosition: string): Promise<string> {
     const { rows } = await pool.query(
-      'SELECT generate_employee_id($1, $2, $3) AS id',
+      'SELECT generate_employee_id($1::text, $2::date, $3::text) AS id',
       [branchName, joinDate, jobPosition]
     )
     if (!rows[0]?.id) throw new Error('Failed to generate employee ID')

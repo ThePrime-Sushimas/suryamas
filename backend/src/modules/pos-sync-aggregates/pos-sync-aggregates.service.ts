@@ -17,7 +17,7 @@ export async function syncPosSyncToAggregated(
 
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM sync_pos_aggregates_batch($1)`,
+      `SELECT * FROM sync_pos_aggregates_batch($1::date)`,
       [salesDate]
     );
 

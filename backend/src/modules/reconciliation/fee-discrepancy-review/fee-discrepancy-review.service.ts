@@ -100,13 +100,14 @@ export class FeeDiscrepancyReviewService {
 
     // 8. Create journal header (9 params: company, branch, number, type, date, period, desc, amount, source_module)
     const { rows: headerRows } = await pool.query(
-      `SELECT * FROM create_journal_header_atomic($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `SELECT * FROM create_journal_header_atomic($1::uuid, $2::uuid, $3::varchar, $4::journal_type_enum, $5::date, $6::varchar, $7::text, $8::numeric, $9::varchar)`,
       [companyId, null, journalNumber, 'GENERAL', journalDate, period.period,
        notes || `Koreksi: ${descParts} - ${discItem.paymentMethodName || source}`, totalAmount,
        'FEE_DISCREPANCY_CORRECTION']
     )
 
-    const header = headerRows[0]
+    const rawHeader = headerRows[0]
+    const header = rawHeader?.create_journal_header_atomic ?? rawHeader
     if (!header?.id) throw new Error('Gagal membuat journal header: response kosong')
 
     const journalId = header.id as string
@@ -150,7 +151,7 @@ export class FeeDiscrepancyReviewService {
     // 10. Post lines — function throws on error (RAISE), so use try/catch
     try {
       await pool.query(
-        `SELECT * FROM post_journal_lines_atomic($1, $2::jsonb, $3::uuid[], $4::uuid[], $5)`,
+        `SELECT * FROM post_journal_lines_atomic($1::uuid, $2::jsonb, $3::bigint[], $4::uuid[], $5::boolean)`,
         [journalId, JSON.stringify(lines), [], [], false]
       )
     } catch (linesErr) {

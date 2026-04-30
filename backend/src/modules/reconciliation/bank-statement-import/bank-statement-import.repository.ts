@@ -1035,7 +1035,7 @@ export class BankStatementImportRepository {
   async createImportJob(params: ImportJobParams): Promise<string> {
     try {
       const { rows } = await pool.query(
-        'SELECT * FROM create_job_atomic($1, $2, $3, $4, $5, $6)',
+        'SELECT * FROM create_job_atomic($1::uuid, $2::uuid, $3::job_type_enum, $4::varchar, $5::varchar, $6::jsonb)',
         [
           params.userId,
           params.companyId,

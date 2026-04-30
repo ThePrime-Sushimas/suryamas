@@ -203,7 +203,7 @@ export class JournalHeadersRepository {
   }
 
   async getNextSequence(companyId: string, type: string, period: string): Promise<number> {
-    const { rows } = await pool.query('SELECT get_next_journal_sequence($1, $2, $3) AS seq', [companyId, period, type])
+    const { rows } = await pool.query('SELECT get_next_journal_sequence($1::uuid, $2::varchar, $3::journal_type_enum) AS seq', [companyId, period, type])
     if (!rows[0]?.seq) throw new Error('Sequence generation failed')
     return rows[0].seq as number
   }

@@ -327,12 +327,13 @@ async function createJournalHeaderWithRetry(
 ): Promise<JournalHeaderResult | null> {
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM create_journal_header_atomic($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `SELECT * FROM create_journal_header_atomic($1::uuid, $2::uuid, $3::varchar, $4::journal_type_enum, $5::date, $6::varchar, $7::text, $8::numeric, $9::varchar)`,
       [params.companyId, params.branchId, params.journalNumber, 'SALES',
        params.journalDate, params.period, params.description, params.totalAmount, 'POS_AGGREGATES']
     )
 
-    const row = rows[0]
+    const raw = rows[0]
+    const row = raw?.create_journal_header_atomic ?? raw
     if (!row?.id) return null
 
     return {
@@ -863,7 +864,7 @@ export async function generateJournalsOptimized(
         const linesPayload = lines.map(({ journal_header_id: _, created_at: __, ...rest }) => rest)
 
         await pool.query(
-          `SELECT * FROM post_journal_lines_atomic($1, $2::jsonb, $3::uuid[], $4::uuid[], $5)`,
+          `SELECT * FROM post_journal_lines_atomic($1::uuid, $2::jsonb, $3::bigint[], $4::uuid[], $5::boolean)`,
           [journalHeader.id, JSON.stringify(linesPayload), [], groupTxs.map(t => t.id), true]
         )
       } catch (postErr) {

@@ -348,11 +348,11 @@ export class CashCountsRepository {
       [bankStatementId, depositId]
     )
     // Sync via RPC (atomic)
-    await pool.query(`SELECT sync_cash_deposit_reconciliation($1, $2)`, [depositId, true])
+    await pool.query(`SELECT sync_cash_deposit_reconciliation($1::uuid, $2::boolean)`, [depositId, true])
   }
 
   async unreconciledDeposit(depositId: string): Promise<void> {
-    await pool.query(`SELECT sync_cash_deposit_reconciliation($1, $2)`, [depositId, false])
+    await pool.query(`SELECT sync_cash_deposit_reconciliation($1::uuid, $2::boolean)`, [depositId, false])
   }
 
   async getDepositedForMatch(startDate: string, endDate: string, bankAccountId?: number): Promise<CashDeposit[]> {
