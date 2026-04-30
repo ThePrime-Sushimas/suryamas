@@ -215,7 +215,7 @@ export default function DashboardAccountingPage() {
             ) : journals.isError ? (
               <p className="text-xs text-gray-400 italic">Gagal memuat data</p>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 text-center">
                 <div>
                   <p className="text-lg font-bold text-gray-900 dark:text-white">{journals.data?.posted || 0}</p>
                   <p className="text-[10px] text-gray-400">Posted</p>
