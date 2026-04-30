@@ -49,6 +49,7 @@ import { generateOpenApiDocument } from "./config/openapi";
 import posSyncRoutes from "./modules/pos-sync/pos-sync.routes";
 import posSyncAggregatesRoutes from "./modules/pos-sync-aggregates/pos-sync-aggregates.routes";
 import cashFlowRoutes from "./modules/cash-flow/cash-flow.router";
+import expenseCategorizationRoutes from "./modules/expense-categorization/expense-categorization.routes";
 import { pool } from "./config/db";
 
 const app = express();
@@ -131,6 +132,7 @@ app.use("/api/v1/reconciliation/bank", setupBankReconciliationModule().router);
 app.use("/api/v1/settlement-group", setupSettlementGroupModule().router);
 app.use("/api/v1/bank-mutation-entries", bankMutationEntriesRoutes);
 app.use("/api/v1/cash-flow", cashFlowRoutes);
+app.use("/api/v1/expense-categorization", expenseCategorizationRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
 
 // Error handler

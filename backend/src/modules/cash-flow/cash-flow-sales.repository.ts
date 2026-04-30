@@ -582,17 +582,18 @@ export class CashFlowSalesRepository {
       const [dataRes, countRes] = await Promise.all([
         pool.query(`
           SELECT 
-            id, bank_account_id, company_id, import_id,
-            transaction_date, row_number, description,
-            credit_amount, debit_amount, balance,
-            is_pending, is_reconciled, reference_number, transaction_type,
-            reconciliation_id, reconciliation_group_id, cash_deposit_id,
-            created_at
-          FROM bank_statements
-          WHERE bank_account_id = $1::bigint AND company_id = $2
-            AND transaction_date >= $3::date AND transaction_date <= $4::date
-            AND deleted_at IS NULL
-          ORDER BY transaction_date ASC, row_number ASC
+            bs.id, bs.bank_account_id, bs.company_id, bs.import_id,
+            bs.transaction_date, bs.row_number, bs.description,
+            bs.credit_amount, bs.debit_amount, bs.balance,
+            bs.is_pending, bs.is_reconciled, bs.reference_number, bs.transaction_type,
+            bs.reconciliation_id, bs.reconciliation_group_id, bs.cash_deposit_id,
+            bs.created_at, bs.purpose_id, ap.purpose_name
+          FROM bank_statements bs
+          LEFT JOIN accounting_purposes ap ON bs.purpose_id = ap.id
+          WHERE bs.bank_account_id = $1::bigint AND bs.company_id = $2
+            AND bs.transaction_date >= $3::date AND bs.transaction_date <= $4::date
+            AND bs.deleted_at IS NULL
+          ORDER BY bs.transaction_date ASC, bs.row_number ASC
           LIMIT $5 OFFSET $6
         `, [params.bank_account_id, params.company_id, params.date_from, params.date_to, limit, offset]),
         pool.query(`
@@ -681,6 +682,8 @@ export class CashFlowSalesRepository {
           group_color: info?.g_color || null,
           branch_name: info?.branch_name || null,
           expense_category: null,
+          purpose_id: row.purpose_id || null,
+          purpose_name: row.purpose_name || null,
         }
       })
 
@@ -750,6 +753,35 @@ export class CashFlowSalesRepository {
       total_credit: Number(rows[0].total_credit),
       total_debit: Number(rows[0].total_debit),
     }
+  }
+
+  async getExpenseBreakdown(
+    bankAccountId: number, companyId: string,
+    dateFrom: string, dateTo: string
+  ): Promise<Array<{ purpose_id: string | null; purpose_code: string | null; purpose_name: string; total_amount: number; transaction_count: number }>> {
+    const { rows } = await pool.query(
+      `SELECT 
+         bs.purpose_id,
+         ap.purpose_code,
+         COALESCE(ap.purpose_name, 'Belum Dikategorikan') as purpose_name,
+         COALESCE(SUM(bs.debit_amount), 0)::numeric as total_amount,
+         COUNT(*)::int as transaction_count
+       FROM bank_statements bs
+       LEFT JOIN accounting_purposes ap ON bs.purpose_id = ap.id
+       WHERE bs.bank_account_id = $1::bigint AND bs.company_id = $2
+         AND bs.transaction_date >= $3::date AND bs.transaction_date <= $4::date
+         AND bs.debit_amount > 0 AND bs.deleted_at IS NULL
+       GROUP BY bs.purpose_id, ap.purpose_code, ap.purpose_name
+       ORDER BY total_amount DESC`,
+      [bankAccountId, companyId, dateFrom, dateTo]
+    )
+    return rows.map(r => ({
+      purpose_id: r.purpose_id,
+      purpose_code: r.purpose_code,
+      purpose_name: r.purpose_name,
+      total_amount: Number(r.total_amount),
+      transaction_count: r.transaction_count,
+    }))
   }
 
   async getPendingCount(

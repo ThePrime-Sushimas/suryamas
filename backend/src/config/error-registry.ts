@@ -269,6 +269,26 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 400,
     category: 'user',
   },
+
+  // ============ EXPENSE CATEGORIZATION MODULE ============
+  RuleNotFoundError: {
+    name: 'RuleNotFoundError',
+    importPath: '../modules/expense-categorization/expense-categorization.errors',
+    defaultStatusCode: 404,
+    category: 'expense_categorization',
+  },
+  RuleDuplicateError: {
+    name: 'RuleDuplicateError',
+    importPath: '../modules/expense-categorization/expense-categorization.errors',
+    defaultStatusCode: 409,
+    category: 'expense_categorization',
+  },
+  AlreadyCategorizedError: {
+    name: 'AlreadyCategorizedError',
+    importPath: '../modules/expense-categorization/expense-categorization.errors',
+    defaultStatusCode: 422,
+    category: 'expense_categorization',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

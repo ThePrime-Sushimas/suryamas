@@ -113,11 +113,20 @@ export interface SalesGroup {
   transaction_count: number
 }
 
+export interface ExpenseGroup {
+  purpose_id: string | null
+  purpose_code: string | null
+  purpose_name: string
+  total_amount: number
+  transaction_count: number
+}
+
 export interface CashFlowSummary {
   opening_balance: number
   total_income: number
   income_by_group: SalesGroup[]
   total_expense: number
+  expense_by_category: ExpenseGroup[]
   closing_balance: number
   net_change: number
   pending_count: number
@@ -149,6 +158,8 @@ export interface RunningBalanceRow {
   group_color: string | null
   branch_name: string | null
   expense_category: string | null
+  purpose_id: string | null
+  purpose_name: string | null
 }
 
 export interface CashFlowDailyResult {

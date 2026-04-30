@@ -166,7 +166,7 @@ export class CashFlowSalesService {
         bank_account: bankAccount,
         summary: {
           opening_balance: 0, total_income: 0, income_by_group: [],
-          total_expense: 0, closing_balance: 0, net_change: 0,
+          total_expense: 0, expense_by_category: [], closing_balance: 0, net_change: 0,
           pending_count: 0, pending_income_estimate: 0, pending_expense_estimate: 0, unreconciled_count: 0,
           unreconciled_credit_count: 0, unreconciled_credit_amount: 0, unreconciled_debit_count: 0, unreconciled_debit_amount: 0,
         },
@@ -175,7 +175,7 @@ export class CashFlowSalesService {
       } as any
     }
 
-    const [salesResult, cashDeposits, { rows: rawRows, total }, pendingInfo, periodTotals] = await Promise.all([
+    const [salesResult, cashDeposits, { rows: rawRows, total }, pendingInfo, periodTotals, expenseBreakdown] = await Promise.all([
       cashFlowSalesRepository.getSalesBreakdown(params),
       cashFlowSalesRepository.getCashDepositBreakdown(
         params.bank_account_id, params.company_id,
@@ -187,6 +187,10 @@ export class CashFlowSalesService {
         params.date_from, params.date_to
       ),
       cashFlowSalesRepository.getPeriodTotals(
+        params.bank_account_id, params.company_id,
+        params.date_from, params.date_to
+      ),
+      cashFlowSalesRepository.getExpenseBreakdown(
         params.bank_account_id, params.company_id,
         params.date_from, params.date_to
       ),
@@ -232,6 +236,8 @@ export class CashFlowSalesService {
         group_color: row.group_color || null,
         branch_name: row.branch_name || null,
         expense_category: null,
+        purpose_id: null,
+        purpose_name: null,
       }
     })
 
@@ -244,6 +250,7 @@ export class CashFlowSalesService {
       total_income: totalIncome,
       income_by_group: mergedGroups,
       total_expense: totalExpense,
+      expense_by_category: expenseBreakdown,
       closing_balance: period.opening_balance + totalIncome - totalExpense,
       net_change: totalIncome - totalExpense,
       pending_count: pendingInfo.count,

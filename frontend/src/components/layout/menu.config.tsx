@@ -269,6 +269,13 @@ export const menuItems: MenuItem[] = [
         module: "cash_flow",
       },
       {
+        id: "expense-categorization",
+        name: "Expense Categorization",
+        href: "/expense-categorization",
+        icon: <Tag size={16} />,
+        module: "cash_flow",
+      },
+      {
         id: "cash-counts",
         name: "Cash Count",
         href: "/cash-counts",

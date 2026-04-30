@@ -439,6 +439,9 @@ const CashFlowPage = lazy(() =>
 const CashFlowSettingsPage = lazy(() =>
   import('./features/cash-flow').then(m => ({ default: m.CashFlowSettingsPage }))
 )
+const ExpenseCategorizationPage = lazy(() =>
+  import('./features/expense-categorization/pages/ExpenseCategorizationPage')
+)
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1423,6 +1426,16 @@ function App() {
                       <RequirePermission module="cash_flow">
                         <Suspense fallback={<LoadingFallback />}>
                           <CashFlowSettingsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="expense-categorization"
+                    element={
+                      <RequirePermission module="cash_flow">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ExpenseCategorizationPage />
                         </Suspense>
                       </RequirePermission>
                     }
