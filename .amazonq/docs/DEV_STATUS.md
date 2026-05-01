@@ -326,9 +326,9 @@ Fix: Replace semua `error instanceof Error ? error.message : '...'` dengan `pars
 1. ✅ Delete dead code (3A — 2 files)
 2. ✅ Fix 4 missed BE modules (fee-discrepancy-review, bank-mutation-entries, reports, review-approval)
 3. ✅ Fix 13 FE stores → replace `error instanceof Error` dengan `parseApiError` (3E)
-4. ❌ ~~Clean routes~~ — **DEFERRED**: terlalu coupled dengan controller signatures. Routes cast `req as ValidatedAuthRequest<>` diperlukan selama controller method signature masih `ValidatedAuthRequest`. Butuh full rewrite per controller (75 methods, 15 files) untuk pindahkan cast ke body. Dijadikan tech debt.
-5. ❌ ~~Fix `as any` di controllers~~ — **DEFERRED**: sama, coupled dengan step 4. Butuh full rewrite.
-6. ❌ ~~Remove correlationId boilerplate~~ — **DEFERRED**: correlationId deeply woven ke service layer (optional param di setiap method). Hapus di controller saja aman (service param optional), tapi butuh full rewrite 3 controllers + cleanup 2 services. Dijadikan tech debt.
+4. ✅ ~~Clean routes~~ — **DONE**: 15/15 controllers + routes rewritten. `ValidatedAuthRequest` cast pindah dari routes ke controller body.
+5. ✅ ~~Fix `as any` di controllers~~ — **DONE**: semua `req as any` untuk `getCompanyId()` dihapus, langsung `req.context?.company_id`.
+6. ✅ ~~Remove correlationId boilerplate~~ — **DONE**: 3 controllers (accounting-purposes, accounting-purpose-accounts, fiscal-periods) di-rewrite. Service masih terima `correlationId?: string` (optional, backward compatible).
 
 ### Deferred Items → Per-Module Tech Debt
 Step 4-6 di-defer karena butuh **full rewrite per controller** yang berisiko tinggi untuk batch operation.
@@ -340,9 +340,9 @@ Approach yang direkomendasikan:
 
 | # | Controller | Routes | Methods | Issues |
 |---|-----------|--------|---------|--------|
-| 1 | `accounting-purpose-accounts.controller.ts` | `accounting-purpose-accounts.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (5x), correlationId |
-| 2 | `accounting-purposes.controller.ts` | `accounting-purposes.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (5x), correlationId |
-| 3 | `fiscal-periods.controller.ts` | `fiscal-periods.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (6x), `req.sort as any`, correlationId |
+| 1 | ~~`accounting-purpose-accounts.controller.ts`~~ | ~~`accounting-purpose-accounts.routes.ts`~~ | 5 | ✅ Done (correlationId removed) |
+| 2 | ~~`accounting-purposes.controller.ts`~~ | ~~`accounting-purposes.routes.ts`~~ | 5 | ✅ Done (correlationId removed) |
+| 3 | ~~`fiscal-periods.controller.ts`~~ | ~~`fiscal-periods.routes.ts`~~ | 5 | ✅ Done (correlationId removed) |
 | 4 | ~~`balance-sheet.controller.ts`~~ | ~~`balance-sheet.routes.ts`~~ | 1 | ✅ Done |
 | 5 | ~~`income-statement.controller.ts`~~ | ~~`income-statement.routes.ts`~~ | 1 | ✅ Done |
 | 6 | ~~`trial-balance.controller.ts`~~ | ~~`trial-balance.routes.ts`~~ | 1 | ✅ Done |

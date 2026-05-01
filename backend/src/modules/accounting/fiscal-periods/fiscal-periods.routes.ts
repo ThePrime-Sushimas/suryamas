@@ -5,7 +5,7 @@ import { resolveBranchContext } from '../../../middleware/branch-context.middlew
 import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
 import { queryMiddleware } from '../../../middleware/query.middleware'
 import { exportLimiter } from '../../../middleware/rateLimiter.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import { validateSchema } from '../../../middleware/validation.middleware'
 import { PermissionService } from '../../../services/permission.service'
 import { 
   createFiscalPeriodSchema, 
@@ -45,22 +45,22 @@ router.get('/export', canView('fiscal_periods'), exportLimiter, (req, res) =>
   fiscalPeriodsController.exportData(req, res))
 
 router.post('/bulk/delete', canDelete('fiscal_periods'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
-  fiscalPeriodsController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
+  fiscalPeriodsController.bulkDelete(req, res))
 
 router.post('/bulk/restore', canUpdate('fiscal_periods'), bulkOperationLimit, validateSchema(bulkRestoreSchema), (req, res) => 
-  fiscalPeriodsController.bulkRestore(req as ValidatedAuthRequest<typeof bulkRestoreSchema>, res))
+  fiscalPeriodsController.bulkRestore(req, res))
 
 router.post('/', canInsert('fiscal_periods'), validateSchema(createFiscalPeriodSchema), (req, res) => 
-  fiscalPeriodsController.create(req as ValidatedAuthRequest<typeof createFiscalPeriodSchema>, res))
+  fiscalPeriodsController.create(req, res))
 
 router.get('/:id', canView('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) => 
   fiscalPeriodsController.getById(req, res))
 
 router.put('/:id', canUpdate('fiscal_periods'), validateSchema(updateFiscalPeriodSchema), (req, res) => 
-  fiscalPeriodsController.update(req as ValidatedAuthRequest<typeof updateFiscalPeriodSchema>, res))
+  fiscalPeriodsController.update(req, res))
 
 router.post('/:id/close', canUpdate('fiscal_periods'), validateSchema(closePeriodSchema), (req, res) => 
-  fiscalPeriodsController.closePeriod(req as ValidatedAuthRequest<typeof closePeriodSchema>, res))
+  fiscalPeriodsController.closePeriod(req, res))
 
 router.delete('/:id', canDelete('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) => 
   fiscalPeriodsController.delete(req, res))

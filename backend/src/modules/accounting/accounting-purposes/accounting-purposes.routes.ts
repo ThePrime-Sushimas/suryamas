@@ -5,7 +5,7 @@ import { resolveBranchContext } from '../../../middleware/branch-context.middlew
 import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
 import { queryMiddleware } from '../../../middleware/query.middleware'
 import { exportLimiter } from '../../../middleware/rateLimiter.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import { validateSchema } from '../../../middleware/validation.middleware'
 import { PermissionService } from '../../../services/permission.service'
 import { 
   createAccountingPurposeSchema, 
@@ -66,23 +66,23 @@ router.post('/import', canInsert('accounting_purposes'), (req, res) =>
 
 // Bulk operations with rate limiting
 router.post('/bulk/status', canUpdate('accounting_purposes'), bulkOperationLimit, validateSchema(bulkUpdateStatusSchema), (req, res) => 
-  accountingPurposesController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res))
+  accountingPurposesController.bulkUpdateStatus(req, res))
 
 router.post('/bulk/delete', canDelete('accounting_purposes'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
-  accountingPurposesController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
+  accountingPurposesController.bulkDelete(req, res))
 
 router.post('/bulk/restore', canUpdate('accounting_purposes'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
-  accountingPurposesController.bulkRestore(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
+  accountingPurposesController.bulkRestore(req, res))
 
 // CRUD operations
 router.post('/', canInsert('accounting_purposes'), validateSchema(createAccountingPurposeSchema), (req, res) => 
-  accountingPurposesController.create(req as ValidatedAuthRequest<typeof createAccountingPurposeSchema>, res))
+  accountingPurposesController.create(req, res))
 
 router.get('/:id', canView('accounting_purposes'), validateSchema(accountingPurposeIdSchema), (req, res) => 
   accountingPurposesController.getById(req, res))
 
 router.put('/:id', canUpdate('accounting_purposes'), validateSchema(updateAccountingPurposeSchema), (req, res) => 
-  accountingPurposesController.update(req as ValidatedAuthRequest<typeof updateAccountingPurposeSchema>, res))
+  accountingPurposesController.update(req, res))
 
 router.delete('/:id', canDelete('accounting_purposes'), validateSchema(accountingPurposeIdSchema), (req, res) => 
   accountingPurposesController.delete(req, res))
