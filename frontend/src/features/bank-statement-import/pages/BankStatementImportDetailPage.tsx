@@ -576,7 +576,7 @@ export function BankStatementImportDetailPage() {
           <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <div
               key={i}
@@ -710,7 +710,7 @@ export function BankStatementImportDetailPage() {
       )}
 
       {/* ── Stat Cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           label="Total Baris File"
           value={totalRawRows}

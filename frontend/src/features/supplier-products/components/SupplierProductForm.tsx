@@ -186,7 +186,7 @@ export function SupplierProductForm({
       {/* Pricing */}
       <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Pricing</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Default Price *
@@ -223,7 +223,7 @@ export function SupplierProductForm({
       {/* Lead Time & MOQ */}
       <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Order Details</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Lead Time (Days)

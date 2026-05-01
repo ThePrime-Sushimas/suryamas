@@ -190,7 +190,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Summary bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 gap-3">
           <SyncStatusCell allBranches={allBranches.data} salesData={todaySalesData} isLoading={allBranches.isLoading || sales.isLoading} />
           <div className="bg-gray-100 dark:bg-gray-800/60 rounded-lg p-3">
             <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Penjualan Hari Ini</p>

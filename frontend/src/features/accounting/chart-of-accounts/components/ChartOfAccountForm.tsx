@@ -215,7 +215,7 @@ export const ChartOfAccountForm = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       {errors.submit && <p className="text-red-500 dark:text-red-400 text-sm">{errors.submit}</p>}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Account Code *</label>
           <input
@@ -287,7 +287,7 @@ export const ChartOfAccountForm = ({
         {errors.branch_id && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.branch_id}</p>}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Account Subtype</label>
           <input

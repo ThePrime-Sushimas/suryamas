@@ -51,7 +51,7 @@ export const CreatePosAggregatePage: React.FC = () => {
   }, [navigate])
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-4 py-6 sm:p-6 space-y-6">
       {/* Page Header */}
       <div className="flex items-center gap-4">
         <button

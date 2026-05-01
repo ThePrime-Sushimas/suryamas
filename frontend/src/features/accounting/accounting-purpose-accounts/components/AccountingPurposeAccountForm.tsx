@@ -83,7 +83,7 @@ export const AccountingPurposeAccountForm = ({
       {isEdit && editInfo && (
         <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-2">
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Informasi Mapping</h3>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-gray-500 dark:text-gray-400">Purpose: </span>
               <span className="font-medium text-gray-900 dark:text-white">{editInfo.purpose_code} — {editInfo.purpose_name}</span>

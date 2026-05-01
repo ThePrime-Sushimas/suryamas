@@ -534,7 +534,7 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
       )}
 
       {/* ── KEY METRICS STRIP ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Nett Amount - BIGGEST */}
         <div className="bg-linear-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border-2 border-green-300 dark:border-green-700">
           <div className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider">
@@ -838,7 +838,7 @@ export const PosAggregatesDetail: React.FC<PosAggregatesDetailProps> = ({
                 context="Source: POS System"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-2">
                   Tipe

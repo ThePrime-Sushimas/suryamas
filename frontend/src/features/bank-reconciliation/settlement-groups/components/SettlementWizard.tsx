@@ -746,7 +746,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
       {/* Bank Statement Summary */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-3">Selected Bank Statement</h4>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <p className="text-xs text-blue-600 dark:text-blue-400">Date</p>
             <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(selectedBankStatementData.transaction_date)}</p>

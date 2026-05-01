@@ -235,7 +235,7 @@ export function NonPosReconcileModal({
           </div>
 
           {/* Reference + Date */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">No. Referensi</label>
               <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Opsional" maxLength={100}

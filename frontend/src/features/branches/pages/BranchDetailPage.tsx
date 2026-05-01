@@ -208,7 +208,7 @@ function BranchDetailPage() {
             <div className="p-8 space-y-6">
               <div className="h-6 bg-gray-200 dark:bg-gray-600 rounded w-1/3" />
               <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-2/3" />
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded" />
                 <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded" />
               </div>
@@ -841,7 +841,7 @@ function BranchDetailPage() {
                           <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Full Address</p>
                           <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.address}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <p className="text-xs text-gray-600 dark:text-gray-400">City</p>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">{branch.city}</p>

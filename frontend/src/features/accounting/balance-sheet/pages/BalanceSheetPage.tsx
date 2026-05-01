@@ -301,7 +301,7 @@ export default function BalanceSheetPage() {
         <>
           {/* Summary Cards */}
           {summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 gap-4">
               <SummaryCard label="Total Aset" value={summary.total_asset} compare={hasCompare ? summary.compare_total_asset : undefined} color="blue" />
               <SummaryCard label="Total Kewajiban" value={summary.total_liability} compare={hasCompare ? summary.compare_total_liability : undefined} color="amber" />
               <SummaryCard label="Total Ekuitas" value={summary.total_equity + summary.retained_earnings} compare={hasCompare ? summary.compare_total_equity + summary.compare_retained_earnings : undefined} color="violet" />

@@ -381,7 +381,7 @@ function PosTransactionsContent() {
       </div>
 
       {summary.transactionCount > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-3">
             <div className="flex items-center justify-between">
               <div>

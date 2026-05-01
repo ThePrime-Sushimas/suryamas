@@ -383,7 +383,7 @@ function StepAutoMatch({
 
         {showAdvanced && (
           <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {(
                 [
                   ["amountTolerance", "Toleransi Nominal (IDR)"],
@@ -1081,7 +1081,7 @@ function StepMultiMatch({
             {/* Selected aggregate display */}
             {aggregate ? (
               <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700 rounded-xl p-3 mb-3">
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                   <div>
                     <p className="text-gray-400">Tanggal</p>
                     <p className="font-semibold text-gray-900 dark:text-white">{aggregate.transaction_date}</p>
@@ -1925,7 +1925,7 @@ function StepReview({
                         </span>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase">Bank</p>
                         <p className="text-gray-500">{m.statement.transaction_date}</p>
@@ -1954,7 +1954,7 @@ function StepReview({
         const diff = agg ? amt - agg.nett_amount : 0;
         return (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Bank Statement */}
               <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-2xl p-4">
                 <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Bank Statement</p>
@@ -2020,7 +2020,7 @@ function StepReview({
             {agg && (
               <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800 rounded-2xl p-4">
                 <p className="text-[11px] font-bold text-violet-600 uppercase tracking-widest mb-2">POS Aggregate</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                   <div><span className="text-gray-500">Tanggal</span><p className="font-semibold text-gray-900 dark:text-white">{agg.transaction_date}</p></div>
                   <div><span className="text-gray-500">Cabang</span><p className="font-semibold text-gray-900 dark:text-white">{agg.branch_name || 'N/A'}</p></div>
                   <div><span className="text-gray-500">Payment</span><p className="font-semibold text-gray-900 dark:text-white">{agg.payment_method_name || 'N/A'}</p></div>
@@ -2083,7 +2083,7 @@ function StepReview({
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-2xl p-4 space-y-3">
               <p className="text-[11px] font-bold text-amber-600 uppercase tracking-widest">Bank Statement</p>
               {data.settlementBankStatementData && (
-                <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                   <div>
                     <p className="text-gray-400">Tanggal</p>
                     <p className="font-semibold text-gray-900 dark:text-white">{data.settlementBankStatementData.transaction_date}</p>
@@ -2138,7 +2138,7 @@ function StepReview({
         const diff = stmt && dep ? stmt.amount - dep.deposit_amount : 0;
         return (
           <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-800 rounded-2xl p-4 space-y-3">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-[11px] font-bold text-teal-600 uppercase tracking-widest mb-1">Cash Deposit</p>
                 {dep && (

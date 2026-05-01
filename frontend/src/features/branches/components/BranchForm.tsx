@@ -137,7 +137,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
 
       <div>
         <label className={labelCls}>Hari Operasional *</label>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-4 gap-2">
           {days.map(day => (
             <label key={day} className="flex items-center text-sm text-gray-700 dark:text-gray-300">
               <input type="checkbox" checked={formData.hari_operasional.includes(day)} onChange={() => handleDayToggle(day)}

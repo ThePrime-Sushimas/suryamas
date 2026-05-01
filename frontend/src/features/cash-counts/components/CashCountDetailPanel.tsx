@@ -51,7 +51,7 @@ export function CashCountDetailPanel({ item, isOpen, onClose, onCount, employees
 
         <div className="p-4 space-y-4">
           {/* Info */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div><span className="text-gray-400 text-xs">System Balance</span><p className="font-mono font-semibold text-base text-gray-900 dark:text-white">{fmt(item.system_balance)}</p></div>
             <div><span className="text-gray-400 text-xs">Transaksi</span><p className="font-medium text-gray-900 dark:text-white">{item.transaction_count} trx</p></div>
             {item.physical_count !== null && (
@@ -75,7 +75,7 @@ export function CashCountDetailPanel({ item, isOpen, onClose, onCount, employees
               <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
                 {item.status === 'OPEN' ? 'Input Hitung Fisik' : 'Edit Hitung Fisik'}
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Pecahan Besar</label>
                   <input type="number" value={editLarge} onChange={(e) => setEditLarge(e.target.value)} min={0}

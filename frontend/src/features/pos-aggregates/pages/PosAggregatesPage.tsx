@@ -301,7 +301,7 @@ export const PosAggregatesPage: React.FC = () => {
   );
 
   return (
-    <div className="p-6">
+    <div className="px-4 py-6 sm:p-6">
       {/* Page Header */}
       <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
         <div>

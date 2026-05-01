@@ -117,7 +117,7 @@ export const ConfirmModal = ({
           {contextData && Object.keys(contextData).length > 0 && (
             <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
               <h4 className="font-medium text-gray-900 dark:text-white mb-2 text-sm">Details:</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                 {contextData.id && (
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">ID:</span>{' '}

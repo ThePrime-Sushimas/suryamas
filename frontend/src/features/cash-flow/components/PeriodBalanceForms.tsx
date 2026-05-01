@@ -121,7 +121,7 @@ export const CreatePeriodDialog: React.FC<{
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className={labelCls}>Sumber Saldo Awal</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setValue('source', 'AUTO_PREV_PERIOD')}
@@ -148,7 +148,7 @@ export const CreatePeriodDialog: React.FC<{
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Tanggal Mulai</label>
             <input type="date" {...register('period_start')} className={inputCls} />
@@ -238,7 +238,7 @@ export const EditPeriodDialog: React.FC<{
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Periode">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Tanggal Mulai</label>
             <input type="date" {...register('period_start')} className={inputCls} />

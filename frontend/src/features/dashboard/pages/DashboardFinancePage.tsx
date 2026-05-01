@@ -47,7 +47,7 @@ export default function DashboardFinancePage() {
       <h1 className="text-xl font-bold text-gray-900 dark:text-white">Finance</h1>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 gap-3">
         <MetricCard label="Gross Sales" value={sales.isLoading ? '...' : fmt(totalGross)} loading={sales.isLoading} />
         <MetricCard label="Total Fee (MDR)" value={sales.isLoading ? '...' : fmt(totalFee)} loading={sales.isLoading} color={totalFee > 0 ? 'warn' : undefined} />
         <MetricCard label="Nett Amount" value={sales.isLoading ? '...' : fmt(totalNett)} loading={sales.isLoading} />
@@ -55,7 +55,7 @@ export default function DashboardFinancePage() {
       </div>
 
       {/* Recon status */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 gap-3">
         <MetricCard label="Total Statement" value={recon.isLoading ? '...' : `${recon.data?.total_statements || 0}`} loading={recon.isLoading} />
         <MetricCard label="Reconciled" value={recon.isLoading ? '...' : `${reconciledCount}`} loading={recon.isLoading} />
         <MetricCard label="Belum Rekon" value={recon.isLoading ? '...' : `${unreconciledCount}`} loading={recon.isLoading} color={unreconciledCount > 0 ? 'warn' : undefined} />

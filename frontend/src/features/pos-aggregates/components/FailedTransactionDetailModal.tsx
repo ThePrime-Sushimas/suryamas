@@ -160,7 +160,7 @@ export const FailedTransactionDetailModal: React.FC<FailedTransactionDetailModal
               {activeTab === 'details' ? (
                 <div className="space-y-4">
                   {/* Basic Info */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 uppercase">Transaction Date</label>
                       <p className="text-sm text-gray-900">{formatDate(selectedTransaction.transaction_date)}</p>
@@ -205,7 +205,7 @@ export const FailedTransactionDetailModal: React.FC<FailedTransactionDetailModal
                   </div>
 
                   {/* Payment Method */}
-                  <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 uppercase">Payment Method</label>
                       <p className="text-sm text-gray-900">{selectedTransaction.payment_method_name || '-'}</p>

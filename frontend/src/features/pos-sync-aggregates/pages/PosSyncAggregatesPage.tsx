@@ -137,7 +137,7 @@ export default function PosSyncAggregatesPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-5 gap-3">
         {[
           {
             id: "card-grand-total",

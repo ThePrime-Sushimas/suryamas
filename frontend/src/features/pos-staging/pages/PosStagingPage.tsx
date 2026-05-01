@@ -149,7 +149,7 @@ export default function PosStagingPage() {
 
   if (isLoaded && !hasPermission) {
     return (
-      <div className="p-6">
+      <div className="px-4 py-6 sm:p-6">
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-400 p-4 rounded-lg flex items-center gap-3">
           <AlertCircle size={20} />
           <div>
@@ -335,7 +335,7 @@ export default function PosStagingPage() {
   const totalPages = Math.ceil(total / LIMIT)
 
   return (
-    <div className="p-6">
+    <div className="px-4 py-6 sm:p-6">
       <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">POS Staging Data</h1>
 
       {/* Tab */}

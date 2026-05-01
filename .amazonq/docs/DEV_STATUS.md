@@ -197,9 +197,9 @@ Pages yang **mungkin perlu** pagination tapi belum pakai:
 | 1 | ~~Global: `Pagination.tsx` + 2 table pages tanpa overflow~~ | ~~3~~ | ✅ Done |
 | 2 | ~~Master Data list+form: products, suppliers, categories, companies, branches, metric-units, payment-methods, payment-terms, product-uoms~~ | ~~18~~ | ✅ Done |
 | 3 | ~~Accounting: chart-of-accounts, accounting-purposes, accounting-purpose-accounts, fiscal-periods, journal-headers~~ | ~~15~~ | ✅ Done |
-| 4 | POS & Reconciliation: pos-aggregates, pos-staging, cash-flow settings, manual-entry | 7 | Medium |
-| 5 | Supplier Products & Pricelists | 7 | Medium |
-| 6 | Auth: ForgotPassword, ResetPassword | 2 | Kecil |
+| 4 | ~~POS & Reconciliation: pos-aggregates, pos-staging, cash-flow settings, manual-entry~~ | ~~7~~ | ✅ Done |
+| 5 | ~~Supplier Products & Pricelists~~ | ~~7~~ | ✅ Done |
+| 6 | ~~Auth: ForgotPassword, ResetPassword~~ | ~~2~~ | ✅ Done |
 
 #### Approach per page:
 1. Wrap table dengan `overflow-x-auto` jika belum

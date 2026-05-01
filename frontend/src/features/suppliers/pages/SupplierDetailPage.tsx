@@ -41,7 +41,7 @@ export function SupplierDetailPage() {
             <div className="h-8 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
             <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
-          <div className="p-6 grid grid-cols-2 gap-6">
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i}>
                 <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />

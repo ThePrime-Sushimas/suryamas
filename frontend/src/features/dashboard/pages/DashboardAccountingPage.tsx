@@ -144,7 +144,7 @@ export default function DashboardAccountingPage() {
       ) : null}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <MetricCard label="Laba Bersih" value={`Rp ${fmtCompact(pnl.data?.summary?.net_income ?? 0)}`} loading={pnl.isLoading} error={pnl.isError} color={pnl.data?.summary && pnl.data.summary.net_income < 0 ? 'danger' : pnl.data?.summary && pnl.data.summary.net_income > 0 ? 'success' : undefined} />
         <MetricCard label="Belum Rekon" value={`${unreconciledCount}`} loading={recon.isLoading} error={recon.isError} color={unreconciledCount > 0 ? 'warn' : undefined} />
         <MetricCard label="Fee Disc." value={`${feeDiscrepancyCount}`} loading={feeSummary.isLoading} error={feeSummary.isError} color={feeDiscrepancyCount > 2 ? 'danger' : feeDiscrepancyCount > 0 ? 'warn' : undefined} />

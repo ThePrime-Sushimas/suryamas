@@ -439,7 +439,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
           {/* Pricing */}
           <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Pricing</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Price *
@@ -490,7 +490,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
           {/* Validity Period */}
           <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Validity Period</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="valid_from" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Valid From *

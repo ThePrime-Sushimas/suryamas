@@ -131,7 +131,7 @@ const SummaryCards = ({ summary }: { summary: CashFlowSummary }) => {
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
       {cards.map((c, i) => (
         <div key={i} className={`${c.bg} rounded-xl p-4 border border-white/60 dark:border-gray-700`}>
           <div className="flex items-center gap-1.5 mb-1">

@@ -116,7 +116,7 @@ export function MultiMatchGroupList({
                 <div className="h-5 w-24 bg-gray-100 dark:bg-gray-800 rounded-full" />
                 <div className="h-3 w-40 bg-gray-50 dark:bg-gray-800/50 rounded" />
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <div className="h-2 w-16 bg-gray-50 dark:bg-gray-800/50 rounded" />
                   <div className="h-4 w-32 bg-gray-100 dark:bg-gray-800 rounded" />

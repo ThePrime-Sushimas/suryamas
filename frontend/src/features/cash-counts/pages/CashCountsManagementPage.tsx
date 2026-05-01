@@ -386,7 +386,7 @@ export function CashCountsManagementPage() {
         <div className="space-y-4">
           {/* Filters */}
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-4 gap-3 items-end">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Dari</label>
                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
@@ -421,7 +421,7 @@ export function CashCountsManagementPage() {
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Ringkasan</span>
                 <span className="text-[10px] text-gray-400">{fmtDate(startDate)} — {fmtDate(endDate)}</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                 {branchGroups.map((g) => (
                   <div key={g.name} className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
                     <p className="text-[10px] text-gray-500 truncate">{g.name}</p>
@@ -784,7 +784,7 @@ export function CashCountsManagementPage() {
 
                             {isExpanded && expandedDepositDetail && (
                               <div className="px-4 pb-4 bg-gray-50/50 dark:bg-gray-800/20 border-t border-gray-100 dark:border-gray-800">
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 py-3 text-xs">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 py-3 text-xs">
                                   <div>
                                     <span className="text-sm text-gray-400 uppercase">Tanggal Setor</span>
                                     <p className="font-medium text-gray-900 dark:text-white">{fmtDateFull(expandedDepositDetail.deposit_date)}</p>

@@ -491,7 +491,7 @@ export default function ExpenseCategorizationPage() {
               <Eye className="w-5 h-5 text-violet-600" />
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">Preview Auto-Categorize</h3>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 text-center">
                 <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{previewResult.categorized}</p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">Akan dikategorikan</p>

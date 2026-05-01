@@ -273,7 +273,7 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
     <div className="container mx-auto px-4 py-8">
       {/* Context Header */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-300">Pricelists for:</h2>
             <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">

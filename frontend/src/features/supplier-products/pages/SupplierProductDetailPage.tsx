@@ -73,7 +73,7 @@ export function SupplierProductDetailPage() {
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
                 <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
               </div>
@@ -224,7 +224,7 @@ export function SupplierProductDetailPage() {
             {/* Audit Info */}
             <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Informasi Audit</h3>
-              <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <dl className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <dt className="text-gray-500 dark:text-gray-400">Dibuat</dt>
                   <dd className="font-medium text-gray-900 dark:text-white">{formatDate(supplierProduct.created_at)}</dd>

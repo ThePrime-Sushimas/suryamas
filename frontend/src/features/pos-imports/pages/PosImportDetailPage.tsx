@@ -188,7 +188,7 @@ function PosImportDetailPageContent() {
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-6 mb-6">
         <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Import Details</h1>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">File Name</p>
             <p className="font-medium text-gray-900 dark:text-white">{posImport.file_name}</p>
@@ -211,7 +211,7 @@ function PosImportDetailPageContent() {
       </div>
 
       {/* Financial Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-6">
         <div className=" rounded-lg p-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">Total Amount</p>
           {loadingSummary ? (

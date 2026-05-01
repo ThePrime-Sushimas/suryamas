@@ -88,7 +88,7 @@ export const EditPosAggregatePage: React.FC = () => {
   // Loading state
   if (initialLoad) {
     return (
-      <div className="p-6 space-y-6 dark:bg-gray-900">
+      <div className="px-4 py-6 sm:p-6 space-y-6 dark:bg-gray-900">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
@@ -111,7 +111,7 @@ export const EditPosAggregatePage: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <div className="p-6 space-y-6 dark:bg-gray-900">
+      <div className="px-4 py-6 sm:p-6 space-y-6 dark:bg-gray-900">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/pos-aggregates')}
@@ -137,7 +137,7 @@ export const EditPosAggregatePage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6 dark:bg-gray-900">
+    <div className="px-4 py-6 sm:p-6 space-y-6 dark:bg-gray-900">
       {/* Page Header */}
       <div className="flex items-center gap-4">
         <button

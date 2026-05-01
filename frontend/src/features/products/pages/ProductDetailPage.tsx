@@ -348,7 +348,7 @@ export default function ProductDetailPage() {
               {/* Metadata */}
               <div className="mt-6 bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Metadata</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <label className="text-gray-600 dark:text-gray-400">Dibuat</label>
                     <p className="text-gray-900 dark:text-gray-200">{new Date(currentProduct.created_at).toLocaleDateString()}</p>

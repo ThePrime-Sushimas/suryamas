@@ -699,7 +699,7 @@ export function BankMutationTable({
                 {/* Cash Deposit Detail Row */}
                 {expandedCashDepositId === item.id && item.matched_aggregate?.is_cash_deposit && (
                   <div className="px-4 py-3 bg-teal-50/50 dark:bg-teal-900/10 border-t border-teal-100 dark:border-teal-800">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                       <div>
                         <span className="text-gray-400 uppercase text-[10px] font-semibold">Cabang</span>
                         <p className="font-medium text-gray-900 dark:text-white">{item.matched_aggregate.branch_name || '-'}</p>

@@ -28,7 +28,7 @@ export default function DashboardHRDPage() {
       <h1 className="text-xl font-bold text-gray-900 dark:text-white">HRD</h1>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard label="Total Karyawan" value={employees.isLoading ? '...' : `${employees.data?.total || 0}`} loading={employees.isLoading} icon={<Users className="w-4 h-4 text-blue-500" />} />
         <MetricCard label="Aktif" value={employees.isLoading ? '...' : `${employees.data?.active || 0}`} loading={employees.isLoading} icon={<UserCheck className="w-4 h-4 text-emerald-500" />} />
         <MetricCard label="Non-Aktif" value={employees.isLoading ? '...' : `${employees.data?.inactive || 0}`} loading={employees.isLoading} icon={<UserX className="w-4 h-4 text-gray-400" />} color={employees.data?.inactive ? 'warn' : undefined} />

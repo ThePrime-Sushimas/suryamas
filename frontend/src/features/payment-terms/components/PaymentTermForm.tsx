@@ -263,7 +263,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor="term_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Term Code *
@@ -308,7 +308,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor="calculation_type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Calculation Type *
@@ -435,7 +435,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
 
       <div className="border-t dark:border-gray-700 pt-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Early Payment & Penalties</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="early_payment_discount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Early Payment Discount (%)
@@ -512,7 +512,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
 
       <div className="border-t dark:border-gray-700 pt-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Order Amount Constraints</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="minimum_order_amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Minimum Order Amount

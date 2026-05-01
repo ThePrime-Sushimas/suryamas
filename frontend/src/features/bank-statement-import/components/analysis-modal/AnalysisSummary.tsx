@@ -56,7 +56,7 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Valid Rows */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-2">

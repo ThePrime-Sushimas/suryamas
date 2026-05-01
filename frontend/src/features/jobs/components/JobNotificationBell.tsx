@@ -223,7 +223,7 @@ export function JobNotificationBell() {
                                   <FileText className="w-4 h-4 text-red-600" />
                                   <span className="text-sm font-medium text-red-700">Import Results</span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                                   <div className="flex items-center gap-1">
                                     <span className="text-gray-600">Total:</span>
                                     <span className="font-medium">{importResults.total}</span>

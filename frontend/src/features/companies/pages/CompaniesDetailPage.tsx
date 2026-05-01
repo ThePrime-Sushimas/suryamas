@@ -48,7 +48,7 @@ function CompanyDetailPage() {
             <div className="p-6 animate-pulse space-y-4">
               <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-1/3" />
               <div className="h-10 bg-gray-100 dark:bg-gray-700 rounded" />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i}>
                     <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/3 mb-2" />

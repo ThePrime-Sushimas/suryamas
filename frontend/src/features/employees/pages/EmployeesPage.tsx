@@ -400,7 +400,7 @@ export default function EmployeesPage() {
 
         {/* Filter Panel */}
         {showFilter && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
             <select value={query.branch} onChange={e => handleFilterChange('branch', e.target.value)} className={selectCls}>
               <option value="">All Branches</option>
               {filterOptions?.branches.map(b => <option key={b.id} value={b.branch_name}>{b.branch_name}</option>)}

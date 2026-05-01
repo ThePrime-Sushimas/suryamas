@@ -116,7 +116,7 @@ export const AnalysisModal = ({ result, onConfirm, onCancel, isLoading }: Analys
 
           {/* Financial Impact - Show if backend provides data */}
           {(totalAmount > 0 || totalTax > 0) && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Total Amount</p>
                 <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{formatCurrency(totalAmount)}</p>
@@ -184,7 +184,7 @@ export const AnalysisModal = ({ result, onConfirm, onCancel, isLoading }: Analys
 
           {/* Audit Trail Info */}
           <div className="text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-700 pt-3">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
                 <span className="font-medium">File:</span> {importData.file_name}
               </div>
