@@ -53,7 +53,7 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
 }) => {
   // Stores
   const { filter, fetchTransactions, fetchSummary, generateJournalWithJob, isMutating } = usePosAggregatesStore()
-  const { branches, fetchBranches } = useBranchesStore()
+  const { branches, fetchPage: fetchBranches } = useBranchesStore()
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
 
   // Modal state

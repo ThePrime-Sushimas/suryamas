@@ -80,7 +80,7 @@ type PosAggregatesFormProps =
  */
 export function PosAggregatesForm(props: PosAggregatesFormProps) {
   const { mode, transaction, onSubmit, onCancel, isLoading = false } = props
-  const { branches, fetchBranches, loading: loadingBranches } = useBranchesStore()
+  const { branches, fetchPage: fetchBranches, loading: loadingBranches } = useBranchesStore()
 // Removed showErrors state - Zod handles validation display automatically
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
 

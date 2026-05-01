@@ -108,7 +108,7 @@ function PosTransactionsContent() {
   const { hasPermission, isLoaded } = usePermission('pos_imports', 'view')
   
   const currentBranch = useBranchContextStore(s => s.currentBranch)
-  const { branches, fetchBranches } = useBranchesStore()
+  const { branches, fetchPage: fetchBranches } = useBranchesStore()
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
   const { fetchRecentJobs } = useJobsStore()
   const toast = useToast()

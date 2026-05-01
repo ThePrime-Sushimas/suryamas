@@ -26,7 +26,7 @@ const RECONCILED_OPTIONS: { value: string; label: string }[] = [
 export const PosSyncAggregatesFilters: React.FC = () => {
   const { filter, setFilter, clearFilter, fetchTransactions } =
     usePosSyncAggregatesStore();
-  const { branches, fetchBranches } = useBranchesStore();
+  const { branches, fetchPage: fetchBranches } = useBranchesStore();
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore();
 
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(

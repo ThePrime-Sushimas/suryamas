@@ -49,7 +49,7 @@ const JOURNAL_OPTIONS: { value: string; label: string }[] = [
  */
 export const PosAggregatesFilters: React.FC = () => {
   const { filter, setFilter, clearFilter, fetchTransactions, fetchSummary } = usePosAggregatesStore()
-  const { branches, fetchBranches } = useBranchesStore()
+  const { branches, fetchPage: fetchBranches } = useBranchesStore()
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
   
   // Local state for multi-select dropdowns

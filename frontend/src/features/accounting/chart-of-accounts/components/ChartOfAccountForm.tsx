@@ -27,7 +27,7 @@ export const ChartOfAccountForm = ({
   lockedAccountType
 }: ChartOfAccountFormProps) => {
   const currentBranch = useBranchContext()
-  const { branches, fetchBranches } = useBranchesStore()
+  const { branches, fetchPage: fetchBranches } = useBranchesStore()
   const toast = useToast()
   const initialFormData = useMemo(() => {
     return {
