@@ -25,5 +25,4 @@ export * from './constants/supplier-product.constants'
 
 // Utils
 export { formatPrice, formatLeadTime, formatDate } from './utils/format'
-export { parseSupplierProductError, getFieldError, isIgnorableError } from './utils/errorParser'
 

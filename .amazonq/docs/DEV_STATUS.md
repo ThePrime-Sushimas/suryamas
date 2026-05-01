@@ -110,22 +110,22 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 
 | Module | `await` handleError | No `as any`/`as unknown` | `error: unknown` | `context` param | Express augmentation |
 |--------|:---:|:---:|:---:|:---:|:---:|
-| branches | ✅ | ✅ | ✅ | ✅ | ✅ |
-| categories | ✅ | ✅ | ✅ | ✅ | ✅ |
+| branches | ✅ | ❌ `AuthenticatedRequest`/`getParamString` | ✅ | ✅ | ❌ legacy types |
+| categories | ✅ | ❌ `withValidated`/`AuthRequest` | ✅ | ✅ | ❌ legacy types |
 | suppliers | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
 | banks | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
 | metric-units | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
-| employees | ✅ | ✅ | ✅ | ✅ | ✅ |
-| employee_branches | ✅ | ✅ | ✅ | ✅ | ✅ |
+| employees | ✅ | ❌ `getParamString` | ✅ | ✅ | ❌ legacy import |
+| employee_branches | ✅ | ❌ `getParamString` | ✅ | ✅ | ❌ legacy import |
 | auth | ✅ | ✅ | ✅ | ✅ | ✅ |
 | bank-accounts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-counts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-flow | ✅ | ✅ | ✅ | ✅ | ✅ |
-| companies | ✅ | ✅ | ✅ | ✅ | ✅ |
+| companies | ✅ | ❌ `getParamString` | ✅ | ✅ | ❌ legacy import |
 | expense-categorization | ✅ | ✅ | ✅ | ✅ | ✅ |
 | payment-methods | ✅ | ✅ | ✅ | ✅ | ✅ |
 | payment-terms | ✅ | ✅ | ✅ | ✅ | ✅ |
-| permissions | ❌ | ✅ | ✅ | ❌ | ❌ |
+| permissions | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pos-sync | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pricelists | ✅ | ✅ | ✅ | ✅ | ✅ |
 | product-uoms | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -153,7 +153,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | employee_branches | ✅ | ✅ removed |
 | payment-methods | ✅ | ✅ removed |
 | payment-terms | ✅ | ✅ removed |
-| permissions | ❌ | inline |
+| permissions | ✅ | ✅ removed |
 | pricelists | ✅ | ✅ removed |
 | product-uoms | ✅ | ✅ removed |
 | products | ✅ | ✅ removed |
@@ -166,15 +166,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | monitoring | ✅ | ✅ removed |
 | jobs | ✅ | ✅ removed |
 
-### Modules Fully Compliant (all conventions)
-- ✅ `branches` (backend + frontend)
-- ✅ `categories` (backend + frontend)
-- ✅ `employees` (backend + frontend)
-- ✅ `employee_branches` (backend + frontend)
-- ✅ `companies` (backend + frontend)
-- ✅ `products` (backend + frontend)
-- ✅ `sub-categories` (backend + frontend)
-- ✅ `supplier-products` (backend + frontend)
+### Modules Fully Compliant (all conventions — rewritten in current session)
 - ✅ `bank-accounts` (backend + frontend)
 - ✅ `payment-methods` (backend + frontend)
 - ✅ `payment-terms` (backend + frontend)
@@ -188,13 +180,40 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `expense-categorization` (backend + frontend)
 - ✅ `jobs` (backend + frontend)
 - ✅ `monitoring` (backend + frontend)
-
-### Modules Partially Compliant (reviewed, some fixes applied)
-- ✅ `suppliers` (backend + frontend)
-- ✅ `banks` (backend + frontend)
-- ✅ `metric-units` (backend + frontend)
-
 - ✅ `pos-sync` (backend + frontend)
+- ✅ `sub-categories` (backend + frontend)
+- ✅ `supplier-products` (backend + frontend)
+- ✅ `products` (backend + frontend)
+
+### Modules Partially Compliant (prior session — BE handleError/error:unknown OK, but legacy imports remain)
+BE controller sudah `await handleError` + `error: unknown` + `context`, tapi masih pakai `withValidated`/`getParamString`/`AuthRequest`/`AuthenticatedRequest`. FE store sudah `parseApiError`.
+- 🟡 `branches` — BE: `getParamString`, `AuthenticatedRequest`, `AuthenticatedQueryRequest`, `req.user!.id`. Routes: legacy casts
+- 🟡 `categories` — BE: `withValidated`, `getParamString`, `AuthRequest`. Routes: legacy casts
+- 🟡 `employees` — BE: `getParamString`
+- 🟡 `companies` — BE: `getParamString`
+- 🟡 `employee_branches` — BE: `getParamString`
+- 🟡 `suppliers` — BE: `withValidated`, `req as unknown as Request` in handleError
+- 🟡 `banks` — BE: `withValidated`, `req as unknown as Request` in handleError
+- 🟡 `metric-units` — BE: `getParamString`, `AuthenticatedRequest`. Routes: legacy casts
+
+### Modules Not Yet Reviewed (out of scope)
+- ⬜ `accounting/chart-of-accounts`
+- ⬜ `accounting/accounting-purposes`
+- ⬜ `accounting/accounting-purpose-accounts`
+- ⬜ `accounting/fiscal-periods`
+- ⬜ `accounting/journals/journal-headers`
+- ⬜ `accounting/journals/journal-lines`
+- ⬜ `accounting/trial-balance`
+- ⬜ `accounting/income-statement`
+- ⬜ `accounting/balance-sheet`
+- ⬜ `reconciliation/bank-statement-import`
+- ⬜ `reconciliation/bank-reconciliation`
+- ⬜ `reconciliation/bank-settlement-group`
+- ⬜ `reconciliation/fee-reconciliation`
+- ⬜ `pos-imports/pos-imports`
+- ⬜ `pos-imports/pos-aggregates`
+- ⬜ `pos-imports/pos-transactions`
+- ⬜ `pos-sync-aggregates`
 
 ---
 trigger: always_on
