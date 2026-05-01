@@ -134,7 +134,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | supplier-products | ✅ | ✅ | ✅ | ✅ | ✅ |
 | users | ✅ | ✅ | ✅ | ✅ | ✅ |
 | jobs | ✅ | ✅ | ✅ | ✅ | ✅ |
-| monitoring | ➖ | ✅ | ❌ | ➖ | ❌ |
+| monitoring | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ### Frontend Store Compliance (`parseApiError`)
 
@@ -163,7 +163,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | pos-imports | ❌ | inline |
 | pos-sync-aggregates | ❌ | inline |
 | auth | ✅ | ✅ removed |
-| monitoring | ❌ | inline |
+| monitoring | ✅ | ✅ removed |
 | jobs | ✅ | ✅ removed |
 
 ### Modules Fully Compliant (all conventions)
@@ -187,6 +187,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `auth` (backend + frontend)
 - ✅ `expense-categorization` (backend + frontend)
 - ✅ `jobs` (backend + frontend)
+- ✅ `monitoring` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -195,7 +196,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 
 ### Modules Not Yet Reviewed
 - ⬜ `pos-sync`
-- ⬜ `monitoring`
 
 ---
 trigger: always_on

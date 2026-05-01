@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { monitoringApi } from "../api/monitoring.api";
+import { parseApiError } from '@/lib/errorParser'
 import type {
   ErrorLogRecord,
   AuditLogRecord,
@@ -80,9 +81,9 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
         hasNext: res.pagination.hasNext ?? false,
         hasPrev: res.pagination.hasPrev ?? false,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
-        error: error?.response?.data?.message || "Failed to fetch error logs",
+        error: parseApiError(error, 'Gagal memuat log error'),
         loading: false,
       });
     }
@@ -102,9 +103,9 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
         hasNext: res.pagination.hasNext ?? false,
         hasPrev: res.pagination.hasPrev ?? false,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
-        error: error?.response?.data?.message || "Failed to fetch audit logs",
+        error: parseApiError(error, 'Gagal memuat log audit'),
         loading: false,
       });
     }
@@ -114,7 +115,7 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
     try {
       const stats = await monitoringApi.getErrorStats();
       set({ stats });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Failed to fetch monitoring stats:", error);
     }
   },
@@ -125,10 +126,10 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
       await monitoringApi.bulkActionErrors(ids, action);
       const { page, limit } = get();
       await get().fetchErrorLogs(page, limit);
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
         error:
-          error?.response?.data?.message || "Failed to process bulk action",
+          parseApiError(error, 'Gagal memproses aksi massal'),
         loading: false,
       });
     }
@@ -140,10 +141,10 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
       await monitoringApi.bulkActionAudit(ids, action);
       const { page, limit } = get();
       await get().fetchAuditLogs(page, limit);
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
         error:
-          error?.response?.data?.message || "Failed to process bulk action",
+          parseApiError(error, 'Gagal memproses aksi massal'),
         loading: false,
       });
     }
