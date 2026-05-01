@@ -353,12 +353,12 @@ Approach yang direkomendasikan:
 | 7 | ~~`companies.controller.ts`~~ | ~~`companies.routes.ts`~~ | 4 | ✅ Done |
 | 8 | ~~`employee_branches.controller.ts`~~ | ~~`employee_branches.routes.ts`~~ | 3 | ✅ Done |
 | 9 | `employees.controller.ts` | `employees.routes.ts` | 7 | `ValidatedAuthRequest` signature |
-| 10 | `products.controller.ts` | `products.routes.ts` | 8 | `ValidatedAuthRequest` signature |
+| 10 | ~~`products.controller.ts`~~ | ~~`products.routes.ts`~~ | 8 | ✅ Done |
 | 11 | `bank-reconciliation.controller.ts` | `bank-reconciliation.routes.ts` | 6 | `ValidatedAuthRequest` signature, `(req.validated as any)` (3x) |
-| 12 | `bank-settlement-group.controller.ts` | `bank-settlement-group.routes.ts` | 7 | `ValidatedAuthRequest` signature |
+| 12 | ~~`bank-settlement-group.controller.ts`~~ | ~~`bank-settlement-group.routes.ts`~~ | 7 | ✅ Done |
 | 13 | `bank-statement-import.controller.ts` | `bank-statement-import.routes.ts` | 1 | `ValidatedAuthRequest` signature, `(req as any).validated` (2x) |
 | 14 | `sub-categories.controller.ts` | `sub-categories.routes.ts` | 7 | `ValidatedAuthRequest` signature |
-| 15 | `supplier-products.controller.ts` | `supplier-products.routes.ts` | 9 | `ValidatedAuthRequest` signature |
+| 15 | ~~`supplier-products.controller.ts`~~ | ~~`supplier-products.routes.ts`~~ | 9 | ✅ Done |
 
 **Rewrite pattern per controller:**
 1. Method signature: `req: ValidatedAuthRequest<typeof schema>` → `req: Request`

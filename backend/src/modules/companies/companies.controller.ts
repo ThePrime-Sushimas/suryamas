@@ -33,9 +33,10 @@ export class CompaniesController {
     }
   }
 
-  async create(req: ValidatedAuthRequest<typeof createCompanySchema>, res: Response) {
+  async create(req: Request, res: Response) {
     try {
-      const company = await companiesService.create(req.validated.body, req.user!.id)
+      const { body } = (req as ValidatedAuthRequest<typeof createCompanySchema>).validated
+      const company = await companiesService.create(body, req.user!.id)
       logInfo('Company created', { company_id: company.id, company_code: company.company_code, user: req.user!.id })
       sendSuccess(res, company, 'Company created', 201)
     } catch (error: unknown) {
@@ -53,14 +54,14 @@ export class CompaniesController {
     }
   }
 
-  async update(req: ValidatedAuthRequest<typeof updateCompanySchema>, res: Response) {
+  async update(req: Request, res: Response) {
     try {
-      const { body, params } = req.validated
+      const { body, params } = (req as ValidatedAuthRequest<typeof updateCompanySchema>).validated
       const company = await companiesService.update(params.id, body, req.user!.id)
       logInfo('Company updated', { company_id: params.id, user: req.user!.id })
       sendSuccess(res, company, 'Company updated')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'update', id: req.validated.params.id })
+      await handleError(res, error, req, { action: 'update' })
     }
   }
 
@@ -221,20 +222,20 @@ export class CompaniesController {
     }
   }
 
-  async bulkUpdateStatus(req: ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res: Response) {
+  async bulkUpdateStatus(req: Request, res: Response) {
     try {
-      const { ids, status } = req.validated.body
-      await companiesService.bulkUpdateStatus(ids, status, req.user!.id)
+      const { body } = (req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>).validated
+      await companiesService.bulkUpdateStatus(body.ids, body.status, req.user!.id)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulkUpdateStatus' })
     }
   }
 
-  async bulkDelete(req: ValidatedAuthRequest<typeof bulkDeleteSchema>, res: Response) {
+  async bulkDelete(req: Request, res: Response) {
     try {
-      const { ids } = req.validated.body
-      await companiesService.bulkDelete(ids, req.user!.id)
+      const { body } = (req as ValidatedAuthRequest<typeof bulkDeleteSchema>).validated
+      await companiesService.bulkDelete(body.ids, req.user!.id)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulkDelete' })

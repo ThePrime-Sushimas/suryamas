@@ -5,7 +5,7 @@ import { resolveBranchContext } from '../../middleware/branch-context.middleware
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { queryMiddleware } from '../../middleware/query.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
-import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { createCompanySchema, updateCompanySchema, companyIdSchema, bulkUpdateStatusSchema, bulkDeleteSchema } from './companies.schema'
 import rateLimit from 'express-rate-limit'
@@ -47,19 +47,19 @@ router.post('/import', canInsert('companies'), exportLimiter, (req, res) => comp
 
 // BULK OPERATIONS
 router.post('/bulk/status', canUpdate('companies'), validateSchema(bulkUpdateStatusSchema), (req, res) =>
-  companiesController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res))
+  companiesController.bulkUpdateStatus(req, res))
 
 router.post('/bulk/delete', canDelete('companies'), validateSchema(bulkDeleteSchema), (req, res) =>
-  companiesController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
+  companiesController.bulkDelete(req, res))
 
 // COMPANY CRUD
 router.post('/', canInsert('companies'), validateSchema(createCompanySchema), (req, res) =>
-  companiesController.create(req as ValidatedAuthRequest<typeof createCompanySchema>, res))
+  companiesController.create(req, res))
 
 router.get('/:id', canView('companies'), validateSchema(companyIdSchema), (req, res) => companiesController.getById(req, res))
 
 router.put('/:id', canUpdate('companies'), validateSchema(updateCompanySchema), (req, res) =>
-  companiesController.update(req as ValidatedAuthRequest<typeof updateCompanySchema>, res))
+  companiesController.update(req, res))
 
 router.delete('/:id', canDelete('companies'), validateSchema(companyIdSchema), (req, res) => companiesController.delete(req, res))
 

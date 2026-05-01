@@ -1,20 +1,8 @@
-/**
- * Settlement Group Controller
- * API endpoints for bulk settlement reconciliation
- */
-
-import { Response } from "express";
-import { handleError } from "../../../utils/error-handler.util";
-import {
-  settlementGroupService,
-  SettlementGroupService,
-} from "./bank-settlement-group.service";
+import { Request, Response } from 'express'
+import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import { handleError } from '../../../utils/error-handler.util'
+import { settlementGroupService, SettlementGroupService } from './bank-settlement-group.service'
 import type {
-  AuthenticatedRequest,
-  AuthenticatedQueryRequest,
-} from "../../../types/request.types";
-import { ValidatedAuthRequest } from "../../../middleware/validation.middleware";
-import {
   createSettlementGroupSchema,
   getSettlementGroupByIdSchema,
   getSettlementGroupListSchema,
@@ -22,260 +10,143 @@ import {
   getSettlementGroupAggregatesSchema,
   getAvailableAggregatesSchema,
   getSuggestionsSchema,
-  getDeletedSettlementGroupsSchema,
-  restoreSettlementGroupSchema,
-  CreateSettlementGroupInput,
-  GetSettlementGroupListInput,
-  UndoSettlementGroupInput,
-  GetSettlementGroupByIdInput,
-  GetSettlementGroupAggregatesInput,
-  GetAvailableAggregatesInput,
-  GetSuggestionsInput,
-  GetDeletedSettlementGroupsInput,
-  RestoreSettlementGroupInput,
-} from "./bank-settlement-group.schema";
-import {
-  SettlementGroupNotFoundError,
-  DuplicateAggregateError,
-  AggregateAlreadyReconciledError,
-  StatementAlreadyReconciledError,
-  DifferenceThresholdExceededError,
-  SettlementAlreadyConfirmedError,
-} from "./bank-settlement-group.errors";
-import { logError, logInfo } from "../../../config/logger";
+} from './bank-settlement-group.schema'
+import { logInfo } from '../../../config/logger'
 
-/**
- * Settlement Group Controller
- * API endpoints for bulk settlement reconciliation
- */
 export class SettlementGroupController {
   constructor(private readonly service: SettlementGroupService) {}
 
-  /**
-   * Create a new settlement group (BULK SETTLEMENT)
-   * POST /api/v1/settlement-group/create
-   *
-   * @param req Validated request with settlement group data
-   * @param res Express response object
-   * @returns Promise<void>
-   */
-  async create(
-    req: ValidatedAuthRequest<typeof createSettlementGroupSchema>,
-    res: Response,
-  ): Promise<void> {
+  async create(req: Request, res: Response): Promise<void> {
     try {
-      const { bankStatementId, aggregateIds, notes, overrideDifference } =
-        req.validated.body;
-      const userId = req.user?.id as string | undefined;
-      const companyId = req.context?.company_id as string | undefined;
+      const { body } = (req as ValidatedAuthRequest<typeof createSettlementGroupSchema>).validated
+      const userId = req.user?.id
+      const companyId = req.context?.company_id
 
       const result = await this.service.createSettlementGroup({
-        companyId: companyId || "",
-        bankStatementId,
-        aggregateIds,
-        notes,
-        overrideDifference,
+        companyId: companyId || '',
+        bankStatementId: body.bankStatementId,
+        aggregateIds: body.aggregateIds,
+        notes: body.notes,
+        overrideDifference: body.overrideDifference,
         userId,
-      });
+      })
 
-      logInfo("Settlement group created", { groupId: result.groupId });
+      logInfo('Settlement group created', { groupId: result.groupId })
 
       res.status(201).json({
         success: true,
         data: result,
-        message: "Settlement group berhasil dibuat",
-      });
+        message: 'Settlement group berhasil dibuat',
+      })
     } catch (error: unknown) {
-      return await handleError(res, error, req, { 
-        bankStatementId: req.validated?.body?.bankStatementId, 
-        aggregateIds: req.validated?.body?.aggregateIds 
-      });
+      await handleError(res, error, req, { action: 'create_settlement_group' })
     }
   }
 
-  /**
-   * Get settlement group by ID
-   * GET /api/v1/settlement-group/:id
-   *
-   * @param req Validated request with settlement group ID
-   * @param res Express response object
-   * @returns Promise<void>
-   */
-  async getById(
-    req: ValidatedAuthRequest<typeof getSettlementGroupByIdSchema>,
-    res: Response,
-  ): Promise<void> {
+  async getById(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.validated.params;
+      const { params } = (req as ValidatedAuthRequest<typeof getSettlementGroupByIdSchema>).validated
+      const result = await this.service.getSettlementGroup(params.id)
 
-      const result = await this.service.getSettlementGroup(id);
-
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
+      res.status(200).json({ success: true, data: result })
     } catch (error: unknown) {
-      return await handleError(res, error, req, { id: req.validated.params.id });
+      await handleError(res, error, req, { action: 'get_settlement_group' })
     }
   }
 
-  /**
-   * List settlement groups with filters
-   * GET /api/v1/settlement-group/list
-   *
-   * @param req Validated request with query parameters
-   * @param res Express response object
-   * @returns Promise<void>
-   */
-  async getList(
-    req: ValidatedAuthRequest<typeof getSettlementGroupListSchema>,
-    res: Response,
-  ): Promise<void> {
+  async getList(req: Request, res: Response): Promise<void> {
     try {
-      const { startDate, endDate, status, search, limit, offset } =
-        req.validated.query;
+      const { query } = (req as ValidatedAuthRequest<typeof getSettlementGroupListSchema>).validated
 
       const result = await this.service.listSettlementGroups({
-        startDate,
-        endDate,
-        status: status as unknown as import('./bank-settlement-group.types').SettlementGroupStatus,
-        search,
-        limit,
-        offset,
-      });
+        startDate: query.startDate,
+        endDate: query.endDate,
+        status: query.status as unknown as import('./bank-settlement-group.types').SettlementGroupStatus,
+        search: query.search,
+        limit: query.limit,
+        offset: query.offset,
+      })
 
       res.status(200).json({
         success: true,
         data: result.data,
         total: result.total,
-      });
+      })
     } catch (error: unknown) {
-      return await handleError(res, error, req, { query: req.validated.query });
+      await handleError(res, error, req, { action: 'list_settlement_groups' })
     }
   }
 
-  /**
-   * Delete a settlement group (HARD DELETE)
-   * DELETE /api/v1/settlement-group/:id/delete
-   *
-   * @param req Validated request with settlement group ID
-   * @param res Express response object
-   * @returns Promise<void>
-   */
-  async delete(
-    req: ValidatedAuthRequest<typeof undoSettlementGroupSchema>,
-    res: Response,
-  ): Promise<void> {
+  async delete(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.validated.params;
-      const userId = req.user?.id as string | undefined;
+      const { params } = (req as ValidatedAuthRequest<typeof undoSettlementGroupSchema>).validated
+      const userId = req.user?.id
 
-      await this.service.deleteSettlementGroup(id, userId);
-
-      logInfo("Settlement group deleted", { groupId: id });
+      await this.service.deleteSettlementGroup(params.id, userId)
+      logInfo('Settlement group deleted', { groupId: params.id })
 
       res.status(200).json({
         success: true,
-        message: "Settlement group berhasil dihapus",
-      });
+        message: 'Settlement group berhasil dihapus',
+      })
     } catch (error: unknown) {
-      return await handleError(res, error, req, { id: req.validated.params.id });
+      await handleError(res, error, req, { action: 'delete_settlement_group' })
     }
   }
 
-  /**
-   * Get available aggregates for settlement
-   * GET /api/v1/settlement-group/aggregates/available
-   *
-   * @param req Validated request with query parameters
-   * @param res Express response object
-   * @returns Promise<void>
-   */
-  async getAvailableAggregates(
-    req: ValidatedAuthRequest<typeof getAvailableAggregatesSchema>,
-    res: Response,
-  ): Promise<void> {
+  async getAvailableAggregates(req: Request, res: Response): Promise<void> {
     try {
-      const { startDate, endDate, bankAccountId, search, limit, offset } =
-        req.validated.query;
+      const { query } = (req as ValidatedAuthRequest<typeof getAvailableAggregatesSchema>).validated
 
       const result = await this.service.getAvailableAggregates({
-        startDate,
-        endDate,
-        bankAccountId,
-        search,
-        limit,
-        offset,
-      });
+        startDate: query.startDate,
+        endDate: query.endDate,
+        bankAccountId: query.bankAccountId,
+        search: query.search,
+        limit: query.limit,
+        offset: query.offset,
+      })
 
       res.status(200).json({
         success: true,
         data: result.data,
         pagination: {
           total: result.total,
-          page: Math.floor((offset || 0) / (limit || 100)) + 1,
-          pageSize: limit || 100,
-          totalPages: Math.ceil(result.total / (limit || 100)),
+          page: Math.floor((query.offset || 0) / (query.limit || 100)) + 1,
+          pageSize: query.limit || 100,
+          totalPages: Math.ceil(result.total / (query.limit || 100)),
         },
-      });
+      })
     } catch (error: unknown) {
-      return await handleError(res, error, req, { query: req.validated.query });
+      await handleError(res, error, req, { action: 'get_available_aggregates' })
     }
   }
 
-  /**
-   * Get aggregates for a specific settlement group
-   * GET /api/v1/settlement-group/:id/aggregates
-   *
-   * @param req Validated request with settlement group ID
-   * @param res Express response object
-   * @returns Promise<void>
-   */
-  async getSettlementAggregates(
-    req: ValidatedAuthRequest<typeof getSettlementGroupAggregatesSchema>,
-    res: Response,
-  ): Promise<void> {
+  async getSettlementAggregates(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.validated.params;
+      const { params } = (req as ValidatedAuthRequest<typeof getSettlementGroupAggregatesSchema>).validated
+      const result = await this.service.getSettlementAggregates(params.id)
 
-      const result = await this.service.getSettlementAggregates(id);
-
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
+      res.status(200).json({ success: true, data: result })
     } catch (error: unknown) {
-      return await handleError(res, error, req, { id: req.validated.params.id });
+      await handleError(res, error, req, { action: 'get_settlement_aggregates' })
     }
   }
 
-  /**
-   * Get suggested aggregates for a target amount
-   * GET /api/v1/settlement-group/suggestions
-   */
-  async getSuggestedAggregates(
-    req: ValidatedAuthRequest<typeof getSuggestionsSchema>,
-    res: Response,
-  ): Promise<void> {
+  async getSuggestedAggregates(req: Request, res: Response): Promise<void> {
     try {
-      const { targetAmount, tolerancePercent, dateToleranceDays, maxResults } =
-        req.validated.query;
+      const { query } = (req as ValidatedAuthRequest<typeof getSuggestionsSchema>).validated
 
-      const result = await this.service.getSuggestedAggregates(targetAmount, {
-        tolerancePercent,
-        maxAggregates: maxResults,
-      });
+      const result = await this.service.getSuggestedAggregates(query.targetAmount, {
+        tolerancePercent: query.tolerancePercent,
+        maxAggregates: query.maxResults,
+      })
 
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
+      res.status(200).json({ success: true, data: result })
     } catch (error: unknown) {
-      return await handleError(res, error, req, { query: req.validated.query });
+      await handleError(res, error, req, { action: 'get_suggested_aggregates' })
     }
   }
 }
 
-export const settlementGroupController = new SettlementGroupController(
-  settlementGroupService,
-);
+export const settlementGroupController = new SettlementGroupController(settlementGroupService)

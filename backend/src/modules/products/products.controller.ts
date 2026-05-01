@@ -44,20 +44,20 @@ export class ProductsController {
     }
   }
 
-  findById = async (req: ValidatedAuthRequest<typeof productIdSchema>, res: Response): Promise<void> => {
+  findById = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { params } = req.validated
+      const { params } = (req as ValidatedAuthRequest<typeof productIdSchema>).validated
       const includeDeleted = req.query.includeDeleted === 'true'
       const product = await productsService.findById(params.id, includeDeleted)
       sendSuccess(res, product, 'Product retrieved successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'findById', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'findById' })
     }
   }
 
-  create = async (req: ValidatedAuthRequest<typeof createProductSchema>, res: Response): Promise<void> => {
+  create = async (req: Request, res: Response): Promise<void> => {
     try {
-      const body = req.validated.body
+      const { body } = (req as ValidatedAuthRequest<typeof createProductSchema>).validated
       const product = await productsService.create({
         ...body,
         product_type: body.product_type as ProductType | undefined,
@@ -70,9 +70,9 @@ export class ProductsController {
     }
   }
 
-  update = async (req: ValidatedAuthRequest<typeof updateProductSchema>, res: Response): Promise<void> => {
+  update = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { params, body } = req.validated
+      const { params, body } = (req as ValidatedAuthRequest<typeof updateProductSchema>).validated
       const product = await productsService.update(params.id, {
         ...body,
         product_type: body.product_type as ProductType | undefined,
@@ -81,7 +81,7 @@ export class ProductsController {
       logInfo('Product updated via API', { productId: params.id, userId: req.user?.id })
       sendSuccess(res, product, 'Product updated successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'update', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'update' })
     }
   }
 
@@ -95,20 +95,20 @@ export class ProductsController {
     }
   }
 
-  bulkDelete = async (req: ValidatedAuthRequest<typeof bulkDeleteSchema>, res: Response): Promise<void> => {
+  bulkDelete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { ids } = req.validated.body
-      await productsService.bulkDelete(ids, req.user?.id)
+      const { body } = (req as ValidatedAuthRequest<typeof bulkDeleteSchema>).validated
+      await productsService.bulkDelete(body.ids, req.user?.id)
       sendSuccess(res, null, 'Products deleted successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulkDelete' })
     }
   }
 
-  bulkUpdateStatus = async (req: ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res: Response): Promise<void> => {
+  bulkUpdateStatus = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { ids, status } = req.validated.body
-      await productsService.bulkUpdateStatus(ids, status as ProductStatus, req.user?.id)
+      const { body } = (req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>).validated
+      await productsService.bulkUpdateStatus(body.ids, body.status as ProductStatus, req.user?.id)
       sendSuccess(res, null, 'Status updated successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulkUpdateStatus' })
@@ -133,30 +133,30 @@ export class ProductsController {
     }
   }
 
-  checkProductName = async (req: ValidatedAuthRequest<typeof checkProductNameSchema>, res: Response): Promise<void> => {
+  checkProductName = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { product_name, excludeId } = req.validated.query
-      const exists = await productsService.checkProductNameExists(product_name, excludeId)
+      const { query } = (req as ValidatedAuthRequest<typeof checkProductNameSchema>).validated
+      const exists = await productsService.checkProductNameExists(query.product_name, query.excludeId)
       sendSuccess(res, { exists }, 'Check completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'checkProductName' })
     }
   }
 
-  restore = async (req: ValidatedAuthRequest<typeof productIdSchema>, res: Response): Promise<void> => {
+  restore = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { params } = req.validated
+      const { params } = (req as ValidatedAuthRequest<typeof productIdSchema>).validated
       const product = await productsService.restore(params.id, req.user?.id)
       sendSuccess(res, product, 'Product restored successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'restore', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'restore' })
     }
   }
 
-  bulkRestore = async (req: ValidatedAuthRequest<typeof bulkRestoreSchema>, res: Response): Promise<void> => {
+  bulkRestore = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { ids } = req.validated.body
-      await productsService.bulkRestore(ids, req.user?.id)
+      const { body } = (req as ValidatedAuthRequest<typeof bulkRestoreSchema>).validated
+      await productsService.bulkRestore(body.ids, req.user?.id)
       sendSuccess(res, null, 'Products restored successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulkRestore' })

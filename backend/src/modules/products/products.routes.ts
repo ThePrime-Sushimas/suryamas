@@ -3,7 +3,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { queryMiddleware } from '../../middleware/query.middleware'
-import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { productsController } from './products.controller'
 import productUomsRoutes from '../product-uoms/product-uoms.routes'
 import { PermissionService } from '../../services/permission.service'
@@ -45,32 +45,32 @@ router.get('/search', canView('products'), queryMiddleware({
 router.get('/filter-options', canView('products'), (req, res) => productsController.getFilterOptions(req, res))
 router.get('/minimal/active', authenticate, canView('products'), (req, res) => productsController.minimalActive(req, res))
 router.get('/check/name', canView('products'), validateSchema(checkProductNameSchema), (req, res) =>
-  productsController.checkProductName(req as ValidatedAuthRequest<typeof checkProductNameSchema>, res))
+  productsController.checkProductName(req, res))
 
 // CRUD
 router.get('/:id', canView('products'), validateSchema(productIdSchema), (req, res) =>
-  productsController.findById(req as ValidatedAuthRequest<typeof productIdSchema>, res))
+  productsController.findById(req, res))
 
 router.post('/', canInsert('products'), validateSchema(createProductSchema), (req, res) =>
-  productsController.create(req as ValidatedAuthRequest<typeof createProductSchema>, res))
+  productsController.create(req, res))
 
 router.put('/:id', canUpdate('products'), validateSchema(updateProductSchema), (req, res) =>
-  productsController.update(req as ValidatedAuthRequest<typeof updateProductSchema>, res))
+  productsController.update(req, res))
 
 router.delete('/:id', canDelete('products'), validateSchema(productIdSchema), (req, res) => productsController.delete(req, res))
 
 // BULK
 router.post('/bulk/delete', canDelete('products'), validateSchema(bulkDeleteSchema), (req, res) =>
-  productsController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
+  productsController.bulkDelete(req, res))
 
 router.post('/bulk/update-status', canUpdate('products'), validateSchema(bulkUpdateStatusSchema), (req, res) =>
-  productsController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res))
+  productsController.bulkUpdateStatus(req, res))
 
 router.post('/bulk/restore', canUpdate('products'), validateSchema(bulkRestoreSchema), (req, res) =>
-  productsController.bulkRestore(req as ValidatedAuthRequest<typeof bulkRestoreSchema>, res))
+  productsController.bulkRestore(req, res))
 
 router.post('/:id/restore', canUpdate('products'), validateSchema(productIdSchema), (req, res) =>
-  productsController.restore(req as ValidatedAuthRequest<typeof productIdSchema>, res))
+  productsController.restore(req, res))
 
 // NESTED UOM ROUTES
 router.use('/:productId/uoms', productUomsRoutes)
