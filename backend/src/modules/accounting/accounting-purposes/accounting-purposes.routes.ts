@@ -14,7 +14,6 @@ import {
   bulkUpdateStatusSchema, 
   bulkDeleteSchema 
 } from './accounting-purposes.schema'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 import rateLimit from 'express-rate-limit'
 
 // Register module permissions
@@ -40,30 +39,30 @@ router.use(authenticate, resolveBranchContext)
 router.get('/', canView('accounting_purposes'), queryMiddleware({
   allowedSortFields: ['purpose_code', 'purpose_name', 'applied_to', 'is_active', 'created_at', 'updated_at', 'id'],
 }), (req, res) => 
-  accountingPurposesController.list(req as AuthenticatedQueryRequest, res))
+  accountingPurposesController.list(req, res))
 
 router.get('/search', canView('accounting_purposes'), queryMiddleware({
   allowedSortFields: ['purpose_code', 'purpose_name', 'applied_to', 'is_active', 'created_at', 'updated_at', 'id'],
 }), (req, res) => 
-  accountingPurposesController.search(req as AuthenticatedQueryRequest, res))
+  accountingPurposesController.search(req, res))
 
 // Filter options
 router.get('/filter-options', canView('accounting_purposes'), (req, res) => 
-  accountingPurposesController.getFilterOptions(req as AuthenticatedRequest, res))
+  accountingPurposesController.getFilterOptions(req, res))
 
 // Export routes with rate limiting
 router.get('/export/token', canView('accounting_purposes'), exportLimiter, (req, res) => 
-  accountingPurposesController.generateExportToken(req as AuthenticatedRequest, res))
+  accountingPurposesController.generateExportToken(req, res))
 
 router.get('/export', canView('accounting_purposes'), exportLimiter, (req, res) => 
-  accountingPurposesController.exportData(req as AuthenticatedQueryRequest, res))
+  accountingPurposesController.exportData(req, res))
 
 // Import routes
 router.post('/import/preview', canInsert('accounting_purposes'), (req, res) => 
-  accountingPurposesController.previewImport(req as AuthenticatedRequest, res))
+  accountingPurposesController.previewImport(req, res))
 
 router.post('/import', canInsert('accounting_purposes'), (req, res) => 
-  accountingPurposesController.importData(req as AuthenticatedRequest, res))
+  accountingPurposesController.importData(req, res))
 
 // Bulk operations with rate limiting
 router.post('/bulk/status', canUpdate('accounting_purposes'), bulkOperationLimit, validateSchema(bulkUpdateStatusSchema), (req, res) => 
@@ -80,15 +79,15 @@ router.post('/', canInsert('accounting_purposes'), validateSchema(createAccounti
   accountingPurposesController.create(req as ValidatedAuthRequest<typeof createAccountingPurposeSchema>, res))
 
 router.get('/:id', canView('accounting_purposes'), validateSchema(accountingPurposeIdSchema), (req, res) => 
-  accountingPurposesController.getById(req as AuthenticatedRequest, res))
+  accountingPurposesController.getById(req, res))
 
 router.put('/:id', canUpdate('accounting_purposes'), validateSchema(updateAccountingPurposeSchema), (req, res) => 
   accountingPurposesController.update(req as ValidatedAuthRequest<typeof updateAccountingPurposeSchema>, res))
 
 router.delete('/:id', canDelete('accounting_purposes'), validateSchema(accountingPurposeIdSchema), (req, res) => 
-  accountingPurposesController.delete(req as AuthenticatedRequest, res))
+  accountingPurposesController.delete(req, res))
 
 router.post('/:id/restore', canUpdate('accounting_purposes'), validateSchema(accountingPurposeIdSchema), (req, res) => 
-  accountingPurposesController.restore(req as AuthenticatedRequest, res))
+  accountingPurposesController.restore(req, res))
 
 export default router

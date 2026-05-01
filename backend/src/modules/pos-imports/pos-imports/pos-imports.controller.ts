@@ -1,358 +1,173 @@
-/**
- * POS Imports Controller - COMPLETE VERSION
- * All endpoints implemented
- */
-
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { posImportsService } from './pos-imports.service'
 import { posImportLinesRepository } from '../pos-import-lines/pos-import-lines.repository'
 import { sendSuccess, sendError } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
-
-import { getParamString } from '../../../utils/validation.util'
 import { logError, logInfo } from '../../../config/logger'
 import { jobsService } from '../../jobs/jobs.service'
-import type { AuthenticatedRequest, AuthenticatedQueryRequest } from '../../../types/request.types'
+
+function getCompanyId(req: Request): string {
+  const id = req.context?.company_id
+  if (!id) throw new Error('Branch context required')
+  return id
+}
+
+function getUserId(req: Request): string {
+  const id = req.user?.id
+  if (!id) throw new Error('User ID required')
+  return id
+}
+
 class PosImportsController {
-  /**
-   * List POS imports
-   * GET /api/v1/pos-imports
-   */
-  async list(req: AuthenticatedQueryRequest, res: Response) {
+  list = async (req: Request, res: Response) => {
     try {
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
+      const company_id = getCompanyId(req)
       const { pagination, sort, filter } = req.query
-
-      // Provide default pagination if not present
       const paginationParams = pagination || { page: 1, limit: 10 }
-
-      const result = await posImportsService.list(company_id, paginationParams as any, sort as any, filter as any)
+      const result = await posImportsService.list(company_id, paginationParams as unknown as Parameters<typeof posImportsService.list>[1], sort as unknown as Parameters<typeof posImportsService.list>[2], filter as unknown as Parameters<typeof posImportsService.list>[3])
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
       res.set('Pragma', 'no-cache')
-      return sendSuccess(res, result.data, 'POS imports retrieved', 200, {
-        page: (paginationParams as any).page,
-        limit: (paginationParams as any).limit,
-        total: result.total
+      sendSuccess(res, result.data, 'POS imports retrieved', 200, {
+        page: (paginationParams as Record<string, unknown>).page,
+        limit: (paginationParams as Record<string, unknown>).limit,
+        total: result.total,
       })
-    } catch (error) {
-      console.error('PosImportsController list error:', error)
-      logError('PosImportsController list error', { error })
-      return handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_pos_imports', company_id: req.context?.company_id })
     }
   }
 
-  /**
-   * Get POS import by ID
-   * GET /api/v1/pos-imports/:id
-   */
-  async getById(req: AuthenticatedRequest, res: Response) {
+  getById = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-
-      const posImport = await posImportsService.getById(id, company_id)
-
-      return sendSuccess(res, posImport)
-    } catch (error) {
-      logError('PosImportsController getById error', { error })
-      return handleError(res, error, req)
+      const posImport = await posImportsService.getById(req.params.id as string, getCompanyId(req))
+      sendSuccess(res, posImport)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_pos_import', id: req.params.id })
     }
   }
 
-  /**
-   * Get POS import lines with pagination
-   * GET /api/v1/pos-imports/:id/lines
-   */
-  async getLines(req: AuthenticatedQueryRequest, res: Response) {
+  getLines = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-
-      // Verify import exists and belongs to company
+      const company_id = getCompanyId(req)
+      const id = req.params.id as string
       await posImportsService.getById(id, company_id)
-
       const { pagination } = req.query
-      const page = (pagination as any)?.page || 1
-      const limit = (pagination as any)?.limit || 50
-
+      const page = (pagination as Record<string, unknown>)?.page as number || 1
+      const limit = (pagination as Record<string, unknown>)?.limit as number || 50
       const result = await posImportLinesRepository.findByImportId(id, page, limit)
-
-      return sendSuccess(res, result.data, 'Lines retrieved', 200, {
-        page,
-        limit,
-        total: result.total
-      })
-    } catch (error) {
-      logError('PosImportsController getLines error', { error })
-      return handleError(res, error, req)
+      sendSuccess(res, result.data, 'Lines retrieved', 200, { page, limit, total: result.total })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_pos_import_lines', id: req.params.id })
     }
   }
 
-  /**
-   * Export POS import to Excel
-   * GET /api/v1/pos-imports/:id/export
-   */
-  async export(req: AuthenticatedRequest, res: Response) {
+  export = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-
+      const company_id = getCompanyId(req)
+      const id = req.params.id as string
       const buffer = await posImportsService.exportToExcel(id, company_id)
       const posImport = await posImportsService.getById(id, company_id)
-
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
       res.setHeader('Content-Disposition', `attachment; filename="${posImport.file_name.replace(/\.[^/.]+$/, '')}_export.xlsx"`)
-      return res.send(buffer)
-    } catch (error) {
-      logError('PosImportsController export error', { error })
-      return handleError(res, error, req)
+      res.send(buffer)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'export_pos_import', id: req.params.id })
     }
   }
 
-  /**
-   * Get financial summary for import
-   * GET /api/v1/pos-imports/:id/summary
-   */
-  async getSummary(req: AuthenticatedRequest, res: Response) {
+  getSummary = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-
+      const company_id = getCompanyId(req)
+      const id = req.params.id as string
       await posImportsService.getById(id, company_id)
       const summary = await posImportLinesRepository.getSummaryByImportId(id)
-
-      return sendSuccess(res, summary, 'Summary retrieved')
-    } catch (error) {
-      logError('PosImportsController getSummary error', { error })
-      return handleError(res, error, req)
+      sendSuccess(res, summary, 'Summary retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_pos_import_summary', id: req.params.id })
     }
   }
 
-  /**
-   * Upload and analyze POS Excel file
-   * POST /api/v1/pos-imports/upload
-   * SYNCHRONOUS - Returns import record and duplicate analysis
-   * Job is created when user confirms the import
-   */
-  async upload(req: any, res: Response) {
+  upload = async (req: Request, res: Response) => {
     try {
+      const company_id = getCompanyId(req)
+      const userId = getUserId(req)
       const { branch_id } = req.body
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-      const userId = req.user?.id
-      if (!userId) {
-        throw new Error('User ID required')
-      }
-
-      if (!req.file) {
-        return sendError(res, 'No file uploaded', 400)
-      }
-
-      // Validate file type
-      const allowedMimeTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel'
-      ]
-      if (!allowedMimeTypes.includes(req.file.mimetype)) {
-        return sendError(res, 'Invalid file type. Please upload Excel file (.xlsx or .xls)', 400)
-      }
-
+      if (!req.file) { sendError(res, 'No file uploaded', 400); return }
+      const allowedMimeTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
+      if (!allowedMimeTypes.includes(req.file.mimetype)) { sendError(res, 'Invalid file type. Please upload Excel file (.xlsx or .xls)', 400); return }
       const result = await posImportsService.analyzeFile(req.file, branch_id, company_id, userId)
-
-      return sendSuccess(res, {
-        import: result.import,
-        analysis: result.analysis,
-        summary: result.summary
-      }, 'File analyzed successfully. Review duplicates and click Confirm to start import.')
-    } catch (error) {
-      logError('PosImportsController upload error', { error })
-      return handleError(res, error, req)
+      sendSuccess(res, { import: result.import, analysis: result.analysis, summary: result.summary }, 'File analyzed successfully. Review duplicates and click Confirm to start import.')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upload_pos_import' })
     }
   }
 
-  /**
-   * Confirm import after duplicate analysis
-   * POST /api/v1/pos-imports/:id/confirm
-   * Creates a job for async processing via worker
-   */
-  async confirm(req: any, res: Response) {
+  confirm = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
+      const company_id = getCompanyId(req)
+      const userId = getUserId(req)
+      const id = req.params.id as string
       const { skip_duplicates } = req.body
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-      const userId = req.user?.id
-      if (!userId) {
-        throw new Error('User ID required')
-      }
-
       const result = await posImportsService.confirmImport(id, company_id, skip_duplicates, userId)
-
-      return sendSuccess(res, {
-        import: result.posImport,
-        job_id: result.job_id
-      }, 'Import confirmed. Job is being processed in the background.')
-    } catch (error) {
-      logError('PosImportsController confirm error', { error })
-      return handleError(res, error, req)
+      sendSuccess(res, { import: result.posImport, job_id: result.job_id }, 'Import confirmed. Job is being processed in the background.')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'confirm_pos_import', id: req.params.id })
     }
   }
 
-  /**
-   * Update import status
-   * PUT /api/v1/pos-imports/:id/status
-   */
-  async updateStatus(req: any, res: Response) {
+  updateStatus = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
+      const company_id = getCompanyId(req)
+      const userId = getUserId(req)
+      const id = req.params.id as string
       const { status, error_message } = req.body
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-      const userId = req.user?.id
-      if (!userId) {
-        throw new Error('User ID required')
-      }
-
       const posImport = await posImportsService.updateStatus(id, company_id, status, error_message, userId)
-
-      return sendSuccess(res, posImport, 'Status updated successfully')
-    } catch (error) {
-      logError('PosImportsController updateStatus error', { error })
-      return handleError(res, error, req)
+      sendSuccess(res, posImport, 'Status updated successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_pos_import_status', id: req.params.id })
     }
   }
 
-  /**
-   * Delete POS import
-   * DELETE /api/v1/pos-imports/:id
-   */
-  async delete(req: AuthenticatedRequest, res: Response) {
+  delete = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-      const userId = req.user?.id
-      if (!userId) {
-        throw new Error('User ID required')
-      }
-
-      await posImportsService.delete(id, company_id, userId)
-
-      return sendSuccess(res, null, 'Import deleted successfully')
-    } catch (error) {
-      logError('PosImportsController delete error', { error })
-      return handleError(res, error, req)
+      const company_id = getCompanyId(req)
+      const userId = getUserId(req)
+      await posImportsService.delete(req.params.id as string, company_id, userId)
+      sendSuccess(res, null, 'Import deleted successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_pos_import', id: req.params.id })
     }
   }
 
-  /**
-   * Create export job for selected POS imports
-   * POST /api/v1/pos-imports/export/job
-   */
-  async createExportJob(req: any, res: Response) {
+  createExportJob = async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.id
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Company context required')
-      }
-      if (!userId) {
-        throw new Error('User ID required')
-      }
-
+      const company_id = getCompanyId(req)
+      const userId = getUserId(req)
       const { ids } = req.body
-      if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return sendError(res, 'No import IDs provided', 400)
-      }
-
-      // Verify all imports exist and belong to company
-      for (const id of ids) {
-        await posImportsService.getById(id, company_id)
-      }
-
-      // Create job via service
+      if (!ids || !Array.isArray(ids) || ids.length === 0) { sendError(res, 'No import IDs provided', 400); return }
+      for (const id of ids) await posImportsService.getById(id, company_id)
       const job = await jobsService.createJob({
-        user_id: userId,
-        company_id: company_id,
-        type: 'export',
-        module: 'pos_imports',
+        user_id: userId, company_id, type: 'export', module: 'pos_imports',
         name: `Export POS Imports - ${new Date().toISOString().slice(0, 10)}`,
-        metadata: {
-          type: 'export',
-          module: 'pos_imports',
-          companyId: company_id,
-          importIds: ids
-        }
+        metadata: { type: 'export', module: 'pos_imports', companyId: company_id, importIds: ids },
       })
-
-      // Trigger job processing in background
       const { jobWorker } = await import('../../jobs')
-      jobWorker.processJob(job.id).catch(error => {
-        logError('POS imports export job processing error', { job_id: job.id, error })
-      })
-
+      jobWorker.processJob(job.id).catch((err: unknown) => { logError('POS imports export job processing error', { job_id: job.id, error: err }) })
       logInfo('POS imports export job created', { job_id: job.id, user_id: userId, import_count: ids.length })
-
-      return sendSuccess(res, {
-        job_id: job.id,
-        status: job.status,
-        name: job.name,
-        type: job.type,
-        module: job.module,
-        created_at: job.created_at,
-        message: 'Export job created successfully. Processing will run in background.'
-      }, 'Export job created', 201)
-    } catch (error) {
-      logError('Failed to create export job', { error })
-      return handleError(res, error, req)
+      sendSuccess(res, { job_id: job.id, status: job.status, name: job.name, type: job.type, module: job.module, created_at: job.created_at }, 'Export job created', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_pos_export_job' })
     }
   }
 
-  /**
-   * Restore deleted POS import
-   * POST /api/v1/pos-imports/:id/restore
-   */
-  async restore(req: AuthenticatedRequest, res: Response) {
+  restore = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const company_id = (req as any).context?.company_id
-      if (!company_id) {
-        throw new Error('Branch context required')
-      }
-      const userId = req.user?.id
-      if (!userId) {
-        throw new Error('User ID required')
-      }
-
-      const posImport = await posImportsService.restore(id, company_id, userId)
-
-      return sendSuccess(res, posImport, 'Import restored successfully')
-    } catch (error) {
-      logError('PosImportsController restore error', { error })
-      return handleError(res, error, req)
+      const company_id = getCompanyId(req)
+      const userId = getUserId(req)
+      const posImport = await posImportsService.restore(req.params.id as string, company_id, userId)
+      sendSuccess(res, posImport, 'Import restored successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'restore_pos_import', id: req.params.id })
     }
   }
 }

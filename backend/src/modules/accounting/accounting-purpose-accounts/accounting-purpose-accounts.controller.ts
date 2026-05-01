@@ -1,4 +1,4 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { accountingPurposeAccountsService } from './accounting-purpose-accounts.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
@@ -6,7 +6,6 @@ import { logInfo } from '../../../config/logger'
 import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
 
-import { getParamString } from '../../../utils/validation.util'
 import { 
   createAccountingPurposeAccountSchema, 
   updateAccountingPurposeAccountSchema, 
@@ -15,7 +14,6 @@ import {
   bulkUpdateStatusSchema
 } from './accounting-purpose-accounts.schema'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 import { randomUUID } from 'crypto'
 
 export class AccountingPurposeAccountsController {
@@ -23,8 +21,8 @@ export class AccountingPurposeAccountsController {
     return randomUUID()
   }
 
-  private getCompanyId(req: AuthenticatedRequest | AuthenticatedQueryRequest): string {
-    const companyId = (req as any).context?.company_id
+  private getCompanyId(req: Request): string {
+    const companyId = req.context?.company_id
     if (!companyId) {
       throw new Error('Branch context required - no company access')
     }
@@ -53,7 +51,7 @@ export class AccountingPurposeAccountsController {
     })
   }
 
-  async list(req: AuthenticatedQueryRequest, res: Response) {
+  async list(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
@@ -64,22 +62,22 @@ export class AccountingPurposeAccountsController {
       
       const { offset } = getPaginationParams(req.query)
       
-      if (req.pagination.limit > 1000) {
+      if (req.pagination!.limit > 1000) {
         throw new Error('Page size cannot exceed 1000')
       }
 
       const result = await accountingPurposeAccountsService.list(
         companyId,
-        { ...req.pagination, offset }, 
+        { ...req.pagination!, offset }, 
         req.sort, 
         req.filterParams
       )
       
       this.logResponse('LIST', correlationId, true, Date.now() - startTime)
       sendSuccess(res, result.data, 'Purpose account mappings retrieved', 200, result.pagination)
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('LIST', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'list_purpose_account' })
     }
   }
 
@@ -105,13 +103,13 @@ export class AccountingPurposeAccountsController {
       
       this.logResponse('CREATE', correlationId, true, Date.now() - startTime)
       sendSuccess(res, purposeAccount, 'Purpose account mapping created', 201)
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'create_purpose_account' })
     }
   }
 
-  async getById(req: AuthenticatedRequest, res: Response) {
+  async getById(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
@@ -119,17 +117,17 @@ export class AccountingPurposeAccountsController {
       const companyId = this.getCompanyId(req)
       await this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
-        id: getParamString(req.params.id),
+        id: req.params.id as string,
         company_id: companyId
       })
       
-      const purposeAccount = await accountingPurposeAccountsService.getById(getParamString(req.params.id), companyId)
+      const purposeAccount = await accountingPurposeAccountsService.getById(req.params.id as string, companyId)
       
       this.logResponse('GET_BY_ID', correlationId, true, Date.now() - startTime)
       sendSuccess(res, purposeAccount)
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('GET_BY_ID', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'getById_purpose_account' })
     }
   }
 
@@ -162,36 +160,36 @@ export class AccountingPurposeAccountsController {
         user: req.user!.id
       })
       sendSuccess(res, purposeAccount, 'Purpose account mapping updated')
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('UPDATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'update_purpose_account' })
     }
   }
 
-  async delete(req: AuthenticatedRequest, res: Response) {
+  async delete(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
     try {
       const companyId = this.getCompanyId(req)
       await this.validateCompanyAccess(req.user!.id, companyId)
-      this.logRequest('DELETE', correlationId, req.user.id, { 
-        id: getParamString(req.params.id),
+      this.logRequest('DELETE', correlationId, req.user!.id, { 
+        id: req.params.id as string,
         company_id: companyId
       })
       
-      await accountingPurposeAccountsService.delete(getParamString(req.params.id), req.user.id, companyId)
+      await accountingPurposeAccountsService.delete(req.params.id as string, req.user!.id, companyId)
       
       this.logResponse('DELETE', correlationId, true, Date.now() - startTime)
       logInfo('Purpose account mapping deleted', {
         correlation_id: correlationId,
-        id: getParamString(req.params.id),
-        user: req.user.id
+        id: req.params.id as string,
+        user: req.user!.id
       })
       sendSuccess(res, null, 'Purpose account mapping deleted')
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('DELETE', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'delete_purpose_account' })
     }
   }
 
@@ -217,8 +215,8 @@ export class AccountingPurposeAccountsController {
       )
       
       sendSuccess(res, purposeAccounts, 'Bulk create completed', 201)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulkCreate_purpose_account' })
     }
   }
 
@@ -244,8 +242,8 @@ export class AccountingPurposeAccountsController {
       )
       
       sendSuccess(res, null, 'Bulk remove completed')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulkRemove_purpose_account' })
     }
   }
 
@@ -270,16 +268,16 @@ export class AccountingPurposeAccountsController {
       
       await accountingPurposeAccountsService.bulkUpdateStatus(ids, is_active, req.user!.id, companyId)
       sendSuccess(res, null, 'Bulk status update completed')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulkUpdateStatus_purpose_account' })
     }
   }
 
-  async generateExportToken(req: AuthenticatedRequest, res: Response) {
+  async generateExportToken(req: Request, res: Response) {
     return handleExportToken(req, res)
   }
 
-  async exportData(req: AuthenticatedRequest, res: Response) {
+  async exportData(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     
     try {
@@ -293,12 +291,12 @@ export class AccountingPurposeAccountsController {
         (filter) => accountingPurposeAccountsService.exportToExcel(companyId, filter), 
         'accounting-purpose-accounts'
       )
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'export_purpose_account' })
     }
   }
 
-  async listDeleted(req: AuthenticatedQueryRequest, res: Response) {
+  async listDeleted(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
@@ -311,43 +309,43 @@ export class AccountingPurposeAccountsController {
       
       const result = await accountingPurposeAccountsService.listDeleted(
         companyId,
-        { ...req.pagination, offset }, 
+        { ...req.pagination!, offset }, 
         req.sort, 
         req.filterParams
       )
       
       this.logResponse('LIST_DELETED', correlationId, true, Date.now() - startTime)
       sendSuccess(res, result.data, 'Deleted purpose account mappings retrieved', 200, result.pagination)
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('LIST_DELETED', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'list_deleted_purpose_account' })
     }
   }
 
-  async restore(req: AuthenticatedRequest, res: Response) {
+  async restore(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
     try {
       const companyId = this.getCompanyId(req)
       await this.validateCompanyAccess(req.user!.id, companyId)
-      this.logRequest('RESTORE', correlationId, req.user.id, { 
-        id: getParamString(req.params.id),
+      this.logRequest('RESTORE', correlationId, req.user!.id, { 
+        id: req.params.id as string,
         company_id: companyId
       })
       
-      await accountingPurposeAccountsService.restore(getParamString(req.params.id), req.user.id, companyId)
+      await accountingPurposeAccountsService.restore(req.params.id as string, req.user!.id, companyId)
       
       this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
       logInfo('Purpose account mapping restored', {
         correlation_id: correlationId,
-        id: getParamString(req.params.id),
-        user: req.user.id
+        id: req.params.id as string,
+        user: req.user!.id
       })
       sendSuccess(res, null, 'Purpose account mapping restored')
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'restore_purpose_account' })
     }
   }
 }

@@ -20,7 +20,6 @@ import {
   updateStatusSchema,
   listPosImportsSchema
 } from './pos-imports.schema'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 
 // Register module permissions
 PermissionService.registerModule('pos_imports', 'POS Imports Management').catch((error) => {
@@ -37,7 +36,7 @@ router.get('/', canView('pos_imports'), queryMiddleware({
   allowedSortFields: ['id', 'import_date', 'file_name', 'status', 'total_rows', 'created_at', 'date_range_start', 'date_range_end'],
   defaultSort: 'created_at'
 }), validateSchema(listPosImportsSchema), (req, res) => 
-  posImportsController.list(req as AuthenticatedQueryRequest, res))
+  posImportsController.list(req, res))
 
 // Upload and analyze Excel file
 router.post('/upload', 
@@ -50,21 +49,21 @@ router.post('/upload',
 
 // Get import by ID
 router.get('/:id', canView('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
-  posImportsController.getById(req as AuthenticatedRequest, res))
+  posImportsController.getById(req, res))
 
 // Get import lines with pagination
 router.get('/:id/lines', canView('pos_imports'), queryMiddleware({
   allowedSortFields: ['row_number'],
 }), validateSchema(posImportIdSchema), (req, res) => 
-  posImportsController.getLines(req as AuthenticatedQueryRequest, res))
+  posImportsController.getLines(req, res))
 
 // Export import to Excel
 router.get('/:id/export', canView('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
-  posImportsController.export(req as AuthenticatedRequest, res))
+  posImportsController.export(req, res))
 
 // Get financial summary
 router.get('/:id/summary', canView('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
-  posImportsController.getSummary(req as AuthenticatedRequest, res))
+  posImportsController.getSummary(req, res))
 
 // Confirm import (after duplicate analysis)
 router.post('/:id/confirm', 
@@ -82,16 +81,16 @@ router.put('/:id/status',
 
 // Delete import
 router.delete('/:id', canDelete('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
-  posImportsController.delete(req as AuthenticatedRequest, res))
+  posImportsController.delete(req, res))
 
 // Create export job for selected imports
 router.post('/export/job', 
   canView('pos_imports'), 
   (req, res) => 
-    posImportsController.createExportJob(req as any, res))
+    posImportsController.createExportJob(req, res))
 
 // Restore deleted import
 router.post('/:id/restore', canInsert('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
-  posImportsController.restore(req as AuthenticatedRequest, res))
+  posImportsController.restore(req, res))
 
 export default router

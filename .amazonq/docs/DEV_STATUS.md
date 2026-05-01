@@ -198,19 +198,19 @@ BE controller sudah `await handleError` + `error: unknown` + `context`, tapi mas
 
 ### Modules Not Yet Reviewed (out of scope)
 - ✅ `accounting/chart-of-accounts` (backend + frontend)
-- ⬜ `accounting/accounting-purposes`
-- ⬜ `accounting/accounting-purpose-accounts`
-- ⬜ `accounting/fiscal-periods`
+- ✅ `accounting/accounting-purposes` (backend + frontend)
+- ✅ `accounting/accounting-purpose-accounts` (backend + frontend)
+- ✅ `accounting/fiscal-periods` (backend + frontend)
 - ✅ `accounting/journals/journal-headers` (backend + frontend)
 - ⬜ `accounting/journals/journal-lines`
 - ⬜ `accounting/trial-balance`
 - ⬜ `accounting/income-statement`
 - ⬜ `accounting/balance-sheet`
-- ⬜ `reconciliation/bank-statement-import`
+- ✅ `reconciliation/bank-statement-import` (backend + frontend)
 - ⬜ `reconciliation/bank-reconciliation`
 - ⬜ `reconciliation/bank-settlement-group`
 - ⬜ `reconciliation/fee-reconciliation`
-- ⬜ `pos-imports/pos-imports`
+- ✅ `pos-imports/pos-imports` (backend + frontend)
 - ✅ `pos-imports/pos-aggregates` (backend + frontend)
 - ⬜ `pos-imports/pos-transactions`
 - ⬜ `pos-sync-aggregates`

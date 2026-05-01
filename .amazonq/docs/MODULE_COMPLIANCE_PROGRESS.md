@@ -19,11 +19,11 @@ bank-accounts, payment-methods, payment-terms, cash-counts, cash-flow, permissio
 1. ✅ `pos-imports/pos-aggregates` — done — BE: 48 patterns, 23 no-await. FE: 15 issues
 2. ✅ `accounting/journals/journal-headers` — done — BE: 42 patterns, 15 no-await. FE: 12 issues
 3. ✅ `accounting/chart-of-accounts` — done — BE: 31 patterns, 16 no-await. FE: 12 issues
-4. ⬜ `pos-imports/pos-imports` — BE: 31 patterns, 12 no-await. FE: 7 issues
-5. ⬜ `accounting/accounting-purposes` — BE: 30 patterns, 15 no-await. FE: 8 issues
-6. ⬜ `reconciliation/bank-statement-import` — BE: 28 patterns, 21 no-await. FE: 1 issue
-7. ⬜ `accounting/accounting-purpose-accounts` — BE: 28 patterns, 12 no-await. FE: 13 issues
-8. ⬜ `accounting/fiscal-periods` — BE: 28 patterns, 11 no-await. FE: 10 issues
+4. ✅ `pos-imports/pos-imports` — done — BE: 31 patterns, 12 no-await. FE: 7 issues
+5. ✅ `accounting/accounting-purposes` — done — BE: 30 patterns, 15 no-await. FE: 8 issues
+6. ✅ `reconciliation/bank-statement-import` — done — BE: 28 patterns, 21 no-await. FE: 1 issue
+7. ✅ `accounting/accounting-purpose-accounts` — done — BE: 28 patterns, 12 no-await. FE: 13 issues
+8. ✅ `accounting/fiscal-periods` — done — BE: 28 patterns, 11 no-await. FE: 10 issues
 
 #### Tier 2: Medium (10-30 legacy patterns)
 9. ⬜ `reconciliation/bank-reconciliation` — BE: 20 patterns, 1 no-await. FE: N/A (hooks)

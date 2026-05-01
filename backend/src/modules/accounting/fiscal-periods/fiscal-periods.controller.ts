@@ -1,4 +1,4 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { fiscalPeriodsService } from './fiscal-periods.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
@@ -6,7 +6,6 @@ import { logInfo } from '../../../config/logger'
 import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
 
-import { getParamString } from '../../../utils/validation.util'
 import { 
   createFiscalPeriodSchema, 
   updateFiscalPeriodSchema, 
@@ -15,7 +14,6 @@ import {
   bulkRestoreSchema
 } from './fiscal-periods.schema'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 import { FiscalPeriodErrors } from './fiscal-periods.errors'
 import { defaultConfig } from './fiscal-periods.config'
 import { randomBytes } from 'crypto'
@@ -27,8 +25,8 @@ export class FiscalPeriodsController {
     return `fp_${timestamp}_${entropy}`
   }
 
-  private getCompanyId(req: AuthenticatedRequest | AuthenticatedQueryRequest): string {
-    const companyId = (req as any).context?.company_id
+  private getCompanyId(req: Request): string {
+    const companyId = req.context?.company_id
     if (!companyId) {
       throw FiscalPeriodErrors.VALIDATION_ERROR('company_id', 'Branch context required - no company access')
     }
@@ -57,7 +55,7 @@ export class FiscalPeriodsController {
     })
   }
 
-  async list(req: AuthenticatedQueryRequest, res: Response) {
+  async list(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
@@ -68,13 +66,13 @@ export class FiscalPeriodsController {
       
       const { offset } = getPaginationParams(req.query)
       
-      if (req.pagination.limit > defaultConfig.limits.pageSize) {
+      if (req.pagination!.limit > defaultConfig.limits.pageSize) {
         throw FiscalPeriodErrors.VALIDATION_ERROR('limit', `Page size cannot exceed ${defaultConfig.limits.pageSize}`)
       }
 
       const result = await fiscalPeriodsService.list(
         companyId,
-        { ...req.pagination, offset }, 
+        { ...req.pagination!, offset }, 
         req.sort as any, 
         req.filterParams,
         correlationId
@@ -82,9 +80,9 @@ export class FiscalPeriodsController {
       
       this.logResponse('LIST', correlationId, true, Date.now() - startTime)
       sendSuccess(res, result.data, 'Fiscal periods retrieved', 200, result.pagination)
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('LIST', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'list_fiscal_periods' })
     }
   }
 
@@ -116,13 +114,13 @@ export class FiscalPeriodsController {
         user: req.user!.id
       })
       sendSuccess(res, period, 'Fiscal period created', 201)
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('CREATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'create_fiscal_period' })
     }
   }
 
-  async getById(req: AuthenticatedRequest, res: Response) {
+  async getById(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
@@ -130,17 +128,17 @@ export class FiscalPeriodsController {
       const companyId = this.getCompanyId(req)
       this.validateCompanyAccess(req.user!.id, companyId)
       this.logRequest('GET_BY_ID', correlationId, req.user?.id, { 
-        period_id: getParamString(req.params.id),
+        period_id: req.params.id as string,
         company_id: companyId
       })
       
-      const period = await fiscalPeriodsService.getById(getParamString(req.params.id), companyId, correlationId)
+      const period = await fiscalPeriodsService.getById(req.params.id as string, companyId, correlationId)
       
       this.logResponse('GET_BY_ID', correlationId, true, Date.now() - startTime)
       sendSuccess(res, period)
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('GET_BY_ID', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'get_fiscal_period' })
     }
   }
 
@@ -168,9 +166,9 @@ export class FiscalPeriodsController {
         user: req.user!.id
       })
       sendSuccess(res, period, 'Fiscal period updated')
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('UPDATE', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'update_fiscal_period' })
     }
   }
 
@@ -205,13 +203,13 @@ export class FiscalPeriodsController {
         user: req.user!.id
       })
       sendSuccess(res, period, 'Fiscal period closed')
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('CLOSE_PERIOD', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'close_fiscal_period' })
     }
   }
 
-  async delete(req: AuthenticatedRequest, res: Response) {
+  async delete(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
@@ -223,23 +221,23 @@ export class FiscalPeriodsController {
         throw FiscalPeriodErrors.VALIDATION_ERROR('user', 'User authentication required')
       }
       
-      this.logRequest('DELETE', correlationId, req.user.id, { 
-        period_id: getParamString(req.params.id),
+      this.logRequest('DELETE', correlationId, req.user!.id, { 
+        period_id: req.params.id as string,
         company_id: companyId
       })
       
-      await fiscalPeriodsService.delete(getParamString(req.params.id), req.user.id, companyId, correlationId)
+      await fiscalPeriodsService.delete(req.params.id as string, req.user!.id, companyId, correlationId)
       
       this.logResponse('DELETE', correlationId, true, Date.now() - startTime)
       logInfo('Fiscal period deleted', {
         correlation_id: correlationId,
-        period_id: getParamString(req.params.id),
-        user: req.user.id
+        period_id: req.params.id as string,
+        user: req.user!.id
       })
       sendSuccess(res, null, 'Fiscal period deleted')
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('DELETE', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'delete_fiscal_period' })
     }
   }
 
@@ -263,12 +261,12 @@ export class FiscalPeriodsController {
       
       await fiscalPeriodsService.bulkDelete(ids, req.user!.id, companyId, correlationId)
       sendSuccess(res, null, 'Bulk delete completed')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulk_delete' })
     }
   }
 
-  async restore(req: AuthenticatedRequest, res: Response) {
+  async restore(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     const startTime = Date.now()
     
@@ -280,18 +278,18 @@ export class FiscalPeriodsController {
         throw FiscalPeriodErrors.VALIDATION_ERROR('user', 'User authentication required')
       }
       
-      this.logRequest('RESTORE', correlationId, req.user.id, { 
-        period_id: getParamString(req.params.id),
+      this.logRequest('RESTORE', correlationId, req.user!.id, { 
+        period_id: req.params.id as string,
         company_id: companyId
       })
       
-      await fiscalPeriodsService.restore(getParamString(req.params.id), req.user.id, companyId, correlationId)
+      await fiscalPeriodsService.restore(req.params.id as string, req.user!.id, companyId, correlationId)
       
       this.logResponse('RESTORE', correlationId, true, Date.now() - startTime)
       sendSuccess(res, null, 'Fiscal period restored')
-    } catch (error) {
+    } catch (error: unknown) {
       this.logResponse('RESTORE', correlationId, false, Date.now() - startTime)
-      handleError(res, error, req)
+      await handleError(res, error, req, { action: 'restore_fiscal_period' })
     }
   }
 
@@ -311,16 +309,16 @@ export class FiscalPeriodsController {
       
       await fiscalPeriodsService.bulkRestore(ids, req.user!.id, companyId, correlationId)
       sendSuccess(res, null, 'Bulk restore completed')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulk_restore' })
     }
   }
 
-  async generateExportToken(req: AuthenticatedRequest, res: Response) {
+  async generateExportToken(req: Request, res: Response) {
     return handleExportToken(req, res)
   }
 
-  async exportData(req: AuthenticatedRequest, res: Response) {
+  async exportData(req: Request, res: Response) {
     const correlationId = this.generateCorrelationId()
     
     try {
@@ -334,8 +332,8 @@ export class FiscalPeriodsController {
         (filter) => fiscalPeriodsService.exportToExcel(companyId, filter, correlationId), 
         'fiscal-periods'
       )
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'export_data' })
     }
   }
 }

@@ -13,7 +13,6 @@ import { createRateLimit, updateRateLimit } from '../../../middleware/rateLimite
 import { validateSchema } from '../../../middleware/validation.middleware'
 import { bankStatementImportController } from './bank-statement-import.controller'
 import { PermissionService } from '../../../services/permission.service'
-import type { AuthenticatedQueryRequest } from '../../../types/request.types'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import type { GetImportByIdReq, ManualEntryReq, ManualBulkEntryReq, HardDeleteStatementReq, HardDeleteBulkStatementsReq } from './bank-statement-import.controller'
 import {
@@ -131,7 +130,7 @@ router.get(
   '/',
   canView('bank_statement_imports'),
   validateSchema(listImportsQuerySchema),
-  (req, res) => bankStatementImportController.list(req as AuthenticatedQueryRequest, res)
+  (req, res) => bankStatementImportController.list(req, res)
 )
 
 // Get by ID endpoint
@@ -147,35 +146,35 @@ router.get(
   '/:id/statements',
   canView('bank_statement_imports'),
   validateSchema(getImportStatementsSchema),
-  (req, res) => bankStatementImportController.getStatements(req as AuthenticatedQueryRequest, res)
+  (req, res) => bankStatementImportController.getStatements(req, res)
 )
 
 // Get summary endpoint
 router.get(
   '/:id/summary',
   canView('bank_statement_imports'),
-  (req, res) => bankStatementImportController.getSummary(req as AuthenticatedQueryRequest, res)
+  (req, res) => bankStatementImportController.getSummary(req, res)
 )
 
 // Preview endpoint
 router.get(
   '/:id/preview',
   canView('bank_statement_imports'),
-  (req, res) => bankStatementImportController.preview(req as AuthenticatedQueryRequest, res)
+  (req, res) => bankStatementImportController.preview(req, res)
 )
 
 // Cancel endpoint
 router.post(
   '/:id/cancel',
   canInsert('bank_statement_imports'),
-  (req, res) => bankStatementImportController.cancel(req as AuthenticatedQueryRequest, res)
+  (req, res) => bankStatementImportController.cancel(req, res)
 )
 
 // Retry endpoint
 router.post(
   '/:id/retry',
   canInsert('bank_statement_imports'),
-  (req, res) => bankStatementImportController.retry(req as AuthenticatedQueryRequest, res)
+  (req, res) => bankStatementImportController.retry(req, res)
 )
 
 // Delete endpoint

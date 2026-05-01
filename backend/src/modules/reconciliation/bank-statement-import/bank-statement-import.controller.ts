@@ -3,12 +3,11 @@
  * Handles HTTP requests untuk bank statement import operations
  */
 
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { BankStatementImportService } from './bank-statement-import.service'
 import { BankStatementImportRepository } from './bank-statement-import.repository'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../types/request.types'
 import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import crypto from 'crypto'
 import { createReadStream } from 'fs'
@@ -30,12 +29,12 @@ export type UploadBankStatementReq = ValidatedAuthRequest<typeof uploadBankState
 export type ConfirmImportReq = ValidatedAuthRequest<typeof confirmBankStatementImportSchema>
 export type GetImportByIdReq = ValidatedAuthRequest<typeof getImportByIdSchema>
 export type DeleteImportReq = ValidatedAuthRequest<typeof deleteImportSchema>
-export type ListImportsReq = AuthenticatedQueryRequest
-export type GetStatementsReq = AuthenticatedQueryRequest
-export type GetSummaryReq = AuthenticatedQueryRequest
-export type CancelReq = AuthenticatedQueryRequest
-export type RetryReq = AuthenticatedQueryRequest
-export type PreviewReq = AuthenticatedQueryRequest
+export type ListImportsReq = Request
+export type GetStatementsReq = Request
+export type GetSummaryReq = Request
+export type CancelReq = Request
+export type RetryReq = Request
+export type PreviewReq = Request
 
 export type ManualEntryReq = ValidatedAuthRequest<typeof manualEntrySchema>
 export type ManualBulkEntryReq = ValidatedAuthRequest<typeof manualBulkEntrySchema>
@@ -84,8 +83,8 @@ export class BankStatementImportController {
         import: result.import,
         analysis: result.analysis,
       }, 'File analyzed successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upload_statement' })
     }
   }
 
@@ -139,8 +138,8 @@ export class BankStatementImportController {
         import: result.import,
         job_id: result.job_id,
       }, 'Import started successfully. Check job status for progress.', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'confirm_import' })
     }
   }
 
@@ -175,8 +174,8 @@ export class BankStatementImportController {
       )
 
       sendSuccess(res, result, 'Imports retrieved successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_imports' })
     }
   }
 
@@ -196,8 +195,8 @@ export class BankStatementImportController {
       }
 
       sendSuccess(res, importRecord, 'Import retrieved successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_import' })
     }
   }
 
@@ -225,8 +224,8 @@ export class BankStatementImportController {
       )
 
       sendSuccess(res, result, 'Statements retrieved successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_statements' })
     }
   }
 
@@ -247,8 +246,8 @@ export class BankStatementImportController {
       const summary = await this.service.getImportSummary(importId, companyId)
 
       sendSuccess(res, summary, 'Summary retrieved successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_summary' })
     }
   }
 
@@ -270,8 +269,8 @@ export class BankStatementImportController {
       await this.service.cancelImport(importId, companyId, userId)
 
       sendSuccess(res, null, 'Import cancelled successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'cancel_import' })
     }
   }
 
@@ -288,8 +287,8 @@ export class BankStatementImportController {
       await this.service.deleteImport(importId, companyId, userId)
 
       sendSuccess(res, null, 'Import deleted successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_import' })
     }
   }
 
@@ -314,8 +313,8 @@ export class BankStatementImportController {
         import: result.import,
         job_id: result.job_id,
       }, 'Import retry started successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'retry_import' })
     }
   }
 
@@ -333,8 +332,8 @@ export class BankStatementImportController {
       const result = await this.service.listManualEntries(bank_account_id, companyId)
 
       sendSuccess(res, result, 'Manual entries retrieved', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_manual_entries' })
     }
   }
 
@@ -356,8 +355,8 @@ export class BankStatementImportController {
       )
 
       sendSuccess(res, result, 'Manual entry berhasil disimpan', 201)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'manual_entry' })
     }
   }
 
@@ -379,8 +378,8 @@ export class BankStatementImportController {
       )
 
       sendSuccess(res, result, `${result.inserted} manual entries berhasil disimpan`, 201)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'manual_bulk_entry' })
     }
   }
 
@@ -399,8 +398,8 @@ export class BankStatementImportController {
       await this.service.hardDeleteStatement(statementId, companyId, userId)
 
       sendSuccess(res, null, 'Statement berhasil dihapus permanen', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'hard_delete_statement' })
     }
   }
 
@@ -417,8 +416,8 @@ export class BankStatementImportController {
       const result = await this.service.hardDeleteStatements(ids, companyId, userId)
 
       sendSuccess(res, result, `${result.deleted} statement berhasil dihapus permanen`, 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'hard_delete_bulk_statements' })
     }
   }
 
@@ -456,8 +455,8 @@ export class BankStatementImportController {
       )
 
       sendSuccess(res, preview, 'Preview retrieved successfully', 200)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'preview_import' })
     }
   }
 }
