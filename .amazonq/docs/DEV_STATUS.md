@@ -135,6 +135,15 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | users | ✅ | ✅ | ✅ | ✅ | ✅ |
 | jobs | ✅ | ✅ | ✅ | ✅ | ✅ |
 | monitoring | ✅ | ✅ | ✅ | ✅ | ✅ |
+| accounting-purposes | ✅ | ❌ 5x `req as any` | ✅ | ✅ | ❌ |
+| accounting-purpose-accounts | ✅ | ❌ 5x `req as any` | ✅ | ✅ | ❌ |
+| fiscal-periods | ✅ | ❌ 6x `req as any` | ✅ | ✅ | ❌ |
+| bank-reconciliation | ✅ | ❌ 3x `validated as any` | ✅ | ✅ | ❌ |
+| bank-statement-import | ✅ | ❌ 2x `req as any` | ✅ | ✅ | ❌ |
+| fee-discrepancy-review | ✅ | ✅ | ✅ | ❌ no action | ❌ ValidatedAuthRequest in signature |
+| bank-mutation-entries | ❌ custom | ❌ 5x `as unknown as` | ✅ | ❌ custom | ❌ custom ReqWithContext |
+| reports | ✅ | ✅ | ✅ | ❌ no action | ✅ (stub) |
+| review-approval | ✅ | ✅ | ✅ | ❌ no action | ✅ (stub) |
 
 ### Frontend Store Compliance (`parseApiError`)
 
@@ -147,7 +156,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | suppliers | ✅ | ✅ removed |
 | employees | ✅ | ✅ removed |
 | bank-accounts | ✅ | ✅ removed |
-| bank-statement-import | ❌ | `error.response?.data` |
+| bank-statement-import | ❌ | `error instanceof Error` |
 | branch_context | ❌ | `error instanceof Error` |
 | companies | ✅ | ✅ removed |
 | employee_branches | ✅ | ✅ removed |
@@ -160,8 +169,16 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | supplier-products | ✅ | ✅ removed |
 | users | ✅ | ✅ removed |
 | pos-aggregates | ✅ | ✅ removed |
-| pos-imports | ❌ | inline |
-| pos-sync-aggregates | ✅ | ✅ (console.error only) |
+| pos-imports | ❌ | `error instanceof Error` (6x) |
+| pos-sync-aggregates | ❌ | console.error only, no parseApiError |
+| chartOfAccounts | ❌ | `error instanceof Error` (12x) |
+| accountingPurposes | ❌ | `error instanceof Error` (8x) |
+| accountingPurposeAccounts | ❌ | `error instanceof Error` (13x) |
+| journalLines | ❌ | `error instanceof Error` (3x) |
+| journalHeaders | ❌ | `error instanceof Error` (12x) |
+| fiscalPeriods | ❌ | `error instanceof Error` (10x) |
+| failedTransactions | ❌ | `error instanceof Error` (1x) |
+| employee (fetchList) | ❌ | `error instanceof Error` (CanceledError) |
 | auth | ✅ | ✅ removed |
 | monitoring | ✅ | ✅ removed |
 | jobs | ✅ | ✅ removed |
@@ -196,7 +213,7 @@ BE controller sudah `await handleError` + `error: unknown` + `context`, tapi mas
 - ✅ `banks` (backend + frontend)
 - ✅ `metric-units` (backend + frontend)
 
-### Modules Not Yet Reviewed (out of scope)
+### Accounting & Reconciliation Modules (Phase 2 — BE controller fixed, some legacy remains)
 - ✅ `accounting/chart-of-accounts` (backend + frontend)
 - ✅ `accounting/accounting-purposes` (backend + frontend)
 - ✅ `accounting/accounting-purpose-accounts` (backend + frontend)
@@ -214,6 +231,104 @@ BE controller sudah `await handleError` + `error: unknown` + `context`, tapi mas
 - ✅ `pos-imports/pos-aggregates` (backend + frontend)
 - ✅ `pos-imports/pos-transactions` (backend)
 - ✅ `pos-sync-aggregates` (backend)
+
+### Modules Missed from Phase 1-2 (BELUM di-review)
+- ⬜ `reconciliation/fee-discrepancy-review` — `ValidatedAuthRequest` di method signature, no `action` di handleError
+- ⬜ `reconciliation/bank-mutation-entries` — custom `ReqWithContext` type, `as unknown as`, custom `handleError` (bukan global), `error instanceof Error`
+- ⬜ `reconciliation/reports` — stub/TODO only, no `action` di handleError
+- ⬜ `reconciliation/review-approval` — stub/TODO only, no `action` di handleError
+
+---
+
+## 🧹 Phase 3: Legacy & Dead Code Cleanup
+
+Hasil scan setelah Phase 1-2 selesai. Semua item di bawah WAJIB di-fix.
+
+### 3A. Dead Code (HAPUS)
+| File | Status | Alasan |
+|------|--------|--------|
+| `frontend/src/features/employee_branches/api/errors.ts` | ❌ Dead | Tidak di-import di manapun |
+| `frontend/src/features/pos-aggregates/utils/error.ts` | ❌ Dead | Re-export di `index.ts` tapi tidak dipakai oleh store manapun |
+
+### 3B. Backend — `as any` / `as unknown as` di Controllers (21x)
+| File | Count | Pattern |
+|------|-------|---------|
+| `accounting-purposes.controller.ts` | 5x | `this.getCompanyId(req as any)` |
+| `accounting-purpose-accounts.controller.ts` | 5x | `this.getCompanyId(req as any)` |
+| `fiscal-periods.controller.ts` | 6x | `this.getCompanyId(req as any)` + `req.sort as any` |
+| `bank-reconciliation.controller.ts` | 3x | `(req.validated as any)?.query` |
+| `bank-statement-import.controller.ts` | 2x | `(req as any).validated?.query` |
+
+### 3C. Backend — `req as any` / `req as ValidatedAuthRequest` di Routes (95x)
+| File | Count | Pattern |
+|------|-------|---------|
+| `companies.routes.ts` | 4x | `req as ValidatedAuthRequest<>` |
+| `employee_branches.routes.ts` | 3x | `req as ValidatedAuthRequest<>` |
+| `employees.routes.ts` | 7x | `req as ValidatedAuthRequest<>` |
+| `products.routes.ts` | 2x | `req as ValidatedAuthRequest<>` |
+| `sub-categories.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `supplier-products.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `accounting-purposes.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `accounting-purpose-accounts.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `fiscal-periods.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `bank-reconciliation.routes.ts` | 2x | `req as any` |
+| `bank-settlement-group.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `bank-statement-import.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `fee-discrepancy-review.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `bank-mutation-entries.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `pos-imports.routes.ts` | ?x | `req as ValidatedAuthRequest<>` |
+| `balance-sheet.routes.ts` | 1x | `req as any` |
+| `income-statement.routes.ts` | 1x | `req as any` |
+| `trial-balance.routes.ts` | 1x | `req as any` |
+| `fee-reconciliation.routes.ts` | 3x | `req as any` |
+| `journal-lines.routes.ts` | 4x | `req as any` |
+
+Fix: Routes harus pakai `(req, res) => controller.method(req, res)` — cast pindah ke dalam controller body.
+
+### 3D. Backend — correlationId / logRequest / logResponse Boilerplate (5 files)
+| File | Issue |
+|------|-------|
+| `accounting-purposes.controller.ts` | `generateCorrelationId`, `logRequest`, `logResponse` methods |
+| `accounting-purposes.service.ts` | `correlationId` parameter |
+| `accounting-purpose-accounts.controller.ts` | Same boilerplate |
+| `fiscal-periods.controller.ts` | Same boilerplate |
+| `fiscal-periods.service.ts` | `correlationId` parameter |
+
+Fix: Hapus boilerplate — centralized logger sudah handle correlation via request context.
+
+### 3E. Frontend — Stores Tanpa `parseApiError` (13 stores)
+| Store | Current Pattern |
+|-------|-----------------|
+| `chartOfAccounts.store.ts` | 12x `error instanceof Error` |
+| `accountingPurposes.store.ts` | 8x `error instanceof Error` |
+| `accountingPurposeAccounts.store.ts` | 13x `error instanceof Error` |
+| `journalLines.store.ts` | 3x `error instanceof Error` |
+| `journalHeaders.store.ts` | 12x `error instanceof Error` |
+| `fiscalPeriods.store.ts` | 10x `error instanceof Error` |
+| `bank-statement-import.store.ts` | 1x `error instanceof Error` |
+| `branchContext.store.ts` | 2x `error instanceof Error` |
+| `employee.store.ts` | 2x `error instanceof Error` (CanceledError check) |
+| `failedTransactions.store.ts` | 1x `error instanceof Error` |
+| `posAggregates.store.ts` | 1x `error instanceof Error` (CanceledError check) |
+| `pos-imports.store.ts` | 6x `error instanceof Error` |
+| `pos-sync-aggregates` | console.error only (minor) |
+
+Fix: Replace semua `error instanceof Error ? error.message : '...'` dengan `parseApiError(error, 'fallback message')`.
+
+### 3F. Backend — bank-mutation-entries Custom handleError
+| Issue | Detail |
+|-------|--------|
+| Custom `handleError` method | Private method di controller, bukan global `handleError` dari `error-handler.util` |
+| Custom `ReqWithContext` type | `{ context?: { company_id?: string }; user?: { id?: string } }` — harusnya pakai express.d.ts augmentation |
+| `as unknown as ReqWithContext` | 5x cast — harusnya `req.context` / `req.user` langsung |
+
+### Execution Order
+1. ⬜ Delete dead code (3A — 2 files)
+2. ⬜ Fix 4 missed BE modules (fee-discrepancy-review, bank-mutation-entries, reports, review-approval)
+3. ⬜ Fix 13 FE stores → replace `error instanceof Error` dengan `parseApiError` (3E)
+4. ⬜ Clean routes → remove `req as ValidatedAuthRequest` / `req as any` casts (3C)
+5. ⬜ Fix `as any` di controllers (3B)
+6. ⬜ Remove correlationId boilerplate (3D)
 
 ---
 trigger: always_on
