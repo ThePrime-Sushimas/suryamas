@@ -14,7 +14,7 @@ router.get(
   '/',
   canView('balance_sheet'),
   validateSchema(balanceSheetQuerySchema),
-  (req, res) => balanceSheetController.get(req as any, res)
+  (req, res) => balanceSheetController.get(req, res)
 )
 
 export default router

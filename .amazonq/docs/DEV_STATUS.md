@@ -326,9 +326,55 @@ Fix: Replace semua `error instanceof Error ? error.message : '...'` dengan `pars
 1. ✅ Delete dead code (3A — 2 files)
 2. ✅ Fix 4 missed BE modules (fee-discrepancy-review, bank-mutation-entries, reports, review-approval)
 3. ✅ Fix 13 FE stores → replace `error instanceof Error` dengan `parseApiError` (3E)
-4. ⬜ Clean routes → remove `req as ValidatedAuthRequest` / `req as any` casts (3C)
-5. ⬜ Fix `as any` di controllers (3B)
-6. ⬜ Remove correlationId boilerplate (3D)
+4. ❌ ~~Clean routes~~ — **DEFERRED**: terlalu coupled dengan controller signatures. Routes cast `req as ValidatedAuthRequest<>` diperlukan selama controller method signature masih `ValidatedAuthRequest`. Butuh full rewrite per controller (75 methods, 15 files) untuk pindahkan cast ke body. Dijadikan tech debt.
+5. ❌ ~~Fix `as any` di controllers~~ — **DEFERRED**: sama, coupled dengan step 4. Butuh full rewrite.
+6. ❌ ~~Remove correlationId boilerplate~~ — **DEFERRED**: correlationId deeply woven ke service layer (optional param di setiap method). Hapus di controller saja aman (service param optional), tapi butuh full rewrite 3 controllers + cleanup 2 services. Dijadikan tech debt.
+
+### Deferred Items → Per-Module Tech Debt
+Step 4-6 di-defer karena butuh **full rewrite per controller** yang berisiko tinggi untuk batch operation.
+Approach yang direkomendasikan:
+- Fix per-module saat ada perubahan fitur di module tersebut
+- Atau dedicated sprint untuk rewrite 15 controllers
+
+**Files yang perlu di-rewrite (Step 4+5: clean routes + controller signatures):**
+
+| # | Controller | Routes | Methods | Issues |
+|---|-----------|--------|---------|--------|
+| 1 | ~~`balance-sheet.controller.ts`~~ | ~~`balance-sheet.routes.ts`~~ | 1 | ✅ Done |
+| 2 | ~~`income-statement.controller.ts`~~ | ~~`income-statement.routes.ts`~~ | 1 | ✅ Done |
+| 3 | ~~`trial-balance.controller.ts`~~ | ~~`trial-balance.routes.ts`~~ | 1 | ✅ Done |
+| 1 | `accounting-purpose-accounts.controller.ts` | `accounting-purpose-accounts.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (5x), correlationId |
+| 2 | `accounting-purposes.controller.ts` | `accounting-purposes.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (5x), correlationId |
+| 3 | `fiscal-periods.controller.ts` | `fiscal-periods.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (6x), `req.sort as any`, correlationId |
+| 4 | ~~`balance-sheet.controller.ts`~~ | ~~`balance-sheet.routes.ts`~~ | 1 | ✅ Done |
+| 5 | ~~`income-statement.controller.ts`~~ | ~~`income-statement.routes.ts`~~ | 1 | ✅ Done |
+| 6 | ~~`trial-balance.controller.ts`~~ | ~~`trial-balance.routes.ts`~~ | 1 | ✅ Done |
+| 7 | `companies.controller.ts` | `companies.routes.ts` | 4 | `ValidatedAuthRequest` signature |
+| 8 | `employee_branches.controller.ts` | `employee_branches.routes.ts` | 3 | `ValidatedAuthRequest` signature |
+| 9 | `employees.controller.ts` | `employees.routes.ts` | 7 | `ValidatedAuthRequest` signature |
+| 10 | `products.controller.ts` | `products.routes.ts` | 8 | `ValidatedAuthRequest` signature |
+| 11 | `bank-reconciliation.controller.ts` | `bank-reconciliation.routes.ts` | 6 | `ValidatedAuthRequest` signature, `(req.validated as any)` (3x) |
+| 12 | `bank-settlement-group.controller.ts` | `bank-settlement-group.routes.ts` | 7 | `ValidatedAuthRequest` signature |
+| 13 | `bank-statement-import.controller.ts` | `bank-statement-import.routes.ts` | 1 | `ValidatedAuthRequest` signature, `(req as any).validated` (2x) |
+| 14 | `sub-categories.controller.ts` | `sub-categories.routes.ts` | 7 | `ValidatedAuthRequest` signature |
+| 15 | `supplier-products.controller.ts` | `supplier-products.routes.ts` | 9 | `ValidatedAuthRequest` signature |
+
+**Rewrite pattern per controller:**
+1. Method signature: `req: ValidatedAuthRequest<typeof schema>` → `req: Request`
+2. Body: tambah `const { body, params, query } = (req as ValidatedAuthRequest<typeof schema>).validated`
+3. Remove `req as any` untuk `getCompanyId()` — langsung `req.context?.company_id`
+4. Route: `req as ValidatedAuthRequest<typeof schema>` → `req`
+5. Route: hapus `ValidatedAuthRequest` import
+
+**Files yang perlu di-rewrite (Step 6: correlationId cleanup):**
+
+| # | File | Issue |
+|---|------|-------|
+| 1 | `accounting-purposes.controller.ts` | `generateCorrelationId`, `logRequest`, `logResponse`, timing |
+| 2 | `accounting-purposes.service.ts` | `correlationId?: string` param di setiap method |
+| 3 | `accounting-purpose-accounts.controller.ts` | Same boilerplate |
+| 4 | `fiscal-periods.controller.ts` | Same boilerplate |
+| 5 | `fiscal-periods.service.ts` | `correlationId?: string` param di setiap method |
 
 ---
 trigger: always_on

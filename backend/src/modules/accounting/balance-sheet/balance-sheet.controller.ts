@@ -1,21 +1,18 @@
 import { Request, Response } from 'express'
+import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import { balanceSheetService } from './balance-sheet.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
-import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
-import { balanceSheetQuerySchema } from './balance-sheet.schema'
+import type { balanceSheetQuerySchema } from './balance-sheet.schema'
 
 export class BalanceSheetController {
-  private getCompanyId(req: Request): string {
-    const companyId = req.context?.company_id
-    if (!companyId) throw new Error('Branch context required - no company access')
-    return companyId
-  }
-
-  async get(req: ValidatedAuthRequest<typeof balanceSheetQuerySchema>, res: Response) {
+  async get(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
-      const { as_of_date, branch_ids, compare_as_of_date } = req.validated.query
+      const companyId = req.context?.company_id
+      if (!companyId) throw new Error('Branch context required - no company access')
+
+      const { query } = (req as ValidatedAuthRequest<typeof balanceSheetQuerySchema>).validated
+      const { as_of_date, branch_ids, compare_as_of_date } = query
 
       const branchIds = branch_ids
         ? branch_ids.split(',').map(s => s.trim()).filter(Boolean)
@@ -30,7 +27,7 @@ export class BalanceSheetController {
 
       sendSuccess(res, result, 'Balance sheet retrieved', 200)
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'get_balance_sheet', company_id: req.context?.company_id })
+      await handleError(res, error, req, { action: 'get_balance_sheet' })
     }
   }
 }

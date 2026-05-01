@@ -14,7 +14,7 @@ router.get(
   '/',
   canView('income_statement'),
   validateSchema(incomeStatementQuerySchema),
-  (req, res) => incomeStatementController.get(req as any, res)
+  (req, res) => incomeStatementController.get(req, res)
 )
 
 export default router
