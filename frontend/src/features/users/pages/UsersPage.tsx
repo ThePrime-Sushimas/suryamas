@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/features/users'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type { User } from '@/features/users'
 import UserTable from '../components/UserTable'
@@ -24,7 +25,7 @@ export default function UsersPage() {
       const usersData = await usersApi.getAll()
       setUsers(usersData)
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to load data')
+      showError(parseApiError(err, 'Gagal memuat data'))
     } finally {
       setLoading(false)
     }
@@ -69,10 +70,10 @@ export default function UsersPage() {
     if (!removeRoleTarget) return
     try {
       await usersApi.removeRole(removeRoleTarget)
-      success('Role removed successfully')
+      success('Role berhasil dihapus')
       await loadData()
     } catch (error: unknown) {
-      showError(error instanceof Error ? error.message : 'Failed to remove role')
+      showError(parseApiError(error, 'Gagal menghapus role'))
     } finally {
       setRemoveRoleTarget(null)
     }
@@ -100,17 +101,17 @@ export default function UsersPage() {
   }, [filteredUsers, currentPage, selectedBranch])
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading...</div>
+    return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Memuat...</div>
   }
 
   return (
     <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-900">
-      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">User Management</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">Manajemen Pengguna</h1>
 
       <div className="mb-4 flex flex-col sm:flex-row gap-3">
         <input
           type="text"
-          placeholder="Search by name, ID, or email..."
+          placeholder="Cari nama, ID, atau email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
@@ -120,7 +121,7 @@ export default function UsersPage() {
           onChange={(e) => setSelectedBranch(e.target.value)}
           className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
         >
-          <option value="all">All Branches</option>
+          <option value="all">Semua Cabang</option>
           {branches.filter(b => b !== 'all').map(branch => (
             <option key={branch} value={branch}>{branch}</option>
           ))}
@@ -160,12 +161,12 @@ export default function UsersPage() {
         <div className="mt-4 flex justify-center gap-2">
           <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
             className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 disabled:opacity-50">
-            Previous
+            Sebelumnya
           </button>
-          <span className="px-3 py-1 text-gray-700 dark:text-gray-300">Page {currentPage} of {totalPages}</span>
+          <span className="px-3 py-1 text-gray-700 dark:text-gray-300">Halaman {currentPage} dari {totalPages}</span>
           <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
             className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 disabled:opacity-50">
-            Next
+            Selanjutnya
           </button>
         </div>
       )}
@@ -175,9 +176,9 @@ export default function UsersPage() {
         isOpen={!!removeRoleTarget}
         onClose={() => setRemoveRoleTarget(null)}
         onConfirm={confirmRemoveRole}
-        title="Remove Role"
-        message="Remove role from this employee?"
-        confirmText="Remove"
+        title="Hapus Role"
+        message="Hapus role dari karyawan ini?"
+        confirmText="Hapus"
         variant="danger"
       />
     </div>

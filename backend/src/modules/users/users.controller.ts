@@ -1,86 +1,65 @@
-import { Response, Request } from 'express'
-import { AuthRequest } from '../../types/common.types'
+import { Request, Response } from 'express'
 import { UsersService } from './users.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { withValidated } from '../../utils/handler'
-
-import { getParamString } from '../../utils/validation.util'
+import { UserErrors } from './users.errors'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import {
-  userIdSchema,
-  assignRoleSchema,
-  removeRoleSchema,
-} from './users.schema'
+import { userIdSchema, assignRoleSchema, removeRoleSchema } from './users.schema'
 
 type UserIdReq = ValidatedAuthRequest<typeof userIdSchema>
 type AssignRoleReq = ValidatedAuthRequest<typeof assignRoleSchema>
 type RemoveRoleReq = ValidatedAuthRequest<typeof removeRoleSchema>
 
-
 export class UsersController {
-  private service: UsersService
+  private service = new UsersService()
 
-  constructor() {
-    this.service = new UsersService()
-  }
-
-  getAllUsers = async (req: AuthRequest, res: Response): Promise<void> => {
+  getAllUsers = async (req: Request, res: Response) => {
     try {
       const users = await this.service.getAllUsers()
       sendSuccess(res, users, 'Users retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_all_users' })
     }
   }
 
-  getUserById = async (req: AuthRequest, res: Response): Promise<void> => {
+  getUserById = async (req: Request, res: Response) => {
     try {
-      const userId = getParamString(req.params.userId)
+      const { userId } = (req as UserIdReq).validated.params
       const user = await this.service.getUserByEmployeeId(userId)
-
-      if (!user) {
-        throw new Error('User not found')
-      }
-
+      if (!user) throw UserErrors.NOT_FOUND(userId)
       sendSuccess(res, user, 'User retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_user', userId: req.params.userId })
     }
   }
 
-  getUserRole = async (req: AuthRequest, res: Response): Promise<void> => {
+  getUserRole = async (req: Request, res: Response) => {
     try {
-      const userId = getParamString(req.params.userId)
+      const { userId } = (req as UserIdReq).validated.params
       const userRole = await this.service.getUserRoleByEmployeeId(userId)
-
-      if (!userRole) {
-        throw new Error('User not found')
-      }
-
-      sendSuccess(res, userRole, 'User role retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+      sendSuccess(res, userRole, userRole ? 'User role retrieved successfully' : 'User has no role assigned')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_user_role', userId: req.params.userId })
     }
   }
 
-  assignRole = withValidated(async (req: AssignRoleReq, res: Response) => {
+  assignRole = async (req: Request, res: Response) => {
     try {
-      const { params, body } = req.validated
+      const { params, body } = (req as AssignRoleReq).validated
       const result = await this.service.assignRoleByEmployeeId(params.userId, body.role_id, req.user?.id)
       sendSuccess(res, result, 'Role assigned successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'assign_role', userId: req.params.userId })
     }
-  })
+  }
 
-  removeRole = async (req: AuthRequest, res: Response): Promise<void> => {
+  removeRole = async (req: Request, res: Response) => {
     try {
-      const userId = getParamString(req.params.userId)
+      const { userId } = (req as RemoveRoleReq).validated.params
       await this.service.removeRoleByEmployeeId(userId, req.user?.id)
       sendSuccess(res, null, 'Role removed successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'remove_role', userId: req.params.userId })
     }
   }
 }

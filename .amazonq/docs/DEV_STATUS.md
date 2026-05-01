@@ -132,7 +132,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | products | ✅ | ✅ | ✅ | ✅ | ✅ |
 | sub-categories | ✅ | ✅ | ✅ | ✅ | ✅ |
 | supplier-products | ✅ | ✅ | ✅ | ✅ | ✅ |
-| users | ❌ | ✅ | ✅ | ❌ | ❌ |
+| users | ✅ | ✅ | ✅ | ✅ | ✅ |
 | jobs | ❌ | ✅ | ❌ | ❌ | ❌ |
 | monitoring | ➖ | ✅ | ❌ | ➖ | ❌ |
 
@@ -158,7 +158,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | product-uoms | ✅ | ✅ removed |
 | products | ✅ | ✅ removed |
 | supplier-products | ✅ | ✅ removed |
-| users | ❌ | inline |
+| users | ✅ | ✅ removed |
 | pos-aggregates | ❌ | inline |
 | pos-imports | ❌ | inline |
 | pos-sync-aggregates | ❌ | inline |
@@ -183,6 +183,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `permissions` (backend + frontend)
 - ✅ `pricelists` (backend + frontend)
 - ✅ `product-uoms` (backend + frontend)
+- ✅ `users` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -193,7 +194,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ⬜ `auth`
 - ⬜ `expense-categorization`
 - ⬜ `pos-sync`
-- ⬜ `users`
 - ⬜ `jobs`
 - ⬜ `monitoring`
 

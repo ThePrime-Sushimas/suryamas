@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { usersApi } from '@/features/users'
 import type { User } from '@/features/users'
 import { permissionsApi } from '@/features/permissions'
@@ -27,7 +28,7 @@ export default function UserEditPage() {
       setRoles(rolesData)
       setError(null)
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Failed to load data')
+      setError(parseApiError(error, 'Gagal memuat data'))
       setUser(null)
     } finally {
       setLoading(false)
@@ -46,7 +47,7 @@ export default function UserEditPage() {
       toast.success('Role berhasil diupdate')
       navigate('/users')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update role'
+      const msg = parseApiError(err, 'Gagal memperbarui role')
       setError(msg)
       toast.error(msg)
     } finally {
@@ -54,16 +55,16 @@ export default function UserEditPage() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading...</div>
-  if (!user) return <div className="p-4 sm:p-6 text-gray-500 dark:text-gray-400">{error || 'User not found'}</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Memuat...</div>
+  if (!user) return <div className="p-4 sm:p-6 text-gray-500 dark:text-gray-400">{error || 'Pengguna tidak ditemukan'}</div>
 
   if (!user.has_account) {
     return (
       <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-400 p-4 rounded-lg max-w-2xl">
-          <p className="font-medium">Cannot assign role</p>
-          <p className="text-sm mt-1">Employee {user.full_name} has not registered yet. Please register first.</p>
-          <button onClick={() => navigate('/users')} className="mt-3 text-blue-600 dark:text-blue-400 hover:underline text-sm">← Back to Users</button>
+          <p className="font-medium">Tidak bisa menetapkan role</p>
+          <p className="text-sm mt-1">Karyawan {user.full_name} belum terdaftar. Silakan daftarkan terlebih dahulu.</p>
+          <button onClick={() => navigate('/users')} className="mt-3 text-blue-600 dark:text-blue-400 hover:underline text-sm">Kembali</button>
         </div>
       </div>
     )
@@ -72,11 +73,11 @@ export default function UserEditPage() {
   return (
     <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="mb-4 sm:mb-6">
-        <button onClick={() => navigate('/users')} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← Back to Users</button>
+        <button onClick={() => navigate('/users')} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">Kembali</button>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4 sm:p-6 max-w-2xl">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit User Role</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Role Pengguna</h1>
 
         <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -107,7 +108,7 @@ export default function UserEditPage() {
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
             <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className={inputCls} required>
-              <option value="">Select Role</option>
+              <option value="">Pilih Role</option>
               {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
             </select>
             {user.role_description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{user.role_description}</p>}
@@ -115,10 +116,10 @@ export default function UserEditPage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium">
-              {loading ? 'Saving...' : 'Save Changes'}
+              {loading ? 'Menyimpan...' : 'Simpan'}
             </button>
             <button type="button" onClick={() => navigate('/users')} disabled={loading} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 text-sm font-medium">
-              Cancel
+              Batal
             </button>
           </div>
         </form>

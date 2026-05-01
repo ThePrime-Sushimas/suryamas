@@ -19,8 +19,8 @@ export default function UserDetailPage() {
     loadData()
   }, [id])
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Loading...</div>
-  if (!user) return <div className="p-4 sm:p-6 text-gray-500 dark:text-gray-400">User not found</div>
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Memuat...</div>
+  if (!user) return <div className="p-4 sm:p-6 text-gray-500 dark:text-gray-400">Pengguna tidak ditemukan</div>
 
   const infoCls = "font-medium text-base sm:text-lg text-gray-900 dark:text-white"
   const labelCls = "text-sm text-gray-600 dark:text-gray-400"
@@ -29,7 +29,7 @@ export default function UserDetailPage() {
     <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="mb-4 sm:mb-6">
         <button onClick={() => navigate('/users')} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
-          ← Back to Users
+          Kembali
         </button>
       </div>
 

@@ -4,6 +4,7 @@ import { logInfo, logError } from '../../config/logger'
 import { EmployeeRow, UserDTO } from './users.types'
 import { mapToUserDTO } from './users.mapper'
 import { AuditService } from '../monitoring/monitoring.service'
+import { UserErrors } from './users.errors'
 
 export class UsersService {
   private repository: UsersRepository
@@ -111,14 +112,14 @@ export class UsersService {
   async assignRoleByEmployeeId(employeeId: string, roleId: string, changedBy?: string) {
     const emp = await this.repository.getEmployeeUserIdByEmployeeId(employeeId)
     if (!emp?.user_id) {
-      throw new Error(`Employee ${emp?.full_name || employeeId} has not registered yet. Please register first.`)
+      throw UserErrors.VALIDATION_ERROR(`Karyawan ${emp?.full_name || employeeId} belum terdaftar. Silakan daftarkan terlebih dahulu.`)
     }
     return this.assignRole(emp.user_id, roleId, changedBy)
   }
 
   async removeRoleByEmployeeId(employeeId: string, changedBy?: string) {
     const userId = await this.repository.getUserIdByEmployeeId(employeeId)
-    if (!userId) throw new Error('This employee does not have a user account')
+    if (!userId) throw UserErrors.NOT_FOUND(employeeId)
     return this.removeRole(userId, changedBy)
   }
 }

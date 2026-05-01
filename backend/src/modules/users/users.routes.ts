@@ -6,7 +6,6 @@ import { canView, canUpdate } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { userIdSchema, assignRoleSchema, removeRoleSchema } from './users.schema'
-import type { AuthenticatedRequest } from '../../types/request.types'
 
 PermissionService.registerModule('users', 'User Management System')
 
@@ -15,17 +14,10 @@ const controller = new UsersController()
 
 router.use(authenticate, resolveBranchContext)
 
-router.get('/', canView('users'), (req, res) => 
-  controller.getAllUsers(req as AuthenticatedRequest, res))
-
-router.get('/:userId', canView('users'), validateSchema(userIdSchema), (req, res) => 
-  controller.getUserById(req as AuthenticatedRequest, res))
-
-router.get('/:userId/role', canView('users'), validateSchema(userIdSchema), (req, res) => 
-  controller.getUserRole(req as AuthenticatedRequest, res))
-
-router.put('/:userId/role', canUpdate('users'), validateSchema(assignRoleSchema), controller.assignRole)
-
-router.delete('/:userId/role', canUpdate('users'), validateSchema(removeRoleSchema), controller.removeRole)
+router.get('/', canView('users'), (req, res) => controller.getAllUsers(req, res))
+router.get('/:userId', canView('users'), validateSchema(userIdSchema), (req, res) => controller.getUserById(req, res))
+router.get('/:userId/role', canView('users'), validateSchema(userIdSchema), (req, res) => controller.getUserRole(req, res))
+router.put('/:userId/role', canUpdate('users'), validateSchema(assignRoleSchema), (req, res) => controller.assignRole(req, res))
+router.delete('/:userId/role', canUpdate('users'), validateSchema(removeRoleSchema), (req, res) => controller.removeRole(req, res))
 
 export default router

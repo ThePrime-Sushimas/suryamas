@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { usersApi } from '../api/users.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { User } from '../types'
 
 interface UsersState {
@@ -23,9 +24,8 @@ export const useUsersStore = create<UsersState>((set) => ({
     try {
       const users = await usersApi.getAll()
       set({ users, loading: false })
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch users'
-      set({ error: message, loading: false })
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal memuat daftar pengguna'), loading: false })
     }
   },
 
@@ -33,21 +33,13 @@ export const useUsersStore = create<UsersState>((set) => ({
     set({ loading: true, error: null })
     try {
       const roleData = await usersApi.assignRole(userId, roleId)
-      set(state => {
-        const updatedUser = { 
-          role_id: roleId, 
-          role_name: roleData.role_name, 
-          role_description: roleData.role_description 
-        }
-        return {
-          users: state.users.map(u => u.employee_id === userId ? { ...u, ...updatedUser } : u),
-          loading: false
-        }
-      })
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to assign role'
-      set({ error: message, loading: false })
-      throw err
+      set(state => ({
+        users: state.users.map(u => u.employee_id === userId ? { ...u, role_id: roleId, role_name: roleData.role_name, role_description: roleData.role_description } : u),
+        loading: false,
+      }))
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal menetapkan role'), loading: false })
+      throw error
     }
   },
 
@@ -57,14 +49,13 @@ export const useUsersStore = create<UsersState>((set) => ({
       await usersApi.removeRole(userId)
       set(state => ({
         users: state.users.map(u => u.employee_id === userId ? { ...u, role_id: null, role_name: null, role_description: null } : u),
-        loading: false
+        loading: false,
       }))
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to remove role'
-      set({ error: message, loading: false })
-      throw err
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal menghapus role'), loading: false })
+      throw error
     }
   },
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
 }))
