@@ -26,7 +26,7 @@ import type {
   GenerateJournalDto,
 } from '../types'
 import { posAggregatesApi } from '../api/posAggregates.api'
-import { createError } from '../utils/error'
+import { parseApiError } from '@/lib/errorParser'
 
 // =============================================================================
 // TYPES
@@ -220,8 +220,8 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             const { job_id } = await posAggregatesApi.generateFromImportWithJob(importId, companyId, branchName)
             set({ isMutating: false })
             return job_id
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal membuat job'
+          } catch (error: unknown) {
+            const message = parseApiError(error, 'Gagal membuat job')
             set({ error: createStoreError(message, 'JOB_CREATE_ERROR'), isMutating: false })
             throw error
           }
@@ -233,8 +233,8 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             const { job_id } = await posAggregatesApi.generateJournalWithJob(data)
             set({ isMutating: false })
             return job_id
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal membuat job'
+          } catch (error: unknown) {
+            const message = parseApiError(error, 'Gagal membuat job')
             set({ error: createStoreError(message, 'JOB_CREATE_ERROR'), isMutating: false })
             throw error
           }
@@ -259,13 +259,13 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
               totalPages: pagination?.totalPages ?? 1,
               isLoading: false,
             })
-          } catch (error) {
+          } catch (error: unknown) {
             if (isCanceledError(error) || (error instanceof Error && error.message === 'Request was canceled')) {
               set({ isLoading: false })
               return
             }
             
-            const message = error instanceof Error ? error.message : 'Gagal mengambil data transaksi'
+            const message = parseApiError(error, 'Gagal mengambil data transaksi')
             console.error('[PosAggregatesStore] Error fetching transactions:', error)
             set({ 
               error: createStoreError(message, 'FETCH_LIST_ERROR', error), 
@@ -307,13 +307,13 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
                 }
               })
               return transaction
-            } catch (error) {
+            } catch (error: unknown) {
               set((state) => { 
                 const newInFlightRequests = new Map(state.inFlightRequests)
                 newInFlightRequests.delete(inFlightKey)
                 return { 
                   error: createStoreError(
-                    error instanceof Error ? error.message : 'Gagal mengambil detail transaksi',
+                    parseApiError(error, 'Gagal mengambil detail transaksi'),
                     'FETCH_DETAIL_ERROR', 
                     error
                   ), 
@@ -341,8 +341,8 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             const { filter } = get()
             const summary = await posAggregatesApi.getSummary(filter)
             set({ summary, isLoading: false })
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal mengambil ringkasan'
+          } catch (error: unknown) {
+            const message = parseApiError(error, 'Gagal mengambil ringkasan')
             set({ 
               error: createStoreError(message, 'FETCH_SUMMARY_ERROR', error), 
               isLoading: false 
@@ -365,8 +365,8 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
               isMutating: false,
             }))
             return transaction
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal membuat transaksi'
+          } catch (error: unknown) {
+            const message = parseApiError(error, 'Gagal membuat transaksi')
             set({ error: createStoreError(message, 'CREATE_ERROR', error), isMutating: false })
             throw error
           }
@@ -401,13 +401,13 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
               isMutating: false,
             }))
             return transaction
-          } catch (error) {
+          } catch (error: unknown) {
             // Rollback on error
             set({
               transactions: previousTransactions,
               selectedTransaction: previousSelected,
               error: createStoreError(
-                error instanceof Error ? error.message : 'Gagal memperbarui transaksi',
+                parseApiError(error, 'Gagal memperbarui transaksi'),
                 'UPDATE_ERROR',
                 error
               ),
@@ -435,14 +435,14 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
           try {
             await posAggregatesApi.delete(id)
             set({ isMutating: false })
-          } catch (error) {
+          } catch (error: unknown) {
             // Rollback on error
             set({
               transactions: previousTransactions,
               total: previousTotal,
               selectedTransaction: previousSelected,
               error: createStoreError(
-                error instanceof Error ? error.message : 'Gagal menghapus transaksi',
+                parseApiError(error, 'Gagal menghapus transaksi'),
                 'DELETE_ERROR',
                 error
               ),
@@ -458,8 +458,8 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             await posAggregatesApi.restore(id)
             await get().fetchTransactions()
             set({ isMutating: false })
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal memulihkan transaksi'
+          } catch (error: unknown) {
+            const message = parseApiError(error, 'Gagal memulihkan transaksi')
             set({ error: createStoreError(message, 'RESTORE_ERROR', error), isMutating: false })
             throw error
           }
@@ -485,12 +485,12 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
           try {
             await posAggregatesApi.reconcile(id, reconciledBy, reason)
             set({ isMutating: false })
-          } catch (error) {
+          } catch (error: unknown) {
             // Rollback on error
             set({
               transactions: previousTransactions,
               error: createStoreError(
-                error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi',
+                parseApiError(error, 'Gagal merekonsiliasi transaksi'),
                 'RECONCILE_ERROR',
                 error
               ),
@@ -524,12 +524,12 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             await get().fetchSummary()
             set({ isMutating: false })
             return count
-          } catch (error) {
+          } catch (error: unknown) {
             // Rollback on error
             set({
               transactions: previousTransactions,
               error: createStoreError(
-                error instanceof Error ? error.message : 'Gagal merekonsiliasi transaksi secara batch',
+                parseApiError(error, 'Gagal merekonsiliasi transaksi secara batch'),
                 'BATCH_RECONCILE_ERROR',
                 error
               ),
@@ -550,8 +550,8 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             await get().fetchTransactions()
             await get().fetchSummary()
             set({ isMutating: false })
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal membuat jurnal'
+          } catch (error: unknown) {
+            const message = parseApiError(error, 'Gagal membuat jurnal')
             set({ error: createStoreError(message, 'GENERATE_JOURNAL_ERROR', error), isMutating: false })
             throw error
           }
@@ -573,12 +573,12 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
           try {
             await posAggregatesApi.assignJournal(id, journalId)
             set({ isMutating: false })
-          } catch (error) {
+          } catch (error: unknown) {
             // Rollback on error
             set({
               transactions: previousTransactions,
               error: createStoreError(
-                error instanceof Error ? error.message : 'Gagal menetapkan jurnal',
+                parseApiError(error, 'Gagal menetapkan jurnal'),
                 'ASSIGN_JOURNAL_ERROR',
                 error
               ),
@@ -610,12 +610,12 @@ export const usePosAggregatesStore = create<PosAggregatesState>()(
             await get().fetchTransactions()
             set({ isMutating: false })
             return result
-          } catch (error) {
+          } catch (error: unknown) {
             // Rollback on error
             set({
               transactions: previousTransactions,
               error: createStoreError(
-                error instanceof Error ? error.message : 'Gagal menetapkan jurnal secara batch',
+                parseApiError(error, 'Gagal menetapkan jurnal secara batch'),
                 'BATCH_ASSIGN_JOURNAL_ERROR',
                 error
               ),

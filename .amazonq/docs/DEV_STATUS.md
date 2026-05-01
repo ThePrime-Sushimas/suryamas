@@ -159,7 +159,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | products | ✅ | ✅ removed |
 | supplier-products | ✅ | ✅ removed |
 | users | ✅ | ✅ removed |
-| pos-aggregates | ❌ | inline |
+| pos-aggregates | ✅ | ✅ removed |
 | pos-imports | ❌ | inline |
 | pos-sync-aggregates | ✅ | ✅ (console.error only) |
 | auth | ✅ | ✅ removed |
@@ -201,7 +201,7 @@ BE controller sudah `await handleError` + `error: unknown` + `context`, tapi mas
 - ⬜ `accounting/accounting-purposes`
 - ⬜ `accounting/accounting-purpose-accounts`
 - ⬜ `accounting/fiscal-periods`
-- ⬜ `accounting/journals/journal-headers`
+- ✅ `accounting/journals/journal-headers` (backend + frontend)
 - ⬜ `accounting/journals/journal-lines`
 - ⬜ `accounting/trial-balance`
 - ⬜ `accounting/income-statement`
@@ -211,7 +211,7 @@ BE controller sudah `await handleError` + `error: unknown` + `context`, tapi mas
 - ⬜ `reconciliation/bank-settlement-group`
 - ⬜ `reconciliation/fee-reconciliation`
 - ⬜ `pos-imports/pos-imports`
-- ⬜ `pos-imports/pos-aggregates`
+- ✅ `pos-imports/pos-aggregates` (backend + frontend)
 - ⬜ `pos-imports/pos-transactions`
 - ⬜ `pos-sync-aggregates`
 

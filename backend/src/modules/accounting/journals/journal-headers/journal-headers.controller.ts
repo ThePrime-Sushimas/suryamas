@@ -1,258 +1,202 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { journalHeadersService } from './journal-headers.service'
 import { sendSuccess } from '../../../../utils/response.util'
 import { handleError } from '../../../../utils/error-handler.util'
 import { getPaginationParams } from '../../../../utils/pagination.util'
-import { requireEmployee, getEmployeeId } from '../../../../utils/employee.util'
-
-import { getParamString } from '../../../../utils/validation.util'
-import { ValidatedAuthRequest } from '../../../../middleware/validation.middleware'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../../../types/request.types'
-import { 
-  createJournalSchema, 
-  updateJournalSchema, 
-  rejectJournalSchema,
-  reverseJournalSchema
+import type { ValidatedAuthRequest } from '../../../../middleware/validation.middleware'
+import {
+  createJournalSchema, updateJournalSchema, rejectJournalSchema, reverseJournalSchema, journalIdSchema,
 } from './journal-headers.schema'
 
+function getCompanyId(req: Request): string {
+  const companyId = req.context?.company_id
+  if (!companyId) throw new Error('Branch context required - no company access')
+  return companyId
+}
+
+function getEmployeeId(req: Request): string {
+  const employeeId = req.context?.employee_id
+  if (!employeeId) throw new Error('Employee context required')
+  return employeeId
+}
+
 export class JournalHeadersController {
-  
-  private getCompanyId(req: AuthenticatedRequest): string {
-    const companyId = (req as any).context?.company_id
-    if (!companyId) {
-      throw new Error('Branch context required - no company access')
-    }
-    return companyId
-  }
-
-  async list(req: AuthenticatedQueryRequest, res: Response) {
+  list = async (req: Request, res: Response) => {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyId = getCompanyId(req)
       const { offset } = getPaginationParams(req.query)
-      
-      const result = await journalHeadersService.list(
-        companyId,
-        { ...req.pagination, offset },
-        req.sort as any,
-        { ...req.filterParams, company_id: companyId }
-      )
-      
+      const result = await journalHeadersService.list(companyId, { ...req.pagination!, offset }, req.sort as Parameters<typeof journalHeadersService.list>[2], { ...req.filterParams, company_id: companyId })
       sendSuccess(res, result.data, 'Journals retrieved', 200, result.pagination)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_journals', company_id: req.context?.company_id })
     }
   }
 
-  async listWithLines(req: AuthenticatedQueryRequest, res: Response) {
+  listWithLines = async (req: Request, res: Response) => {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyId = getCompanyId(req)
       const { offset } = getPaginationParams(req.query)
-      
-      const result = await journalHeadersService.listWithLines(
-        companyId,
-        { ...req.pagination, offset },
-        req.sort as any,
-        { ...req.filterParams, company_id: companyId }
-      )
-      
+      const result = await journalHeadersService.listWithLines(companyId, { ...req.pagination!, offset }, req.sort as Parameters<typeof journalHeadersService.listWithLines>[2], { ...req.filterParams, company_id: companyId })
       sendSuccess(res, result.data, 'Journals with lines retrieved', 200, result.pagination)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_journals_with_lines', company_id: req.context?.company_id })
     }
   }
 
-  async getById(req: AuthenticatedRequest, res: Response) {
+  getById = async (req: Request, res: Response) => {
     try {
-      const companyId = this.getCompanyId(req)
-      const journal = await journalHeadersService.getById(getParamString(req.params.id), companyId)
+      const companyId = getCompanyId(req)
+      const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
+      const journal = await journalHeadersService.getById(id, companyId)
       sendSuccess(res, journal)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_journal', id: req.params.id })
     }
   }
 
-  async getCompleteness(req: AuthenticatedRequest, res: Response) {
+  getCompleteness = async (req: Request, res: Response) => {
     try {
-      const companyId = this.getCompanyId(req)
-      const result = await journalHeadersService.getCompleteness(
-        getParamString(req.params.id),
-        companyId
-      )
+      const companyId = getCompanyId(req)
+      const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
+      const result = await journalHeadersService.getCompleteness(id, companyId)
       sendSuccess(res, result)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_journal_completeness', id: req.params.id })
     }
   }
 
-  async create(req: ValidatedAuthRequest<typeof createJournalSchema>, res: Response) {
+  create = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req as any)
-      const companyId = this.getCompanyId(req as any)
-      const employeeId = getEmployeeId(req as any)
-      
-      // Priority: body branch_id (user selection) > context branch_id
-      const branchId = req.validated.body.branch_id || (req as any).context?.branch_id || null
-      
-      const journal = await journalHeadersService.create({
-        ...req.validated.body,
-        company_id: companyId,
-        branch_id: branchId
-      }, employeeId)
-      
+      const companyId = getCompanyId(req)
+      const employeeId = getEmployeeId(req)
+      const { body } = (req as ValidatedAuthRequest<typeof createJournalSchema>).validated
+      const branchId = body.branch_id || req.context?.branch_id || undefined
+      const journal = await journalHeadersService.create({ ...body, company_id: companyId, branch_id: branchId }, employeeId)
       sendSuccess(res, journal, 'Journal created', 201)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_journal' })
     }
   }
 
-  async update(req: ValidatedAuthRequest<typeof updateJournalSchema>, res: Response) {
+  update = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req as any)
-      const companyId = this.getCompanyId(req as any)
-      const employeeId = getEmployeeId(req as any)
-      
-      const journal = await journalHeadersService.update(
-        req.validated.params.id,
-        req.validated.body,
-        employeeId,
-        companyId
-      )
-      
+      const companyId = getCompanyId(req)
+      const employeeId = getEmployeeId(req)
+      const { params, body } = (req as ValidatedAuthRequest<typeof updateJournalSchema>).validated
+      const journal = await journalHeadersService.update(params.id, body, employeeId, companyId)
       sendSuccess(res, journal, 'Journal updated')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_journal', id: req.params.id })
     }
   }
 
-  async delete(req: AuthenticatedRequest, res: Response) {
+  delete = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req)
-      const companyId = this.getCompanyId(req)
+      const companyId = getCompanyId(req)
       const employeeId = getEmployeeId(req)
-      
-      await journalHeadersService.delete(getParamString(req.params.id), employeeId, companyId)
+      const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
+      await journalHeadersService.delete(id, employeeId, companyId)
       sendSuccess(res, null, 'Journal deleted')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_journal', id: req.params.id })
     }
   }
 
-  async submit(req: AuthenticatedRequest, res: Response) {
+  submit = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req)
-      const companyId = this.getCompanyId(req)
+      const companyId = getCompanyId(req)
       const employeeId = getEmployeeId(req)
-      
-      await journalHeadersService.submit(getParamString(req.params.id), employeeId, companyId)
+      const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
+      await journalHeadersService.submit(id, employeeId, companyId)
       sendSuccess(res, null, 'Journal submitted for approval')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'submit_journal', id: req.params.id })
     }
   }
 
-  async approve(req: AuthenticatedRequest, res: Response) {
+  approve = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req)
-      const companyId = this.getCompanyId(req)
+      const companyId = getCompanyId(req)
       const employeeId = getEmployeeId(req)
-      
-      await journalHeadersService.approve(getParamString(req.params.id), employeeId, companyId)
+      const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
+      await journalHeadersService.approve(id, employeeId, companyId)
       sendSuccess(res, null, 'Journal approved')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'approve_journal', id: req.params.id })
     }
   }
 
-  async reject(req: ValidatedAuthRequest<typeof rejectJournalSchema>, res: Response) {
+  reject = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req as any)
-      const companyId = this.getCompanyId(req as any)
-      const employeeId = getEmployeeId(req as any)
-      
-      await journalHeadersService.reject(
-        req.validated.params.id,
-        req.validated.body.rejection_reason,
-        employeeId,
-        companyId
-      )
-      
+      const companyId = getCompanyId(req)
+      const employeeId = getEmployeeId(req)
+      const { params, body } = (req as ValidatedAuthRequest<typeof rejectJournalSchema>).validated
+      await journalHeadersService.reject(params.id, body.rejection_reason, employeeId, companyId)
       sendSuccess(res, null, 'Journal rejected')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reject_journal', id: req.params.id })
     }
   }
 
-  async post(req: AuthenticatedRequest, res: Response) {
+  post = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req)
-      const companyId = this.getCompanyId(req)
+      const companyId = getCompanyId(req)
       const employeeId = getEmployeeId(req)
-      
-      await journalHeadersService.post(getParamString(req.params.id), employeeId, companyId)
+      const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
+      await journalHeadersService.post(id, employeeId, companyId)
       sendSuccess(res, null, 'Journal posted to ledger')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'post_journal', id: req.params.id })
     }
   }
 
-  async reverse(req: ValidatedAuthRequest<typeof reverseJournalSchema>, res: Response) {
+  reverse = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req as any)
-      const companyId = this.getCompanyId(req as any)
-      const employeeId = getEmployeeId(req as any)
-      
-      const journal = await journalHeadersService.getById(req.validated.params.id, companyId)
-      if (journal.status !== 'POSTED' || journal.is_reversed) {
-        throw new Error('Cannot reverse this journal')
-      }
-      
-      const reversal = await journalHeadersService.reverse(
-        req.validated.params.id,
-        req.validated.body.reversal_reason,
-        employeeId,
-        companyId
-      )
-      
+      const companyId = getCompanyId(req)
+      const employeeId = getEmployeeId(req)
+      const { params, body } = (req as ValidatedAuthRequest<typeof reverseJournalSchema>).validated
+      const journal = await journalHeadersService.getById(params.id, companyId)
+      if (journal.status !== 'POSTED' || journal.is_reversed) throw new Error('Cannot reverse this journal')
+      const reversal = await journalHeadersService.reverse(params.id, body.reversal_reason, employeeId, companyId)
       sendSuccess(res, reversal, 'Journal reversed')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reverse_journal', id: req.params.id })
     }
   }
 
-  async restore(req: AuthenticatedRequest, res: Response) {
+  restore = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req)
-      const companyId = this.getCompanyId(req)
+      const companyId = getCompanyId(req)
       const employeeId = getEmployeeId(req)
-      
-      await journalHeadersService.restore(getParamString(req.params.id), employeeId, companyId)
+      const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
+      await journalHeadersService.restore(id, employeeId, companyId)
       sendSuccess(res, null, 'Journal restored')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'restore_journal', id: req.params.id })
     }
   }
 
-  async forceDelete(req: AuthenticatedRequest, res: Response) {
+  forceDelete = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req)
-      const companyId = this.getCompanyId(req)
+      const companyId = getCompanyId(req)
       const employeeId = getEmployeeId(req)
-      
-      await journalHeadersService.forceDelete(getParamString(req.params.id), employeeId, companyId)
+      const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
+      await journalHeadersService.forceDelete(id, employeeId, companyId)
       sendSuccess(res, null, 'Journal force deleted')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'force_delete_journal', id: req.params.id })
     }
   }
-  async statusCounts(req: AuthenticatedRequest, res: Response) {
+
+  statusCounts = async (req: Request, res: Response) => {
     try {
-      const companyId = String(req.context?.company_id)
+      const companyId = getCompanyId(req)
       const dateFrom = req.query?.date_from as string | undefined
       const dateTo = req.query?.date_to as string | undefined
       const result = await journalHeadersService.getStatusCounts(companyId, dateFrom, dateTo)
       sendSuccess(res, result, 'Journal status counts retrieved', 200)
-    } catch (error) {
-      await handleError(res, error, req as any)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_status_counts', company_id: req.context?.company_id })
     }
   }
 }

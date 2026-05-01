@@ -1,41 +1,46 @@
 # Module Compliance Fix — Progress Tracker
 
-## Status: ALL PARTIAL MODULES COMPLETED ✅
+## Phase 1: COMPLETED ✅ (25 modules)
+bank-accounts, payment-methods, payment-terms, cash-counts, cash-flow, permissions, pricelists, product-uoms, users, auth, expense-categorization, jobs, monitoring, pos-sync, sub-categories, supplier-products, products, branches, categories, employees, companies, employee_branches, suppliers, banks, metric-units
 
-### All 7 fixed:
-1. ✅ `categories` — done
-2. ✅ `employees` — done
-3. ✅ `companies` — done
-4. ✅ `employee_branches` — done
-5. ✅ `suppliers` — done
-6. ✅ `banks` — done
-7. ✅ `metric-units` — done
+## Phase 2: Remaining 17 Modules (accounting, reconciliation, pos-imports)
 
-### Completed (this session — 17 full rewrites + 8 FE store fixes):
-✅ bank-accounts, payment-methods, payment-terms, cash-counts, cash-flow, permissions, pricelists, product-uoms, users, auth, expense-categorization, jobs, monitoring, pos-sync, sub-categories, supplier-products, products, branches
+### Pattern (sama seperti Phase 1):
+1. Baca controller + routes
+2. Rewrite controller: `Request` from express, `ValidatedAuthRequest` cast inside method, `await handleError(res, error, req, { action })`, `error: unknown`, no `withValidated`/`getParamString`/`AuthRequest`/`as any`
+3. Rewrite routes: remove legacy casts, clean `(req, res) =>`, `.catch((err) => console.error(...))`
+4. Fix FE store: `parseApiError()` from `@/lib/errorParser`
+5. Verify: `cd backend && npx tsc --noEmit && npx tsc`
+6. Update DEV_STATUS.md
 
-### Pattern (proven — follow exactly):
-1. Read controller + routes files
-2. Rewrite controller:
-   - `Request` from express (not `AuthRequest`/`AuthenticatedRequest`)
-   - `ValidatedAuthRequest<typeof schema>` cast inside method body (not in signature)
-   - `req.user?.id ?? ''` (not `req.user!.id`)
-   - `await handleError(res, error, req, { action: '...' })` with descriptive action
-   - `error: unknown` in all catch blocks
-   - No `withValidated` wrapper — plain arrow functions
-   - No `getParamString` — use validated params or `req.params.x`
-3. Rewrite routes:
-   - Remove all `AuthenticatedRequest`/`AuthenticatedQueryRequest`/`ValidatedAuthRequest` casts
-   - Clean `(req, res) => controller.method(req, res)` for ALL routes
-   - `.catch((err) => console.error(...))` for registerModule (not silent)
-4. Verify: `cd backend && npx tsc --noEmit` then `npx tsc`
-5. Update DEV_STATUS.md: BE table row + move from partial to fully compliant
+### Priority Order (by issue count — biggest first):
 
-### Reference file:
-`backend/src/modules/branches/branches.controller.ts` — just rewritten, use as template.
+#### Tier 1: Heavy (30+ legacy patterns)
+1. ✅ `pos-imports/pos-aggregates` — done — BE: 48 patterns, 23 no-await. FE: 15 issues
+2. ✅ `accounting/journals/journal-headers` — done — BE: 42 patterns, 15 no-await. FE: 12 issues
+3. ⬜ `accounting/chart-of-accounts` — BE: 31 patterns, 16 no-await. FE: 12 issues
+4. ⬜ `pos-imports/pos-imports` — BE: 31 patterns, 12 no-await. FE: 7 issues
+5. ⬜ `accounting/accounting-purposes` — BE: 30 patterns, 15 no-await. FE: 8 issues
+6. ⬜ `reconciliation/bank-statement-import` — BE: 28 patterns, 21 no-await. FE: 1 issue
+7. ⬜ `accounting/accounting-purpose-accounts` — BE: 28 patterns, 12 no-await. FE: 13 issues
+8. ⬜ `accounting/fiscal-periods` — BE: 28 patterns, 11 no-await. FE: 10 issues
+
+#### Tier 2: Medium (10-30 legacy patterns)
+9. ⬜ `reconciliation/bank-reconciliation` — BE: 20 patterns, 1 no-await. FE: N/A (hooks)
+10. ⬜ `accounting/journals/journal-lines` — BE: 12 patterns, 5 no-await. FE: 3 issues
+11. ⬜ `reconciliation/bank-settlement-group` — BE: 11 patterns, 1 no-await. FE: N/A (hooks)
+
+#### Tier 3: Light (< 10 legacy patterns)
+12. ⬜ `accounting/trial-balance` — BE: 6 patterns, 2 no-await. FE: N/A (page-level)
+13. ⬜ `accounting/income-statement` — BE: 6 patterns, 2 no-await. FE: N/A (page-level)
+14. ⬜ `accounting/balance-sheet` — BE: 6 patterns, 2 no-await. FE: N/A (page-level)
+15. ⬜ `reconciliation/fee-reconciliation` — BE: 3 patterns, 1 no-await. FE: N/A
+16. ⬜ `pos-imports/pos-transactions` — BE: 3 patterns, 3 no-await. FE: N/A
+17. ⬜ `pos-sync-aggregates` — BE: 0 patterns. FE: N/A (already clean)
 
 ### Key files:
 - Patokan: `.amazonq/docs/DEV_STATUS.md` + `.amazonq/rules/Basic.md`
-- Express augmentation: `backend/src/types/express.d.ts` (has `sort`, `queryFilter`, `filterParams`, `context`, `user`, `validated`, `pagination`)
+- Express augmentation: `backend/src/types/express.d.ts`
 - Global error parser: `frontend/src/lib/errorParser.ts` → `parseApiError()`
 - Postgres error helper: `backend/src/utils/postgres-error.util.ts` → `isPostgresError()`
+- Reference controller: `backend/src/modules/branches/branches.controller.ts`

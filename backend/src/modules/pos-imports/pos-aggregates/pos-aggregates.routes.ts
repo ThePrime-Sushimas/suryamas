@@ -19,7 +19,7 @@ import {
 
 // Register module permissions
 PermissionService.registerModule('pos_aggregates', 'POS Aggregates Management').catch((error) => {
-  console.error('Failed to register pos_aggregates module:', error.message)
+  console.error('Failed to register pos_aggregates module:', error instanceof Error ? error.message : error)
 })
 
 const router = Router()
@@ -41,7 +41,7 @@ router.get(
   '/failed',
   canView('pos_aggregates'),
   validateSchema(aggregatedTransactionListQuerySchema),
-  posAggregatesController.listFailed
+  (req, res) => posAggregatesController.listFailed(req, res)
 )
 
 /**
@@ -53,7 +53,7 @@ router.get(
   '/failed/:id',
   canView('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.findFailedById
+  (req, res) => posAggregatesController.findFailedById(req, res)
 )
 
 /**
@@ -65,7 +65,7 @@ router.post(
   '/failed/:id/fix',
   canUpdate('pos_aggregates'),
   validateSchema(updateAggregatedTransactionSchema),
-  posAggregatesController.fixFailed
+  (req, res) => posAggregatesController.fixFailed(req, res)
 )
 
 /**
@@ -76,7 +76,7 @@ router.post(
 router.post(
   '/failed/batch-fix',
   canUpdate('pos_aggregates'),
-  posAggregatesController.batchFixFailed
+  (req, res) => posAggregatesController.batchFixFailed(req, res)
 )
 
 /**
@@ -88,7 +88,7 @@ router.post(
   '/recalculate-fee',
   canUpdate('pos_aggregates'),
   validateSchema(recalculateFeeSchema),
-  posAggregatesController.recalculateFee
+  (req, res) => posAggregatesController.recalculateFee(req, res)
 )
 
 /**
@@ -100,7 +100,7 @@ router.delete(
   '/failed/:id',
   canDelete('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.deleteFailed
+  (req, res) => posAggregatesController.deleteFailed(req, res)
 )
 
 // =============================================================================
@@ -116,7 +116,7 @@ router.get(
   '/',
   canView('pos_aggregates'),
   validateSchema(aggregatedTransactionListQuerySchema),
-  posAggregatesController.list
+  (req, res) => posAggregatesController.list(req, res)
 )
 
 /**
@@ -128,7 +128,7 @@ router.get(
   '/summary',
   canView('pos_aggregates'),
   validateSchema(aggregatedTransactionListQuerySchema),
-  posAggregatesController.getSummary
+  (req, res) => posAggregatesController.getSummary(req, res)
 )
 
 /**
@@ -140,7 +140,7 @@ router.get(
   '/unreconciled',
   canView('pos_aggregates'),
   validateSchema(aggregatedTransactionListQuerySchema),
-  posAggregatesController.getUnreconciled
+  (req, res) => posAggregatesController.getUnreconciled(req, res)
 )
 
 /**
@@ -151,7 +151,7 @@ router.get(
 router.get(
   '/check-source',
   canView('pos_aggregates'),
-  posAggregatesController.checkSource
+  (req, res) => posAggregatesController.checkSource(req, res)
 )
 
 /**
@@ -163,7 +163,7 @@ router.post(
   '/',
   canInsert('pos_aggregates'),
   validateSchema(createAggregatedTransactionSchema),
-  posAggregatesController.create
+  (req, res) => posAggregatesController.create(req, res)
 )
 
 /**
@@ -175,7 +175,7 @@ router.post(
   '/batch/reconcile',
   canUpdate('pos_aggregates'),
   validateSchema(batchReconcileSchema),
-  posAggregatesController.batchReconcile
+  (req, res) => posAggregatesController.batchReconcile(req, res)
 )
 
 /**
@@ -187,7 +187,7 @@ router.post(
   '/batch',
   canInsert('pos_aggregates'),
   validateSchema(createBatchSchema),
-  posAggregatesController.createBatch
+  (req, res) => posAggregatesController.createBatch(req, res)
 )
 
 /**
@@ -199,7 +199,7 @@ router.post(
   '/batch/assign-journal',
   canUpdate('pos_aggregates'),
   validateSchema(batchAssignJournalSchema),
-  posAggregatesController.batchAssignJournal
+  (req, res) => posAggregatesController.batchAssignJournal(req, res)
 )
 
 /**
@@ -212,7 +212,7 @@ router.get(
   '/:id',
   canView('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.findById
+  (req, res) => posAggregatesController.findById(req, res)
 )
 
 /**
@@ -224,7 +224,7 @@ router.put(
   '/:id',
   canUpdate('pos_aggregates'),
   validateSchema(updateAggregatedTransactionSchema),
-  posAggregatesController.update
+  (req, res) => posAggregatesController.update(req, res)
 )
 
 /**
@@ -236,7 +236,7 @@ router.delete(
   '/:id',
   canDelete('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.delete
+  (req, res) => posAggregatesController.delete(req, res)
 )
 
 /**
@@ -248,7 +248,7 @@ router.post(
   '/:id/restore',
   canInsert('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.restore
+  (req, res) => posAggregatesController.restore(req, res)
 )
 
 /**
@@ -260,7 +260,7 @@ router.post(
   '/:id/reconcile',
   canUpdate('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.reconcile
+  (req, res) => posAggregatesController.reconcile(req, res)
 )
 
 /**
@@ -272,7 +272,7 @@ router.post(
   '/:id/assign-journal',
   canUpdate('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
-  posAggregatesController.assignJournal
+  (req, res) => posAggregatesController.assignJournal(req, res)
 )
 
 export default router

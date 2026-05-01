@@ -1,397 +1,253 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { posAggregatesService } from './pos-aggregates.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
-import { withValidated } from '../../../utils/handler'
-import { logInfo } from '../../../config/logger'
-import type { ValidatedRequest, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
-import type { BranchContext } from '../../../types/common.types'
+import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import {
-  createAggregatedTransactionSchema,
-  updateAggregatedTransactionSchema,
-  aggregatedTransactionIdSchema,
-  aggregatedTransactionListQuerySchema,
-
-  batchReconcileSchema,
-  createBatchSchema,
-  batchAssignJournalSchema,
-  recalculateFeeSchema,
+  createAggregatedTransactionSchema, updateAggregatedTransactionSchema,
+  aggregatedTransactionIdSchema, aggregatedTransactionListQuerySchema,
+  batchReconcileSchema, createBatchSchema, batchAssignJournalSchema, recalculateFeeSchema,
 } from './pos-aggregates.schema'
-import { AuthRequest } from '../../../types/common.types'
 
-// Type aliases for validated requests
-type CreateTransactionReq = ValidatedRequest<typeof createAggregatedTransactionSchema>
-type UpdateTransactionReq = ValidatedAuthRequest<typeof updateAggregatedTransactionSchema>
-type TransactionIdReq = ValidatedAuthRequest<typeof aggregatedTransactionIdSchema>
-type TransactionListQueryReq = ValidatedRequest<typeof aggregatedTransactionListQuerySchema>
-
-type BatchReconcileReq = ValidatedRequest<typeof batchReconcileSchema>
-type CreateBatchReq = ValidatedRequest<typeof createBatchSchema>
-type BatchAssignJournalReq = ValidatedRequest<typeof batchAssignJournalSchema>
+type CreateReq = ValidatedAuthRequest<typeof createAggregatedTransactionSchema>
+type UpdateReq = ValidatedAuthRequest<typeof updateAggregatedTransactionSchema>
+type IdReq = ValidatedAuthRequest<typeof aggregatedTransactionIdSchema>
+type ListReq = ValidatedAuthRequest<typeof aggregatedTransactionListQuerySchema>
+type BatchReconcileReq = ValidatedAuthRequest<typeof batchReconcileSchema>
+type CreateBatchReq = ValidatedAuthRequest<typeof createBatchSchema>
+type BatchAssignJournalReq = ValidatedAuthRequest<typeof batchAssignJournalSchema>
+type RecalcFeeReq = ValidatedAuthRequest<typeof recalculateFeeSchema>
 
 export class PosAggregatesController {
-  /**
-   * Create new aggregated transaction
-   * POST /aggregated-transactions
-   */
-  create = withValidated(async (req: CreateTransactionReq, res: Response) => {
+  create = async (req: Request, res: Response) => {
     try {
-      const transaction = await posAggregatesService.createTransaction(req.validated.body as any)
+      const { body } = (req as CreateReq).validated
+      const transaction = await posAggregatesService.createTransaction(body as Parameters<typeof posAggregatesService.createTransaction>[0])
       sendSuccess(res, transaction, 'Aggregated transaction created successfully', 201)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_aggregated_transaction' })
     }
-  })
+  }
 
-  /**
-   * List aggregated transactions with pagination and filters
-   * GET /aggregated-transactions
-   */
-  list = withValidated(async (req: TransactionListQueryReq, res: Response) => {
+  list = async (req: Request, res: Response) => {
     try {
-      const result = await posAggregatesService.getTransactions(
-        req.validated.query,
-        undefined // sort - can be extended
-      )
+      const { query } = (req as ListReq).validated
+      const result = await posAggregatesService.getTransactions(query)
       sendSuccess(res, result.data, 'Aggregated transactions retrieved successfully', 200, result.pagination)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_aggregated_transactions' })
     }
-  })
+  }
 
-  /**
-   * Get single aggregated transaction by ID
-   * GET /aggregated-transactions/:id
-   */
-  findById = withValidated(async (req: TransactionIdReq, res: Response) => {
+  findById = async (req: Request, res: Response) => {
     try {
-      const id = req.validated.params.id
+      const { id } = (req as IdReq).validated.params
       const transaction = await posAggregatesService.getTransactionById(id)
       sendSuccess(res, transaction, 'Aggregated transaction retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_aggregated_transaction', id: req.params.id })
     }
-  })
+  }
 
-  /**
-   * Update aggregated transaction
-   * PUT /aggregated-transactions/:id
-   */
-  update = withValidated(async (req: UpdateTransactionReq, res: Response) => {
+  update = async (req: Request, res: Response) => {
     try {
-      const id = req.validated.params.id
-      const transaction = await posAggregatesService.updateTransaction(
-        id,
-        req.validated.body,
-        req.validated.body.version // for optimistic locking
-      )
+      const { params, body } = (req as UpdateReq).validated
+      const transaction = await posAggregatesService.updateTransaction(params.id, body, body.version)
       sendSuccess(res, transaction, 'Aggregated transaction updated successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_aggregated_transaction', id: req.params.id })
     }
-  })
+  }
 
-  /**
-   * Soft delete aggregated transaction
-   * DELETE /aggregated-transactions/:id
-   */
-  delete = withValidated(async (req: TransactionIdReq, res: Response) => {
+  delete = async (req: Request, res: Response) => {
     try {
-      const id = req.validated.params.id
-      const employeeId = req.context?.employee_id
-      await posAggregatesService.deleteTransaction(id, employeeId)
+      const { id } = (req as IdReq).validated.params
+      await posAggregatesService.deleteTransaction(id, req.context?.employee_id)
       sendSuccess(res, null, 'Aggregated transaction deleted successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_aggregated_transaction', id: req.params.id })
     }
-  })
+  }
 
-  /**
-   * Restore soft-deleted transaction
-   * POST /aggregated-transactions/:id/restore
-   */
-  restore = withValidated(async (req: TransactionIdReq, res: Response) => {
+  restore = async (req: Request, res: Response) => {
     try {
-      const id = req.validated.params.id
+      const { id } = (req as IdReq).validated.params
       await posAggregatesService.restoreTransaction(id)
       sendSuccess(res, null, 'Aggregated transaction restored successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'restore_aggregated_transaction', id: req.params.id })
     }
-  })
+  }
 
-  /**
-   * Mark transaction as reconciled
-   * POST /aggregated-transactions/:id/reconcile
-   */
-  reconcile = withValidated(async (req: TransactionIdReq, res: Response) => {
+  reconcile = async (req: Request, res: Response) => {
     try {
-      const id = req.validated.params.id
+      const { id } = (req as IdReq).validated.params
       const reconciledBy = req.context?.employee_id || req.body.reconciled_by
-      if (!reconciledBy) {
-        return handleError(res, new Error('reconciled_by is required'))
-      }
+      if (!reconciledBy) throw new Error('reconciled_by is required')
       const reason = req.body.reason as string | undefined
       await posAggregatesService.reconcileTransaction(id, reconciledBy, reason)
       sendSuccess(res, null, 'Transaction reconciled successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reconcile_transaction', id: req.params.id })
     }
-  })
+  }
 
-  /**
-   * Batch reconcile transactions
-   * POST /aggregated-transactions/batch/reconcile
-   */
-  batchReconcile = withValidated(async (req: BatchReconcileReq, res: Response) => {
+  batchReconcile = async (req: Request, res: Response) => {
     try {
-      const { transaction_ids, reconciled_by } = req.validated.body
+      const { transaction_ids, reconciled_by } = (req as BatchReconcileReq).validated.body
       const count = await posAggregatesService.reconcileBatch(transaction_ids, reconciled_by)
       sendSuccess(res, { reconciled_count: count }, `${count} transactions reconciled successfully`)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'batch_reconcile' })
     }
-  })
+  }
 
-  /**
-   * Create multiple transactions (batch)
-   * POST /aggregated-transactions/batch
-   */
-  createBatch = withValidated(async (req: CreateBatchReq, res: Response) => {
+  createBatch = async (req: Request, res: Response) => {
     try {
-      const { transactions } = req.validated.body
-      const result = await posAggregatesService.createBatch(transactions as any)
+      const { transactions } = (req as CreateBatchReq).validated.body
+      const result = await posAggregatesService.createBatch(transactions as Parameters<typeof posAggregatesService.createBatch>[0])
       sendSuccess(res, result, 'Batch transaction creation completed', 200, {
         total_processed: result.total_processed,
         success_count: result.success.length,
-        failed_count: result.failed.length
+        failed_count: result.failed.length,
       })
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_batch' })
     }
-  })
+  }
 
-  /**
-   * Batch assign journal to multiple transactions
-   * POST /aggregated-transactions/batch/assign-journal
-   */
-  batchAssignJournal = withValidated(async (req: BatchAssignJournalReq, res: Response) => {
+  batchAssignJournal = async (req: Request, res: Response) => {
     try {
-      const { transaction_ids, journal_id } = req.validated.body
+      const { transaction_ids, journal_id } = (req as BatchAssignJournalReq).validated.body
       const result = await posAggregatesService.assignJournalBatch(transaction_ids, journal_id)
       sendSuccess(res, result, 'Batch journal assignment completed', 200, {
         assigned: result.assigned,
-        skipped: result.skipped
+        skipped: result.skipped,
       })
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'batch_assign_journal' })
     }
-  })
+  }
 
-  /**
-   * Get summary statistics
-   * GET /aggregated-transactions/summary
-   */
-  getSummary = withValidated(async (req: TransactionListQueryReq, res: Response) => {
+  getSummary = async (req: Request, res: Response) => {
     try {
-      const { transaction_date_from, transaction_date_to, branch_id, branch_names, payment_method_ids, status, is_reconciled } = req.validated.query
-      
+      const q = (req as ListReq).validated.query
       let branchNamesArray: string[] | undefined
-      
-      if (branch_id) {
-        logInfo('Summary: branch_id filter received but not fully implemented, using branch_names instead', { branch_id })
+      if (q.branch_names) {
+        branchNamesArray = Array.isArray(q.branch_names)
+          ? q.branch_names.map(b => String(b).trim()).filter(Boolean)
+          : String(q.branch_names).split(',').map(b => b.trim()).filter(Boolean)
       }
-      
-      if (branch_names) {
-        if (Array.isArray(branch_names)) {
-          branchNamesArray = branch_names.map(b => String(b).trim()).filter(Boolean)
-        } else {
-          branchNamesArray = String(branch_names).split(',').map(b => b.trim()).filter(Boolean)
-        }
-      }
-      
       let paymentMethodIdsArray: number[] | undefined
-      if (payment_method_ids) {
-        if (Array.isArray(payment_method_ids)) {
-          paymentMethodIdsArray = payment_method_ids
-            .map(id => {
-              const num = Number(id)
-              return isNaN(num) ? undefined : num
-            })
-            .filter((id): id is number => id !== undefined)
-        } else {
-          paymentMethodIdsArray = String(payment_method_ids)
-            .split(',')
-            .map(s => {
-              const num = parseInt(s.trim())
-              return isNaN(num) ? undefined : num
-            })
-            .filter((id): id is number => id !== undefined)
-        }
+      if (q.payment_method_ids) {
+        paymentMethodIdsArray = (Array.isArray(q.payment_method_ids) ? q.payment_method_ids : String(q.payment_method_ids).split(','))
+          .map(id => Number(id)).filter(id => !isNaN(id))
       }
-
       const summary = await posAggregatesService.getSummary(
-        transaction_date_from ?? undefined,
-        transaction_date_to ?? undefined,
-        branchNamesArray,
-        paymentMethodIdsArray,
-        status ?? undefined,
-        is_reconciled,
+        q.transaction_date_from ?? undefined, q.transaction_date_to ?? undefined,
+        branchNamesArray, paymentMethodIdsArray, q.status ?? undefined, q.is_reconciled,
       )
       sendSuccess(res, summary, 'Summary retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_summary' })
     }
-  })
+  }
 
-
-
-  /**
-   * Assign journal to transaction
-   * POST /aggregated-transactions/:id/assign-journal
-   */
-  assignJournal = withValidated(async (req: TransactionIdReq, res: Response) => {
+  assignJournal = async (req: Request, res: Response) => {
     try {
-      const id = req.validated.params.id
+      const { id } = (req as IdReq).validated.params
       const { journal_id } = req.body
       await posAggregatesService.assignJournal(id, journal_id)
       sendSuccess(res, null, 'Journal assigned successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'assign_journal', id: req.params.id })
     }
-  })
+  }
 
-  /**
-   * Check if source already exists
-   * GET /aggregated-transactions/check-source
-   */
-  checkSource = async (req: AuthRequest, res: Response): Promise<void> => {
+  checkSource = async (req: Request, res: Response) => {
     try {
       const { source_type, source_id, source_ref } = req.query
       const exists = await posAggregatesService.checkSourceExists(
-        source_type as any,
-        source_id as string,
-        source_ref as string
+        source_type as 'POS', source_id as string, source_ref as string
       )
       sendSuccess(res, { exists }, 'Source check completed')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'check_source' })
     }
   }
 
-  /**
-   * Get unreconciled transactions for journal generation
-   * GET /aggregated-transactions/unreconciled
-   */
-  getUnreconciled = withValidated(async (req: TransactionListQueryReq, res: Response) => {
+  getUnreconciled = async (req: Request, res: Response) => {
     try {
-      const { transaction_date_from, transaction_date_to, branch_name } = req.validated.query
-
+      const q = (req as ListReq).validated.query
       const transactions = await posAggregatesService.getUnreconciledTransactions(
-        transaction_date_from ?? undefined,
-        transaction_date_to ?? undefined,
-        branch_name ?? undefined
+        q.transaction_date_from ?? undefined, q.transaction_date_to ?? undefined, q.branch_name ?? undefined
       )
       sendSuccess(res, transactions, 'Unreconciled transactions retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
-    }
-  })
-
-  /**
-   * List failed transactions with pagination and filters
-   * GET /aggregated-transactions/failed
-   */
-  listFailed = withValidated(async (req: TransactionListQueryReq, res: Response) => {
-    try {
-      const result = await posAggregatesService.getFailedTransactions(
-        req.validated.query,
-        undefined
-      )
-      sendSuccess(res, result.data, 'Failed transactions retrieved successfully', 200, result.pagination)
-    } catch (error: any) {
-      handleError(res, error, req)
-    }
-  })
-
-  /**
-   * Get failed transaction details
-   * GET /aggregated-transactions/failed/:id
-   */
-  findFailedById = withValidated(async (req: TransactionIdReq, res: Response) => {
-    try {
-      const id = req.validated.params.id
-      const transaction = await posAggregatesService.getFailedTransactionById(id)
-      sendSuccess(res, transaction, 'Failed transaction retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
-    }
-  })
-
-  /**
-   * Fix and retry a failed transaction
-   * POST /aggregated-transactions/failed/:id/fix
-   */
-  fixFailed = withValidated(async (req: UpdateTransactionReq, res: Response) => {
-    try {
-      const id = req.validated.params.id
-      const transaction = await posAggregatesService.fixFailedTransaction(id, req.validated.body)
-      sendSuccess(res, transaction, 'Failed transaction fixed successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
-    }
-  })
-
-  /**
-   * Batch fix multiple failed transactions
-   * POST /aggregated-transactions/failed/batch-fix
-   */
-  batchFixFailed = async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-      const { ids, updates } = req.body
-      if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return handleError(res, new Error('ids array is required'))
-      }
-      const result = await posAggregatesService.batchFixFailedTransactions(ids, updates || {})
-      sendSuccess(res, result, 'Batch fix completed', 200, {
-        fixed_count: result.fixed.length,
-        failed_count: result.failed.length
-      })
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_unreconciled' })
     }
   }
 
-  /**
-   * Permanently delete a failed transaction
-   * DELETE /aggregated-transactions/failed/:id
-   */
-  deleteFailed = withValidated(async (req: TransactionIdReq, res: Response) => {
+  listFailed = async (req: Request, res: Response) => {
     try {
-      const id = req.validated.params.id
-      const employeeId = req.context?.employee_id
-      await posAggregatesService.deleteFailedTransaction(id, employeeId)
-      sendSuccess(res, null, 'Failed transaction deleted permanently')
-    } catch (error: any) {
-      handleError(res, error, req)
+      const { query } = (req as ListReq).validated
+      const result = await posAggregatesService.getFailedTransactions(query)
+      sendSuccess(res, result.data, 'Failed transactions retrieved successfully', 200, result.pagination)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_failed_transactions' })
     }
-  })
+  }
 
-  /**
-   * Recalculate fee for POS Import records by date
-   * POST /aggregated-transactions/recalculate-fee
-   */
-  recalculateFee = withValidated(async (req: ValidatedAuthRequest<typeof recalculateFeeSchema>, res: Response): Promise<void> => {
+  findFailedById = async (req: Request, res: Response) => {
     try {
-      const result = await posAggregatesService.recalculateFeeByDate(
-        req.validated.body.transaction_date,
-        req.context?.employee_id,
-      )
-      sendSuccess(res, result, `Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
-    } catch (error: any) {
-      handleError(res, error, req)
+      const { id } = (req as IdReq).validated.params
+      const transaction = await posAggregatesService.getFailedTransactionById(id)
+      sendSuccess(res, transaction, 'Failed transaction retrieved successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_failed_transaction', id: req.params.id })
     }
-  })
+  }
+
+  fixFailed = async (req: Request, res: Response) => {
+    try {
+      const { params, body } = (req as UpdateReq).validated
+      const transaction = await posAggregatesService.fixFailedTransaction(params.id, body)
+      sendSuccess(res, transaction, 'Failed transaction fixed successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'fix_failed_transaction', id: req.params.id })
+    }
+  }
+
+  batchFixFailed = async (req: Request, res: Response) => {
+    try {
+      const { ids, updates } = req.body
+      if (!ids || !Array.isArray(ids) || ids.length === 0) throw new Error('ids array is required')
+      const result = await posAggregatesService.batchFixFailedTransactions(ids, updates || {})
+      sendSuccess(res, result, 'Batch fix completed')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'batch_fix_failed' })
+    }
+  }
+
+  deleteFailed = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as IdReq).validated.params
+      await posAggregatesService.deleteFailedTransaction(id, req.context?.employee_id)
+      sendSuccess(res, null, 'Failed transaction deleted permanently')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_failed_transaction', id: req.params.id })
+    }
+  }
+
+  recalculateFee = async (req: Request, res: Response) => {
+    try {
+      const { body } = (req as RecalcFeeReq).validated
+      const result = await posAggregatesService.recalculateFeeByDate(body.transaction_date, req.context?.employee_id)
+      sendSuccess(res, result, `Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'recalculate_fee' })
+    }
+  }
 }
 
 export const posAggregatesController = new PosAggregatesController()
