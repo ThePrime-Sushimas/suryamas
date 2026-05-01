@@ -349,8 +349,9 @@ Approach yang direkomendasikan:
 | 4 | ~~`balance-sheet.controller.ts`~~ | ~~`balance-sheet.routes.ts`~~ | 1 | ✅ Done |
 | 5 | ~~`income-statement.controller.ts`~~ | ~~`income-statement.routes.ts`~~ | 1 | ✅ Done |
 | 6 | ~~`trial-balance.controller.ts`~~ | ~~`trial-balance.routes.ts`~~ | 1 | ✅ Done |
-| 7 | `companies.controller.ts` | `companies.routes.ts` | 4 | `ValidatedAuthRequest` signature |
-| 8 | `employee_branches.controller.ts` | `employee_branches.routes.ts` | 3 | `ValidatedAuthRequest` signature |
+| 7 | ~~`sub-categories.controller.ts`~~ | ~~`sub-categories.routes.ts`~~ | 7 | ✅ Done |
+| 7 | ~~`companies.controller.ts`~~ | ~~`companies.routes.ts`~~ | 4 | ✅ Done |
+| 8 | ~~`employee_branches.controller.ts`~~ | ~~`employee_branches.routes.ts`~~ | 3 | ✅ Done |
 | 9 | `employees.controller.ts` | `employees.routes.ts` | 7 | `ValidatedAuthRequest` signature |
 | 10 | `products.controller.ts` | `products.routes.ts` | 8 | `ValidatedAuthRequest` signature |
 | 11 | `bank-reconciliation.controller.ts` | `bank-reconciliation.routes.ts` | 6 | `ValidatedAuthRequest` signature, `(req.validated as any)` (3x) |

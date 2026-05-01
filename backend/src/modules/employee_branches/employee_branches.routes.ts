@@ -3,7 +3,7 @@ import { employeeBranchesController } from './employee_branches.controller'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
-import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { CreateEmployeeBranchSchema, UpdateEmployeeBranchSchema, employeeBranchIdSchema, BulkDeleteSchema, employeeIdSchema, branchIdSchema } from './employee_branches.schema'
 
@@ -30,17 +30,17 @@ router.get('/branch/:branchId', canView('employee_branches'), validateSchema(bra
   employeeBranchesController.getByBranchId(req, res))
 
 router.post('/', canInsert('employee_branches'), validateSchema(CreateEmployeeBranchSchema), (req, res) => 
-  employeeBranchesController.create(req as ValidatedAuthRequest<typeof CreateEmployeeBranchSchema>, res))
+  employeeBranchesController.create(req, res))
 
 router.post('/bulk/delete', canDelete('employee_branches'), validateSchema(BulkDeleteSchema), (req, res) => 
-  employeeBranchesController.bulkDelete(req as ValidatedAuthRequest<typeof BulkDeleteSchema>, res))
+  employeeBranchesController.bulkDelete(req, res))
 
 router.put('/employee/:employeeId/branch/:branchId/primary', canUpdate('employee_branches'), validateSchema(employeeIdSchema), (req, res) =>
   employeeBranchesController.setPrimaryBranch(req, res)
 )
 
 router.put('/:id', canUpdate('employee_branches'), validateSchema(UpdateEmployeeBranchSchema), (req, res) => 
-  employeeBranchesController.update(req as ValidatedAuthRequest<typeof UpdateEmployeeBranchSchema>, res))
+  employeeBranchesController.update(req, res))
 
 router.put('/:id/suspend', canUpdate('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res) => 
   employeeBranchesController.suspend(req, res))

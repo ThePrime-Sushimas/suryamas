@@ -3,14 +3,15 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { queryMiddleware } from '../../middleware/query.middleware'
-import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { subCategoriesController } from './sub-categories.controller'
 import { PermissionService } from '../../services/permission.service'
 import { CreateSubCategorySchema, UpdateSubCategorySchema, subCategoryIdSchema, BulkDeleteSchema, categoryIdSchema } from './sub-categories.schema'
 
 const router = Router()
 
-PermissionService.registerModule('sub_categories', 'SubCategory Management').catch(() => {})
+PermissionService.registerModule('sub_categories', 'SubCategory Management')
+  .catch((err) => console.error('Failed to register sub_categories module:', err))
 
 router.use(authenticate, resolveBranchContext)
 
@@ -23,27 +24,27 @@ router.get('/trash', canView('sub_categories'), queryMiddleware({ allowedSortFie
   subCategoriesController.trash(req, res))
 
 router.get('/category/:categoryId', canView('sub_categories'), validateSchema(categoryIdSchema), (req, res) =>
-  subCategoriesController.getByCategory(req as ValidatedAuthRequest<typeof categoryIdSchema>, res))
+  subCategoriesController.getByCategory(req, res))
 
 router.get('/', canView('sub_categories'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) =>
   subCategoriesController.list(req, res))
 
 router.get('/:id', canView('sub_categories'), validateSchema(subCategoryIdSchema), (req, res) =>
-  subCategoriesController.getById(req as ValidatedAuthRequest<typeof subCategoryIdSchema>, res))
+  subCategoriesController.getById(req, res))
 
 router.post('/', canInsert('sub_categories'), validateSchema(CreateSubCategorySchema), (req, res) =>
-  subCategoriesController.create(req as ValidatedAuthRequest<typeof CreateSubCategorySchema>, res))
+  subCategoriesController.create(req, res))
 
 router.put('/:id', canUpdate('sub_categories'), validateSchema(UpdateSubCategorySchema), (req, res) =>
-  subCategoriesController.update(req as ValidatedAuthRequest<typeof UpdateSubCategorySchema>, res))
+  subCategoriesController.update(req, res))
 
 router.delete('/:id', canDelete('sub_categories'), validateSchema(subCategoryIdSchema), (req, res) =>
-  subCategoriesController.delete(req as ValidatedAuthRequest<typeof subCategoryIdSchema>, res))
+  subCategoriesController.delete(req, res))
 
 router.patch('/:id/restore', canUpdate('sub_categories'), validateSchema(subCategoryIdSchema), (req, res) =>
-  subCategoriesController.restore(req as ValidatedAuthRequest<typeof subCategoryIdSchema>, res))
+  subCategoriesController.restore(req, res))
 
 router.post('/bulk/delete', canDelete('sub_categories'), validateSchema(BulkDeleteSchema), (req, res) =>
-  subCategoriesController.bulkDelete(req as ValidatedAuthRequest<typeof BulkDeleteSchema>, res))
+  subCategoriesController.bulkDelete(req, res))
 
 export default router

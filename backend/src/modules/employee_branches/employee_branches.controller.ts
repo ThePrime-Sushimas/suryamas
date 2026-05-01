@@ -78,20 +78,20 @@ export class EmployeeBranchesController {
     }
   }
 
-  async create(req: ValidatedAuthRequest<typeof CreateEmployeeBranchSchema>, res: Response): Promise<void> {
+  async create(req: Request, res: Response): Promise<void> {
     try {
-      const result = await employeeBranchesService.create(req.validated.body, req.user?.id)
+      const { body } = (req as ValidatedAuthRequest<typeof CreateEmployeeBranchSchema>).validated
+      const result = await employeeBranchesService.create(body, req.user?.id)
       sendSuccess(res, result, 'Employee branch assignment created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_employee_branch' })
     }
   }
 
-  async update(req: ValidatedAuthRequest<typeof UpdateEmployeeBranchSchema>, res: Response): Promise<void> {
+  async update(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = (req as ValidatedAuthRequest<typeof employeeBranchIdSchema>).validated.params
-      const { body } = req.validated
-      const result = await employeeBranchesService.update(id, body, req.user?.id)
+      const { params, body } = (req as ValidatedAuthRequest<typeof UpdateEmployeeBranchSchema>).validated
+      const result = await employeeBranchesService.update(params.id, body, req.user?.id)
       sendSuccess(res, result, 'Employee branch assignment updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_employee_branch', id: req.params.id })
@@ -130,11 +130,11 @@ export class EmployeeBranchesController {
     }
   }
 
-  async bulkDelete(req: ValidatedAuthRequest<typeof BulkDeleteSchema>, res: Response): Promise<void> {
+  async bulkDelete(req: Request, res: Response): Promise<void> {
     try {
-      const { ids } = req.validated.body
-      await employeeBranchesService.bulkDelete(ids, req.user?.id)
-      sendSuccess(res, null, `${ids.length} employee branch assignments deleted`)
+      const { body } = (req as ValidatedAuthRequest<typeof BulkDeleteSchema>).validated
+      await employeeBranchesService.bulkDelete(body.ids, req.user?.id)
+      sendSuccess(res, null, `${body.ids.length} employee branch assignments deleted`)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_delete_employee_branches' })
     }

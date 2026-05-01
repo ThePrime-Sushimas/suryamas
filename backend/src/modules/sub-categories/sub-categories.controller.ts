@@ -1,10 +1,10 @@
 import { Request, Response } from 'express'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { subCategoriesService } from './sub-categories.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { SubCategoryErrors } from './sub-categories.errors'
-import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import {
+import type {
   subCategoryIdSchema,
   categoryIdSchema,
   CreateSubCategorySchema,
@@ -21,7 +21,7 @@ export class SubCategoriesController {
       const result = await subCategoriesService.list({ page, limit }, req.sort, categoryId)
       sendSuccess(res, result.data, 'SubCategories retrieved successfully', 200, result.pagination)
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'list' })
+      await handleError(res, error, req, { action: 'list_sub_categories' })
     }
   }
 
@@ -32,7 +32,7 @@ export class SubCategoriesController {
       const result = await subCategoriesService.trash({ page, limit }, req.sort)
       sendSuccess(res, result.data, 'Trash retrieved successfully', 200, result.pagination)
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'trash' })
+      await handleError(res, error, req, { action: 'list_sub_categories_trash' })
     }
   }
 
@@ -44,78 +44,79 @@ export class SubCategoriesController {
       const result = await subCategoriesService.search(q, { page, limit }, req.sort)
       sendSuccess(res, result.data, 'Search completed', 200, result.pagination)
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'search', query: req.query.q })
+      await handleError(res, error, req, { action: 'search_sub_categories' })
     }
   }
 
-  getById = async (req: ValidatedAuthRequest<typeof subCategoryIdSchema>, res: Response): Promise<void> => {
+  getById = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { id } = req.validated.params
-      const subCategory = await subCategoriesService.getById(id)
-      if (!subCategory) throw SubCategoryErrors.NOT_FOUND(id)
+      const { params } = (req as ValidatedAuthRequest<typeof subCategoryIdSchema>).validated
+      const subCategory = await subCategoriesService.getById(params.id)
+      if (!subCategory) throw SubCategoryErrors.NOT_FOUND(params.id)
       sendSuccess(res, subCategory, 'SubCategory retrieved successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'getById', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'get_sub_category' })
     }
   }
 
-  getByCategory = async (req: ValidatedAuthRequest<typeof categoryIdSchema>, res: Response): Promise<void> => {
+  getByCategory = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { categoryId } = req.validated.params
-      const subCategories = await subCategoriesService.getByCategory(categoryId)
+      const { params } = (req as ValidatedAuthRequest<typeof categoryIdSchema>).validated
+      const subCategories = await subCategoriesService.getByCategory(params.categoryId)
       sendSuccess(res, subCategories, 'SubCategories retrieved successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'getByCategory', categoryId: req.validated?.params?.categoryId })
+      await handleError(res, error, req, { action: 'get_sub_categories_by_category' })
     }
   }
 
-  create = async (req: ValidatedAuthRequest<typeof CreateSubCategorySchema>, res: Response): Promise<void> => {
+  create = async (req: Request, res: Response): Promise<void> => {
     try {
-      const subCategory = await subCategoriesService.create(req.validated.body, req.user?.id)
+      const { body } = (req as ValidatedAuthRequest<typeof CreateSubCategorySchema>).validated
+      const subCategory = await subCategoriesService.create(body, req.user?.id)
       sendSuccess(res, subCategory, 'SubCategory created successfully', 201)
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'create' })
+      await handleError(res, error, req, { action: 'create_sub_category' })
     }
   }
 
-  update = async (req: ValidatedAuthRequest<typeof UpdateSubCategorySchema>, res: Response): Promise<void> => {
+  update = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { params, body } = req.validated
+      const { params, body } = (req as ValidatedAuthRequest<typeof UpdateSubCategorySchema>).validated
       const subCategory = await subCategoriesService.update(params.id, body, req.user?.id)
       sendSuccess(res, subCategory, 'SubCategory updated successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'update', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'update_sub_category' })
     }
   }
 
-  delete = async (req: ValidatedAuthRequest<typeof subCategoryIdSchema>, res: Response): Promise<void> => {
+  delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { id } = req.validated.params
-      await subCategoriesService.delete(id, req.user?.id)
+      const { params } = (req as ValidatedAuthRequest<typeof subCategoryIdSchema>).validated
+      await subCategoriesService.delete(params.id, req.user?.id)
       sendSuccess(res, null, 'SubCategory deleted successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'delete', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'delete_sub_category' })
     }
   }
 
-  restore = async (req: ValidatedAuthRequest<typeof subCategoryIdSchema>, res: Response): Promise<void> => {
+  restore = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { id } = req.validated.params
-      await subCategoriesService.restore(id, req.user?.id)
-      const subCategory = await subCategoriesService.getById(id)
+      const { params } = (req as ValidatedAuthRequest<typeof subCategoryIdSchema>).validated
+      await subCategoriesService.restore(params.id, req.user?.id)
+      const subCategory = await subCategoriesService.getById(params.id)
       sendSuccess(res, subCategory, 'SubCategory restored successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'restore', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'restore_sub_category' })
     }
   }
 
-  bulkDelete = async (req: ValidatedAuthRequest<typeof BulkDeleteSchema>, res: Response): Promise<void> => {
+  bulkDelete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { ids } = req.validated.body
-      await subCategoriesService.bulkDelete(ids, req.user?.id)
+      const { body } = (req as ValidatedAuthRequest<typeof BulkDeleteSchema>).validated
+      await subCategoriesService.bulkDelete(body.ids, req.user?.id)
       sendSuccess(res, null, 'SubCategories deleted successfully')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'bulkDelete' })
+      await handleError(res, error, req, { action: 'bulk_delete_sub_categories' })
     }
   }
 }
