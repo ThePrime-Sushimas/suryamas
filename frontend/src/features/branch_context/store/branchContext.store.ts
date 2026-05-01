@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { BranchContext } from '@/features/branch_context/types'
 import { branchApi } from '@/features/branch_context/api/branchContext.api'
 import { usePermissionStore } from './permission.store'
+import { parseApiError } from '@/lib/errorParser'
 
 let _refetchPromise: Promise<void> | null = null
 
@@ -84,7 +85,7 @@ export const useBranchContextStore = create<BranchContextState>()(
           
           return { success: true }
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to switch branch'
+          const errorMessage = parseApiError(error, 'Gagal berpindah cabang')
           set({ 
             isLoading: false,
             error: errorMessage,
@@ -102,7 +103,7 @@ export const useBranchContextStore = create<BranchContextState>()(
             const userBranches = await branchApi.getUserBranches()
             get().setBranches(userBranches)
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to refresh branches'
+            const errorMessage = parseApiError(error, 'Gagal memuat daftar cabang')
             set({ error: errorMessage })
           } finally {
             set({ isLoading: false })

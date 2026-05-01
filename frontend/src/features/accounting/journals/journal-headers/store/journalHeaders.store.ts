@@ -1,3 +1,4 @@
+import { parseApiError } from '@/lib/errorParser'
 import { create } from 'zustand'
 import { journalHeadersApi } from '../api/journalHeaders.api'
 import type {
@@ -91,7 +92,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
         pagination: response.pagination,
       })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to fetch journals' })
+      set({ error: parseApiError(error, 'Failed to fetch journals') })
     } finally {
       set({ loading: false })
     }
@@ -112,7 +113,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
         pagination: response.pagination,
       })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to fetch journals with lines' })
+      set({ error: parseApiError(error, 'Failed to fetch journals with lines') })
     } finally {
       set({ loading: false })
     }
@@ -124,7 +125,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
       const journal = await journalHeadersApi.getById(id)
       set({ selectedJournal: journal })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to fetch journal' })
+      set({ error: parseApiError(error, 'Failed to fetch journal') })
     } finally {
       set({ loading: false })
     }
@@ -137,7 +138,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
       await get().fetchJournals()
       return journal
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to create journal' })
+      set({ error: parseApiError(error, 'Failed to create journal') })
       throw error
     } finally {
       set({ mutating: false })
@@ -155,7 +156,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
         set({ selectedJournal: updated })
       }
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to update journal' })
+      set({ error: parseApiError(error, 'Failed to update journal') })
       throw error
     } finally {
       set({ mutating: false })
@@ -168,7 +169,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
       await journalHeadersApi.delete(id)
       await get().fetchJournals()
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to delete journal' })
+      set({ error: parseApiError(error, 'Failed to delete journal') })
       throw error
     } finally {
       set({ mutating: false })
@@ -181,7 +182,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
       await journalHeadersApi.restore(id)
       await get().fetchJournals()
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to restore journal' })
+      set({ error: parseApiError(error, 'Failed to restore journal') })
       throw error
     } finally {
       set({ mutating: false })
@@ -199,7 +200,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
         set({ selectedJournal: updated })
       }
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to submit journal' })
+      set({ error: parseApiError(error, 'Failed to submit journal') })
       throw error
     } finally {
       set({ mutating: false })
@@ -217,7 +218,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
         set({ selectedJournal: updated })
       }
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to approve journal' })
+      set({ error: parseApiError(error, 'Failed to approve journal') })
       throw error
     } finally {
       set({ mutating: false })
@@ -235,7 +236,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
         set({ selectedJournal: updated })
       }
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to reject journal' })
+      set({ error: parseApiError(error, 'Failed to reject journal') })
       throw error
     } finally {
       set({ mutating: false })
@@ -253,7 +254,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
         set({ selectedJournal: updated })
       }
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to post journal' })
+      set({ error: parseApiError(error, 'Failed to post journal') })
       throw error
     } finally {
       set({ mutating: false })
@@ -273,7 +274,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
 
       return reversal
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to reverse journal' })
+      set({ error: parseApiError(error, 'Failed to reverse journal') })
       throw error
     } finally {
       set({ mutating: false })

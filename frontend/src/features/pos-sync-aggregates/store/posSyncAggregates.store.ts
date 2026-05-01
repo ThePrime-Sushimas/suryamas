@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { posSyncAggregatesApi } from "../api/pos-sync-aggregates.api";
+import { parseApiError } from '@/lib/errorParser';
 import type {
   PosSyncAggregate,
   ListAggregatesParams,
@@ -22,6 +23,7 @@ interface PosSyncAggregatesState {
   page: number;
   limit: number;
   isLoading: boolean;
+  error: string | null;
   filter: ListAggregatesParams;
 
   // Actions
@@ -30,6 +32,7 @@ interface PosSyncAggregatesState {
   clearFilter: () => void;
   setPage: (page: number) => void;
   setLimit: (limit: number) => void;
+  clearError: () => void;
 }
 
 export const usePosSyncAggregatesStore = create<PosSyncAggregatesState>()(
@@ -41,10 +44,11 @@ export const usePosSyncAggregatesStore = create<PosSyncAggregatesState>()(
         page: 1,
         limit: 50,
         isLoading: false,
+        error: null,
         filter: initialFilter,
 
         fetchTransactions: async (page = 1, limit = 50) => {
-          set({ isLoading: true });
+          set({ isLoading: true, error: null });
           try {
             const { filter } = get();
             const response = await posSyncAggregatesApi.list({
@@ -61,8 +65,7 @@ export const usePosSyncAggregatesStore = create<PosSyncAggregatesState>()(
               isLoading: false,
             });
           } catch (error: unknown) {
-            console.error("Error fetching pos sync aggregates:", error);
-            set({ isLoading: false });
+            set({ isLoading: false, error: parseApiError(error, 'Gagal memuat data agregasi POS') });
           }
         },
 
@@ -87,6 +90,8 @@ export const usePosSyncAggregatesStore = create<PosSyncAggregatesState>()(
           set({ limit, page: 1 });
           get().fetchTransactions(1, limit);
         },
+
+        clearError: () => set({ error: null }),
       }),
       {
         name: "pos-sync-aggregates-storage",

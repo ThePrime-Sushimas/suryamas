@@ -1,3 +1,4 @@
+import { parseApiError } from '@/lib/errorParser'
 import { create } from 'zustand'
 import { chartOfAccountsApi } from '../api/chartOfAccounts.api'
 import type { ChartOfAccount, ChartOfAccountTreeNode, CreateChartOfAccountDto, UpdateChartOfAccountDto, ChartOfAccountFilter } from '../types/chart-of-account.types'
@@ -103,7 +104,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
         }
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch accounts'
+      const message = parseApiError(error, 'Failed to fetch accounts')
       set(state => ({ 
         loading: { ...state.loading, list: false },
         error: { scope: 'list', message }
@@ -131,7 +132,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
         lastFetched: now
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch postable accounts'
+      const message = parseApiError(error, 'Failed to fetch postable accounts')
       set(state => ({ 
         loading: { ...state.loading, postable: false },
         error: { scope: 'postable', message }
@@ -156,7 +157,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
         }
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to search accounts'
+      const message = parseApiError(error, 'Failed to search accounts')
       set(state => ({ 
         loading: { ...state.loading, list: false },
         error: { scope: 'list', message }
@@ -170,7 +171,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       const tree = await chartOfAccountsApi.getTree(maxDepth, filter)
       set(state => ({ tree, loading: { ...state.loading, tree: false } }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch tree'
+      const message = parseApiError(error, 'Failed to fetch tree')
       set(state => ({ 
         loading: { ...state.loading, tree: false },
         error: { scope: 'tree', message }
@@ -185,7 +186,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       set(state => ({ selectedAccount: account, loading: { ...state.loading, detail: false } }))
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Account not found'
+      const message = parseApiError(error, 'Account not found')
       set(state => ({ 
         loading: { ...state.loading, detail: false },
         error: { scope: 'detail', message }
@@ -211,7 +212,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create account'
+      const message = parseApiError(error, 'Failed to create account')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -235,7 +236,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update account'
+      const message = parseApiError(error, 'Failed to update account')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -259,7 +260,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       }
       get().fetchTree(undefined, listParams.filter)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete account'
+      const message = parseApiError(error, 'Failed to delete account')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -283,7 +284,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       }
       get().fetchTree(undefined, listParams.filter)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete accounts'
+      const message = parseApiError(error, 'Failed to delete accounts')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -307,7 +308,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       }
       get().fetchTree(undefined, listParams.filter)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update account status'
+      const message = parseApiError(error, 'Failed to update account status')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -331,7 +332,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       }
       get().fetchTree(undefined, listParams.filter)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to restore account'
+      const message = parseApiError(error, 'Failed to restore account')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -355,7 +356,7 @@ export const useChartOfAccountsStore = create<ChartOfAccountsState>((set, get) =
       }
       get().fetchTree(undefined, listParams.filter)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to restore accounts'
+      const message = parseApiError(error, 'Failed to restore accounts')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }

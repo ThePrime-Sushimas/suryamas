@@ -1,3 +1,4 @@
+import { parseApiError } from '@/lib/errorParser'
 import { create } from 'zustand'
 import { accountingPurposesApi } from '../api/accountingPurposes.api'
 import type { AccountingPurpose, CreateAccountingPurposeDto, UpdateAccountingPurposeDto, PaginationParams, SortParams, FilterParams } from '../types/accounting-purpose.types'
@@ -65,7 +66,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
       }
     } catch (error: unknown) {
       if (get().currentRequestId === requestId) {
-        const message = error instanceof Error ? error.message : 'Failed to fetch accounting purposes'
+        const message = parseApiError(error, 'Failed to fetch accounting purposes')
         set({ error: message, loading: false })
       }
     }
@@ -78,7 +79,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
       set({ selectedPurpose: purpose, loading: false })
       return purpose
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch accounting purpose'
+      const message = parseApiError(error, 'Failed to fetch accounting purpose')
       set({ error: message, loading: false })
       throw error
     }
@@ -104,7 +105,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
       }))
       return purpose
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create accounting purpose'
+      const message = parseApiError(error, 'Failed to create accounting purpose')
       set({ error: message, loading: false })
       throw error
     }
@@ -121,7 +122,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
       }))
       return purpose
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update accounting purpose'
+      const message = parseApiError(error, 'Failed to update accounting purpose')
       set({ error: message, loading: false })
       throw error
     }
@@ -133,7 +134,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
       await accountingPurposesApi.delete(id)
       await get().fetchPurposes()
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete accounting purpose'
+      const message = parseApiError(error, 'Failed to delete accounting purpose')
       set({ error: message, loading: false })
       throw error
     }
@@ -145,7 +146,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
       await accountingPurposesApi.restore(id)
       await get().fetchPurposes()
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to restore accounting purpose'
+      const message = parseApiError(error, 'Failed to restore accounting purpose')
       set({ error: message, loading: false })
       throw error
     }
@@ -158,7 +159,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
       set({ selectedIds: [] })
       await get().fetchPurposes()
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to bulk delete accounting purposes'
+      const message = parseApiError(error, 'Failed to bulk delete accounting purposes')
       set({ error: message, loading: false })
       throw error
     }
@@ -171,7 +172,7 @@ export const useAccountingPurposesStore = create<AccountingPurposesState>((set, 
       set({ selectedIds: [] })
       await get().fetchPurposes()
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to bulk restore accounting purposes'
+      const message = parseApiError(error, 'Failed to bulk restore accounting purposes')
       set({ error: message, loading: false })
       throw error
     }

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { posAggregatesApi } from '../api/posAggregates.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { 
   AggregatedTransactionListItem, 
   AggregatedTransactionWithDetails,
@@ -23,6 +24,7 @@ interface FailedTransactionsState {
   // Loading states
   isLoading: boolean
   isMutating: boolean
+  error: string | null
   
   // Filters
   filter: AggregatedTransactionFilterParams
@@ -58,13 +60,14 @@ export const useFailedTransactionsStore = create<FailedTransactionsState>((set, 
   totalPages: 0,
   isLoading: false,
   isMutating: false,
+  error: null,
   filter: {},
   sort: { field: 'created_at' as const, order: 'desc' as const },
   
   // Fetch failed transactions
   fetchTransactions: async () => {
     const { page, limit, filter, sort } = get()
-    set({ isLoading: true })
+    set({ isLoading: true, error: null })
     
     try {
       const result = await posAggregatesApi.listFailed(page, limit, sort, {
@@ -79,29 +82,24 @@ export const useFailedTransactionsStore = create<FailedTransactionsState>((set, 
         isLoading: false
       })
     } catch (error: unknown) {
-      // Check if it's a cancellation error - these are expected and should be silently ignored
       const isCanceled = 
         error instanceof Error && 
         (error.message === 'Request was canceled' || 
          error.message.includes('canceled') || 
          error.message.includes('cancelled'))
       
-      // Only set error state if it's NOT a cancellation error
       if (!isCanceled) {
-        console.error('Failed to fetch failed transactions:', error)
+        set({ error: parseApiError(error, 'Gagal memuat transaksi gagal') })
       }
       set({ isLoading: false })
-      // Don't throw the error for cancellation - it's expected behavior
-      if (isCanceled) {
-        return
-      }
+      if (isCanceled) return
       throw error
     }
   },
   
   // Fetch single failed transaction with details
   fetchTransactionById: async (id: string) => {
-    set({ isLoading: true })
+    set({ isLoading: true, error: null })
     
     try {
       const transaction = await posAggregatesApi.getFailedById(id)
@@ -110,9 +108,8 @@ export const useFailedTransactionsStore = create<FailedTransactionsState>((set, 
         isLoading: false 
       })
       return transaction
-    } catch (error) {
-      console.error('Failed to fetch failed transaction:', error)
-      set({ isLoading: false })
+    } catch (error: unknown) {
+      set({ isLoading: false, error: parseApiError(error, 'Gagal memuat detail transaksi') })
       throw error
     }
   },

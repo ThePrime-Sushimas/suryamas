@@ -1,3 +1,4 @@
+import { parseApiError } from '@/lib/errorParser'
 import { create } from 'zustand'
 import { fiscalPeriodsApi } from '../api/fiscalPeriods.api'
 import type {
@@ -82,7 +83,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
         },
       })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
     } finally {
       set({ loading: false })
     }
@@ -96,7 +97,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       const period = response.data
       set({ selectedPeriod: period })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
     } finally {
       set({ loading: false })
     }
@@ -108,7 +109,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       await fiscalPeriodsApi.create(dto)
       await get().fetchPeriods()
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
       throw error
     } finally {
       set({ mutating: false })
@@ -126,7 +127,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
         set({ selectedPeriod: response.data })
       }
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
       throw error
     } finally {
       set({ mutating: false })
@@ -144,7 +145,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
         set({ selectedPeriod: response.data })
       }
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
       throw error
     } finally {
       set({ mutating: false })
@@ -157,7 +158,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       await fiscalPeriodsApi.delete(id)
       await get().fetchPeriods()
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
       throw error
     } finally {
       set({ mutating: false })
@@ -170,7 +171,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       await fiscalPeriodsApi.bulkDelete(ids)
       await get().fetchPeriods()
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
       throw error
     } finally {
       set({ mutating: false })
@@ -183,7 +184,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       await fiscalPeriodsApi.restore(id)
       await get().fetchPeriods()
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
       throw error
     } finally {
       set({ mutating: false })
@@ -196,7 +197,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       await fiscalPeriodsApi.bulkRestore(ids)
       await get().fetchPeriods()
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
       throw error
     } finally {
       set({ mutating: false })
@@ -208,7 +209,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
       const token = await fiscalPeriodsApi.getExportToken()
       await fiscalPeriodsApi.export(token, get().filters)
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'An error occurred' })
+      set({ error: parseApiError(error, 'An error occurred') })
       throw error
     }
   },

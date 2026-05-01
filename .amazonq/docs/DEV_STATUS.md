@@ -156,8 +156,8 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | suppliers | ✅ | ✅ removed |
 | employees | ✅ | ✅ removed |
 | bank-accounts | ✅ | ✅ removed |
-| bank-statement-import | ❌ | `error instanceof Error` |
-| branch_context | ❌ | `error instanceof Error` |
+| bank-statement-import | ✅ | ✅ (custom getErrorMessage + parseApiError fallback) |
+| branch_context | ✅ | ✅ removed |
 | companies | ✅ | ✅ removed |
 | employee_branches | ✅ | ✅ removed |
 | payment-methods | ✅ | ✅ removed |
@@ -169,16 +169,16 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | supplier-products | ✅ | ✅ removed |
 | users | ✅ | ✅ removed |
 | pos-aggregates | ✅ | ✅ removed |
-| pos-imports | ❌ | `error instanceof Error` (6x) |
-| pos-sync-aggregates | ❌ | console.error only, no parseApiError |
-| chartOfAccounts | ❌ | `error instanceof Error` (12x) |
-| accountingPurposes | ❌ | `error instanceof Error` (8x) |
-| accountingPurposeAccounts | ❌ | `error instanceof Error` (13x) |
-| journalLines | ❌ | `error instanceof Error` (3x) |
-| journalHeaders | ❌ | `error instanceof Error` (12x) |
-| fiscalPeriods | ❌ | `error instanceof Error` (10x) |
-| failedTransactions | ❌ | `error instanceof Error` (1x) |
-| employee (fetchList) | ❌ | `error instanceof Error` (CanceledError) |
+| pos-imports | ✅ | ✅ removed (CanceledError check only) |
+| pos-sync-aggregates | ✅ | ✅ removed |
+| chartOfAccounts | ✅ | ✅ removed |
+| accountingPurposes | ✅ | ✅ removed |
+| accountingPurposeAccounts | ✅ | ✅ removed |
+| journalLines | ✅ | ✅ removed |
+| journalHeaders | ✅ | ✅ removed |
+| fiscalPeriods | ✅ | ✅ removed |
+| failedTransactions | ✅ | ✅ removed (CanceledError check only) |
+| employee (fetchList) | ✅ | ✅ (CanceledError check only) |
 | auth | ✅ | ✅ removed |
 | monitoring | ✅ | ✅ removed |
 | jobs | ✅ | ✅ removed |
@@ -325,7 +325,7 @@ Fix: Replace semua `error instanceof Error ? error.message : '...'` dengan `pars
 ### Execution Order
 1. ✅ Delete dead code (3A — 2 files)
 2. ✅ Fix 4 missed BE modules (fee-discrepancy-review, bank-mutation-entries, reports, review-approval)
-3. ⬜ Fix 13 FE stores → replace `error instanceof Error` dengan `parseApiError` (3E)
+3. ✅ Fix 13 FE stores → replace `error instanceof Error` dengan `parseApiError` (3E)
 4. ⬜ Clean routes → remove `req as ValidatedAuthRequest` / `req as any` casts (3C)
 5. ⬜ Fix `as any` di controllers (3B)
 6. ⬜ Remove correlationId boilerplate (3D)

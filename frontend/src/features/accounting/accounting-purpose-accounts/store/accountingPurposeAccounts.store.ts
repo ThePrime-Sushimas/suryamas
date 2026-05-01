@@ -1,3 +1,4 @@
+import { parseApiError } from '@/lib/errorParser'
 import { create } from 'zustand'
 import { accountingPurposeAccountsApi } from '../api/accountingPurposeAccounts.api'
 import type { 
@@ -107,7 +108,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
         }
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch accounts'
+      const message = parseApiError(error, 'Failed to fetch accounts')
       set(state => ({ 
         loading: { ...state.loading, list: false },
         error: { scope: 'list', message }
@@ -122,7 +123,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       set(state => ({ selectedAccount: account, loading: { ...state.loading, detail: false } }))
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Account not found'
+      const message = parseApiError(error, 'Account not found')
       set(state => ({ 
         loading: { ...state.loading, detail: false },
         error: { scope: 'detail', message }
@@ -142,7 +143,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create account'
+      const message = parseApiError(error, 'Failed to create account')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -162,7 +163,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       }))
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update account'
+      const message = parseApiError(error, 'Failed to update account')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -180,7 +181,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       const { listParams } = get()
       await get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete account'
+      const message = parseApiError(error, 'Failed to delete account')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -202,7 +203,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
         }
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch deleted accounts'
+      const message = parseApiError(error, 'Failed to fetch deleted accounts')
       set(state => ({ 
         loading: { ...state.loading, list: false },
         error: { scope: 'list', message }
@@ -216,7 +217,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       await accountingPurposeAccountsApi.restore(id)
       set(state => ({ loading: { ...state.loading, submit: false } }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to restore account'
+      const message = parseApiError(error, 'Failed to restore account')
       set(state => ({ 
         loading: { ...state.loading, submit: false },
         error: { scope: 'submit', message }
@@ -236,7 +237,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       
       return accounts
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create accounts'
+      const message = parseApiError(error, 'Failed to create accounts')
       set(state => ({ 
         loading: { ...state.loading, bulk: false },
         error: { scope: 'bulk', message }
@@ -254,7 +255,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       const { listParams } = get()
       await get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to remove accounts'
+      const message = parseApiError(error, 'Failed to remove accounts')
       set(state => ({ 
         loading: { ...state.loading, bulk: false },
         error: { scope: 'bulk', message }
@@ -272,7 +273,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       const { listParams } = get()
       await get().fetchAccounts(listParams.page, listParams.limit, listParams.sort, listParams.filter)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update status'
+      const message = parseApiError(error, 'Failed to update status')
       set(state => ({ 
         loading: { ...state.loading, bulk: false },
         error: { scope: 'bulk', message }
@@ -289,7 +290,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       set(state => ({ loading: { ...state.loading, export: false } }))
       return blob
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to export'
+      const message = parseApiError(error, 'Failed to export')
       set(state => ({ 
         loading: { ...state.loading, export: false },
         error: { scope: 'export', message }
@@ -303,7 +304,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       const accounts = await accountingPurposeAccountsApi.getPostableAccounts()
       set({ postableAccounts: accounts })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch postable accounts'
+      const message = parseApiError(error, 'Failed to fetch postable accounts')
       set({ error: { scope: 'list', message } })
     }
   },
@@ -313,7 +314,7 @@ export const useAccountingPurposeAccountsStore = create<AccountingPurposeAccount
       const purposes = await accountingPurposeAccountsApi.getActivePurposes()
       set({ activePurposes: purposes })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch active purposes'
+      const message = parseApiError(error, 'Failed to fetch active purposes')
       set({ error: { scope: 'list', message } })
     }
   },

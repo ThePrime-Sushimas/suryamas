@@ -1,3 +1,4 @@
+import { parseApiError } from '@/lib/errorParser'
 import { create } from 'zustand'
 import { journalLinesApi } from '../api/journalLines.api'
 import type {
@@ -60,7 +61,7 @@ export const useJournalLinesStore = create<JournalLinesState>((set, get) => ({
         pagination: response.pagination,
       })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to fetch lines' })
+      set({ error: parseApiError(error, 'Failed to fetch lines') })
     } finally {
       set({ loading: false })
     }
@@ -72,7 +73,7 @@ export const useJournalLinesStore = create<JournalLinesState>((set, get) => ({
       const lines = await journalLinesApi.getByJournal(journalId)
       set({ lines })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to fetch lines' })
+      set({ error: parseApiError(error, 'Failed to fetch lines') })
     } finally {
       set({ loading: false })
     }
@@ -87,7 +88,7 @@ export const useJournalLinesStore = create<JournalLinesState>((set, get) => ({
         accountSummary: response,
       })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to fetch lines by account' })
+      set({ error: parseApiError(error, 'Failed to fetch lines by account') })
     } finally {
       set({ loading: false })
     }

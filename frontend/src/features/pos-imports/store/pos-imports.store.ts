@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { posImportsApi } from '../api/pos-imports.api'
+import { parseApiError } from '@/lib/errorParser'
 import { validateUpload, validateDeletion, validateConfirmation } from '../utils/business-rules.util'
 import { saveState, loadState } from '../utils/state-persistence.util'
 import type { PosImport, AnalyzeResult } from '../types/pos-imports.types'
@@ -178,7 +179,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
       saveState({ imports: data.data || [], filters: get().filters })
     } catch (error) {
       set({ 
-        errors: { ...get().errors, general: error instanceof Error ? error.message : 'Failed to fetch imports' },
+        errors: { ...get().errors, general: parseApiError(error, 'Gagal memuat daftar import') },
         loading: { ...get().loading, list: false }
       })
     }
@@ -277,7 +278,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
         throw error
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
+      const errorMessage = parseApiError(error, 'Gagal mengunggah file')
       const currentUploads = new Map(get().uploads)
       const session = currentUploads.get(uploadId)
       if (session) {
@@ -333,7 +334,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
       await get().fetchImports()
     } catch (error) {
       await get().fetchImports()
-      const errorMessage = error instanceof Error ? error.message : 'Failed to confirm import'
+      const errorMessage = parseApiError(error, 'Gagal mengkonfirmasi import')
       set({ 
         errors: { ...get().errors, confirm: errorMessage },
         loading: { ...get().loading, confirm: false }
@@ -371,7 +372,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
     } catch (error) {
       set({ 
         imports: previousImports,
-        errors: { ...get().errors, general: error instanceof Error ? error.message : 'Failed to delete import' },
+        errors: { ...get().errors, general: parseApiError(error, 'Gagal menghapus import') },
         loading: { ...get().loading, delete: false }
       })
       throw error
@@ -388,7 +389,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
       await get().fetchImports()
     } catch (error) {
       set({ 
-        errors: { ...get().errors, confirm: error instanceof Error ? error.message : 'Failed to confirm imports' },
+        errors: { ...get().errors, confirm: parseApiError(error, 'Gagal mengkonfirmasi import') },
         loading: { ...get().loading, batch: false }
       })
       throw error
@@ -412,7 +413,7 @@ export const usePosImportsStore = create<PosImportsState>((set, get) => {
     } catch (error) {
       set({ 
         imports: previousImports,
-        errors: { ...get().errors, general: error instanceof Error ? error.message : 'Failed to delete imports' },
+        errors: { ...get().errors, general: parseApiError(error, 'Gagal menghapus import') },
         loading: { ...get().loading, batch: false }
       })
       throw error

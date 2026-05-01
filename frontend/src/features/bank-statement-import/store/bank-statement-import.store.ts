@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import axios from 'axios'
+import { parseApiError } from '@/lib/errorParser'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
 import type {
   BankStatementImport,
@@ -266,7 +267,7 @@ function getErrorMessage(error: unknown): string {
       return mapping.userMessage
     }
     
-    message = error.message
+    return parseApiError(error, 'Terjadi kesalahan yang tidak diketahui. Silakan coba lagi.')
   }
   
   return message
