@@ -4,10 +4,6 @@ import {
   bankReconciliationService,
   BankReconciliationService,
 } from "./bank-reconciliation.service";
-import type {
-  AuthenticatedRequest,
-  AuthenticatedQueryRequest,
-} from "../../../types/request.types";
 import type { ValidatedAuthRequest } from "../../../middleware/validation.middleware";
 import {
   manualReconcileSchema,
@@ -16,76 +12,52 @@ import {
   autoMatchPreviewSchema,
   autoMatchConfirmSchema,
   multiMatchSchema,
-  multiMatchGroupQuerySchema,
-  multiMatchSuggestionsQuerySchema,
 } from "./bank-reconciliation.schema";
 import {
-  AlreadyReconciledError,
-  DifferenceThresholdExceededError,
-  NoMatchFoundError,
-  FetchStatementError,
-  StatementNotFoundError,
-  DatabaseConnectionError,
   ReconciliationError,
 } from "./bank-reconciliation.errors";
-import { logError } from "../../../config/logger";
 
 export class BankReconciliationController {
   constructor(private readonly service: BankReconciliationService) {}
 
-  async reconcileCashDeposit(
-    req: ValidatedAuthRequest<typeof manualReconcileCashDepositSchema>,
-    res: Response,
-  ): Promise<void> {
+  async reconcileCashDeposit(req: Request, res: Response): Promise<void> {
     try {
-      const validated = req.validated.body;
+      const { body } = (req as ValidatedAuthRequest<typeof manualReconcileCashDepositSchema>).validated;
       const userId = req.user?.id;
       const companyId = req.context?.company_id;
 
       const result = await this.service.reconcileCashDeposit(
-        validated.cashDepositId,
-        validated.statementId,
+        body.cashDepositId,
+        body.statementId,
         userId,
         companyId,
-        validated.notes,
+        body.notes,
       );
 
       res.status(200).json({ success: true, data: result });
     } catch (error: unknown) {
-      return await handleError(res, error, req, { action: 'reconcile_cash_deposit', 
-        cashDepositId: req.validated?.body?.cashDepositId, 
-        statementId: req.validated?.body?.statementId 
-      });
+      return await handleError(res, error, req, { action: 'reconcile_cash_deposit' });
     }
   }
 
-  async reconcile(
-    req: ValidatedAuthRequest<typeof manualReconcileSchema>,
-    res: Response,
-  ): Promise<void> {
+  async reconcile(req: Request, res: Response): Promise<void> {
     try {
-      const validated = req.validated.body;
+      const { body } = (req as ValidatedAuthRequest<typeof manualReconcileSchema>).validated;
       const userId = req.user?.id;
       const companyId = req.context?.company_id;
 
       const result = await this.service.reconcile(
-        validated.aggregateId,
-        validated.statementId,
+        body.aggregateId,
+        body.statementId,
         userId,
         companyId,
-        validated.notes,
-        validated.overrideDifference,
+        body.notes,
+        body.overrideDifference,
       );
 
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
+      res.status(200).json({ success: true, data: result });
     } catch (error: unknown) {
-      return await handleError(res, error, req, { action: 'reconcile', 
-        aggregateId: req.validated?.body?.aggregateId, 
-        statementId: req.validated?.body?.statementId 
-      });
+      return await handleError(res, error, req, { action: 'reconcile' });
     }
   }
 
@@ -106,97 +78,68 @@ export class BankReconciliationController {
     }
   }
 
-  async autoMatch(
-    req: ValidatedAuthRequest<typeof autoMatchSchema>,
-    res: Response,
-  ): Promise<void> {
+  async autoMatch(req: Request, res: Response): Promise<void> {
     try {
-      const validated = req.validated.body;
+      const { body } = (req as ValidatedAuthRequest<typeof autoMatchSchema>).validated;
       const userId = req.user?.id;
       const companyId = req.context?.company_id;
 
       const result = await this.service.autoMatch(
-        new Date(validated.startDate),
-        new Date(validated.endDate),
-        validated.bankAccountId,
+        new Date(body.startDate),
+        new Date(body.endDate),
+        body.bankAccountId,
         userId,
         companyId,
-        validated.matchingCriteria,
+        body.matchingCriteria,
       );
 
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
+      res.status(200).json({ success: true, data: result });
     } catch (error: unknown) {
-      return await handleError(res, error, req, { action: 'auto_match', 
-        startDate: req.validated?.body?.startDate, 
-        endDate: req.validated?.body?.endDate, 
-        bankAccountId: req.validated?.body?.bankAccountId 
-      });
+      return await handleError(res, error, req, { action: 'auto_match' });
     }
   }
 
-  async previewAutoMatch(
-    req: ValidatedAuthRequest<typeof autoMatchPreviewSchema>,
-    res: Response,
-  ): Promise<void> {
+  async previewAutoMatch(req: Request, res: Response): Promise<void> {
     try {
-      const validated = req.validated.body;
+      const { body } = (req as ValidatedAuthRequest<typeof autoMatchPreviewSchema>).validated;
 
       const result = await this.service.previewAutoMatch(
-        new Date(validated.startDate),
-        new Date(validated.endDate),
-        validated.bankAccountId,
-        validated.matchingCriteria,
+        new Date(body.startDate),
+        new Date(body.endDate),
+        body.bankAccountId,
+        body.matchingCriteria,
       );
 
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
+      res.status(200).json({ success: true, data: result });
     } catch (error: unknown) {
-      return await handleError(res, error, req, { action: 'preview_auto_match', 
-        startDate: req.validated?.body?.startDate, 
-        endDate: req.validated?.body?.endDate, 
-        bankAccountId: req.validated?.body?.bankAccountId 
-      });
+      return await handleError(res, error, req, { action: 'preview_auto_match' });
     }
   }
 
-  async confirmAutoMatch(
-    req: ValidatedAuthRequest<typeof autoMatchConfirmSchema>,
-    res: Response,
-  ): Promise<void> {
+  async confirmAutoMatch(req: Request, res: Response): Promise<void> {
     try {
-      const validated = req.validated.body;
+      const { body } = (req as ValidatedAuthRequest<typeof autoMatchConfirmSchema>).validated;
       const userId = req.user?.id;
       const companyId = req.context?.company_id;
 
       const result = await this.service.confirmAutoMatch(
-        validated.statementIds,
+        body.statementIds,
         userId,
         companyId,
-        validated.matchingCriteria,
-        validated.matches,
+        body.matchingCriteria,
+        body.matches,
       );
 
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
+      res.status(200).json({ success: true, data: result });
     } catch (error: unknown) {
-      return await handleError(res, error, req, { action: 'confirm_auto_match', statementIds: req.validated?.body?.statementIds });
+      return await handleError(res, error, req, { action: 'confirm_auto_match' });
     }
   }
 
-  async getStatements(
-    req: AuthenticatedQueryRequest,
-    res: Response,
-  ): Promise<void> {
+  async getStatements(req: Request, res: Response): Promise<void> {
     try {
-      const validated = (req.validated as any)?.query || req.query;
-      const { startDate, endDate, bankAccountId, status, search, isReconciled, limit: queryLimit, creditOnly } = validated;
+      const query = (req.validated as { query: Record<string, unknown> })?.query as Record<string, unknown> || req.query;
+      const { startDate, endDate, bankAccountId, status, search, isReconciled, creditOnly } = query;
 
       // Get sort params from query middleware
       const sortField = req.sort?.field || 'transaction_date';
@@ -208,14 +151,14 @@ export class BankReconciliationController {
       const offset = (page - 1) * limit;
 
       const result = await this.service.getStatements(
-        startDate ? new Date(startDate) : undefined,
-        endDate ? new Date(endDate) : undefined,
-        bankAccountId,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined,
+        bankAccountId as number[] | undefined,
         {
-          status,
-          search,
+          status: status as "RECONCILED" | "UNRECONCILED" | undefined,
+          search: search as string | undefined,
           isReconciled: isReconciled === 'true' ? true : isReconciled === 'false' ? false : undefined,
-          creditOnly: creditOnly || undefined,
+          creditOnly: (creditOnly as boolean | undefined) || undefined,
           sortField,
           sortOrder,
           limit,
@@ -233,13 +176,10 @@ export class BankReconciliationController {
     }
   }
 
-  async getBankAccountsStatus(
-    req: AuthenticatedQueryRequest,
-    res: Response,
-  ): Promise<void> {
+  async getBankAccountsStatus(req: Request, res: Response): Promise<void> {
     try {
-      const validated = (req.validated as any)?.query || req.query;
-      const { startDate, endDate } = validated;
+      const query = (req.validated as { query: Record<string, unknown> })?.query as Record<string, unknown> || req.query;
+      const { startDate, endDate } = query;
 
       // Dates are optional - if not provided, return empty
       if (!startDate || !endDate) {
@@ -251,8 +191,8 @@ export class BankReconciliationController {
       }
 
       const result = await this.service.getBankAccountsStatus(
-        new Date(startDate),
-        new Date(endDate),
+        new Date(startDate as string),
+        new Date(endDate as string),
       );
 
       res.status(200).json({
@@ -267,10 +207,7 @@ export class BankReconciliationController {
     }
   }
 
-  async getAllBankAccounts(
-    req: AuthenticatedQueryRequest,
-    res: Response,
-  ): Promise<void> {
+  async getAllBankAccounts(req: Request, res: Response): Promise<void> {
     try {
       const result = await this.service.getAllBankAccounts();
 
@@ -283,13 +220,10 @@ export class BankReconciliationController {
     }
   }
 
-  async getSummary(
-    req: AuthenticatedQueryRequest,
-    res: Response,
-  ): Promise<void> {
+  async getSummary(req: Request, res: Response): Promise<void> {
     try {
-      const validated = (req.validated as any)?.query || req.query;
-      const { startDate, endDate } = validated;
+      const query = (req.validated as { query: Record<string, unknown> })?.query as Record<string, unknown> || req.query;
+      const { startDate, endDate } = query;
 
       // Dates are optional - if not provided, return empty summary
       if (!startDate || !endDate) {
@@ -311,8 +245,8 @@ export class BankReconciliationController {
       }
 
       const result = await this.service.getSummary(
-        new Date(startDate),
-        new Date(endDate),
+        new Date(startDate as string),
+        new Date(endDate as string),
       );
 
       res.status(200).json({
@@ -344,33 +278,24 @@ export class BankReconciliationController {
     }
   }
 
-  async createMultiMatch(
-    req: ValidatedAuthRequest<typeof multiMatchSchema>,
-    res: Response,
-  ): Promise<void> {
+  async createMultiMatch(req: Request, res: Response): Promise<void> {
     try {
-      const validated = req.validated.body;
+      const { body } = (req as ValidatedAuthRequest<typeof multiMatchSchema>).validated;
       const userId = req.user?.id;
       const companyId = req.context?.company_id;
 
       const result = await this.service.createMultiMatch(
-        validated.aggregateId,
-        validated.statementIds,
+        body.aggregateId,
+        body.statementIds,
         userId,
         companyId,
-        validated.notes,
-        validated.overrideDifference,
+        body.notes,
+        body.overrideDifference,
       );
 
-      res.status(201).json({
-        success: true,
-        data: result,
-      });
+      res.status(201).json({ success: true, data: result });
     } catch (error: unknown) {
-      return await handleError(res, error, req, { action: 'create_multi_match', 
-        aggregateId: req.validated?.body?.aggregateId, 
-        statementIds: req.validated?.body?.statementIds 
-      });
+      return await handleError(res, error, req, { action: 'create_multi_match' });
     }
   }
 
@@ -391,10 +316,7 @@ export class BankReconciliationController {
     }
   }
 
-  async getSuggestedGroupStatements(
-    req: AuthenticatedQueryRequest,
-    res: Response,
-  ): Promise<void> {
+  async getSuggestedGroupStatements(req: Request, res: Response): Promise<void> {
     try {
       const { aggregateId, tolerancePercent, dateToleranceDays, maxStatements } = req.query;
 
@@ -418,10 +340,7 @@ export class BankReconciliationController {
     }
   }
 
-  async getReconciliationGroups(
-    req: AuthenticatedQueryRequest,
-    res: Response,
-  ): Promise<void> {
+  async getReconciliationGroups(req: Request, res: Response): Promise<void> {
     try {
       const { startDate, endDate } = req.query;
 
@@ -467,10 +386,7 @@ export class BankReconciliationController {
   // REVERSE MATCHING ENDPOINTS
   // =====================================================
 
-  async getUnreconciledStatements(
-    req: AuthenticatedQueryRequest,
-    res: Response,
-  ): Promise<void> {
+  async getUnreconciledStatements(req: Request, res: Response): Promise<void> {
     try {
       const { bankAccountId, search, limit, offset, startDate, endDate } = req.query;
 
@@ -494,10 +410,7 @@ export class BankReconciliationController {
     }
   }
 
-  async findStatementsByAmount(
-    req: AuthenticatedQueryRequest,
-    res: Response,
-  ): Promise<void> {
+  async findStatementsByAmount(req: Request, res: Response): Promise<void> {
     try {
       const { amount, tolerance, startDate, endDate } = req.query;
 

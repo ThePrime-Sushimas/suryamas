@@ -35,9 +35,10 @@ export class EmployeesController {
     }
   }
 
-  async create(req: ValidatedAuthRequest<typeof CreateEmployeeSchema>, res: Response) {
+  async create(req: Request, res: Response) {
     try {
-      const employee = await employeesService.create(req.validated.body, req.file, req.user!.id)
+      const { body } = (req as ValidatedAuthRequest<typeof CreateEmployeeSchema>).validated
+      const employee = await employeesService.create(body, req.file, req.user!.id)
       logInfo('Employee created', { employee_id: employee.employee_id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee created', 201)
     } catch (error: unknown) {
@@ -96,9 +97,10 @@ export class EmployeesController {
     }
   }
 
-  async updateProfile(req: ValidatedAuthRequest<typeof UpdateProfileSchema>, res: Response) {
+  async updateProfile(req: Request, res: Response) {
     try {
-      const employee = await employeesService.updateProfile(req.user!.id, req.validated.body)
+      const { body } = (req as ValidatedAuthRequest<typeof UpdateProfileSchema>).validated
+      const employee = await employeesService.updateProfile(req.user!.id, body)
       logInfo('Profile updated', { user: req.user!.id })
       sendSuccess(res, employee, 'Profile updated')
     } catch (error: unknown) {
@@ -116,14 +118,14 @@ export class EmployeesController {
     }
   }
 
-  async update(req: ValidatedAuthRequest<typeof UpdateEmployeeSchema>, res: Response) {
+  async update(req: Request, res: Response) {
     try {
-      const { body, params } = req.validated
+      const { body, params } = (req as ValidatedAuthRequest<typeof UpdateEmployeeSchema>).validated
       const employee = await employeesService.update(params.id, body, req.file, req.user!.id)
       logInfo('Employee updated', { id: params.id, user: req.user!.id })
       sendSuccess(res, employee, 'Employee updated')
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'update_employee', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'update_employee' })
     }
   }
 
@@ -306,45 +308,44 @@ export class EmployeesController {
   // BULK OPERATIONS
   // ============================================
 
-  async bulkUpdateActive(req: ValidatedAuthRequest<typeof BulkUpdateActiveSchema>, res: Response) {
+  async bulkUpdateActive(req: Request, res: Response) {
     try {
-      const { ids, is_active } = req.validated.body
-      await employeesService.bulkUpdateActive(ids, is_active)
-      logInfo('Bulk update active', { count: ids.length, user: req.user!.id })
+      const { body } = (req as ValidatedAuthRequest<typeof BulkUpdateActiveSchema>).validated
+      await employeesService.bulkUpdateActive(body.ids, body.is_active)
+      logInfo('Bulk update active', { count: body.ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_update_active' })
     }
   }
 
-  async updateActive(req: ValidatedAuthRequest<typeof UpdateActiveSchema>, res: Response) {
+  async updateActive(req: Request, res: Response) {
     try {
-      const { id } = req.validated.params
-      const { is_active } = req.validated.body
-      await employeesService.bulkUpdateActive([id], is_active)
-      logInfo('Update active', { id, is_active, user: req.user!.id })
-      sendSuccess(res, null, `Employee ${is_active ? 'activated' : 'deactivated'}`)
+      const { params, body } = (req as ValidatedAuthRequest<typeof UpdateActiveSchema>).validated
+      await employeesService.bulkUpdateActive([params.id], body.is_active)
+      logInfo('Update active', { id: params.id, is_active: body.is_active, user: req.user!.id })
+      sendSuccess(res, null, `Employee ${body.is_active ? 'activated' : 'deactivated'}`)
     } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'update_active', id: req.validated?.params?.id })
+      await handleError(res, error, req, { action: 'update_active' })
     }
   }
 
-  async bulkDelete(req: ValidatedAuthRequest<typeof BulkDeleteSchema>, res: Response) {
+  async bulkDelete(req: Request, res: Response) {
     try {
-      const { ids } = req.validated.body
-      await employeesService.bulkDelete(ids)
-      logInfo('Bulk delete', { count: ids.length, user: req.user!.id })
+      const { body } = (req as ValidatedAuthRequest<typeof BulkDeleteSchema>).validated
+      await employeesService.bulkDelete(body.ids)
+      logInfo('Bulk delete', { count: body.ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_delete' })
     }
   }
 
-  async bulkRestore(req: ValidatedAuthRequest<typeof BulkDeleteSchema>, res: Response) {
+  async bulkRestore(req: Request, res: Response) {
     try {
-      const { ids } = req.validated.body
-      await employeesService.bulkRestore(ids)
-      logInfo('Bulk restore', { count: ids.length, user: req.user!.id })
+      const { body } = (req as ValidatedAuthRequest<typeof BulkDeleteSchema>).validated
+      await employeesService.bulkRestore(body.ids)
+      logInfo('Bulk restore', { count: body.ids.length, user: req.user!.id })
       sendSuccess(res, null, 'Employees restored')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_restore' })

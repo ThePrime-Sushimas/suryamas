@@ -7,7 +7,7 @@ import { queryMiddleware } from '../../middleware/query.middleware'
 import { upload } from '../../middleware/upload.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
-import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema, employeeIdSchema } from './employees.schema'
 import './employees.openapi'
 import rateLimit from 'express-rate-limit'
@@ -60,7 +60,7 @@ router.get('/profile', (req, res) =>
   employeesController.getProfile(req, res))
 
 router.put('/profile', validateSchema(UpdateProfileSchema), (req, res) => 
-  employeesController.updateProfile(req as ValidatedAuthRequest<typeof UpdateProfileSchema>, res))
+  employeesController.updateProfile(req, res))
 
 router.post('/profile/picture', upload.single('picture'), (req, res) => 
   employeesController.uploadProfilePicture(req, res))
@@ -107,26 +107,26 @@ router.post('/import', canInsert('employees'), upload.single('file'), exportLimi
 // ============================================
 
 router.post('/bulk/update-active', canUpdate('employees'), validateSchema(BulkUpdateActiveSchema), (req, res) => 
-  employeesController.bulkUpdateActive(req as ValidatedAuthRequest<typeof BulkUpdateActiveSchema>, res))
+  employeesController.bulkUpdateActive(req, res))
 
 router.post('/bulk/delete', canDelete('employees'), validateSchema(BulkDeleteSchema), (req, res) => 
-  employeesController.bulkDelete(req as ValidatedAuthRequest<typeof BulkDeleteSchema>, res))
+  employeesController.bulkDelete(req, res))
 
 router.post('/bulk/restore', canUpdate('employees'), validateSchema(BulkDeleteSchema), (req, res) => 
-  employeesController.bulkRestore(req as ValidatedAuthRequest<typeof BulkDeleteSchema>, res))
+  employeesController.bulkRestore(req, res))
 
 // ============================================
 // EMPLOYEE CRUD
 // ============================================
 
 router.post('/', canInsert('employees'), upload.single('profile_picture'), validateSchema(CreateEmployeeSchema), (req, res) => 
-  employeesController.create(req as ValidatedAuthRequest<typeof CreateEmployeeSchema>, res))
+  employeesController.create(req, res))
 
 router.get('/:id', canView('employees'), validateSchema(employeeIdSchema), (req, res) => 
   employeesController.getById(req, res))
 
 router.put('/:id', canUpdate('employees'), upload.single('profile_picture'), validateSchema(UpdateEmployeeSchema), (req, res) => 
-  employeesController.update(req as ValidatedAuthRequest<typeof UpdateEmployeeSchema>, res))
+  employeesController.update(req, res))
 
 router.delete('/:id', canDelete('employees'), validateSchema(employeeIdSchema), (req, res) => 
   employeesController.delete(req, res))
@@ -135,7 +135,7 @@ router.post('/:id/restore', canUpdate('employees'), validateSchema(employeeIdSch
   employeesController.restore(req, res))
 
 router.patch('/:id/active', canUpdate('employees'), validateSchema(UpdateActiveSchema), (req, res) => 
-  employeesController.updateActive(req as ValidatedAuthRequest<typeof UpdateActiveSchema>, res))
+  employeesController.updateActive(req, res))
 
 export default router
 

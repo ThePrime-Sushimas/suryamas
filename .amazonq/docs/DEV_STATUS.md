@@ -100,7 +100,7 @@
 31. **FE error extraction**: Semua store WAJIB pakai `parseApiError()` dari `@/lib/errorParser`. DILARANG inline `error instanceof Error ? error.message : '...'` atau `'response' in error`.
 32. **handleError signature**: `await handleError(res, error, req, context)` — `req` langsung (tanpa cast berkat express.d.ts), `context` berisi metadata debugging (`{ action, id, query }`).
 33. **Repository type safety**: Gunakan `toRecord<T extends object>(obj: T): Record<string, unknown>` helper untuk bulk insert. DILARANG `as any` untuk row mapping.
-34. **Postgres error check**: Gunakan `isPostgresError(error, code)` dari `src/utils/postgres-error.util.ts` untuk cek error code PostgreSQL (misal `'23505'` untuk unique violation). DILARANG `(error as { code?: string }).code` — tidak aman jika error bukan object.
+35. **Route order**: Static routes (`/search`, `/trash`, `/bulk/delete`, `/export`, `/options/active`, `/aggregates/available`) WAJIB didaftarkan **sebelum** dynamic route `/:id`. Express evaluasi top-to-bottom — kalau `/:id` di atas, request ke `/export` akan ter-catch sebagai `id = "export"`. Checklist saat review routes baru.
 
 ## 🔍 Module Compliance Status
 
@@ -340,9 +340,6 @@ Approach yang direkomendasikan:
 
 | # | Controller | Routes | Methods | Issues |
 |---|-----------|--------|---------|--------|
-| 1 | ~~`balance-sheet.controller.ts`~~ | ~~`balance-sheet.routes.ts`~~ | 1 | ✅ Done |
-| 2 | ~~`income-statement.controller.ts`~~ | ~~`income-statement.routes.ts`~~ | 1 | ✅ Done |
-| 3 | ~~`trial-balance.controller.ts`~~ | ~~`trial-balance.routes.ts`~~ | 1 | ✅ Done |
 | 1 | `accounting-purpose-accounts.controller.ts` | `accounting-purpose-accounts.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (5x), correlationId |
 | 2 | `accounting-purposes.controller.ts` | `accounting-purposes.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (5x), correlationId |
 | 3 | `fiscal-periods.controller.ts` | `fiscal-periods.routes.ts` | 5 | `ValidatedAuthRequest` signature, `req as any` (6x), `req.sort as any`, correlationId |
@@ -350,14 +347,13 @@ Approach yang direkomendasikan:
 | 5 | ~~`income-statement.controller.ts`~~ | ~~`income-statement.routes.ts`~~ | 1 | ✅ Done |
 | 6 | ~~`trial-balance.controller.ts`~~ | ~~`trial-balance.routes.ts`~~ | 1 | ✅ Done |
 | 7 | ~~`sub-categories.controller.ts`~~ | ~~`sub-categories.routes.ts`~~ | 7 | ✅ Done |
-| 7 | ~~`companies.controller.ts`~~ | ~~`companies.routes.ts`~~ | 4 | ✅ Done |
-| 8 | ~~`employee_branches.controller.ts`~~ | ~~`employee_branches.routes.ts`~~ | 3 | ✅ Done |
-| 9 | `employees.controller.ts` | `employees.routes.ts` | 7 | `ValidatedAuthRequest` signature |
-| 10 | ~~`products.controller.ts`~~ | ~~`products.routes.ts`~~ | 8 | ✅ Done |
-| 11 | `bank-reconciliation.controller.ts` | `bank-reconciliation.routes.ts` | 6 | `ValidatedAuthRequest` signature, `(req.validated as any)` (3x) |
-| 12 | ~~`bank-settlement-group.controller.ts`~~ | ~~`bank-settlement-group.routes.ts`~~ | 7 | ✅ Done |
-| 13 | `bank-statement-import.controller.ts` | `bank-statement-import.routes.ts` | 1 | `ValidatedAuthRequest` signature, `(req as any).validated` (2x) |
-| 14 | `sub-categories.controller.ts` | `sub-categories.routes.ts` | 7 | `ValidatedAuthRequest` signature |
+| 8 | ~~`companies.controller.ts`~~ | ~~`companies.routes.ts`~~ | 4 | ✅ Done |
+| 9 | ~~`employee_branches.controller.ts`~~ | ~~`employee_branches.routes.ts`~~ | 3 | ✅ Done |
+| 10 | ~~`employees.controller.ts`~~ | ~~`employees.routes.ts`~~ | 7 | ✅ Done |
+| 11 | ~~`products.controller.ts`~~ | ~~`products.routes.ts`~~ | 8 | ✅ Done |
+| 12 | ~~`bank-reconciliation.controller.ts`~~ | ~~`bank-reconciliation.routes.ts`~~ | 6 | ✅ Done |
+| 13 | ~~`bank-settlement-group.controller.ts`~~ | ~~`bank-settlement-group.routes.ts`~~ | 7 | ✅ Done |
+| 14 | `bank-statement-import.controller.ts` | `bank-statement-import.routes.ts` | 1 | `ValidatedAuthRequest` signature, `(req as any).validated` (2x) |
 | 15 | ~~`supplier-products.controller.ts`~~ | ~~`supplier-products.routes.ts`~~ | 9 | ✅ Done |
 
 **Rewrite pattern per controller:**
