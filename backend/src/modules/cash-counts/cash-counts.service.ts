@@ -1,7 +1,7 @@
 import { cashCountsRepository } from './cash-counts.repository'
 import type {
   CashCountWithRelations, CreateCashCountDto, UpdatePhysicalCountDto,
-  CreateDepositDto, ConfirmDepositDto, CashDepositWithRelations, CashCountListQuery,
+  CreateDepositDto, ConfirmDepositDto, CashDepositWithRelations, CashCountListQuery, CashDeposit,
 } from './cash-counts.types'
 import {
   CashCountNotFoundError, CashCountDuplicatePeriodError,
@@ -211,7 +211,7 @@ export class CashCountsService {
 
   // ── List ──
   async list(query: CashCountListQuery, companyId: string) {
-    const { page, limit, offset } = getPaginationParams(query as any)
+    const { page, limit, offset } = getPaginationParams({ ...query })
     const { data, total } = await cashCountsRepository.findAll(companyId, { limit, offset }, query)
     return createPaginatedResponse(data, total, page, limit)
   }
@@ -237,20 +237,16 @@ export class CashCountsService {
     const { data, total } = await cashCountsRepository.listDeposits(companyId, { limit, offset })
 
     // Batch fetch bank account names
-    const baIds = [...new Set(data.map((d: any) => d.bank_account_id).filter(Boolean))]
+    const baIds = [...new Set(data.map((d: CashDeposit) => d.bank_account_id).filter(Boolean))]
     let baMap: Record<number, string> = {}
     if (baIds.length > 0) {
-      const { pool } = await import('../../config/db')
-      const { rows: bas } = await pool.query(
-        `SELECT ba.id, ba.account_name, b.bank_name FROM bank_accounts ba LEFT JOIN banks b ON b.id = ba.bank_id WHERE ba.id = ANY($1::int[])`,
-        [baIds]
-      )
-      if (bas) baMap = bas.reduce((a: any, b: any) => {
+      const bas = await cashCountsRepository.findBankAccountNames(baIds as number[])
+      if (bas) baMap = bas.reduce((a: Record<number, string>, b: { id: number; bank_name: string; account_name: string }) => {
         a[b.id] = `${b.bank_name || ''} - ${b.account_name}`; return a
       }, {})
     }
 
-    const mapped = data.map((d: any) => ({ ...d, bank_account_name: d.bank_account_id ? baMap[d.bank_account_id] || null : null }))
+    const mapped = data.map((d: CashDeposit) => ({ ...d, bank_account_name: d.bank_account_id ? baMap[d.bank_account_id] || null : null }))
     return { data: mapped, pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasNext: page * limit < total, hasPrev: page > 1 } }
   }
 

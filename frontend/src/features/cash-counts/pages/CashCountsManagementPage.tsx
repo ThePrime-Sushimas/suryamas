@@ -10,6 +10,7 @@ import { DepositModal } from '../components/DepositModal'
 import { ConfirmDepositModal } from '../components/ConfirmDepositModal'
 import type { CashCount, CashCountStatus, UpdatePhysicalCountDto, CashDeposit } from '../types'
 import { useCashCountsStore } from '../store/cashCounts.store'
+import { parseApiError } from '@/lib/errorParser'
 import api from '@/lib/axios'
 
 const fmt = (n: number) => n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
@@ -190,7 +191,7 @@ export function CashCountsManagementPage() {
       setCollapsedBranches(new Set())
       setSelectedForDeposit(new Set())
     }
-    catch (e) { toast.error(e instanceof Error ? e.message : 'Gagal memuat data') }
+    catch (e) { toast.error(parseApiError(e, 'Gagal memuat data')) }
     finally { setIsLoading(false) }
   }, [startDate, endDate, paymentMethodId, toast])
 
@@ -243,7 +244,7 @@ export function CashCountsManagementPage() {
       toast.success(`${row.branch_name} · ${fmtDate(row.transaction_date)} disimpan`)
       setEditKey(null)
       await handlePreview()
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Gagal simpan') }
+    } catch (e) { toast.error(parseApiError(e, 'Gagal simpan')) }
     finally { setIsMutating(false) }
   }, [editLarge, editSmall, editEmployeeId, paymentMethodId, toast, handlePreview])
 
@@ -268,7 +269,7 @@ export function CashCountsManagementPage() {
       await handlePreview()
       setActiveTab('deposits')
       await fetchDeposits()
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Gagal buat setoran') }
+    } catch (e) { toast.error(parseApiError(e, 'Gagal buat setoran')) }
     finally { setIsMutating(false) }
   }, [selectedDepositRows, toast, handlePreview])
 
@@ -312,7 +313,7 @@ export function CashCountsManagementPage() {
       setDeleteTarget(null)
       fetchDeposits()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Gagal hapus setoran')
+      toast.error(parseApiError(e, 'Gagal hapus setoran'))
     } finally {
       setIsDeleting(false)
     }
@@ -950,8 +951,8 @@ export function CashCountsManagementPage() {
             await cashCountsApi.revertDeposit(revertTarget.id)
             toast.success('Setoran berhasil dibatalkan')
             fetchDeposits()
-          } catch (err: any) {
-            toast.error(err?.response?.data?.message || 'Gagal membatalkan')
+          } catch (err: unknown) {
+            toast.error(parseApiError(err, 'Gagal membatalkan'))
           } finally {
             setRevertTarget(null)
           }

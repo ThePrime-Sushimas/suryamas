@@ -8,13 +8,13 @@ import { PermissionService } from '../../services/permission.service'
 import {
   previewSchema, createCashCountSchema, cashCountIdSchema,
   updatePhysicalCountSchema, createDepositSchema, depositIdSchema,
-  confirmDepositSchema, depositListQuerySchema, capitalReportSchema, cashCountListQuerySchema,
+  depositListQuerySchema, capitalReportSchema, cashCountListQuerySchema,
 } from './cash-counts.schema'
 import multer from 'multer'
 
 const uploadMiddleware = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
     cb(null, allowed.includes(file.mimetype))
@@ -28,25 +28,25 @@ PermissionService.registerModule('cash_counts', 'Cash Count Management').catch((
 router.use(authenticate, resolveBranchContext)
 
 // Preview
-router.get('/preview', canView('cash_counts'), validateSchema(previewSchema), cashCountsController.preview)
+router.get('/preview', canView('cash_counts'), validateSchema(previewSchema), (req, res) => cashCountsController.preview(req, res))
 
-// Report — tambahan modal (release permission only)
-router.get('/report/capital', canRelease('cash_counts'), validateSchema(capitalReportSchema), cashCountsController.capitalReport)
+// Report
+router.get('/report/capital', canRelease('cash_counts'), validateSchema(capitalReportSchema), (req, res) => cashCountsController.capitalReport(req, res))
 
 // Deposits
-router.get('/deposits', canView('cash_counts'), validateSchema(depositListQuerySchema), cashCountsController.listDeposits)
-router.post('/deposits', canInsert('cash_counts'), validateSchema(createDepositSchema), cashCountsController.createDeposit)
-router.get('/deposits/:id', canView('cash_counts'), validateSchema(depositIdSchema), cashCountsController.getDeposit)
-router.post('/deposits/:id/confirm', canUpdate('cash_counts'), uploadMiddleware.single('proof'), cashCountsController.confirmDeposit)
-router.post('/deposits/:id/revert', canUpdate('cash_counts'), validateSchema(depositIdSchema), cashCountsController.revertDeposit)
-router.delete('/deposits/:id', canDelete('cash_counts'), validateSchema(depositIdSchema), cashCountsController.deleteDeposit)
+router.get('/deposits', canView('cash_counts'), validateSchema(depositListQuerySchema), (req, res) => cashCountsController.listDeposits(req, res))
+router.post('/deposits', canInsert('cash_counts'), validateSchema(createDepositSchema), (req, res) => cashCountsController.createDeposit(req, res))
+router.get('/deposits/:id', canView('cash_counts'), validateSchema(depositIdSchema), (req, res) => cashCountsController.getDeposit(req, res))
+router.post('/deposits/:id/confirm', canUpdate('cash_counts'), validateSchema(depositIdSchema), uploadMiddleware.single('proof'), (req, res) => cashCountsController.confirmDeposit(req, res))
+router.post('/deposits/:id/revert', canUpdate('cash_counts'), validateSchema(depositIdSchema), (req, res) => cashCountsController.revertDeposit(req, res))
+router.delete('/deposits/:id', canDelete('cash_counts'), validateSchema(depositIdSchema), (req, res) => cashCountsController.deleteDeposit(req, res))
 
 // Cash counts
-router.get('/', canView('cash_counts'), validateSchema(cashCountListQuerySchema), cashCountsController.list)
-router.get('/:id', canView('cash_counts'), validateSchema(cashCountIdSchema), cashCountsController.findById)
-router.post('/', canInsert('cash_counts'), validateSchema(createCashCountSchema), cashCountsController.create)
-router.put('/:id/count', canUpdate('cash_counts'), validateSchema(updatePhysicalCountSchema), cashCountsController.updatePhysicalCount)
-router.post('/:id/close', canUpdate('cash_counts'), validateSchema(cashCountIdSchema), cashCountsController.close)
-router.delete('/:id', canDelete('cash_counts'), validateSchema(cashCountIdSchema), cashCountsController.delete)
+router.get('/', canView('cash_counts'), validateSchema(cashCountListQuerySchema), (req, res) => cashCountsController.list(req, res))
+router.get('/:id', canView('cash_counts'), validateSchema(cashCountIdSchema), (req, res) => cashCountsController.findById(req, res))
+router.post('/', canInsert('cash_counts'), validateSchema(createCashCountSchema), (req, res) => cashCountsController.create(req, res))
+router.put('/:id/count', canUpdate('cash_counts'), validateSchema(updatePhysicalCountSchema), (req, res) => cashCountsController.updatePhysicalCount(req, res))
+router.post('/:id/close', canUpdate('cash_counts'), validateSchema(cashCountIdSchema), (req, res) => cashCountsController.close(req, res))
+router.delete('/:id', canDelete('cash_counts'), validateSchema(cashCountIdSchema), (req, res) => cashCountsController.delete(req, res))
 
 export default router

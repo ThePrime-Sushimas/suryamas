@@ -393,6 +393,14 @@ export class CashCountsRepository {
       [id]
     )
   }
+
+  async findBankAccountNames(ids: number[]): Promise<{ id: number; bank_name: string; account_name: string }[]> {
+    const { rows } = await pool.query(
+      `SELECT ba.id, ba.account_name, b.bank_name FROM bank_accounts ba LEFT JOIN banks b ON b.id = ba.bank_id WHERE ba.id = ANY($1::int[])`,
+      [ids]
+    )
+    return rows
+  }
 }
 
 export const cashCountsRepository = new CashCountsRepository()

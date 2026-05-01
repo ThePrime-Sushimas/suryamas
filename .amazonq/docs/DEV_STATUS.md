@@ -118,7 +118,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | employee_branches | ✅ | ✅ | ✅ | ✅ | ✅ |
 | auth | ❌ | ✅ | ❌ | ❌ | ❌ |
 | bank-accounts | ✅ | ✅ | ✅ | ✅ | ✅ |
-| cash-counts | ❌ | ✅ | ❌ `error: any` | ❌ | ❌ |
+| cash-counts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-flow | ❌ | ✅ | ❌ `error: any` | ❌ | ❌ |
 | companies | ✅ | ✅ | ✅ | ✅ | ✅ |
 | expense-categorization | ✅ | ❌ `as any` | ❌ | ❌ | ❌ |
@@ -177,6 +177,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `bank-accounts` (backend + frontend)
 - ✅ `payment-methods` (backend + frontend)
 - ✅ `payment-terms` (backend + frontend)
+- ✅ `cash-counts` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -185,7 +186,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 
 ### Modules Not Yet Reviewed
 - ⬜ `auth`
-- ⬜ `cash-counts`
 - ⬜ `cash-flow`
 - ⬜ `expense-categorization`
 - ⬜ `permissions`
