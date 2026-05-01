@@ -1,7 +1,8 @@
 import { expenseCategorizationRepository } from './expense-categorization.repository'
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { AuditService } from '../monitoring/monitoring.service'
-import { RuleNotFoundError, RuleDuplicateError, NoEligibleStatementsError } from './expense-categorization.errors'
+import { RuleNotFoundError, RuleDuplicateError, NoEligibleStatementsError, MissingCoaMappingError } from './expense-categorization.errors'
+import { isPostgresError } from '../../utils/postgres-error.util'
 import type { ExpenseAutoRule, CreateRuleDto, UpdateRuleDto, CategorizeResult } from './expense-categorization.types'
 
 export class ExpenseCategorizationService {
@@ -22,8 +23,8 @@ export class ExpenseCategorizationService {
       }, userId)
       await AuditService.log('CREATE', 'expense_auto_rule', rule.id, userId, undefined, rule)
       return rule
-    } catch (err: any) {
-      if (err.code === '23505') throw new RuleDuplicateError(dto.pattern)
+    } catch (err: unknown) {
+      if (isPostgresError(err, '23505')) throw new RuleDuplicateError(dto.pattern)
       throw err
     }
   }
@@ -43,8 +44,8 @@ export class ExpenseCategorizationService {
       const rule = await expenseCategorizationRepository.updateRule(id, companyId, allowed, userId)
       await AuditService.log('UPDATE', 'expense_auto_rule', id, userId, existing, rule)
       return rule
-    } catch (err: any) {
-      if (err.code === '23505') throw new RuleDuplicateError(dto.pattern || existing.pattern)
+    } catch (err: unknown) {
+      if (isPostgresError(err, '23505')) throw new RuleDuplicateError(dto.pattern || existing.pattern)
       throw err
     }
   }
@@ -169,7 +170,7 @@ export class ExpenseCategorizationService {
     const incomplete = stmts.filter(s => s.debit_accounts.length === 0 || s.credit_accounts.length === 0)
     if (incomplete.length > 0) {
       const codes = incomplete.map(s => s.purpose_code).join(', ')
-      throw new Error(`Purpose ${codes} belum punya mapping COA lengkap. Setup di Accounting Purpose Accounts.`)
+      throw new MissingCoaMappingError(codes)
     }
 
     // Use provided date, or latest transaction date from selected statements

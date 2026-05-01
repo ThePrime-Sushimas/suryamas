@@ -20,3 +20,10 @@ export class NoEligibleStatementsError extends BusinessRuleError {
     this.name = 'NoEligibleStatementsError'
   }
 }
+
+export class MissingCoaMappingError extends BusinessRuleError {
+  constructor(purposeCodes: string) {
+    super(`Purpose ${purposeCodes} belum punya mapping COA lengkap. Setup di Accounting Purpose Accounts.`, { rule: 'missing_coa_mapping', purposeCodes })
+    this.name = 'MissingCoaMappingError'
+  }
+}

@@ -122,7 +122,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | cash-counts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-flow | ✅ | ✅ | ✅ | ✅ | ✅ |
 | companies | ✅ | ✅ | ✅ | ✅ | ✅ |
-| expense-categorization | ✅ | ❌ `as any` | ❌ | ❌ | ❌ |
+| expense-categorization | ✅ | ✅ | ✅ | ✅ | ✅ |
 | payment-methods | ✅ | ✅ | ✅ | ✅ | ✅ |
 | payment-terms | ✅ | ✅ | ✅ | ✅ | ✅ |
 | permissions | ❌ | ✅ | ✅ | ❌ | ❌ |
@@ -185,6 +185,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `product-uoms` (backend + frontend)
 - ✅ `users` (backend + frontend)
 - ✅ `auth` (backend + frontend)
+- ✅ `expense-categorization` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -192,7 +193,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - 🟡 `metric-units` (backend reviewed, controller still `as unknown`, FE store not yet parseApiError)
 
 ### Modules Not Yet Reviewed
-- ⬜ `expense-categorization`
 - ⬜ `pos-sync`
 - ⬜ `jobs`
 - ⬜ `monitoring`

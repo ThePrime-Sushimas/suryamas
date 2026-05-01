@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Zap, Plus, Trash2, Tag, AlertCircle, CheckCircle2, Settings, Eye, Search, Filter, X, Pencil, Check } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import {
@@ -126,13 +127,13 @@ export default function ExpenseCategorizationPage() {
         toast.success('Rule berhasil dibuat')
       }
       resetRuleForm()
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal menyimpan rule') }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menyimpan rule')) }
   }
 
   const handleDeleteRule = async () => {
     if (!deleteRuleId) return
     try { await deleteRule.mutateAsync(deleteRuleId); toast.success('Rule berhasil dihapus') }
-    catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal menghapus rule') }
+    catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus rule')) }
     finally { setDeleteRuleId(null) }
   }
 
@@ -140,7 +141,7 @@ export default function ExpenseCategorizationPage() {
     try {
       const result = await autoCategorize.mutateAsync({ dry_run: true })
       setPreviewResult(result); setShowPreview(true)
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal preview') }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal preview')) }
   }
 
   const handleAutoConfirm = async () => {
@@ -148,7 +149,7 @@ export default function ExpenseCategorizationPage() {
       const result = await autoCategorize.mutateAsync({ dry_run: false })
       toast.success(`${result.categorized} transaksi berhasil dikategorikan`)
       setShowPreview(false); setPreviewResult(null); setSelectedIds(new Set())
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal auto-categorize') }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal auto-categorize')) }
   }
 
   const handleManualCategorize = async () => {
@@ -157,7 +158,7 @@ export default function ExpenseCategorizationPage() {
       const result = await manualCategorize.mutateAsync({ statement_ids: [...selectedIds], purpose_id: assignPurposeId })
       toast.success(`${result.count} transaksi dikategorikan`)
       setSelectedIds(new Set()); setAssignPurposeId('')
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal mengkategorikan') }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal mengkategorikan')) }
   }
 
   const handleUncategorize = async () => {
@@ -166,7 +167,7 @@ export default function ExpenseCategorizationPage() {
       const result = await uncategorizeMutation.mutateAsync({ statement_ids: [...selectedIds] })
       toast.success(`${result.count} transaksi di-uncategorize`)
       setSelectedIds(new Set())
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal uncategorize') }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal uncategorize')) }
   }
 
   const handleGenerateJournal = async () => {
@@ -177,7 +178,7 @@ export default function ExpenseCategorizationPage() {
       const result = await generateJournal.mutateAsync({ statement_ids: eligible.map(s => Number(s.id)) })
       toast.success(`Journal ${result.journal_number} dibuat — ${result.lines_count} lines, ${fmt(result.total_amount)}`)
       setSelectedIds(new Set())
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Gagal generate journal') }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal generate journal')) }
   }
 
   const toggleSelect = (id: number) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })

@@ -1,10 +1,8 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { expenseCategorizationService } from './expense-categorization.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { withValidated } from '../../utils/handler'
-import { requireEmployee, getEmployeeId } from '../../utils/employee.util'
-import { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createRuleSchema, updateRuleSchema, deleteRuleSchema,
   categorizeManualSchema, uncategorizeSchema, autoCategorizeSchema,
@@ -21,94 +19,103 @@ type ListUncategorizedReq = ValidatedAuthRequest<typeof listUncategorizedSchema>
 type GenerateJournalReq = ValidatedAuthRequest<typeof generateJournalSchema>
 
 export class ExpenseCategorizationController {
-
-  listRules = async (req: any, res: Response) => {
+  listRules = async (req: Request, res: Response) => {
     try {
-      const result = await expenseCategorizationService.listRules(String(req.context?.company_id))
+      const result = await expenseCategorizationService.listRules(req.context?.company_id ?? '')
       sendSuccess(res, result, 'Rules retrieved', 200)
-    } catch (error) { await handleError(res, error, req) }
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_rules', company_id: req.context?.company_id })
+    }
   }
 
-  createRule = withValidated(async (req: CreateRuleReq, res: Response) => {
+  createRule = async (req: Request, res: Response) => {
     try {
-      const result = await expenseCategorizationService.createRule(
-        String(req.context?.company_id), req.validated.body, String(req.user?.id)
-      )
+      const { body } = (req as CreateRuleReq).validated
+      const result = await expenseCategorizationService.createRule(req.context?.company_id ?? '', body, req.user?.id ?? '')
       sendSuccess(res, result, 'Rule created', 201)
-    } catch (error) { await handleError(res, error, req as any) }
-  })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_rule' })
+    }
+  }
 
-  updateRule = withValidated(async (req: UpdateRuleReq, res: Response) => {
+  updateRule = async (req: Request, res: Response) => {
     try {
-      const result = await expenseCategorizationService.updateRule(
-        req.validated.params.id, String(req.context?.company_id), req.validated.body, String(req.user?.id)
-      )
+      const { params, body } = (req as UpdateRuleReq).validated
+      const result = await expenseCategorizationService.updateRule(params.id, req.context?.company_id ?? '', body, req.user?.id ?? '')
       sendSuccess(res, result, 'Rule updated', 200)
-    } catch (error) { await handleError(res, error, req as any) }
-  })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_rule', id: req.params.id })
+    }
+  }
 
-  deleteRule = withValidated(async (req: DeleteRuleReq, res: Response) => {
+  deleteRule = async (req: Request, res: Response) => {
     try {
-      await expenseCategorizationService.deleteRule(
-        req.validated.params.id, String(req.context?.company_id), String(req.user?.id)
-      )
+      const { id } = (req as DeleteRuleReq).validated.params
+      await expenseCategorizationService.deleteRule(id, req.context?.company_id ?? '', req.user?.id ?? '')
       sendSuccess(res, null, 'Rule deleted', 200)
-    } catch (error) { await handleError(res, error, req as any) }
-  })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_rule', id: req.params.id })
+    }
+  }
 
-  autoCategorize = withValidated(async (req: AutoCategorizeReq, res: Response) => {
+  autoCategorize = async (req: Request, res: Response) => {
     try {
-      const result = await expenseCategorizationService.autoCategorize(
-        String(req.context?.company_id), String(req.user?.id), req.validated.body
-      )
+      const { body } = (req as AutoCategorizeReq).validated
+      const result = await expenseCategorizationService.autoCategorize(req.context?.company_id ?? '', req.user?.id ?? '', body)
       sendSuccess(res, result, result.categorized > 0 ? `${result.categorized} statements categorized` : 'No matches found', 200)
-    } catch (error) { await handleError(res, error, req as any) }
-  })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'auto_categorize', company_id: req.context?.company_id })
+    }
+  }
 
-  categorizeManual = withValidated(async (req: CategorizeManualReq, res: Response) => {
+  categorizeManual = async (req: Request, res: Response) => {
     try {
-      const count = await expenseCategorizationService.categorizeManual(
-        String(req.context?.company_id), req.validated.body.statement_ids, req.validated.body.purpose_id, String(req.user?.id)
-      )
+      const { body } = (req as CategorizeManualReq).validated
+      const count = await expenseCategorizationService.categorizeManual(req.context?.company_id ?? '', body.statement_ids, body.purpose_id, req.user?.id ?? '')
       sendSuccess(res, { count }, `${count} statements categorized`, 200)
-    } catch (error) { await handleError(res, error, req as any) }
-  })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'categorize_manual', company_id: req.context?.company_id })
+    }
+  }
 
-  uncategorize = withValidated(async (req: UncategorizeReq, res: Response) => {
+  uncategorize = async (req: Request, res: Response) => {
     try {
-      const count = await expenseCategorizationService.uncategorize(
-        String(req.context?.company_id), req.validated.body.statement_ids, String(req.user?.id)
-      )
+      const { body } = (req as UncategorizeReq).validated
+      const count = await expenseCategorizationService.uncategorize(req.context?.company_id ?? '', body.statement_ids, req.user?.id ?? '')
       sendSuccess(res, { count }, `${count} statements uncategorized`, 200)
-    } catch (error) { await handleError(res, error, req as any) }
-  })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'uncategorize', company_id: req.context?.company_id })
+    }
+  }
 
-  listUncategorized = withValidated(async (req: ListUncategorizedReq, res: Response) => {
+  listUncategorized = async (req: Request, res: Response) => {
     try {
-      const q = req.validated.query
-      const { data, total } = await expenseCategorizationService.listUncategorized(
-        String(req.context?.company_id), q, q.page, q.limit
-      )
+      const q = (req as ListUncategorizedReq).validated.query
+      const { data, total } = await expenseCategorizationService.listUncategorized(req.context?.company_id ?? '', q, q.page, q.limit)
       const totalPages = Math.ceil(total / q.limit)
       sendSuccess(res, data, 'Uncategorized statements retrieved', 200, {
         total, page: q.page, limit: q.limit, totalPages, hasNext: q.page < totalPages, hasPrev: q.page > 1,
       })
-    } catch (error) { await handleError(res, error, req as any) }
-  })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_uncategorized', company_id: req.context?.company_id })
+    }
+  }
 
-  generateJournal = withValidated(async (req: GenerateJournalReq, res: Response) => {
+  generateJournal = async (req: Request, res: Response) => {
     try {
-      requireEmployee(req as any)
-      const employeeId = getEmployeeId(req as any)
+      const { body } = (req as GenerateJournalReq).validated
+      const employeeId = req.context?.employee_id
+      if (!employeeId) throw new Error('Employee context required for journal generation')
+
       const result = await expenseCategorizationService.generateJournal(
-        String(req.context?.company_id),
-        req.validated.body.statement_ids,
-        employeeId,
-        { journal_date: req.validated.body.journal_date, description: req.validated.body.description }
+        req.context?.company_id ?? '', body.statement_ids, employeeId,
+        { journal_date: body.journal_date, description: body.description }
       )
       sendSuccess(res, result, `Journal ${result.journal_number} created with ${result.lines_count} lines`, 201)
-    } catch (error) { await handleError(res, error, req as any) }
-  })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'generate_journal', company_id: req.context?.company_id })
+    }
+  }
 }
 
 export const expenseCategorizationController = new ExpenseCategorizationController()
