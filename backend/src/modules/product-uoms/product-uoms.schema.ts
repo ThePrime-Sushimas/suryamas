@@ -3,6 +3,12 @@ import { VALID_UOM_STATUSES, UOM_LIMITS } from './product-uoms.constants'
 
 const uuidSchema = z.string().uuid()
 
+export const productUomListSchema = z.object({
+  params: z.object({
+    productId: uuidSchema,
+  }),
+})
+
 export const productUomIdSchema = z.object({
   params: z.object({
     uomId: uuidSchema,

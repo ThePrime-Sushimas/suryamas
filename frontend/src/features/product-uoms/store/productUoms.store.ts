@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { productUomsApi } from '../api/productUoms.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../types'
 
 interface ProductUomsState {
@@ -15,13 +16,12 @@ interface ProductUomsState {
   clearError: () => void
 }
 
-const handleApiError = (error: unknown): string => {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const apiError = error as { response?: { data?: { error?: string } } }
-    return apiError.response?.data?.error || 'An error occurred'
-  }
-  return 'An unexpected error occurred'
-}
+const sortUoms = (uoms: ProductUom[]) =>
+  [...uoms].sort((a, b) => {
+    if (a.is_base_unit) return -1
+    if (b.is_base_unit) return 1
+    return a.conversion_factor - b.conversion_factor
+  })
 
 export const useProductUomsStore = create<ProductUomsState>((set) => ({
   uoms: [],
@@ -32,14 +32,9 @@ export const useProductUomsStore = create<ProductUomsState>((set) => ({
     set({ loading: true, error: null })
     try {
       const uoms = await productUomsApi.list(productId, includeDeleted)
-      const sortedUoms = uoms.sort((a, b) => {
-        if (a.is_base_unit) return -1
-        if (b.is_base_unit) return 1
-        return a.conversion_factor - b.conversion_factor
-      })
-      set({ uoms: sortedUoms, loading: false })
-    } catch (error) {
-      set({ error: handleApiError(error), loading: false })
+      set({ uoms: sortUoms(uoms), loading: false })
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal memuat satuan produk'), loading: false })
     }
   },
 
@@ -47,19 +42,11 @@ export const useProductUomsStore = create<ProductUomsState>((set) => ({
     set({ loading: true, error: null })
     try {
       const uom = await productUomsApi.create(productId, data)
-      set(state => {
-        const newUoms = [...state.uoms, uom].sort((a, b) => {
-          if (a.is_base_unit) return -1
-          if (b.is_base_unit) return 1
-          return a.conversion_factor - b.conversion_factor
-        })
-        return { uoms: newUoms, loading: false, error: null }
-      })
+      set(state => ({ uoms: sortUoms([...state.uoms, uom]), loading: false }))
       return uom
-    } catch (error) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal membuat satuan produk'), loading: false })
+      throw error
     }
   },
 
@@ -68,15 +55,13 @@ export const useProductUomsStore = create<ProductUomsState>((set) => ({
     try {
       const uom = await productUomsApi.update(productId, uomId, data)
       set(state => ({
-        uoms: state.uoms.map(u => u.id === uomId ? uom : u),
+        uoms: sortUoms(state.uoms.map(u => u.id === uomId ? uom : u)),
         loading: false,
-        error: null
       }))
       return uom
-    } catch (error) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal memperbarui satuan produk'), loading: false })
+      throw error
     }
   },
 
@@ -87,12 +72,10 @@ export const useProductUomsStore = create<ProductUomsState>((set) => ({
       set(state => ({
         uoms: state.uoms.filter(u => u.id !== uomId),
         loading: false,
-        error: null
       }))
-    } catch (error) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal menghapus satuan produk'), loading: false })
+      throw error
     }
   },
 
@@ -103,15 +86,13 @@ export const useProductUomsStore = create<ProductUomsState>((set) => ({
       set(state => ({
         uoms: state.uoms.map(u => u.id === uomId ? uom : u),
         loading: false,
-        error: null
       }))
       return uom
-    } catch (error) {
-      const errorMsg = handleApiError(error)
-      set({ error: errorMsg, loading: false })
-      throw new Error(errorMsg)
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal memulihkan satuan produk'), loading: false })
+      throw error
     }
   },
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
 }))

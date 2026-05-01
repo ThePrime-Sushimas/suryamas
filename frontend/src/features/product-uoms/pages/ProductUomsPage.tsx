@@ -4,15 +4,15 @@ import { useProductUomsStore } from '../store/productUoms.store'
 import { ProductUomTable } from '../components/ProductUomTable'
 import { ProductUomForm } from '../components/ProductUomForm'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Package, Plus, ArrowLeft, X } from 'lucide-react'
 import type { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../types'
-import api from '@/lib/axios'
 
 export default function ProductUomsPage() {
   const { productId } = useParams<{ productId: string }>()
   const navigate = useNavigate()
-  const { uoms, loading, fetchUoms, createUom, updateUom, deleteUom } = useProductUomsStore()
+  const { uoms, loading, fetchUoms, createUom, updateUom, deleteUom, restoreUom } = useProductUomsStore()
   const { success, error } = useToast()
 
   const [showForm, setShowForm] = useState(false)
@@ -35,10 +35,10 @@ export default function ProductUomsPage() {
     setIsSubmitting(true)
     try {
       await createUom(productId, data as CreateProductUomDto)
-      success('UOM created successfully')
+      success('Satuan berhasil dibuat')
       setShowForm(false)
-    } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to create UOM')
+    } catch (err: unknown) {
+      error(parseApiError(err, 'Gagal membuat satuan'))
     } finally {
       setIsSubmitting(false)
     }
@@ -50,11 +50,11 @@ export default function ProductUomsPage() {
     setIsSubmitting(true)
     try {
       await updateUom(productId, editingUom.id, data as UpdateProductUomDto)
-      success('UOM updated successfully')
+      success('Satuan berhasil diperbarui')
       setEditingUom(undefined)
       setShowForm(false)
-    } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to update UOM')
+    } catch (err: unknown) {
+      error(parseApiError(err, 'Gagal memperbarui satuan'))
     } finally {
       setIsSubmitting(false)
     }
@@ -62,7 +62,7 @@ export default function ProductUomsPage() {
 
   const handleDelete = (uom: ProductUom) => {
     if (!productId || isSubmitting) return
-    setDeleteData({ id: uom.id, name: uom.metric_units?.unit_name || 'this UOM' })
+    setDeleteData({ id: uom.id, name: uom.metric_units?.unit_name || 'satuan ini' })
   }
 
   const handleConfirmDelete = async () => {
@@ -71,9 +71,9 @@ export default function ProductUomsPage() {
     setIsSubmitting(true)
     try {
       await deleteUom(productId, deleteData.id)
-      success('UOM deleted successfully')
-    } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to delete UOM')
+      success('Satuan berhasil dihapus')
+    } catch (err: unknown) {
+      error(parseApiError(err, 'Gagal menghapus satuan'))
     } finally {
       setIsSubmitting(false)
       setDeleteData(null)
@@ -89,11 +89,11 @@ export default function ProductUomsPage() {
 
     setIsSubmitting(true)
     try {
-      await api.post(`/products/${productId}/uoms/${uomId}/restore`)
-      success('UOM restored successfully')
+      await restoreUom(productId, uomId)
+      success('Satuan berhasil dipulihkan')
       fetchUoms(productId, showDeleted)
-    } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to restore UOM')
+    } catch (err: unknown) {
+      error(parseApiError(err, 'Gagal memulihkan satuan'))
     } finally {
       setIsSubmitting(false)
     }
@@ -139,8 +139,8 @@ export default function ProductUomsPage() {
             </button>
             <Package className="w-6 h-6 text-blue-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Product UOMs</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{uoms.length} units of measure</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Satuan Produk</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{uoms.length} satuan ukur</p>
             </div>
           </div>
           {!showForm && (
@@ -150,7 +150,7 @@ export default function ProductUomsPage() {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               <Plus className="w-4 h-4" />
-              Add UOM
+              Tambah Satuan
             </button>
           )}
         </div>
@@ -162,7 +162,7 @@ export default function ProductUomsPage() {
           <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingUom ? 'Edit UOM' : 'Create New UOM'}
+                {editingUom ? 'Edit Satuan' : 'Buat Satuan Baru'}
               </h2>
               <button
                 onClick={handleCancel}
@@ -190,7 +190,7 @@ export default function ProductUomsPage() {
                   onChange={(e) => setShowDeleted(e.target.checked)}
                   className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
                 />
-                Show Deleted
+                Tampilkan Dihapus
               </label>
             </div>
             <ProductUomTable
@@ -209,10 +209,9 @@ export default function ProductUomsPage() {
         isOpen={!!deleteData}
         onClose={handleCloseDeleteModal}
         onConfirm={handleConfirmDelete}
-        title="Delete UOM"
-        message={`Are you sure you want to delete "${deleteData?.name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title="Hapus Satuan"
+        message={`Yakin ingin menghapus "${deleteData?.name}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Hapus"
         variant="danger"
         isLoading={isSubmitting}
       />
@@ -222,9 +221,9 @@ export default function ProductUomsPage() {
         isOpen={showDiscardConfirm}
         onClose={() => setShowDiscardConfirm(false)}
         onConfirm={() => { setShowDiscardConfirm(false); setShowForm(false); setEditingUom(undefined) }}
-        title="Discard Changes"
-        message="Discard changes?"
-        confirmText="Discard"
+        title="Buang Perubahan"
+        message="Buang perubahan yang belum disimpan?"
+        confirmText="Buang"
         variant="warning"
       />
     </div>

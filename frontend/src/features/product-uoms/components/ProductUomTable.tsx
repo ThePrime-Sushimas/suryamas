@@ -77,7 +77,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
                   )}
                   {uom.is_deleted && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
-                      Deleted
+                      Dihapus
                     </span>
                   )}
                 </div>
@@ -86,7 +86,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
               {/* Conversion Column - Business Sentence Format */}
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                 {uom.is_base_unit ? (
-                  <span className="text-gray-500 dark:text-gray-400">1 (Base Unit)</span>
+                  <span className="text-gray-500 dark:text-gray-400">1 (Satuan Dasar)</span>
                 ) : baseUnit ? (
                   <span>
                     1 {uom.metric_units?.unit_name || '-'} = {uom.conversion_factor.toLocaleString('id-ID')} {baseUnit.metric_units?.unit_name || '-'}
@@ -151,7 +151,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
                     <button
                       onClick={() => onRestore(uom.id)}
                       className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 p-1.5 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-                      title="Restore"
+                      title="Pulihkan"
                     >
                       <RotateCcw className="w-4 h-4" />
                     </button>
@@ -168,7 +168,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
                       <button
                         onClick={() => onDelete(uom)}
                         className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        title={uom.is_base_unit ? 'Base unit cannot be deleted' : 'Delete'}
+                        title={uom.is_base_unit ? 'Satuan dasar tidak bisa dihapus' : 'Hapus'}
                         disabled={uom.is_base_unit || uom.status_uom === 'INACTIVE'}
                       >
                         <Trash2 className="w-4 h-4" />
