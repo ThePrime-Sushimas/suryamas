@@ -5,6 +5,7 @@ import { BankAccountTable } from './BankAccountTable'
 import { BankAccountForm } from './BankAccountForm'
 import { useBankAccountsStore } from '../store/useBankAccounts'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import type { BankAccountFormData } from '../schemas/bankAccount.schema'
 import type { BankAccount } from '../types'
 
@@ -28,10 +29,10 @@ export const BankAccountsSection = ({ ownerType, ownerId, companyId }: BankAccou
         owner_type: ownerType,
         owner_id: ownerId,
       })
-      toast.success('Bank account created successfully')
+      toast.success('Rekening bank berhasil dibuat')
       setShowForm(false)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create bank account')
+    } catch (error: unknown) {
+      toast.error(parseApiError(error, 'Gagal membuat rekening bank'))
     }
   }
 
@@ -42,7 +43,7 @@ export const BankAccountsSection = ({ ownerType, ownerId, companyId }: BankAccou
       setEditId(id)
       setShowForm(true)
     } catch {
-      toast.error('Failed to load bank account')
+      toast.error('Gagal memuat rekening bank')
     }
   }
 
@@ -50,12 +51,12 @@ export const BankAccountsSection = ({ ownerType, ownerId, companyId }: BankAccou
     if (!editId) return
     try {
       await update(editId, data)
-      toast.success('Bank account updated successfully')
+      toast.success('Rekening bank berhasil diperbarui')
       setShowForm(false)
       setEditId(null)
       setEditData(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update bank account')
+    } catch (error: unknown) {
+      toast.error(parseApiError(error, 'Gagal memperbarui rekening bank'))
     }
   }
 
@@ -68,14 +69,14 @@ export const BankAccountsSection = ({ ownerType, ownerId, companyId }: BankAccou
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Bank Accounts</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Rekening Bank</h2>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <Plus className="h-4 w-4" />
-            Add Account
+            Tambah Rekening
           </button>
         )}
       </div>
@@ -83,7 +84,7 @@ export const BankAccountsSection = ({ ownerType, ownerId, companyId }: BankAccou
       {showForm ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            {editId ? 'Edit Bank Account' : 'Add Bank Account'}
+            {editId ? 'Edit Rekening Bank' : 'Tambah Rekening Bank'}
           </h3>
           <BankAccountForm
             initialData={editData ?? undefined}

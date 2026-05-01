@@ -63,18 +63,17 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
   return (
     <>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-        {/* Bank Selection */}
         <div>
           <label htmlFor="bank_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Bank <span className="text-red-500">*</span>
           </label>
           <select
             id="bank_id"
-            defaultValue={initialData?.bank_name?? 0}
+            defaultValue={initialData?.bank_name ?? 0}
             {...form.register('bank_id', { valueAsNumber: true })}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            <option value={0}>Select bank</option>
+            <option value={0}>Pilih bank</option>
             {options.map((bank) => (
               <option key={bank.id} value={bank.id}>
                 {bank.bank_code} - {bank.bank_name}
@@ -86,44 +85,41 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
           )}
         </div>
 
-        {/* Account Name */}
         <div>
           <label htmlFor="account_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Account Name <span className="text-red-500">*</span>
+            Nama Rekening <span className="text-red-500">*</span>
           </label>
           <input
             id="account_name"
             type="text"
             {...form.register('account_name')}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder="e.g., PT Suryamas Lestari"
+            placeholder="cth. PT Suryamas Lestari"
           />
           {form.formState.errors.account_name && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.account_name.message}</p>
           )}
         </div>
 
-        {/* Account Number */}
         <div>
           <label htmlFor="account_number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Account Number <span className="text-red-500">*</span>
+            Nomor Rekening <span className="text-red-500">*</span>
           </label>
           <input
             id="account_number"
             type="text"
             {...form.register('account_number')}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder="e.g., 1234567890"
+            placeholder="cth. 1234567890"
           />
           {form.formState.errors.account_number && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.account_number.message}</p>
           )}
         </div>
 
-        {/* Currency (Readonly) */}
         <div>
           <label htmlFor="currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Currency
+            Mata Uang
           </label>
           <input
             id="currency"
@@ -135,10 +131,9 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
           />
         </div>
 
-        {/* COA Account Selection */}
         <div>
           <label htmlFor="coa_account_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            COA Account (Optional)
+            Akun COA (Opsional)
           </label>
           <select
             id="coa_account_id"
@@ -149,7 +144,7 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
             }}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            <option value="">Select COA account</option>
+            <option value="">Pilih akun COA</option>
             {coaOptions.map((coa) => (
               <option key={coa.id} value={coa.id}>
                 {coa.account_code} - {coa.account_name}
@@ -160,11 +155,10 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.coa_account_id.message}</p>
           )}
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Link to Chart of Accounts for accounting integration
+            Hubungkan ke Chart of Accounts untuk integrasi akuntansi
           </p>
         </div>
 
-        {/* Primary Toggle */}
         <div className="flex items-center">
           <input
             id="is_primary"
@@ -173,11 +167,10 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
           />
           <label htmlFor="is_primary" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Set as primary account
+            Jadikan rekening utama
           </label>
         </div>
 
-        {/* Active Toggle */}
         <div className="flex items-center">
           <input
             id="is_active"
@@ -186,11 +179,10 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
           />
           <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Active
+            Aktif
           </label>
         </div>
 
-        {/* Submit Buttons */}
         <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-600">
           <button
             type="button"
@@ -198,19 +190,18 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
             disabled={isLoading}
             className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 text-gray-700 dark:text-gray-300"
           >
-            Cancel
+            Batal
           </button>
           <button
             type="submit"
             disabled={isLoading}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {isLoading ? 'Saving...' : 'Save'}
+            {isLoading ? 'Menyimpan...' : 'Simpan'}
           </button>
         </div>
       </form>
 
-      {/* Primary Confirmation Modal */}
       <ConfirmModal
         isOpen={showPrimaryConfirm}
         onClose={() => {
@@ -218,9 +209,9 @@ export const BankAccountForm = ({ initialData, onSubmit, onCancel, isLoading, co
           setPendingData(null)
         }}
         onConfirm={handlePrimaryConfirm}
-        title="Set as Primary?"
-        message="This will replace the current primary account. Continue?"
-        confirmText="Yes, Set as Primary"
+        title="Jadikan Rekening Utama?"
+        message="Ini akan menggantikan rekening utama saat ini. Lanjutkan?"
+        confirmText="Ya, Jadikan Utama"
         variant="warning"
         isLoading={isLoading}
       />

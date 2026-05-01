@@ -1,11 +1,11 @@
 import { TableSkeleton } from '@/components/ui/Skeleton'
-
 import { useEffect, useState } from 'react'
 import { Edit2, Trash2 } from 'lucide-react'
 import { useBankAccountsStore } from '../store/useBankAccounts'
 import { PrimaryBadge } from './PrimaryBadge'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 
 interface BankAccountTableProps {
   ownerType: 'company' | 'supplier'
@@ -29,10 +29,10 @@ export const BankAccountTable = ({ ownerType, ownerId, onEdit, loading }: BankAc
     if (!deleteId) return
     try {
       await deleteAccount(deleteId)
-      toast.success('Bank account deleted successfully')
+      toast.success('Rekening bank berhasil dihapus')
       setDeleteId(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete bank account')
+    } catch (error: unknown) {
+      toast.error(parseApiError(error, 'Gagal menghapus rekening bank'))
     }
   }
 
@@ -45,8 +45,8 @@ export const BankAccountTable = ({ ownerType, ownerId, onEdit, loading }: BankAc
   if (accounts.length === 0) {
     return (
       <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
-        <p className="text-gray-600 dark:text-gray-300 mb-2">No bank accounts yet</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Add your first bank account to get started</p>
+        <p className="text-gray-600 dark:text-gray-300 mb-2">Belum ada rekening bank</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Tambahkan rekening bank pertama Anda</p>
       </div>
     )
   }
@@ -62,19 +62,19 @@ export const BankAccountTable = ({ ownerType, ownerId, onEdit, loading }: BankAc
                   Bank
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Account Name
+                  Nama Rekening
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Account Number
+                  Nomor Rekening
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Primary
+                  Utama
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Actions
+                  Aksi
                 </th>
               </tr>
             </thead>
@@ -100,7 +100,7 @@ export const BankAccountTable = ({ ownerType, ownerId, onEdit, loading }: BankAc
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
                         : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                     }`}>
-                      {account.is_active ? 'Active' : 'Inactive'}
+                      {account.is_active ? 'Aktif' : 'Nonaktif'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -115,7 +115,7 @@ export const BankAccountTable = ({ ownerType, ownerId, onEdit, loading }: BankAc
                       <button
                         onClick={() => setDeleteId(account.id)}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                        title="Delete"
+                        title="Hapus"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -132,13 +132,13 @@ export const BankAccountTable = ({ ownerType, ownerId, onEdit, loading }: BankAc
         isOpen={deleteId !== null}
         onClose={() => setDeleteId(null)}
         onConfirm={handleDelete}
-        title={deleteId === primaryAccount?.id ? 'Delete Primary Account?' : 'Delete Bank Account'}
+        title={deleteId === primaryAccount?.id ? 'Hapus Rekening Utama?' : 'Hapus Rekening Bank'}
         message={
           deleteId === primaryAccount?.id
-            ? 'This is your primary account. Are you sure you want to delete it?'
-            : 'Are you sure you want to delete this bank account? This action cannot be undone.'
+            ? 'Ini adalah rekening utama Anda. Yakin ingin menghapusnya?'
+            : 'Yakin ingin menghapus rekening bank ini? Tindakan ini tidak dapat dibatalkan.'
         }
-        confirmText="Delete"
+        confirmText="Hapus"
         variant="danger"
         isLoading={mutationLoading}
       />

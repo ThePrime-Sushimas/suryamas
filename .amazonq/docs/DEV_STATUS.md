@@ -117,12 +117,12 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | employees | ✅ | ✅ | ✅ | ✅ | ✅ |
 | employee_branches | ✅ | ✅ | ✅ | ✅ | ✅ |
 | auth | ❌ | ✅ | ❌ | ❌ | ❌ |
-| bank-accounts | ❌ | ✅ | ✅ | ❌ | ❌ |
+| bank-accounts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-counts | ❌ | ✅ | ❌ `error: any` | ❌ | ❌ |
 | cash-flow | ❌ | ✅ | ❌ `error: any` | ❌ | ❌ |
 | companies | ✅ | ✅ | ✅ | ✅ | ✅ |
 | expense-categorization | ✅ | ❌ `as any` | ❌ | ❌ | ❌ |
-| payment-methods | ❌ | ❌ `as any` | ❌ | ❌ | ❌ |
+| payment-methods | ✅ | ✅ | ✅ | ✅ | ✅ |
 | payment-terms | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
 | permissions | ❌ | ✅ | ✅ | ❌ | ❌ |
 | pos-sync | ➖ | ❌ `as any` | ✅ | ➖ | ❌ |
@@ -145,12 +145,12 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | metric_units | ❌ | inline |
 | suppliers | ❌ | inline |
 | employees | ✅ | ✅ removed |
-| bank-accounts | ❌ | `error instanceof Error` |
+| bank-accounts | ✅ | ✅ removed |
 | bank-statement-import | ❌ | `error.response?.data` |
 | branch_context | ❌ | `error instanceof Error` |
 | companies | ✅ | ✅ removed |
 | employee_branches | ✅ | ✅ removed |
-| payment-methods | ❌ | inline |
+| payment-methods | ✅ | ✅ removed |
 | payment-terms | ❌ | inline |
 | permissions | ❌ | inline |
 | pricelists | ❌ | inline |
@@ -174,6 +174,8 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `products` (backend + frontend)
 - ✅ `sub-categories` (backend + frontend)
 - ✅ `supplier-products` (backend + frontend)
+- ✅ `bank-accounts` (backend + frontend)
+- ✅ `payment-methods` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -182,11 +184,9 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 
 ### Modules Not Yet Reviewed
 - ⬜ `auth`
-- ⬜ `bank-accounts`
 - ⬜ `cash-counts`
 - ⬜ `cash-flow`
 - ⬜ `expense-categorization`
-- ⬜ `payment-methods`
 - ⬜ `payment-terms`
 - ⬜ `permissions`
 - ⬜ `pos-sync`

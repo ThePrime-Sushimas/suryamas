@@ -1,20 +1,18 @@
-// PaymentMethodStatusBadge.tsx
-
 interface PaymentMethodStatusBadgeProps {
   isActive: boolean
   isDefault?: boolean
   isDeleted?: boolean
 }
 
-export const PaymentMethodStatusBadge = ({ 
-  isActive, 
+export const PaymentMethodStatusBadge = ({
+  isActive,
   isDefault = false,
-  isDeleted = false 
+  isDeleted = false,
 }: PaymentMethodStatusBadgeProps) => {
   if (isDeleted) {
     return (
       <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-        Deleted
+        Dihapus
       </span>
     )
   }
@@ -29,11 +27,11 @@ export const PaymentMethodStatusBadge = ({
 
   return (
     <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
-      isActive 
-        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' 
+      isActive
+        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
         : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
     }`}>
-      {isActive ? 'Active' : 'Inactive'}
+      {isActive ? 'Aktif' : 'Nonaktif'}
     </span>
   )
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { bankAccountsApi } from '../api/bankAccounts.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { BankAccount, CreateBankAccountDto, UpdateBankAccountDto, CoaOption } from '../types'
 
 interface BankAccountsState {
@@ -19,17 +20,13 @@ interface BankAccountsState {
   clearError: () => void
 }
 
-const initialState = {
+export const useBankAccountsStore = create<BankAccountsState>((set) => ({
   accounts: [],
   currentAccount: null,
   coaOptions: [],
   fetchLoading: false,
   mutationLoading: false,
-  error: null
-}
-
-export const useBankAccountsStore = create<BankAccountsState>((set) => ({
-  ...initialState,
+  error: null,
 
   fetchByOwner: async (ownerType, ownerId) => {
     set({ fetchLoading: true, error: null })
@@ -37,8 +34,7 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
       const accounts = await bankAccountsApi.getByOwner(ownerType, ownerId)
       set({ accounts, fetchLoading: false })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch bank accounts'
-      set({ error: message, fetchLoading: false })
+      set({ error: parseApiError(error, 'Gagal memuat rekening bank'), fetchLoading: false })
     }
   },
 
@@ -49,8 +45,7 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
       set({ currentAccount: account, fetchLoading: false })
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch bank account'
-      set({ error: message, fetchLoading: false })
+      set({ error: parseApiError(error, 'Gagal memuat rekening bank'), fetchLoading: false })
       throw error
     }
   },
@@ -65,8 +60,7 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
       }))
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create bank account'
-      set({ error: message, mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal membuat rekening bank'), mutationLoading: false })
       throw error
     }
   },
@@ -82,8 +76,7 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
       }))
       return account
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update bank account'
-      set({ error: message, mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal memperbarui rekening bank'), mutationLoading: false })
       throw error
     }
   },
@@ -97,8 +90,7 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete bank account'
-      set({ error: message, mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal menghapus rekening bank'), mutationLoading: false })
       throw error
     }
   },
@@ -110,8 +102,7 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
       const options = await bankAccountsApi.getCoaOptions(companyId)
       set({ coaOptions: options })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch COA options'
-      set({ error: message })
+      set({ error: parseApiError(error, 'Gagal memuat opsi COA') })
     }
   }
 }))

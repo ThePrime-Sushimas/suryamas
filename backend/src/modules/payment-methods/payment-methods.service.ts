@@ -9,9 +9,9 @@ import {
 import { PaginatedResponse, createPaginatedResponse } from '../../utils/pagination.util'
 import { ExportService } from '../../services/export.service'
 import { AuditService } from '../monitoring/monitoring.service'
-import { PaymentMethodErrors } from './payment-methods.errors'
+import { PaymentMethodErrors, PaymentMethodValidationError } from './payment-methods.errors'
 import { PaymentMethodsConfig } from './payment-methods.errors'
-import { logInfo, logError, logWarn } from '../../config/logger'
+import { logInfo, logWarn } from '../../config/logger'
 
 // Fee calculation service untuk validasi
 import { feeCalculationService, FeeConfig } from '../reconciliation/fee-reconciliation/fee-calculation.service'
@@ -28,11 +28,12 @@ export class PaymentMethodsService {
 
   async list(
     companyId: string,
-    pagination: { page: number; limit: number; offset: number },
+    pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: PaymentMethodFilterParams
   ): Promise<PaginatedResponse<PaymentMethodWithDetails>> {
-    const { data, total } = await this.repository.findAll(companyId, pagination, sort, filter)
+    const offset = (pagination.page - 1) * pagination.limit
+    const { data, total } = await this.repository.findAll(companyId, { limit: pagination.limit, offset }, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
@@ -112,12 +113,7 @@ export class PaymentMethodsService {
         await AuditService.log('CREATE', 'payment_methods', paymentMethod.id.toString(), userId, null, paymentMethod)
         logInfo('Payment method created successfully', { id: paymentMethod.id, code: paymentMethod.code })
         return paymentMethod
-      } catch (error: any) {
-        logError('Failed to create payment method', { 
-          error: error.message, 
-          code: data.code,
-          company_id: data.company_id
-        })
+      } catch (error: unknown) {
         throw error
       }
     })
@@ -198,8 +194,7 @@ export class PaymentMethodsService {
         await AuditService.log('UPDATE', 'payment_methods', id.toString(), userId, existing, paymentMethod)
         logInfo('Payment method updated successfully', { id })
         return paymentMethod
-      } catch (error: any) {
-        logError('Failed to update payment method', { error: error.message, id })
+      } catch (error: unknown) {
         throw error
       }
     })
@@ -383,7 +378,7 @@ export class PaymentMethodsService {
     }
 
     if (errors.length > 0) {
-      throw new Error(`Invalid fee configuration: ${errors.join(', ')}`)
+      throw new PaymentMethodValidationError(`Invalid fee configuration: ${errors.join(', ')}`)
     }
   }
 

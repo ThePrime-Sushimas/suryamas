@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import { PaymentMethod, CreatePaymentMethodDto, UpdatePaymentMethodDto, PaymentMethodWithDetails } from './payment-methods.types'
-import { logError, logInfo } from '../../config/logger'
+import { PaymentMethodNotFoundError } from './payment-methods.errors'
+import { logInfo } from '../../config/logger'
 
 interface FilterParams {
   payment_type?: string
@@ -149,7 +150,7 @@ export class PaymentMethodsRepository {
 
   async softDelete(id: number, userId: string): Promise<void> {
     const existing = await this.findById(id)
-    if (!existing) throw new Error('Payment method not found')
+    if (!existing) throw new PaymentMethodNotFoundError(id)
     await pool.query('UPDATE payment_methods SET deleted_at = NOW(), deleted_by = $1, is_active = false, is_default = false WHERE id = $2', [userId, id])
     this.invalidateCache(existing.company_id)
   }
@@ -226,7 +227,7 @@ export class PaymentMethodsRepository {
   }
 
   async findByName(name: string, companyId?: string): Promise<PaymentMethod | null> {
-    const params: any[] = [name.trim()]
+    const params: (string | number)[] = [name.trim()]
     let query = 'SELECT * FROM payment_methods WHERE name ILIKE $1 AND is_active = true AND deleted_at IS NULL'
     if (companyId) {
       params.push(companyId)

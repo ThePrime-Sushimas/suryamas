@@ -28,6 +28,13 @@ export class BankNotFoundError extends NotFoundError {
   }
 }
 
+export class CoaAccountNotFoundError extends NotFoundError {
+  constructor(id?: string | number) {
+    super('coa_account', id)
+    this.name = 'CoaAccountNotFoundError'
+  }
+}
+
 // ============================================================================
 // CONFLICT ERRORS  
 // ============================================================================
@@ -165,6 +172,36 @@ export class DuplicatePrimaryAccountError extends BusinessRuleError {
       }
     )
     this.name = 'DuplicatePrimaryAccountError'
+  }
+}
+
+export class CoaAccountNotActiveError extends BusinessRuleError {
+  constructor(coaAccountId: string) {
+    super(
+      `COA account with ID ${coaAccountId} is not active`,
+      { rule: 'coa_active', coaAccountId }
+    )
+    this.name = 'CoaAccountNotActiveError'
+  }
+}
+
+export class CoaAccountInvalidTypeError extends BusinessRuleError {
+  constructor(coaAccountId: string, accountType: string) {
+    super(
+      `Bank account should be linked to an ASSET type COA account, got ${accountType}`,
+      { rule: 'coa_asset_type', coaAccountId, accountType }
+    )
+    this.name = 'CoaAccountInvalidTypeError'
+  }
+}
+
+export class OwnerClosedError extends BusinessRuleError {
+  constructor(ownerType: string, ownerId: string) {
+    super(
+      `${ownerType} with ID ${ownerId} is closed and cannot have bank accounts`,
+      { rule: 'owner_not_closed', ownerType, ownerId }
+    )
+    this.name = 'OwnerClosedError'
   }
 }
 

@@ -10,7 +10,7 @@ export const PrimaryBadge = ({ isPrimary }: PrimaryBadgeProps) => {
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
       <Star className="h-3 w-3 fill-yellow-600" />
-      Primary
+      Utama
     </span>
   )
 }

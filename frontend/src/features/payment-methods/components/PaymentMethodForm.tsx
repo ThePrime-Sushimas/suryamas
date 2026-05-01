@@ -120,10 +120,7 @@ export const PaymentMethodForm = ({
             } 
           })
         ])
-        
-        console.log('Bank accounts response:', bankRes.data)
-        console.log('COA response:', coaRes.data)
-        
+
         setBankAccounts(bankRes.data.data || [])
         // Fallback client-side sort if backend fails
         const sortedCoa = (coaRes.data.data || []).sort((a: COAOption, b: COAOption) => 
@@ -200,7 +197,6 @@ export const PaymentMethodForm = ({
       fee_liability_coa_account_id: data.fee_liability_coa_account_id || null,
     }
     
-    console.log('Submitting payment method:', submitData)
     await onSubmit(submitData)
   }
 
@@ -313,7 +309,7 @@ export const PaymentMethodForm = ({
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={loadingOptions}
         >
-          <option value="">-- Select Bank Account (Optional) --</option>
+          <option value="">-- Pilih Rekening Bank (Opsional) --</option>
           {bankAccounts.map(acc => (
             <option key={acc.id} value={acc.id}>
               {acc.bank_name ? `${acc.bank_name} - ` : ''}{acc.account_number} - {acc.account_name}
@@ -324,7 +320,7 @@ export const PaymentMethodForm = ({
           <p className="mt-1 text-sm text-red-500">{errors.bank_account_id.message}</p>
         )}
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Link to specific bank account (for bank-based payment methods)
+          Hubungkan ke rekening bank tertentu (untuk metode pembayaran berbasis bank)
         </p>
       </div>
 
@@ -342,7 +338,7 @@ export const PaymentMethodForm = ({
               if (!e.target.value) setValue('coa_account_id', '')
             }}
             onFocus={() => setShowCOADropdown(true)}
-            placeholder="Search account code or name..."
+            placeholder="Cari kode atau nama akun..."
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={loadingOptions}
           />
@@ -368,7 +364,7 @@ export const PaymentMethodForm = ({
         </div>
         <input type="hidden" {...register('coa_account_id')} />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Link to Chart of Accounts for automatic journal entry posting
+          Hubungkan ke Chart of Accounts untuk posting jurnal otomatis
         </p>
       </div>
 
@@ -380,9 +376,9 @@ export const PaymentMethodForm = ({
           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
         />
         <label htmlFor="requires_bank_account" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-          Requires bank account
+          Butuh rekening bank
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Check if this payment method requires a bank account (e.g: Bank Transfer)
+            Centang jika metode pembayaran ini membutuhkan rekening bank (cth: Transfer Bank)
           </p>
         </label>
       </div>
@@ -395,16 +391,16 @@ export const PaymentMethodForm = ({
           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
         />
         <label htmlFor="is_default" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-          Set as default
+          Jadikan default
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Default payment method will be selected automatically
+            Metode pembayaran default akan dipilih secara otomatis
           </p>
         </label>
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Sort Order
+          Urutan
         </label>
         <input
           type="number"
@@ -498,7 +494,7 @@ export const PaymentMethodForm = ({
                   if (!e.target.value) setValue('fee_coa_account_id', '')
                 }}
                 onFocus={() => setShowFeeCOADropdown(true)}
-                placeholder="Search fee expense account..."
+                placeholder="Cari akun biaya fee..."
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 disabled={loadingOptions}
               />
@@ -544,7 +540,7 @@ export const PaymentMethodForm = ({
                   if (!e.target.value) setValue('fee_liability_coa_account_id', '')
                 }}
                 onFocus={() => setShowFeeLiabilityCOADropdown(true)}
-                placeholder="Search fee liability account..."
+                placeholder="Cari akun hutang fee..."
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 disabled={loadingOptions}
               />
@@ -626,7 +622,7 @@ export const PaymentMethodForm = ({
           disabled={isLoading}
           className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
         >
-          Cancel
+          Batal
         </button>
         <button
           type="submit"
@@ -639,7 +635,7 @@ export const PaymentMethodForm = ({
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
           )}
-          {paymentMethod ? 'Update' : 'Save'}
+          {isLoading ? 'Menyimpan...' : paymentMethod ? 'Perbarui' : 'Simpan'}
         </button>
       </div>
     </form>

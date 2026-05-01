@@ -2,30 +2,22 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { PaymentMethod, CreatePaymentMethodDto, UpdatePaymentMethodDto, FilterParams, SortParams } from '../types'
 import { paymentMethodsApi } from '../api/paymentMethods.api'
+import { parseApiError } from '@/lib/errorParser'
 
 interface PaymentMethodsState {
-  // Data
   paymentMethods: PaymentMethod[]
   selectedPaymentMethod: PaymentMethod | null
-  
-  // Pagination
   page: number
   limit: number
   total: number
   totalPages: number
-  
-  // Filter & Sort
   filter: FilterParams
   sort: SortParams | null
-  
-  // Loading states
   isLoading: boolean
   isMutating: boolean
-  
-  // Error
   error: string | null
-  
-  // Actions
+
+  fetchPage: (page?: number, limit?: number) => Promise<void>
   fetchPaymentMethods: (page?: number, limit?: number) => Promise<void>
   fetchPaymentMethodById: (id: number) => Promise<PaymentMethod>
   createPaymentMethod: (data: CreatePaymentMethodDto) => Promise<PaymentMethod>
@@ -36,8 +28,6 @@ interface PaymentMethodsState {
   setFilter: (filter: Partial<FilterParams>) => void
   clearFilter: () => void
   setSort: (sort: SortParams | null) => void
-  setPage: (page: number) => void
-  setLimit: (limit: number) => void
   clearSelection: () => void
   clearError: () => void
 }
@@ -46,28 +36,24 @@ const initialFilter: FilterParams = {
   payment_type: undefined,
   is_active: undefined,
   requires_bank_account: undefined,
-  search: undefined
+  search: undefined,
 }
 
 const initialSort: SortParams = {
   field: 'sort_order',
-  order: 'asc'
+  order: 'asc',
 }
 
-// Helper to detect cancellation errors (Axios/AbortController)
 const isCanceledError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false
   const err = error as { code?: string; name?: string; message?: string }
-  if (err.code === 'ERR_CANCELED' || err.name === 'CanceledError') return true
-  if (err.message && (err.message.includes('canceled') || err.message.includes('cancelled'))) return true
-  return false
+  return err.code === 'ERR_CANCELED' || err.name === 'CanceledError' || !!err.message?.includes('canceled')
 }
 
 export const usePaymentMethodsStore = create<PaymentMethodsState>()(
   devtools(
     persist(
       (set, get) => ({
-        // Initial state
         paymentMethods: [],
         selectedPaymentMethod: null,
         page: 1,
@@ -80,30 +66,26 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
         isMutating: false,
         error: null,
 
-        // Actions
-        fetchPaymentMethods: async (page = 1, limit = 25) => {
+        fetchPage: async (page = 1, limit?: number) => {
           set({ isLoading: true, error: null })
           try {
-            const { filter, sort } = get()
-                        const response = await paymentMethodsApi.list(page, limit, sort, filter)
-                        set({
+            const { filter, sort, limit: storeLimit } = get()
+            const effectiveLimit = limit ?? storeLimit
+            const response = await paymentMethodsApi.list(page, effectiveLimit, sort, filter)
+            set({
               paymentMethods: response.data,
               page: response.pagination.page,
               limit: response.pagination.limit,
               total: response.pagination.total,
               totalPages: response.pagination.totalPages,
-              isLoading: false
+              isLoading: false,
             })
-          } catch (error) {
-            // Treat canceled requests as non-errors to avoid noisy logs and unhandled rejections during HMR/debouncing
-            if (isCanceledError(error) || (error instanceof Error && error.message === 'Request was canceled')) {
-                            set({ isLoading: false })
+          } catch (error: unknown) {
+            if (isCanceledError(error)) {
+              set({ isLoading: false })
               return
             }
-            const message = error instanceof Error ? error.message : 'Failed to fetch payment methods'
-            console.error('[PaymentMethodsStore] Error fetching payment methods:', error)
-            set({ error: message, isLoading: false })
-            throw error
+            set({ error: parseApiError(error, 'Gagal memuat metode pembayaran'), isLoading: false })
           }
         },
 
@@ -113,9 +95,8 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
             const paymentMethod = await paymentMethodsApi.getById(id)
             set({ selectedPaymentMethod: paymentMethod, isLoading: false })
             return paymentMethod
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to fetch payment method'
-            set({ error: message, isLoading: false })
+          } catch (error: unknown) {
+            set({ error: parseApiError(error, 'Gagal memuat metode pembayaran'), isLoading: false })
             throw error
           }
         },
@@ -127,12 +108,11 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
             set((state) => ({
               paymentMethods: [paymentMethod, ...state.paymentMethods],
               total: state.total + 1,
-              isMutating: false
+              isMutating: false,
             }))
             return paymentMethod
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to create payment method'
-            set({ error: message, isMutating: false })
+          } catch (error: unknown) {
+            set({ error: parseApiError(error, 'Gagal membuat metode pembayaran'), isMutating: false })
             throw error
           }
         },
@@ -142,19 +122,13 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
           try {
             const paymentMethod = await paymentMethodsApi.update(id, data)
             set((state) => ({
-              paymentMethods: state.paymentMethods.map((pm) =>
-                pm.id === id ? paymentMethod : pm
-              ),
-              selectedPaymentMethod:
-                state.selectedPaymentMethod?.id === id
-                  ? paymentMethod
-                  : state.selectedPaymentMethod,
-              isMutating: false
+              paymentMethods: state.paymentMethods.map((pm) => (pm.id === id ? paymentMethod : pm)),
+              selectedPaymentMethod: state.selectedPaymentMethod?.id === id ? paymentMethod : state.selectedPaymentMethod,
+              isMutating: false,
             }))
             return paymentMethod
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to update payment method'
-            set({ error: message, isMutating: false })
+          } catch (error: unknown) {
+            set({ error: parseApiError(error, 'Gagal memperbarui metode pembayaran'), isMutating: false })
             throw error
           }
         },
@@ -166,13 +140,11 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
             set((state) => ({
               paymentMethods: state.paymentMethods.filter((pm) => pm.id !== id),
               total: state.total - 1,
-              selectedPaymentMethod:
-                state.selectedPaymentMethod?.id === id ? null : state.selectedPaymentMethod,
-              isMutating: false
+              selectedPaymentMethod: state.selectedPaymentMethod?.id === id ? null : state.selectedPaymentMethod,
+              isMutating: false,
             }))
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to delete payment method'
-            set({ error: message, isMutating: false })
+          } catch (error: unknown) {
+            set({ error: parseApiError(error, 'Gagal menghapus metode pembayaran'), isMutating: false })
             throw error
           }
         },
@@ -182,14 +154,11 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
           try {
             await paymentMethodsApi.bulkUpdateStatus(ids, is_active)
             set((state) => ({
-              paymentMethods: state.paymentMethods.map((pm) =>
-                ids.includes(pm.id) ? { ...pm, is_active } : pm
-              ),
-              isMutating: false
+              paymentMethods: state.paymentMethods.map((pm) => (ids.includes(pm.id) ? { ...pm, is_active } : pm)),
+              isMutating: false,
             }))
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to update payment methods'
-            set({ error: message, isMutating: false })
+          } catch (error: unknown) {
+            set({ error: parseApiError(error, 'Gagal memperbarui status'), isMutating: false })
             throw error
           }
         },
@@ -201,56 +170,40 @@ export const usePaymentMethodsStore = create<PaymentMethodsState>()(
             set((state) => ({
               paymentMethods: state.paymentMethods.filter((pm) => !ids.includes(pm.id)),
               total: state.total - ids.length,
-              isMutating: false
+              isMutating: false,
             }))
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to delete payment methods'
-            set({ error: message, isMutating: false })
+          } catch (error: unknown) {
+            set({ error: parseApiError(error, 'Gagal menghapus metode pembayaran'), isMutating: false })
             throw error
           }
         },
 
         setFilter: (filter: Partial<FilterParams>) => {
-          set((state) => ({
-            filter: { ...state.filter, ...filter },
-            page: 1
-          }))
-          get().fetchPaymentMethods(1)
+          set((state) => ({ filter: { ...state.filter, ...filter }, page: 1 }))
+          get().fetchPage(1)
         },
 
         clearFilter: () => {
           set({ filter: initialFilter, page: 1 })
-          get().fetchPaymentMethods(1)
+          get().fetchPage(1)
         },
 
         setSort: (sort: SortParams | null) => {
           set({ sort })
-          get().fetchPaymentMethods()
+          get().fetchPage(1)
         },
 
-        setPage: (page: number) => {
-          set({ page })
-        },
-
-        setLimit: (limit: number) => {
-          set({ limit, page: 1 })
-        },
-
-        clearSelection: () => {
-          set({ selectedPaymentMethod: null })
-        },
-
-        clearError: () => {
-          set({ error: null })
-        }
+        clearSelection: () => set({ selectedPaymentMethod: null }),
+        clearError: () => set({ error: null }),
+        fetchPaymentMethods: async (page = 1, limit?: number) => get().fetchPage(page, limit),
       }),
       {
         name: 'payment-methods-storage',
         partialize: (state) => ({
           filter: state.filter,
           sort: state.sort,
-          limit: state.limit
-        })
+          limit: state.limit,
+        }),
       }
     ),
     { name: 'payment-methods-store' }

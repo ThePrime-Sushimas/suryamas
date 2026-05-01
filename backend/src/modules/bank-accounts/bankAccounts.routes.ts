@@ -6,12 +6,12 @@ import { createRateLimit, updateRateLimit } from '../../middleware/rateLimiter.m
 import { validateSchema } from '../../middleware/validation.middleware'
 import { bankAccountsController } from './bankAccounts.controller'
 import { PermissionService } from '../../services/permission.service'
-import { 
-  createBankAccountSchema, 
-  updateBankAccountSchema, 
-  bankAccountIdSchema, 
+import {
+  createBankAccountSchema,
+  updateBankAccountSchema,
+  bankAccountIdSchema,
   bankAccountListQuerySchema,
-  ownerBankAccountsSchema 
+  ownerBankAccountsSchema,
 } from './bankAccounts.schema'
 
 const router = Router()
@@ -20,11 +20,11 @@ PermissionService.registerModule('bank_accounts', 'Bank Account Management').cat
 
 router.use(authenticate, resolveBranchContext)
 
-router.get('/', canView('bank_accounts'), validateSchema(bankAccountListQuerySchema), bankAccountsController.list)
-router.get('/:id', canView('bank_accounts'), validateSchema(bankAccountIdSchema), bankAccountsController.findById)
-router.post('/', canInsert('bank_accounts'), createRateLimit, validateSchema(createBankAccountSchema), bankAccountsController.create)
-router.put('/:id', canUpdate('bank_accounts'), updateRateLimit, validateSchema(updateBankAccountSchema), bankAccountsController.update)
-router.delete('/:id', canDelete('bank_accounts'), validateSchema(bankAccountIdSchema), bankAccountsController.delete)
+router.get('/', canView('bank_accounts'), validateSchema(bankAccountListQuerySchema), (req, res) => bankAccountsController.list(req, res))
+router.get('/:id', canView('bank_accounts'), validateSchema(bankAccountIdSchema), (req, res) => bankAccountsController.findById(req, res))
+router.post('/', canInsert('bank_accounts'), createRateLimit, validateSchema(createBankAccountSchema), (req, res) => bankAccountsController.create(req, res))
+router.put('/:id', canUpdate('bank_accounts'), updateRateLimit, validateSchema(updateBankAccountSchema), (req, res) => bankAccountsController.update(req, res))
+router.delete('/:id', canDelete('bank_accounts'), validateSchema(bankAccountIdSchema), (req, res) => bankAccountsController.delete(req, res))
 
 export default router
 
@@ -34,5 +34,5 @@ ownerBankAccountsRouter.get(
   '/:owner_type(companies|suppliers)/:id/bank-accounts',
   canView('bank_accounts'),
   validateSchema(ownerBankAccountsSchema),
-  bankAccountsController.getByOwner
+  (req, res) => bankAccountsController.getByOwner(req, res)
 )
