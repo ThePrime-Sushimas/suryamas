@@ -44,6 +44,13 @@ export const listMutationEntriesSchema = z.object({
   }),
 })
 
+/** GET /:id */
+export const mutationEntryIdSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('ID harus UUID valid'),
+  }),
+})
+
 /** GET /coa-suggestions?entryType=... */
 export const coaSuggestionsSchema = z.object({
   query: z.object({

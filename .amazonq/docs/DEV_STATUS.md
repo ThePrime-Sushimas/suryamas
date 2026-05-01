@@ -140,10 +140,10 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | fiscal-periods | ✅ | ❌ 6x `req as any` | ✅ | ✅ | ❌ |
 | bank-reconciliation | ✅ | ❌ 3x `validated as any` | ✅ | ✅ | ❌ |
 | bank-statement-import | ✅ | ❌ 2x `req as any` | ✅ | ✅ | ❌ |
-| fee-discrepancy-review | ✅ | ✅ | ✅ | ❌ no action | ❌ ValidatedAuthRequest in signature |
-| bank-mutation-entries | ❌ custom | ❌ 5x `as unknown as` | ✅ | ❌ custom | ❌ custom ReqWithContext |
-| reports | ✅ | ✅ | ✅ | ❌ no action | ✅ (stub) |
-| review-approval | ✅ | ✅ | ✅ | ❌ no action | ✅ (stub) |
+| fee-discrepancy-review | ✅ | ✅ | ✅ | ✅ | ✅ |
+| bank-mutation-entries | ✅ | ✅ | ✅ | ✅ | ✅ |
+| reports | ✅ | ✅ | ✅ | ✅ | ✅ (stub) |
+| review-approval | ✅ | ✅ | ✅ | ✅ | ✅ (stub) |
 
 ### Frontend Store Compliance (`parseApiError`)
 
@@ -232,11 +232,11 @@ BE controller sudah `await handleError` + `error: unknown` + `context`, tapi mas
 - ✅ `pos-imports/pos-transactions` (backend)
 - ✅ `pos-sync-aggregates` (backend)
 
-### Modules Missed from Phase 1-2 (BELUM di-review)
-- ⬜ `reconciliation/fee-discrepancy-review` — `ValidatedAuthRequest` di method signature, no `action` di handleError
-- ⬜ `reconciliation/bank-mutation-entries` — custom `ReqWithContext` type, `as unknown as`, custom `handleError` (bukan global), `error instanceof Error`
-- ⬜ `reconciliation/reports` — stub/TODO only, no `action` di handleError
-- ⬜ `reconciliation/review-approval` — stub/TODO only, no `action` di handleError
+### Modules Missed from Phase 1-2 (FIXED)
+- ✅ `reconciliation/fee-discrepancy-review` — controller + routes rewritten
+- ✅ `reconciliation/bank-mutation-entries` — controller + routes rewritten
+- ✅ `reconciliation/reports` — controller fixed (stub)
+- ✅ `reconciliation/review-approval` — controller fixed (stub)
 
 ---
 
@@ -323,8 +323,8 @@ Fix: Replace semua `error instanceof Error ? error.message : '...'` dengan `pars
 | `as unknown as ReqWithContext` | 5x cast — harusnya `req.context` / `req.user` langsung |
 
 ### Execution Order
-1. ⬜ Delete dead code (3A — 2 files)
-2. ⬜ Fix 4 missed BE modules (fee-discrepancy-review, bank-mutation-entries, reports, review-approval)
+1. ✅ Delete dead code (3A — 2 files)
+2. ✅ Fix 4 missed BE modules (fee-discrepancy-review, bank-mutation-entries, reports, review-approval)
 3. ⬜ Fix 13 FE stores → replace `error instanceof Error` dengan `parseApiError` (3E)
 4. ⬜ Clean routes → remove `req as ValidatedAuthRequest` / `req as any` casts (3C)
 5. ⬜ Fix `as any` di controllers (3B)
