@@ -353,7 +353,7 @@ Approach yang direkomendasikan:
 | 11 | ~~`products.controller.ts`~~ | ~~`products.routes.ts`~~ | 8 | ✅ Done |
 | 12 | ~~`bank-reconciliation.controller.ts`~~ | ~~`bank-reconciliation.routes.ts`~~ | 6 | ✅ Done |
 | 13 | ~~`bank-settlement-group.controller.ts`~~ | ~~`bank-settlement-group.routes.ts`~~ | 7 | ✅ Done |
-| 14 | `bank-statement-import.controller.ts` | `bank-statement-import.routes.ts` | 1 | `ValidatedAuthRequest` signature, `(req as any).validated` (2x) |
+| 14 | ~~`bank-statement-import.controller.ts`~~ | ~~`bank-statement-import.routes.ts`~~ | 1 | ✅ Done |
 | 15 | ~~`supplier-products.controller.ts`~~ | ~~`supplier-products.routes.ts`~~ | 9 | ✅ Done |
 
 **Rewrite pattern per controller:**

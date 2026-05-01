@@ -13,8 +13,6 @@ import { createRateLimit, updateRateLimit } from '../../../middleware/rateLimite
 import { validateSchema } from '../../../middleware/validation.middleware'
 import { bankStatementImportController } from './bank-statement-import.controller'
 import { PermissionService } from '../../../services/permission.service'
-import { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
-import type { GetImportByIdReq, ManualEntryReq, ManualBulkEntryReq, HardDeleteStatementReq, HardDeleteBulkStatementsReq } from './bank-statement-import.controller'
 import {
   uploadBankStatementSchema,
   confirmBankStatementImportSchema,
@@ -60,7 +58,7 @@ router.get(
   '/manual',
   canView('bank_statement_imports'),
   validateSchema(listManualEntriesSchema),
-  (req, res) => bankStatementImportController.listManualEntries(req as ValidatedAuthRequest<typeof listManualEntriesSchema>, res)
+  (req, res) => bankStatementImportController.listManualEntries(req, res)
 )
 
 // Single manual entry
@@ -69,7 +67,7 @@ router.post(
   canInsert('bank_statement_imports'),
   createRateLimit,
   validateSchema(manualEntrySchema),
-  (req, res) => bankStatementImportController.manualEntry(req as ManualEntryReq, res)
+  (req, res) => bankStatementImportController.manualEntry(req, res)
 )
 
 // Bulk manual entry
@@ -78,7 +76,7 @@ router.post(
   canInsert('bank_statement_imports'),
   createRateLimit,
   validateSchema(manualBulkEntrySchema),
-  (req, res) => bankStatementImportController.manualBulkEntry(req as ManualBulkEntryReq, res)
+  (req, res) => bankStatementImportController.manualBulkEntry(req, res)
 )
 
 // ==================== HARD DELETE ROUTES ====================
@@ -88,7 +86,7 @@ router.delete(
   '/statements/:id/hard',
   canDelete('bank_statement_imports'),
   validateSchema(hardDeleteStatementSchema),
-  (req, res) => bankStatementImportController.hardDeleteStatement(req as HardDeleteStatementReq, res)
+  (req, res) => bankStatementImportController.hardDeleteStatement(req, res)
 )
 
 // Hard delete bulk statements
@@ -96,7 +94,7 @@ router.post(
   '/statements/hard-delete',
   canDelete('bank_statement_imports'),
   validateSchema(hardDeleteBulkStatementsSchema),
-  (req, res) => bankStatementImportController.hardDeleteBulkStatements(req as HardDeleteBulkStatementsReq, res)
+  (req, res) => bankStatementImportController.hardDeleteBulkStatements(req, res)
 )
 
 // ==================== FILE UPLOAD ROUTES ====================
@@ -113,7 +111,7 @@ router.post(
   createRateLimit,
   upload.single('file'),
   validateSchema(uploadBankStatementSchema),
-  (req, res) => bankStatementImportController.upload(req as ValidatedAuthRequest<typeof uploadBankStatementSchema>, res)
+  (req, res) => bankStatementImportController.upload(req, res)
 )
 
 // Confirm endpoint
@@ -122,7 +120,7 @@ router.post(
   canInsert('bank_statement_imports'),
   updateRateLimit,
   validateSchema(confirmBankStatementImportSchema),
-  (req, res) => bankStatementImportController.confirm(req as ValidatedAuthRequest<typeof confirmBankStatementImportSchema>, res)
+  (req, res) => bankStatementImportController.confirm(req, res)
 )
 
 // List endpoint
@@ -138,7 +136,7 @@ router.get(
   '/:id',
   canView('bank_statement_imports'),
   validateSchema(getImportByIdSchema),
-  (req, res) => bankStatementImportController.getById(req as GetImportByIdReq, res)
+  (req, res) => bankStatementImportController.getById(req, res)
 )
 
 // Get statements endpoint
@@ -182,7 +180,7 @@ router.delete(
   '/:id',
   canDelete('bank_statement_imports'),
   validateSchema(deleteImportSchema),
-  (req, res) => bankStatementImportController.delete(req as ValidatedAuthRequest<typeof deleteImportSchema>, res)
+  (req, res) => bankStatementImportController.delete(req, res)
 )
 
 export default router
