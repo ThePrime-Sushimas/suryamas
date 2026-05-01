@@ -315,6 +315,7 @@ Dari pengalaman development sebelumnya, berikut aturan tambahan:
 9. **Express global augmentation** (`src/types/express.d.ts`): Extend `Express.Request` dengan `user`, `validated`, `sort`, `filterParams`, `queryFilter`, `context`, `permissions`. DILARANG cast `req as any` / `req as unknown as Request` di controller.
 10. **DTO audit fields**: `CreateXxxDto` / `UpdateXxxDto` WAJIB include `created_by` / `updated_by` agar service tidak perlu unsafe cast.
 11. **Repository type safety**: Gunakan `toRecord<T>()` helper untuk bulk insert. DILARANG `as any` untuk row mapping.
+12. **Postgres error check**: Gunakan `isPostgresError(error, code)` dari `src/utils/postgres-error.util.ts` untuk cek error code PostgreSQL (misal `'23505'` unique violation). DILARANG cast `(error as { code?: string }).code`.
 
 ### Frontend
 1. Jangan hardcode labels — pakai data dari DB/COA hierarchy

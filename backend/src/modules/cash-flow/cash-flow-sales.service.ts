@@ -4,7 +4,9 @@ import { AuditService } from '../monitoring/monitoring.service'
 import {
   PeriodNotFoundError,
   PeriodAlreadyExistsError,
-  InvalidPeriodDatesError
+  InvalidPeriodDatesError,
+  GroupNotFoundError,
+  BankAccountNotFoundError,
 } from './cash-flow.errors'
 import type {
   PaymentMethodGroup,
@@ -35,7 +37,7 @@ export class CashFlowSalesService {
 
     if (dto.source === 'AUTO_PREV_PERIOD') {
       const suggestion = await cashFlowSalesRepository.suggestOpeningBalance(dto.bank_account_id, companyId, dto.period_start)
-      if (suggestion.source === 'NO_DATA') throw new Error('No previous period found')
+      if (suggestion.source === 'NO_DATA') throw new PeriodNotFoundError('previous')
       dto.opening_balance = suggestion.suggested_balance!
       dto.previous_period_id = suggestion.prev_period_id
     }
@@ -51,7 +53,7 @@ export class CashFlowSalesService {
 
     const effectiveStart = dto.period_start || existing.period_start
     const effectiveEnd = dto.period_end || existing.period_end
-    if (effectiveEnd < effectiveStart) throw new Error('period_end cannot be before period_start')
+    if (effectiveEnd < effectiveStart) throw new InvalidPeriodDatesError(effectiveStart, effectiveEnd)
 
     const result = await cashFlowSalesRepository.updatePeriodBalance(id, companyId, { ...dto, updated_by: userId })
     await AuditService.log('UPDATE', 'cash_flow_period', id, userId || null, existing, result)
@@ -111,7 +113,7 @@ export class CashFlowSalesService {
     logInfo('CashFlowSalesService.updateGroup', { id, dto })
 
     const existing = await cashFlowSalesRepository.findGroupById(id, companyId)
-    if (!existing) throw new Error(`Payment method group ${id} not found`)
+    if (!existing) throw new GroupNotFoundError(id)
 
     const result = await cashFlowSalesRepository.updateGroup(id, companyId, {
       ...dto,
@@ -124,7 +126,7 @@ export class CashFlowSalesService {
 
   async deleteGroup(id: string, companyId: string, userId?: string): Promise<void> {
     const existing = await cashFlowSalesRepository.findGroupById(id, companyId)
-    if (!existing) throw new Error(`Payment method group ${id} not found`)
+    if (!existing) throw new GroupNotFoundError(id)
 
     await cashFlowSalesRepository.deleteGroup(id, companyId)
     await AuditService.log('DELETE', 'payment_method_group', id, userId || null, existing)
@@ -150,7 +152,7 @@ export class CashFlowSalesService {
       params.company_id
     )
     if (!bankAccount) {
-      throw new Error('Bank account not found or does not belong to this company')
+      throw new BankAccountNotFoundError(params.bank_account_id)
     }
 
     const period = await cashFlowSalesRepository.getActivePeriodBalance(
@@ -172,7 +174,7 @@ export class CashFlowSalesService {
         },
         rows: [],
         pagination: { page, limit, total: 0, total_pages: 0, has_next: false, has_prev: false },
-      } as any
+      }
     }
 
     const [salesResult, cashDeposits, { rows: rawRows, total }, pendingInfo, periodTotals, expenseBreakdown] = await Promise.all([

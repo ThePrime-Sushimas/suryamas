@@ -30,3 +30,17 @@ export class InvalidPeriodDatesError extends BusinessRuleError {
     this.name = 'InvalidPeriodDatesError'
   }
 }
+
+export class GroupNotFoundError extends NotFoundError {
+  constructor(id?: string) {
+    super('payment_method_group', id)
+    this.name = 'GroupNotFoundError'
+  }
+}
+
+export class BankAccountNotFoundError extends NotFoundError {
+  constructor(id?: string | number) {
+    super('bank_account', id)
+    this.name = 'BankAccountNotFoundError'
+  }
+}

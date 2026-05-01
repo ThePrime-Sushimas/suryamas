@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import { logError } from '../../config/logger'
 import { DatabaseError } from '../../utils/error-handler.util'
+import { isPostgresError } from '../../utils/postgres-error.util'
 import type {
   PaymentMethodGroup,
   CreateGroupDto,
@@ -60,15 +61,15 @@ export class CashFlowSalesRepository {
         values
       )
       return rows[0] as AccountPeriodBalance
-    } catch (error: any) {
-      throw new DatabaseError('Failed to create period balance', { cause: error })
+    } catch (error: unknown) {
+      throw new DatabaseError('Failed to create period balance', { cause: error instanceof Error ? error : undefined, context: { rawError: String(error) } })
     }
   }
 
   async updatePeriodBalance(id: string, companyId: string, dto: UpdatePeriodBalanceDto): Promise<AccountPeriodBalance> {
     try {
       const updateFields: string[] = []
-      const values: any[] = []
+      const values: unknown[] = []
 
       if (dto.period_start !== undefined) { values.push(dto.period_start); updateFields.push(`period_start = $${values.length}`) }
       if (dto.period_end !== undefined) { values.push(dto.period_end); updateFields.push(`period_end = $${values.length}`) }
@@ -89,9 +90,9 @@ export class CashFlowSalesRepository {
       const { rows } = await pool.query(query, values)
       if (rows.length === 0) throw new DatabaseError('Failed to update period balance: Not found')
       return rows[0] as AccountPeriodBalance
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof DatabaseError) throw error
-      throw new DatabaseError('Failed to update period balance', { cause: error })
+      throw new DatabaseError('Failed to update period balance', { cause: error instanceof Error ? error : undefined, context: { rawError: String(error) } })
     }
   }
 
@@ -102,9 +103,9 @@ export class CashFlowSalesRepository {
         [id, companyId]
       )
       if (rowCount === 0) throw new DatabaseError('Failed to delete period balance: Not found')
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof DatabaseError) throw error
-      throw new DatabaseError('Failed to delete period balance', { cause: error })
+      throw new DatabaseError('Failed to delete period balance', { cause: error instanceof Error ? error : undefined, context: { rawError: String(error) } })
     }
   }
 
@@ -195,7 +196,7 @@ export class CashFlowSalesRepository {
       const groupId = rows[0].id
 
       if (dto.payment_method_ids && dto.payment_method_ids.length > 0) {
-        const mappingValues: any[] = []
+        const mappingValues: unknown[] = []
         const mappingPlaceholders = dto.payment_method_ids.map((pmId, i) => {
           const base = i * 4
           mappingValues.push(groupId, dto.company_id, pmId, dto.created_by || null)
@@ -210,9 +211,9 @@ export class CashFlowSalesRepository {
 
       await client.query('COMMIT')
       return (await this.findGroupById(groupId, dto.company_id)) as PaymentMethodGroup
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK')
-      if (error.code === '23505') {
+      if (isPostgresError(error, '23505')) {
         throw new Error(`Group "${dto.name}" already exists for this company`)
       }
       logError('CashFlowSalesRepository.createGroup error', { error })
@@ -228,7 +229,7 @@ export class CashFlowSalesRepository {
       await client.query('BEGIN')
 
       const updateFields: string[] = []
-      const values: any[] = []
+      const values: unknown[] = []
 
       if (dto.name !== undefined) { values.push(dto.name); updateFields.push(`name = $${values.length}`) }
       if (dto.description !== undefined) { values.push(dto.description); updateFields.push(`description = $${values.length}`) }
@@ -251,7 +252,7 @@ export class CashFlowSalesRepository {
       if (dto.payment_method_ids !== undefined) {
         await client.query('DELETE FROM payment_method_group_mappings WHERE group_id = $1', [id])
         if (dto.payment_method_ids.length > 0) {
-          const mappingValues: any[] = []
+          const mappingValues: unknown[] = []
           const mappingPlaceholders = dto.payment_method_ids.map((pmId, i) => {
             const base = i * 4
             mappingValues.push(id, companyId, pmId, dto.updated_by || null)
@@ -330,7 +331,7 @@ export class CashFlowSalesRepository {
       await client.query('DELETE FROM payment_method_group_mappings WHERE group_id = $1', [groupId])
 
       if (paymentMethodIds.length > 0) {
-        const mappingValues: any[] = []
+        const mappingValues: unknown[] = []
         const mappingPlaceholders = paymentMethodIds.map((pmId, i) => {
           const base = i * 4
           mappingValues.push(groupId, companyId, pmId, userId || null)
@@ -343,9 +344,9 @@ export class CashFlowSalesRepository {
         )
       }
       await client.query('COMMIT')
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK')
-      if (error.code === '23505') {
+      if (isPostgresError(error, '23505')) {
         throw new Error('One or more payment methods are already assigned to another group.')
       }
       logError('CashFlowSalesRepository.replaceGroupMappings error', { groupId, error })
@@ -857,7 +858,7 @@ export class CashFlowSalesRepository {
           AND bs.deleted_at IS NULL
           ${branchId ? 'AND b.id = $7::uuid' : ''}
       `
-      const params: any[] = [companyId, bankAccountId, dateFrom, dateTo, companyId, companyId]
+      const params: unknown[] = [companyId, bankAccountId, dateFrom, dateTo, companyId, companyId]
       if (branchId) params.push(branchId)
 
       const { rows } = await pool.query(query, params)

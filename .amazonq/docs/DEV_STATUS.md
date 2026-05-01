@@ -100,6 +100,7 @@
 31. **FE error extraction**: Semua store WAJIB pakai `parseApiError()` dari `@/lib/errorParser`. DILARANG inline `error instanceof Error ? error.message : '...'` atau `'response' in error`.
 32. **handleError signature**: `await handleError(res, error, req, context)` — `req` langsung (tanpa cast berkat express.d.ts), `context` berisi metadata debugging (`{ action, id, query }`).
 33. **Repository type safety**: Gunakan `toRecord<T extends object>(obj: T): Record<string, unknown>` helper untuk bulk insert. DILARANG `as any` untuk row mapping.
+34. **Postgres error check**: Gunakan `isPostgresError(error, code)` dari `src/utils/postgres-error.util.ts` untuk cek error code PostgreSQL (misal `'23505'` untuk unique violation). DILARANG `(error as { code?: string }).code` — tidak aman jika error bukan object.
 
 ## 🔍 Module Compliance Status
 
@@ -119,7 +120,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | auth | ❌ | ✅ | ❌ | ❌ | ❌ |
 | bank-accounts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-counts | ✅ | ✅ | ✅ | ✅ | ✅ |
-| cash-flow | ❌ | ✅ | ❌ `error: any` | ❌ | ❌ |
+| cash-flow | ✅ | ✅ | ✅ | ✅ | ✅ |
 | companies | ✅ | ✅ | ✅ | ✅ | ✅ |
 | expense-categorization | ✅ | ❌ `as any` | ❌ | ❌ | ❌ |
 | payment-methods | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -178,6 +179,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `payment-methods` (backend + frontend)
 - ✅ `payment-terms` (backend + frontend)
 - ✅ `cash-counts` (backend + frontend)
+- ✅ `cash-flow` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -186,7 +188,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 
 ### Modules Not Yet Reviewed
 - ⬜ `auth`
-- ⬜ `cash-flow`
 - ⬜ `expense-categorization`
 - ⬜ `permissions`
 - ⬜ `pos-sync`

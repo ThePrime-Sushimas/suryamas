@@ -1,48 +1,41 @@
-import { Router } from "express";
-import { cashFlowSalesController } from "./cash-flow-sales.controller";
-import { authenticate } from "../../middleware/auth.middleware";
-import { resolveBranchContext } from "../../middleware/branch-context.middleware";
-import { validateSchema } from "../../middleware/validation.middleware";
-import { canView, canInsert, canUpdate, canDelete } from "../../middleware/permission.middleware";
+import { Router } from 'express'
+import { cashFlowSalesController } from './cash-flow-sales.controller'
+import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
+import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import {
-  createPeriodBalanceSchema,
-  updatePeriodBalanceSchema,
-  deletePeriodBalanceSchema,
-  getSuggestionSchema,
-  listPeriodsSchema,
-  createGroupSchema,
-  updateGroupSchema,
-  deleteGroupSchema,
-  reorderGroupsSchema,
+  createPeriodBalanceSchema, updatePeriodBalanceSchema, deletePeriodBalanceSchema,
+  getSuggestionSchema, listPeriodsSchema,
+  createGroupSchema, updateGroupSchema, deleteGroupSchema, reorderGroupsSchema,
   getCashFlowDailySchema,
-} from "./cash-flow-sales.schema";
+} from './cash-flow-sales.schema'
 
-const MODULE = "cash_flow";
-const router = Router();
+const MODULE = 'cash_flow'
+const router = Router()
 
-router.use(authenticate);
-router.use(resolveBranchContext);
+router.use(authenticate, resolveBranchContext)
 
 // Period Balance
-router.get("/periods", canView(MODULE), validateSchema(listPeriodsSchema), cashFlowSalesController.listPeriods);
-router.post("/periods", canInsert(MODULE), validateSchema(createPeriodBalanceSchema), cashFlowSalesController.createPeriod);
-router.put("/periods/:id", canUpdate(MODULE), validateSchema(updatePeriodBalanceSchema), cashFlowSalesController.updatePeriod);
-router.delete("/periods/:id", canDelete(MODULE), validateSchema(deletePeriodBalanceSchema), cashFlowSalesController.deletePeriod);
+router.get('/periods', canView(MODULE), validateSchema(listPeriodsSchema), (req, res) => cashFlowSalesController.listPeriods(req, res))
+router.post('/periods', canInsert(MODULE), validateSchema(createPeriodBalanceSchema), (req, res) => cashFlowSalesController.createPeriod(req, res))
+router.put('/periods/:id', canUpdate(MODULE), validateSchema(updatePeriodBalanceSchema), (req, res) => cashFlowSalesController.updatePeriod(req, res))
+router.delete('/periods/:id', canDelete(MODULE), validateSchema(deletePeriodBalanceSchema), (req, res) => cashFlowSalesController.deletePeriod(req, res))
 
 // Suggestion
-router.get("/suggestion", canView(MODULE), validateSchema(getSuggestionSchema), cashFlowSalesController.getSuggestion);
+router.get('/suggestion', canView(MODULE), validateSchema(getSuggestionSchema), (req, res) => cashFlowSalesController.getSuggestion(req, res))
 
 // Payment Method Groups
-router.get("/groups", canView(MODULE), cashFlowSalesController.listGroups);
-router.post("/groups", canInsert(MODULE), validateSchema(createGroupSchema), cashFlowSalesController.createGroup);
-router.put("/groups/reorder", canUpdate(MODULE), validateSchema(reorderGroupsSchema), cashFlowSalesController.reorderGroups);
-router.put("/groups/:id", canUpdate(MODULE), validateSchema(updateGroupSchema), cashFlowSalesController.updateGroup);
-router.delete("/groups/:id", canDelete(MODULE), validateSchema(deleteGroupSchema), cashFlowSalesController.deleteGroup);
+router.get('/groups', canView(MODULE), (req, res) => cashFlowSalesController.listGroups(req, res))
+router.post('/groups', canInsert(MODULE), validateSchema(createGroupSchema), (req, res) => cashFlowSalesController.createGroup(req, res))
+router.put('/groups/reorder', canUpdate(MODULE), validateSchema(reorderGroupsSchema), (req, res) => cashFlowSalesController.reorderGroups(req, res))
+router.put('/groups/:id', canUpdate(MODULE), validateSchema(updateGroupSchema), (req, res) => cashFlowSalesController.updateGroup(req, res))
+router.delete('/groups/:id', canDelete(MODULE), validateSchema(deleteGroupSchema), (req, res) => cashFlowSalesController.deleteGroup(req, res))
 
 // Cash Flow Daily
-router.get("/daily", canView(MODULE), validateSchema(getCashFlowDailySchema), cashFlowSalesController.getCashFlowDaily);
+router.get('/daily', canView(MODULE), validateSchema(getCashFlowDailySchema), (req, res) => cashFlowSalesController.getCashFlowDaily(req, res))
 
 // Branches
-router.get("/branches", canView(MODULE), cashFlowSalesController.getBranches);
+router.get('/branches', canView(MODULE), (req, res) => cashFlowSalesController.getBranches(req, res))
 
-export default router;
+export default router
