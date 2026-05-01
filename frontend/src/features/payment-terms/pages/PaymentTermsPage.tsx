@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePaymentTermsStore } from '../store/paymentTerms.store'
 import { PaymentTermTable } from '../components/PaymentTermTable'
 import { PaymentTermFilters } from '../components/PaymentTermFilters'
 import { PaymentTermDeleteDialog } from '../components/PaymentTermDeleteDialog'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { Pagination } from '@/components/ui/Pagination'
 import { FileText, Plus, Search, X } from 'lucide-react'
@@ -12,46 +13,42 @@ import { FileText, Plus, Search, X } from 'lucide-react'
 export default function PaymentTermsPage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { 
-    paymentTerms, 
-    loading, 
+  const {
+    paymentTerms,
+    loading,
     pagination,
-    filter,
     deletePaymentTerm,
     restorePaymentTerm,
     searchPaymentTerms,
-    setPage,
-    setPageSize,
     setFilter,
-    fetchPaymentTerms
+    fetchPage,
   } = usePaymentTermsStore()
-  
+
   const [search, setSearch] = useState('')
   const [localFilter, setLocalFilter] = useState<{ calculation_type?: string; is_active?: string; include_deleted?: string }>({})
   const [showFilter, setShowFilter] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; id: number | null; name: string; isRestore: boolean }>({
-    isOpen: false,
-    id: null,
-    name: '',
-    isRestore: false
+    isOpen: false, id: null, name: '', isRestore: false,
   })
 
   const debouncedSearch = useDebounce(search, 300)
 
   useEffect(() => {
-    setPage(1)
     if (debouncedSearch) {
       searchPaymentTerms(debouncedSearch)
     } else {
-      setFilter(null)
-      fetchPaymentTerms(1, pagination.limit)
+      // Clear q from filter without wiping other active filters
+      const currentFilter = usePaymentTermsStore.getState().filter
+      if (currentFilter?.q) {
+        const { q: _, ...rest } = currentFilter as Record<string, unknown>
+        setFilter(Object.keys(rest).length > 0 ? rest : null)
+      }
+      fetchPage(1)
     }
-  }, [debouncedSearch])
+  }, [debouncedSearch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    return () => {
-      usePaymentTermsStore.getState().reset()
-    }
+    return () => { usePaymentTermsStore.getState().reset() }
   }, [])
 
   const activeFilterCount = useMemo(
@@ -59,50 +56,39 @@ export default function PaymentTermsPage() {
     [localFilter]
   )
 
-  const handleDelete = useCallback((id: number, termName: string) => {
-    setDeleteDialog({ isOpen: true, id, name: termName, isRestore: false })
-  }, [])
-
-  const handleRestore = useCallback((id: number, termName: string) => {
-    setDeleteDialog({ isOpen: true, id, name: termName, isRestore: true })
-  }, [])
-
-  const handleConfirmAction = useCallback(async () => {
+  const handleConfirmAction = async () => {
     if (!deleteDialog.id) return
-
     try {
       if (deleteDialog.isRestore) {
         await restorePaymentTerm(deleteDialog.id)
-        toast.success('Payment term berhasil direstore')
+        toast.success('Syarat pembayaran berhasil dipulihkan')
       } else {
         await deletePaymentTerm(deleteDialog.id)
-        toast.success('Payment term berhasil dihapus')
+        toast.success('Syarat pembayaran berhasil dihapus')
       }
       setDeleteDialog({ isOpen: false, id: null, name: '', isRestore: false })
-    } catch {
-      toast.error('Terjadi kesalahan. Silakan coba lagi.')
+    } catch (error: unknown) {
+      toast.error(parseApiError(error, 'Terjadi kesalahan'))
     }
-  }, [deleteDialog, deletePaymentTerm, restorePaymentTerm, toast])
+  }
 
   const handleFilterChange = (key: string, value: string) => {
     const newLocalFilter = { ...localFilter }
-    
     if (!value) {
       delete newLocalFilter[key as keyof typeof newLocalFilter]
     } else {
       newLocalFilter[key as keyof typeof newLocalFilter] = value
     }
-    
     setLocalFilter(newLocalFilter)
-    
+
     const apiFilter: Record<string, string | boolean> = {}
     if (newLocalFilter.calculation_type) apiFilter.calculation_type = newLocalFilter.calculation_type
     if (newLocalFilter.is_active !== undefined) apiFilter.is_active = newLocalFilter.is_active === 'true'
     if (newLocalFilter.include_deleted !== undefined) apiFilter.includeDeleted = newLocalFilter.include_deleted === 'true'
     if (search) apiFilter.q = search
-    
+
     setFilter(Object.keys(apiFilter).length > 0 ? apiFilter : null)
-    fetchPaymentTerms(1, pagination.limit)
+    fetchPage(1)
   }
 
   return (
@@ -113,16 +99,16 @@ export default function PaymentTermsPage() {
             <div className="flex items-center gap-3">
               <FileText className="w-6 h-6 text-blue-600" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Payment Terms</h1>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Syarat Pembayaran</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} total</p>
               </div>
             </div>
-            <button 
-              onClick={() => navigate('/payment-terms/new')} 
+            <button
+              onClick={() => navigate('/payment-terms/new')}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
               <Plus className="w-4 h-4" />
-              Create Payment Term
+              Tambah Syarat
             </button>
           </div>
         </div>
@@ -133,7 +119,7 @@ export default function PaymentTermsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by term code, name, or description..."
+                placeholder="Cari kode, nama, atau deskripsi..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -162,35 +148,19 @@ export default function PaymentTermsPage() {
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          <PaymentTermTable 
-            paymentTerms={paymentTerms} 
-            onEdit={id => navigate(`/payment-terms/${id}/edit`)} 
-            onDelete={handleDelete}
-            onRestore={handleRestore}
+          <PaymentTermTable
+            paymentTerms={paymentTerms}
+            onEdit={id => navigate(`/payment-terms/${id}/edit`)}
+            onDelete={(id, name) => setDeleteDialog({ isOpen: true, id, name, isRestore: false })}
+            onRestore={(id, name) => setDeleteDialog({ isOpen: true, id, name, isRestore: true })}
             loading={loading}
           />
-
-          {loading && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="animate-pulse">
-                <div className="h-10 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600" />
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex gap-4 px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
-                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/4" />
-                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
-                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/6" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {!loading && paymentTerms.length > 0 && (
             <Pagination
               pagination={pagination}
-              onPageChange={setPage}
-              onLimitChange={setPageSize}
+              onPageChange={(p) => fetchPage(p)}
+              onLimitChange={(l) => fetchPage(1, l)}
               currentLength={paymentTerms.length}
               loading={loading}
             />

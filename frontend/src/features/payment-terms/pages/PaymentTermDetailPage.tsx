@@ -44,7 +44,7 @@ export default function PaymentTermDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+        <div className="text-gray-500 dark:text-gray-400">Memuat...</div>
       </div>
     )
   }
@@ -53,12 +53,12 @@ export default function PaymentTermDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Payment term not found'}</p>
+          <p className="text-red-600 mb-4">{error || 'Syarat pembayaran tidak ditemukan'}</p>
           <button
             onClick={() => navigate('/payment-terms')}
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
-            Back to Payment Terms
+            Kembali ke Syarat Pembayaran
           </button>
         </div>
       </div>
@@ -94,7 +94,7 @@ export default function PaymentTermDetailPage() {
             className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           >
             <ArrowLeft className="w-5 h-5" />
-            Back to Payment Terms
+            Kembali
           </button>
           {!isDeleted && (
             <button

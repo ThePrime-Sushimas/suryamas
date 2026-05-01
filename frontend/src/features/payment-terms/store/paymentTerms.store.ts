@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { paymentTermsApi } from '../api/paymentTerms.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { PaymentTerm, CreatePaymentTermDto, UpdatePaymentTermDto, PaginationParams, SortParams, FilterParams } from '../types'
 
 interface PaymentTermsState {
@@ -11,17 +12,14 @@ interface PaymentTermsState {
   sort: SortParams | null
   filter: FilterParams | null
   currentRequestId: number
-  lastFetchedAt: Date | null
-  
-  fetchPaymentTerms: (page?: number, limit?: number) => Promise<void>
+
+  fetchPage: (page?: number, limit?: number) => Promise<void>
   fetchPaymentTermById: (id: number) => Promise<PaymentTerm>
   searchPaymentTerms: (q: string) => Promise<void>
   createPaymentTerm: (data: CreatePaymentTermDto) => Promise<PaymentTerm>
   updatePaymentTerm: (id: number, data: UpdatePaymentTermDto) => Promise<PaymentTerm>
   deletePaymentTerm: (id: number) => Promise<void>
   restorePaymentTerm: (id: number) => Promise<void>
-  setPage: (page: number) => void
-  setPageSize: (limit: number) => void
   setSort: (sort: SortParams | null) => void
   setFilter: (filter: FilterParams | null) => void
   clearError: () => void
@@ -31,36 +29,33 @@ interface PaymentTermsState {
 const initialState = {
   paymentTerms: [],
   currentPaymentTerm: null,
-  loading: false,
+  loading: true,
   error: null,
   pagination: { page: 1, limit: 25, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
   sort: null,
   filter: null,
   currentRequestId: 0,
-  lastFetchedAt: null as Date | null
 }
 
 export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
   ...initialState,
 
-  fetchPaymentTerms: async (page, limit) => {
+  fetchPage: async (page, limit) => {
     const requestId = get().currentRequestId + 1
     set({ currentRequestId: requestId, loading: true, error: null })
-    
+
     const state = get()
     const currentPage = page ?? state.pagination.page
     const currentLimit = limit ?? state.pagination.limit
-    
+
     try {
       const res = await paymentTermsApi.list(currentPage, currentLimit, state.sort, state.filter)
-      
       if (get().currentRequestId === requestId) {
-        set({ paymentTerms: res.data, pagination: res.pagination, loading: false, lastFetchedAt: new Date() })
+        set({ paymentTerms: res.data, pagination: res.pagination, loading: false })
       }
     } catch (error: unknown) {
       if (get().currentRequestId === requestId) {
-        const message = error instanceof Error ? error.message : 'Failed to fetch payment terms'
-        set({ error: message, loading: false })
+        set({ error: parseApiError(error, 'Gagal memuat syarat pembayaran'), loading: false })
       }
     }
   },
@@ -72,19 +67,15 @@ export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
       set({ currentPaymentTerm: paymentTerm, loading: false })
       return paymentTerm
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch payment term'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal memuat syarat pembayaran'), loading: false })
       throw error
     }
   },
 
   searchPaymentTerms: async (q) => {
-    const currentPagination = get().pagination
-    set({ 
-      filter: { q }, 
-      pagination: { ...currentPagination, page: 1 } 
-    })
-    await get().fetchPaymentTerms()
+    const currentFilter = get().filter || {}
+    set({ filter: { ...currentFilter, q }, pagination: { ...get().pagination, page: 1 } })
+    await get().fetchPage(1)
   },
 
   createPaymentTerm: async (data) => {
@@ -94,12 +85,11 @@ export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
       set(state => ({
         paymentTerms: [paymentTerm, ...state.paymentTerms],
         pagination: { ...state.pagination, total: state.pagination.total + 1 },
-        loading: false
+        loading: false,
       }))
       return paymentTerm
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create payment term'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal membuat syarat pembayaran'), loading: false })
       throw error
     }
   },
@@ -111,12 +101,11 @@ export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
       set(state => ({
         paymentTerms: state.paymentTerms.map(p => p.id === id ? paymentTerm : p),
         currentPaymentTerm: state.currentPaymentTerm?.id === id ? paymentTerm : state.currentPaymentTerm,
-        loading: false
+        loading: false,
       }))
       return paymentTerm
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update payment term'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal memperbarui syarat pembayaran'), loading: false })
       throw error
     }
   },
@@ -127,11 +116,10 @@ export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
       await paymentTermsApi.delete(id)
       set(state => ({
         paymentTerms: state.paymentTerms.map(p => p.id === id ? { ...p, deleted_at: new Date().toISOString() } : p),
-        loading: false
+        loading: false,
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete payment term'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal menghapus syarat pembayaran'), loading: false })
       throw error
     }
   },
@@ -142,34 +130,16 @@ export const usePaymentTermsStore = create<PaymentTermsState>((set, get) => ({
       const paymentTerm = await paymentTermsApi.restore(id)
       set(state => ({
         paymentTerms: state.paymentTerms.map(p => p.id === id ? paymentTerm : p),
-        loading: false
+        loading: false,
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to restore payment term'
-      set({ error: message, loading: false })
+      set({ error: parseApiError(error, 'Gagal memulihkan syarat pembayaran'), loading: false })
       throw error
     }
   },
 
-  setPage: (page) => {
-    set(state => ({ pagination: { ...state.pagination, page } }))
-    get().fetchPaymentTerms(page, get().pagination.limit)
-  },
-
-  setPageSize: (limit) => {
-    set(state => ({ pagination: { ...state.pagination, page: 1, limit } }))
-    get().fetchPaymentTerms(1, limit)
-  },
-
-  setSort: (sort) => {
-    set({ sort })
-  },
-
-  setFilter: (filter) => {
-    set({ filter, pagination: { ...get().pagination, page: 1 } })
-  },
-
+  setSort: (sort) => set({ sort }),
+  setFilter: (filter) => set({ filter, pagination: { ...get().pagination, page: 1 } }),
   clearError: () => set({ error: null }),
-  
-  reset: () => set(initialState)
+  reset: () => set(initialState),
 }))

@@ -620,7 +620,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             disabled={isLoading}
             className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:bg-gray-300 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors font-medium"
           >
-            Cancel
+            Batal
           </button>
         )}
         <button 
@@ -628,7 +628,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
           disabled={isLoading || Object.keys(errors).length > 0}
           className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {isLoading ? 'Saving...' : isEdit ? 'Update Payment Term' : 'Create Payment Term'}
+          {isLoading ? 'Menyimpan...' : isEdit ? 'Perbarui' : 'Simpan'}
         </button>
       </div>
     </form>

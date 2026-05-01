@@ -61,7 +61,7 @@ export default function EditPaymentTermPage() {
             onClick={() => navigate('/payment-terms')}
             className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
           >
-            Back to Payment Terms
+            Kembali ke Syarat Pembayaran
           </button>
         </div>
       </div>
@@ -78,7 +78,7 @@ export default function EditPaymentTermPage() {
             onClick={() => navigate('/payment-terms')}
             className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
           >
-            Back to Payment Terms
+            Kembali ke Syarat Pembayaran
           </button>
         </div>
       </div>

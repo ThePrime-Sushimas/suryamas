@@ -55,14 +55,14 @@ export const PaymentTermFilters = ({
         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Calculation Type
+              Tipe Kalkulasi
             </label>
             <select
               value={calculationType || ''}
               onChange={e => onCalculationTypeChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              <option value="">All Types</option>
+              <option value="">Semua Tipe</option>
               {CALCULATION_TYPES.map(type => (
                 <option key={type.value} value={type.value}>
                   {type.label}
@@ -79,22 +79,22 @@ export const PaymentTermFilters = ({
               onChange={e => onIsActiveChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="">Semua Status</option>
+              <option value="true">Aktif</option>
+              <option value="false">Nonaktif</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Show Deleted
+              Tampilkan Dihapus
             </label>
             <select
               value={includeDeleted || ''}
               onChange={e => onIncludeDeletedChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              <option value="">Active Only</option>
-              <option value="true">Include Deleted</option>
+              <option value="">Hanya Aktif</option>
+              <option value="true">Termasuk Dihapus</option>
             </select>
           </div>
         </div>

@@ -15,20 +15,20 @@ export const PaymentTermDeleteDialog = ({
   onConfirm,
   termName,
   isRestore = false,
-  isLoading = false
+  isLoading = false,
 }: PaymentTermDeleteDialogProps) => {
   return (
     <ConfirmModal
       isOpen={isOpen}
       onClose={onClose}
       onConfirm={onConfirm}
-      title={isRestore ? 'Restore Payment Term' : 'Delete Payment Term'}
+      title={isRestore ? 'Pulihkan Syarat Pembayaran' : 'Hapus Syarat Pembayaran'}
       message={
         isRestore
-          ? `Are you sure you want to restore "${termName}"? This will make it available for use again.`
-          : `Are you sure you want to delete "${termName}"? This action can be reversed later.`
+          ? `Yakin ingin memulihkan "${termName}"? Syarat ini akan dapat digunakan kembali.`
+          : `Yakin ingin menghapus "${termName}"? Tindakan ini dapat dibatalkan nanti.`
       }
-      confirmText={isRestore ? 'Restore' : 'Delete'}
+      confirmText={isRestore ? 'Pulihkan' : 'Hapus'}
       variant={isRestore ? 'success' : 'danger'}
       isLoading={isLoading}
     />

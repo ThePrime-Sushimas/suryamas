@@ -1,119 +1,95 @@
-import { Response } from 'express'
-import { AuthRequest } from '../../types/common.types'
+import { Request, Response } from 'express'
 import { paymentTermsService } from './payment-terms.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { logInfo } from '../../config/logger'
-import { withValidated } from '../../utils/handler'
-
-import { getParamString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createPaymentTermSchema,
   updatePaymentTermSchema,
   paymentTermIdSchema,
 } from './payment-terms.schema'
-import type { CalculationType } from './payment-terms.types'
+import type { CreatePaymentTermDto, UpdatePaymentTermDto } from './payment-terms.types'
 
-type CreatePaymentTermReq = ValidatedAuthRequest<typeof createPaymentTermSchema>
-type UpdatePaymentTermReq = ValidatedAuthRequest<typeof updatePaymentTermSchema>
-type PaymentTermIdReq = ValidatedAuthRequest<typeof paymentTermIdSchema>
+type CreateReq = ValidatedAuthRequest<typeof createPaymentTermSchema>
+type UpdateReq = ValidatedAuthRequest<typeof updatePaymentTermSchema>
+type IdReq = ValidatedAuthRequest<typeof paymentTermIdSchema>
 
 export class PaymentTermsController {
-  list = async (req: AuthRequest & { sort?: any; filterParams?: any; pagination?: any }, res: Response): Promise<void> => {
+  list = async (req: Request, res: Response) => {
     try {
-      const page = req.pagination?.page || parseInt(req.query.page as string) || 1
-      const limit = req.pagination?.limit || parseInt(req.query.limit as string) || 10
+      const page = req.pagination?.page ?? 1
+      const limit = req.pagination?.limit ?? 10
       const includeDeleted = req.query.includeDeleted === 'true'
       const q = req.query.q as string | undefined
 
       const filter = { ...req.filterParams }
       if (q) filter.search = q
 
-      const result = await paymentTermsService.list(
-        { page, limit },
-        req.sort,
-        filter,
-        includeDeleted
-      )
-
+      const result = await paymentTermsService.list({ page, limit }, req.sort, filter, includeDeleted)
       sendSuccess(res, result.data, 'Payment terms retrieved successfully', 200, result.pagination)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_payment_terms' })
     }
   }
 
-  findById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = async (req: Request, res: Response) => {
     try {
-      const id = parseInt(getParamString(req.params.id))
+      const id = parseInt((req as IdReq).validated.params.id)
       const includeDeleted = req.query.includeDeleted === 'true'
       const term = await paymentTermsService.findById(id, includeDeleted)
-
       sendSuccess(res, term, 'Payment term retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_payment_term', id: req.params.id })
     }
   }
 
-  create = withValidated(async (req: CreatePaymentTermReq, res: Response) => {
+  create = async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.id
-      const body = req.validated.body as any
-      const term = await paymentTermsService.create({
-        ...body,
-        calculation_type: body.calculation_type as CalculationType | undefined,
-      }, userId)
-      logInfo('Payment term created via API', { termId: term.id, userId })
+      const { body } = (req as CreateReq).validated
+      const term = await paymentTermsService.create(body as CreatePaymentTermDto, req.user?.id)
       sendSuccess(res, term, 'Payment term created successfully', 201)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_payment_term' })
     }
-  })
+  }
 
-  update = withValidated(async (req: UpdatePaymentTermReq, res: Response) => {
+  update = async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.validated.params.id)
-      const userId = req.user?.id
-      const body = req.validated.body as any
-      const term = await paymentTermsService.update(id, {
-        ...body,
-        calculation_type: body.calculation_type as CalculationType | undefined,
-      }, userId)
-      logInfo('Payment term updated via API', { termId: id, userId })
+      const validated = (req as UpdateReq).validated
+      const id = parseInt(validated.params.id)
+      const term = await paymentTermsService.update(id, validated.body as UpdatePaymentTermDto, req.user?.id)
       sendSuccess(res, term, 'Payment term updated successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_payment_term', id: req.params.id })
     }
-  })
+  }
 
-  delete = async (req: AuthRequest, res: Response): Promise<void> => {
+  delete = async (req: Request, res: Response) => {
     try {
-      const id = parseInt(getParamString(req.params.id))
-      const userId = req.user?.id
-      await paymentTermsService.delete(id, userId)
+      const id = parseInt((req as IdReq).validated.params.id)
+      await paymentTermsService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Payment term deleted successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_payment_term', id: req.params.id })
     }
   }
 
-  restore = async (req: AuthRequest, res: Response): Promise<void> => {
+  restore = async (req: Request, res: Response) => {
     try {
-      const id = parseInt(getParamString(req.params.id))
-      const userId = req.user?.id
-      const term = await paymentTermsService.restore(id, userId)
+      const id = parseInt((req as IdReq).validated.params.id)
+      const term = await paymentTermsService.restore(id, req.user?.id)
       sendSuccess(res, term, 'Payment term restored successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'restore_payment_term', id: req.params.id })
     }
   }
 
-  minimalActive = async (req: AuthRequest, res: Response): Promise<void> => {
+  minimalActive = async (req: Request, res: Response) => {
     try {
       const terms = await paymentTermsService.minimalActive()
       sendSuccess(res, terms, 'Payment terms retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_minimal_active_payment_terms' })
     }
   }
 }
