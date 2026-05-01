@@ -5,10 +5,8 @@ import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 import { getPaginationParams } from '../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
-import { getParamString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema, bulkDeleteSchema } from './companies.schema'
-import { CompanyErrors } from './companies.errors'
+import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema, bulkDeleteSchema, companyIdSchema } from './companies.schema'
 import { jobsService, jobsRepository } from '../jobs'
 
 export class CompaniesController {
@@ -47,7 +45,7 @@ export class CompaniesController {
 
   async getById(req: Request, res: Response) {
     try {
-      const id = getParamString(req.params.id)
+      const { id } = (req as ValidatedAuthRequest<typeof companyIdSchema>).validated.params
       const company = await companiesService.getById(id)
       sendSuccess(res, company)
     } catch (error: unknown) {
@@ -68,7 +66,7 @@ export class CompaniesController {
 
   async delete(req: Request, res: Response) {
     try {
-      const id = getParamString(req.params.id)
+      const { id } = (req as ValidatedAuthRequest<typeof companyIdSchema>).validated.params
       await companiesService.delete(id, req.user!.id)
       logInfo('Company deleted', { company_id: id, user: req.user!.id })
       sendSuccess(res, null, 'Company deleted')

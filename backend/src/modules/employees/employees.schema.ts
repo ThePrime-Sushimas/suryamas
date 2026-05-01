@@ -120,3 +120,9 @@ export const BulkDeleteSchema = z.object({
     ids: z.array(uuidSchema).min(1),
   }),
 })
+
+export const employeeIdSchema = z.object({
+  params: z.object({
+    id: uuidSchema,
+  }),
+})

@@ -1,17 +1,15 @@
 # Module Compliance Fix — Progress Tracker
 
-## Status: 7 Remaining Partial Modules (BE Controller Rewrite)
+## Status: ALL PARTIAL MODULES COMPLETED ✅
 
-FE store sudah fix (`parseApiError`). Yang perlu: rewrite BE controller + routes untuk hapus legacy imports.
-
-### Remaining:
+### All 7 fixed:
 1. ✅ `categories` — done
-2. ⬜ `employees` — `getParamString`
-3. ⬜ `companies` — `getParamString`
-4. ⬜ `employee_branches` — `getParamString`
-5. ⬜ `suppliers` — `withValidated`, `req as unknown as Request`
-6. ⬜ `banks` — `withValidated`, `req as unknown as Request`
-7. ⬜ `metric-units` — `getParamString`, `AuthenticatedRequest`. Routes: legacy casts
+2. ✅ `employees` — done
+3. ✅ `companies` — done
+4. ✅ `employee_branches` — done
+5. ✅ `suppliers` — done
+6. ✅ `banks` — done
+7. ✅ `metric-units` — done
 
 ### Completed (this session — 17 full rewrites + 8 FE store fixes):
 ✅ bank-accounts, payment-methods, payment-terms, cash-counts, cash-flow, permissions, pricelists, product-uoms, users, auth, expense-categorization, jobs, monitoring, pos-sync, sub-categories, supplier-products, products, branches

@@ -8,7 +8,7 @@ import { upload } from '../../middleware/upload.middleware'
 import { exportLimiter } from '../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
+import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema, employeeIdSchema } from './employees.schema'
 import './employees.openapi'
 import rateLimit from 'express-rate-limit'
 
@@ -122,16 +122,16 @@ router.post('/bulk/restore', canUpdate('employees'), validateSchema(BulkDeleteSc
 router.post('/', canInsert('employees'), upload.single('profile_picture'), validateSchema(CreateEmployeeSchema), (req, res) => 
   employeesController.create(req as ValidatedAuthRequest<typeof CreateEmployeeSchema>, res))
 
-router.get('/:id', canView('employees'), (req, res) => 
+router.get('/:id', canView('employees'), validateSchema(employeeIdSchema), (req, res) => 
   employeesController.getById(req, res))
 
 router.put('/:id', canUpdate('employees'), upload.single('profile_picture'), validateSchema(UpdateEmployeeSchema), (req, res) => 
   employeesController.update(req as ValidatedAuthRequest<typeof UpdateEmployeeSchema>, res))
 
-router.delete('/:id', canDelete('employees'), (req, res) => 
+router.delete('/:id', canDelete('employees'), validateSchema(employeeIdSchema), (req, res) => 
   employeesController.delete(req, res))
 
-router.post('/:id/restore', canUpdate('employees'), (req, res) => 
+router.post('/:id/restore', canUpdate('employees'), validateSchema(employeeIdSchema), (req, res) => 
   employeesController.restore(req, res))
 
 router.patch('/:id/active', canUpdate('employees'), validateSchema(UpdateActiveSchema), (req, res) => 

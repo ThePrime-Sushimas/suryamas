@@ -112,16 +112,16 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 |--------|:---:|:---:|:---:|:---:|:---:|
 | branches | ✅ | ✅ | ✅ | ✅ | ✅ |
 | categories | ✅ | ✅ | ✅ | ✅ | ✅ |
-| suppliers | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
-| banks | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
+| suppliers | ✅ | ✅ | ✅ | ✅ | ✅ |
+| banks | ✅ | ✅ | ✅ | ✅ | ✅ |
 | metric-units | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
-| employees | ✅ | ❌ `getParamString` | ✅ | ✅ | ❌ legacy import |
-| employee_branches | ✅ | ❌ `getParamString` | ✅ | ✅ | ❌ legacy import |
+| employees | ✅ | ✅ | ✅ | ✅ | ✅ |
+| employee_branches | ✅ | ✅ | ✅ | ✅ | ✅ |
 | auth | ✅ | ✅ | ✅ | ✅ | ✅ |
 | bank-accounts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-counts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-flow | ✅ | ✅ | ✅ | ✅ | ✅ |
-| companies | ✅ | ❌ `getParamString` | ✅ | ✅ | ❌ legacy import |
+| companies | ✅ | ✅ | ✅ | ✅ | ✅ |
 | expense-categorization | ✅ | ✅ | ✅ | ✅ | ✅ |
 | payment-methods | ✅ | ✅ | ✅ | ✅ | ✅ |
 | payment-terms | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -189,12 +189,12 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 BE controller sudah `await handleError` + `error: unknown` + `context`, tapi masih pakai `withValidated`/`getParamString`/`AuthRequest`/`AuthenticatedRequest`. FE store sudah `parseApiError`.
 - ✅ `branches` (backend + frontend)
 - ✅ `categories` (backend + frontend)
-- 🟡 `employees` — BE: `getParamString`
-- 🟡 `companies` — BE: `getParamString`
-- 🟡 `employee_branches` — BE: `getParamString`
-- 🟡 `suppliers` — BE: `withValidated`, `req as unknown as Request` in handleError
-- 🟡 `banks` — BE: `withValidated`, `req as unknown as Request` in handleError
-- 🟡 `metric-units` — BE: `getParamString`, `AuthenticatedRequest`. Routes: legacy casts
+- ✅ `employees` (backend + frontend)
+- ✅ `companies` (backend + frontend)
+- ✅ `employee_branches` (backend + frontend)
+- ✅ `suppliers` (backend + frontend)
+- ✅ `banks` (backend + frontend)
+- ✅ `metric-units` (backend + frontend)
 
 ### Modules Not Yet Reviewed (out of scope)
 - ⬜ `accounting/chart-of-accounts`

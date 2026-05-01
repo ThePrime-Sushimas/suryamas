@@ -4,10 +4,10 @@ import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../utils/export.util'
-import { getParamString } from '../../utils/validation.util'
 import { EmployeeErrors } from './employees.errors'
 import type { EmployeeFilter } from './employees.types'
 import type { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema } from './employees.schema'
+import { employeeIdSchema } from './employees.schema'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { jobsService } from '../jobs'
 
@@ -108,7 +108,8 @@ export class EmployeesController {
 
   async getById(req: Request, res: Response) {
     try {
-      const employee = await employeesService.getById(getParamString(req.params.id))
+      const { id } = (req as ValidatedAuthRequest<typeof employeeIdSchema>).validated.params
+      const employee = await employeesService.getById(id)
       sendSuccess(res, employee)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_employee', id: req.params.id })
@@ -128,7 +129,7 @@ export class EmployeesController {
 
   async delete(req: Request, res: Response) {
     try {
-      const id = getParamString(req.params.id)
+      const { id } = (req as ValidatedAuthRequest<typeof employeeIdSchema>).validated.params
       await employeesService.delete(id, req.user!.id)
       logInfo('Employee deleted', { id, user: req.user!.id })
       sendSuccess(res, null, 'Employee deleted')
@@ -139,7 +140,7 @@ export class EmployeesController {
 
   async restore(req: Request, res: Response) {
     try {
-      const id = getParamString(req.params.id)
+      const { id } = (req as ValidatedAuthRequest<typeof employeeIdSchema>).validated.params
       await employeesService.restore(id, req.user!.id)
       logInfo('Employee restored', { id, user: req.user!.id })
       sendSuccess(res, null, 'Employee restored')

@@ -4,75 +4,28 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { queryMiddleware } from '../../middleware/query.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { CreateMetricUnitSchema, UpdateMetricUnitSchema, metricUnitIdSchema, BulkUpdateStatusSchema } from './metricUnits.schema'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
-import { logError } from '../../config/logger'
 
-PermissionService.registerModule('metric_units', 'Metric Units Management').catch(err => {
-  logError('Failed to register metric_units module', { error: err.message })
+PermissionService.registerModule('metric_units', 'Metric Units Management').catch((err) => {
+  console.error('Failed to register metric_units module:', err instanceof Error ? err.message : err)
 })
+
+const sortFields = ['unit_code', 'unit_name', 'sort_order', 'created_at', 'updated_at', 'id']
 
 const router = Router()
 
 router.use(authenticate, resolveBranchContext)
 
-router.get('/active', 
-  canView('metric_units'), 
-  queryMiddleware({
-    allowedSortFields: ['unit_code', 'unit_name', 'sort_order', 'created_at', 'updated_at', 'id']
-  }), 
-  (req, res) => metricUnitsController.listActive(req as AuthenticatedQueryRequest, res)
-)
-
-router.get('/filter-options', 
-  canView('metric_units'), 
-  (req, res) => metricUnitsController.getFilterOptions(req as AuthenticatedRequest, res)
-)
-
-router.get('/', 
-  canView('metric_units'), 
-  queryMiddleware({
-    allowedSortFields: ['unit_code', 'unit_name', 'sort_order', 'created_at', 'updated_at', 'id']
-  }),
-  (req, res) => metricUnitsController.list(req as AuthenticatedQueryRequest, res)
-)
-
-router.post('/bulk/status', 
-  canUpdate('metric_units'), 
-  validateSchema(BulkUpdateStatusSchema),
-  (req, res) => metricUnitsController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof BulkUpdateStatusSchema>, res)
-)
-
-router.post('/', 
-  canInsert('metric_units'), 
-  validateSchema(CreateMetricUnitSchema),
-  (req, res) => metricUnitsController.create(req as ValidatedAuthRequest<typeof CreateMetricUnitSchema>, res)
-)
-
-router.get('/:id', 
-  canView('metric_units'), 
-  validateSchema(metricUnitIdSchema),
-  (req, res) => metricUnitsController.getById(req as AuthenticatedRequest, res)
-)
-
-router.put('/:id', 
-  canUpdate('metric_units'), 
-  validateSchema(UpdateMetricUnitSchema),
-  (req, res) => metricUnitsController.update(req as ValidatedAuthRequest<typeof UpdateMetricUnitSchema>, res)
-)
-
-router.delete('/:id', 
-  canDelete('metric_units'), 
-  validateSchema(metricUnitIdSchema),
-  (req, res) => metricUnitsController.delete(req as AuthenticatedRequest, res)
-)
-
-router.post('/:id/restore',
-  canUpdate('metric_units'),
-  validateSchema(metricUnitIdSchema),
-  (req, res) => metricUnitsController.restore(req as AuthenticatedRequest, res)
-)
+router.get('/active', canView('metric_units'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) => metricUnitsController.listActive(req, res))
+router.get('/filter-options', canView('metric_units'), (req, res) => metricUnitsController.getFilterOptions(req, res))
+router.get('/', canView('metric_units'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) => metricUnitsController.list(req, res))
+router.post('/bulk/status', canUpdate('metric_units'), validateSchema(BulkUpdateStatusSchema), (req, res) => metricUnitsController.bulkUpdateStatus(req, res))
+router.post('/', canInsert('metric_units'), validateSchema(CreateMetricUnitSchema), (req, res) => metricUnitsController.create(req, res))
+router.get('/:id', canView('metric_units'), validateSchema(metricUnitIdSchema), (req, res) => metricUnitsController.getById(req, res))
+router.put('/:id', canUpdate('metric_units'), validateSchema(UpdateMetricUnitSchema), (req, res) => metricUnitsController.update(req, res))
+router.delete('/:id', canDelete('metric_units'), validateSchema(metricUnitIdSchema), (req, res) => metricUnitsController.delete(req, res))
+router.post('/:id/restore', canUpdate('metric_units'), validateSchema(metricUnitIdSchema), (req, res) => metricUnitsController.restore(req, res))
 
 export default router
