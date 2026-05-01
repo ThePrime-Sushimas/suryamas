@@ -117,7 +117,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | metric-units | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
 | employees | ✅ | ✅ | ✅ | ✅ | ✅ |
 | employee_branches | ✅ | ✅ | ✅ | ✅ | ✅ |
-| auth | ❌ | ✅ | ❌ | ❌ | ❌ |
+| auth | ✅ | ✅ | ✅ | ✅ | ✅ |
 | bank-accounts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-counts | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cash-flow | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -162,7 +162,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | pos-aggregates | ❌ | inline |
 | pos-imports | ❌ | inline |
 | pos-sync-aggregates | ❌ | inline |
-| auth | ❌ | inline |
+| auth | ✅ | ✅ removed |
 | monitoring | ❌ | inline |
 | jobs | ❌ | inline |
 
@@ -184,6 +184,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `pricelists` (backend + frontend)
 - ✅ `product-uoms` (backend + frontend)
 - ✅ `users` (backend + frontend)
+- ✅ `auth` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -191,7 +192,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - 🟡 `metric-units` (backend reviewed, controller still `as unknown`, FE store not yet parseApiError)
 
 ### Modules Not Yet Reviewed
-- ⬜ `auth`
 - ⬜ `expense-categorization`
 - ⬜ `pos-sync`
 - ⬜ `jobs`

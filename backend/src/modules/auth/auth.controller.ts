@@ -1,67 +1,65 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { withValidated } from '../../utils/handler'
-import type { AuthenticatedRequest } from '../../types/request.types'
-import type { ValidatedRequest } from '../../middleware/validation.middleware'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema'
 import { authService } from './auth.service'
 
-type RegisterReq = ValidatedRequest<typeof registerSchema>
-type LoginReq = ValidatedRequest<typeof loginSchema>
-type ForgotPasswordReq = ValidatedRequest<typeof forgotPasswordSchema>
-type ResetPasswordReq = ValidatedRequest<typeof resetPasswordSchema>
+type RegisterReq = ValidatedAuthRequest<typeof registerSchema>
+type LoginReq = ValidatedAuthRequest<typeof loginSchema>
+type ForgotPasswordReq = ValidatedAuthRequest<typeof forgotPasswordSchema>
+type ResetPasswordReq = ValidatedAuthRequest<typeof resetPasswordSchema>
 
 export class AuthController {
-  register = withValidated(async (req: RegisterReq, res: Response) => {
+  register = async (req: Request, res: Response) => {
     try {
-      const { email, password, employee_id } = req.validated.body
+      const { email, password, employee_id } = (req as RegisterReq).validated.body
       const result = await authService.register(email, password, employee_id)
       sendSuccess(res, { user: result.user, employee: result.employeeName }, 'Registration successful', 201)
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'register' })
     }
-  })
+  }
 
-  login = withValidated(async (req: LoginReq, res: Response) => {
+  login = async (req: Request, res: Response) => {
     try {
-      const { email, password } = req.validated.body
+      const { email, password } = (req as LoginReq).validated.body
       const session = await authService.login(email, password)
       sendSuccess(res, session, 'Login successful')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'login' })
     }
-  })
+  }
 
-  logout = async (req: AuthenticatedRequest, res: Response) => {
+  logout = async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id
       if (userId) await authService.logout(userId)
       sendSuccess(res, null, 'Logout successful')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'logout' })
     }
   }
 
-  forgotPassword = withValidated(async (req: ForgotPasswordReq, res: Response) => {
+  forgotPassword = async (req: Request, res: Response) => {
     try {
-      const { email } = req.validated.body
+      const { email } = (req as ForgotPasswordReq).validated.body
       await authService.forgotPassword(email)
       sendSuccess(res, null, 'Password reset email sent')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'forgot_password' })
     }
-  })
+  }
 
-  resetPassword = withValidated(async (req: ResetPasswordReq, res: Response) => {
+  resetPassword = async (req: Request, res: Response) => {
     try {
-      const { password, recovery_token } = req.validated.body
+      const { password, recovery_token } = (req as ResetPasswordReq).validated.body
       await authService.resetPassword(recovery_token || '', password)
       sendSuccess(res, null, 'Password updated successfully')
-    } catch (error) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reset_password' })
     }
-  })
+  }
 }
 
 export const authController = new AuthController()

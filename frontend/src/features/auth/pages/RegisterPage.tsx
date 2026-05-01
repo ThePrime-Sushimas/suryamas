@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "@/features/auth";
 import { useToast } from "@/contexts/ToastContext";
+import { parseApiError } from "@/lib/errorParser";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function RegisterPage() {
@@ -18,8 +19,8 @@ export default function RegisterPage() {
       await register(email, password, employeeId);
       success("Registration successful");
       setTimeout(() => navigate("/login"), 2000);
-    } catch (err) {
-      error(err instanceof Error ? err.message : "Registration failed");
+    } catch (err: unknown) {
+      error(parseApiError(err, "Gagal mendaftar"));
     }
   };
 

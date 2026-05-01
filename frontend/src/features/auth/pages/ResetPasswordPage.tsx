@@ -58,8 +58,8 @@ export default function ResetPasswordPage() {
       )
       success('Password updated successfully!')
       navigate('/login')
-    } catch (err) {
-      setError(parseApiError(err, 'Failed to reset password'))
+    } catch (err: unknown) {
+      setError(parseApiError(err, 'Gagal mereset password'))
     } finally {
       setIsLoading(false)
     }

@@ -19,8 +19,8 @@ export default function ForgotPasswordPage() {
       await api.post('/auth/forgot-password', { email })
       setSuccess(true)
       toast.success('Email reset password berhasil dikirim')
-    } catch (err) {
-      const msg = parseApiError(err, 'Failed to send reset email')
+    } catch (err: unknown) {
+      const msg = parseApiError(err, 'Gagal mengirim email reset')
       setError(msg)
       toast.error(msg)
     } finally {

@@ -51,7 +51,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Fetch full profile data
       const { data: profileData } = await api.get<ApiResponse<User>>('/employees/profile')
       set({ user: profileData.data, isInitialized: true, isLoading: false })
-    } catch (error) {
+    } catch (error: unknown) {
       set({ isLoading: false, isInitialized: true })
       throw error
     }
