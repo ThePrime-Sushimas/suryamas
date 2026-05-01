@@ -111,7 +111,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | Module | `await` handleError | No `as any`/`as unknown` | `error: unknown` | `context` param | Express augmentation |
 |--------|:---:|:---:|:---:|:---:|:---:|
 | branches | ✅ | ✅ | ✅ | ✅ | ✅ |
-| categories | ✅ | ❌ `withValidated`/`AuthRequest` | ✅ | ✅ | ❌ legacy types |
+| categories | ✅ | ✅ | ✅ | ✅ | ✅ |
 | suppliers | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
 | banks | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
 | metric-units | ✅ | ❌ `as unknown` | ✅ | ✅ | ❌ |
@@ -188,7 +188,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 ### Modules Partially Compliant (prior session — BE handleError/error:unknown OK, but legacy imports remain)
 BE controller sudah `await handleError` + `error: unknown` + `context`, tapi masih pakai `withValidated`/`getParamString`/`AuthRequest`/`AuthenticatedRequest`. FE store sudah `parseApiError`.
 - ✅ `branches` (backend + frontend)
-- 🟡 `categories` — BE: `withValidated`, `getParamString`, `AuthRequest`. Routes: legacy casts
+- ✅ `categories` (backend + frontend)
 - 🟡 `employees` — BE: `getParamString`
 - 🟡 `companies` — BE: `getParamString`
 - 🟡 `employee_branches` — BE: `getParamString`
