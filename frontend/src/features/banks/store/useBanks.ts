@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { banksApi } from '../api/banks.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { Bank, BankOption, CreateBankDto, UpdateBankDto, BankListQuery, PaginationMeta } from '../types'
 
 interface BanksState {
@@ -43,7 +44,7 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       set({ banks: res.data, pagination: res.pagination, fetchLoading: false })
     } catch (error: unknown) {
       if (get().currentRequestId !== requestId) return
-      const message = error instanceof Error ? error.message : 'Gagal memuat data bank'
+      const message = parseApiError(error, 'Gagal memuat data bank')
       set({ error: message, fetchLoading: false })
     }
   },
@@ -61,7 +62,7 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       set({ currentBank: bank, fetchLoading: false })
       return bank
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Gagal memuat data bank'
+      const message = parseApiError(error, 'Gagal memuat data bank')
       set({ error: message, fetchLoading: false })
       throw error
     }
@@ -74,7 +75,7 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       set({ mutationLoading: false })
       return bank
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Gagal membuat bank'
+      const message = parseApiError(error, 'Gagal membuat bank')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -91,7 +92,7 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       }))
       return bank
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Gagal memperbarui bank'
+      const message = parseApiError(error, 'Gagal memperbarui bank')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -103,7 +104,7 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       await banksApi.delete(id)
       set({ mutationLoading: false })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Gagal menghapus bank'
+      const message = parseApiError(error, 'Gagal menghapus bank')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -114,7 +115,7 @@ export const useBanksStore = create<BanksState>((set, get) => ({
       const options = await banksApi.getOptions()
       set({ options })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Gagal memuat opsi bank'
+      const message = parseApiError(error, 'Gagal memuat opsi bank')
       set({ error: message })
     }
   },

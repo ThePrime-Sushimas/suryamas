@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireApiKey } from "../../middleware/api-key.middleware";
+import { handleError } from "../../utils/error-handler.util";
 import { authenticate } from "../../middleware/auth.middleware";
 import {
   canView,
@@ -28,8 +29,8 @@ PermissionService.registerModule(
   console.error("Failed to register pos_sync module:", error.message);
 });
 
-router.post("/import", requireApiKey, salesController.import);
-router.post("/master", requireApiKey, masterController.sync);
+router.post("/import", requireApiKey, (req, res) => salesController.import(req, res));
+router.post("/master", requireApiKey, (req, res) => masterController.sync(req, res));
 
 // Staging routes protected by pos_sync module permissions
 router.get(
@@ -37,14 +38,14 @@ router.get(
   authenticate,
   resolveBranchContext,
   canView("pos_sync"),
-  stagingController.list,
+  (req, res) => stagingController.list(req, res),
 );
 router.patch(
   "/staging/:table/:id",
   authenticate,
   resolveBranchContext,
   canUpdate("pos_sync"),
-  stagingController.update,
+  (req, res) => stagingController.update(req, res),
 );
 
 // Manual reprocess — proses semua data di tr_saleshead
@@ -55,13 +56,10 @@ router.post(
   canInsert("pos_sync"),
   async (req, res) => {
     try {
-      console.log("🔄 Manual reprocess aggregates triggered");
       // Fire and forget — tidak block response
       processPosSyncAggregates()
-        .then(async (result: any) => {
-          console.log("✅ Reprocess complete:", result);
-          // Audit Log - Success
-          const userId = (req as any).user?.id;
+        .then(async (result: unknown) => {
+          const userId = req.user?.id ?? null;
           await AuditService.log(
             "MANUAL_REPROCESS",
             "pos_sync_aggregates",
@@ -73,15 +71,15 @@ router.post(
             req.get("user-agent")
           );
         })
-        .catch((err: any) => {
+        .catch((err: unknown) => {
           logError("Reprocess failed", { err });
         });
       res.json({
         success: true,
         message: "Reprocess started in background — cek log untuk hasilnya",
       });
-    } catch (err: any) {
-      res.status(500).json({ success: false, message: err?.message });
+    } catch (err: unknown) {
+      await handleError(res, err, req, { action: 'reprocess_aggregates' });
     }
   },
 );
@@ -91,7 +89,7 @@ router.post(
   authenticate,
   resolveBranchContext,
   canUpdate("pos_sync"),
-  aggregateController.recalculateByDate,
+  (req, res) => aggregateController.recalculateByDate(req, res),
 );
 
 export default router;

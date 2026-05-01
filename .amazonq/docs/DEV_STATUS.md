@@ -126,7 +126,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | payment-methods | ✅ | ✅ | ✅ | ✅ | ✅ |
 | payment-terms | ✅ | ✅ | ✅ | ✅ | ✅ |
 | permissions | ❌ | ✅ | ✅ | ❌ | ❌ |
-| pos-sync | ➖ | ❌ `as any` | ✅ | ➖ | ❌ |
+| pos-sync | ✅ | ✅ | ✅ | ✅ | ✅ |
 | pricelists | ✅ | ✅ | ✅ | ✅ | ✅ |
 | product-uoms | ✅ | ✅ | ✅ | ✅ | ✅ |
 | products | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -142,9 +142,9 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 |-------|:---:|:---:|
 | branches | ✅ | ✅ removed |
 | categories | ✅ | ✅ removed |
-| banks | ❌ | `error instanceof Error` |
-| metric_units | ❌ | inline |
-| suppliers | ❌ | inline |
+| banks | ✅ | ✅ removed |
+| metric_units | ✅ | ✅ removed |
+| suppliers | ✅ | ✅ removed |
 | employees | ✅ | ✅ removed |
 | bank-accounts | ✅ | ✅ removed |
 | bank-statement-import | ❌ | `error.response?.data` |
@@ -161,7 +161,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | users | ✅ | ✅ removed |
 | pos-aggregates | ❌ | inline |
 | pos-imports | ❌ | inline |
-| pos-sync-aggregates | ❌ | inline |
+| pos-sync-aggregates | ✅ | ✅ (console.error only) |
 | auth | ✅ | ✅ removed |
 | monitoring | ✅ | ✅ removed |
 | jobs | ✅ | ✅ removed |
@@ -190,12 +190,11 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `monitoring` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
-- 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
-- 🟡 `banks` (backend reviewed, controller still `as unknown`, FE store not yet parseApiError)
-- 🟡 `metric-units` (backend reviewed, controller still `as unknown`, FE store not yet parseApiError)
+- ✅ `suppliers` (backend + frontend)
+- ✅ `banks` (backend + frontend)
+- ✅ `metric-units` (backend + frontend)
 
-### Modules Not Yet Reviewed
-- ⬜ `pos-sync`
+- ✅ `pos-sync` (backend + frontend)
 
 ---
 trigger: always_on

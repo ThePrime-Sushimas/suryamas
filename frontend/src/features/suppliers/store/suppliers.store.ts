@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { suppliersApi } from '../api/suppliers.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery } from '../types/supplier.types'
 
 interface PaginationState {
@@ -47,11 +48,8 @@ export const useSuppliersStore = create<SuppliersState>((set, get) => ({
       set({ suppliers: res.data, pagination: res.pagination, fetchLoading: false })
     } catch (error: unknown) {
       if (get().currentRequestId !== requestId) return
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.error
-          || (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.message
-        : error instanceof Error ? error.message : 'Failed to fetch suppliers'
-      set({ error: message || 'Failed to fetch suppliers', fetchLoading: false })
+      const message = parseApiError(error, 'Gagal memuat pemasok')
+      set({ error: message, fetchLoading: false })
     }
   },
 
@@ -71,11 +69,8 @@ export const useSuppliersStore = create<SuppliersState>((set, get) => ({
       }))
       return supplier
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.error
-          || (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.message
-        : error instanceof Error ? error.message : 'Failed to create supplier'
-      set({ error: message || 'Failed to create supplier', mutationLoading: false })
+      const message = parseApiError(error, 'Gagal membuat pemasok')
+      set({ error: message, mutationLoading: false })
       throw error
     }
   },
@@ -90,11 +85,8 @@ export const useSuppliersStore = create<SuppliersState>((set, get) => ({
       }))
       return supplier
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.error
-          || (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.message
-        : error instanceof Error ? error.message : 'Failed to update supplier'
-      set({ error: message || 'Failed to update supplier', mutationLoading: false })
+      const message = parseApiError(error, 'Gagal memperbarui pemasok')
+      set({ error: message, mutationLoading: false })
       throw error
     }
   },
@@ -108,11 +100,8 @@ export const useSuppliersStore = create<SuppliersState>((set, get) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.error
-          || (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.message
-        : error instanceof Error ? error.message : 'Failed to delete supplier'
-      set({ error: message || 'Failed to delete supplier', mutationLoading: false })
+      const message = parseApiError(error, 'Gagal menghapus pemasok')
+      set({ error: message, mutationLoading: false })
       throw error
     }
   },
@@ -129,11 +118,8 @@ export const useSuppliersStore = create<SuppliersState>((set, get) => ({
       }))
       return supplier
     } catch (error: unknown) {
-      const message = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.error
-          || (error as { response?: { data?: { error?: string; message?: string } } }).response?.data?.message
-        : error instanceof Error ? error.message : 'Failed to restore supplier'
-      set({ error: message || 'Failed to restore supplier', mutationLoading: false })
+      const message = parseApiError(error, 'Gagal memulihkan pemasok')
+      set({ error: message, mutationLoading: false })
       throw error
     }
   },

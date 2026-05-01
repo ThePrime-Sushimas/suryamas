@@ -60,7 +60,7 @@ export const usePosSyncAggregatesStore = create<PosSyncAggregatesState>()(
               limit: response.limit,
               isLoading: false,
             });
-          } catch (error) {
+          } catch (error: unknown) {
             console.error("Error fetching pos sync aggregates:", error);
             set({ isLoading: false });
           }

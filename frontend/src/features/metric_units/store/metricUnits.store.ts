@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { metricUnitsApi } from '../api/metricUnits.api'
 import type { MetricUnit, CreateMetricUnitDto, UpdateMetricUnitDto, PaginationParams, SortParams, FilterParams, FilterOptions } from '../types'
-import { getErrorMessage } from '../utils/errors'
+import { parseApiError } from '@/lib/errorParser'
 
 interface MetricUnitsState {
   metricUnits: MetricUnit[]
@@ -52,7 +52,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       set({ metricUnits: res.data, pagination: res.pagination, loading: false })
     } catch (error: unknown) {
       if (get().currentRequestId !== requestId) return
-      set({ error: getErrorMessage(error), loading: false })
+      set({ error: parseApiError(error, 'Gagal memuat satuan ukur'), loading: false })
     }
   },
 
@@ -69,7 +69,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       set({ currentMetricUnit: metricUnit, loading: false })
       return metricUnit
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), loading: false })
+      set({ error: parseApiError(error, 'Gagal memuat satuan ukur'), loading: false })
       throw error
     }
   },
@@ -81,7 +81,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       set({ mutationLoading: false })
       return metricUnit
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal membuat satuan ukur'), mutationLoading: false })
       throw error
     }
   },
@@ -97,7 +97,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       }))
       return metricUnit
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal memperbarui satuan ukur'), mutationLoading: false })
       throw error
     }
   },
@@ -108,7 +108,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
       await metricUnitsApi.delete(id)
       set({ mutationLoading: false })
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal menghapus satuan ukur'), mutationLoading: false })
       throw error
     }
   },
@@ -122,7 +122,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal memulihkan satuan ukur'), mutationLoading: false })
       throw error
     }
   },
@@ -136,7 +136,7 @@ export const useMetricUnitsStore = create<MetricUnitsState>((set, get) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      set({ error: getErrorMessage(error), mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal memperbarui status satuan ukur'), mutationLoading: false })
       throw error
     }
   },
