@@ -14,6 +14,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { useUomSearch } from '@/hooks/_shared/useUomSearch'
 import { CURRENCY_OPTIONS } from '../constants/pricelist.constants'
 import { validateCreatePricelist, validateUpdatePricelist, hasErrors } from '../utils/validation'
@@ -142,7 +143,7 @@ export const PricelistFormContextual = memo(function PricelistFormContextual({
         await onSubmit(submitData)
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save pricelist'
+      const errorMsg = parseApiError(error, 'Gagal menyimpan daftar harga')
       toast.error(errorMsg)
     }
   }, [formData, validationErrors, isEdit, onSubmit, toast])

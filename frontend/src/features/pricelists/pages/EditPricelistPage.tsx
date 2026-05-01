@@ -8,6 +8,7 @@
 import { useEffect, useState, useCallback, memo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePricelistsStore } from '../store/pricelists.store'
 import { pricelistsApi } from '../api/pricelists.api'
@@ -78,7 +79,7 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
         }
       } catch (err) {
         if (!controller.signal.aborted) {
-          const errorMessage = err instanceof Error ? err.message : 'Failed to load pricelist'
+          const errorMessage = parseApiError(err, 'Gagal memuat daftar harga')
           setContextError(errorMessage)
         }
       } finally {
@@ -140,7 +141,7 @@ export const EditPricelistPage = memo(function EditPricelistPage() {
             onClick={() => navigate(backPath)}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
           >
-            Back to List
+            Kembali
           </button>
         </div>
       </div>

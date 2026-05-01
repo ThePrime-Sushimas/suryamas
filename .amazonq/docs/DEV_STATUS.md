@@ -127,7 +127,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | payment-terms | ✅ | ✅ | ✅ | ✅ | ✅ |
 | permissions | ❌ | ✅ | ✅ | ❌ | ❌ |
 | pos-sync | ➖ | ❌ `as any` | ✅ | ➖ | ❌ |
-| pricelists | ❌ | ✅ | ✅ | ❌ | ❌ |
+| pricelists | ✅ | ✅ | ✅ | ✅ | ✅ |
 | product-uoms | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
 | products | ✅ | ✅ | ✅ | ✅ | ✅ |
 | sub-categories | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -154,7 +154,7 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | payment-methods | ✅ | ✅ removed |
 | payment-terms | ✅ | ✅ removed |
 | permissions | ❌ | inline |
-| pricelists | ❌ | inline |
+| pricelists | ✅ | ✅ removed |
 | product-uoms | ❌ | inline |
 | products | ✅ | ✅ removed |
 | supplier-products | ✅ | ✅ removed |
@@ -180,6 +180,8 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `payment-terms` (backend + frontend)
 - ✅ `cash-counts` (backend + frontend)
 - ✅ `cash-flow` (backend + frontend)
+- ✅ `permissions` (backend + frontend)
+- ✅ `pricelists` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -190,7 +192,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ⬜ `auth`
 - ⬜ `expense-categorization`
 - ⬜ `pos-sync`
-- ⬜ `pricelists`
 - ⬜ `product-uoms`
 - ⬜ `users`
 - ⬜ `jobs`

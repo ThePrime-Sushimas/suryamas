@@ -1,114 +1,104 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { pricelistsService } from './pricelists.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { withValidated } from '../../utils/handler'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
-  createPricelistSchema,
-  updatePricelistSchema,
-  pricelistIdSchema,
-  pricelistListQuerySchema,
-  approvalSchema,
-  lookupPriceSchema,
+  createPricelistSchema, updatePricelistSchema, pricelistIdSchema,
+  pricelistListQuerySchema, approvalSchema, lookupPriceSchema,
 } from './pricelists.schema'
 
-type CreatePricelistReq = ValidatedAuthRequest<typeof createPricelistSchema>
-type UpdatePricelistReq = ValidatedAuthRequest<typeof updatePricelistSchema>
-type PricelistIdReq = ValidatedAuthRequest<typeof pricelistIdSchema>
-type PricelistListReq = ValidatedAuthRequest<typeof pricelistListQuerySchema>
+type CreateReq = ValidatedAuthRequest<typeof createPricelistSchema>
+type UpdateReq = ValidatedAuthRequest<typeof updatePricelistSchema>
+type IdReq = ValidatedAuthRequest<typeof pricelistIdSchema>
+type ListReq = ValidatedAuthRequest<typeof pricelistListQuerySchema>
 type ApprovalReq = ValidatedAuthRequest<typeof approvalSchema>
-type LookupPriceReq = ValidatedAuthRequest<typeof lookupPriceSchema>
+type LookupReq = ValidatedAuthRequest<typeof lookupPriceSchema>
 
 export class PricelistsController {
-  create = withValidated(async (req: CreatePricelistReq, res: Response) => {
+  create = async (req: Request, res: Response) => {
     try {
-      const { body } = req.validated
-      const userId = req.context?.employee_id
-      const pricelist = await pricelistsService.createPricelist(body, userId)
+      const { body } = (req as CreateReq).validated
+      const pricelist = await pricelistsService.createPricelist(body, req.context?.employee_id)
       sendSuccess(res, pricelist, 'Pricelist created successfully', 201)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_pricelist' })
     }
-  })
+  }
 
-  list = withValidated(async (req: PricelistListReq, res: Response) => {
+  list = async (req: Request, res: Response) => {
     try {
-      const { query } = req.validated
+      const { query } = (req as ListReq).validated
       const result = await pricelistsService.getPricelists(query)
       sendSuccess(res, result.data, 'Pricelists retrieved successfully', 200, result.pagination)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_pricelists' })
     }
-  })
+  }
 
-  findById = withValidated(async (req: PricelistIdReq, res: Response) => {
+  findById = async (req: Request, res: Response) => {
     try {
-      const { params } = req.validated
-      const pricelist = await pricelistsService.getPricelistById(params.id)
+      const { id } = (req as IdReq).validated.params
+      const pricelist = await pricelistsService.getPricelistById(id)
       sendSuccess(res, pricelist, 'Pricelist retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_pricelist', id: req.params.id })
     }
-  })
+  }
 
-  update = withValidated(async (req: UpdatePricelistReq, res: Response) => {
+  update = async (req: Request, res: Response) => {
     try {
-      const { params, body } = req.validated
-      const userId = req.context?.employee_id
-      const pricelist = await pricelistsService.updatePricelist(params.id, body, userId)
+      const { params, body } = (req as UpdateReq).validated
+      const pricelist = await pricelistsService.updatePricelist(params.id, body, req.context?.employee_id)
       sendSuccess(res, pricelist, 'Pricelist updated successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_pricelist', id: req.params.id })
     }
-  })
+  }
 
-  delete = withValidated(async (req: PricelistIdReq, res: Response) => {
+  delete = async (req: Request, res: Response) => {
     try {
-      const { params } = req.validated
-      const userId = req.context?.employee_id
-      await pricelistsService.deletePricelist(params.id, userId)
+      const { id } = (req as IdReq).validated.params
+      await pricelistsService.deletePricelist(id, req.context?.employee_id)
       sendSuccess(res, null, 'Pricelist deleted successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_pricelist', id: req.params.id })
     }
-  })
+  }
 
-  approve = withValidated(async (req: ApprovalReq, res: Response) => {
+  approve = async (req: Request, res: Response) => {
     try {
-      const { params, body } = req.validated
-      const userId = req.context?.employee_id
-      const pricelist = await pricelistsService.approvePricelist(params.id, body, userId)
+      const { params, body } = (req as ApprovalReq).validated
+      const pricelist = await pricelistsService.approvePricelist(params.id, body, req.context?.employee_id)
       sendSuccess(res, pricelist, `Pricelist ${body.status.toLowerCase()} successfully`)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'approve_pricelist', id: req.params.id })
     }
-  })
+  }
 
-  restore = withValidated(async (req: PricelistIdReq, res: Response) => {
+  restore = async (req: Request, res: Response) => {
     try {
-      const { params } = req.validated
-      const userId = req.context?.employee_id
-      const pricelist = await pricelistsService.restorePricelist(params.id, userId)
+      const { id } = (req as IdReq).validated.params
+      const pricelist = await pricelistsService.restorePricelist(id, req.context?.employee_id)
       sendSuccess(res, pricelist, 'Pricelist restored successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'restore_pricelist', id: req.params.id })
     }
-  })
+  }
 
-  lookupPrice = withValidated(async (req: LookupPriceReq, res: Response) => {
+  lookupPrice = async (req: Request, res: Response) => {
     try {
-      const { query } = req.validated
+      const { query } = (req as LookupReq).validated
       const pricelist = await pricelistsService.lookupPrice(query)
       if (!pricelist) {
-        sendSuccess(res, null, 'No active pricelist found', 404)
+        sendSuccess(res, null, 'No active pricelist found')
         return
       }
       sendSuccess(res, pricelist, 'Price found successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'lookup_price' })
     }
-  })
+  }
 }
 
 export const pricelistsController = new PricelistsController()

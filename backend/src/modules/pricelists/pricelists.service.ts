@@ -101,7 +101,7 @@ export class PricelistsService {
   }
 
   async getPricelists(query: PricelistListQuery) {
-    const { page, limit, offset } = getPaginationParams(query as any)
+    const { page, limit, offset } = getPaginationParams({ ...query })
     const { data, total } = await pricelistsRepository.findAll({ limit, offset }, query)
     
     return createPaginatedResponse(data, total, page, limit)
@@ -147,11 +147,9 @@ export class PricelistsService {
       }
       
       return pricelist
-    } catch (error: any) {
-      if (error.message.includes('active pricelist already exists')) {
-        throw new DuplicateRestoreError()
-      }
-      if (error.message.includes('unique constraint') || error.message.includes('duplicate key')) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error)
+      if (msg.includes('active pricelist already exists') || msg.includes('unique constraint') || msg.includes('duplicate key')) {
         throw new DuplicateRestoreError()
       }
       throw error

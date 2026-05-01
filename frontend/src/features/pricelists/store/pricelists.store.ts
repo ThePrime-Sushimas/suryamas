@@ -21,7 +21,7 @@ import type {
   PricelistListQuery,
   PaginationParams
 } from '../types/pricelist.types'
-import { parsePricelistError } from '../utils/errorParser'
+import { parseApiError } from '@/lib/errorParser'
 
 // Normalize query to handle undefined values and ensure consistent comparison
 function normalizeQuery(query: PricelistListQuery): PricelistListQuery {
@@ -139,7 +139,7 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
       if (signal?.aborted) return
       if (currentRequestId !== requestId) return
 
-      const message = parsePricelistError(error)
+      const message = parseApiError(error, 'Gagal memuat daftar harga')
       set(state => ({
         errors: { ...state.errors, fetch: message },
         loading: { ...state.loading, fetch: false }
@@ -171,7 +171,7 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
       
       return pricelist
     } catch (error) {
-      const message = parsePricelistError(error)
+      const message = parseApiError(error, 'Gagal membuat daftar harga')
       set(state => ({
         errors: { ...state.errors, mutation: message },
         loading: { ...state.loading, create: false }
@@ -204,7 +204,7 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
       
       return pricelist
     } catch (error) {
-      const message = parsePricelistError(error)
+      const message = parseApiError(error, 'Gagal memperbarui daftar harga')
       set(state => ({
         errors: { ...state.errors, mutation: message },
         loading: { ...state.loading, update: false }
@@ -232,7 +232,7 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
         loading: { ...state.loading, delete: false }
       }))
     } catch (error) {
-      const message = parsePricelistError(error)
+      const message = parseApiError(error, 'Gagal menghapus daftar harga')
       set(state => ({
         errors: { ...state.errors, mutation: message },
         loading: { ...state.loading, delete: false }
@@ -262,7 +262,7 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
         await fetchPricelists(currentQuery)
       }
     } catch (error) {
-      const message = parsePricelistError(error)
+      const message = parseApiError(error, 'Gagal memulihkan daftar harga')
       set(state => ({
         errors: { ...state.errors, mutation: message },
         loading: { ...state.loading, update: false }
@@ -295,7 +295,7 @@ export const usePricelistsStore = create<PricelistsState>((set, get) => ({
       
       return pricelist
     } catch (error) {
-      const message = parsePricelistError(error)
+      const message = parseApiError(error, 'Gagal menyetujui daftar harga')
       set(state => ({
         errors: { ...state.errors, mutation: message },
         loading: { ...state.loading, approve: false }
