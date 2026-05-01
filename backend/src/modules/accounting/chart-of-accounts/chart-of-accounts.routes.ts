@@ -5,7 +5,7 @@ import { resolveBranchContext } from '../../../middleware/branch-context.middlew
 import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
 import { queryMiddleware } from '../../../middleware/query.middleware'
 import { exportLimiter } from '../../../middleware/rateLimiter.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import { validateSchema } from '../../../middleware/validation.middleware'
 import { PermissionService } from '../../../services/permission.service'
 import { 
   createChartOfAccountSchema, 

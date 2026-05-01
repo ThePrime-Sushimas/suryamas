@@ -24,7 +24,7 @@ router.use(authenticate, resolveBranchContext)
 router.get(
   '/journals/:journalId/lines',
   canView('journals'),
-  (req, res) => journalLinesController.listByJournal(req as any, res)
+  (req, res) => journalLinesController.listByJournal(req, res)
 )
 
 /**
@@ -34,7 +34,7 @@ router.get(
 router.get(
   '/journals/:journalId/lines/:id',
   canView('journals'),
-  (req, res) => journalLinesController.getById(req as any, res)
+  (req, res) => journalLinesController.getById(req, res)
 )
 
 /**
@@ -44,7 +44,7 @@ router.get(
 router.get(
   '/by-account/:accountId',
   canView('journals'),
-  (req, res) => journalLinesController.getByAccount(req as any, res)
+  (req, res) => journalLinesController.getByAccount(req, res)
 )
 
 /**
@@ -54,7 +54,7 @@ router.get(
 router.get(
   '/',
   canView('journals'),
-  (req, res) => journalLinesController.list(req as any, res)
+  (req, res) => journalLinesController.list(req, res)
 )
 
 export default router

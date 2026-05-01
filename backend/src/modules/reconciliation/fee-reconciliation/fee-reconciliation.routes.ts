@@ -33,7 +33,7 @@ router.post(
   '/daily',
   canInsert('fee_reconciliation'),
   validateSchema(reconcileDailySchema),
-  (req, res) => feeReconciliationController.reconcileDaily(req as any, res)
+  (req, res) => feeReconciliationController.reconcileDaily(req, res)
 )
 
 
@@ -43,7 +43,7 @@ router.get(
   '/daily-summary',
   canView('fee_reconciliation'),
   validateSchema(dailySummaryQuerySchema),
-  (req, res) => feeReconciliationController.getDailySummary(req as any, res)
+  (req, res) => feeReconciliationController.getDailySummary(req, res)
 )
 
 // GET /reconciliation/fee/discrepancies
@@ -51,7 +51,7 @@ router.get(
 router.get(
   '/discrepancies',
   canView('fee_reconciliation'),
-  (req, res) => feeReconciliationController.getDiscrepancies(req as any, res)
+  (req, res) => feeReconciliationController.getDiscrepancies(req, res)
 )
 
 export { router as feeReconciliationRoutes }

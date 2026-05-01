@@ -4,7 +4,7 @@ import { authenticate } from '../../../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete, canApprove, canRelease } from '../../../../middleware/permission.middleware'
 import { queryMiddleware } from '../../../../middleware/query.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../../../middleware/validation.middleware'
+import { validateSchema } from '../../../../middleware/validation.middleware'
 import { PermissionService } from '../../../../services/permission.service'
 import { 
   createJournalSchema, 

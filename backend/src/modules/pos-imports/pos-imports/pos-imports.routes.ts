@@ -9,7 +9,7 @@ import { authenticate } from '../../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
 import { queryMiddleware } from '../../../middleware/query.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import { validateSchema } from '../../../middleware/validation.middleware'
 import { upload } from '../../../middleware/upload.middleware'
 import { createRateLimit } from '../../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../../services/permission.service'
@@ -45,7 +45,7 @@ router.post('/upload',
   upload.single('file'),
   validateSchema(uploadPosFileSchema), 
   (req, res) => 
-    posImportsController.upload(req as ValidatedAuthRequest<typeof uploadPosFileSchema>, res))
+    posImportsController.upload(req, res))
 
 // Get import by ID
 router.get('/:id', canView('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
@@ -70,14 +70,14 @@ router.post('/:id/confirm',
   canInsert('pos_imports'), 
   validateSchema(confirmImportSchema), 
   (req, res) => 
-    posImportsController.confirm(req as ValidatedAuthRequest<typeof confirmImportSchema>, res))
+    posImportsController.confirm(req, res))
 
 // Update status
 router.put('/:id/status', 
   canUpdate('pos_imports'), 
   validateSchema(updateStatusSchema), 
   (req, res) => 
-    posImportsController.updateStatus(req as ValidatedAuthRequest<typeof updateStatusSchema>, res))
+    posImportsController.updateStatus(req, res))
 
 // Delete import
 router.delete('/:id', canDelete('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
