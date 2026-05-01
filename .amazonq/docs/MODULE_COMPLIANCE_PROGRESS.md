@@ -18,7 +18,7 @@ bank-accounts, payment-methods, payment-terms, cash-counts, cash-flow, permissio
 #### Tier 1: Heavy (30+ legacy patterns)
 1. ✅ `pos-imports/pos-aggregates` — done — BE: 48 patterns, 23 no-await. FE: 15 issues
 2. ✅ `accounting/journals/journal-headers` — done — BE: 42 patterns, 15 no-await. FE: 12 issues
-3. ⬜ `accounting/chart-of-accounts` — BE: 31 patterns, 16 no-await. FE: 12 issues
+3. ✅ `accounting/chart-of-accounts` — done — BE: 31 patterns, 16 no-await. FE: 12 issues
 4. ⬜ `pos-imports/pos-imports` — BE: 31 patterns, 12 no-await. FE: 7 issues
 5. ⬜ `accounting/accounting-purposes` — BE: 30 patterns, 15 no-await. FE: 8 issues
 6. ⬜ `reconciliation/bank-statement-import` — BE: 28 patterns, 21 no-await. FE: 1 issue

@@ -197,7 +197,7 @@ BE controller sudah `await handleError` + `error: unknown` + `context`, tapi mas
 - ✅ `metric-units` (backend + frontend)
 
 ### Modules Not Yet Reviewed (out of scope)
-- ⬜ `accounting/chart-of-accounts`
+- ✅ `accounting/chart-of-accounts` (backend + frontend)
 - ⬜ `accounting/accounting-purposes`
 - ⬜ `accounting/accounting-purpose-accounts`
 - ⬜ `accounting/fiscal-periods`
