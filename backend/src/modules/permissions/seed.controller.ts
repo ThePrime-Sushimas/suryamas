@@ -1,28 +1,17 @@
-// =====================================================
-// SEED CONTROLLER
-// Responsibility: Database seeding for default data
-// =====================================================
-
-import { Response } from 'express'
-import { AuthRequest } from '../../types/common.types'
+import { Request, Response } from 'express'
 import { RolesRepository } from './roles.repository'
 import { PermissionService as CorePermissionService } from '../../services/permission.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
+import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { logInfo, logError } from '../../config/logger'
+import { logInfo } from '../../config/logger'
 
 export class SeedController {
-  private rolesRepo: RolesRepository
+  private rolesRepo = new RolesRepository()
 
-  constructor() {
-    this.rolesRepo = new RolesRepository()
-  }
-
-  seedDefaults = async (req: AuthRequest, res: Response): Promise<void> => {
+  seedDefaults = async (req: Request, res: Response) => {
     try {
       logInfo('Starting permission seed...')
 
-      // Create default roles
       const defaultRoles = [
         { name: 'admin', description: 'System Administrator', is_system_role: true },
         { name: 'manager', description: 'Manager', is_system_role: true },
@@ -37,7 +26,6 @@ export class SeedController {
         }
       }
 
-      // Register default modules
       const defaultModules = [
         { name: 'employees', description: 'Employee Management' },
         { name: 'permissions', description: 'Permission Management' },
@@ -67,10 +55,9 @@ export class SeedController {
       }
 
       logInfo('Permission seed completed')
-      sendSuccess(res, { success: true, message: 'Default permissions seeded successfully' }, 'Default permissions seeded successfully')
-    } catch (error: any) {
-      logError('Seed defaults failed', { error: error.message })
-      handleError(res, error, req)
+      sendSuccess(res, { success: true }, 'Default permissions seeded successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'seed_defaults' })
     }
   }
 }

@@ -50,10 +50,10 @@ export class ModulesService {
       PermissionsCache.invalidateModules()
       await CorePermissionService.invalidateAllCache()
       return module
-    } catch (error: any) {
-      logError('Failed to create module', { error: error.message })
+    } catch (error: unknown) {
+      logError('Failed to create module', { error: String(error) })
       if (error instanceof PermissionsError) throw error
-      throw new PermissionsError('MODULE_CREATE_ERROR', error.message || 'Failed to create module', 500)
+      throw new PermissionsError('MODULE_CREATE_ERROR', error instanceof Error ? error.message || 'Failed to create module' : 'Failed to create module', 500)
     }
   }
 

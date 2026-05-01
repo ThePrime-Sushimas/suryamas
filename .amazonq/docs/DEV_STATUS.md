@@ -189,7 +189,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 ### Modules Not Yet Reviewed
 - ⬜ `auth`
 - ⬜ `expense-categorization`
-- ⬜ `permissions`
 - ⬜ `pos-sync`
 - ⬜ `pricelists`
 - ⬜ `product-uoms`

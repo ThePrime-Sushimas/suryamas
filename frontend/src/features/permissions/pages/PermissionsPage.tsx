@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { usePermissionsStore } from '../store/permissions.store'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import api from '@/lib/axios'
 
 const inputCls = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
@@ -32,7 +33,7 @@ export default function PermissionsPage() {
   const handleSave = async () => {
     if (!selectedRole) return
     try { await savePermissions(selectedRole); await reloadUserPermissions(); success('Permissions saved successfully') }
-    catch (err: unknown) { showError(err instanceof Error ? err.message : 'Failed to save permissions') }
+    catch (err: unknown) { showError(parseApiError(err, 'Gagal menyimpan permissions')) }
   }
 
   const handleCreateRole = async () => {
@@ -42,8 +43,7 @@ export default function PermissionsPage() {
       await api.post('/permissions/roles', newRole)
       setShowModal(false); setNewRole({ name: '', description: '' }); await fetchRoles(); success('Role created successfully')
     } catch (err: unknown) {
-      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to create role'
-      showError(message)
+      showError(parseApiError(err, 'Gagal membuat role'))
     } finally { setCreateSaving(false) }
   }
 
@@ -54,8 +54,7 @@ export default function PermissionsPage() {
       await api.put(`/permissions/roles/${editRole.id}`, { name: editRole.name, description: editRole.description })
       setEditModal(false); await fetchRoles(); success('Role updated successfully')
     } catch (err: unknown) {
-      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to update role'
-      showError(message)
+      showError(parseApiError(err, 'Gagal memperbarui role'))
     } finally { setCreateSaving(false) }
   }
 
@@ -69,8 +68,7 @@ export default function PermissionsPage() {
       await api.delete(`/permissions/roles/${deleteRoleTarget.id}`)
       setSelectedRole(''); await fetchRoles(); success('Role deleted successfully')
     } catch (err: unknown) {
-      const message = err instanceof Error && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response && err.response.data && typeof err.response.data === 'object' && 'error' in err.response.data ? String(err.response.data.error) : 'Failed to delete role'
-      showError(message)
+      showError(parseApiError(err, 'Gagal menghapus role'))
     } finally {
       setDeleteRoleTarget(null)
     }

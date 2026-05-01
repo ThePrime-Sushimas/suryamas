@@ -81,10 +81,10 @@ export class RolesService {
       })
 
       return role
-    } catch (error: any) {
-      logError('Failed to create role', { error: error.message })
+    } catch (error: unknown) {
+      logError('Failed to create role', { error: String(error) })
       if (error instanceof PermissionsError) throw error
-      throw new PermissionsError('ROLE_CREATE_ERROR', error.message || 'Failed to create role', 500)
+      throw new PermissionsError('ROLE_CREATE_ERROR', error instanceof Error ? error.message || 'Failed to create role' : 'Failed to create role', 500)
     }
   }
 

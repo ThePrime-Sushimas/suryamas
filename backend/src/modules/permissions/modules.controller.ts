@@ -1,103 +1,69 @@
-// =====================================================
-// MODULES CONTROLLER
-// Responsibility: HTTP handling for modules only
-// =====================================================
-
-import { Response, Request } from 'express'
-import { AuthRequest } from '../../types/common.types'
+import { Request, Response } from 'express'
 import { ModulesService } from './modules.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
+import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { logError } from '../../config/logger'
-import { withValidated } from '../../utils/handler'
-
-import { getParamString } from '../../utils/validation.util'
+import { PermissionErrors } from './permissions.errors'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import {
-  createModuleSchema,
-  updateModuleSchema,
-} from './permissions.schema'
+import { moduleIdSchema, createModuleSchema, updateModuleSchema } from './permissions.schema'
 
+type ModuleIdReq = ValidatedAuthRequest<typeof moduleIdSchema>
 type CreateModuleReq = ValidatedAuthRequest<typeof createModuleSchema>
 type UpdateModuleReq = ValidatedAuthRequest<typeof updateModuleSchema>
 
 export class ModulesController {
-  private service: ModulesService
+  private service = new ModulesService()
 
-  constructor() {
-    this.service = new ModulesService()
-  }
-
-  getAll = async (req: AuthRequest, res: Response): Promise<void> => {
+  getAll = async (req: Request, res: Response) => {
     try {
       const modules = await this.service.getAll()
       sendSuccess(res, modules, 'Modules retrieved successfully')
-    } catch (error: any) {
-      logError('Get modules failed', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_all_modules' })
     }
   }
 
-  findById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const module = await this.service.findById(id)
-
-      if (!module) {
-        sendError(res, 'Module not found', 404)
-        return
-      }
-
-      sendSuccess(res, module, 'Module retrieved successfully')
-    } catch (error: any) {
-      logError('Get module failed', { error: error.message })
-      handleError(res, error, req)
+      const { id } = (req as ModuleIdReq).validated.params
+      const mod = await this.service.findById(id)
+      if (!mod) throw PermissionErrors.NOT_FOUND(id)
+      sendSuccess(res, mod, 'Module retrieved successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_module', id: req.params.id })
     }
   }
 
-  create = withValidated(async (req: CreateModuleReq, res: Response) => {
+  create = async (req: Request, res: Response) => {
     try {
-      const module = await this.service.create({
-        name: req.validated.body.module_name,
-        description: req.validated.body.description,
-      }, req.user?.id)
-      sendSuccess(res, module, 'Module created successfully', 201)
-    } catch (error: any) {
-      logError('Create module failed', { error: error.message })
-      const statusCode = error.statusCode || 500
-      const message = error.isOperational ? error.message : 'Failed to create module'
-      sendError(res, message, statusCode)
+      const { body } = (req as CreateModuleReq).validated
+      const mod = await this.service.create({ name: body.module_name, description: body.description }, req.user?.id)
+      sendSuccess(res, mod, 'Module created successfully', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_module' })
     }
-  })
+  }
 
-  update = withValidated(async (req: UpdateModuleReq, res: Response) => {
+  update = async (req: Request, res: Response) => {
     try {
-      const { id } = req.validated.params
-      const module = await this.service.update(id, {
-        ...(req.validated.body.module_name && { name: req.validated.body.module_name }),
-        description: req.validated.body.description,
+      const { params, body } = (req as UpdateModuleReq).validated
+      const mod = await this.service.update(params.id, {
+        ...(body.module_name && { name: body.module_name }),
+        description: body.description,
       })
-      sendSuccess(res, module, 'Module updated successfully')
-    } catch (error: any) {
-      logError('Update module failed', { error: error.message })
-      handleError(res, error, req)
+      sendSuccess(res, mod, 'Module updated successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_module', id: req.params.id })
     }
-  })
+  }
 
-  delete = async (req: AuthRequest, res: Response): Promise<void> => {
+  delete = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
+      const { id } = (req as ModuleIdReq).validated.params
       const success = await this.service.delete(id)
-
-      if (!success) {
-        sendError(res, 'Failed to delete module', 400)
-        return
-      }
-
+      if (!success) throw PermissionErrors.DELETE_FAILED('module')
       sendSuccess(res, null, 'Module deleted successfully')
-    } catch (error: any) {
-      logError('Delete module failed', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_module', id: req.params.id })
     }
   }
 }

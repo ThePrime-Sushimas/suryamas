@@ -1,93 +1,69 @@
-// =====================================================
-// ROLES CONTROLLER
-// Responsibility: HTTP handling for roles only
-// =====================================================
-
-import { Response, Request } from 'express'
-import { AuthRequest } from '../../types/common.types'
+import { Request, Response } from 'express'
 import { RolesService } from './roles.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { withValidated } from '../../utils/handler'
-
-import { getParamString } from '../../utils/validation.util'
+import { PermissionErrors } from './permissions.errors'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import {
-  createRoleSchema,
-  updateRoleSchema,
-} from './permissions.schema'
+import { createRoleSchema, updateRoleSchema, roleIdSchema } from './permissions.schema'
 
 type CreateRoleReq = ValidatedAuthRequest<typeof createRoleSchema>
 type UpdateRoleReq = ValidatedAuthRequest<typeof updateRoleSchema>
+type RoleIdReq = ValidatedAuthRequest<typeof roleIdSchema>
 
 export class RolesController {
-  private service: RolesService
+  private service = new RolesService()
 
-  constructor() {
-    this.service = new RolesService()
-  }
-
-  getAll = async (req: AuthRequest, res: Response): Promise<void> => {
+  getAll = async (req: Request, res: Response) => {
     try {
       const roles = await this.service.getAll()
       sendSuccess(res, roles, 'Roles retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_all_roles' })
     }
   }
 
-  findById = async (req: AuthRequest, res: Response): Promise<void> => {
+  findById = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
+      const { id } = (req as RoleIdReq).validated.params
       const role = await this.service.findById(id)
-
-      if (!role) {
-        throw new Error('Role not found')
-      }
-
+      if (!role) throw PermissionErrors.NOT_FOUND(id)
       sendSuccess(res, role, 'Role retrieved successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_role', id: req.params.id })
     }
   }
 
-  create = withValidated(async (req: CreateRoleReq, res: Response) => {
+  create = async (req: Request, res: Response) => {
     try {
-      const role = await this.service.create({
-        name: req.validated.body.name,
-        description: req.validated.body.description,
-      }, req.user?.id)
+      const { body } = (req as CreateRoleReq).validated
+      const role = await this.service.create(body, req.user?.id)
       sendSuccess(res, role, 'Role created successfully', 201)
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_role' })
     }
-  })
+  }
 
-  update = withValidated(async (req: UpdateRoleReq, res: Response) => {
+  update = async (req: Request, res: Response) => {
     try {
-      const { id } = req.validated.params
-      const role = await this.service.update(id, {
-        ...(req.validated.body.name && { name: req.validated.body.name }),
-        description: req.validated.body.description,
+      const { params, body } = (req as UpdateRoleReq).validated
+      const role = await this.service.update(params.id, {
+        ...(body.name && { name: body.name }),
+        description: body.description,
       })
       sendSuccess(res, role, 'Role updated successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_role', id: req.params.id })
     }
-  })
+  }
 
-  delete = async (req: AuthRequest, res: Response): Promise<void> => {
+  delete = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
+      const { id } = (req as RoleIdReq).validated.params
       const success = await this.service.delete(id, req.user?.id)
-
-      if (!success) {
-        throw new Error('Failed to delete role')
-      }
-
+      if (!success) throw PermissionErrors.DELETE_FAILED('role')
       sendSuccess(res, null, 'Role deleted successfully')
-    } catch (error: any) {
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_role', id: req.params.id })
     }
   }
 }

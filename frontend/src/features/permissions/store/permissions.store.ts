@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { permissionsApi } from '../api/permissions.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { Module, Role, Permission } from '../types'
 
 interface PermissionsState {
@@ -37,8 +38,8 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
     try {
       const modules = await permissionsApi.getModules()
       set({ modules, loading: false })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch modules'
+    } catch (error: unknown) {
+      const message = parseApiError(error, 'Failed to fetch modules')
       set({ error: message, loading: false })
     }
   },
@@ -48,8 +49,8 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
     try {
       const roles = await permissionsApi.getRoles()
       set({ roles, loading: false })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch roles'
+    } catch (error: unknown) {
+      const message = parseApiError(error, 'Failed to fetch roles')
       set({ error: message, loading: false })
     }
   },
@@ -59,8 +60,8 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
     try {
       const permissions = await permissionsApi.getRolePermissions(roleId)
       set({ permissions, loading: false })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch permissions'
+    } catch (error: unknown) {
+      const message = parseApiError(error, 'Failed to fetch permissions')
       set({ error: message, loading: false })
     }
   },
@@ -71,8 +72,8 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
       const role = await permissionsApi.createRole(data)
       set({ loading: false })
       return role
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create role'
+    } catch (error: unknown) {
+      const message = parseApiError(error, 'Failed to create role')
       set({ error: message, loading: false })
       throw error
     }
@@ -87,8 +88,8 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
         loading: false
       }))
       return role
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update role'
+    } catch (error: unknown) {
+      const message = parseApiError(error, 'Failed to update role')
       set({ error: message, loading: false })
       throw error
     }
@@ -98,8 +99,8 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
     try {
       await permissionsApi.deleteRole(id)
       set(state => ({ roles: state.roles.filter(r => r.id !== id) }))
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete role'
+    } catch (error: unknown) {
+      const message = parseApiError(error, 'Failed to delete role')
       set({ error: message })
       throw error
     }
@@ -127,8 +128,8 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
       
       const updatedPermissions = await permissionsApi.getRolePermissions(roleId)
       set({ permissions: updatedPermissions, pendingChanges: new Map(), saving: false })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save permissions'
+    } catch (error: unknown) {
+      const message = parseApiError(error, 'Failed to save permissions')
       set({ error: message, saving: false })
       throw error
     }

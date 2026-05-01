@@ -55,15 +55,15 @@ export class RolePermissionsService {
           )
         } catch (auditError) {
           // Don't fail the main operation if audit logging fails
-          logError('Failed to create audit log for role permission update', { error: (auditError as Error).message })
+          logError('Failed to create audit log for role permission update', { error: String(auditError) })
         }
       }
 
       return result
-    } catch (error: any) {
-      logError('Failed to update role permission', { error: error.message })
+    } catch (error: unknown) {
+      logError('Failed to update role permission', { error: String(error) })
       if (error instanceof PermissionsError) throw error
-      throw new PermissionsError('PERMISSION_UPDATE_ERROR', error.message || 'Failed to update role permission', 500)
+      throw new PermissionsError('PERMISSION_UPDATE_ERROR', error instanceof Error ? error.message || 'Failed to update role permission' : 'Failed to update role permission', 500)
     }
   }
 
@@ -97,7 +97,7 @@ export class RolePermissionsService {
         )
       } catch (auditError) {
         // Don't fail the main operation if audit logging fails
-        logError('Failed to create audit log for role permission bulk update', { error: (auditError as Error).message })
+        logError('Failed to create audit log for role permission bulk update', { error: String(auditError) })
       }
     }
   }
@@ -131,8 +131,8 @@ export class RolePermissionsService {
       })
       
       return result
-    } catch (error: any) {
-      logError('Failed to get user permissions', { error: error.message, userId })
+    } catch (error: unknown) {
+      logError('Failed to get user permissions', { error: String(error), userId })
       if (error instanceof PermissionsError) throw error
       throw new PermissionsError('GET_PERMISSIONS_ERROR', 'Failed to get user permissions', 500)
     }

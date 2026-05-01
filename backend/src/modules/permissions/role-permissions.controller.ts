@@ -1,77 +1,57 @@
-// =====================================================
-// ROLE PERMISSIONS CONTROLLER
-// Responsibility: HTTP handling for role-permissions only
-// =====================================================
-
-import { Response, Request } from 'express'
-import { AuthRequest } from '../../types/common.types'
+import { Request, Response } from 'express'
 import { RolePermissionsService } from './role-permissions.service'
-import { sendSuccess, sendError } from '../../utils/response.util'
+import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { logError } from '../../config/logger'
-import { withValidated } from '../../utils/handler'
-
-import { getParamString } from '../../utils/validation.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
+  rolePermissionsSchema,
   updateRolePermissionSchema,
   bulkUpdateRolePermissionsSchema,
 } from './permissions.schema'
 
+type RolePermissionsReq = ValidatedAuthRequest<typeof rolePermissionsSchema>
 type UpdateRolePermissionReq = ValidatedAuthRequest<typeof updateRolePermissionSchema>
-type BulkUpdateRolePermissionsReq = ValidatedAuthRequest<typeof bulkUpdateRolePermissionsSchema>
+type BulkUpdateReq = ValidatedAuthRequest<typeof bulkUpdateRolePermissionsSchema>
 
 export class RolePermissionsController {
-  private service: RolePermissionsService
+  private service = new RolePermissionsService()
 
-  constructor() {
-    this.service = new RolePermissionsService()
-  }
-
-  getByRoleId = async (req: AuthRequest, res: Response): Promise<void> => {
+  getByRoleId = async (req: Request, res: Response) => {
     try {
-      const roleId = getParamString(req.params.roleId)
+      const { roleId } = (req as RolePermissionsReq).validated.params
       const permissions = await this.service.getByRoleId(roleId)
       sendSuccess(res, permissions, 'Role permissions retrieved successfully')
-    } catch (error: any) {
-      logError('Get role permissions failed', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_role_permissions', roleId: req.params.roleId })
     }
   }
 
-  update = withValidated(async (req: UpdateRolePermissionReq, res: Response) => {
+  update = async (req: Request, res: Response) => {
     try {
-      const { roleId, moduleId } = req.validated.params
-      const permission = await this.service.update(
-        roleId,
-        moduleId,
-        req.validated.body,
-        req.user?.id
-      )
+      const { params, body } = (req as UpdateRolePermissionReq).validated
+      const permission = await this.service.update(params.roleId, params.moduleId, body, req.user?.id)
       sendSuccess(res, permission, 'Role permission updated successfully')
-    } catch (error: any) {
-      logError('Update role permission failed', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_role_permission', roleId: req.params.roleId, moduleId: req.params.moduleId })
     }
-  })
+  }
 
-  bulkUpdate = withValidated(async (req: BulkUpdateRolePermissionsReq, res: Response) => {
+  bulkUpdate = async (req: Request, res: Response) => {
     try {
-      const { roleId } = req.validated.params
-      const updates = req.validated.body.map(item => ({
+      const { params, body } = (req as BulkUpdateReq).validated
+      const updates = body.map(item => ({
         moduleId: item.module_id,
         permissions: {
           can_view: item.can_view,
           can_insert: item.can_insert,
           can_update: item.can_update,
           can_delete: item.can_delete,
-        }
+        },
       }))
-      await this.service.bulkUpdate(roleId, updates, req.user?.id)
+      await this.service.bulkUpdate(params.roleId, updates, req.user?.id)
       sendSuccess(res, null, 'Role permissions updated successfully')
-    } catch (error: any) {
-      logError('Bulk update role permissions failed', { error: error.message })
-      handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulk_update_role_permissions', roleId: req.params.roleId })
     }
-  })
+  }
 }
