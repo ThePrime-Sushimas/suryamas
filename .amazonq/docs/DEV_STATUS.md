@@ -128,9 +128,9 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | pos-sync | ➖ | ❌ `as any` | ✅ | ➖ | ❌ |
 | pricelists | ❌ | ✅ | ✅ | ❌ | ❌ |
 | product-uoms | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
-| products | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
-| sub-categories | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
-| supplier-products | ❌ | ❌ `as any` | ✅ | ❌ | ❌ |
+| products | ✅ | ✅ | ✅ | ✅ | ✅ |
+| sub-categories | ✅ | ✅ | ✅ | ✅ | ✅ |
+| supplier-products | ✅ | ✅ | ✅ | ✅ | ✅ |
 | users | ❌ | ✅ | ✅ | ❌ | ❌ |
 | jobs | ❌ | ✅ | ❌ | ❌ | ❌ |
 | monitoring | ➖ | ✅ | ❌ | ➖ | ❌ |
@@ -155,8 +155,8 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 | permissions | ❌ | inline |
 | pricelists | ❌ | inline |
 | product-uoms | ❌ | inline |
-| products | ❌ | inline |
-| supplier-products | ❌ | inline |
+| products | ✅ | ✅ removed |
+| supplier-products | ✅ | ✅ removed |
 | users | ❌ | inline |
 | pos-aggregates | ❌ | inline |
 | pos-imports | ❌ | inline |
@@ -171,6 +171,9 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ✅ `employees` (backend + frontend)
 - ✅ `employee_branches` (backend + frontend)
 - ✅ `companies` (backend + frontend)
+- ✅ `products` (backend + frontend)
+- ✅ `sub-categories` (backend + frontend)
+- ✅ `supplier-products` (backend + frontend)
 
 ### Modules Partially Compliant (reviewed, some fixes applied)
 - 🟡 `suppliers` (backend reviewed, FE store not yet parseApiError)
@@ -182,7 +185,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ⬜ `bank-accounts`
 - ⬜ `cash-counts`
 - ⬜ `cash-flow`
-- ✅ `companies` (backend + frontend)
 - ⬜ `expense-categorization`
 - ⬜ `payment-methods`
 - ⬜ `payment-terms`
@@ -190,9 +192,6 @@ Legend: ✅ = comply, ❌ = belum comply, ➖ = N/A
 - ⬜ `pos-sync`
 - ⬜ `pricelists`
 - ⬜ `product-uoms`
-- ⬜ `products`
-- ⬜ `sub-categories`
-- ⬜ `supplier-products`
 - ⬜ `users`
 - ⬜ `jobs`
 - ⬜ `monitoring`

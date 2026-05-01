@@ -6,6 +6,8 @@ import type { UpdateProductDto } from '../types'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { CardSkeleton } from '@/components/ui/Skeleton'
+import { ArrowLeft } from 'lucide-react'
+import { parseApiError } from '@/lib/errorParser'
 
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>()
@@ -18,14 +20,14 @@ export default function EditProductPage() {
   useEffect(() => {
     const fetchProduct = async () => {
       if (!id) {
-        setError('Invalid product ID')
+        setError('ID produk tidak valid')
         return
       }
 
       try {
         await fetchProductById(id)
       } catch {
-        setError('Product not found')
+        setError('Produk tidak ditemukan')
       }
     }
     fetchProduct()
@@ -43,10 +45,10 @@ export default function EditProductPage() {
 
     try {
       await updateProduct(id, data)
-      success('Product updated successfully')
+      success('Produk berhasil diperbarui')
       navigate('/products')
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to update product')
+      showError(parseApiError(err, 'Gagal mengupdate produk'))
     }
   }
 
@@ -89,14 +91,14 @@ export default function EditProductPage() {
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Product not found</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{error || 'The product you are looking for does not exist.'}</p>
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Produk tidak ditemukan</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{error || 'Produk yang Anda cari tidak ada.'}</p>
             <div className="mt-6">
               <button
                 onClick={() => navigate('/products')}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               >
-                Back to Products
+                Kembali ke Produk
               </button>
             </div>
           </div>
@@ -110,15 +112,12 @@ export default function EditProductPage() {
       <div className="mb-6">
         <button
           onClick={() => navigate('/products')}
-          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center text-sm mb-2"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300 mb-2"
         >
-          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Products
+          <ArrowLeft size={20} />
         </button>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Product</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Update product information</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Produk</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Perbarui informasi produk</p>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -135,9 +134,9 @@ export default function EditProductPage() {
         isOpen={cancelDialogOpen}
         onClose={() => setCancelDialogOpen(false)}
         onConfirm={confirmCancel}
-        title="Cancel Editing"
-        message="Are you sure you want to cancel? Any unsaved changes will be lost."
-        confirmText="Yes, Cancel"
+        title="Batalkan Pengeditan"
+        message="Yakin ingin membatalkan? Perubahan yang belum disimpan akan hilang."
+        confirmText="Ya, Batalkan"
         variant="danger"
       />
     </div>

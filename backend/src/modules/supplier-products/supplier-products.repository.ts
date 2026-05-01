@@ -5,6 +5,7 @@ import {
 } from './supplier-products.types'
 import { mapSupplierProductFromDb, mapSupplierProductWithRelations, mapSupplierProductOption } from './supplier-products.mapper'
 import { SUPPLIER_PRODUCT_SORT_FIELDS } from './supplier-products.constants'
+import { SupplierProductValidationError } from './supplier-products.errors'
 
 const RELATIONS_SELECT = `
   sp.*,
@@ -147,7 +148,7 @@ export class SupplierProductsRepository {
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
-    if (!ids?.length) throw new Error('Invalid ids array')
+    if (!ids?.length) throw new SupplierProductValidationError('IDs array cannot be empty')
     await pool.query('UPDATE supplier_products SET deleted_at = NOW(), is_active = false WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL', [ids])
   }
 
@@ -160,7 +161,7 @@ export class SupplierProductsRepository {
   }
 
   async bulkRestore(ids: string[]): Promise<void> {
-    if (!ids?.length) throw new Error('Invalid ids array')
+    if (!ids?.length) throw new SupplierProductValidationError('IDs array cannot be empty')
     await pool.query('UPDATE supplier_products SET deleted_at = NULL, is_active = true, updated_at = NOW() WHERE id = ANY($1::uuid[]) AND deleted_at IS NOT NULL', [ids])
   }
 

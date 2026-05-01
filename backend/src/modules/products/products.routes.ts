@@ -3,22 +3,20 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { queryMiddleware } from '../../middleware/query.middleware'
-import { validateSchema } from '../../middleware/validation.middleware'
+import { validateSchema, type ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { productsController } from './products.controller'
 import productUomsRoutes from '../product-uoms/product-uoms.routes'
 import { PermissionService } from '../../services/permission.service'
 import { createProductSchema, updateProductSchema, productIdSchema, bulkDeleteSchema, bulkUpdateStatusSchema, bulkRestoreSchema, checkProductNameSchema } from './products.schema'
-import type { AuthenticatedQueryRequest } from '../../types/request.types'
 import multer from 'multer'
 import rateLimit from 'express-rate-limit'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
 
-// Rate limiter for export/import operations
 const exportImportLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5, // 5 requests per minute
+  windowMs: 60 * 1000,
+  max: 5,
   message: 'Too many export/import requests, please try again later'
 })
 
@@ -26,79 +24,55 @@ PermissionService.registerModule('products', 'Product Management').catch(() => {
 
 router.use(authenticate, resolveBranchContext)
 
-// ============================================
-// JOB-BASED EXPORT/IMPORT ENDPOINTS
-// ============================================
+// JOB-BASED EXPORT/IMPORT
+router.post('/export/job', canView('products'), exportImportLimiter, (req, res) => productsController.createExportJob(req, res))
+router.post('/import/job', canInsert('products'), upload.single('file'), exportImportLimiter, (req, res) => productsController.createImportJob(req, res))
 
-// Create export job - returns job ID immediately
-router.post('/export/job', 
-  canView('products'),
-  exportImportLimiter,
-  (req, res) => productsController.createExportJob(req as AuthenticatedQueryRequest, res)
-)
+// LEGACY EXPORT/IMPORT
+router.get('/export', canView('products'), exportImportLimiter, (req, res) => productsController.export(req, res))
+router.post('/import/preview', canInsert('products'), upload.single('file'), (req, res) => productsController.importPreview(req, res))
+router.post('/import', canInsert('products'), upload.single('file'), exportImportLimiter, (req, res) => productsController.import(req, res))
 
-// Create import job - returns job ID immediately
-router.post('/import/job', 
-  canInsert('products'),
-  upload.single('file'),
-  exportImportLimiter,
-  (req, res) => productsController.createImportJob(req as AuthenticatedQueryRequest, res)
-)
-
-// ============================================
-// LEGACY ENDPOINTS (for backward compatibility - now uses jobs)
-// ============================================
-
-router.get('/export', canView('products'), exportImportLimiter, (req, res) => 
-  productsController.export(req as AuthenticatedQueryRequest, res))
-
-router.post('/import/preview', canInsert('products'), upload.single('file'), (req, res) => 
-  productsController.importPreview(req as AuthenticatedQueryRequest, res))
-
-router.post('/import', canInsert('products'), upload.single('file'), exportImportLimiter, (req, res) => 
-  productsController.import(req as AuthenticatedQueryRequest, res))
-
-// ============================================
-// CRUD ENDPOINTS
-// ============================================
-
+// LIST & SEARCH
 router.get('/', canView('products'), queryMiddleware({
   allowedSortFields: ['product_name', 'product_code', 'category_id', 'sub_category_id', 'created_at', 'updated_at', 'sort_order', 'id']
-}), (req, res) => 
-  productsController.list(req as AuthenticatedQueryRequest, res))
+}), (req, res) => productsController.list(req, res))
 
 router.get('/search', canView('products'), queryMiddleware({
   allowedSortFields: ['product_name', 'product_code', 'category_id', 'sub_category_id', 'created_at', 'updated_at', 'sort_order', 'id']
-}), (req, res) => 
-  productsController.search(req as AuthenticatedQueryRequest, res))
+}), (req, res) => productsController.search(req, res))
 
-router.get('/filter-options', canView('products'), (req, res) => 
-  productsController.getFilterOptions(req as AuthenticatedQueryRequest, res))
+router.get('/filter-options', canView('products'), (req, res) => productsController.getFilterOptions(req, res))
+router.get('/minimal/active', authenticate, canView('products'), (req, res) => productsController.minimalActive(req, res))
+router.get('/check/name', canView('products'), validateSchema(checkProductNameSchema), (req, res) =>
+  productsController.checkProductName(req as ValidatedAuthRequest<typeof checkProductNameSchema>, res))
 
-router.get('/minimal/active', authenticate, canView('products'), (req, res) => 
-  productsController.minimalActive(req as AuthenticatedQueryRequest, res))
+// CRUD
+router.get('/:id', canView('products'), validateSchema(productIdSchema), (req, res) =>
+  productsController.findById(req as ValidatedAuthRequest<typeof productIdSchema>, res))
 
-router.get('/check/name', canView('products'), validateSchema(checkProductNameSchema), (req, res) => 
-  productsController.checkProductName(req as AuthenticatedQueryRequest, res))
+router.post('/', canInsert('products'), validateSchema(createProductSchema), (req, res) =>
+  productsController.create(req as ValidatedAuthRequest<typeof createProductSchema>, res))
 
-router.get('/:id', canView('products'), validateSchema(productIdSchema), productsController.findById)
+router.put('/:id', canUpdate('products'), validateSchema(updateProductSchema), (req, res) =>
+  productsController.update(req as ValidatedAuthRequest<typeof updateProductSchema>, res))
 
-router.post('/', canInsert('products'), validateSchema(createProductSchema), productsController.create)
+router.delete('/:id', canDelete('products'), validateSchema(productIdSchema), (req, res) => productsController.delete(req, res))
 
-router.put('/:id', canUpdate('products'), validateSchema(updateProductSchema), productsController.update)
+// BULK
+router.post('/bulk/delete', canDelete('products'), validateSchema(bulkDeleteSchema), (req, res) =>
+  productsController.bulkDelete(req as ValidatedAuthRequest<typeof bulkDeleteSchema>, res))
 
-router.delete('/:id', canDelete('products'), validateSchema(productIdSchema), (req, res) => 
-  productsController.delete(req as AuthenticatedQueryRequest, res))
+router.post('/bulk/update-status', canUpdate('products'), validateSchema(bulkUpdateStatusSchema), (req, res) =>
+  productsController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res))
 
-router.post('/bulk/delete', canDelete('products'), validateSchema(bulkDeleteSchema), productsController.bulkDelete)
+router.post('/bulk/restore', canUpdate('products'), validateSchema(bulkRestoreSchema), (req, res) =>
+  productsController.bulkRestore(req as ValidatedAuthRequest<typeof bulkRestoreSchema>, res))
 
-router.post('/bulk/update-status', canUpdate('products'), validateSchema(bulkUpdateStatusSchema), productsController.bulkUpdateStatus)
+router.post('/:id/restore', canUpdate('products'), validateSchema(productIdSchema), (req, res) =>
+  productsController.restore(req as ValidatedAuthRequest<typeof productIdSchema>, res))
 
-router.post('/bulk/restore', canUpdate('products'), validateSchema(bulkRestoreSchema), productsController.bulkRestore)
-
-router.post('/:id/restore', canUpdate('products'), validateSchema(productIdSchema), productsController.restore)
-
+// NESTED UOM ROUTES
 router.use('/:productId/uoms', productUomsRoutes)
 
 export default router
-

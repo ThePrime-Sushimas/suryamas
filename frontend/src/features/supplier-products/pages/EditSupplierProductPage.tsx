@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
+import { ArrowLeft } from 'lucide-react'
 import { useSupplierProductsStore } from '../store/supplierProducts.store'
 import { supplierProductsApi } from '../api/supplierProducts.api'
 import { SupplierProductForm } from '../components/SupplierProductForm'
@@ -59,7 +60,7 @@ export function EditSupplierProductPage() {
 
     try {
       await updateSupplierProduct(id, data)
-      toast.success('Supplier product updated successfully')
+      toast.success('Produk supplier berhasil diperbarui')
       navigate('/supplier-products')
     } catch {
       // Error handled in store
@@ -96,13 +97,13 @@ export function EditSupplierProductPage() {
         <div className="max-w-3xl mx-auto text-center">
           <button
             onClick={() => navigate('/supplier-products')}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium mb-4 flex items-center justify-center"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 text-sm font-medium mb-4 flex items-center justify-center"
           >
-            ← Back to Supplier Products
+            <ArrowLeft size={20} />
           </button>
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
-            <h2 className="text-lg font-medium text-red-800 dark:text-red-300 mb-2">Error Loading Data</h2>
-            <p className="text-red-600 dark:text-red-400">{loadError || 'Supplier product not found'}</p>
+            <h2 className="text-lg font-medium text-red-800 dark:text-red-300 mb-2">Gagal Memuat Data</h2>
+            <p className="text-red-600 dark:text-red-400">{loadError || 'Produk supplier tidak ditemukan'}</p>
           </div>
         </div>
       </div>
@@ -116,12 +117,12 @@ export function EditSupplierProductPage() {
         <div className="mb-6">
           <button
             onClick={() => navigate('/supplier-products')}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium mb-4 flex items-center"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 text-sm font-medium mb-4 flex items-center"
           >
-            ← Back to Supplier Products
+            <ArrowLeft size={20} />
           </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Supplier Product</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Update supplier product pricing and details</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Produk Supplier</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Perbarui harga dan detail produk supplier</p>
         </div>
 
         {/* Form */}
@@ -129,7 +130,7 @@ export function EditSupplierProductPage() {
           initialData={supplierProduct}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
-          submitLabel="Save Changes"
+          submitLabel="Simpan Perubahan"
           isEdit
           loading={mutationLoading}
         />

@@ -10,7 +10,7 @@ import type {
   SupplierProductListQuery,
   PaginationParams
 } from '../types/supplier-product.types'
-import { parseSupplierProductError } from '../utils/errorParser'
+import { parseApiError } from '@/lib/errorParser'
 
 interface SupplierProductsState {
   supplierProducts: SupplierProductWithRelations[]
@@ -54,8 +54,7 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
       })
     } catch (error) {
       if (signal?.aborted) return
-      const message = parseSupplierProductError(error)
-      set({ error: message, fetchLoading: false })
+      set({ error: parseApiError(error, 'Gagal memuat produk supplier'), fetchLoading: false })
     }
   },
 
@@ -69,8 +68,7 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
       }))
       return supplierProduct
     } catch (error) {
-      const message = parseSupplierProductError(error)
-      set({ error: message, mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal membuat produk supplier'), mutationLoading: false })
       throw error
     }
   },
@@ -79,15 +77,13 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
     set({ mutationLoading: true, error: null })
     try {
       const supplierProduct = await supplierProductsApi.update(id, data)
-      // Refetch to get updated relations
       const state = useSupplierProductsStore.getState()
       if (state.currentQuery) {
         await state.fetchSupplierProducts(state.currentQuery)
       }
       return supplierProduct
     } catch (error) {
-      const message = parseSupplierProductError(error)
-      set({ error: message, mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal mengupdate produk supplier'), mutationLoading: false })
       throw error
     } finally {
       set({ mutationLoading: false })
@@ -104,8 +100,7 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
         mutationLoading: false
       }))
     } catch (error) {
-      const message = parseSupplierProductError(error)
-      set({ error: message, mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal menghapus produk supplier'), mutationLoading: false })
       throw error
     }
   },
@@ -119,8 +114,7 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
         await state.fetchSupplierProducts(state.currentQuery)
       }
     } catch (error) {
-      const message = parseSupplierProductError(error)
-      set({ error: message })
+      set({ error: parseApiError(error, 'Gagal memulihkan produk supplier') })
       throw error
     } finally {
       set({ mutationLoading: false })
@@ -137,8 +131,7 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
         mutationLoading: false
       }))
     } catch (error) {
-      const message = parseSupplierProductError(error)
-      set({ error: message, mutationLoading: false })
+      set({ error: parseApiError(error, 'Gagal menghapus produk supplier'), mutationLoading: false })
       throw error
     }
   },
@@ -152,8 +145,7 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
         await state.fetchSupplierProducts(state.currentQuery)
       }
     } catch (error) {
-      const message = parseSupplierProductError(error)
-      set({ error: message })
+      set({ error: parseApiError(error, 'Gagal memulihkan produk supplier') })
       throw error
     } finally {
       set({ mutationLoading: false, selectedItems: [] })
@@ -172,4 +164,3 @@ export const useSupplierProductsStore = create<SupplierProductsState>((set) => (
     currentQuery: null
   })
 }))
-

@@ -2,6 +2,7 @@ import { pool } from '../../config/db'
 import { Product, CreateProductDto, UpdateProductDto, ProductStatus } from './products.types'
 import { mapProductFromDb, mapProductWithRelations } from './products.mapper'
 import { PRODUCT_SORT_FIELDS, PRODUCT_LIMITS } from './products.constants'
+import { BulkOperationLimitError, EmptyIdsError } from './products.errors'
 
 export class ProductsRepository {
   private buildFilter(filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string }, search?: string, includeDeleted = false) {
@@ -116,20 +117,20 @@ export class ProductsRepository {
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
-    if (!ids?.length) throw new Error('Invalid ids array')
-    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    if (!ids?.length) throw new EmptyIdsError()
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new BulkOperationLimitError(PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE)
     await pool.query('UPDATE products SET is_deleted = true WHERE id = ANY($1::uuid[])', [ids])
   }
 
   async bulkUpdateStatus(ids: string[], status: ProductStatus): Promise<void> {
-    if (!ids?.length) throw new Error('Invalid ids array')
-    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    if (!ids?.length) throw new EmptyIdsError()
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new BulkOperationLimitError(PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE)
     await pool.query('UPDATE products SET status = $1 WHERE id = ANY($2::uuid[])', [status, ids])
   }
 
   async bulkRestore(ids: string[]): Promise<void> {
-    if (!ids?.length) throw new Error('Invalid ids array')
-    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new Error(`Bulk operation exceeds maximum limit of ${PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE}`)
+    if (!ids?.length) throw new EmptyIdsError()
+    if (ids.length > PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE) throw new BulkOperationLimitError(PRODUCT_LIMITS.MAX_BULK_OPERATION_SIZE)
     await pool.query('UPDATE products SET is_deleted = false WHERE id = ANY($1::uuid[])', [ids])
   }
 

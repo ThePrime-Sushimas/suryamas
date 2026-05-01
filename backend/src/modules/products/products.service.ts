@@ -22,7 +22,7 @@ export class ProductsService {
   async list(
     pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any,
+    filter?: Record<string, unknown>,
     includeDeleted = false
   ) {
     const offset = calculateOffset(pagination.page, pagination.limit)
@@ -43,7 +43,7 @@ export class ProductsService {
     q: string,
     pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: any,
+    filter?: Record<string, unknown>,
     includeDeleted = false
   ) {
     const offset = calculateOffset(pagination.page, pagination.limit)

@@ -8,6 +8,7 @@ import BulkActionBar from '@/components/BulkActionBar'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import Pagination from '@/components/ui/Pagination'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
+import { parseApiError } from '@/lib/errorParser'
 import { FolderTree, Plus, Search, Filter, X, AlertCircle } from 'lucide-react'
 
 type ConfirmState = {
@@ -65,9 +66,14 @@ export default function SubCategoriesPage() {
     }
   }, [debouncedSearch, categoryFilter, deletedFilter, fetchSubPage, searchSubPage])
 
+  // Search or filter changes → reset to page 1 (convention #18: trigger deps only, NOT doFetch)
   useEffect(() => {
-    doFetch(1)
-  }, [doFetch])
+    if (debouncedSearch) {
+      searchSubPage(debouncedSearch, 1)
+    } else {
+      fetchSubPage(1, undefined, categoryFilter, deletedFilter)
+    }
+  }, [debouncedSearch, categoryFilter, deletedFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchAllCategories()
@@ -146,7 +152,7 @@ export default function SubCategoriesPage() {
     try {
       await confirm.action()
     } catch (e: unknown) {
-      toastError(e instanceof Error ? e.message : 'Terjadi kesalahan')
+      toastError(parseApiError(e, 'Terjadi kesalahan'))
     } finally {
       setIsConfirming(false)
       setConfirm(null)

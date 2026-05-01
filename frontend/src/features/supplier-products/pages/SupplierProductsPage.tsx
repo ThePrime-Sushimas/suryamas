@@ -158,7 +158,7 @@ export function SupplierProductsPage() {
     if (!itemToDelete) return
     try {
       await deleteSupplierProduct(itemToDelete)
-      toast.success('Supplier product deleted successfully')
+      toast.success('Produk supplier berhasil dihapus')
     } catch {
       // Error handled in store
     } finally {
@@ -176,7 +176,7 @@ export function SupplierProductsPage() {
     if (selectedItems.length === 0) return
     try {
       await bulkDeleteSupplierProducts(selectedItems)
-      toast.success(`${selectedItems.length} supplier products deleted successfully`)
+      toast.success(`${selectedItems.length} produk supplier berhasil dihapus`)
     } catch {
       // Error handled in store
     } finally {
@@ -191,7 +191,7 @@ export function SupplierProductsPage() {
   const handleRestore = useCallback(async (id: string) => {
     try {
       await restoreSupplierProduct(id)
-      toast.success('Supplier product restored successfully')
+      toast.success('Produk supplier berhasil dipulihkan')
     } catch {
       // Error handled in store
     }
@@ -201,7 +201,7 @@ export function SupplierProductsPage() {
     if (selectedItems.length === 0) return
     try {
       await bulkRestoreSupplierProducts(selectedItems)
-      toast.success(`${selectedItems.length} supplier products restored successfully`)
+      toast.success(`${selectedItems.length} produk supplier berhasil dipulihkan`)
     } catch {
       // Error handled in store
     }
@@ -216,9 +216,9 @@ export function SupplierProductsPage() {
       a.download = `supplier-products-${Date.now()}.csv`
       a.click()
       window.URL.revokeObjectURL(url)
-      toast.success('Export completed')
+      toast.success('Ekspor berhasil')
     } catch {
-      toast.error('Export failed')
+      toast.error('Gagal mengekspor')
     }
   }, [filters, toast])
 
@@ -227,21 +227,21 @@ export function SupplierProductsPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Supplier Products</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage supplier product pricing and preferences</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Produk Supplier</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Kelola harga dan preferensi produk supplier</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleExport}
-            className="px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-500"
+            className="px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-500"
           >
-            Export CSV
+            Ekspor CSV
           </button>
           <button
             onClick={() => navigate('/supplier-products/create')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Add New Supplier Product
+            Tambah Produk Supplier
           </button>
         </div>
       </div>
@@ -267,22 +267,22 @@ export function SupplierProductsPage() {
       {selectedItems.length > 0 && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4 flex justify-between items-center">
           <span className="text-sm font-medium text-green-800 dark:text-green-300">
-            {selectedItems.length} item(s) selected
+            {selectedItems.length} item dipilih
           </span>
           <div className="flex gap-2">
             {filters.include_deleted && (
               <button
                 onClick={handleBulkRestore}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
               >
-                Bulk Restore
+                Pulihkan Terpilih
               </button>
             )}
             <button
               onClick={handleBulkDeleteClick}
-              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
+              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
             >
-              Bulk Delete
+              Hapus Terpilih
             </button>
           </div>
         </div>
@@ -330,9 +330,9 @@ export function SupplierProductsPage() {
         isOpen={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
         onConfirm={handleDeleteConfirm}
-        title="Delete Supplier Product"
-        message="Are you sure you want to delete this supplier product? This action cannot be undone."
-        confirmText="Delete"
+        title="Hapus Produk Supplier"
+        message="Yakin ingin menghapus produk supplier ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Hapus"
         variant="danger"
         isLoading={mutationLoading}
       />
@@ -342,9 +342,9 @@ export function SupplierProductsPage() {
         isOpen={bulkDeleteModalOpen}
         onClose={() => setBulkDeleteModalOpen(false)}
         onConfirm={handleBulkDeleteConfirm}
-        title="Bulk Delete Supplier Products"
-        message={`Are you sure you want to delete ${selectedItems.length} supplier products? This action cannot be undone.`}
-        confirmText="Delete All"
+        title="Hapus Produk Supplier"
+        message={`Yakin ingin menghapus ${selectedItems.length} produk supplier? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Hapus Semua"
         variant="danger"
         isLoading={mutationLoading}
       />
@@ -354,7 +354,7 @@ export function SupplierProductsPage() {
         <div className="fixed inset-0 bg-gray-900/20 dark:bg-gray-900/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600 dark:text-gray-300">Processing...</p>
+            <p className="mt-4 text-gray-600 dark:text-gray-300">Memproses...</p>
           </div>
         </div>
       )}

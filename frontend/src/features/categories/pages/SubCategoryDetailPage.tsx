@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { subCategoriesApi } from '../api/categories.api'
 import type { SubCategoryWithCategory } from '../types'
 import { ArrowLeft, Edit, Calendar, FolderOpen, AlertCircle } from 'lucide-react'
+import { parseApiError } from '@/lib/errorParser'
 
 export default function SubCategoryDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -16,7 +17,7 @@ export default function SubCategoryDetailPage() {
     setLoading(true)
     subCategoriesApi.getById(id)
       .then(data => setSubCategory(data as SubCategoryWithCategory))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Gagal memuat sub-kategori'))
+      .catch((err: unknown) => setError(parseApiError(err, 'Gagal memuat sub-kategori')))
       .finally(() => setLoading(false))
   }, [id])
 

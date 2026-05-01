@@ -2,10 +2,11 @@ import { subCategoriesRepository } from './sub-categories.repository'
 import { SubCategory, SubCategoryWithCategory, CreateSubCategoryDto, UpdateSubCategoryDto } from '../categories/categories.types'
 import { categoriesRepository } from '../categories/categories.repository'
 import { AuditService } from '../monitoring/monitoring.service'
-import { logError, logInfo } from '../../config/logger'
+import { logInfo } from '../../config/logger'
+import { SubCategoryErrors } from './sub-categories.errors'
 
 export class SubCategoriesService {
-  async list(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }, categoryId?: string): Promise<any> {
+  async list(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }, categoryId?: string) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await subCategoriesRepository.findAll({ limit: pagination.limit, offset }, sort, categoryId)
 
@@ -23,7 +24,7 @@ export class SubCategoriesService {
     }
   }
 
-  async trash(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<any> {
+  async trash(pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await subCategoriesRepository.findTrash({ limit: pagination.limit, offset }, sort)
 
@@ -41,7 +42,7 @@ export class SubCategoriesService {
     }
   }
 
-  async search(q: string, pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }): Promise<any> {
+  async search(q: string, pagination: { page: number; limit: number }, sort?: { field: string; order: 'asc' | 'desc' }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await subCategoriesRepository.search(q, { limit: pagination.limit, offset }, sort)
 
@@ -61,25 +62,25 @@ export class SubCategoriesService {
 
   async create(dto: CreateSubCategoryDto, userId?: string): Promise<SubCategory> {
     if (!dto.category_id || !dto.sub_category_code || !dto.sub_category_name) {
-      throw new Error('Category, code, and name are required')
+      throw SubCategoryErrors.VALIDATION_ERROR('Category, code, and name are required')
     }
 
     if (dto.sub_category_code.length > 50) {
-      throw new Error('Sub-category code cannot exceed 50 characters')
+      throw SubCategoryErrors.INVALID_CODE()
     }
 
     if (dto.sub_category_name.length > 255) {
-      throw new Error('Sub-category name cannot exceed 255 characters')
+      throw SubCategoryErrors.INVALID_NAME()
     }
 
     const category = await categoriesRepository.findById(dto.category_id)
     if (!category) {
-      throw new Error('Category not found')
+      throw SubCategoryErrors.CATEGORY_REQUIRED()
     }
 
     const existing = await subCategoriesRepository.findByCode(dto.sub_category_code, dto.category_id)
     if (existing) {
-      throw new Error('This sub-category code already exists for this category')
+      throw SubCategoryErrors.CODE_EXISTS(dto.sub_category_code)
     }
 
     const subCategory = await subCategoriesRepository.create({
@@ -98,7 +99,7 @@ export class SubCategoriesService {
 
   async update(id: string, dto: UpdateSubCategoryDto, userId?: string): Promise<SubCategory | null> {
     if (dto.sub_category_name && dto.sub_category_name.length > 255) {
-      throw new Error('Sub-category name cannot exceed 255 characters')
+      throw SubCategoryErrors.INVALID_NAME()
     }
 
     const subCategory = await subCategoriesRepository.updateById(id, {
@@ -123,33 +124,23 @@ export class SubCategoriesService {
   }
 
   async delete(id: string, userId?: string): Promise<void> {
-    try {
-      await subCategoriesRepository.softDelete(id, userId)
+    await subCategoriesRepository.softDelete(id, userId)
 
-      if (userId) {
-        await AuditService.log('DELETE', 'sub_category', id, userId)
-      }
-
-      logInfo('SubCategory deleted', { id })
-    } catch (error: any) {
-      logError('Delete sub_category failed', { id, error: error.message })
-      throw error
+    if (userId) {
+      await AuditService.log('DELETE', 'sub_category', id, userId)
     }
+
+    logInfo('SubCategory deleted', { id })
   }
 
   async restore(id: string, userId?: string): Promise<void> {
-    try {
-      await subCategoriesRepository.restore(id, userId)
+    await subCategoriesRepository.restore(id, userId)
 
-      if (userId) {
-        await AuditService.log('RESTORE', 'sub_category', id, userId)
-      }
-
-      logInfo('SubCategory restored', { id })
-    } catch (error: any) {
-      logError('Restore sub_category failed', { id, error: error.message })
-      throw error
+    if (userId) {
+      await AuditService.log('RESTORE', 'sub_category', id, userId)
     }
+
+    logInfo('SubCategory restored', { id })
   }
 
   async bulkDelete(ids: string[], userId?: string): Promise<void> {

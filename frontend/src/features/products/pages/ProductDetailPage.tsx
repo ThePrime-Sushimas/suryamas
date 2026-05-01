@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useProductsStore } from '../store/products.store'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { Package, ArrowLeft, Edit2, Trash2, Building2, Ruler, Plus } from 'lucide-react'
 import { ProductUomTable } from '@/features/product-uoms/components/ProductUomTable'
 import { ProductUomForm } from '@/features/product-uoms/components/ProductUomForm'
@@ -28,14 +29,14 @@ export default function ProductDetailPage() {
   useEffect(() => {
     const fetchProduct = async () => {
       if (!id) {
-        setError('Invalid product ID')
+        setError('ID produk tidak valid')
         return
       }
 
       try {
         await fetchProductById(id)
       } catch {
-        setError('Product not found')
+        setError('Produk tidak ditemukan')
       }
     }
     fetchProduct()
@@ -56,7 +57,7 @@ export default function ProductDetailPage() {
       setUoms(sortedUoms)
     } catch (err) {
       console.error('Failed to fetch UOMs:', err)
-      showError('Failed to load UOMs')
+      showError('Gagal memuat UOM')
     } finally {
       setUomsLoading(false)
     }
@@ -85,31 +86,31 @@ export default function ProductDetailPage() {
     try {
       if (editingUom) {
         await api.put(`/products/${id}/uoms/${editingUom.id}`, data)
-        success('UOM updated successfully')
+        success('UOM berhasil diperbarui')
       } else {
         await api.post(`/products/${id}/uoms`, data)
-        success('UOM created successfully')
+        success('UOM berhasil dibuat')
       }
       setShowUomForm(false)
       setEditingUom(undefined)
       fetchUoms()
     } catch {
-      showError('Failed to save UOM')
+      showError('Gagal menyimpan UOM')
     }
   }
 
   const handleDeleteUom = (uom: ProductUom) => {
-    setUomToDelete({ id: uom.id, name: uom.metric_units?.unit_name || 'this UOM' })
+    setUomToDelete({ id: uom.id, name: uom.metric_units?.unit_name || 'UOM ini' })
   }
 
   const handleConfirmDeleteUom = async () => {
     if (!uomToDelete) return
     try {
       await api.delete(`/products/${id}/uoms/${uomToDelete.id}`)
-      success('UOM deleted successfully')
+      success('UOM berhasil dihapus')
       fetchUoms()
     } catch {
-      showError('Failed to delete UOM')
+      showError('Gagal menghapus UOM')
     } finally {
       setUomToDelete(null)
     }
@@ -122,10 +123,10 @@ export default function ProductDetailPage() {
   const handleRestoreUom = async (uomId: string) => {
     try {
       await api.post(`/products/${id}/uoms/${uomId}/restore`)
-      success('UOM restored successfully')
+      success('UOM berhasil dipulihkan')
       fetchUoms()
     } catch {
-      showError('Failed to restore UOM')
+      showError('Gagal memulihkan UOM')
     }
   }
 
@@ -145,10 +146,10 @@ export default function ProductDetailPage() {
     if (!id) return
     try {
       await deleteProduct(id)
-      success('Product deleted successfully')
+      success('Produk berhasil dihapus')
       navigate('/products')
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to delete product')
+      showError(parseApiError(err, 'Gagal menghapus produk'))
     } finally {
       setIsDeleteProductModalOpen(false)
     }
@@ -177,14 +178,14 @@ export default function ProductDetailPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12">
           <div className="text-center">
             <Package className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Product not found</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{error || 'The product you are looking for does not exist.'}</p>
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Produk tidak ditemukan</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{error || 'Produk yang Anda cari tidak ada.'}</p>
             <div className="mt-6">
               <button
                 onClick={() => navigate('/products')}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               >
-                Back to Products
+                Kembali ke Produk
               </button>
             </div>
           </div>
@@ -198,10 +199,9 @@ export default function ProductDetailPage() {
       <div className="mb-6">
         <button
           onClick={() => navigate('/products')}
-          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center text-sm mb-4"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300 mb-4"
         >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back to Products
+          <ArrowLeft size={20} />
         </button>
         <div className="flex items-start justify-between">
           <div>
@@ -241,7 +241,7 @@ export default function ProductDetailPage() {
           >
             <div className="flex items-center justify-center gap-2">
               <Building2 className="h-5 w-5" />
-              Product Details
+              Detail Produk
             </div>
           </button>
           <button
@@ -254,7 +254,7 @@ export default function ProductDetailPage() {
           >
             <div className="flex items-center justify-center gap-2">
               <Ruler className="h-5 w-5" />
-              Unit Of Measures
+              Satuan Ukur
               <span className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 text-xs px-2 py-1 rounded-full">
                 {uoms.length}
               </span>
@@ -269,10 +269,10 @@ export default function ProductDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Basic Info */}
                 <div className="bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Informasi Dasar</h2>
                   <div className="space-y-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Product Type</label>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Tipe Produk</label>
                       <p className="text-gray-900 dark:text-gray-200 capitalize">{currentProduct.product_type.replace('_', ' ')}</p>
                     </div>
                     <div>
@@ -288,7 +288,7 @@ export default function ProductDetailPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Average Cost</label>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Biaya Rata-rata</label>
                       <p className="text-gray-900 dark:text-gray-200">
                         {new Intl.NumberFormat('id-ID', {
                           style: 'currency',
@@ -302,7 +302,7 @@ export default function ProductDetailPage() {
 
                 {/* Flags */}
                 <div className="bg-white dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Flags</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Penanda</h2>
                   <div className="space-y-3">
                     <div className="flex items-center">
                       <input
@@ -311,7 +311,7 @@ export default function ProductDetailPage() {
                         disabled
                         className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
                       />
-                      <label className="ml-2 text-gray-700 dark:text-gray-300">Requestable</label>
+                      <label className="ml-2 text-gray-700 dark:text-gray-300">Dapat Diminta</label>
                     </div>
                     <div className="flex items-center">
                       <input
@@ -320,7 +320,7 @@ export default function ProductDetailPage() {
                         disabled
                         className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
                       />
-                      <label className="ml-2 text-gray-700 dark:text-gray-300">Purchasable</label>
+                      <label className="ml-2 text-gray-700 dark:text-gray-300">Dapat Dibeli</label>
                     </div>
                   </div>
                 </div>
@@ -328,9 +328,9 @@ export default function ProductDetailPage() {
                 {/* BOM Name */}
                 {currentProduct.bom_name && (
                   <div className="bg-white dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">BOM Information</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Informasi BOM</h2>
                     <div>
-                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">BOM Name</label>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Nama BOM</label>
                       <p className="text-gray-900 dark:text-gray-200">{currentProduct.bom_name}</p>
                     </div>
                   </div>
@@ -339,7 +339,7 @@ export default function ProductDetailPage() {
                 {/* Notes */}
                 {currentProduct.notes && (
                   <div className="bg-white dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Catatan</h2>
                     <p className="text-gray-700 dark:text-gray-300">{currentProduct.notes}</p>
                   </div>
                 )}
@@ -350,11 +350,11 @@ export default function ProductDetailPage() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Metadata</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <label className="text-gray-600 dark:text-gray-400">Created</label>
+                    <label className="text-gray-600 dark:text-gray-400">Dibuat</label>
                     <p className="text-gray-900 dark:text-gray-200">{new Date(currentProduct.created_at).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <label className="text-gray-600 dark:text-gray-400">Updated</label>
+                    <label className="text-gray-600 dark:text-gray-400">Diperbarui</label>
                     <p className="text-gray-900 dark:text-gray-200">{new Date(currentProduct.updated_at).toLocaleDateString()}</p>
                   </div>
                 </div>
@@ -366,7 +366,7 @@ export default function ProductDetailPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {editingUom ? 'Edit UOM' : 'Add New UOM'}
+                      {editingUom ? 'Edit UOM' : 'Tambah UOM Baru'}
                     </h3>
                   </div>
                   <ProductUomForm
@@ -383,7 +383,7 @@ export default function ProductDetailPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Units of Measure</h3>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Satuan Ukur</h3>
                       <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <input
                           type="checkbox"
@@ -391,7 +391,7 @@ export default function ProductDetailPage() {
                           onChange={(e) => setShowDeleted(e.target.checked)}
                           className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
                         />
-                        Show Deleted
+                        Tampilkan Terhapus
                       </label>
                     </div>
                     <button
@@ -399,7 +399,7 @@ export default function ProductDetailPage() {
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
                       <Plus className="h-4 w-4" />
-                      Add UOM
+                      Tambah UOM
                     </button>
                   </div>
                   <ProductUomTable
@@ -421,10 +421,10 @@ export default function ProductDetailPage() {
         isOpen={isDeleteProductModalOpen}
         onClose={handleCloseDeleteProductModal}
         onConfirm={handleConfirmDeleteProduct}
-        title="Delete Product"
-        message={`Are you sure you want to delete "${currentProduct.product_name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title="Hapus Produk"
+        message={`Yakin ingin menghapus "${currentProduct.product_name}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Hapus"
+        cancelText="Batal"
         variant="danger"
         isLoading={mutationLoading}
       />
@@ -434,10 +434,10 @@ export default function ProductDetailPage() {
         isOpen={!!uomToDelete}
         onClose={handleCloseUomDeleteModal}
         onConfirm={handleConfirmDeleteUom}
-        title="Delete UOM"
-        message={`Are you sure you want to delete the UOM "${uomToDelete?.name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title="Hapus UOM"
+        message={`Yakin ingin menghapus UOM "${uomToDelete?.name}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Hapus"
+        cancelText="Batal"
         variant="danger"
       />
     </div>

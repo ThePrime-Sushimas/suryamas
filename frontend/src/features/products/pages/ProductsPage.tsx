@@ -7,6 +7,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { useToast } from '@/contexts/ToastContext'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
+import { parseApiError } from '@/lib/errorParser'
 import { Package, Plus, Search, Filter, X } from 'lucide-react'
 import { CardSkeleton } from '@/components/ui/Skeleton'
 
@@ -96,28 +97,28 @@ export default function ProductsPage() {
 
     try {
       await deleteProduct(productToDelete.id)
-      success('Product deleted successfully')
+      success('Produk berhasil dihapus')
       setDeleteDialogOpen(false)
       setProductToDelete(null)
       doFetch(pagination.page)
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to delete product')
+      showError(parseApiError(err, 'Gagal menghapus produk'))
     }
   }
 
   const handleRestore = async (id: string) => {
     try {
       await restoreProduct(id)
-      success('Product restored successfully')
+      success('Produk berhasil dipulihkan')
       doFetch(pagination.page)
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to restore product')
+      showError(parseApiError(err, 'Gagal memulihkan produk'))
     }
   }
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) {
-      showError('Please select products to delete')
+      showError('Pilih produk yang akan dihapus')
       return
     }
 
@@ -127,17 +128,17 @@ export default function ProductsPage() {
   const confirmBulkDelete = async () => {
     try {
       await bulkDelete(selectedIds)
-      success(`${selectedIds.length} product(s) deleted successfully`)
+      success(`${selectedIds.length} produk berhasil dihapus`)
       setBulkDeleteDialogOpen(false)
       doFetch(pagination.page)
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to delete products')
+      showError(parseApiError(err, 'Gagal menghapus produk'))
     }
   }
 
   const handleBulkRestore = async () => {
     if (selectedIds.length === 0) {
-      showError('Please select products to restore')
+      showError('Pilih produk yang akan dipulihkan')
       return
     }
 
@@ -147,11 +148,11 @@ export default function ProductsPage() {
   const confirmBulkRestore = async () => {
     try {
       await bulkRestore(selectedIds)
-      success(`${selectedIds.length} product(s) restored successfully`)
+      success(`${selectedIds.length} produk berhasil dipulihkan`)
       setBulkRestoreDialogOpen(false)
       doFetch(pagination.page)
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to restore products')
+      showError(parseApiError(err, 'Gagal memulihkan produk'))
     }
   }
 
@@ -173,7 +174,7 @@ export default function ProductsPage() {
           <div className="flex items-center gap-3">
             <Package className="w-6 h-6 text-blue-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Products</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Produk</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} total</p>
             </div>
           </div>
@@ -182,7 +183,7 @@ export default function ProductsPage() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Add Product
+            Tambah Produk
           </button>
         </div>
       </div>
@@ -194,7 +195,7 @@ export default function ProductsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name or code..."
+              placeholder="Cari nama atau kode..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -236,23 +237,23 @@ export default function ProductsPage() {
                   onChange={e => setStatusFilter(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value="">All Status</option>
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
-                  <option value="DISCONTINUED">Discontinued</option>
+                <option value="">Semua Status</option>
+                  <option value="ACTIVE">Aktif</option>
+                  <option value="INACTIVE">Nonaktif</option>
+                  <option value="DISCONTINUED">Dihentikan</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Type</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipe Produk</label>
                 <select
                   value={typeFilter}
                   onChange={e => setTypeFilter(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value="">All Types</option>
-                  <option value="raw">Raw Material</option>
-                  <option value="semi_finished">Semi-Finished</option>
-                  <option value="finished_goods">Finished Goods</option>
+                  <option value="">Semua Tipe</option>
+                  <option value="raw">Bahan Baku</option>
+                  <option value="semi_finished">Setengah Jadi</option>
+                  <option value="finished_goods">Barang Jadi</option>
                 </select>
               </div>
               <div className="flex items-end">
@@ -263,7 +264,7 @@ export default function ProductsPage() {
                     onChange={e => setShowDeletedFilter(e.target.checked)}
                     className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
                   />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show Deleted</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Tampilkan Terhapus</span>
                 </label>
               </div>
             </div>
@@ -276,7 +277,7 @@ export default function ProductsPage() {
         <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-blue-900 dark:text-blue-300">
-              {selectedIds.length} product(s) selected
+              {selectedIds.length} produk dipilih
             </span>
             <div className="space-x-2">
               <button
@@ -291,7 +292,7 @@ export default function ProductsPage() {
                   disabled={mutationLoading}
                   className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:bg-gray-400 transition"
                 >
-                  {mutationLoading ? 'Restoring...' : 'Restore Selected'}
+                  {mutationLoading ? 'Memulihkan...' : 'Pulihkan Terpilih'}
                 </button>
               ) : (
                 <button
@@ -299,7 +300,7 @@ export default function ProductsPage() {
                   disabled={mutationLoading}
                   className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:bg-gray-400 transition"
                 >
-                  {mutationLoading ? 'Deleting...' : 'Delete Selected'}
+                  {mutationLoading ? 'Menghapus...' : 'Hapus Terpilih'}
                 </button>
               )}
             </div>
@@ -313,7 +314,7 @@ export default function ProductsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
             <div className="flex flex-col items-center justify-center space-y-4">
               <CardSkeleton />
-              <p className="text-gray-500 dark:text-gray-400">Loading products...</p>
+              <p className="text-gray-500 dark:text-gray-400">Memuat produk...</p>
             </div>
           </div>
         ) : (
@@ -363,9 +364,9 @@ export default function ProductsPage() {
         isOpen={bulkDeleteDialogOpen}
         onClose={() => setBulkDeleteDialogOpen(false)}
         onConfirm={confirmBulkDelete}
-        title="Delete Products"
-        message={`Are you sure you want to delete ${selectedIds.length} product(s)? This action can be reversed later.`}
-        confirmText="Delete"
+        title="Hapus Produk"
+        message={`Yakin ingin menghapus ${selectedIds.length} produk? Tindakan ini dapat dipulihkan nanti.`}
+        confirmText="Hapus"
         variant="danger"
         isLoading={mutationLoading}
       />
@@ -374,9 +375,9 @@ export default function ProductsPage() {
         isOpen={bulkRestoreDialogOpen}
         onClose={() => setBulkRestoreDialogOpen(false)}
         onConfirm={confirmBulkRestore}
-        title="Restore Products"
-        message={`Are you sure you want to restore ${selectedIds.length} product(s)?`}
-        confirmText="Restore"
+        title="Pulihkan Produk"
+        message={`Yakin ingin memulihkan ${selectedIds.length} produk?`}
+        confirmText="Pulihkan"
         variant="success"
         isLoading={mutationLoading}
       />

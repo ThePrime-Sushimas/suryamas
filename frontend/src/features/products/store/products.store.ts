@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { productsApi } from '../api/products.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { Product, ProductUom, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto } from '../types'
 
 interface PaginationState {
@@ -78,7 +79,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       }
     } catch (error: unknown) {
       if (get().currentRequestId === requestId) {
-        const message = error instanceof Error ? error.message : 'Failed to fetch products'
+        const message = parseApiError(error, 'Gagal memuat data produk')
         set({ error: message, fetchLoading: false })
       }
     }
@@ -91,7 +92,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       set({ currentProduct: product, fetchLoading: false })
       return product
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch product'
+      const message = parseApiError(error, 'Gagal memuat produk')
       set({ error: message, fetchLoading: false })
       throw error
     }
@@ -113,7 +114,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       }
     } catch (error: unknown) {
       if (get().currentRequestId === requestId) {
-        const message = error instanceof Error ? error.message : 'Failed to search products'
+        const message = parseApiError(error, 'Gagal mencari produk')
         set({ error: message, fetchLoading: false })
       }
     }
@@ -126,7 +127,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       set({ mutationLoading: false })
       return product
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create product'
+      const message = parseApiError(error, 'Gagal membuat produk')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -143,7 +144,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       }))
       return product
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update product'
+      const message = parseApiError(error, 'Gagal mengupdate produk')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -158,7 +159,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete product'
+      const message = parseApiError(error, 'Gagal menghapus produk')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -174,7 +175,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete products'
+      const message = parseApiError(error, 'Gagal menghapus produk')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -189,7 +190,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to restore product'
+      const message = parseApiError(error, 'Gagal memulihkan produk')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -205,7 +206,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to restore products'
+      const message = parseApiError(error, 'Gagal memulihkan produk')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -217,7 +218,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       const uoms = await productsApi.getUoms(productId, false)
       set({ uoms, fetchLoading: false })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch UOMs'
+      const message = parseApiError(error, 'Gagal memuat UOM')
       set({ error: message, fetchLoading: false })
     }
   },
@@ -229,7 +230,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       set({ mutationLoading: false })
       return uom
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create UOM'
+      const message = parseApiError(error, 'Gagal membuat UOM')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -245,7 +246,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       }))
       return uom
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update UOM'
+      const message = parseApiError(error, 'Gagal mengupdate UOM')
       set({ error: message, mutationLoading: false })
       throw error
     }
@@ -260,7 +261,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         mutationLoading: false
       }))
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete UOM'
+      const message = parseApiError(error, 'Gagal menghapus UOM')
       set({ error: message, mutationLoading: false })
       throw error
     }

@@ -119,6 +119,16 @@ export class BulkOperationLimitError extends ValidationError {
   }
 }
 
+export class EmptyIdsError extends ValidationError {
+  constructor() {
+    super(
+      'IDs array cannot be empty',
+      { rule: 'non_empty_ids' }
+    )
+    this.name = 'EmptyIdsError'
+  }
+}
+
 // ============================================================================
 // BUSINESS RULE ERRORS
 // ============================================================================
@@ -203,6 +213,7 @@ export const ProductErrors = {
   VALIDATION_ERROR: (message: string, details?: Record<string, unknown>) => 
     new ProductValidationError(message, details),
   BULK_LIMIT: (limit: number) => new BulkOperationLimitError(limit),
+  EMPTY_IDS: () => new EmptyIdsError(),
   CODE_UPDATE_FORBIDDEN: () => new ProductCodeUpdateError(),
   IN_USE: (id: string, usageCount?: number) => new ProductInUseError(id, usageCount || 0),
   DELETE_ACTIVE: (id: string) => new CannotDeleteActiveProductError(id),
