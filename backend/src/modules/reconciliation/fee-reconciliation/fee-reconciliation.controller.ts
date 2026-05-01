@@ -32,17 +32,17 @@ export class FeeReconciliationController {
         data: summary,
         message: `Reconciled ${summary.totalSettlements} payment methods for ${date}`
       })
-    } catch (error) {
-      await handleError(res, error, req as any)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reconcile_daily' })
     }
   }
 
   /**
    * GET /reconciliation/fee/daily-summary
    */
-  async getDailySummary(req: Request<{}, any, any, DailySummaryQuery>, res: Response): Promise<void> {
+  async getDailySummary(req: Request, res: Response): Promise<void> {
     try {
-      const { companyId, startDate, endDate } = req.query
+      const { companyId, startDate, endDate } = req.query as Record<string, string>
       const parsedStart = new Date(startDate)
       const parsedEnd = new Date(endDate)
 
@@ -57,8 +57,8 @@ export class FeeReconciliationController {
         data: summaries,
         count: summaries.length
       })
-    } catch (error) {
-      await handleError(res, error, req as any)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_daily_summary' })
     }
   }
 
@@ -102,8 +102,8 @@ export class FeeReconciliationController {
         data:    records,
         summary,
       })
-    } catch (error) {
-      await handleError(res, error, req as any)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_discrepancies' })
     }
   }
 }

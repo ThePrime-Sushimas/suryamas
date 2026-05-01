@@ -202,18 +202,18 @@ BE controller sudah `await handleError` + `error: unknown` + `context`, tapi mas
 - ✅ `accounting/accounting-purpose-accounts` (backend + frontend)
 - ✅ `accounting/fiscal-periods` (backend + frontend)
 - ✅ `accounting/journals/journal-headers` (backend + frontend)
-- ⬜ `accounting/journals/journal-lines`
-- ⬜ `accounting/trial-balance`
-- ⬜ `accounting/income-statement`
-- ⬜ `accounting/balance-sheet`
+- ✅ `accounting/journals/journal-lines` (backend)
+- ✅ `accounting/trial-balance` (backend)
+- ✅ `accounting/income-statement` (backend)
+- ✅ `accounting/balance-sheet` (backend)
 - ✅ `reconciliation/bank-statement-import` (backend + frontend)
-- ⬜ `reconciliation/bank-reconciliation`
-- ⬜ `reconciliation/bank-settlement-group`
-- ⬜ `reconciliation/fee-reconciliation`
+- ✅ `reconciliation/bank-reconciliation` (backend)
+- ✅ `reconciliation/bank-settlement-group` (backend)
+- ✅ `reconciliation/fee-reconciliation` (backend)
 - ✅ `pos-imports/pos-imports` (backend + frontend)
 - ✅ `pos-imports/pos-aggregates` (backend + frontend)
-- ⬜ `pos-imports/pos-transactions`
-- ⬜ `pos-sync-aggregates`
+- ✅ `pos-imports/pos-transactions` (backend)
+- ✅ `pos-sync-aggregates` (backend)
 
 ---
 trigger: always_on

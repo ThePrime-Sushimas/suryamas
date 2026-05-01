@@ -2,15 +2,14 @@
  * POS Transactions Controller
  */
 
-import { Response } from 'express'
-import { AuthRequest } from '../../../types/common.types'
+import { Request, Response } from 'express'
 import { posTransactionsService } from './pos-transactions.service'
 import { sendSuccess, sendError } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { jobsService } from '../../jobs'
 
-export const list = async (req: AuthRequest, res: Response) => {
+export const list = async (req: Request, res: Response) => {
   try {
     const companyId = req.context?.company_id
     if (!companyId) {
@@ -52,12 +51,12 @@ export const list = async (req: AuthRequest, res: Response) => {
     })
 
     sendSuccess(res, result, 'Transactions retrieved successfully')
-  } catch (error) {
-    handleError(res, error, req)
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'list_pos_transactions' })
   }
 }
 
-export const exportToExcel = async (req: AuthRequest, res: Response) => {
+export const exportToExcel = async (req: Request, res: Response) => {
   try {
     const companyId = req.context?.company_id
     const userId = req.user?.id
@@ -111,7 +110,7 @@ export const exportToExcel = async (req: AuthRequest, res: Response) => {
     })
 
     sendSuccess(res, { job_id: job.id }, 'Export job created successfully')
-  } catch (error) {
-    handleError(res, error, req)
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'export_pos_transactions' })
   }
 }

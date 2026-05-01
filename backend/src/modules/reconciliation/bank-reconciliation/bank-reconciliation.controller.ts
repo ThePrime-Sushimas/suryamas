@@ -40,7 +40,7 @@ export class BankReconciliationController {
     try {
       const validated = req.validated.body;
       const userId = req.user?.id;
-      const companyId = (req as any).context?.company_id;
+      const companyId = req.context?.company_id;
 
       const result = await this.service.reconcileCashDeposit(
         validated.cashDepositId,
@@ -51,8 +51,8 @@ export class BankReconciliationController {
       );
 
       res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      return await handleError(res, error, req, { 
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'reconcile_cash_deposit', 
         cashDepositId: req.validated?.body?.cashDepositId, 
         statementId: req.validated?.body?.statementId 
       });
@@ -66,7 +66,7 @@ export class BankReconciliationController {
     try {
       const validated = req.validated.body;
       const userId = req.user?.id;
-      const companyId = (req as any).context?.company_id;
+      const companyId = req.context?.company_id;
 
       const result = await this.service.reconcile(
         validated.aggregateId,
@@ -81,19 +81,19 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { 
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'reconcile', 
         aggregateId: req.validated?.body?.aggregateId, 
         statementId: req.validated?.body?.statementId 
       });
     }
   }
 
-  async undo(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async undo(req: Request, res: Response): Promise<void> {
     try {
       const { statementId } = req.params;
       const userId = req.user?.id;
-      const companyId = (req as any).context?.company_id;
+      const companyId = req.context?.company_id;
 
       await this.service.undo(statementId as string, userId, companyId);
 
@@ -101,8 +101,8 @@ export class BankReconciliationController {
         success: true,
         message: "Reconciliation undone successfully",
       });
-    } catch (error) {
-      return await handleError(res, error, req, { statementId: req.params.statementId });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'undo_reconcile', statementId: req.params.statementId });
     }
   }
 
@@ -113,7 +113,7 @@ export class BankReconciliationController {
     try {
       const validated = req.validated.body;
       const userId = req.user?.id;
-      const companyId = (req as any).context?.company_id;
+      const companyId = req.context?.company_id;
 
       const result = await this.service.autoMatch(
         new Date(validated.startDate),
@@ -128,8 +128,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { 
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'auto_match', 
         startDate: req.validated?.body?.startDate, 
         endDate: req.validated?.body?.endDate, 
         bankAccountId: req.validated?.body?.bankAccountId 
@@ -155,8 +155,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { 
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'preview_auto_match', 
         startDate: req.validated?.body?.startDate, 
         endDate: req.validated?.body?.endDate, 
         bankAccountId: req.validated?.body?.bankAccountId 
@@ -171,7 +171,7 @@ export class BankReconciliationController {
     try {
       const validated = req.validated.body;
       const userId = req.user?.id;
-      const companyId = (req as any).context?.company_id;
+      const companyId = req.context?.company_id;
 
       const result = await this.service.confirmAutoMatch(
         validated.statementIds,
@@ -185,8 +185,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { statementIds: req.validated?.body?.statementIds });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'confirm_auto_match', statementIds: req.validated?.body?.statementIds });
     }
   }
 
@@ -195,7 +195,7 @@ export class BankReconciliationController {
     res: Response,
   ): Promise<void> {
     try {
-      const validated = (req as any).validated?.query || req.query;
+      const validated = (req.validated as any)?.query || req.query;
       const { startDate, endDate, bankAccountId, status, search, isReconciled, limit: queryLimit, creditOnly } = validated;
 
       // Get sort params from query middleware
@@ -228,8 +228,8 @@ export class BankReconciliationController {
         data: result.data,
         pagination: result.pagination,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { query: req.query });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_statements', query: req.query });
     }
   }
 
@@ -238,7 +238,7 @@ export class BankReconciliationController {
     res: Response,
   ): Promise<void> {
     try {
-      const validated = (req as any).validated?.query || req.query;
+      const validated = (req.validated as any)?.query || req.query;
       const { startDate, endDate } = validated;
 
       // Dates are optional - if not provided, return empty
@@ -259,8 +259,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { 
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_bank_accounts_status', 
         startDate: req.query?.startDate, 
         endDate: req.query?.endDate 
       });
@@ -278,8 +278,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req);
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_unmatched_statements' });
     }
   }
 
@@ -288,7 +288,7 @@ export class BankReconciliationController {
     res: Response,
   ): Promise<void> {
     try {
-      const validated = (req as any).validated?.query || req.query;
+      const validated = (req.validated as any)?.query || req.query;
       const { startDate, endDate } = validated;
 
       // Dates are optional - if not provided, return empty summary
@@ -319,8 +319,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { 
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_summary', 
         startDate: req.query?.startDate, 
         endDate: req.query?.endDate 
       });
@@ -339,8 +339,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { statementId: req.params.id });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_potential_matches', statementId: req.params.id });
     }
   }
 
@@ -351,7 +351,7 @@ export class BankReconciliationController {
     try {
       const validated = req.validated.body;
       const userId = req.user?.id;
-      const companyId = (req as any).context?.company_id;
+      const companyId = req.context?.company_id;
 
       const result = await this.service.createMultiMatch(
         validated.aggregateId,
@@ -366,19 +366,19 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { 
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'create_multi_match', 
         aggregateId: req.validated?.body?.aggregateId, 
         statementIds: req.validated?.body?.statementIds 
       });
     }
   }
 
-  async undoMultiMatch(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async undoMultiMatch(req: Request, res: Response): Promise<void> {
     try {
       const { groupId } = req.params;
       const userId = req.user?.id;
-      const companyId = (req as any).context?.company_id;
+      const companyId = req.context?.company_id;
 
       await this.service.undoMultiMatch(groupId as string, userId, companyId);
 
@@ -386,8 +386,8 @@ export class BankReconciliationController {
         success: true,
         message: "Multi-match berhasil dibatalkan",
       });
-    } catch (error) {
-      return await handleError(res, error, req, { groupId: req.params.groupId });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'undo_multi_match', groupId: req.params.groupId });
     }
   }
 
@@ -413,8 +413,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { aggregateId: req.query.aggregateId });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_suggested_group', aggregateId: req.query.aggregateId });
     }
   }
 
@@ -443,8 +443,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { startDate: req.query.startDate, endDate: req.query.endDate });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_reconciliation_groups', startDate: req.query.startDate, endDate: req.query.endDate });
     }
   }
 
@@ -458,8 +458,8 @@ export class BankReconciliationController {
         success: true,
         data: result,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { groupId: req.params.groupId });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_multi_match_group', groupId: req.params.groupId });
     }
   }
 
@@ -489,8 +489,8 @@ export class BankReconciliationController {
         data: result.data,
         total: result.total,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { query: req.query });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'get_unreconciled_statements', query: req.query });
     }
   }
 
@@ -533,8 +533,8 @@ export class BankReconciliationController {
         success: true,
         data: statements,
       });
-    } catch (error) {
-      return await handleError(res, error, req, { query: req.query });
+    } catch (error: unknown) {
+      return await handleError(res, error, req, { action: 'find_statements_by_amount', query: req.query });
     }
   }
 }

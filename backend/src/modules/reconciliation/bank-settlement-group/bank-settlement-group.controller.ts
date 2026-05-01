@@ -67,7 +67,7 @@ export class SettlementGroupController {
       const { bankStatementId, aggregateIds, notes, overrideDifference } =
         req.validated.body;
       const userId = req.user?.id as string | undefined;
-      const companyId = (req as any).context?.company_id as string | undefined;
+      const companyId = req.context?.company_id as string | undefined;
 
       const result = await this.service.createSettlementGroup({
         companyId: companyId || "",
@@ -85,7 +85,7 @@ export class SettlementGroupController {
         data: result,
         message: "Settlement group berhasil dibuat",
       });
-    } catch (error) {
+    } catch (error: unknown) {
       return await handleError(res, error, req, { 
         bankStatementId: req.validated?.body?.bankStatementId, 
         aggregateIds: req.validated?.body?.aggregateIds 
@@ -114,7 +114,7 @@ export class SettlementGroupController {
         success: true,
         data: result,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       return await handleError(res, error, req, { id: req.validated.params.id });
     }
   }
@@ -138,7 +138,7 @@ export class SettlementGroupController {
       const result = await this.service.listSettlementGroups({
         startDate,
         endDate,
-        status: status as any,
+        status: status as unknown as import('./bank-settlement-group.types').SettlementGroupStatus,
         search,
         limit,
         offset,
@@ -149,7 +149,7 @@ export class SettlementGroupController {
         data: result.data,
         total: result.total,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       return await handleError(res, error, req, { query: req.validated.query });
     }
   }
@@ -178,7 +178,7 @@ export class SettlementGroupController {
         success: true,
         message: "Settlement group berhasil dihapus",
       });
-    } catch (error) {
+    } catch (error: unknown) {
       return await handleError(res, error, req, { id: req.validated.params.id });
     }
   }
@@ -218,7 +218,7 @@ export class SettlementGroupController {
           totalPages: Math.ceil(result.total / (limit || 100)),
         },
       });
-    } catch (error) {
+    } catch (error: unknown) {
       return await handleError(res, error, req, { query: req.validated.query });
     }
   }
@@ -244,7 +244,7 @@ export class SettlementGroupController {
         success: true,
         data: result,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       return await handleError(res, error, req, { id: req.validated.params.id });
     }
   }
@@ -270,7 +270,7 @@ export class SettlementGroupController {
         success: true,
         data: result,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       return await handleError(res, error, req, { query: req.validated.query });
     }
   }
