@@ -5,7 +5,7 @@ import { resolveBranchContext } from '../../../middleware/branch-context.middlew
 import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
 import { queryMiddleware } from '../../../middleware/query.middleware'
 import { exportLimiter, createRateLimit, updateRateLimit } from '../../../middleware/rateLimiter.middleware'
-import { validateSchema, ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import { validateSchema } from '../../../middleware/validation.middleware'
 import { PermissionService } from '../../../services/permission.service'
 import { 
   createAccountingPurposeAccountSchema, 
@@ -46,23 +46,23 @@ router.get('/export', canView('accounting_purpose_accounts'), exportLimiter, (re
 
 // Bulk operations with rate limiting
 router.post('/bulk/create', canInsert('accounting_purpose_accounts'), createRateLimit, validateSchema(bulkCreateAccountingPurposeAccountSchema), (req, res) => 
-  accountingPurposeAccountsController.bulkCreate(req as ValidatedAuthRequest<typeof bulkCreateAccountingPurposeAccountSchema>, res))
+  accountingPurposeAccountsController.bulkCreate(req, res))
 
 router.post('/bulk/remove', canDelete('accounting_purpose_accounts'), updateRateLimit, validateSchema(bulkRemoveAccountingPurposeAccountSchema), (req, res) => 
-  accountingPurposeAccountsController.bulkRemove(req as ValidatedAuthRequest<typeof bulkRemoveAccountingPurposeAccountSchema>, res))
+  accountingPurposeAccountsController.bulkRemove(req, res))
 
 router.post('/bulk/status', canUpdate('accounting_purpose_accounts'), updateRateLimit, validateSchema(bulkUpdateStatusSchema), (req, res) => 
-  accountingPurposeAccountsController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>, res))
+  accountingPurposeAccountsController.bulkUpdateStatus(req, res))
 
 // CRUD operations
 router.post('/', canInsert('accounting_purpose_accounts'), validateSchema(createAccountingPurposeAccountSchema), (req, res) => 
-  accountingPurposeAccountsController.create(req as ValidatedAuthRequest<typeof createAccountingPurposeAccountSchema>, res))
+  accountingPurposeAccountsController.create(req, res))
 
 router.get('/:id', canView('accounting_purpose_accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
   accountingPurposeAccountsController.getById(req, res))
 
 router.put('/:id', canUpdate('accounting_purpose_accounts'), validateSchema(updateAccountingPurposeAccountSchema), (req, res) => 
-  accountingPurposeAccountsController.update(req as ValidatedAuthRequest<typeof updateAccountingPurposeAccountSchema>, res))
+  accountingPurposeAccountsController.update(req, res))
 
 router.delete('/:id', canDelete('accounting_purpose_accounts'), validateSchema(accountingPurposeAccountIdSchema), (req, res) => 
   accountingPurposeAccountsController.delete(req, res))
