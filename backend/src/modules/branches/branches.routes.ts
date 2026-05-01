@@ -7,89 +7,25 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { branchesController } from './branches.controller'
 import { PermissionService } from '../../services/permission.service'
 import { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema, branchIdSchema } from './branches.schema'
-import type { AuthenticatedQueryRequest, AuthenticatedRequest } from '../../types/request.types'
-import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 
 const router = Router()
 
-// Register module
-PermissionService.registerModule('branches', 'Branch Management').catch(() => {})
+PermissionService.registerModule('branches', 'Branch Management').catch((err) => {
+  console.error('Failed to register branches module:', err instanceof Error ? err.message : err)
+})
 
-// All routes require authentication
+const sortFields = ['branch_name', 'branch_code', 'city', 'status', 'created_at', 'updated_at', 'id']
+
 router.use(authenticate, resolveBranchContext)
 
-// Get filter options (must be before /:id route)
-router.get(
-  '/filter-options',
-  canView('branches'),
-  (req, res) => branchesController.getFilterOptions(req as AuthenticatedRequest, res)
-)
-
-// Get minimal active branches (for dropdown)
-router.get(
-  '/minimal/active',
-  canView('branches'),
-  (req, res) => branchesController.minimalActive(req as AuthenticatedRequest, res)
-)
-
-// Search branches
-router.get(
-  '/search',
-  canView('branches'),
-  queryMiddleware({
-    allowedSortFields: ['branch_name', 'branch_code', 'city', 'status', 'created_at', 'updated_at', 'id']
-  }),
-  (req, res) => branchesController.search(req as AuthenticatedQueryRequest, res)
-)
-
-// List branches
-router.get(
-  '/',
-  canView('branches'),
-  queryMiddleware({
-    allowedSortFields: ['branch_name', 'branch_code', 'city', 'status', 'created_at', 'updated_at', 'id']
-  }),
-  (req, res) => branchesController.list(req as AuthenticatedQueryRequest, res)
-)
-
-// Get branch by ID
-router.get(
-  '/:id',
-  canView('branches'),
-  validateSchema(branchIdSchema),
-  (req, res) => branchesController.getById(req as AuthenticatedRequest, res)
-)
-
-// Create branch
-router.post(
-  '/',
-  canInsert('branches'),
-  validateSchema(CreateBranchSchema),
-  (req, res) => branchesController.create(req as ValidatedAuthRequest<typeof CreateBranchSchema>, res)
-)
-
-// Update branch
-router.put(
-  '/:id',
-  canUpdate('branches'),
-  validateSchema(UpdateBranchSchema),
-  (req, res) => branchesController.update(req as ValidatedAuthRequest<typeof UpdateBranchSchema>, res)
-)
-
-// Delete branch
-router.delete(
-  '/:id',
-  canDelete('branches'),
-  validateSchema(branchIdSchema),
-  (req, res) => branchesController.delete(req as AuthenticatedRequest, res)
-)
-
-// Bulk update status
-router.post(
-  '/bulk/update-status',
-  canUpdate('branches'),
-  validateSchema(BulkUpdateStatusSchema),
-  (req, res) => branchesController.bulkUpdateStatus(req as ValidatedAuthRequest<typeof BulkUpdateStatusSchema>, res)
-)
+router.get('/filter-options', canView('branches'), (req, res) => branchesController.getFilterOptions(req, res))
+router.get('/minimal/active', canView('branches'), (req, res) => branchesController.minimalActive(req, res))
+router.get('/search', canView('branches'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) => branchesController.search(req, res))
+router.get('/', canView('branches'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) => branchesController.list(req, res))
+router.get('/:id', canView('branches'), validateSchema(branchIdSchema), (req, res) => branchesController.getById(req, res))
+router.post('/', canInsert('branches'), validateSchema(CreateBranchSchema), (req, res) => branchesController.create(req, res))
+router.put('/:id', canUpdate('branches'), validateSchema(UpdateBranchSchema), (req, res) => branchesController.update(req, res))
+router.delete('/:id', canDelete('branches'), validateSchema(branchIdSchema), (req, res) => branchesController.delete(req, res))
+router.post('/bulk/update-status', canUpdate('branches'), validateSchema(BulkUpdateStatusSchema), (req, res) => branchesController.bulkUpdateStatus(req, res))
 
 export default router
