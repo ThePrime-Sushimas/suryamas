@@ -21,7 +21,7 @@ export function CreateSupplierPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="px-4 py-6 sm:p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <button
         onClick={() => navigate('/suppliers')}
         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 mb-6"

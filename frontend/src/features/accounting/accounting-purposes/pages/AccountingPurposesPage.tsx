@@ -124,7 +124,7 @@ export const AccountingPurposesPage = () => {
     case 'detail':
       return (
         <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-          <div className="flex-1 overflow-auto p-6">
+          <div className="flex-1 overflow-auto px-4 py-6 sm:p-6">
             {currentView === 'create' && (
               <AccountingPurposeFormPage
                 isEdit={false}

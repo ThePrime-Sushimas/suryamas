@@ -94,7 +94,7 @@ export function SupplierForm({ initialData, onSubmit, onCancel, submitLabel, isE
       {/* Basic Info */}
       <div>
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Basic Information</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Supplier Code *
@@ -133,7 +133,7 @@ export function SupplierForm({ initialData, onSubmit, onCancel, submitLabel, isE
       {/* Contact Info */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Contact Information</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contact Person *</label>
             <input type="text" name="contact_person" value={formData.contact_person} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
@@ -168,7 +168,7 @@ export function SupplierForm({ initialData, onSubmit, onCancel, submitLabel, isE
       {/* Business Info */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Business Information</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tax ID</label>
             <input type="text" name="tax_id" value={formData.tax_id} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
@@ -183,7 +183,7 @@ export function SupplierForm({ initialData, onSubmit, onCancel, submitLabel, isE
       {/* Payment & Terms */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Payment & Terms</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Term</label>
             <select name="payment_term_id" value={formData.payment_term_id || ''} onChange={handleChange} disabled={paymentTermsLoading} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">

@@ -37,7 +37,7 @@ export function ProductUomTable({ uoms, onEdit, onDelete, onRestore, loading }: 
   }
 
   return (
-    <div className="overflow-hidden rounded-lg shadow bg-white dark:bg-gray-800">
+    <div className="overflow-x-auto rounded-lg shadow bg-white dark:bg-gray-800">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-900">
           <tr>

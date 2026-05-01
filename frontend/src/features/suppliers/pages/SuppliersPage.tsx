@@ -93,7 +93,7 @@ export function SuppliersPage() {
 
       {/* Error State with Retry */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-4 flex justify-between items-center">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <span>Terjadi kesalahan saat memuat data</span>
           <div className="flex items-center gap-2">
             <button
@@ -107,7 +107,7 @@ export function SuppliersPage() {
         </div>
       )}
 
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="text-sm text-gray-600 dark:text-gray-400">
           {`${pagination.total} total supplier`}
         </div>

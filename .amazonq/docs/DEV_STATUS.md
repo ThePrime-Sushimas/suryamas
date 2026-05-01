@@ -33,11 +33,181 @@
 ---
 
 ## 📋 Backlog
+
+### Feature Development
 - [ ] PO Flow (Purchase Order → Receiving → AP → Payment → Auto Journal)
 - [ ] COGS calculation (HPP dari inventory movement)
 - [ ] Laporan Arus Kas formal PSAK 2 (3 aktivitas: operasi/investasi/pendanaan)
 - [ ] User Management — create account dari UI (backend POST /auth/register sudah ada)
 - [ ] Deploy ke production (Nginx config, PM2, SSL via Certbot)
+
+### Responsive UI Audit (108 pages)
+
+Legend: 🟢 = responsive (>10 breakpoints), 🟡 = partial (1-10 breakpoints), 🔴 = none (0 breakpoints)
+`bp` = breakpoint classes, `grid` = grid-cols, `ovf` = overflow-x-auto, `tbl` = table elements
+
+#### 🟢 Fully Responsive (10 pages)
+| Page | bp | grid | ovf | tbl |
+|------|----|------|-----|-----|
+| branches/BranchDetailPage | 41 | 8 | 0 | 0 |
+| employees/EmployeeDetailPage | 20 | 5 | 1 | 0 |
+| employees/ProfilePage | 20 | 8 | 1 | 0 |
+| permissions/PermissionsPage | 19 | 1 | 3 | 2 |
+| pages/HomePage | 19 | 2 | 0 | 0 |
+| employees/EmployeesPage | 18 | 1 | 0 | 0 |
+| employee_branches/EmployeeBranchDetailPage | 15 | 0 | 0 | 0 |
+| employee_branches/EmployeeBranchesPage | 15 | 0 | 1 | 2 |
+| bank-reconciliation/settlement-groups/SettlementGroupDetailPage | 12 | 5 | 0 | 0 |
+| accounting/journals/journal-headers/JournalHeaderDetailPage | 12 | 2 | 1 | 2 |
+
+#### 🟡 Partially Responsive (52 pages)
+| Page | bp | grid | ovf | tbl |
+|------|----|------|-----|-----|
+| auth/RegisterPage | 9 | 0 | 0 | 0 |
+| employees/EditEmployeePage | 8 | 0 | 0 | 0 |
+| users/UserEditPage | 8 | 1 | 0 | 0 |
+| accounting/journals/journal-headers/JournalHeaderEditPage | 8 | 1 | 0 | 0 |
+| cash-counts/CashCountsManagementPage | 7 | 4 | 3 | 8 |
+| monitoring/MonitoringPage | 7 | 1 | 0 | 0 |
+| accounting/fiscal-periods/FiscalPeriodsListPage | 7 | 1 | 0 | 0 |
+| users/UserDetailPage | 7 | 0 | 0 | 0 |
+| accounting/journals/journal-headers/JournalHeaderFormPage | 6 | 1 | 0 | 0 |
+| pos-aggregates/PosAggregateDetailPage | 6 | 0 | 1 | 2 |
+| accounting/journals/journal-headers/JournalHeadersListPage | 5 | 0 | 0 | 0 |
+| companies/CompaniesDetailPage | 5 | 2 | 0 | 0 |
+| dashboard/DashboardPage | 5 | 3 | 0 | 0 |
+| users/UsersPage | 5 | 0 | 0 | 0 |
+| banks/EditBankPage | 4 | 0 | 0 | 0 |
+| dashboard/DashboardSalesPage | 4 | 3 | 0 | 0 |
+| accounting/accounting-purposes/AccountingPurposeDetailPage | 3 | 2 | 0 | 0 |
+| bank-statement-import/BankStatementImportDetailPage | 3 | 3 | 1 | 2 |
+| bank-statement-import/BankStatementImportListPage | 3 | 2 | 1 | 3 |
+| banks/BanksListPage | 3 | 0 | 0 | 0 |
+| banks/CreateBankPage | 3 | 0 | 0 | 0 |
+| dashboard/DashboardAccountingPage | 3 | 3 | 0 | 0 |
+| pricelists/PricelistDetailPage | 3 | 3 | 0 | 0 |
+| accounting/balance-sheet/BalanceSheetPage | 2 | 1 | 1 | 2 |
+| accounting/income-statement/IncomeStatementPage | 2 | 1 | 1 | 2 |
+| accounting/accounting-purpose-accounts/AccountingPurposeAccountsListPage | 2 | 0 | 0 | 0 |
+| auth/LoginPage | 2 | 0 | 0 | 0 |
+| bank-reconciliation/FeeDiscrepancyReviewPage | 2 | 1 | 1 | 2 |
+| bank-reconciliation/BankReconciliationPage | 2 | 1 | 0 | 0 |
+| cash-flow/CashFlowPage | 2 | 1 | 2 | 1 |
+| dashboard/DashboardFinancePage | 2 | 2 | 0 | 0 |
+| dashboard/DashboardHRDPage | 2 | 2 | 0 | 0 |
+| employees/CreateEmployeePage | 2 | 0 | 0 | 0 |
+| expense-categorization/ExpenseCategorizationPage | 2 | 2 | 1 | 4 |
+| pos-transactions/PosTransactionsPage | 2 | 4 | 1 | 3 |
+| products/ProductDetailPage | 2 | 2 | 0 | 0 |
+| supplier-products/SupplierProductDetailPage | 2 | 3 | 0 | 0 |
+| suppliers/SupplierDetailPage | 2 | 2 | 0 | 0 |
+| accounting/accounting-purpose-accounts/AccountingPurposeAccountsDeletedPage | 1 | 0 | 1 | 2 |
+| accounting/trial-balance/TrialBalancePage | 1 | 0 | 1 | 2 |
+| bank-reconciliation/settlement-groups/SettlementGroupsPage | 1 | 0 | 0 | 0 |
+| branches/CreateBranchPage | 1 | 0 | 0 | 0 |
+| branches/EditBranchPage | 1 | 0 | 0 | 0 |
+| categories/CreateCategoryPage | 1 | 0 | 0 | 0 |
+| categories/CreateSubCategoryPage | 1 | 0 | 0 | 0 |
+| categories/EditCategoryPage | 1 | 0 | 0 | 0 |
+| categories/EditSubCategoryPage | 1 | 0 | 0 | 0 |
+| companies/CreateCompanyPage | 1 | 0 | 0 | 0 |
+| companies/EditCompanyPage | 1 | 0 | 0 | 0 |
+| metric_units/CreateMetricUnitPage | 1 | 0 | 0 | 0 |
+| metric_units/EditMetricUnitPage | 1 | 0 | 0 | 0 |
+| payment-terms/CreatePaymentTermPage | 1 | 0 | 0 | 0 |
+| payment-terms/EditPaymentTermPage | 1 | 0 | 0 | 0 |
+| pos-aggregates/FailedTransactionsPage | 1 | 1 | 0 | 2 |
+| pos-imports/PosImportDetailPage | 1 | 2 | 1 | 2 |
+| pos-imports/PosImportsPage | 1 | 1 | 0 | 0 |
+| pos-sync-aggregates/PosSyncAggregateDetailPage | 1 | 1 | 1 | 2 |
+| pos-sync-aggregates/PosSyncAggregatesPage | 1 | 1 | 1 | 2 |
+| pricelists/PricelistsPage | 1 | 1 | 0 | 0 |
+| products/ProductsPage | 1 | 1 | 0 | 0 |
+
+#### 🔴 Not Responsive (46 pages)
+| Page | grid | ovf | tbl | Priority |
+|------|------|-----|-----|----------|
+| accounting/chart-of-accounts/ChartOfAccountsPage | 0 | 0 | 1 | ⚠️ table tanpa overflow |
+| bank-statement-import/ManualEntryPage | 0 | 0 | 2 | ⚠️ 2 tables tanpa overflow |
+| pos-staging/PosStagingPage | 0 | 1 | 2 | has overflow |
+| suppliers/SuppliersPage | 0 | 1 | 2 | has overflow |
+| accounting/chart-of-accounts/ChartOfAccountDetailPage | 1 | 0 | 0 | has grid |
+| categories/CategoriesPage | 1 | 0 | 0 | has grid |
+| categories/CategoryDetailPage | 1 | 0 | 0 | has grid |
+| categories/SubCategoriesPage | 1 | 0 | 0 | has grid |
+| categories/SubCategoryDetailPage | 1 | 0 | 0 | has grid |
+| companies/CompaniesPage | 1 | 0 | 0 | has grid |
+| metric_units/MetricUnitsPage | 1 | 0 | 0 | has grid |
+| pricelists/CreatePricelistPage | 2 | 0 | 0 | has grid |
+| supplier-products/EditSupplierProductPage | 1 | 0 | 0 | has grid |
+| payment-terms/PaymentTermDetailPage | 3 | 0 | 0 | has grid |
+| accounting/accounting-purpose-accounts/AccountingPurposeAccountFormPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/accounting-purpose-accounts/AccountingPurposeAccountsPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/accounting-purposes/AccountingPurposeFormPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/accounting-purposes/AccountingPurposesListPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/accounting-purposes/AccountingPurposesPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/chart-of-accounts/CreateChartOfAccountPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/chart-of-accounts/EditChartOfAccountPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/fiscal-periods/FiscalPeriodEditPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/fiscal-periods/FiscalPeriodFormPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/fiscal-periods/FiscalPeriodsDeletedPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/fiscal-periods/FiscalPeriodsPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/journals/journal-headers/JournalHeadersDeletedPage | 0 | 0 | 0 | 🔴 zero |
+| accounting/journals/journal-headers/JournalHeadersPage | 0 | 0 | 0 | 🔴 zero |
+| auth/ForgotPasswordPage | 0 | 0 | 0 | 🔴 zero |
+| auth/ResetPasswordPage | 0 | 0 | 0 | 🔴 zero |
+| branches/BranchesPage | 0 | 0 | 0 | 🔴 zero |
+| cash-flow/CashFlowSettingsPage | 0 | 0 | 0 | 🔴 zero |
+| payment-methods/PaymentMethodsPage | 0 | 0 | 0 | 🔴 zero |
+| payment-terms/PaymentTermsPage | 0 | 0 | 0 | 🔴 zero |
+| pos-aggregates/CreatePosAggregatePage | 0 | 0 | 0 | 🔴 zero |
+| pos-aggregates/EditPosAggregatePage | 0 | 0 | 0 | 🔴 zero |
+| pos-aggregates/PosAggregatesPage | 0 | 0 | 0 | 🔴 zero |
+| pricelists/CreatePricelistFromSupplierProductPage | 0 | 0 | 0 | 🔴 zero |
+| pricelists/EditPricelistPage | 0 | 0 | 0 | 🔴 zero |
+| pricelists/SupplierProductPricelistsPage | 0 | 0 | 0 | 🔴 zero |
+| product-uoms/ProductUomsPage | 0 | 0 | 0 | 🔴 zero |
+| products/CreateProductPage | 0 | 0 | 0 | 🔴 zero |
+| products/EditProductPage | 0 | 0 | 0 | 🔴 zero |
+| supplier-products/CreateSupplierProductPage | 0 | 0 | 0 | 🔴 zero |
+| supplier-products/SupplierProductsPage | 0 | 0 | 0 | 🔴 zero |
+| suppliers/CreateSupplierPage | 0 | 0 | 0 | 🔴 zero |
+| suppliers/EditSupplierPage | 0 | 0 | 0 | 🔴 zero |
+
+Note: Beberapa 🔴 pages delegate ke components yang sudah responsive (e.g. ProductsPage → ProductTable punya `overflow-x-auto`). `Pagination.tsx` sudah responsive (✅ fixed).
+
+#### Pagination Usage Audit
+26 pages pakai global `Pagination` component. Pages tanpa pagination yang **tidak perlu** pagination:
+- Laporan (TrialBalance, IncomeStatement, BalanceSheet) — render semua rows
+- Detail pages (JournalHeaderDetail, BranchDetail, ProfilePage, dll) — embedded sub-lists
+- Dashboard pages — summary cards/charts
+- Settings (CashFlowSettings, Permissions) — load all
+
+Pages yang **mungkin perlu** pagination tapi belum pakai:
+| Page | Alasan |
+|------|--------|
+| `UsersPage` | Client-side pagination (slice), bukan server-side. Bisa jadi masalah kalau user banyak |
+| `PosAggregatesPage` | Pakai store pagination tapi custom UI, bukan global Pagination |
+| `BankReconciliationPage` | Custom pagination via store `setPage`/`setPageSize` |
+| `MonitoringPage` | Custom `onPageChange`/`onLimitChange`, bukan global Pagination |
+
+#### Execution Order
+| # | Scope | Pages | Effort |
+|---|-------|-------|--------|
+| 1 | ~~Global: `Pagination.tsx` + 2 table pages tanpa overflow~~ | ~~3~~ | ✅ Done |
+| 2 | ~~Master Data list+form: products, suppliers, categories, companies, branches, metric-units, payment-methods, payment-terms, product-uoms~~ | ~~18~~ | ✅ Done |
+| 3 | ~~Accounting: chart-of-accounts, accounting-purposes, accounting-purpose-accounts, fiscal-periods, journal-headers~~ | ~~15~~ | ✅ Done |
+| 4 | POS & Reconciliation: pos-aggregates, pos-staging, cash-flow settings, manual-entry | 7 | Medium |
+| 5 | Supplier Products & Pricelists | 7 | Medium |
+| 6 | Auth: ForgotPassword, ResetPassword | 2 | Kecil |
+
+#### Approach per page:
+1. Wrap table dengan `overflow-x-auto` jika belum
+2. Form layout: `grid grid-cols-1 md:grid-cols-2` untuk 2-column forms
+3. Filter bar: stack vertical di mobile (`flex-col sm:flex-row`)
+4. Action buttons: icon-only di mobile, icon+text di desktop
+5. Card layout: `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3`
+6. Hide non-essential columns di mobile (`hidden md:table-cell`)
 
 ---
 

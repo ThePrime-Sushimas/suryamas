@@ -133,7 +133,7 @@ export default function CompaniesPage() {
         </div>
 
         {showFilter && (
-          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-2 gap-3">
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
               <select value={filter.status || ''} onChange={e => setFilterKey('status', (e.target.value || undefined) as CompanyFilter['status'])}

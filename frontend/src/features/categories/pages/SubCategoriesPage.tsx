@@ -233,7 +233,7 @@ export default function SubCategoriesPage() {
         </div>
 
         {showFilter && (
-          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-2 gap-3">
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}

@@ -44,7 +44,7 @@ export function EditSupplierPage() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <div className="px-4 py-6 sm:p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="h-4 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6" />
         <div className="h-8 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
         <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6" />
@@ -60,7 +60,7 @@ export function EditSupplierPage() {
   if (!supplier) return null
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="px-4 py-6 sm:p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <button
         onClick={() => navigate('/suppliers')}
         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 mb-6"

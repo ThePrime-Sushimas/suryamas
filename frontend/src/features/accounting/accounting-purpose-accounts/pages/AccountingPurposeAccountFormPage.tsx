@@ -119,7 +119,7 @@ export const AccountingPurposeAccountFormPage = () => {
   } : undefined
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 p-6">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 px-4 py-6 sm:p-6">
       <div className="max-w-2xl mx-auto w-full space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">

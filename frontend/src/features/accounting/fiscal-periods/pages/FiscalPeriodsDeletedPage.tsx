@@ -36,7 +36,7 @@ export function FiscalPeriodsDeletedPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="px-4 py-6 sm:p-6 space-y-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Deleted Fiscal Periods</h1>
         <button

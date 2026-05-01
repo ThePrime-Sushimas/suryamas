@@ -35,7 +35,7 @@ export default function CreateProductPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="max-w-2xl mx-auto px-4 py-6 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
         <button
           onClick={() => navigate('/products')}

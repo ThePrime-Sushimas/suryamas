@@ -154,7 +154,7 @@ export default function PaymentTermDetailPage() {
             )}
 
             {/* Calculation Details */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Calculation Type</label>
                 <p className="mt-1 text-lg text-gray-900 dark:text-white">{CALCULATION_TYPE_LABELS[paymentTerm.calculation_type]}</p>
@@ -167,7 +167,7 @@ export default function PaymentTermDetailPage() {
 
             {/* Discount & Penalty */}
             {(paymentTerm.early_payment_discount > 0 || paymentTerm.late_payment_penalty > 0) && (
-              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 {paymentTerm.early_payment_discount > 0 && (
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Early Payment Discount</label>
@@ -189,7 +189,7 @@ export default function PaymentTermDetailPage() {
 
             {/* Order Amount Limits */}
             {(paymentTerm.minimum_order_amount > 0 || paymentTerm.maximum_order_amount) && (
-              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 {paymentTerm.minimum_order_amount > 0 && (
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Minimum Order Amount</label>

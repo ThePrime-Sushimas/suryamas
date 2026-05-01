@@ -13,6 +13,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { FailedTransactionDetailModal } from '../components/FailedTransactionDetailModal'
 import { FAILED_TRANSACTIONS_MESSAGES } from '@/utils/messages'
+import { Pagination } from '@/components/ui/Pagination'
 
 export const FailedTransactionsPage: React.FC = () => {
   const navigate = useNavigate()
@@ -148,9 +149,6 @@ export const FailedTransactionsPage: React.FC = () => {
     }).format(amount)
   }
 
-  const showingStart = (page - 1) * limit + 1
-  const showingEnd = Math.min(page * limit, total)
-
   return (
     <div className="p-6">
       {/* Page Header */}
@@ -253,7 +251,7 @@ export const FailedTransactionsPage: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-900/50">
                 <tr>
@@ -349,32 +347,19 @@ export const FailedTransactionsPage: React.FC = () => {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex flex-wrap items-center justify-between mt-4 gap-4">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Menampilkan {showingStart} - {showingEnd} dari {total} data
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(page - 1)}
-                  disabled={page === 1}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Sebelumnya
-                </button>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  Halaman {page} dari {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={page === totalPages}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Berikutnya
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            className="mt-4"
+            pagination={{
+              page,
+              limit,
+              total,
+              totalPages,
+              hasNext: page < totalPages,
+              hasPrev: page > 1,
+            }}
+            onPageChange={setPage}
+            showLimitSelect={false}
+          />
         </>
       )}
 

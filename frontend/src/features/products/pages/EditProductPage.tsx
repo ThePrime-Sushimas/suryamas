@@ -62,7 +62,7 @@ export default function EditProductPage() {
 
   if (fetchLoading) {
     return (
-      <div className="max-w-2xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <div className="max-w-2xl mx-auto px-4 py-6 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12">
           <div className="flex flex-col items-center justify-center space-y-4">
             <CardSkeleton />
@@ -75,7 +75,7 @@ export default function EditProductPage() {
 
   if (error || !currentProduct) {
     return (
-      <div className="max-w-2xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <div className="max-w-2xl mx-auto px-4 py-6 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12">
           <div className="text-center">
             <svg
@@ -108,7 +108,7 @@ export default function EditProductPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="max-w-2xl mx-auto px-4 py-6 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
         <button
           onClick={() => navigate('/products')}

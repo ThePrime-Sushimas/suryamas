@@ -82,7 +82,7 @@ export const PaymentMethodsPage = () => {
 
   return (
     <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Metode Pembayaran</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Kelola metode pembayaran yang tersedia</p>
@@ -100,7 +100,7 @@ export const PaymentMethodsPage = () => {
 
       {showForm ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               {editingId ? 'Edit Metode Pembayaran' : 'Metode Pembayaran Baru'}
             </h2>

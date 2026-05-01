@@ -348,7 +348,7 @@ export function ManualEntryPanel() {
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-gray-100 dark:border-gray-800">
+                  <div className="border-t border-gray-100 dark:border-gray-800 overflow-x-auto">
                     {selected.size > 0 && (
                       <div className="flex items-center justify-between px-4 py-1.5 bg-blue-50/50 dark:bg-blue-900/10 border-b border-gray-100 dark:border-gray-800">
                         <span className="text-[12px] text-blue-700 dark:text-blue-300">{selected.size} dipilih</span>

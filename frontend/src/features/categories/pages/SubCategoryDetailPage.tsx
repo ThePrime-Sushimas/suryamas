@@ -108,7 +108,7 @@ export default function SubCategoryDetailPage() {
               <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Urutan</label>
               <p className="mt-1 text-lg text-gray-900 dark:text-white">{subCategory.sort_order}</p>
             </div>
-            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   <Calendar className="w-4 h-4" /> Dibuat
