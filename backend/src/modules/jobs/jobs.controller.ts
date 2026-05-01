@@ -1,122 +1,73 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { handleError } from '../../utils/error-handler.util'
-import { AuthRequest } from '@/types/common.types'
 import { jobsService } from './jobs.service'
-import { sendSuccess, sendError } from '@/utils/response.util'
+import { sendSuccess, sendError } from '../../utils/response.util'
+import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { getJobByIdSchema, cancelJobSchema, createJobFullSchema } from './jobs.schema'
 
-import { getParamString } from '../../utils/validation.util'
-import { logInfo, logError } from '@/config/logger'
-import { JobType, JobModule } from './jobs.types'
+type GetJobReq = ValidatedAuthRequest<typeof getJobByIdSchema>
+type CancelJobReq = ValidatedAuthRequest<typeof cancelJobSchema>
+type CreateJobReq = ValidatedAuthRequest<typeof createJobFullSchema>
+
+function getCompanyId(req: Request): string {
+  const companyId = req.context?.company_id
+  if (!companyId) throw new Error('Company context required')
+  return companyId
+}
 
 export class JobsController {
-  // -----------------------------
-  // Helper: Validate company context
-  // -----------------------------
-  private getCompanyId(req: AuthRequest): string {
-    const companyId = req.context?.company_id
-    if (!companyId) throw new Error('Company context required')
-    return companyId
-  }
-
-  // -----------------------------
-  // Helper: Validate module
-  // -----------------------------
-  private validateModule(module: unknown): asserts module is JobModule {
-    const validModules: JobModule[] = [
-      'employees', 'companies', 'products', 'pos_transactions',
-      'fiscal_periods', 'chart_of_accounts', 'accounting_purposes',
-      'accounting_purpose_accounts', 'payment_methods', 'categories', 'sub_categories',
-      'pos_aggregates', 'pos_journals', 'bank_rec_journals'
-    ]
-    if (!validModules.includes(module as JobModule)) {
-      throw new Error(`Invalid module. Must be one of: ${validModules.join(', ')}`)
+  getRecentJobs = async (req: Request, res: Response) => {
+    try {
+      const companyId = getCompanyId(req)
+      const jobs = await jobsService.getUserRecentJobs(req.user?.id ?? '')
+      sendSuccess(res, jobs.filter(job => job.company_id === companyId), 'Recent jobs retrieved successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_recent_jobs', company_id: req.context?.company_id })
     }
   }
 
-  // -----------------------------
-  // GET /api/v1/jobs/recent
-  // -----------------------------
-  async getRecentJobs(req: AuthRequest, res: Response): Promise<void> {
+  getJobById = async (req: Request, res: Response) => {
     try {
-      const userId = req.user!.id
-      const companyId = this.getCompanyId(req)
-
-      const jobs = await jobsService.getUserRecentJobs(userId)
-      const filteredJobs = jobs.filter(job => job.company_id === companyId)
-
-      sendSuccess(res, filteredJobs, 'Recent jobs retrieved successfully')
-    } catch (error) {
-      await handleError(res, error, req)
-    }
-  }
-
-  // -----------------------------
-  // GET /api/v1/jobs/:id
-  // -----------------------------
-  async getJobById(req: AuthRequest, res: Response): Promise<void> {
-    try {
-      const id = getParamString(req.params.id)
-      const userId = req.user!.id
-      const companyId = this.getCompanyId(req)
-
-      const job = await jobsService.getJobById(id, userId)
+      const { id } = (req as GetJobReq).validated.params
+      const companyId = getCompanyId(req)
+      const job = await jobsService.getJobById(id, req.user?.id ?? '')
       if (job.company_id !== companyId) throw new Error('Access denied to this job')
+
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
       res.set('Pragma', 'no-cache')
-  
       sendSuccess(res, job, 'Job retrieved successfully')
-    } catch (error) {
-      await handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_job', id: req.params.id })
     }
   }
 
-  // -----------------------------
-  // POST /api/v1/jobs
-  // -----------------------------
-  async createJob(req: AuthRequest, res: Response): Promise<void> {
+  createJob = async (req: Request, res: Response) => {
     try {
-      const userId = req.user!.id
-      const companyId = this.getCompanyId(req)
-      const { type, module, name, metadata } = req.body
-
-      if (!type || !module || !name) return sendError(res, 'Missing required fields: type, module, name', 400)
-      if (type !== 'export' && type !== 'import') return sendError(res, 'Invalid job type', 400)
-      this.validateModule(module)
+      const companyId = getCompanyId(req)
+      const { type, module: mod, name, metadata } = (req as CreateJobReq).validated.body
 
       const job = await jobsService.createJob({
-        user_id: userId,
+        user_id: req.user?.id ?? '',
         company_id: companyId,
-        type,
-        module,
-        name,
-        metadata
+        type, module: mod, name, metadata: metadata as unknown as import('./jobs.types').JobMetadata,
       })
 
-      logInfo('Controller createJob success', { job_id: job.id, type, module, user_id: userId })
       sendSuccess(res, {
-        job_id: job.id,
-        status: job.status,
-        name: job.name,
-        type: job.type,
-        module: job.module,
-        created_at: job.created_at
+        job_id: job.id, status: job.status, name: job.name,
+        type: job.type, module: job.module, created_at: job.created_at,
       }, 'Job created successfully', 201)
-    } catch (error) {
-      await handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_job', company_id: req.context?.company_id })
     }
   }
 
-  // -----------------------------
-  // POST /api/v1/jobs/:id/upload
-  // -----------------------------
-  async uploadJobFile(req: AuthRequest, res: Response): Promise<void> {
+  uploadJobFile = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const userId = req.user!.id
-      const companyId = this.getCompanyId(req)
+      const { id } = (req as GetJobReq).validated.params
+      const companyId = getCompanyId(req)
+      const userId = req.user?.id ?? ''
 
       if (!req.file) return sendError(res, 'No file uploaded', 400)
-      const uploadedFile = req.file
 
       const job = await jobsService.getJobById(id, userId)
       if (job.company_id !== companyId) throw new Error('Access denied to this job')
@@ -125,76 +76,62 @@ export class JobsController {
       const allowedMimeTypes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.ms-excel',
-        'application/octet-stream'
+        'application/octet-stream',
       ]
-      if (!allowedMimeTypes.includes(uploadedFile.mimetype)) return sendError(res, 'Invalid file type. Only Excel files allowed', 400)
+      if (!allowedMimeTypes.includes(req.file.mimetype)) return sendError(res, 'Invalid file type. Only Excel files allowed', 400)
 
       const maxSize = 10 * 1024 * 1024
-      if (uploadedFile.size > maxSize) return sendError(res, `File size exceeds maximum ${maxSize / (1024 * 1024)}MB`, 400)
+      if (req.file.size > maxSize) return sendError(res, `File size exceeds maximum ${maxSize / (1024 * 1024)}MB`, 400)
 
       const { saveTempFile } = await import('./jobs.util')
-      const tempFilePath = await saveTempFile(uploadedFile.buffer, `${id}_${Date.now()}.xlsx`)
+      const tempFilePath = await saveTempFile(req.file.buffer, `${id}_${Date.now()}.xlsx`)
+      const completedJob = await jobsService.completeJob(id, userId, tempFilePath, req.file.originalname)
 
-      const completedJob = await jobsService.completeJob(id, userId, tempFilePath, uploadedFile.originalname)
-
-      logInfo('Controller uploadJobFile success', { job_id: id, file_name: uploadedFile.originalname, user_id: userId })
       sendSuccess(res, {
-        job_id: completedJob.id,
-        status: completedJob.status,
-        file_name: uploadedFile.originalname,
-        file_size: uploadedFile.size,
-        message: 'File uploaded successfully. Processing started in background.'
+        job_id: completedJob.id, status: completedJob.status,
+        file_name: req.file.originalname, file_size: req.file.size,
+        message: 'File uploaded successfully. Processing started in background.',
       })
-    } catch (error) {
-      await handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upload_job_file', id: req.params.id })
     }
   }
 
-  // -----------------------------
-  // POST /api/v1/jobs/:id/cancel
-  // -----------------------------
-  async cancelJob(req: AuthRequest, res: Response): Promise<void> {
+  cancelJob = async (req: Request, res: Response) => {
     try {
-      const id = getParamString(req.params.id)
-      const userId = req.user!.id
-      const companyId = this.getCompanyId(req)
+      const { id } = (req as CancelJobReq).validated.params
+      const companyId = getCompanyId(req)
 
-      const job = await jobsService.cancelJob(id, userId)
-      if (job.company_id !== companyId) throw new Error('Access denied to this job')
+      // Check access before cancel
+      const existing = await jobsService.getJobById(id, req.user?.id ?? '')
+      if (existing.company_id !== companyId) throw new Error('Access denied to this job')
 
+      const job = await jobsService.cancelJob(id, req.user?.id ?? '')
       sendSuccess(res, job, 'Job cancelled successfully')
-    } catch (error) {
-      await handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'cancel_job', id: req.params.id })
     }
   }
 
-  // -----------------------------
-  // GET /api/v1/jobs/modules?type=export|import
-  // -----------------------------
-  async getAvailableModules(req: AuthRequest, res: Response): Promise<void> {
+  getAvailableModules = async (req: Request, res: Response) => {
     try {
       const { type } = req.query
       if (!type || (type !== 'export' && type !== 'import')) return sendError(res, 'Query param "type" is required', 400)
 
-      const modules = await import('./processors').then(mod => mod.getAvailableModules(type as JobType))
+      const modules = await import('./processors').then(mod => mod.getAvailableModules(type as 'export' | 'import'))
       sendSuccess(res, { type, modules }, 'Available modules retrieved')
-    } catch (error) {
-      await handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_available_modules' })
     }
   }
 
-  // -----------------------------
-  // POST /api/v1/jobs/clear-all
-  // -----------------------------
-  async clearAllJobs(req: AuthRequest, res: Response): Promise<void> {
+  clearAllJobs = async (req: Request, res: Response) => {
     try {
-      const userId = req.user!.id
-      const companyId = this.getCompanyId(req)
-
-      const deletedCount = await jobsService.clearAllJobs(userId, companyId)
+      const companyId = getCompanyId(req)
+      const deletedCount = await jobsService.clearAllJobs(req.user?.id ?? '', companyId)
       sendSuccess(res, { deleted: deletedCount }, 'Jobs cleared successfully')
-    } catch (error) {
-      await handleError(res, error, req)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'clear_all_jobs', company_id: req.context?.company_id })
     }
   }
 }

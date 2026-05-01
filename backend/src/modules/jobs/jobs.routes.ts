@@ -1,103 +1,32 @@
-/**
- * Jobs Routes
- */
+import { Router } from 'express'
+import { jobsController } from './jobs.controller'
+import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
+import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
+import { getJobByIdSchema, cancelJobSchema, createJobFullSchema } from './jobs.schema'
+import rateLimit from 'express-rate-limit'
+import { PermissionService } from '../../services/permission.service'
+import multer from 'multer'
 
-import { Router } from "express";
-import { jobsController } from "./jobs.controller";
-import { authenticate } from "@/middleware/auth.middleware";
-import { resolveBranchContext } from "@/middleware/branch-context.middleware";
-import {
-  canView,
-  canInsert,
-  canUpdate,
-  canDelete,
-} from "@/middleware/permission.middleware";
-import { validateSchema } from "@/middleware/validation.middleware";
-import {
-  getJobByIdSchema,
-  cancelJobSchema,
-  createJobSchema,
-  createJobFullSchema,
-} from "./jobs.schema";
-import rateLimit from "express-rate-limit";
-import { PermissionService } from "@/services/permission.service";
-import multer from "multer";
+const router = Router()
+const upload = multer({ storage: multer.memoryStorage() })
 
-const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+PermissionService.registerModule('jobs', 'Job Management').catch((err) => {
+  console.error('Failed to register jobs module:', err instanceof Error ? err.message : err)
+})
 
-PermissionService.registerModule("jobs", "Job Management").catch(() => {});
+const jobRateLimiter = rateLimit({ windowMs: 60_000, max: 10, message: 'Too many job requests, please try again later' })
+const createJobRateLimiter = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many job creation requests, please try again later' })
 
-// Rate limiter for job operations
-const jobRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute
-  message: "Too many job requests, please try again later",
-});
+router.use(authenticate, resolveBranchContext)
 
-// Rate limiter for job creation (stricter)
-const createJobRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5, // 5 job creations per minute
-  message: "Too many job creation requests, please try again later",
-});
+router.get('/recent', canView('jobs'), (req, res) => jobsController.getRecentJobs(req, res))
+router.get('/modules', canView('jobs'), (req, res) => jobsController.getAvailableModules(req, res))
+router.get('/:id', canView('jobs'), validateSchema(getJobByIdSchema), (req, res) => jobsController.getJobById(req, res))
+router.post('/', canInsert('jobs'), validateSchema(createJobFullSchema), createJobRateLimiter, (req, res) => jobsController.createJob(req, res))
+router.post('/:id/upload', canInsert('jobs'), validateSchema(getJobByIdSchema), upload.single('file'), jobRateLimiter, (req, res) => jobsController.uploadJobFile(req, res))
+router.post('/:id/cancel', canUpdate('jobs'), validateSchema(cancelJobSchema), (req, res) => jobsController.cancelJob(req, res))
+router.post('/clear-all', canDelete('jobs'), (req, res) => jobsController.clearAllJobs(req, res))
 
-// All routes require authentication and branch context
-router.use(authenticate, resolveBranchContext);
-
-// Get recent jobs (last 10)
-router.get(
-  "/recent",
-  canView("jobs"),
-  jobsController.getRecentJobs.bind(jobsController),
-);
-
-// Get available modules for a job type
-router.get(
-  "/modules",
-  canView("jobs"),
-  jobsController.getAvailableModules.bind(jobsController),
-);
-
-// Get job by ID (requires jobs view permission)
-router.get(
-  "/:id",
-  canView("jobs"),
-  validateSchema(getJobByIdSchema),
-  jobsController.getJobById.bind(jobsController),
-);
-
-// Create a new job (requires insert permission)
-router.post(
-  "/",
-  canInsert("jobs"),
-  validateSchema(createJobFullSchema),
-  createJobRateLimiter,
-  jobsController.createJob.bind(jobsController),
-);
-
-// Upload file for import job (requires insert permission)
-router.post(
-  "/:id/upload",
-  canInsert("jobs"),
-  upload.single("file"),
-  jobRateLimiter,
-  jobsController.uploadJobFile.bind(jobsController),
-);
-
-// Cancel job (requires update permission)
-router.post(
-  "/:id/cancel",
-  canUpdate("jobs"),
-  validateSchema(cancelJobSchema),
-  jobsController.cancelJob.bind(jobsController),
-);
-
-// Clear all completed jobs (requires delete permission)
-router.post(
-  "/clear-all",
-  canDelete("jobs"),
-  jobsController.clearAllJobs.bind(jobsController),
-);
-
-export default router;
+export default router

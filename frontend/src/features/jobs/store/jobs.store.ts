@@ -4,6 +4,7 @@
 
 import { create } from 'zustand'
 import { jobsApi } from '../api/jobs.api'
+import { parseApiError } from '@/lib/errorParser'
 import type { Job } from '../types/jobs.types'
 
 const STALE_TIME = 5_000 // 5s dedup window
@@ -33,9 +34,9 @@ export const useJobsStore = create<JobsState>((set, get) => ({
     try {
       const jobs = await jobsApi.getRecentJobs()
       set({ jobs, loading: false })
-    } catch (error) {
+    } catch (error: unknown) {
       set({ 
-        error: error instanceof Error ? error.message : 'Failed to fetch jobs',
+        error: parseApiError(error, 'Gagal memuat daftar tugas'),
         loading: false,
         _lastFetchedAt: 0,
       })
@@ -55,9 +56,9 @@ export const useJobsStore = create<JobsState>((set, get) => ({
     try {
       await jobsApi.clearAllJobs()
       set({ jobs: [], loading: false })
-    } catch (error) {
+    } catch (error: unknown) {
       set({ 
-        error: error instanceof Error ? error.message : 'Failed to clear jobs',
+        error: parseApiError(error, 'Gagal menghapus tugas'),
         loading: false 
       })
     }
