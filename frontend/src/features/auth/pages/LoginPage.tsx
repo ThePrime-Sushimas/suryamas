@@ -48,22 +48,50 @@ export default function LoginPage() {
             transition={{ duration: 0.8, delay: 0.4 }}
           >
             <div className="absolute inset-0 bg-gradient-to-b from-[#1A1018] via-[#2D1B1B] to-[#1A1018]" />
+
+            {/* Gold glow behind logo */}
             <motion.div
-              className="relative z-10 flex flex-col items-center gap-4"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.8 }}
+              className="absolute w-64 h-64 rounded-full"
+              style={{ background: 'radial-gradient(circle, rgba(212,168,67,0.25) 0%, rgba(212,168,67,0.05) 50%, transparent 70%)' }}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: [1, 1.3, 1.1], opacity: [0, 0.8, 0.6] }}
+              transition={{ duration: 2, ease: 'easeOut', delay: 0.6 }}
+            />
+
+            {/* Red subtle glow */}
+            <motion.div
+              className="absolute w-40 h-40 rounded-full"
+              style={{ background: 'radial-gradient(circle, rgba(197,48,48,0.3) 0%, transparent 70%)' }}
+              animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+
+            <motion.div
+              className="relative z-10 flex flex-col items-center gap-6"
+              initial={{ opacity: 0, scale: 0.6, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.8, ease: [0.16, 1, 0.3, 1] }}
             >
-              <div className="w-20 h-20 rounded-full bg-[#C53030]/20 flex items-center justify-center">
-                <motion.div
-                  className="w-12 h-12 rounded-full bg-[#C53030]/40"
-                  animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-              </div>
-              <p className="text-[#D4A843] text-sm tracking-widest uppercase animate-pulse">
+              {/* SIS Logo */}
+              <motion.div
+                className="w-20 h-36 rounded-xl bg-[#C53030] flex flex-col items-center justify-center shadow-2xl shadow-red-900/50 gap-3 border-[6px] border-[#D4A843]"
+                animate={{ boxShadow: ['0 0 30px rgba(212,168,67,0.2)', '0 0 60px rgba(212,168,67,0.4)', '0 0 30px rgba(212,168,67,0.2)'] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <span className="text-2xl font-black text-white leading-none">S</span>
+                <span className="text-2xl font-black text-white leading-none">I</span>
+                <span className="text-2xl font-black text-white leading-none">S</span>
+              </motion.div>
+
+              {/* Selamat Datang */}
+              <motion.p
+                className="text-[#D4A843] text-sm tracking-[0.3em] uppercase font-medium"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 1.3 }}
+              >
                 Selamat Datang
-              </p>
+              </motion.p>
             </motion.div>
           </motion.div>
         )}
