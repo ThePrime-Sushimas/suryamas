@@ -1,47 +1,89 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "@/features/auth";
 import { useToast } from "@/contexts/ToastContext";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
   const { login, isLoading } = useAuthStore();
   const { success, error } = useToast();
   const navigate = useNavigate();
 
   const isValid = email.includes("@") && password.length >= 6;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
     try {
       await login(email, password, remember);
       success("Login berhasil");
-      navigate("/");
+      setGateOpen(true);
+      setTimeout(() => navigate("/"), 2400);
     } catch {
       error("Email atau password salah");
     }
-  };
+  }, [email, password, remember, isValid, login, success, error, navigate]);
 
   return (
-    <div className="min-h-screen flex">
-      <div className="absolute top-4 right-4 z-10">
+    <div className="min-h-screen flex relative overflow-hidden">
+      {/* Theme toggle */}
+      <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
       </div>
 
-      {/* Left Panel — Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-linear-to-b from-[#2D1B1B] via-[#1E1215] to-[#1A1018] text-white relative items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.07] bg-[radial-gradient(circle,white_1px,transparent_1px)] bg-size-[24px_24px]" />
+      {/* Gate reveal glow — visible when gate opens */}
+      <AnimatePresence>
+        {gateOpen && (
+          <motion.div
+            className="absolute inset-0 z-0 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-[#1A1018] via-[#2D1B1B] to-[#1A1018]" />
+            <motion.div
+              className="relative z-10 flex flex-col items-center gap-4"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.8 }}
+            >
+              <div className="w-20 h-20 rounded-full bg-[#C53030]/20 flex items-center justify-center">
+                <motion.div
+                  className="w-12 h-12 rounded-full bg-[#C53030]/40"
+                  animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+              </div>
+              <p className="text-[#D4A843] text-sm tracking-widest uppercase animate-pulse">
+                Selamat Datang
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* LEFT GATE — Branding panel */}
+      <motion.div
+        className="hidden lg:flex lg:w-1/2 bg-gradient-to-b from-[#2D1B1B] via-[#1E1215] to-[#1A1018] text-white relative items-center justify-center overflow-hidden z-20"
+        animate={gateOpen ? { x: "-100%", opacity: 0 } : { x: 0, opacity: 1 }}
+        transition={{ duration: 1.6, ease: [0.76, 0, 0.24, 1] }}
+      >
+        <div className="absolute inset-0 opacity-[0.07] bg-[radial-gradient(circle,white_1px,transparent_1px)] bg-[length:24px_24px]" />
         <div className="absolute top-1/4 -left-20 w-80 h-80 bg-[#C53030]/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-[#C53030]/5 rounded-full blur-3xl" />
 
+        {/* Gate edge line */}
+        <div className="absolute right-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-transparent via-[#D4A843]/40 to-transparent" />
+
         <div className="relative z-10 text-center px-12 max-w-md">
-          <div className="w-16 h-28 mx-auto rounded-xl bg-[#C53030] flex flex-col items-center justify-center shadow-2xl shadow-red-900/30 mb-8 gap-2.5 border-6 border-[#D4A843]">
+          <div className="w-16 h-28 mx-auto rounded-xl bg-[#C53030] flex flex-col items-center justify-center shadow-2xl shadow-red-900/30 mb-8 gap-2.5 border-[6px] border-[#D4A843]">
             <span className="text-xl font-black text-white leading-none">S</span>
             <span className="text-xl font-black text-white leading-none">I</span>
             <span className="text-xl font-black text-white leading-none">S</span>
@@ -52,24 +94,31 @@ export default function LoginPage() {
           </h1>
           <p className="text-sm font-medium text-[#D4A843] mt-2 tracking-widest uppercase">Internal System V.2</p>
 
-          <p className="mt-10 text-3xl tracking-[0.3em] text-white-500 font-light">
+          <p className="mt-10 text-3xl tracking-[0.3em] text-white/50 font-light">
             努力は報われる
           </p>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Right Panel — Login Form */}
-      <div className="flex-1 flex items-center justify-center bg-linear-to-b from-[#2D1B1B] via-[#231418] to-[#1A1018] px-6 py-12 border-l border-[#D4A843]/20">
+      {/* RIGHT GATE — Login form panel */}
+      <motion.div
+        className="flex-1 flex items-center justify-center bg-gradient-to-b from-[#2D1B1B] via-[#231418] to-[#1A1018] px-6 py-12 border-l border-[#D4A843]/20 z-20"
+        animate={gateOpen ? { x: "100%", opacity: 0 } : { x: 0, opacity: 1 }}
+        transition={{ duration: 1.6, ease: [0.76, 0, 0.24, 1] }}
+      >
+        {/* Gate edge line */}
+        <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-transparent via-[#D4A843]/40 to-transparent lg:hidden" />
+
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-8">
-            <div className="w-10 h-20 mx-auto rounded-lg bg-[#C53030] flex flex-col items-center justify-center shadow-lg mb-4 gap-1.5 border-5 border-[#D4A843]">
+            <div className="w-10 h-20 mx-auto rounded-lg bg-[#C53030] flex flex-col items-center justify-center shadow-lg mb-4 gap-1.5 border-[5px] border-[#D4A843]">
               <span className="text-base font-black text-white leading-none">S</span>
               <span className="text-base font-black text-white leading-none">I</span>
               <span className="text-base font-black text-white leading-none">S</span>
             </div>
-            <h2 className="text-xl text-gray-100 dark:text-white" style={{ fontFamily: "'Gang of Three', sans-serif" }}>S U S H I M AS</h2>
-            <p className="text-xs text-yellow-200 dark:text-gray-400 mt-1">Internal System V.2</p>
+            <h2 className="text-xl text-gray-100" style={{ fontFamily: "'Gang of Three', sans-serif" }}>S U S H I M A S</h2>
+            <p className="text-xs text-yellow-200 mt-1">Internal System V.2</p>
           </div>
 
           <div className={`relative bg-[#1E1215]/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg border border-[#D4A843]/20 transition-all ${isLoading ? 'pointer-events-none' : ''}`}>
@@ -77,7 +126,7 @@ export default function LoginPage() {
             {isLoading && (
               <div className="absolute inset-0 bg-[#1E1215]/70 backdrop-blur-sm rounded-2xl z-10 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                  <span className="w-8 h-8 border-3 border-red-200 border-t-[#C53030] rounded-full animate-spin" />
+                  <span className="w-8 h-8 border-[3px] border-red-200 border-t-[#C53030] rounded-full animate-spin" />
                   <span className="text-xs text-gray-400">Memverifikasi...</span>
                 </div>
               </div>
@@ -141,7 +190,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading || !isValid}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white font-medium bg-linear-to-r from-[#C53030] to-[#1A1F2B] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C53030] disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-all"
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white font-medium bg-gradient-to-r from-[#C53030] to-[#1A1F2B] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C53030] disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-all"
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
@@ -171,7 +220,7 @@ export default function LoginPage() {
             © {new Date().getFullYear()} PT Surya Mas Pratama. All rights reserved.
           </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

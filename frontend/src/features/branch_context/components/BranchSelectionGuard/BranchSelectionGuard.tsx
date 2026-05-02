@@ -2,6 +2,13 @@ import { useBranchContextStore } from '@/features/branch_context/store/branchCon
 import { useAuthStore } from '@/features/auth'
 import { useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+
+const fadeIn = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  transition: { duration: 0.6, delay: 0.3 },
+}
 
 interface BranchSelectionGuardProps {
   children: React.ReactNode
@@ -33,12 +40,12 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <motion.div className="flex items-center justify-center min-h-screen" {...fadeIn}>
         <div role="status" aria-live="polite" className="text-center">
           <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" aria-label="Loading" />
-          <p className="mt-4 text-gray-700 dark:text-gray-300">Loading branch context...</p>
+          <p className="mt-4 text-gray-700 dark:text-gray-300">Memuat data cabang...</p>
         </div>
-      </div>
+      </motion.div>
     )
   }
 
@@ -62,21 +69,21 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
   if (branches.length > 0 && !currentBranch) {
     if (branches.length === 1) {
       return (
-        <div className="flex items-center justify-center min-h-screen">
+        <motion.div className="flex items-center justify-center min-h-screen" {...fadeIn}>
           <div role="status" aria-live="polite" className="text-center">
             <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" aria-label="Loading" />
-            <p className="mt-4 text-gray-700 dark:text-gray-300">Setting up branch...</p>
+            <p className="mt-4 text-gray-700 dark:text-gray-300">Menyiapkan cabang...</p>
           </div>
-        </div>
+        </motion.div>
       )
     }
     
     return (
-      <div className="flex items-center justify-center min-h-screen p-4">
+      <motion.div className="flex items-center justify-center min-h-screen p-4" {...fadeIn}>
         <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Select Branch</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">You have access to multiple branches. Please select one to continue.</p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Pilih Cabang</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">Anda memiliki akses ke beberapa cabang. Silakan pilih untuk melanjutkan.</p>
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             {branches.map((branch) => (
               <button
                 key={branch.branch_id}
@@ -89,7 +96,7 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
             ))}
           </div>
         </div>
-      </div>
+      </motion.div>
     )
   }
 
