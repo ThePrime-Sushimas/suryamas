@@ -191,7 +191,7 @@ export class BranchesRepository {
 
   async minimalActive(): Promise<{ id: string; branch_name: string }[]> {
     const { rows } = await pool.query(
-      `SELECT id, branch_name FROM branches WHERE status = 'active' ORDER BY branch_name LIMIT 1000`
+      `SELECT id, branch_name FROM branches WHERE status IN ('active', 'closed') ORDER BY branch_name LIMIT 1000`
     )
     return rows
   }
@@ -204,11 +204,11 @@ export class BranchesRepository {
     return rows[0] || null
   }
 
-  async closeBranch(id: string, userId: string, reason: string): Promise<Branch> {
+  async closeBranch(id: string, userId: string, reason: string, closedDate: string): Promise<Branch> {
     const { rows } = await pool.query(
-      `UPDATE branches SET status = 'closed', closed_at = NOW(), closed_by = $2, closed_reason = $3, updated_by = $2, updated_at = NOW()
+      `UPDATE branches SET status = 'closed', closed_at = NOW(), closed_by = $2, closed_reason = $3, closed_date = $4::date, updated_by = $2, updated_at = NOW()
        WHERE id = $1 RETURNING *`,
-      [id, userId, reason]
+      [id, userId, reason, closedDate]
     )
     return rows[0]
   }

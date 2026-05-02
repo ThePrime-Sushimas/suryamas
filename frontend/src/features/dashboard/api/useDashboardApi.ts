@@ -119,7 +119,7 @@ export const useAllBranches = () =>
   useQuery({
     queryKey: ['dashboard', 'all-branches'],
     queryFn: async () => {
-      const { data } = await api.get('/branches', { params: { limit: 200, status: 'active' } })
+      const { data } = await api.get('/branches', { params: { limit: 200 } })
       return data.data as Array<{ id: string; branch_name: string; status: string }>
     },
     staleTime: 5 * 60_000,

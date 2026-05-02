@@ -165,7 +165,7 @@ export class BranchesService {
     return branchesRepository.minimalActive()
   }
 
-  async closeBranch(id: string, userId: string, reason: string): Promise<Branch> {
+  async closeBranch(id: string, userId: string, reason: string, closedDate: string): Promise<Branch> {
     const branch = await branchesRepository.findById(id)
     if (!branch) throw BranchErrors.NOT_FOUND(id)
     if (branch.status === 'closed') throw BranchErrors.ALREADY_CLOSED(id, branch.branch_name)
@@ -184,7 +184,7 @@ export class BranchesService {
       })
     }
 
-    const closed = await branchesRepository.closeBranch(id, userId, reason)
+    const closed = await branchesRepository.closeBranch(id, userId, reason, closedDate)
     if (!closed) throw BranchErrors.NOT_FOUND(id)
 
     const { invalidateBranchContextCache } = await import('../../middleware/branch-context.middleware')

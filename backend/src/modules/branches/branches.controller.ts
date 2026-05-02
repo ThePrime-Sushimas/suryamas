@@ -101,8 +101,13 @@ export class BranchesController {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof branchIdSchema>).validated
       const reason = req.body?.reason as string
+      const closedDate = req.body?.closed_date as string
       if (!reason || reason.trim().length < 5) {
         sendError(res, 'Alasan penutupan wajib diisi (minimal 5 karakter)', 400)
+        return
+      }
+      if (!closedDate || !/^\d{4}-\d{2}-\d{2}$/.test(closedDate)) {
+        sendError(res, 'Tanggal tutup wajib diisi (format YYYY-MM-DD)', 400)
         return
       }
       const userId = req.user?.id
@@ -110,7 +115,7 @@ export class BranchesController {
         sendError(res, 'Authentication required', 401)
         return
       }
-      const branch = await branchesService.closeBranch(params.id, userId, reason.trim())
+      const branch = await branchesService.closeBranch(params.id, userId, reason.trim(), closedDate)
       sendSuccess(res, branch, 'Cabang berhasil ditutup secara permanen')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'close_branch' })

@@ -22,6 +22,7 @@ export interface Branch {
   notes: string | null
   closed_at: string | null
   closed_by: string | null
+  closed_date: string | null
   closed_reason: string | null
   created_at: string
   updated_at: string

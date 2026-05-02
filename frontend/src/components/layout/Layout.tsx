@@ -11,10 +11,26 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/features/auth";
 import { BranchSwitcher } from "@/features/branch_context";
+import { useBranchAccess } from "@/features/branch_context/hooks/useBranchAccess";
+import { useBranchContextStore } from "@/features/branch_context/store/branchContext.store";
 import { UploadProgressToast } from "@/features/pos-imports/components/UploadProgressToast";
 import { JobNotificationBell } from "@/features/jobs";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Sidebar } from "./Sidebar";
+
+function ReadOnlyBanner() {
+  const { isClosed } = useBranchAccess()
+  const currentBranch = useBranchContextStore(s => s.currentBranch)
+  if (!isClosed) return null
+  return (
+    <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2 text-sm text-amber-800 dark:text-amber-300 flex items-center gap-2">
+      <span>⚠️</span>
+      <span>
+        Cabang <strong>{currentBranch?.branch_name}</strong> sudah tutup permanen. Hanya bisa melihat data historis.
+      </span>
+    </div>
+  )
+}
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -171,6 +187,7 @@ export default function Layout() {
 
         {/* Main content */}
         <main className="flex-1 overflow-auto pb-16 lg:pb-0">
+          <ReadOnlyBanner />
           <Outlet />
         </main>
       </div>

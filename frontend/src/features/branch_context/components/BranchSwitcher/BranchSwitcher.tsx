@@ -34,7 +34,7 @@ export const BranchSwitcher = () => {
       >
         {branches.map((branch) => (
           <option key={branch.branch_id} value={branch.branch_id}>
-            {branch.branch_name}
+            {branch.branch_name}{branch.branch_status === 'closed' ? ' [Tutup]' : ''}
           </option>
         ))}
       </select>

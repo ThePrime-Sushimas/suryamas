@@ -90,7 +90,12 @@ export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) =>
                 onClick={() => switchBranch(branch.branch_id)}
                 className="p-4 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
               >
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{branch.branch_name}</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                  {branch.branch_name}
+                  {branch.branch_status === 'closed' && (
+                    <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">[Tutup]</span>
+                  )}
+                </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Approval Limit: {branch.approval_limit.toLocaleString()}</p>
               </button>
             ))}

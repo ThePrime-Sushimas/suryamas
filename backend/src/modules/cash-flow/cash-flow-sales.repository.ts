@@ -697,7 +697,7 @@ export class CashFlowSalesRepository {
 
   async getBranches(companyId: string): Promise<Array<{ branch_id: string; branch_name: string }>> {
     const { rows } = await pool.query(
-      'SELECT id, branch_name FROM branches WHERE company_id = $1 AND status = \'active\' ORDER BY branch_name',
+      'SELECT id, branch_name FROM branches WHERE company_id = $1 AND status IN (\'active\', \'closed\') ORDER BY branch_name',
       [companyId]
     )
     return rows.map(b => ({ branch_id: b.id, branch_name: b.branch_name }))
@@ -846,7 +846,7 @@ export class CashFlowSalesRepository {
           pmg.display_order as group_display_order
         FROM bank_statements bs
         JOIN cash_deposits cd ON bs.cash_deposit_id = cd.id
-        LEFT JOIN branches b ON cd.branch_name = b.branch_name AND b.company_id = $1::uuid AND b.status = 'active'
+        LEFT JOIN branches b ON cd.branch_name = b.branch_name AND b.company_id = $1::uuid AND b.status IN ('active', 'closed')
         LEFT JOIN payment_methods pm ON cd.payment_method_id = pm.id
         LEFT JOIN payment_method_group_mappings pmgm ON pm.id = pmgm.payment_method_id
         LEFT JOIN payment_method_groups pmg ON pmgm.group_id = pmg.id AND pmg.company_id = $5::uuid

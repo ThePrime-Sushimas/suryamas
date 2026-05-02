@@ -6,6 +6,8 @@ export interface BranchContext {
   role_id: string
   role_name: string
   approval_limit: number
+  is_read_only: boolean
+  branch_status: string
 }
 
 export interface PermissionMatrix {

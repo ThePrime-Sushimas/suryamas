@@ -6,6 +6,7 @@ import type { Branch } from '../types'
 import api from '@/lib/axios'
 import AssignEmployeeToBranchModal from '@/components/AssignEmployeeToBranchModal'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { CloseBranchModal } from '../components/CloseBranchModal'
 import { useToast } from '@/contexts/ToastContext'
 import {
   ArrowLeft,
@@ -76,6 +77,7 @@ function BranchDetailPage() {
   const [deletingEmployee, setDeletingEmployee] = useState<string | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [employeeToDelete, setEmployeeToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [showCloseModal, setShowCloseModal] = useState(false)
   const { success, error: showError } = useToast()
 
   const ITEMS_PER_PAGE = 10
@@ -153,6 +155,12 @@ function BranchDetailPage() {
 
   const handleCloseDeleteModal = () => {
     setIsDeleteModalOpen(false)
+  }
+
+  const handleCloseBranch = async (reason: string, closedDate: string) => {
+    await branchesApi.closeBranch(id!, reason, closedDate)
+    success('Cabang berhasil ditutup secara permanen')
+    window.location.reload()
   }
 
   const getStatusColor = (status: string) => {
@@ -266,12 +274,14 @@ function BranchDetailPage() {
             </div>
             
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigate(`/branches/${id}/edit`)}
-                className="p-2 text-blue-600 hover:text-blue-700"
-              >
-                <Edit2 className="h-5 w-5" />
-              </button>
+              {branch.status !== 'closed' && (
+                <button
+                  onClick={() => navigate(`/branches/${id}/edit`)}
+                  className="p-2 text-blue-600 hover:text-blue-700"
+                >
+                  <Edit2 className="h-5 w-5" />
+                </button>
+              )}
               <button
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
                 className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
@@ -329,26 +339,36 @@ function BranchDetailPage() {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">             
-              <button
-                onClick={() => navigate(`/branches/${id}/edit`)}
-                className="inline-flex items-center gap-2 bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm hover:shadow-md"
-              >
-                <Edit2 className="h-5 w-5" />
-                Edit Branch
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-2 bg-linear-to-r from-red-600 to-red-700 text-white px-6 py-2.5 rounded-xl hover:from-red-700 hover:to-red-800 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
-              >
-                {deleting ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Trash2 className="h-5 w-5" />
-                )}
-                Delete
-              </button>
+            <div className="flex items-center gap-3">
+              {branch.status !== 'closed' && (
+                <>
+                  <button
+                    onClick={() => setShowCloseModal(true)}
+                    className="inline-flex items-center gap-2 bg-amber-600 text-white px-6 py-2.5 rounded-xl hover:bg-amber-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                  >
+                    Tutup Cabang
+                  </button>
+                  <button
+                    onClick={() => navigate(`/branches/${id}/edit`)}
+                    className="inline-flex items-center gap-2 bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm hover:shadow-md"
+                  >
+                    <Edit2 className="h-5 w-5" />
+                    Edit Branch
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="inline-flex items-center gap-2 bg-linear-to-r from-red-600 to-red-700 text-white px-6 py-2.5 rounded-xl hover:from-red-700 hover:to-red-800 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
+                  >
+                    {deleting ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-5 w-5" />
+                    )}
+                    Delete
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1195,6 +1215,15 @@ function BranchDetailPage() {
         variant="danger"
         isLoading={!!deletingEmployee}
       />
+
+      {branch && (
+        <CloseBranchModal
+          branchName={branch.branch_name}
+          isOpen={showCloseModal}
+          onClose={() => setShowCloseModal(false)}
+          onConfirm={handleCloseBranch}
+        />
+      )}
     </div>
   )
 }

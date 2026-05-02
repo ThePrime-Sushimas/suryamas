@@ -38,8 +38,8 @@
 - [ ] **Branch Closure** — tutup cabang permanen dengan akses read-only historis (design doc: `.amazonq/docs/BRANCH_CLOSURE_DESIGN.md`)
   - [x] Phase 1: Database + Backend Core (migration, types, middleware, branch module, employee_branches)
   - [x] Phase 2: Write Guard middleware + apply ke mutation routes (8 files, 61 routes)
-  - [ ] Phase 3: Branch Dropdowns (include closed)
-  - [ ] Phase 4: Frontend (types, hook, banner, switcher, modal, pages)
+  - [x] Phase 3: Branch Dropdowns — include closed (3 files updated, 2 files verified active-only)
+  - [x] Phase 4: Frontend (types, hook, banner, switcher, table, detail page, dashboard filter, CloseBranchModal)
   - [ ] Phase 5: End-to-End Test
 - [ ] PO Flow (Purchase Order → Receiving → AP → Payment → Auto Journal)
 - [ ] COGS calculation (HPP dari inventory movement)

@@ -59,5 +59,10 @@ export const branchesApi = {
 
   bulkDelete: async (ids: string[]) => {
     await api.post('/branches/bulk/delete', { ids })
-  }
+  },
+
+  closeBranch: async (id: string, reason: string, closedDate: string) => {
+    const res = await api.post(`/branches/${id}/close`, { reason, closed_date: closedDate })
+    return res.data.data
+  },
 }

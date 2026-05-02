@@ -5,6 +5,7 @@ import type { Branch, BranchStatus } from '../types'
 const statusColors: Record<BranchStatus, string> = {
   active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
   inactive: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  closed: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 }
 
 interface BranchTableProps {

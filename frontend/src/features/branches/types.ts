@@ -1,4 +1,4 @@
-export type BranchStatus = 'active' | 'inactive'
+export type BranchStatus = 'active' | 'inactive' | 'closed'
 
 export type BranchSortField = 
   | 'branch_name'

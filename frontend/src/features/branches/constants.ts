@@ -3,6 +3,7 @@
 export const BRANCH_STATUS = {
   ACTIVE: 'active',
   INACTIVE: 'inactive',
+  CLOSED: 'closed',
 } as const
 
 export const DAYS_OF_WEEK = [

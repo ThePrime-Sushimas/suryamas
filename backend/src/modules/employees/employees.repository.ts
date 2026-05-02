@@ -210,7 +210,7 @@ export class EmployeesRepository {
 
     const [empRes, branchRes] = await Promise.all([
       pool.query("SELECT DISTINCT LOWER(job_position) AS job_position FROM employees WHERE is_active = true AND deleted_at IS NULL AND job_position IS NOT NULL"),
-      pool.query("SELECT id, branch_name FROM branches WHERE status = 'active' ORDER BY branch_name")
+      pool.query("SELECT id, branch_name FROM branches WHERE status IN ('active', 'closed') ORDER BY branch_name")
     ])
 
     const branches = branchRes.rows
