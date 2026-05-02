@@ -9,3 +9,6 @@ logs/
 .vercel
 dev.log
 frontend/.env.production
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
