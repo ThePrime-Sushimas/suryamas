@@ -75,15 +75,6 @@ async function isModuleError(error: unknown, errorName: string): Promise<boolean
 }
 
 function persistHandledError(error: Error, statusCode: number, req?: Request, context?: Record<string, unknown>): void {
-  // Skip specific noisy client errors to prevent flood
-  if (
-    error.name === 'NotFoundError' ||
-    error.name === 'ValidationError' ||
-    error.name === 'PermissionError'
-  ) {
-    return
-  }
-
   const severity = statusCode >= 500 ? 'CRITICAL' : statusCode >= 400 ? 'MEDIUM' : 'LOW'
   const pathParts = (req?.path || '').split('/').filter(Boolean)
   monitoringRepository.createErrorReport({
