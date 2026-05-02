@@ -4,7 +4,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ''
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || ''
 
-const RATE_LIMIT_MS = 10_000
+const RATE_LIMIT_MS = 0
 let lastSent = 0
 
 export interface ErrorAlert {
@@ -23,7 +23,6 @@ export interface ErrorAlert {
 
 function shouldSend(): boolean {
   if (!TELEGRAM_BOT_TOKEN && !DISCORD_WEBHOOK_URL) return false
-  if (Date.now() - lastSent < RATE_LIMIT_MS) return false
   return true
 }
 
