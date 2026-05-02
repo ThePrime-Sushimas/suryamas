@@ -234,7 +234,7 @@ export default function DashboardPage() {
 
         {/* Workflow + Detail Hari Ini + Finance */}
         <div className="grid grid-cols-1 lg:grid-cols-[58fr_42fr] gap-4 items-start">
-          <WorkflowTracker periodLabel={periodLabel} totalStatements={recon.data?.total_statements || 0} unmatchedCount={recon.data?.unreconciled_count || 0} reconciledCount={recon.data?.reconciled_count || 0} unreconciledCount={unreconciledCount} cashPending={cashCount.data?.pendingCount || 0} feeDiscrepancyCount={feeDiscrepancyCount} />
+          <WorkflowTracker periodLabel={periodLabel} totalStatements={recon.data?.total_statements || 0} unmatchedCount={recon.data?.unreconciled_count || 0} reconciledCount={recon.data?.reconciled_count || 0} unreconciledCount={unreconciledCount} cashPending={cashCount.data?.pendingCount || 0} cashCountedNotDeposited={0} feeDiscrepancyCount={feeDiscrepancyCount} expenseUncategorized={0} expenseUnjournaled={0} journalDraft={0} journalPosted={0} />
           <div className="space-y-4">
             <SalesOverview data={todaySalesData} isLoading={sales.isLoading} isFetching={sales.isFetching} onRefresh={() => sales.refetch()} />
             <FinanceOverview bankAccounts={bankAccounts.data} bankImports={bankImports.data} fiscalPeriods={fiscalPeriods.data} totalFee={totalFee} isLoading={bankAccounts.isLoading || fiscalPeriods.isLoading} />

@@ -36,7 +36,7 @@ const inputCls = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 r
 const labelCls = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
 
 export default function ProfilePage() {
-  const { profile, fetchProfile, updateProfile, uploadProfilePicture, isLoading } = useEmployeeStore()
+  const { profile, fetchProfile, updateProfile, uploadProfilePicture, loading: isLoading } = useEmployeeStore()
   const { success, error: toastError } = useToast()
   
   const [isEditing, setIsEditing] = useState(false)

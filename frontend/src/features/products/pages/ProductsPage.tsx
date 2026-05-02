@@ -20,8 +20,6 @@ export default function ProductsPage() {
     mutationLoading,
     error: storeError,
     selectedIds,
-    fetchProducts,
-    searchProducts,
     deleteProduct,
     bulkDelete,
     bulkRestore,

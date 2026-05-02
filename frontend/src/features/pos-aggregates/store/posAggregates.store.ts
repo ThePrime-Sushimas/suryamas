@@ -62,7 +62,7 @@ interface PosAggregatesState {
   isDataLoading: () => boolean
   
   // Error - typed
-  error: ReturnType<typeof createError> | null
+  error: string | null
   
   // Track in-flight requests to prevent duplicate calls
   inFlightRequests: Map<string, Promise<unknown>>
@@ -173,7 +173,7 @@ const areAllSelected = (
 /**
  * Create typed error for store
  */
-const createStoreError = createError
+const createStoreError = (msg: string, _code?: string, _details?: unknown) => msg
 
 // =============================================================================
 // STORE

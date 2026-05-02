@@ -89,3 +89,15 @@ Laporan keuangan punya permission terpisah:
 3. Error dari controller pakai `handleError(res, error, req)` — SELALU pass `req`
 4. Semua error otomatis persist ke `error_logs` + kirim Telegram
 5. Job failures juga persist ke `error_logs` (via jobs.worker.ts)
+
+## Auto Deploy (GitHub Actions)
+- **Flow**: Push ke `main` → GitHub Actions SSH ke VPS → `/root/deploy.sh`
+- **Workflow**: `.github/workflows/deploy.yml`
+- **Deploy script**: `/root/deploy.sh` (git pull, npm install, build, pm2 restart)
+- **Secrets** (di GitHub repo settings): `SSH_HOST`, `SSH_USERNAME`, `SSH_PRIVATE_KEY`
+
+### Manual Deploy (jika Actions gagal)
+```bash
+ssh root@65.108.60.217
+/root/deploy.sh
+```

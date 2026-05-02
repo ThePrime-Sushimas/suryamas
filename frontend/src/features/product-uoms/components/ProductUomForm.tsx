@@ -44,7 +44,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
     const fetchMetricUnits = async () => {
       setIsLoadingUnits(true)
       try {
-        const response = await metricUnitsApi.listActive(1, 100)
+        const response = await metricUnitsApi.list(1, 100)
         setMetricUnits(response.data)
       } catch {
         toast.error('Failed to fetch metric units')

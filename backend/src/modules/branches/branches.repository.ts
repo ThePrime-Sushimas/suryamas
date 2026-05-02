@@ -234,7 +234,7 @@ export class BranchesRepository {
   async countProcessingPosImports(branchId: string): Promise<number> {
     const { rows } = await pool.query(
       `SELECT COUNT(*)::int AS cnt FROM pos_imports
-       WHERE branch_id = $1 AND status = 'PROCESSING'`,
+       WHERE branch_id = $1 AND status IN ('PENDING', 'ANALYZED')`,
       [branchId]
     )
     return rows[0].cnt
