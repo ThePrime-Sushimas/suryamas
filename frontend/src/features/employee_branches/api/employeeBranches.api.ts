@@ -1,5 +1,5 @@
 import api from '@/lib/axios'
-import { normalizeError } from './errors'
+
 import type {
   EmployeeBranch,
   EmployeeBranchListQuery,
@@ -19,7 +19,7 @@ export const employeeBranchesApi = {
       const { data } = await api.get<PaginatedResponse<EmployeeBranch>>(BASE, { params: query })
       return data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -30,7 +30,7 @@ export const employeeBranchesApi = {
       })
       return data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -39,7 +39,7 @@ export const employeeBranchesApi = {
       const { data } = await api.get<{ success: boolean; data: EmployeeBranch }>(`${BASE}/${id}`)
       return data.data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -48,7 +48,7 @@ export const employeeBranchesApi = {
       const { data } = await api.post<{ success: boolean; data: EmployeeBranch }>(BASE, payload)
       return data.data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -57,7 +57,7 @@ export const employeeBranchesApi = {
       const { data } = await api.put<{ success: boolean; data: EmployeeBranch }>(`${BASE}/${id}`, payload)
       return data.data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -65,7 +65,7 @@ export const employeeBranchesApi = {
     try {
       await api.delete(`${BASE}/${id}`)
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -73,7 +73,7 @@ export const employeeBranchesApi = {
     try {
       await api.put(`${BASE}/employee/${employeeId}/branch/${branchId}/primary`)
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -82,7 +82,7 @@ export const employeeBranchesApi = {
       const { data } = await api.get<{ success: boolean; data: EmployeeBranch[] }>(`${BASE}/employee/${employeeId}`)
       return data.data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -91,7 +91,7 @@ export const employeeBranchesApi = {
       const { data } = await api.get<{ success: boolean; data: Role[] }>('/permissions/roles')
       return data.data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -106,7 +106,7 @@ export const employeeBranchesApi = {
         branch_code: b.branch_code
       }))
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -114,7 +114,7 @@ export const employeeBranchesApi = {
     try {
       await api.delete(`${BASE}/employee/${employeeId}/branch/${branchId}`)
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -123,7 +123,7 @@ export const employeeBranchesApi = {
       const { data } = await api.put<{ success: boolean; data: EmployeeBranch }>(`${BASE}/${id}/suspend`)
       return data.data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 
@@ -132,7 +132,7 @@ export const employeeBranchesApi = {
       const { data } = await api.put<{ success: boolean; data: EmployeeBranch }>(`${BASE}/${id}/activate`)
       return data.data
     } catch (err) {
-      throw normalizeError(err)
+      throw err
     }
   },
 }

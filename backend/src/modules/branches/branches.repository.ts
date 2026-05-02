@@ -103,7 +103,9 @@ export class BranchesRepository {
 
   async create(data: CreateBranchDto): Promise<Branch> {
     const keys = Object.keys(data)
-    const values = Object.values(data)
+    const values = Object.values(data).map(v =>
+      v !== null && typeof v === 'object' && !Array.isArray(v) ? JSON.stringify(v) : Array.isArray(v) ? JSON.stringify(v) : v
+    )
     const cols = keys.join(', ')
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ')
     const { rows } = await pool.query(
@@ -116,7 +118,9 @@ export class BranchesRepository {
   async updateById(id: string, updates: UpdateBranchDto): Promise<Branch | null> {
     const keys = Object.keys(updates)
     if (!keys.length) return this.findById(id)
-    const values = Object.values(updates)
+    const values = Object.values(updates).map(v =>
+      v !== null && typeof v === 'object' && !Array.isArray(v) ? JSON.stringify(v) : Array.isArray(v) ? JSON.stringify(v) : v
+    )
     const set = keys.map((k, i) => `${k} = $${i + 1}`).join(', ')
     const { rows } = await pool.query(
       `UPDATE branches SET ${set} WHERE id = $${keys.length + 1} RETURNING *`,
