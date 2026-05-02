@@ -860,7 +860,10 @@ export class BankStatementImportService {
     }
 
     if (importRecord.status !== IMPORT_STATUS.IMPORTING) {
-      throw new Error("Can only cancel imports that are currently processing");
+      throw BankStatementImportErrors.INVALID_STATUS_TRANSITION(
+        importRecord.status,
+        'CANCELLED',
+      );
     }
 
     // Update import status
@@ -903,7 +906,19 @@ export class BankStatementImportService {
     }
 
     if (importRecord.status === IMPORT_STATUS.IMPORTING) {
-      throw new Error("Cannot delete import while it is being processed");
+      // Allow delete if the linked job already failed (stuck import)
+      if (importRecord.job_id) {
+        const job = await this.repository.findJobById(importRecord.job_id);
+        if (job && job.status === 'failed') {
+          logInfo('BankStatementImport: Allowing delete of stuck import (job failed)', {
+            import_id: importId, job_id: importRecord.job_id,
+          });
+        } else {
+          throw BankStatementImportErrors.CANNOT_DELETE_PROCESSING();
+        }
+      } else {
+        throw BankStatementImportErrors.CANNOT_DELETE_PROCESSING();
+      }
     }
 
     // Undo reconciliation for any reconciled statements before deleting
@@ -967,7 +982,10 @@ export class BankStatementImportService {
     }
 
     if (importRecord.status !== IMPORT_STATUS.FAILED) {
-      throw new Error("Can only retry failed imports");
+      throw BankStatementImportErrors.INVALID_STATUS_TRANSITION(
+        importRecord.status,
+        'RETRY',
+      );
     }
 
     // Reset import status

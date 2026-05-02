@@ -115,6 +115,22 @@ class JobWorker {
 
       if (jobUserId) await jobsService.failJob(jobId, jobUserId, message)
 
+      // Rollback linked import status if this is a bank-statement-import job
+      if (jobModule === 'bank_statements') {
+        try {
+          const job = await jobsRepository.findById(jobId, jobUserId || '')
+          const importId = (job?.metadata as any)?.importId
+          if (importId) {
+            const { BankStatementImportRepository } = await import('../reconciliation/bank-statement-import/bank-statement-import.repository')
+            const repo = new BankStatementImportRepository()
+            await repo.update(importId, { status: 'FAILED', error_message: message })
+            logInfo('Rolled back import status to FAILED', { import_id: importId, job_id: jobId })
+          }
+        } catch (rollbackErr) {
+          logError('Failed to rollback import status', { job_id: jobId, error: rollbackErr })
+        }
+      }
+
       // Persist to error_logs so it shows in monitoring dashboard
       monitoringRepository.createErrorReport({
         errorName: error instanceof Error ? error.name : 'JobError',

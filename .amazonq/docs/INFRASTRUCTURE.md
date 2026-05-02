@@ -54,11 +54,20 @@ DATABASE_URL=postgresql://suryamas:Paulus20june@localhost:5433/suryamas_db
 ## Domain
 - **DuckDNS**: sushimas.duckdns.org → 65.108.60.217
 
+## Project Path (VPS)
+- **Project root**: `/var/www/suryamas`
+- **Backend**: `/var/www/suryamas/backend`
+- **Frontend**: `/var/www/suryamas/frontend`
+- **Backend .env**: `/var/www/suryamas/backend/.env`
+- **Frontend .env.production**: di-copy dari `/root/.env.production.suryamas` saat deploy
+- **PM2 process name**: `suryamas-backend`
+
 ## Storage
 - **Cloudflare R2** (S3-compatible)
 - Account ID: 0247835e12ab230d40216cf40c965c98
 - Buckets: buktisetoran, posimportstemp, jobresults, profilepictures, bankstatementimportstemp
 - **PENTING**: S3Client harus pakai `forcePathStyle: true`
+- **Env vars** (di VPS `.env`): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
 
 ## Monitoring & Alerts
 - **Error Logs**: Tabel `error_logs` di PostgreSQL
@@ -66,7 +75,7 @@ DATABASE_URL=postgresql://suryamas:Paulus20june@localhost:5433/suryamas_db
 - **Telegram Bot**: SIS Alert (@SIS_Emergency_Bot)
   - Token: 8598592104:AAE4biuIr9QdiqKgQpf5v8L3xDRQ9lO9RT4
   - Chat ID: -5202987932 (Group: Sushimas Monitoring)
-  - Semua error otomatis dikirim ke Telegram (rate limit 10 detik)
+  - Semua error otomatis dikirim ke Telegram (tanpa rate limit)
 
 ## Migrasi dari Supabase
 - **Status**: ✅ Selesai (29 Apr 2026)
@@ -93,8 +102,9 @@ Laporan keuangan punya permission terpisah:
 ## Auto Deploy (GitHub Actions)
 - **Flow**: Push ke `main` → GitHub Actions SSH ke VPS → `/root/deploy.sh`
 - **Workflow**: `.github/workflows/deploy.yml`
-- **Deploy script**: `/root/deploy.sh` (git pull, npm install, build, pm2 restart)
-- **Secrets** (di GitHub repo settings): `SSH_HOST`, `SSH_USERNAME`, `SSH_PRIVATE_KEY`
+- **Deploy script**: `/root/deploy.sh` (`cd /var/www/suryamas`, git pull, npm install, build, pm2 restart)
+- **Secrets** (di GitHub repo settings): `SSH_HOST`, `SSH_USERNAME`, `SSH_PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+- **Notifications**: Telegram notif on deploy success/failure
 
 ### Manual Deploy (jika Actions gagal)
 ```bash

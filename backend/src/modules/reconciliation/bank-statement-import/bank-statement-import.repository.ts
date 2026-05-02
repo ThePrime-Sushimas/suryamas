@@ -1066,6 +1066,17 @@ export class BankStatementImportRepository {
   }
 
   /**
+   * Find job by ID
+   */
+  async findJobById(jobId: string): Promise<{ id: string; status: string } | null> {
+    const { rows } = await pool.query(
+      'SELECT id, status FROM jobs WHERE id = $1',
+      [jobId]
+    );
+    return rows[0] || null;
+  }
+
+  /**
    * Update job progress payload
    */
   async updateJobProgress(
