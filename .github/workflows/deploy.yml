@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
+        id: deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -17,3 +18,17 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             /root/deploy.sh
+
+      - name: Notify Telegram — Success
+        if: success()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"✅ *Deploy Berhasil*\n\n📦 Commit: \`${GITHUB_SHA::7}\`\n👤 By: ${{ github.actor }}\n💬 ${{ github.event.head_commit.message }}\", \"parse_mode\": \"Markdown\"}"
+
+      - name: Notify Telegram — Failed
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"🔴 *Deploy GAGAL*\n\n📦 Commit: \`${GITHUB_SHA::7}\`\n👤 By: ${{ github.actor }}\n💬 ${{ github.event.head_commit.message }}\n\n🔗 [Lihat Log](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"parse_mode\": \"Markdown\"}"
