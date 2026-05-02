@@ -35,6 +35,7 @@
 ## 📋 Backlog
 
 ### Feature Development
+- [ ] **Branch Closure** — tutup cabang permanen dengan akses read-only historis (design doc: `.amazonq/docs/BRANCH_CLOSURE_DESIGN.md`)
 - [ ] PO Flow (Purchase Order → Receiving → AP → Payment → Auto Journal)
 - [ ] COGS calculation (HPP dari inventory movement)
 - [ ] Laporan Arus Kas formal PSAK 2 (3 aktivitas: operasi/investasi/pendanaan)

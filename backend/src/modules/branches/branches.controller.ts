@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import { branchesService } from './branches.service'
 import type { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema } from './branches.schema'
-import { sendSuccess } from '../../utils/response.util'
+import { sendSuccess, sendError } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { getPaginationParams } from '../../utils/pagination.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
@@ -94,6 +94,26 @@ export class BranchesController {
       sendSuccess(res, null, 'Status updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_update_status' })
+    }
+  }
+
+  closeBranch = async (req: Request, res: Response) => {
+    try {
+      const { params } = (req as ValidatedAuthRequest<typeof branchIdSchema>).validated
+      const reason = req.body?.reason as string
+      if (!reason || reason.trim().length < 5) {
+        sendError(res, 'Alasan penutupan wajib diisi (minimal 5 karakter)', 400)
+        return
+      }
+      const userId = req.user?.id
+      if (!userId) {
+        sendError(res, 'Authentication required', 401)
+        return
+      }
+      const branch = await branchesService.closeBranch(params.id, userId, reason.trim())
+      sendSuccess(res, branch, 'Cabang berhasil ditutup secara permanen')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'close_branch' })
     }
   }
 }

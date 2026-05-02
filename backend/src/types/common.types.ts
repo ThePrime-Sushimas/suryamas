@@ -8,6 +8,8 @@ export interface BranchContext {
   employee_id: string
   role_id: string
   approval_limit: number
+  is_read_only: boolean
+  branch_status: string
 }
 
 export interface AuthRequest extends Request {

@@ -6,7 +6,7 @@ import { employeesRepository } from '../employees/employees.repository'
 const BASE_SELECT = `
   eb.id, eb.employee_id, eb.branch_id, eb.role_id, eb.is_primary, eb.approval_limit, eb.status, eb.created_at,
   e.full_name AS emp_full_name, e.job_position AS emp_job_position, e.email AS emp_email, e.mobile_phone AS emp_mobile_phone,
-  b.branch_name AS br_branch_name, b.branch_code AS br_branch_code, b.company_id AS br_company_id,
+  b.branch_name AS br_branch_name, b.branch_code AS br_branch_code, b.company_id AS br_company_id, b.status AS br_status,
   r.name AS role_name, r.description AS role_description
 `
 const BASE_FROM = `
@@ -20,7 +20,7 @@ function mapRow(row: Record<string, unknown>): Record<string, unknown> {
   return {
     ...row,
     employees: { full_name: row.emp_full_name, job_position: row.emp_job_position, email: row.emp_email, mobile_phone: row.emp_mobile_phone },
-    branches: { branch_name: row.br_branch_name, branch_code: row.br_branch_code, company_id: row.br_company_id },
+    branches: { branch_name: row.br_branch_name, branch_code: row.br_branch_code, company_id: row.br_company_id, status: row.br_status },
     perm_roles: { name: row.role_name, description: row.role_description },
   }
 }

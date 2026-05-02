@@ -1,4 +1,4 @@
-export type BranchStatus = 'active' | 'inactive'
+export type BranchStatus = 'active' | 'inactive' | 'closed'
 export type HariOperasional = string[]
 
 export interface Branch {
@@ -20,6 +20,9 @@ export interface Branch {
   jam_tutup: string
   hari_operasional: HariOperasional
   notes: string | null
+  closed_at: string | null
+  closed_by: string | null
+  closed_reason: string | null
   created_at: string
   updated_at: string
   created_by: string | null

@@ -164,6 +164,40 @@ export class BranchesService {
   async minimalActive(): Promise<{ id: string; branch_name: string }[]> {
     return branchesRepository.minimalActive()
   }
+
+  async closeBranch(id: string, userId: string, reason: string): Promise<Branch> {
+    const branch = await branchesRepository.findById(id)
+    if (!branch) throw BranchErrors.NOT_FOUND(id)
+    if (branch.status === 'closed') throw BranchErrors.ALREADY_CLOSED(id, branch.branch_name)
+
+    const [pendingJournals, openCashCounts, processingImports] = await Promise.all([
+      branchesRepository.countPendingJournals(id),
+      branchesRepository.countOpenCashCounts(branch.branch_name),
+      branchesRepository.countProcessingPosImports(id),
+    ])
+
+    if (pendingJournals > 0 || openCashCounts > 0 || processingImports > 0) {
+      throw BranchErrors.PENDING_DATA(branch.branch_name, {
+        journals: pendingJournals,
+        cashCounts: openCashCounts,
+        posImports: processingImports,
+      })
+    }
+
+    const closed = await branchesRepository.closeBranch(id, userId, reason)
+    if (!closed) throw BranchErrors.NOT_FOUND(id)
+
+    const { invalidateBranchContextCache } = await import('../../middleware/branch-context.middleware')
+    invalidateBranchContextCache(undefined, id)
+
+    await AuditService.log('CLOSE', 'branch', id, userId,
+      { status: branch.status },
+      { status: 'closed', closed_at: closed.closed_at, reason }
+    )
+
+    logInfo('Branch closed permanently', { id, branch_name: branch.branch_name, closed_by: userId })
+    return closed
+  }
 }
 
 export const branchesService = new BranchesService()

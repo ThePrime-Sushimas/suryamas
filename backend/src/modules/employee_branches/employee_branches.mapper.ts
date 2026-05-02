@@ -32,6 +32,7 @@ export function mapEmployeeBranch(row: any): EmployeeBranchWithRelations {
       branch_name: branch.branch_name,
       branch_code: branch.branch_code,
       company_id: branch.company_id,
+      status: branch.status || 'active',
     },
     role: {
       name: role.name,

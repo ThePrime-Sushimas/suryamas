@@ -77,9 +77,13 @@ export class EmployeeBranchesService {
 
     const data = await employeeBranchesRepository.findByEmployeeId(employee.id)
     
-    // Only return active branches for branch selection
+    // Include active + closed branches (closed = read-only access to historical data)
+    // Exclude inactive branches (no access)
     return data
-      .filter(item => item.status === 'active')
+      .filter(item =>
+        item.status === 'active' &&
+        ['active', 'closed'].includes(item.branch?.status ?? 'active')
+      )
       .map(item => ({
         branch_id: item.branch_id,
         branch_name: item.branch.branch_name,
@@ -91,6 +95,8 @@ export class EmployeeBranchesService {
         approval_limit: item.approval_limit,
         status: item.status,
         is_primary: item.is_primary,
+        branch_status: item.branch?.status ?? 'active',
+        is_read_only: item.branch?.status === 'closed',
       }))
   }
 

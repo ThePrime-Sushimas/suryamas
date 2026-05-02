@@ -203,6 +203,42 @@ export class BranchesRepository {
     )
     return rows[0] || null
   }
+
+  async closeBranch(id: string, userId: string, reason: string): Promise<Branch> {
+    const { rows } = await pool.query(
+      `UPDATE branches SET status = 'closed', closed_at = NOW(), closed_by = $2, closed_reason = $3, updated_by = $2, updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [id, userId, reason]
+    )
+    return rows[0]
+  }
+
+  async countPendingJournals(branchId: string): Promise<number> {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM journal_headers
+       WHERE branch_id = $1 AND status IN ('DRAFT', 'SUBMITTED') AND deleted_at IS NULL`,
+      [branchId]
+    )
+    return rows[0].cnt
+  }
+
+  async countOpenCashCounts(branchName: string): Promise<number> {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM cash_counts
+       WHERE branch_name = $1 AND status = 'OPEN'`,
+      [branchName]
+    )
+    return rows[0].cnt
+  }
+
+  async countProcessingPosImports(branchId: string): Promise<number> {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM pos_imports
+       WHERE branch_id = $1 AND status = 'PROCESSING'`,
+      [branchId]
+    )
+    return rows[0].cnt
+  }
 }
 
 export const branchesRepository = new BranchesRepository()

@@ -28,4 +28,7 @@ router.put('/:id', canUpdate('branches'), validateSchema(UpdateBranchSchema), (r
 router.delete('/:id', canDelete('branches'), validateSchema(branchIdSchema), (req, res) => branchesController.delete(req, res))
 router.post('/bulk/update-status', canUpdate('branches'), validateSchema(BulkUpdateStatusSchema), (req, res) => branchesController.bulkUpdateStatus(req, res))
 
+// Close branch permanently — NOT behind write-guard (see BRANCH_CLOSURE_DESIGN.md Note 2)
+router.post('/:id/close', canDelete('branches'), validateSchema(branchIdSchema), (req, res) => branchesController.closeBranch(req, res))
+
 export default router

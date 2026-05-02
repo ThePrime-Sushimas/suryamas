@@ -160,6 +160,30 @@ export class CannotDeactivateBranchWithEmployeesError extends BusinessRuleError 
   }
 }
 
+export class BranchAlreadyClosedError extends BusinessRuleError {
+  constructor(id: string | number, branchName?: string) {
+    super(
+      `Cabang '${branchName || id}' sudah ditutup permanen`,
+      { rule: 'branch_already_closed', branchId: id, branchName }
+    )
+    this.name = 'BranchAlreadyClosedError'
+  }
+}
+
+export class CannotCloseBranchWithPendingDataError extends BusinessRuleError {
+  constructor(branchName: string, pendingItems: { journals?: number; cashCounts?: number; posImports?: number }) {
+    const details = Object.entries(pendingItems)
+      .filter(([, v]) => v && v > 0)
+      .map(([k, v]) => `${v} ${k}`)
+      .join(', ')
+    super(
+      `Tidak bisa menutup cabang '${branchName}' — data pending: ${details}`,
+      { rule: 'branch_pending_data', branchName, pendingItems }
+    )
+    this.name = 'CannotCloseBranchWithPendingDataError'
+  }
+}
+
 // ============================================================================
 // DATABASE ERRORS
 // ============================================================================
@@ -196,6 +220,10 @@ export const BranchErrors = {
   DELETE_DEFAULT: (branchName: string) => new CannotDeleteDefaultBranchError(branchName),
   DEACTIVATE_WITH_EMPLOYEES: (id: string | number, count: number) => 
     new CannotDeactivateBranchWithEmployeesError(id, count),
+  ALREADY_CLOSED: (id: string | number, branchName?: string) =>
+    new BranchAlreadyClosedError(id, branchName),
+  PENDING_DATA: (branchName: string, pendingItems: { journals?: number; cashCounts?: number; posImports?: number }) =>
+    new CannotCloseBranchWithPendingDataError(branchName, pendingItems),
   CREATE_FAILED: (error?: string) => new BranchOperationError('create', error),
   UPDATE_FAILED: (error?: string) => new BranchOperationError('update', error),
   DELETE_FAILED: (error?: string) => new BranchOperationError('delete', error),

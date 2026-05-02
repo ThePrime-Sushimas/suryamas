@@ -22,7 +22,7 @@ export interface EmployeeBranchWithRelations extends EmployeeBranchEntity {
     email: string | null
     mobile_phone: string | null
   }
-  branch: { branch_name: string; branch_code: string; company_id: string }
+  branch: { branch_name: string; branch_code: string; company_id: string; status: string }
   role: { name: string; description: string | null }
 }
 
@@ -98,7 +98,10 @@ export interface MyBranchDto {
   company_id: string
   employee_id: string
   role_id: string
+  role_name: string
   approval_limit: number
   status: 'active' | 'inactive' | 'suspended'
   is_primary: boolean
+  branch_status: string
+  is_read_only: boolean
 }
