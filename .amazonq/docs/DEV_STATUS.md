@@ -36,6 +36,11 @@
 
 ### Feature Development
 - [ ] **Branch Closure** — tutup cabang permanen dengan akses read-only historis (design doc: `.amazonq/docs/BRANCH_CLOSURE_DESIGN.md`)
+  - [x] Phase 1: Database + Backend Core (migration, types, middleware, branch module, employee_branches)
+  - [x] Phase 2: Write Guard middleware + apply ke mutation routes (8 files, 61 routes)
+  - [ ] Phase 3: Branch Dropdowns (include closed)
+  - [ ] Phase 4: Frontend (types, hook, banner, switcher, modal, pages)
+  - [ ] Phase 5: End-to-End Test
 - [ ] PO Flow (Purchase Order → Receiving → AP → Payment → Auto Journal)
 - [ ] COGS calculation (HPP dari inventory movement)
 - [ ] Laporan Arus Kas formal PSAK 2 (3 aktivitas: operasi/investasi/pendanaan)
@@ -89,11 +94,12 @@ Pagination: 26 pages pakai global `Pagination`, 4 pages pakai custom pagination 
 11. Setelah ubah `.ts`, WAJIB rebuild: `cd backend && npx tsc`
 
 ### Backend — Routes Specific
-12. Middleware order: `authenticate → resolveBranchContext → permission → validateSchema`
+12. Middleware order: `authenticate → resolveBranchContext → requireWriteAccess (mutations) → permission → validateSchema`
 13. Static routes (`/search`, `/trash`, `/bulk/delete`, `/export`, `/options/active`) WAJIB sebelum `/:id` (Express evaluasi top-to-bottom)
 14. Schema HARUS dipasang di routes (entry point validation)
 15. Lazy Initialization: getter pattern (`getS3()`) untuk service eksternal
 16. S3Client (Cloudflare R2) WAJIB `forcePathStyle: true`
+17. `requireWriteAccess` WAJIB di semua mutation routes (POST/PUT/DELETE/PATCH) — termasuk `canApprove` dan `canRelease`, bukan hanya `canInsert/canUpdate/canDelete`
 
 ### Backend — Schema & Validation
 17. Gunakan `import { z } from '@/lib/openapi'` (bukan raw zod)

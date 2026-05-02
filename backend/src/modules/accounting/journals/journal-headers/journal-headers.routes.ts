@@ -6,7 +6,8 @@ import { canView, canInsert, canUpdate, canDelete, canApprove, canRelease } from
 import { queryMiddleware } from '../../../../middleware/query.middleware'
 import { validateSchema } from '../../../../middleware/validation.middleware'
 import { PermissionService } from '../../../../services/permission.service'
-import { 
+import { requireWriteAccess } from '../../../../middleware/write-guard.middleware'
+import {
   createJournalSchema, 
   updateJournalSchema, 
   journalIdSchema,
@@ -48,38 +49,38 @@ router.get('/:id', canView('journals'), validateSchema(journalIdSchema), (req, r
   journalHeadersController.getById(req, res))
 
 // Create journal
-router.post('/', canInsert('journals'), validateSchema(createJournalSchema), (req, res) => 
+router.post('/', requireWriteAccess, canInsert('journals'), validateSchema(createJournalSchema), (req, res) => 
   journalHeadersController.create(req, res))
 
 // Update journal (DRAFT only)
-router.put('/:id', canUpdate('journals'), validateSchema(updateJournalSchema), (req, res) => 
+router.put('/:id', requireWriteAccess, canUpdate('journals'), validateSchema(updateJournalSchema), (req, res) => 
   journalHeadersController.update(req, res))
 
 // Delete journal (DRAFT only)
-router.delete('/:id', canDelete('journals'), validateSchema(journalIdSchema), (req, res) => 
+router.delete('/:id', requireWriteAccess, canDelete('journals'), validateSchema(journalIdSchema), (req, res) => 
   journalHeadersController.delete(req, res))
 
 // Workflow actions (CORRECTED PERMISSIONS)
-router.post('/:id/submit', canUpdate('journals'), validateSchema(submitJournalSchema), (req, res) => 
+router.post('/:id/submit', requireWriteAccess, canUpdate('journals'), validateSchema(submitJournalSchema), (req, res) => 
   journalHeadersController.submit(req, res))
 
-router.post('/:id/approve', canApprove('journals'), validateSchema(journalIdSchema), (req, res) => 
+router.post('/:id/approve', requireWriteAccess, canApprove('journals'), validateSchema(journalIdSchema), (req, res) => 
   journalHeadersController.approve(req, res))
 
-router.post('/:id/reject', canApprove('journals'), validateSchema(rejectJournalSchema), (req, res) => 
+router.post('/:id/reject', requireWriteAccess, canApprove('journals'), validateSchema(rejectJournalSchema), (req, res) => 
   journalHeadersController.reject(req, res))
 
-router.post('/:id/post', canRelease('journals'), validateSchema(journalIdSchema), (req, res) => 
+router.post('/:id/post', requireWriteAccess, canRelease('journals'), validateSchema(journalIdSchema), (req, res) => 
   journalHeadersController.post(req, res))
 
-router.post('/:id/reverse', canRelease('journals'), validateSchema(reverseJournalSchema), (req, res) => 
+router.post('/:id/reverse', requireWriteAccess, canRelease('journals'), validateSchema(reverseJournalSchema), (req, res) => 
   journalHeadersController.reverse(req, res))
 
 // Restore deleted journal
-router.post('/:id/restore', canInsert('journals'), validateSchema(journalIdSchema), (req, res) => 
+router.post('/:id/restore', requireWriteAccess, canInsert('journals'), validateSchema(journalIdSchema), (req, res) => 
   journalHeadersController.restore(req, res))
 
-router.delete('/:id/force', canRelease('journals'), validateSchema(journalIdSchema), (req, res) => 
+router.delete('/:id/force', requireWriteAccess, canRelease('journals'), validateSchema(journalIdSchema), (req, res) => 
   journalHeadersController.forceDelete(req, res))
 
 export default router

@@ -13,7 +13,8 @@ import { validateSchema } from '../../../middleware/validation.middleware'
 import { upload } from '../../../middleware/upload.middleware'
 import { createRateLimit } from '../../../middleware/rateLimiter.middleware'
 import { PermissionService } from '../../../services/permission.service'
-import { 
+import { requireWriteAccess } from '../../../middleware/write-guard.middleware'
+import {
   posImportIdSchema,
   uploadPosFileSchema,
   confirmImportSchema,
@@ -40,7 +41,7 @@ router.get('/', canView('pos_imports'), queryMiddleware({
 
 // Upload and analyze Excel file
 router.post('/upload', 
-  canInsert('pos_imports'), 
+  requireWriteAccess, canInsert('pos_imports'), 
   createRateLimit,
   upload.single('file'),
   validateSchema(uploadPosFileSchema), 
@@ -67,20 +68,20 @@ router.get('/:id/summary', canView('pos_imports'), validateSchema(posImportIdSch
 
 // Confirm import (after duplicate analysis)
 router.post('/:id/confirm', 
-  canInsert('pos_imports'), 
+  requireWriteAccess, canInsert('pos_imports'), 
   validateSchema(confirmImportSchema), 
   (req, res) => 
     posImportsController.confirm(req, res))
 
 // Update status
 router.put('/:id/status', 
-  canUpdate('pos_imports'), 
+  requireWriteAccess, canUpdate('pos_imports'), 
   validateSchema(updateStatusSchema), 
   (req, res) => 
     posImportsController.updateStatus(req, res))
 
 // Delete import
-router.delete('/:id', canDelete('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
+router.delete('/:id', requireWriteAccess, canDelete('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
   posImportsController.delete(req, res))
 
 // Create export job for selected imports
@@ -90,7 +91,7 @@ router.post('/export/job',
     posImportsController.createExportJob(req, res))
 
 // Restore deleted import
-router.post('/:id/restore', canInsert('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
+router.post('/:id/restore', requireWriteAccess, canInsert('pos_imports'), validateSchema(posImportIdSchema), (req, res) => 
   posImportsController.restore(req, res))
 
 export default router

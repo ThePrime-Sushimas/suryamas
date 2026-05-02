@@ -5,6 +5,7 @@ import { authenticate } from '../../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
 import { PermissionService } from '../../../services/permission.service'
+import { requireWriteAccess } from '../../../middleware/write-guard.middleware'
 import {
   createAggregatedTransactionSchema,
   updateAggregatedTransactionSchema,
@@ -63,7 +64,7 @@ router.get(
  */
 router.post(
   '/failed/:id/fix',
-  canUpdate('pos_aggregates'),
+  requireWriteAccess, canUpdate('pos_aggregates'),
   validateSchema(updateAggregatedTransactionSchema),
   (req, res) => posAggregatesController.fixFailed(req, res)
 )
@@ -75,7 +76,7 @@ router.post(
  */
 router.post(
   '/failed/batch-fix',
-  canUpdate('pos_aggregates'),
+  requireWriteAccess, canUpdate('pos_aggregates'),
   (req, res) => posAggregatesController.batchFixFailed(req, res)
 )
 
@@ -86,7 +87,7 @@ router.post(
  */
 router.post(
   '/recalculate-fee',
-  canUpdate('pos_aggregates'),
+  requireWriteAccess, canUpdate('pos_aggregates'),
   validateSchema(recalculateFeeSchema),
   (req, res) => posAggregatesController.recalculateFee(req, res)
 )
@@ -98,7 +99,7 @@ router.post(
  */
 router.delete(
   '/failed/:id',
-  canDelete('pos_aggregates'),
+  requireWriteAccess, canDelete('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
   (req, res) => posAggregatesController.deleteFailed(req, res)
 )
@@ -161,7 +162,7 @@ router.get(
  */
 router.post(
   '/',
-  canInsert('pos_aggregates'),
+  requireWriteAccess, canInsert('pos_aggregates'),
   validateSchema(createAggregatedTransactionSchema),
   (req, res) => posAggregatesController.create(req, res)
 )
@@ -173,7 +174,7 @@ router.post(
  */
 router.post(
   '/batch/reconcile',
-  canUpdate('pos_aggregates'),
+  requireWriteAccess, canUpdate('pos_aggregates'),
   validateSchema(batchReconcileSchema),
   (req, res) => posAggregatesController.batchReconcile(req, res)
 )
@@ -185,7 +186,7 @@ router.post(
  */
 router.post(
   '/batch',
-  canInsert('pos_aggregates'),
+  requireWriteAccess, canInsert('pos_aggregates'),
   validateSchema(createBatchSchema),
   (req, res) => posAggregatesController.createBatch(req, res)
 )
@@ -197,7 +198,7 @@ router.post(
  */
 router.post(
   '/batch/assign-journal',
-  canUpdate('pos_aggregates'),
+  requireWriteAccess, canUpdate('pos_aggregates'),
   validateSchema(batchAssignJournalSchema),
   (req, res) => posAggregatesController.batchAssignJournal(req, res)
 )
@@ -222,7 +223,7 @@ router.get(
  */
 router.put(
   '/:id',
-  canUpdate('pos_aggregates'),
+  requireWriteAccess, canUpdate('pos_aggregates'),
   validateSchema(updateAggregatedTransactionSchema),
   (req, res) => posAggregatesController.update(req, res)
 )
@@ -234,7 +235,7 @@ router.put(
  */
 router.delete(
   '/:id',
-  canDelete('pos_aggregates'),
+  requireWriteAccess, canDelete('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
   (req, res) => posAggregatesController.delete(req, res)
 )
@@ -246,7 +247,7 @@ router.delete(
  */
 router.post(
   '/:id/restore',
-  canInsert('pos_aggregates'),
+  requireWriteAccess, canInsert('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
   (req, res) => posAggregatesController.restore(req, res)
 )
@@ -258,7 +259,7 @@ router.post(
  */
 router.post(
   '/:id/reconcile',
-  canUpdate('pos_aggregates'),
+  requireWriteAccess, canUpdate('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
   (req, res) => posAggregatesController.reconcile(req, res)
 )
@@ -270,7 +271,7 @@ router.post(
  */
 router.post(
   '/:id/assign-journal',
-  canUpdate('pos_aggregates'),
+  requireWriteAccess, canUpdate('pos_aggregates'),
   validateSchema(aggregatedTransactionIdSchema),
   (req, res) => posAggregatesController.assignJournal(req, res)
 )

@@ -27,6 +27,7 @@ import {
   listManualEntriesSchema,
 } from './bank-statement-import.schema'
 import { FILE_UPLOAD } from './bank-statement-import.constants'
+import { requireWriteAccess } from '../../../middleware/write-guard.middleware'
 
 // Configure multer for file upload
 const upload = multer({
@@ -64,7 +65,7 @@ router.get(
 // Single manual entry
 router.post(
   '/manual',
-  canInsert('bank_statement_imports'),
+  requireWriteAccess, canInsert('bank_statement_imports'),
   createRateLimit,
   validateSchema(manualEntrySchema),
   (req, res) => bankStatementImportController.manualEntry(req, res)
@@ -73,7 +74,7 @@ router.post(
 // Bulk manual entry
 router.post(
   '/manual/bulk',
-  canInsert('bank_statement_imports'),
+  requireWriteAccess, canInsert('bank_statement_imports'),
   createRateLimit,
   validateSchema(manualBulkEntrySchema),
   (req, res) => bankStatementImportController.manualBulkEntry(req, res)
@@ -84,7 +85,7 @@ router.post(
 // Hard delete single statement
 router.delete(
   '/statements/:id/hard',
-  canDelete('bank_statement_imports'),
+  requireWriteAccess, canDelete('bank_statement_imports'),
   validateSchema(hardDeleteStatementSchema),
   (req, res) => bankStatementImportController.hardDeleteStatement(req, res)
 )
@@ -92,7 +93,7 @@ router.delete(
 // Hard delete bulk statements
 router.post(
   '/statements/hard-delete',
-  canDelete('bank_statement_imports'),
+  requireWriteAccess, canDelete('bank_statement_imports'),
   validateSchema(hardDeleteBulkStatementsSchema),
   (req, res) => bankStatementImportController.hardDeleteBulkStatements(req, res)
 )
@@ -107,7 +108,7 @@ router.use(queryMiddleware({
 // Upload endpoint
 router.post(
   '/upload',
-  canInsert('bank_statement_imports'),
+  requireWriteAccess, canInsert('bank_statement_imports'),
   createRateLimit,
   upload.single('file'),
   validateSchema(uploadBankStatementSchema),
@@ -117,7 +118,7 @@ router.post(
 // Confirm endpoint
 router.post(
   '/:id/confirm',
-  canInsert('bank_statement_imports'),
+  requireWriteAccess, canInsert('bank_statement_imports'),
   updateRateLimit,
   validateSchema(confirmBankStatementImportSchema),
   (req, res) => bankStatementImportController.confirm(req, res)
@@ -164,21 +165,21 @@ router.get(
 // Cancel endpoint
 router.post(
   '/:id/cancel',
-  canInsert('bank_statement_imports'),
+  requireWriteAccess, canInsert('bank_statement_imports'),
   (req, res) => bankStatementImportController.cancel(req, res)
 )
 
 // Retry endpoint
 router.post(
   '/:id/retry',
-  canInsert('bank_statement_imports'),
+  requireWriteAccess, canInsert('bank_statement_imports'),
   (req, res) => bankStatementImportController.retry(req, res)
 )
 
 // Delete endpoint
 router.delete(
   '/:id',
-  canDelete('bank_statement_imports'),
+  requireWriteAccess, canDelete('bank_statement_imports'),
   validateSchema(deleteImportSchema),
   (req, res) => bankStatementImportController.delete(req, res)
 )

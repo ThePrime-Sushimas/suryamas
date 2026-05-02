@@ -7,6 +7,7 @@ import { queryMiddleware } from "../../../middleware/query.middleware";
 import { createRateLimit, updateRateLimit } from "../../../middleware/rateLimiter.middleware";
 import { validateSchema } from "../../../middleware/validation.middleware";
 import { PermissionService } from "../../../services/permission.service";
+import { requireWriteAccess } from '../../../middleware/write-guard.middleware'
 import {
   manualReconcileSchema,
   manualReconcileCashDepositSchema,
@@ -32,15 +33,15 @@ router.use(queryMiddleware({
 }));
 
 // POST — mutations
-router.post("/manual", canInsert("bank_reconciliation"), createRateLimit,
+router.post("/manual", requireWriteAccess, canInsert("bank_reconciliation"), createRateLimit,
   validateSchema(manualReconcileSchema),
   (req, res) => bankReconciliationController.reconcile(req, res));
 
-router.post("/manual-cash-deposit", canInsert("bank_reconciliation"), createRateLimit,
+router.post("/manual-cash-deposit", requireWriteAccess, canInsert("bank_reconciliation"), createRateLimit,
   validateSchema(manualReconcileCashDepositSchema),
   (req, res) => bankReconciliationController.reconcileCashDeposit(req, res));
 
-router.post("/auto-match", canInsert("bank_reconciliation"), createRateLimit,
+router.post("/auto-match", requireWriteAccess, canInsert("bank_reconciliation"), createRateLimit,
   validateSchema(autoMatchSchema),
   (req, res) => bankReconciliationController.autoMatch(req, res));
 
@@ -48,18 +49,18 @@ router.post("/auto-match/preview", canView("bank_reconciliation"), createRateLim
   validateSchema(autoMatchPreviewSchema),
   (req, res) => bankReconciliationController.previewAutoMatch(req, res));
 
-router.post("/auto-match/confirm", canInsert("bank_reconciliation"), createRateLimit,
+router.post("/auto-match/confirm", requireWriteAccess, canInsert("bank_reconciliation"), createRateLimit,
   validateSchema(autoMatchConfirmSchema),
   (req, res) => bankReconciliationController.confirmAutoMatch(req, res));
 
-router.post("/undo/:statementId", canInsert("bank_reconciliation"), updateRateLimit,
+router.post("/undo/:statementId", requireWriteAccess, canInsert("bank_reconciliation"), updateRateLimit,
   (req, res) => bankReconciliationController.undo(req, res));
 
-router.post("/multi-match", canInsert("bank_reconciliation"), createRateLimit,
+router.post("/multi-match", requireWriteAccess, canInsert("bank_reconciliation"), createRateLimit,
   validateSchema(multiMatchSchema),
   (req, res) => bankReconciliationController.createMultiMatch(req, res));
 
-router.delete("/multi-match/:groupId", canInsert("bank_reconciliation"), updateRateLimit,
+router.delete("/multi-match/:groupId", requireWriteAccess, canInsert("bank_reconciliation"), updateRateLimit,
   (req, res) => bankReconciliationController.undoMultiMatch(req, res));
 
 // GET — static routes BEFORE dynamic /:id (convention #35)
