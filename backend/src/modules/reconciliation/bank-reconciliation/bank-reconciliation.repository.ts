@@ -248,7 +248,7 @@ export class BankReconciliationRepository {
              bsg.id, bsg.bank_statement_id, bsg.total_statement_amount, bsg.total_allocated_amount, bsg.difference, bsg.status,
              COALESCE(jsonb_agg(bsa.*) FILTER (WHERE bsa.id IS NOT NULL), '[]') as bank_settlement_aggregates
            FROM bank_settlement_groups bsg
-           LEFT JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.group_id
+           LEFT JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.settlement_group_id
            WHERE bsg.bank_statement_id = ANY($1) AND bsg.deleted_at IS NULL
            GROUP BY bsg.id`,
           [reconciledWithoutLinkIds]
