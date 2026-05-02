@@ -101,7 +101,9 @@ export function EmployeeBranchAccessTab({ employeeId }: Props) {
               <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                   branch.status === 'active' 
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' 
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                    : branch.status === 'closed'
+                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400'
                     : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
                 }`}>
                   {branch.status}

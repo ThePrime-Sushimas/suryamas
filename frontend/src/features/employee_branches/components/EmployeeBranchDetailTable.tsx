@@ -31,6 +31,7 @@ export const EmployeeBranchDetailTable = ({ branches, onEdit, onDelete, onSuspen
       active: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400',
       suspended: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400',
       inactive: 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
+      closed: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400',
     }
     return styles[status] || styles.inactive
   }
