@@ -14,6 +14,7 @@ import type {
   closePeriodSchema,
   closePeriodWithEntriesSchema,
   closingPreviewSchema,
+  reopenPeriodSchema,
   bulkDeleteSchema,
   bulkRestoreSchema,
 } from './fiscal-periods.schema'
@@ -204,6 +205,24 @@ export class FiscalPeriodsController {
       sendSuccess(res, result, 'Fiscal period closed successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'close_period_with_entries', id: req.params.id })
+    }
+  }
+
+  async reopenPeriod(req: Request, res: Response) {
+    try {
+      const { params, body } = (req as ValidatedAuthRequest<typeof reopenPeriodSchema>).validated
+      const companyId = this.getCompanyId(req)
+
+      const result = await fiscalPeriodsService.reopenPeriod(
+        params.id, { reopen_reason: body.reopen_reason ?? undefined }, req.user!.id, companyId
+      )
+
+      logInfo('Fiscal period reopened', {
+        period_id: params.id, reversed_journal_id: result.reversed_journal_id, user: req.user!.id,
+      })
+      sendSuccess(res, result, 'Fiscal period reopened successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reopen_period', id: req.params.id })
     }
   }
 }

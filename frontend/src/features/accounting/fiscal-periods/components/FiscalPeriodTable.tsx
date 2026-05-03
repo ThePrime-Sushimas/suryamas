@@ -7,13 +7,15 @@ interface FiscalPeriodTableProps {
   onDelete: (id: string) => void
   onRestore: (id: string) => void
   onClose?: (period: FiscalPeriodWithDetails) => void
+  onReopen?: (period: FiscalPeriodWithDetails) => void
   onRefresh?: () => void
   canUpdate: boolean
   canDelete: boolean
   canClose: boolean
+  canReopen: boolean
 }
 
-export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClose, canUpdate, canDelete, canClose }: FiscalPeriodTableProps) {
+export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClose, onReopen, canUpdate, canDelete, canClose, canReopen }: FiscalPeriodTableProps) {
   const formatDate = (date: string) => {
     const d = new Date(date)
     return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('id-ID')
@@ -75,6 +77,12 @@ export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClos
                       <button onClick={() => onClose(period)}
                         className="text-orange-600 dark:text-orange-400 hover:text-orange-900 dark:hover:text-orange-300">
                         Close
+                      </button>
+                    )}
+                    {canReopen && !period.is_open && onReopen && (
+                      <button onClick={() => onReopen(period)}
+                        className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300">
+                        Reopen
                       </button>
                     )}
                     {canDelete && period.is_open && (

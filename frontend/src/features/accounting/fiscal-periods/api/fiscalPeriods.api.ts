@@ -8,6 +8,8 @@ import type {
   ClosePeriodWithEntriesDto,
   PeriodClosingSummary,
   ClosePeriodWithEntriesResult,
+  ReopenPeriodDto,
+  ReopenPeriodResult,
   FiscalPeriodFilter,
 } from '../types/fiscal-period.types'
 
@@ -63,6 +65,11 @@ export const fiscalPeriodsApi = {
 
   closePeriodWithEntries: async (id: string, dto: ClosePeriodWithEntriesDto): Promise<ClosePeriodWithEntriesResult> => {
     const { data } = await api.post<ApiResponse<ClosePeriodWithEntriesResult>>(`${BASE_URL}/${id}/close-with-entries`, dto)
+    return data.data
+  },
+
+  reopenPeriod: async (id: string, dto: ReopenPeriodDto): Promise<ReopenPeriodResult> => {
+    const { data } = await api.post<ApiResponse<ReopenPeriodResult>>(`${BASE_URL}/${id}/reopen`, dto)
     return data.data
   },
 

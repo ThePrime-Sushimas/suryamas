@@ -321,6 +321,36 @@ export class FiscalPeriodsRepository {
     return rows[0]?.id || null
   }
 
+  /**
+   * Check if any closed period exists after the given period
+   */
+  async findClosedSuccessor(companyId: string, period: string): Promise<string | null> {
+    const { rows } = await pool.query(
+      `SELECT period FROM fiscal_periods
+       WHERE company_id = $1 AND period > $2 AND is_open = false AND deleted_at IS NULL
+       ORDER BY period ASC LIMIT 1`,
+      [companyId, period]
+    )
+    return rows[0]?.period || null
+  }
+
+  /**
+   * Find the closing journal for a period (POSTED only).
+   * Warns if multiple POSTED closing journals exist.
+   */
+  async findClosingJournal(companyId: string, period: string): Promise<{ id: string; journal_number: string; status: string } | null> {
+    const { rows } = await pool.query(
+      `SELECT id, journal_number, status FROM journal_headers
+       WHERE company_id = $1 AND period = $2 AND source_module = 'FISCAL_CLOSING' AND status = 'POSTED' AND deleted_at IS NULL
+       ORDER BY created_at DESC`,
+      [companyId, period]
+    )
+    if (rows.length > 1) {
+      logInfo('Multiple POSTED closing journals found', { company_id: companyId, period, count: rows.length })
+    }
+    return rows[0] || null
+  }
+
   destroy(): void {
     if (this.cleanupTimer) { clearInterval(this.cleanupTimer); this.cleanupTimer = null }
     this.cache.clear()

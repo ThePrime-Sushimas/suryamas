@@ -19,15 +19,17 @@ export function FiscalPeriodsListPage() {
   const canDelete = hasPermission('fiscal_periods', 'delete')
   const canInsert = hasPermission('fiscal_periods', 'insert')
   const canClose = hasPermission('fiscal_periods', 'release')
+  const canReopen = hasPermission('fiscal_periods', 'approve')
 
   const {
     periods, loading, error, pagination,
-    fetchPeriods, deletePeriod, restorePeriod, exportPeriods,
+    fetchPeriods, deletePeriod, restorePeriod, reopenPeriod, exportPeriods,
     setPage, setLimit, clearError,
   } = useFiscalPeriodsStore()
 
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; periodId: string | null }>({ isOpen: false, periodId: null })
   const [closingPeriod, setClosingPeriod] = useState<FiscalPeriodWithDetails | null>(null)
+  const [reopenConfirm, setReopenConfirm] = useState<{ isOpen: boolean; period: FiscalPeriodWithDetails | null }>({ isOpen: false, period: null })
 
   useEffect(() => { fetchPeriods() }, [fetchPeriods])
 
@@ -71,6 +73,18 @@ export function FiscalPeriodsListPage() {
   const handleCloseSuccess = () => {
     setClosingPeriod(null)
     fetchPeriods()
+  }
+
+  const handleReopenConfirm = async () => {
+    if (reopenConfirm.period) {
+      try {
+        await reopenPeriod(reopenConfirm.period.id, { reopen_reason: `Reopen periode ${reopenConfirm.period.period}` })
+        toast.success(`Periode ${reopenConfirm.period.period} berhasil dibuka kembali`)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Gagal membuka kembali periode')
+      }
+    }
+    setReopenConfirm({ isOpen: false, period: null })
   }
 
   const hasOpenPeriod = periods?.some(p => p.is_open && !p.deleted_at) ?? false
@@ -126,10 +140,12 @@ export function FiscalPeriodsListPage() {
             onDelete={handleDeleteClick}
             onRestore={handleRestore}
             onClose={canClose ? (period) => setClosingPeriod(period) : undefined}
+            onReopen={canReopen ? (period) => setReopenConfirm({ isOpen: true, period }) : undefined}
             onRefresh={fetchPeriods}
             canUpdate={canUpdate}
             canDelete={canDelete}
             canClose={canClose}
+            canReopen={canReopen}
           />
         )}
       </div>
@@ -150,6 +166,15 @@ export function FiscalPeriodsListPage() {
       {closingPeriod && (
         <ClosePeriodModal period={closingPeriod} isOpen={true} onClose={() => setClosingPeriod(null)} onSuccess={handleCloseSuccess} />
       )}
+
+      <ConfirmModal
+        isOpen={reopenConfirm.isOpen}
+        onClose={() => setReopenConfirm({ isOpen: false, period: null })}
+        onConfirm={handleReopenConfirm}
+        title="Buka Kembali Periode"
+        message={`Apakah Anda yakin ingin membuka kembali periode ${reopenConfirm.period?.period ?? ''}? Closing journal akan di-reverse dan periode bisa menerima jurnal baru.`}
+        confirmText="Buka Kembali" cancelText="Batal" variant="warning"
+      />
     </div>
   )
 }

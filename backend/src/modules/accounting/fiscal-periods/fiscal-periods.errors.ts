@@ -204,6 +204,36 @@ export class ClosingJournalExistsError extends ConflictError {
   }
 }
 
+export class PeriodAlreadyOpenError extends ConflictError {
+  constructor(period: string) {
+    super(
+      `Period ${period} is already open`,
+      { conflictType: 'status', period }
+    )
+    this.name = 'PeriodAlreadyOpenError'
+  }
+}
+
+export class CannotReopenWithClosedSuccessorError extends BusinessRuleError {
+  constructor(period: string, successor: string) {
+    super(
+      `Cannot reopen period ${period} because successor period ${successor} is already closed. Reopen ${successor} first.`,
+      { rule: 'closed_successor', period, successor }
+    )
+    this.name = 'CannotReopenWithClosedSuccessorError'
+  }
+}
+
+export class ClosingJournalNotFoundError extends NotFoundError {
+  constructor(period: string) {
+    super(
+      'closing_journal',
+      period,
+    )
+    this.name = 'ClosingJournalNotFoundError'
+  }
+}
+
 // ============================================================================
 // ERROR FACTORY (CONVENIENCE METHODS)
 // ============================================================================
@@ -223,5 +253,8 @@ export const FiscalPeriodErrors = {
   INVALID_RETAINED_EARNINGS_ACCOUNT: (accountId: string) => new InvalidRetainedEarningsAccountError(accountId),
   NO_TRANSACTIONS_IN_PERIOD: (period: string) => new NoTransactionsInPeriodError(period),
   CLOSING_JOURNAL_EXISTS: (period: string) => new ClosingJournalExistsError(period),
+  PERIOD_ALREADY_OPEN: (period: string) => new PeriodAlreadyOpenError(period),
+  CANNOT_REOPEN_WITH_CLOSED_SUCCESSOR: (period: string, successor: string) => new CannotReopenWithClosedSuccessorError(period, successor),
+  CLOSING_JOURNAL_NOT_FOUND: (period: string) => new ClosingJournalNotFoundError(period),
 }
 

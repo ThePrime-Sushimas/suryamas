@@ -103,3 +103,14 @@ export interface ClosePeriodWithEntriesResult {
   is_profit: boolean
   lines_count: number
 }
+
+
+export interface ReopenPeriodDto {
+  reopen_reason?: string
+}
+
+export interface ReopenPeriodResult {
+  period: FiscalPeriod
+  reversed_journal_id: string
+  reversed_journal_number: string
+}

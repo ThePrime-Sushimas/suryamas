@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { fiscalPeriodsController } from './fiscal-periods.controller'
 import { authenticate } from '../../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete, canRelease } from '../../../middleware/permission.middleware'
+import { canView, canInsert, canUpdate, canDelete, canRelease, canApprove } from '../../../middleware/permission.middleware'
 import { queryMiddleware } from '../../../middleware/query.middleware'
 import { exportLimiter } from '../../../middleware/rateLimiter.middleware'
 import { validateSchema } from '../../../middleware/validation.middleware'
@@ -13,6 +13,7 @@ import {
   closePeriodSchema,
   closePeriodWithEntriesSchema,
   closingPreviewSchema,
+  reopenPeriodSchema,
   fiscalPeriodIdSchema, 
   bulkDeleteSchema,
   bulkRestoreSchema
@@ -69,6 +70,9 @@ router.post('/:id/close-with-entries', canRelease('fiscal_periods'), validateSch
 
 router.post('/:id/close', canUpdate('fiscal_periods'), validateSchema(closePeriodSchema), (req, res) => 
   fiscalPeriodsController.closePeriod(req, res))
+
+router.post('/:id/reopen', canApprove('fiscal_periods'), validateSchema(reopenPeriodSchema), (req, res) =>
+  fiscalPeriodsController.reopenPeriod(req, res))
 
 router.delete('/:id', canDelete('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) => 
   fiscalPeriodsController.delete(req, res))

@@ -69,6 +69,8 @@ export function FiscalPeriodsDeletedPage() {
               onRefresh={fetchPeriods}
               canUpdate={true}
               canDelete={false}
+              canClose={false}
+              canReopen={false}
             />
           </div>
 

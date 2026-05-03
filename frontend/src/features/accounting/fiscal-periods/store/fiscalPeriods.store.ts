@@ -9,6 +9,8 @@ import type {
   ClosePeriodWithEntriesDto,
   PeriodClosingSummary,
   ClosePeriodWithEntriesResult,
+  ReopenPeriodDto,
+  ReopenPeriodResult,
   FiscalPeriodFilter,
 } from '../types/fiscal-period.types'
 
@@ -36,6 +38,7 @@ interface FiscalPeriodsState {
   closePeriod: (id: string, dto: ClosePeriodDto) => Promise<void>
   getClosingPreview: (id: string) => Promise<PeriodClosingSummary>
   closePeriodWithEntries: (id: string, dto: ClosePeriodWithEntriesDto) => Promise<ClosePeriodWithEntriesResult>
+  reopenPeriod: (id: string, dto: ReopenPeriodDto) => Promise<ReopenPeriodResult>
   deletePeriod: (id: string) => Promise<void>
   bulkDeletePeriods: (ids: string[]) => Promise<void>
   restorePeriod: (id: string) => Promise<void>
@@ -153,6 +156,20 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     set({ mutating: true, error: null })
     try {
       const result = await fiscalPeriodsApi.closePeriodWithEntries(id, dto)
+      await get().fetchPeriods()
+      return result
+    } catch (error) {
+      set({ error: parseApiError(error, 'An error occurred') })
+      throw error
+    } finally {
+      set({ mutating: false })
+    }
+  },
+
+  reopenPeriod: async (id, dto) => {
+    set({ mutating: true, error: null })
+    try {
+      const result = await fiscalPeriodsApi.reopenPeriod(id, dto)
       await get().fetchPeriods()
       return result
     } catch (error) {

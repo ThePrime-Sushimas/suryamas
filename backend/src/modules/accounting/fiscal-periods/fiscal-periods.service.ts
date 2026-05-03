@@ -1,5 +1,5 @@
 import { fiscalPeriodsRepository, FiscalPeriodsRepository } from './fiscal-periods.repository'
-import { FiscalPeriod, CreateFiscalPeriodDto, UpdateFiscalPeriodDto, FiscalPeriodFilter, SortParams, PeriodClosingSummary, ClosingAccountLine, ClosePeriodWithEntriesDto, ClosePeriodWithEntriesResult } from './fiscal-periods.types'
+import { FiscalPeriod, CreateFiscalPeriodDto, UpdateFiscalPeriodDto, FiscalPeriodFilter, SortParams, PeriodClosingSummary, ClosingAccountLine, ClosePeriodWithEntriesDto, ClosePeriodWithEntriesResult, ReopenPeriodDto, ReopenPeriodResult } from './fiscal-periods.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../../utils/pagination.util'
 import { ExportService } from '../../../services/export.service'
 import { AuditService } from '../../monitoring/monitoring.service'
@@ -8,6 +8,7 @@ import { PERIOD_FORMAT_REGEX } from './fiscal-periods.constants'
 import { FiscalPeriodsConfig, defaultConfig } from './fiscal-periods.config'
 import { logInfo, logError, logWarn } from '../../../config/logger'
 import { pool } from '../../../config/db'
+import { JournalHeadersService } from '../journals/journal-headers/journal-headers.service'
 
 export interface IAuditService {
   log(action: string, entity: string, entityId: string, userId: string, oldData?: any, newData?: any): Promise<void>
@@ -24,6 +25,7 @@ export class FiscalPeriodsService {
     private repository: FiscalPeriodsRepository = fiscalPeriodsRepository,
     private auditService: IAuditService = AuditService,
     private exportService: IExportService = ExportService,
+    private journalService: JournalHeadersService = new JournalHeadersService(),
     config: FiscalPeriodsConfig = defaultConfig
   ) {
     this.config = config
@@ -952,6 +954,95 @@ export class FiscalPeriodsService {
       throw error
     } finally {
       client.release()
+    }
+  }
+
+  async reopenPeriod(
+    id: string,
+    dto: ReopenPeriodDto,
+    userId: string,
+    companyId: string,
+  ): Promise<ReopenPeriodResult> {
+    this.validateCompanyAccess(companyId)
+    if (!id?.trim() || !userId?.trim()) {
+      throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'Period ID and User ID are required')
+    }
+
+    const period = await this.repository.findById(id.trim(), companyId)
+    if (!period) throw FiscalPeriodErrors.NOT_FOUND(id)
+    if (period.is_open) throw FiscalPeriodErrors.PERIOD_ALREADY_OPEN(period.period)
+
+    // Chain guard: cannot reopen if a later period is already closed
+    const closedSuccessor = await this.repository.findClosedSuccessor(companyId, period.period)
+    if (closedSuccessor) {
+      throw FiscalPeriodErrors.CANNOT_REOPEN_WITH_CLOSED_SUCCESSOR(period.period, closedSuccessor)
+    }
+
+    // Find closing journal
+    const closingJournal = await this.repository.findClosingJournal(companyId, period.period)
+    if (!closingJournal) {
+      throw FiscalPeriodErrors.CLOSING_JOURNAL_NOT_FOUND(period.period)
+    }
+
+    // Strategy: reopen period first (in transaction), then reverse journal.
+    // If reverse fails, we rollback the period update via compensating query.
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(
+        `UPDATE fiscal_periods SET is_open = true, closed_at = NULL, closed_by = NULL, close_reason = NULL, updated_at = NOW(), updated_by = $1
+         WHERE id = $2 AND company_id = $3`,
+        [userId, id, companyId]
+      )
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+
+    // Reverse closing journal (uses its own pool connections internally)
+    let reversal
+    try {
+      reversal = await this.journalService.reverse(
+        closingJournal.id,
+        dto.reopen_reason || `Reopen periode ${period.period}`,
+        userId,
+        companyId,
+      )
+    } catch (error) {
+      // Compensating: rollback period to closed state
+      logError('Journal reversal failed during reopen, rolling back period', { period_id: id, error })
+      try {
+        await pool.query(
+          `UPDATE fiscal_periods SET is_open = false, closed_at = $1, closed_by = $2, close_reason = $3, updated_at = NOW()
+           WHERE id = $4 AND company_id = $5`,
+          [period.closed_at, period.closed_by, period.close_reason, id, companyId]
+        )
+      } catch (compErr) {
+        logError('CRITICAL: compensating rollback failed — period is open without closing journal', { period_id: id, period: period.period, compErr })
+      }
+      throw error
+    }
+
+    logInfo('Fiscal period reopened', {
+      period_id: id, period: period.period,
+      reversed_journal_id: reversal.id, user_id: userId,
+    })
+
+    await this.auditService.log('REOPEN', 'fiscal_period', id, userId,
+      { is_open: false, closed_at: period.closed_at },
+      { is_open: true, reversed_journal_id: reversal.id },
+    ).catch(e => logWarn('Audit log failed for fiscal reopen', { error: String(e) }))
+
+    const updatedPeriod = await this.repository.findById(id, companyId)
+    if (!updatedPeriod) throw FiscalPeriodErrors.NOT_FOUND(id)
+
+    return {
+      period: updatedPeriod,
+      reversed_journal_id: reversal.id,
+      reversed_journal_number: reversal.journal_number,
     }
   }
 

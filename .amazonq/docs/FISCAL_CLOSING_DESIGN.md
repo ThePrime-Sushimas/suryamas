@@ -334,3 +334,125 @@ Execute closing — atomically dalam 1 DB transaction.
 | 5 | Frontend: `fiscal-period.types.ts`, `fiscalPeriods.api.ts`, `fiscalPeriods.store.ts` | Kecil | 🔄 NEXT |
 | 6 | Frontend: `ClosePeriodModal.tsx` rewrite + `FiscalPeriodsListPage.tsx` (permission guard) | Medium | 🔄 NEXT |
 | 7 | Testing: end-to-end dengan data April 2026, verifikasi balance closing journal | Kecil | ⏳ TODO |
+
+
+---
+
+## 🔓 Phase 2: Reopen Period (Buka Kembali Periode)
+
+### Pertanyaan Kunci
+
+Saat close, sistem generate closing journal yang:
+- Nol-kan semua Revenue & Expense
+- Transfer net income ke Retained Earnings
+- Jurnal langsung POSTED ke ledger
+
+**Kalau reopen, apakah kondisi harus 100% revert ke sebelum close?**
+
+### 3 Opsi
+
+| Opsi | Apa yang terjadi | Pro | Kontra |
+|------|-------------------|-----|--------|
+| **A. Full Revert** | Delete closing journal + set `is_open = true` | Kondisi 100% sama seperti sebelum close | Kalau periode berikutnya sudah closed (chain), angka opening Mei jadi salah |
+| **B. Reopen Only** | Set `is_open = true` saja, closing journal tetap ada | Simple, tidak ganggu ledger | Ada closing journal "orphan" di ledger. Kalau close lagi → double closing journal |
+| **C. Full Revert + Chain Guard** | Delete closing journal + set `is_open = true` + **block jika periode berikutnya sudah closed** | Paling aman, tidak ada inkonsistensi | User harus reopen dari periode terbaru ke belakang (LIFO order) |
+
+### Rekomendasi: Opsi C (Full Revert + Chain Guard)
+
+**Alasan:**
+- Closing journal adalah system-generated — kalau periode dibuka lagi, closing journal tidak relevan lagi dan harus dihapus
+- Chain guard mencegah inkonsistensi: tidak bisa reopen April kalau Mei sudah closed (karena opening Mei bergantung pada closing April)
+- User harus reopen dari yang terbaru dulu: Mei → April → Maret (LIFO)
+
+### Flow Reopen
+
+1. User klik **"Buka Kembali"** pada periode closed
+2. Validasi:
+   - User punya `can_approve('fiscal_periods')`
+   - Tidak ada periode **setelahnya** yang sudah closed (chain guard)
+3. Dalam 1 DB transaction:
+   - Find closing journal (`source_module = 'FISCAL_CLOSING'`, `period = X`)
+   - **REVERSE** closing journal (set `status = 'REVERSED'`, buat reversal journal) — lebih baik dari hard delete karena ada audit trail
+   - Set `fiscal_periods.is_open = true`, clear `closed_at`, `closed_by`, `close_reason`
+4. Response: sukses
+
+### Reverse vs Delete Closing Journal
+
+| Approach | Pro | Kontra |
+|----------|-----|--------|
+| **Hard Delete** | Clean, tidak ada sisa | Tidak ada audit trail. Kalau ada bug, tidak bisa trace |
+| **Reverse (POSTED → REVERSED)** | Full audit trail. Jurnal asli + reversal keduanya visible | Ada 2 jurnal di ledger (saling cancel out = net 0). Sedikit lebih "noisy" |
+
+**Rekomendasi: Reverse** — karena:
+- Jurnal REVERSED sudah di-exclude dari `general_ledger_view` (hanya POSTED yang masuk)
+- Audit trail lengkap: siapa close, kapan, siapa reopen, kapan
+- Konsisten dengan pattern reversal jurnal yang sudah ada di sistem
+
+### Permission
+
+| Aksi | Permission | Middleware |
+|------|-----------|------------|
+| Reopen periode | `can_approve` | `canApprove('fiscal_periods')` |
+
+**Kenapa `can_approve` (bukan `can_release`)?**
+- `can_release` = aksi final (close)
+- `can_approve` = aksi intermediate (reopen = membatalkan aksi final, butuh approval tapi bukan level tertinggi)
+- Dalam praktik: Manager bisa reopen, tapi hanya Director yang bisa close
+
+### API Endpoint
+
+#### `POST /api/fiscal-periods/:id/reopen`
+**Permission:** `canApprove('fiscal_periods')`
+
+**Request:**
+```json
+{
+  "reopen_reason": "Perlu koreksi jurnal April"
+}
+```
+
+**Response:**
+```json
+{
+  "period": { "id": "uuid", "period": "2026-04", "is_open": true },
+  "reversed_journal_id": "uuid",
+  "reversed_journal_number": "JG-2026-04-0005"
+}
+```
+
+### Validasi
+
+| # | Kondisi | Error |
+|---|---------|-------|
+| 1 | Periode harus `is_open = false` | `PERIOD_ALREADY_OPEN` |
+| 2 | Tidak ada periode setelahnya yang sudah closed | `CANNOT_REOPEN_WITH_CLOSED_SUCCESSOR` |
+| 3 | Closing journal harus ada dan berstatus POSTED | `CLOSING_JOURNAL_NOT_FOUND` |
+
+### File yang Terdampak (tambahan dari Phase 1)
+
+**Backend:**
+- `fiscal-periods.errors.ts` — tambah: `PERIOD_ALREADY_OPEN`, `CANNOT_REOPEN_WITH_CLOSED_SUCCESSOR`, `CLOSING_JOURNAL_NOT_FOUND`
+- `fiscal-periods.types.ts` — tambah: `ReopenPeriodDto`, `ReopenPeriodResult`
+- `fiscal-periods.schema.ts` — tambah: `reopenPeriodSchema`
+- `fiscal-periods.repository.ts` — tambah: `hasClosedSuccessor()`, `findClosingJournal()`
+- `fiscal-periods.service.ts` — tambah: `reopenPeriod()`
+- `fiscal-periods.controller.ts` — tambah: handler `reopenPeriod`
+- `fiscal-periods.routes.ts` — tambah: `POST /:id/reopen` (canApprove)
+- `journal-headers.service.ts` — reuse existing `reverse()` method
+
+**Frontend:**
+- `FiscalPeriodTable.tsx` — tambah tombol "Buka Kembali" pada row closed (jika `canApprove`)
+- `FiscalPeriodsListPage.tsx` — tambah `canApprove` permission check
+- `fiscalPeriods.api.ts` — tambah `reopenPeriod()`
+- `fiscalPeriods.store.ts` — tambah action `reopenPeriod`
+- `fiscal-period.types.ts` — tambah types
+- Bisa pakai `ConfirmModal` yang sudah ada (tidak perlu modal baru)
+
+### Execution Order
+
+| Phase | Task |
+|-------|------|
+| 2a | Backend: errors, types, schema, repository |
+| 2b | Backend: service (reverse closing journal + reopen) + controller + routes |
+| 2c | Frontend: api, store, types, table button, list page permission |
+| 2d | Testing |

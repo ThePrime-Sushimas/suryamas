@@ -113,3 +113,13 @@ export const closingPreviewSchema = z.object({
     id: uuidSchema,
   }),
 })
+
+
+export const reopenPeriodSchema = z.object({
+  params: z.object({
+    id: uuidSchema,
+  }),
+  body: z.object({
+    reopen_reason: z.string().max(500).optional().nullable(),
+  }).strict(),
+})
