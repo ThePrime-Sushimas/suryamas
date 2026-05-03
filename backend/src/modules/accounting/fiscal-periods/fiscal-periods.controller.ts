@@ -12,6 +12,8 @@ import type {
   createFiscalPeriodSchema,
   updateFiscalPeriodSchema,
   closePeriodSchema,
+  closePeriodWithEntriesSchema,
+  closingPreviewSchema,
   bulkDeleteSchema,
   bulkRestoreSchema,
 } from './fiscal-periods.schema'
@@ -170,6 +172,38 @@ export class FiscalPeriodsController {
       )
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'export_fiscal_periods' })
+    }
+  }
+
+  // ============================================================================
+  // FISCAL CLOSING HANDLERS
+  // ============================================================================
+
+  async getClosingPreview(req: Request, res: Response) {
+    try {
+      const companyId = this.getCompanyId(req)
+      const summary = await fiscalPeriodsService.getClosingPreview(req.params.id as string, companyId)
+      sendSuccess(res, summary)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_closing_preview', id: req.params.id })
+    }
+  }
+
+  async closePeriodWithEntries(req: Request, res: Response) {
+    try {
+      const { params, body } = (req as ValidatedAuthRequest<typeof closePeriodWithEntriesSchema>).validated
+      const companyId = this.getCompanyId(req)
+
+      const result = await fiscalPeriodsService.closePeriodWithEntries(
+        params.id, { ...body, close_reason: body.close_reason ?? undefined }, req.user!.id, companyId
+      )
+
+      logInfo('Fiscal period closed with entries', {
+        period_id: params.id, journal_id: result.closing_journal_id, user: req.user!.id,
+      })
+      sendSuccess(res, result, 'Fiscal period closed successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'close_period_with_entries', id: req.params.id })
     }
   }
 }

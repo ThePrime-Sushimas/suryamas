@@ -1,5 +1,5 @@
 import { fiscalPeriodsRepository, FiscalPeriodsRepository } from './fiscal-periods.repository'
-import { FiscalPeriod, CreateFiscalPeriodDto, UpdateFiscalPeriodDto, FiscalPeriodFilter, SortParams } from './fiscal-periods.types'
+import { FiscalPeriod, CreateFiscalPeriodDto, UpdateFiscalPeriodDto, FiscalPeriodFilter, SortParams, PeriodClosingSummary, ClosingAccountLine, ClosePeriodWithEntriesDto, ClosePeriodWithEntriesResult } from './fiscal-periods.types'
 import { PaginatedResponse, createPaginatedResponse } from '../../../utils/pagination.util'
 import { ExportService } from '../../../services/export.service'
 import { AuditService } from '../../monitoring/monitoring.service'
@@ -7,6 +7,7 @@ import { FiscalPeriodErrors } from './fiscal-periods.errors'
 import { PERIOD_FORMAT_REGEX } from './fiscal-periods.constants'
 import { FiscalPeriodsConfig, defaultConfig } from './fiscal-periods.config'
 import { logInfo, logError, logWarn } from '../../../config/logger'
+import { pool } from '../../../config/db'
 
 export interface IAuditService {
   log(action: string, entity: string, entityId: string, userId: string, oldData?: any, newData?: any): Promise<void>
@@ -732,6 +733,225 @@ export class FiscalPeriodsService {
         error: error instanceof Error ? error.message : 'Unknown error'
       })
       throw error
+    }
+  }
+
+  // ============================================================================
+  // FISCAL CLOSING METHODS
+  // ============================================================================
+
+  async getClosingPreview(id: string, companyId: string): Promise<PeriodClosingSummary> {
+    this.validateCompanyAccess(companyId)
+    if (!id?.trim()) throw FiscalPeriodErrors.VALIDATION_ERROR('id', 'Period ID is required')
+
+    const period = await this.repository.findById(id.trim(), companyId)
+    if (!period) throw FiscalPeriodErrors.NOT_FOUND(id)
+    if (!period.is_open) throw FiscalPeriodErrors.PERIOD_ALREADY_CLOSED(period.period)
+
+    const { accounts, posted_count, pending_count } = await this.repository.getRevenueExpenseSummary(
+      companyId, period.period_start, period.period_end
+    )
+
+    const closingLines: ClosingAccountLine[] = accounts.map(a => {
+      const isRevenue = a.account_type === 'REVENUE'
+      // Revenue normal = credit, Expense normal = debit
+      const net = isRevenue
+        ? a.total_credit - a.total_debit
+        : a.total_debit - a.total_credit
+
+      let closingDebit = 0
+      let closingCredit = 0
+      if (isRevenue) {
+        if (net > 0) closingDebit = net   // normal revenue → debit to zero
+        else closingCredit = Math.abs(net) // abnormal → credit to zero
+      } else {
+        if (net > 0) closingCredit = net   // normal expense → credit to zero
+        else closingDebit = Math.abs(net)  // abnormal → debit to zero
+      }
+
+      return {
+        account_id: a.account_id,
+        account_code: a.account_code,
+        account_name: a.account_name,
+        account_type: a.account_type as 'REVENUE' | 'EXPENSE',
+        total_debit: a.total_debit,
+        total_credit: a.total_credit,
+        net_amount: net,
+        closing_debit: closingDebit,
+        closing_credit: closingCredit,
+      }
+    })
+
+    const totalRevenue = closingLines.filter(l => l.account_type === 'REVENUE').reduce((s, l) => s + l.net_amount, 0)
+    const totalExpense = closingLines.filter(l => l.account_type === 'EXPENSE').reduce((s, l) => s + l.net_amount, 0)
+    const netIncome = totalRevenue - totalExpense
+
+    const defaultRE = await this.repository.getDefaultRetainedEarningsAccount(companyId)
+
+    return {
+      period: period.period,
+      period_start: period.period_start,
+      period_end: period.period_end,
+      total_revenue: totalRevenue,
+      total_expense: totalExpense,
+      net_income: netIncome,
+      is_profit: netIncome >= 0,
+      accounts: closingLines,
+      pending_journals_count: pending_count,
+      posted_journals_count: posted_count,
+      default_retained_earnings_account_id: defaultRE,
+    }
+  }
+
+  async closePeriodWithEntries(
+    id: string,
+    dto: ClosePeriodWithEntriesDto,
+    userId: string,
+    companyId: string,
+  ): Promise<ClosePeriodWithEntriesResult> {
+    this.validateCompanyAccess(companyId)
+    if (!id?.trim() || !userId?.trim()) {
+      throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'Period ID and User ID are required')
+    }
+
+    const period = await this.repository.findById(id.trim(), companyId)
+    if (!period) throw FiscalPeriodErrors.NOT_FOUND(id)
+    if (!period.is_open) throw FiscalPeriodErrors.PERIOD_ALREADY_CLOSED(period.period)
+
+    // Check closing journal doesn't already exist
+    const hasClosing = await this.repository.hasClosingJournal(companyId, period.period)
+    if (hasClosing) throw FiscalPeriodErrors.CLOSING_JOURNAL_EXISTS(period.period)
+
+    // Validate RE account is EQUITY type
+    const reAccountRes = await pool.query(
+      `SELECT id, account_type, account_code, account_name FROM chart_of_accounts
+       WHERE id = $1 AND company_id = $2 AND is_active = true AND deleted_at IS NULL`,
+      [dto.retained_earnings_account_id, companyId]
+    )
+    if (reAccountRes.rows.length === 0 || reAccountRes.rows[0].account_type !== 'EQUITY') {
+      throw FiscalPeriodErrors.INVALID_RETAINED_EARNINGS_ACCOUNT(dto.retained_earnings_account_id)
+    }
+
+    // Get revenue/expense summary
+    const { accounts, posted_count } = await this.repository.getRevenueExpenseSummary(
+      companyId, period.period_start, period.period_end
+    )
+    if (posted_count === 0) throw FiscalPeriodErrors.NO_TRANSACTIONS_IN_PERIOD(period.period)
+
+    // Build closing lines
+    const closingLines: Array<{ account_id: string; debit: number; credit: number; description: string }> = []
+    let totalClosingDebit = 0
+    let totalClosingCredit = 0
+
+    for (const a of accounts) {
+      const isRevenue = a.account_type === 'REVENUE'
+      const net = isRevenue ? a.total_credit - a.total_debit : a.total_debit - a.total_credit
+      if (Math.abs(net) < 0.005) continue // skip zero-balance accounts
+
+      let debit = 0
+      let credit = 0
+      if (isRevenue) {
+        if (net > 0) debit = net; else credit = Math.abs(net)
+      } else {
+        if (net > 0) credit = net; else debit = Math.abs(net)
+      }
+
+      closingLines.push({ account_id: a.account_id, debit, credit, description: `Closing ${a.account_code} - ${a.account_name}` })
+      totalClosingDebit += debit
+      totalClosingCredit += credit
+    }
+
+    // RE line (penyeimbang)
+    const netIncome = totalClosingDebit - totalClosingCredit
+    const isProfit = netIncome > 0
+    if (Math.abs(netIncome) >= 0.005) {
+      if (isProfit) {
+        closingLines.push({ account_id: dto.retained_earnings_account_id, debit: 0, credit: netIncome, description: `Laba periode ${period.period}` })
+        totalClosingCredit += netIncome
+      } else {
+        closingLines.push({ account_id: dto.retained_earnings_account_id, debit: Math.abs(netIncome), credit: 0, description: `Rugi periode ${period.period}` })
+        totalClosingDebit += Math.abs(netIncome)
+      }
+    }
+
+    const totalAmount = Math.max(totalClosingDebit, totalClosingCredit)
+
+    // Execute atomically
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // 1. Get next sequence
+      const seqRes = await client.query(
+        `SELECT get_next_journal_sequence($1, $2, 'GENERAL')`,
+        [companyId, period.period]
+      )
+      const seq = seqRes.rows[0].get_next_journal_sequence
+      const journalNumber = `JG-${period.period}-${String(seq).padStart(4, '0')}`
+
+      // 2. Create journal header
+      const headerRes = await client.query(
+        `INSERT INTO journal_headers (
+          company_id, branch_id, journal_number, sequence_number,
+          journal_type, journal_date, period, description,
+          total_debit, total_credit, currency, exchange_rate,
+          status, source_module, posted_at, created_by, created_at, updated_at
+        ) VALUES ($1, NULL, $2, $3, 'GENERAL', $4, $5, $6, $7, $8, 'IDR', 1, 'POSTED', 'FISCAL_CLOSING', NOW(), $9, NOW(), NOW())
+        RETURNING id, journal_number`,
+        [companyId, journalNumber, seq, period.period_end, period.period,
+         `Closing Entry - ${period.period}`, totalAmount, totalAmount, userId]
+      )
+      const journalId = headerRes.rows[0].id
+      const journalNum = headerRes.rows[0].journal_number
+
+      // 3. Insert journal lines
+      for (let i = 0; i < closingLines.length; i++) {
+        const line = closingLines[i]
+        await client.query(
+          `INSERT INTO journal_lines (
+            journal_header_id, line_number, account_id, description,
+            debit_amount, credit_amount, base_debit_amount, base_credit_amount
+          ) VALUES ($1, $2, $3, $4, $5, $6, $5, $6)`,
+          [journalId, i + 1, line.account_id, line.description, line.debit, line.credit]
+        )
+      }
+
+      // 4. Close the fiscal period
+      await client.query(
+        `UPDATE fiscal_periods SET is_open = false, closed_at = NOW(), closed_by = $1, close_reason = $2, updated_at = NOW(), updated_by = $1
+         WHERE id = $3 AND company_id = $4`,
+        [userId, dto.close_reason || `Fiscal closing - ${period.period}`, id, companyId]
+      )
+
+      await client.query('COMMIT')
+
+      logInfo('Fiscal period closed with entries', {
+        period_id: id, period: period.period, journal_id: journalId,
+        journal_number: journalNum, net_income: netIncome, lines: closingLines.length,
+      })
+
+      // Audit log (outside transaction, non-critical)
+      await this.auditService.log('CLOSE', 'fiscal_period', id, userId, { is_open: true }, {
+        is_open: false, closing_journal_id: journalId, closing_journal_number: journalNum, net_income: netIncome,
+      }).catch(e => logWarn('Audit log failed for fiscal closing', { error: String(e) }))
+
+      // Fetch fresh data (bypasses cache)
+      const updatedPeriod = await this.repository.findById(id, companyId)
+
+      return {
+        period: updatedPeriod || { ...period, is_open: false } as FiscalPeriod,
+        closing_journal_id: journalId,
+        closing_journal_number: journalNum,
+        net_income: Math.abs(netIncome),
+        is_profit: isProfit,
+        lines_count: closingLines.length,
+      }
+    } catch (error) {
+      await client.query('ROLLBACK')
+      logError('Fiscal closing failed, rolled back', { period_id: id, error })
+      throw error
+    } finally {
+      client.release()
     }
   }
 

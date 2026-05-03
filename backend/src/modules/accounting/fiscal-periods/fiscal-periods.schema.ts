@@ -92,3 +92,24 @@ export const sortParamsSchema = z.object({
   field: z.enum(['period', 'fiscal_year', 'is_open', 'created_at', 'updated_at']),
   order: z.enum(['asc', 'desc']),
 }).strict()
+
+
+// ============================================================================
+// FISCAL CLOSING SCHEMAS
+// ============================================================================
+
+export const closePeriodWithEntriesSchema = z.object({
+  params: z.object({
+    id: uuidSchema,
+  }),
+  body: z.object({
+    retained_earnings_account_id: uuidSchema,
+    close_reason: z.string().max(500).optional().nullable(),
+  }).strict(),
+})
+
+export const closingPreviewSchema = z.object({
+  params: z.object({
+    id: uuidSchema,
+  }),
+})

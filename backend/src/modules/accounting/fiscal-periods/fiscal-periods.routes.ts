@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { fiscalPeriodsController } from './fiscal-periods.controller'
 import { authenticate } from '../../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
+import { canView, canInsert, canUpdate, canDelete, canRelease } from '../../../middleware/permission.middleware'
 import { queryMiddleware } from '../../../middleware/query.middleware'
 import { exportLimiter } from '../../../middleware/rateLimiter.middleware'
 import { validateSchema } from '../../../middleware/validation.middleware'
@@ -11,6 +11,8 @@ import {
   createFiscalPeriodSchema, 
   updateFiscalPeriodSchema, 
   closePeriodSchema,
+  closePeriodWithEntriesSchema,
+  closingPreviewSchema,
   fiscalPeriodIdSchema, 
   bulkDeleteSchema,
   bulkRestoreSchema
@@ -56,8 +58,14 @@ router.post('/', canInsert('fiscal_periods'), validateSchema(createFiscalPeriodS
 router.get('/:id', canView('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) => 
   fiscalPeriodsController.getById(req, res))
 
+router.get('/:id/closing-preview', canView('fiscal_periods'), validateSchema(closingPreviewSchema), (req, res) =>
+  fiscalPeriodsController.getClosingPreview(req, res))
+
 router.put('/:id', canUpdate('fiscal_periods'), validateSchema(updateFiscalPeriodSchema), (req, res) => 
   fiscalPeriodsController.update(req, res))
+
+router.post('/:id/close-with-entries', canRelease('fiscal_periods'), validateSchema(closePeriodWithEntriesSchema), (req, res) =>
+  fiscalPeriodsController.closePeriodWithEntries(req, res))
 
 router.post('/:id/close', canUpdate('fiscal_periods'), validateSchema(closePeriodSchema), (req, res) => 
   fiscalPeriodsController.closePeriod(req, res))

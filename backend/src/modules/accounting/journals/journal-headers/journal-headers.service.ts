@@ -208,6 +208,9 @@ export class JournalHeadersService {
 
   async forceDelete(id: string, userId: string, companyId: string): Promise<void> {
     const journal = await this.getById(id, companyId)
+    if (journal.source_module === 'FISCAL_CLOSING') {
+      throw JournalErrors.CANNOT_DELETE_POSTED()
+    }
     await journalHeadersRepository.clearJournalReferences(id)
     await journalHeadersRepository.delete(id, userId)
     await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, { journal_number: journal.journal_number, status: journal.status })

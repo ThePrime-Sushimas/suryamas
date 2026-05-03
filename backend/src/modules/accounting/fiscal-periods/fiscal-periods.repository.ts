@@ -239,6 +239,88 @@ export class FiscalPeriodsRepository {
     return rows
   }
 
+  // ============================================================================
+  // FISCAL CLOSING QUERIES
+  // ============================================================================
+
+  /**
+   * Get Revenue & Expense account balances for a period (POSTED journals only)
+   */
+  async getRevenueExpenseSummary(companyId: string, periodStart: string, periodEnd: string): Promise<{
+    accounts: Array<{ account_id: string; account_code: string; account_name: string; account_type: string; total_debit: number; total_credit: number }>
+    posted_count: number
+    pending_count: number
+  }> {
+    const [accountsRes, postedRes, pendingRes] = await Promise.all([
+      pool.query(
+        `SELECT glv.account_id, glv.account_code, glv.account_name, glv.account_type,
+                SUM(glv.debit_amount)::numeric AS total_debit,
+                SUM(glv.credit_amount)::numeric AS total_credit
+         FROM general_ledger_view glv
+         WHERE glv.company_id = $1
+           AND glv.account_type IN ('REVENUE', 'EXPENSE')
+           AND glv.journal_date >= $2::date
+           AND glv.journal_date <= $3::date
+           AND (glv.source_module IS NULL OR glv.source_module != 'FISCAL_CLOSING')
+         GROUP BY glv.account_id, glv.account_code, glv.account_name, glv.account_type
+         HAVING SUM(glv.debit_amount) != 0 OR SUM(glv.credit_amount) != 0
+         ORDER BY glv.account_code`,
+        [companyId, periodStart, periodEnd]
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT jh.id)::int AS count FROM journal_headers jh
+         WHERE jh.company_id = $1 AND jh.status = 'POSTED' AND jh.deleted_at IS NULL
+           AND jh.journal_date >= $2::date AND jh.journal_date <= $3::date`,
+        [companyId, periodStart, periodEnd]
+      ),
+      pool.query(
+        `SELECT COUNT(DISTINCT jh.id)::int AS count FROM journal_headers jh
+         WHERE jh.company_id = $1 AND jh.status IN ('DRAFT', 'SUBMITTED', 'APPROVED') AND jh.deleted_at IS NULL
+           AND jh.journal_date >= $2::date AND jh.journal_date <= $3::date`,
+        [companyId, periodStart, periodEnd]
+      ),
+    ])
+
+    return {
+      accounts: accountsRes.rows.map(r => ({
+        account_id: r.account_id,
+        account_code: r.account_code,
+        account_name: r.account_name,
+        account_type: r.account_type,
+        total_debit: Number(r.total_debit),
+        total_credit: Number(r.total_credit),
+      })),
+      posted_count: postedRes.rows[0].count,
+      pending_count: pendingRes.rows[0].count,
+    }
+  }
+
+  /**
+   * Check if a closing journal already exists for a period
+   */
+  async hasClosingJournal(companyId: string, period: string): Promise<boolean> {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM journal_headers
+       WHERE company_id = $1 AND period = $2 AND source_module = 'FISCAL_CLOSING' AND deleted_at IS NULL
+       LIMIT 1`,
+      [companyId, period]
+    )
+    return rows.length > 0
+  }
+
+  /**
+   * Get default Retained Earnings account (310202 - RE current period)
+   */
+  async getDefaultRetainedEarningsAccount(companyId: string): Promise<string | null> {
+    const { rows } = await pool.query(
+      `SELECT id FROM chart_of_accounts
+       WHERE company_id = $1 AND account_code = '310202' AND is_active = true AND deleted_at IS NULL
+       LIMIT 1`,
+      [companyId]
+    )
+    return rows[0]?.id || null
+  }
+
   destroy(): void {
     if (this.cleanupTimer) { clearInterval(this.cleanupTimer); this.cleanupTimer = null }
     this.cache.clear()

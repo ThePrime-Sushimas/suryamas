@@ -170,6 +170,44 @@ export class FiscalPeriodOperationError extends DatabaseError {
 // ERROR FACTORY (CONVENIENCE METHODS)
 // ============================================================================
 
+// ============================================================================
+// FISCAL CLOSING ERRORS
+// ============================================================================
+
+export class InvalidRetainedEarningsAccountError extends ValidationError {
+  constructor(accountId: string) {
+    super(
+      `Account ${accountId} is not a valid Equity account for Retained Earnings`,
+      { field: 'retained_earnings_account_id', accountId }
+    )
+    this.name = 'InvalidRetainedEarningsAccountError'
+  }
+}
+
+export class NoTransactionsInPeriodError extends BusinessRuleError {
+  constructor(period: string) {
+    super(
+      `No posted journal entries found in period ${period}. Cannot close an empty period.`,
+      { rule: 'no_transactions', period }
+    )
+    this.name = 'NoTransactionsInPeriodError'
+  }
+}
+
+export class ClosingJournalExistsError extends ConflictError {
+  constructor(period: string) {
+    super(
+      `A closing journal already exists for period ${period}`,
+      { conflictType: 'closing_journal_exists', period }
+    )
+    this.name = 'ClosingJournalExistsError'
+  }
+}
+
+// ============================================================================
+// ERROR FACTORY (CONVENIENCE METHODS)
+// ============================================================================
+
 export const FiscalPeriodErrors = {
   NOT_FOUND: (id: string) => new FiscalPeriodNotFoundError(id),
   PERIOD_EXISTS: (period: string, companyId: string) => new FiscalPeriodExistsError(period, companyId),
@@ -182,5 +220,8 @@ export const FiscalPeriodErrors = {
   BULK_OPERATION_LIMIT_EXCEEDED: (operation: string, limit: number, actual: number) => 
     new BulkOperationLimitExceededError(operation, limit, actual),
   REPOSITORY_ERROR: (operation: string, error?: string) => new FiscalPeriodOperationError(operation, error),
+  INVALID_RETAINED_EARNINGS_ACCOUNT: (accountId: string) => new InvalidRetainedEarningsAccountError(accountId),
+  NO_TRANSACTIONS_IN_PERIOD: (period: string) => new NoTransactionsInPeriodError(period),
+  CLOSING_JOURNAL_EXISTS: (period: string) => new ClosingJournalExistsError(period),
 }
 
