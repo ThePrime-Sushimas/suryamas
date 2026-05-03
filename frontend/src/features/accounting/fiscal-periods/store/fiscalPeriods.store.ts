@@ -6,6 +6,9 @@ import type {
   CreateFiscalPeriodDto,
   UpdateFiscalPeriodDto,
   ClosePeriodDto,
+  ClosePeriodWithEntriesDto,
+  PeriodClosingSummary,
+  ClosePeriodWithEntriesResult,
   FiscalPeriodFilter,
 } from '../types/fiscal-period.types'
 
@@ -29,7 +32,10 @@ interface FiscalPeriodsState {
   fetchPeriodById: (id: string) => Promise<void>
   createPeriod: (dto: CreateFiscalPeriodDto) => Promise<void>
   updatePeriod: (id: string, dto: UpdateFiscalPeriodDto) => Promise<void>
+  /** @deprecated Use closePeriodWithEntries instead */
   closePeriod: (id: string, dto: ClosePeriodDto) => Promise<void>
+  getClosingPreview: (id: string) => Promise<PeriodClosingSummary>
+  closePeriodWithEntries: (id: string, dto: ClosePeriodWithEntriesDto) => Promise<ClosePeriodWithEntriesResult>
   deletePeriod: (id: string) => Promise<void>
   bulkDeletePeriods: (ids: string[]) => Promise<void>
   restorePeriod: (id: string) => Promise<void>
@@ -68,19 +74,9 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
         page: pagination.page,
         limit: pagination.limit,
       })
-      
-      // API returns { success, message, data: [...], pagination: {...} } structure
-      // response.data is the array of fiscal periods (directly)
-      // response.pagination is at the root level
-      const apiData = response.data || []
-      const apiPagination = response.pagination || get().pagination
-      
       set({
-        periods: apiData,
-        pagination: {
-          ...get().pagination,
-          ...apiPagination,
-        },
+        periods: response.data || [],
+        pagination: { ...get().pagination, ...response.pagination },
       })
     } catch (error) {
       set({ error: parseApiError(error, 'An error occurred') })
@@ -93,9 +89,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const response = await fiscalPeriodsApi.getById(id)
-      // API returns { success, message, data } structure
-      const period = response.data
-      set({ selectedPeriod: period })
+      set({ selectedPeriod: response.data })
     } catch (error) {
       set({ error: parseApiError(error, 'An error occurred') })
     } finally {
@@ -103,7 +97,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     }
   },
 
-  createPeriod: async (dto: CreateFiscalPeriodDto) => {
+  createPeriod: async (dto) => {
     set({ mutating: true, error: null })
     try {
       await fiscalPeriodsApi.create(dto)
@@ -116,12 +110,11 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     }
   },
 
-  updatePeriod: async (id: string, dto: UpdateFiscalPeriodDto) => {
+  updatePeriod: async (id, dto) => {
     set({ mutating: true, error: null })
     try {
       await fiscalPeriodsApi.update(id, dto)
       await get().fetchPeriods()
-
       if (get().selectedPeriod?.id === id) {
         const response = await fiscalPeriodsApi.getById(id)
         set({ selectedPeriod: response.data })
@@ -134,12 +127,12 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     }
   },
 
-  closePeriod: async (id: string, dto: ClosePeriodDto) => {
+  /** @deprecated */
+  closePeriod: async (id, dto) => {
     set({ mutating: true, error: null })
     try {
       await fiscalPeriodsApi.close(id, dto)
       await get().fetchPeriods()
-
       if (get().selectedPeriod?.id === id) {
         const response = await fiscalPeriodsApi.getById(id)
         set({ selectedPeriod: response.data })
@@ -152,7 +145,25 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     }
   },
 
-  deletePeriod: async (id: string) => {
+  getClosingPreview: async (id) => {
+    return fiscalPeriodsApi.getClosingPreview(id)
+  },
+
+  closePeriodWithEntries: async (id, dto) => {
+    set({ mutating: true, error: null })
+    try {
+      const result = await fiscalPeriodsApi.closePeriodWithEntries(id, dto)
+      await get().fetchPeriods()
+      return result
+    } catch (error) {
+      set({ error: parseApiError(error, 'An error occurred') })
+      throw error
+    } finally {
+      set({ mutating: false })
+    }
+  },
+
+  deletePeriod: async (id) => {
     set({ mutating: true, error: null })
     try {
       await fiscalPeriodsApi.delete(id)
@@ -165,7 +176,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     }
   },
 
-  bulkDeletePeriods: async (ids: string[]) => {
+  bulkDeletePeriods: async (ids) => {
     set({ mutating: true, error: null })
     try {
       await fiscalPeriodsApi.bulkDelete(ids)
@@ -178,7 +189,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     }
   },
 
-  restorePeriod: async (id: string) => {
+  restorePeriod: async (id) => {
     set({ mutating: true, error: null })
     try {
       await fiscalPeriodsApi.restore(id)
@@ -191,7 +202,7 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     }
   },
 
-  bulkRestorePeriods: async (ids: string[]) => {
+  bulkRestorePeriods: async (ids) => {
     set({ mutating: true, error: null })
     try {
       await fiscalPeriodsApi.bulkRestore(ids)
@@ -214,30 +225,16 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
     }
   },
 
-  setFilters: (filters: Partial<FiscalPeriodFilter>) => {
+  setFilters: (filters) => {
     set((state) => ({
       filters: { ...state.filters, ...filters },
       pagination: { ...state.pagination, page: 1 },
     }))
   },
 
-  setPage: (page: number) => {
-    set((state) => ({
-      pagination: { ...state.pagination, page },
-    }))
-  },
-
-  setLimit: (limit: number) => {
-    set((state) => ({
-      pagination: { ...state.pagination, limit, page: 1 },
-    }))
-  },
-
+  setPage: (page) => set((state) => ({ pagination: { ...state.pagination, page } })),
+  setLimit: (limit) => set((state) => ({ pagination: { ...state.pagination, limit, page: 1 } })),
   clearError: () => set({ error: null }),
-
   resetSelectedPeriod: () => set({ selectedPeriod: null }),
-
-  refresh: async () => {
-    await get().fetchPeriods()
-  },
+  refresh: async () => { await get().fetchPeriods() },
 }))

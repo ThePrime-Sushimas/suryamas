@@ -5,12 +5,14 @@ import type {
   CreateFiscalPeriodDto,
   UpdateFiscalPeriodDto,
   ClosePeriodDto,
+  ClosePeriodWithEntriesDto,
+  PeriodClosingSummary,
+  ClosePeriodWithEntriesResult,
   FiscalPeriodFilter,
 } from '../types/fiscal-period.types'
 
 const BASE_URL = '/accounting/fiscal-periods'
 
-// API Response wrapper types
 interface ApiResponse<T> {
   success: boolean
   message: string
@@ -25,7 +27,6 @@ interface ApiResponse<T> {
   }
 }
 
-// List response - data is array directly, pagination at root level
 type FiscalPeriodListApiResponse = ApiResponse<FiscalPeriodWithDetails[]>
 
 export const fiscalPeriodsApi = {
@@ -49,9 +50,20 @@ export const fiscalPeriodsApi = {
     return data
   },
 
+  /** @deprecated Use closePeriodWithEntries instead */
   close: async (id: string, dto: ClosePeriodDto) => {
     const { data } = await api.post<FiscalPeriod>(`${BASE_URL}/${id}/close`, dto)
     return data
+  },
+
+  getClosingPreview: async (id: string): Promise<PeriodClosingSummary> => {
+    const { data } = await api.get<ApiResponse<PeriodClosingSummary>>(`${BASE_URL}/${id}/closing-preview`)
+    return data.data
+  },
+
+  closePeriodWithEntries: async (id: string, dto: ClosePeriodWithEntriesDto): Promise<ClosePeriodWithEntriesResult> => {
+    const { data } = await api.post<ApiResponse<ClosePeriodWithEntriesResult>>(`${BASE_URL}/${id}/close-with-entries`, dto)
+    return data.data
   },
 
   delete: async (id: string): Promise<void> => {

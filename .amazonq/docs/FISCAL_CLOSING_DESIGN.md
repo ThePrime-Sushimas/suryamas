@@ -1,6 +1,8 @@
 # Fiscal Period Closing — Design Document v2
 
 > **Revisi dari v1:** Closing journal langsung POSTED (no approval flow) + permission guard via `canRelease('fiscal_periods')` + pending journals jadi warning bukan blocker + default RE account ke 310202 + endpoint lama deprecated.
+> 
+> **Status:** Backend Phase 1–4 ✅ DONE (clean compile). Frontend Phase 5–6 🔄 IN PROGRESS.
 
 ---
 
@@ -157,39 +159,90 @@ TOTAL CREDIT = 76.936.271 ✅
 
 ---
 
+## 🖥️ Frontend Permission System
+
+Permission user tersedia di frontend via `usePermissionStore` dari `branch_context/store/permission.store.ts`.
+
+```typescript
+// Pattern yang sudah dipakai di journal module:
+// hooks/useJournalPermissions.ts
+const hasPermission = usePermissionStore(state => state.hasPermission)
+canPost: hasPermission('journals', 'release')
+
+// Untuk fiscal closing — pakai pattern yang sama:
+const hasPermission = usePermissionStore(state => state.hasPermission)
+const canClose = hasPermission('fiscal_periods', 'release')
+```
+
+**`PermissionAction` type:**
+```typescript
+type PermissionAction = 'view' | 'insert' | 'update' | 'delete' | 'approve' | 'release'
+```
+
+**Di-load otomatis** oleh `PermissionProvider` saat `currentBranch.role_id` berubah, dan di-clear saat logout.
+
+**Hook tersedia:**
+- `usePermissionStore(state => state.hasPermission)` — low-level, dipakai di hooks
+- `usePermission(module, action)` — shorthand hook di `branch_context/hooks/usePermission.ts`
+
+**Catatan:** `FiscalPeriodsListPage` saat ini hardcode `canUpdate={true}` dan `canDelete={true}` ke `FiscalPeriodTable`. Ini perlu diganti dengan actual permission check sekalian saat Phase 6.
+
+---
+
+## 🐛 Known Issues / Backlog
+
+| # | Issue | Severity | Status |
+|---|-------|----------|--------|
+| 1 | `getRevenueExpenseSummary` tidak filter `source_module != 'FISCAL_CLOSING'` — bisa double-count kalau preview dipanggil setelah closing journal sudah ada di periode yang masih open (edge case) | Low | Backlog — tambah `AND (glv.source_module IS NULL OR glv.source_module != 'FISCAL_CLOSING')` di query |
+| 2 | Jurnal pending setelah periode di-close harus di-reject/delete manual | Low | Backlog — enhancement: bulk-reject-pending-journals-in-closed-period |
+
+---
+
 ## 📁 File yang Terdampak
 
-### Backend — Modified (7 files)
+### Backend — Modified (8 files) ✅ DONE
 
-| File | Perubahan |
-|------|-----------|
-| `fiscal-periods.errors.ts` | Tambah: `PENDING_JOURNALS_EXIST` (warning only, tidak digunakan sebagai throw), `INVALID_RETAINED_EARNINGS_ACCOUNT`, `NO_TRANSACTIONS_IN_PERIOD` |
-| `fiscal-periods.types.ts` | Tambah: `ClosePeriodWithEntriesDto`, `PeriodClosingSummary`, `ClosingAccountLine` |
-| `fiscal-periods.schema.ts` | Tambah: `closePeriodWithEntriesSchema` (retained_earnings_account_id, close_reason?) |
-| `fiscal-periods.repository.ts` | Tambah: `getRevenueExpenseSummary(companyId, period)` — query dari `general_ledger_view` |
-| `fiscal-periods.service.ts` | Tambah: `getClosingPreview()`, `closePeriodWithEntries()` — orchestrate validasi + journal generation + lock periode dalam 1 transaction |
-| `fiscal-periods.controller.ts` | Tambah: handler `getClosingPreview`, `closePeriodWithEntries` |
-| `fiscal-periods.routes.ts` | Tambah: `GET /:id/closing-preview` (canView), `POST /:id/close-with-entries` (canRelease) + **deprecate** `POST /:id/close` |
 
-### Backend — Read-Only Reference (tidak diubah)
+
+| File | Perubahan | Status |
+|------|-----------|--------|
+| `fiscal-periods.errors.ts` | Tambah: `InvalidRetainedEarningsAccountError`, `NoTransactionsInPeriodError`, `ClosingJournalExistsError` + factory methods | ✅ |
+| `fiscal-periods.types.ts` | Tambah: `ClosePeriodWithEntriesDto`, `ClosingAccountLine`, `PeriodClosingSummary`, `ClosePeriodWithEntriesResult` | ✅ |
+| `fiscal-periods.schema.ts` | Tambah: `closePeriodWithEntriesSchema`, `closingPreviewSchema` | ✅ |
+| `fiscal-periods.repository.ts` | Tambah: `getRevenueExpenseSummary()`, `hasClosingJournal()`, `getDefaultRetainedEarningsAccount()` | ✅ |
+| `fiscal-periods.service.ts` | Tambah: `getClosingPreview()`, `closePeriodWithEntries()` (atomic transaction) | ✅ |
+| `fiscal-periods.controller.ts` | Tambah: handler `getClosingPreview`, `closePeriodWithEntries` | ✅ |
+| `fiscal-periods.routes.ts` | Tambah: `GET /:id/closing-preview` (canView), `POST /:id/close-with-entries` (canRelease). Endpoint lama `POST /:id/close` tetap ada (deprecated) | ✅ |
+| `journal-headers.service.ts` | Guard `forceDelete`: jurnal `source_module = 'FISCAL_CLOSING'` tidak bisa di-force delete | ✅ |
+
+### Frontend — Read-Only Reference (tidak diubah)
 
 | File | Dipakai untuk |
 |------|---------------|
-| `journal-headers.repository.ts` | Create closing journal (reuse existing `create` method) |
-| `chart-of-accounts.repository.ts` | Validasi RE account type = EQUITY |
+| `journal-headers.repository.ts` | Create closing journal (via raw SQL di service, bukan reuse method) |
+| `chart_of_accounts` table | Validasi RE account type = EQUITY (via raw pool.query di service) |
 | `general_ledger_view` (DB view) | Query saldo Revenue & Expense |
 
-### Frontend — Modified (5 files)
+### Frontend — Modified (5 files) 🔄 IN PROGRESS
 
-| File | Perubahan |
-|------|-----------|
-| `ClosePeriodModal.tsx` | **Rewrite** — tambah dua tahap (preview + konfirmasi), tampil summary revenue/expense/net, warning pending journals, RE account dropdown, permission guard |
-| `fiscalPeriods.api.ts` | Tambah: `getClosingPreview(id)`, `closePeriodWithEntries(id, dto)`. **Deprecate** `closePeriod(id)` |
-| `fiscalPeriods.store.ts` | Tambah action: `getClosingPreview`, `closePeriodWithEntries` |
-| `fiscal-period.types.ts` | Tambah: `PeriodClosingSummary`, `ClosingAccountLine`, `ClosePeriodWithEntriesDto` |
-| `FiscalPeriodsListPage.tsx` | Tombol "Tutup Periode" hanya render jika user punya `can_release`. Tambah link ke closing journal setelah sukses |
+| File | Perubahan | Status |
+|------|-----------|--------|
+| `fiscal-period.types.ts` | Tambah: `PeriodClosingSummary`, `ClosingAccountLine`, `ClosePeriodWithEntriesDto`, `ClosePeriodWithEntriesResult` | 🔄 |
+| `fiscalPeriods.api.ts` | Tambah: `getClosingPreview(id)`, `closePeriodWithEntries(id, dto)`. Deprecate (keep but unused): `close(id, dto)` | 🔄 |
+| `fiscalPeriods.store.ts` | Tambah action: `getClosingPreview`, `closePeriodWithEntries`. Fix: replace `closePeriod` call | 🔄 |
+| `ClosePeriodModal.tsx` | **Rewrite** — dua tahap: (1) Preview dengan summary + warning + RE dropdown, (2) Konfirmasi. Gunakan `usePermissionStore` | 🔄 |
+| `FiscalPeriodsListPage.tsx` | Restore tombol "Tutup Periode" dari commented-out code. Permission guard: hanya tampil jika `hasPermission('fiscal_periods', 'release')`. Fix hardcoded `canUpdate`/`canDelete` | 🔄 |
 
-### Frontend — New Files: Tidak ada (reuse existing components)
+### Frontend — New Files: Tidak ada
+
+Pattern permission yang dipakai (konsisten dengan `useJournalPermissions.ts`):
+```typescript
+// Di FiscalPeriodsListPage atau hook baru useFiscalPeriodPermissions.ts
+const hasPermission = usePermissionStore(state => state.hasPermission)
+const canClose  = hasPermission('fiscal_periods', 'release')
+const canUpdate = hasPermission('fiscal_periods', 'update')
+const canDelete = hasPermission('fiscal_periods', 'delete')
+```
 
 ---
 
@@ -272,12 +325,12 @@ Execute closing — atomically dalam 1 DB transaction.
 
 ## 📊 Execution Order
 
-| Phase | Task | Scope |
-|-------|------|-------|
-| 1 | Backend: `errors.ts`, `types.ts`, `schema.ts` | Kecil |
-| 2 | Backend: `repository.ts` — tambah `getRevenueExpenseSummary()` | Kecil |
-| 3 | Backend: `service.ts` — `getClosingPreview()` + `closePeriodWithEntries()` | Medium (logic utama) |
-| 4 | Backend: `controller.ts` + `routes.ts` + deprecate endpoint lama | Kecil |
-| 5 | Frontend: types, api, store | Kecil |
-| 6 | Frontend: `ClosePeriodModal.tsx` rewrite + `FiscalPeriodsListPage.tsx` | Medium |
-| 7 | Testing: end-to-end dengan data April 2026, verifikasi balance closing journal | Kecil |
+| Phase | Task | Scope | Status |
+|-------|------|-------|--------|
+| 1 | Backend: `errors.ts`, `types.ts`, `schema.ts` | Kecil | ✅ DONE |
+| 2 | Backend: `repository.ts` — `getRevenueExpenseSummary()`, `hasClosingJournal()`, `getDefaultRetainedEarningsAccount()` | Kecil | ✅ DONE |
+| 3 | Backend: `service.ts` — `getClosingPreview()` + `closePeriodWithEntries()` (atomic) | Medium | ✅ DONE |
+| 4 | Backend: `controller.ts` + `routes.ts` + guard `journal-headers.service.ts` | Kecil | ✅ DONE |
+| 5 | Frontend: `fiscal-period.types.ts`, `fiscalPeriods.api.ts`, `fiscalPeriods.store.ts` | Kecil | 🔄 NEXT |
+| 6 | Frontend: `ClosePeriodModal.tsx` rewrite + `FiscalPeriodsListPage.tsx` (permission guard) | Medium | 🔄 NEXT |
+| 7 | Testing: end-to-end dengan data April 2026, verifikasi balance closing journal | Kecil | ⏳ TODO |

@@ -63,3 +63,47 @@ export interface FiscalPeriodListResponse {
     hasPrev: boolean
   }
 }
+
+// ============================================================================
+// FISCAL CLOSING TYPES
+// ============================================================================
+
+export interface ClosePeriodWithEntriesDto {
+  retained_earnings_account_id: string
+  close_reason?: string
+}
+
+export interface ClosingAccountLine {
+  account_id: string
+  account_code: string
+  account_name: string
+  account_type: 'REVENUE' | 'EXPENSE'
+  total_debit: number
+  total_credit: number
+  net_amount: number
+  closing_debit: number
+  closing_credit: number
+}
+
+export interface PeriodClosingSummary {
+  period: string
+  period_start: string
+  period_end: string
+  total_revenue: number
+  total_expense: number
+  net_income: number
+  is_profit: boolean
+  accounts: ClosingAccountLine[]
+  pending_journals_count: number
+  posted_journals_count: number
+  default_retained_earnings_account_id: string | null
+}
+
+export interface ClosePeriodWithEntriesResult {
+  period: FiscalPeriodWithDetails
+  closing_journal_id: string
+  closing_journal_number: string
+  net_income: number
+  is_profit: boolean
+  lines_count: number
+}
