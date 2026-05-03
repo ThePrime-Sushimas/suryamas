@@ -510,7 +510,7 @@ export const CashFlowPage = () => {
       {/* ── Header ── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Cash Flow</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">In-Out</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Pergerakan kas harian per rekening bank</p>
         </div>
         <div className="flex items-center gap-2">

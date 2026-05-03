@@ -324,11 +324,11 @@ export const CashFlowSettingsPage = () => {
       {/* Back + Header */}
       <div className="mb-8">
         <Link to="/cash-flow" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-4 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Kembali ke Cash Flow
+          <ArrowLeft className="w-4 h-4" /> Kembali ke In-Out
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Konfigurasi Cash Flow</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Konfigurasi In-Out</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Buat group lalu assign metode pembayaran ke dalamnya. Group ini akan muncul sebagai kategori di halaman Cash Flow.
+          Buat group lalu assign metode pembayaran ke dalamnya. Group ini akan muncul sebagai kategori di halaman In-Out.
         </p>
       </div>
 

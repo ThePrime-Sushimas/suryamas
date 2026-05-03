@@ -263,7 +263,7 @@ export const menuItems: MenuItem[] = [
       },
       {
         id: "cash-flow",
-        name: "Cash Flow",
+        name: "In-Out",
         href: "/cash-flow",
         icon: <Activity size={16} />,
         module: "cash_flow",
