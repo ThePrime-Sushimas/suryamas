@@ -33,11 +33,13 @@ export class AccountingPurposesController {
         throw AccountingPurposeErrors.VALIDATION_ERROR('limit', `Page size cannot exceed ${defaultConfig.limits.pageSize}`)
       }
 
+      const filter = { ...req.filterParams, ...(req.query.q && { q: req.query.q as string }) }
+
       const result = await accountingPurposesService.list(
         companyId,
         { ...req.pagination!, offset },
         req.sort,
-        req.filterParams
+        filter
       )
 
       sendSuccess(res, result.data, 'Accounting purposes retrieved', 200, result.pagination)
