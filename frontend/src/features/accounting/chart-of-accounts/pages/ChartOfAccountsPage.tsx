@@ -72,7 +72,6 @@ export default function ChartOfAccountsPage() {
     bulkDelete,
     bulkUpdateStatus,
     restoreAccount,
-    bulkRestore,
     setViewMode,
     resetList,
     resetTree
@@ -219,32 +218,6 @@ export default function ChartOfAccountsPage() {
       }
     })
   }, [selectedCompanyId, restoreAccount, error, success, showError])
-
-  const handleBulkRestore = useCallback(async () => {
-    if (!selectedCompanyId) return
-    if (selectedIds.length === 0) return
-    
-    setConfirmModal({
-      isOpen: true,
-      title: 'Restore Accounts',
-      message: `Are you sure you want to restore ${selectedIds.length} accounts?`,
-      variant: 'success',
-      onConfirm: async () => {
-        try {
-          await bulkRestore(selectedIds)
-          setSelectedIds([])
-          success(`${selectedIds.length} accounts restored successfully`)
-        } catch {
-          if (error?.scope === 'submit') {
-            showError(error.message)
-          } else {
-            showError('Failed to restore accounts')
-          }
-        }
-        setConfirmModal(prev => ({ ...prev, isOpen: false }))
-      }
-    })
-  }, [selectedCompanyId, selectedIds, bulkRestore, error, success, showError])
 
   const handleBulkStatusUpdate = useCallback(async (is_active: boolean) => {
     if (!selectedCompanyId) return
