@@ -5,13 +5,12 @@ import { useCompaniesStore } from '@/features/companies'
 import { useChartOfAccountsStore } from '../store/chartOfAccounts.store'
 import { ChartOfAccountTable } from '../components/ChartOfAccountTable'
 import { ChartOfAccountTree } from '../components/ChartOfAccountTree'
-import { ChartOfAccountFilters } from '../components/ChartOfAccountFilters'
 // import { Pagination } from '@/components/ui/Pagination'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useToast } from '@/contexts/ToastContext'
-import { Building2, Plus, Search, Filter, X, Table, TreePine, Trash2 } from 'lucide-react'
-import type { ChartOfAccountFilter, ChartOfAccountTreeNode, ChartOfAccount } from '../types/chart-of-account.types'
+import { Building2, Plus, Search, X, Table, TreePine } from 'lucide-react'
+import type { ChartOfAccountTreeNode, ChartOfAccount } from '../types/chart-of-account.types'
 
 // Helper function to flatten tree data for table view
 const flattenTree = (tree: ChartOfAccountTreeNode[]): ChartOfAccount[] => {
@@ -80,8 +79,6 @@ export default function ChartOfAccountsPage() {
   } = useChartOfAccountsStore()
   
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<ChartOfAccountFilter>({})
-  const [showFilter, setShowFilter] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   
   // // Pagination state
@@ -120,27 +117,12 @@ export default function ChartOfAccountsPage() {
   const { error: showError, success } = useToast()
   const debouncedSearch = useDebounce(search, 500)
   
-  const activeFilterCount = useMemo(() => {
-    let count = 0
-    if (filter.account_type) count++
-    if (filter.account_subtype) count++
-    if (filter.is_header !== undefined) count++
-    if (filter.is_postable !== undefined) count++
-    if (filter.is_active !== undefined) count++
-    if (filter.parent_account_id) count++
-    return count
-  }, [filter])
-  
 
 
   const loadData = useCallback(() => {
-    if (!selectedCompanyId) {
-      return
-    }
-    
-    // Always load tree data for proper sorting
-    return fetchTree(undefined, filter)
-  }, [selectedCompanyId, fetchTree, filter])
+    if (!selectedCompanyId) return
+    return fetchTree()
+  }, [selectedCompanyId, fetchTree])
 
 
 
@@ -281,18 +263,6 @@ export default function ChartOfAccountsPage() {
     }
   }, [selectedCompanyId, selectedIds, bulkUpdateStatus, error, success, showError])
 
-  const setFilterKey = useCallback(
-    <K extends keyof ChartOfAccountFilter>(key: K, value?: ChartOfAccountFilter[K]) => {
-      setFilter(prev => {
-        const next = { ...prev }
-        if (!value) delete next[key]
-        else next[key] = value
-        return next
-      })
-    },
-    []
-  )
-
   const handleViewModeChange = (mode: 'table' | 'tree') => {
     setViewMode(mode)
     setSelectedIds([]) // Clear selection when switching modes
@@ -348,19 +318,6 @@ export default function ChartOfAccountsPage() {
               </button>
             )}
           </div>
-          <button
-            onClick={() => setShowFilter(!showFilter)}
-            className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
-              showFilter ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            {activeFilterCount > 0 && (
-              <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
         </div>
 
         {/* View Mode Toggle */}
@@ -389,62 +346,33 @@ export default function ChartOfAccountsPage() {
               Table
             </button>
             
-            {/* Show Deleted Toggle */}
-            <label className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400">
-              <input
-                type="checkbox"
-                checked={filter.show_deleted || false}
-                onChange={(e) => setFilterKey('show_deleted', e.target.checked || undefined)}
-                className="rounded border-gray-300 dark:border-gray-600"
-              />
-              Show Deleted
-            </label>
           </div>
 
           {/* Bulk Actions */}
           {selectedIds.length > 0 && viewMode === 'table' && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">{selectedIds.length} selected</span>
-              {filter.show_deleted ? (
-                <button
-                  onClick={handleBulkRestore}
-                  className="px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50"
-                >
-                  Restore
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => handleBulkStatusUpdate(true)}
-                    className="px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50"
-                  >
-                    Activate
-                  </button>
-                  <button
-                    onClick={() => handleBulkStatusUpdate(false)}
-                    className="px-3 py-1.5 text-sm bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-md hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
-                  >
-                    Deactivate
-                  </button>
-                  <button
-                    onClick={handleBulkDelete}
-                    className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    Delete
-                  </button>
-                </>
-              )}
+              <button
+                onClick={() => handleBulkStatusUpdate(true)}
+                className="px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50"
+              >
+                Activate
+              </button>
+              <button
+                onClick={() => handleBulkStatusUpdate(false)}
+                className="px-3 py-1.5 text-sm bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-md hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
+              >
+                Deactivate
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1"
+              >
+                Delete
+              </button>
             </div>
           )}
         </div>
-
-        {/* Filter Panel */}
-        <ChartOfAccountFilters
-          filter={filter}
-          onFilterChange={setFilterKey}
-          showFilter={showFilter}
-        />
       </div>
 
       {/* Content */}

@@ -12,7 +12,6 @@ export { useChartOfAccountsStore } from './store/chartOfAccounts.store'
 
 // Components
 export { AccountTypeBadge } from './components/AccountTypeBadge'
-export { ChartOfAccountFilters } from './components/ChartOfAccountFilters'
 export { ChartOfAccountForm } from './components/ChartOfAccountForm'
 export { ChartOfAccountTable } from './components/ChartOfAccountTable'
 export { ChartOfAccountTree } from './components/ChartOfAccountTree'
