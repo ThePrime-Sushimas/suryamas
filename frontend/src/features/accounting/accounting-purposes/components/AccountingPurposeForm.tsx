@@ -42,7 +42,7 @@ export const AccountingPurposeForm = ({
       
       setLoadingBranches(true)
       try {
-        const response = await branchesApi.list(1, 100, null, { company_id: currentBranch.company_id })
+        const response = await branchesApi.list(1, 100, null, { company_id: currentBranch.company_id, status: 'active' })
         setBranches(response.data || [])
       } catch {
         toast.error('Failed to fetch branches')

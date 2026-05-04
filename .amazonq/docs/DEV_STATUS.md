@@ -145,3 +145,24 @@
 - **Fiscal Closing Design**: `.amazonq/docs/FISCAL_CLOSING_DESIGN.md`
 - **Reference Controller**: `backend/src/modules/branches/branches.controller.ts`
 - **Reference Page**: `frontend/src/features/products/pages/ProductsPage.tsx` (pagination pattern)
+
+
+---
+
+## 🔧 Branch Dropdown Status Filter Audit — COMPLETED ✅
+
+| # | File | Status |
+|---|------|--------|
+| 1 | `JournalHeaderFilters.tsx` | ✅ Fixed — `{ status: 'active' }` |
+| 2 | `PosSyncAggregatesFilters.tsx` | ✅ Fixed |
+| 3 | `PosAggregatesFilters.tsx` | ✅ Fixed |
+| 4 | `GenerateJournalModal.tsx` | ✅ Fixed |
+| 5 | `PosTransactionsPage.tsx` | ✅ Fixed |
+| 6 | `ChartOfAccountForm.tsx` | ✅ Fixed |
+| 7 | `AccountingPurposeForm.tsx` | ✅ Fixed |
+| 8 | `BranchAssignmentModal (employeeBranches.api)` | ✅ Fixed |
+| 9 | `CashFlowPage` | ✅ OK — backend already filters `active + closed` |
+| 10 | `TrialBalancePage` | ✅ OK — uses branchContext (includes closed for historical reports) |
+| 11 | `IncomeStatementPage` | ✅ OK — same as TrialBalance |
+| 12 | `BalanceSheetPage` | ✅ OK — same as TrialBalance |
+| 13 | `PosAggregatesForm.tsx` | ✅ Already had `{ status: 'active' }` |

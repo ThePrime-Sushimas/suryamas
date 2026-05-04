@@ -56,7 +56,7 @@ export const ChartOfAccountForm = ({
 
   useEffect(() => {
     if (formData.company_id) {
-      fetchBranches(1, 100, null, { company_id: formData.company_id })
+      fetchBranches(1, 100, null, { company_id: formData.company_id, status: 'active' })
     }
   }, [formData.company_id, fetchBranches])
 

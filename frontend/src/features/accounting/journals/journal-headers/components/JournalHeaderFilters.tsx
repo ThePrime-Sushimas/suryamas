@@ -27,7 +27,7 @@ export function JournalHeaderFilters() {
   useEffect(() => {
     const loadBranches = async () => {
       try {
-        const response = await branchesApi.list(1, 1000)
+        const response = await branchesApi.list(1, 1000, null, { status: 'active' })
         setBranches(response.data)
       } catch (error) {
         console.error('Failed to fetch branches:', error)

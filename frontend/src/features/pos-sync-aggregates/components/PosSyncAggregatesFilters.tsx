@@ -79,7 +79,7 @@ export const PosSyncAggregatesFilters: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchBranches(1, 100);
+    fetchBranches(1, 100, null, { status: 'active' });
     fetchPaymentMethods(1, 100);
   }, [fetchBranches, fetchPaymentMethods]);
 

@@ -98,7 +98,7 @@ export const employeeBranchesApi = {
   async getBranches(): Promise<BranchOption[]> {
     try {
       const { data } = await api.get<{ success: boolean; data: Array<{ id: string; branch_name: string; branch_code: string }> }>('/branches', {
-        params: { limit: 1000 },
+        params: { limit: 1000, status: 'active' },
       })
       return (data.data || []).map((b) => ({
         id: b.id,

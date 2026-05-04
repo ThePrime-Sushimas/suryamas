@@ -158,7 +158,7 @@ function PosTransactionsContent() {
 
   useEffect(() => {
     if (currentBranch?.company_id && hasPermission) {
-      fetchBranches(1, PAGINATION_CONFIG.BRANCHES_PAGE_SIZE)
+      fetchBranches(1, PAGINATION_CONFIG.BRANCHES_PAGE_SIZE, null, { status: 'active' })
       fetchPaymentMethods(1, PAGINATION_CONFIG.PAYMENT_METHODS_PAGE_SIZE)
       // Don't set default date - let user choose
     }

@@ -79,7 +79,7 @@ export const PosAggregatesFilters: React.FC = () => {
   }, [])
   // Fetch branches and payment methods on mount
   useEffect(() => {
-    fetchBranches(1, 100)
+    fetchBranches(1, 100, null, { status: 'active' })
     fetchPaymentMethods(1, 100)
   }, [fetchBranches, fetchPaymentMethods])
 
