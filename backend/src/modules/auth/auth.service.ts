@@ -5,7 +5,7 @@ import { authRepository } from './auth.repository'
 import { AuthErrors } from './auth.errors'
 import { AuthUser, AuthSession } from './auth.types'
 import { AuditService } from '../monitoring/monitoring.service'
-import { logInfo, logWarn } from '../../config/logger'
+import { logInfo, logWarn, logError } from '../../config/logger'
 
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is required')
@@ -93,9 +93,15 @@ export class AuthService {
     const updated = await authRepository.setResetToken(email, token, expiresAt)
     if (!updated) return // silently ignore if email not found (security)
 
-    // TODO: send email with reset link
-    // For now, log the token (remove in production)
-    logInfo('Password reset token generated', { email, resetUrl: `${process.env.FRONTEND_URL}/reset-password?token=${token}` })
+    // Send reset email
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password#access_token=${token}`
+    try {
+      const { sendPasswordResetEmail } = await import('../../services/email.service')
+      await sendPasswordResetEmail(email, resetUrl)
+      logInfo('Password reset email sent', { email })
+    } catch (emailErr) {
+      logError('Failed to send password reset email, logging URL instead', { email, resetUrl, error: emailErr })
+    }
 
     try {
       await AuditService.log('FORGOT_PASSWORD', 'auth', email, null, null, { email })

@@ -58,7 +58,9 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "*",
+    origin: process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(',')
+      : process.env.FRONTEND_URL || '*',
     credentials: true,
   }),
 );

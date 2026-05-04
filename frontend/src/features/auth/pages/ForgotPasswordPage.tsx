@@ -27,7 +27,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#2D1B1B] via-[#1E1215] to-[#1A1018] px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-[#2D1B1B] via-[#1E1215] to-[#1A1018] px-4 py-12">
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
       </div>
