@@ -76,22 +76,28 @@ export const useReconSummary = (startDateOverride?: string, endDateOverride?: st
 }
 
 // Cash Count stats
-export const useCashCountPending = () =>
+export const useCashCountPending = (dateFrom?: string, dateTo?: string) =>
   useQuery({
-    queryKey: ['dashboard', 'cash-count-pending'],
+    queryKey: ['dashboard', 'cash-count-pending', dateFrom, dateTo],
     queryFn: async () => {
+      const countParams: Record<string, unknown> = { page: 1, limit: 100 }
+      if (dateFrom) countParams.start_date = dateFrom
+      if (dateTo) countParams.end_date = dateTo
+
       const [depositRes, countRes] = await Promise.all([
-        api.get('/cash-counts/deposits', { params: { page: 1, limit: 5 } }),
-        api.get('/cash-counts', { params: { page: 1, limit: 1 } }),
+        api.get('/cash-counts/deposits', { params: { page: 1, limit: 100, ...(dateFrom && { start_date: dateFrom }), ...(dateTo && { end_date: dateTo }) } }),
+        api.get('/cash-counts', { params: countParams }),
       ])
       const deposits = depositRes.data.data || []
       const pendingDeposits = deposits.filter((d: { status: string }) => d.status === 'PENDING').length
-      const totalCashCounts = countRes.data.pagination?.total || 0
-      const countedNotDeposited = (countRes.data.data || []).filter((c: { status: string }) => c.status === 'COUNTED').length
+      const allCounts = countRes.data.data || []
+      const openCount = allCounts.filter((c: { status: string }) => c.status === 'OPEN').length
+      const countedNotDeposited = allCounts.filter((c: { status: string }) => c.status === 'COUNTED').length
       return {
         pendingCount: pendingDeposits,
+        openCount,
         countedNotDeposited,
-        totalCashCounts,
+        totalCashCounts: countRes.data.pagination?.total || 0,
       }
     },
     staleTime: 2 * 60_000,

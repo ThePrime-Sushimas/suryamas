@@ -67,12 +67,12 @@ export default function DashboardAccountingPage() {
   const journals = useJournalSummary(appliedFrom, appliedTo)
   const pnl = useIncomeStatement({ date_from: appliedFrom, date_to: appliedTo, branch_ids: [] }, companyId, !!companyId)
   const bsHealth = useBalanceSheetHealth(companyId, appliedTo)
+  const cashCount = useCashCountPending(appliedFrom, appliedTo)
+  const expenseStats = useExpenseCategorizeStats(appliedFrom, appliedTo)
 
   // Global hooks (not period-sensitive)
-  const cashCount = useCashCountPending()
   const fiscalPeriods = useFiscalPeriodsStatus()
   const failedTrx = useFailedTransactionsCount()
-  const expenseStats = useExpenseCategorizeStats(appliedFrom, appliedTo)
 
   const qc = useQueryClient()
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -162,6 +162,7 @@ export default function DashboardAccountingPage() {
           reconciledCount={recon.data?.reconciled_count || 0}
           unreconciledCount={unreconciledCount}
           cashPending={cashCount.data?.pendingCount || 0}
+          cashOpenCount={cashCount.data?.openCount || 0}
           cashCountedNotDeposited={cashCount.data?.countedNotDeposited || 0}
           feeDiscrepancyCount={feeDiscrepancyCount}
           expenseUncategorized={expenseStats.data?.uncategorized || 0}

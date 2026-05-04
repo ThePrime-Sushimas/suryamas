@@ -10,6 +10,7 @@ interface Props {
   reconciledCount: number
   unreconciledCount: number
   cashPending: number
+  cashOpenCount: number
   cashCountedNotDeposited: number
   feeDiscrepancyCount: number
   expenseUncategorized: number
@@ -36,7 +37,7 @@ function StepIcon({ status }: { status: StepStatus }) {
 
 export function WorkflowTracker({
   periodLabel, totalStatements, unmatchedCount, reconciledCount,
-  unreconciledCount, cashPending, cashCountedNotDeposited, feeDiscrepancyCount,
+  unreconciledCount, cashPending, cashOpenCount, cashCountedNotDeposited, feeDiscrepancyCount,
   expenseUncategorized, expenseUnjournaled, journalDraft, journalPosted,
 }: Props) {
   const navigate = useNavigate()
@@ -53,7 +54,7 @@ export function WorkflowTracker({
       : 'idle'
 
     // Step 3: Cash Count
-    const cashTotal = cashPending + cashCountedNotDeposited
+    const cashTotal = cashOpenCount + cashPending + cashCountedNotDeposited
     const s3: StepStatus = cashTotal > 0 ? 'warn' : 'done'
 
     // Step 4: Fee Discrepancy
@@ -80,13 +81,13 @@ export function WorkflowTracker({
     return [
       { number: 1, name: 'Bank Statement', subtitle: 'Import mutasi bank', status: s1, detail: `${totalStatements} imported · ${unmatchedCount} unmatched`, href: '/bank-statement-import', isLocked: false },
       { number: 2, name: 'Bank Reconciliation', subtitle: 'Cocokkan vs POS', status: s2, detail: `${reconciledCount} matched · ${unreconciledCount} unreconciled`, href: '/bank-reconciliation', isLocked: false },
-      { number: 3, name: 'Cash Count', subtitle: 'Hitung & setor kas', status: s3, detail: cashCountedNotDeposited > 0 ? `${cashCountedNotDeposited} sudah dihitung · ${cashPending} pending setor` : cashPending > 0 ? `${cashPending} pending setor` : 'Semua selesai', href: '/cash-counts', isLocked: false },
+      { number: 3, name: 'Cash Count', subtitle: 'Hitung & setor kas', status: s3, detail: [cashOpenCount > 0 && `${cashOpenCount} belum dihitung`, cashCountedNotDeposited > 0 && `${cashCountedNotDeposited} sudah dihitung`, cashPending > 0 && `${cashPending} pending setor`].filter(Boolean).join(' · ') || 'Semua selesai', href: '/cash-counts', isLocked: false },
       { number: 4, name: 'Fee Discrepancy', subtitle: 'Review selisih fee', status: s4, detail: `${feeDiscrepancyCount} unresolved`, href: '/bank-reconciliation/fee-discrepancy-review', isLocked: false },
       { number: 5, name: 'Expense Categorization', subtitle: 'Kategorikan pengeluaran', status: s5, detail: expenseUncategorized > 0 ? `${expenseUncategorized} belum dikategorikan` : expenseUnjournaled > 0 ? `${expenseUnjournaled} siap dijurnal` : 'Semua selesai', href: '/expense-categorization', isLocked: false },
       { number: 6, name: 'Journal Entries', subtitle: 'Posting jurnal', status: s6, detail: hasReconBlockers ? `${unreconciledCount} unreconciled · ${journalDraft} draft` : journalDraft > 0 ? `${journalDraft} draft perlu posting` : 'Siap posting', href: '/accounting/journals', isLocked: false },
       { number: 7, name: 'Laporan Keuangan', subtitle: 'Trial Balance · Laba Rugi · Neraca', status: s7, detail: journalDraft > 0 ? `${journalDraft} draft belum posting` : journalPosted > 0 ? 'Siap generate' : 'Belum ada jurnal posted', href: '/accounting/trial-balance', isLocked: false },
     ]
-  }, [totalStatements, unmatchedCount, reconciledCount, unreconciledCount, cashPending, cashCountedNotDeposited, feeDiscrepancyCount, expenseUncategorized, expenseUnjournaled, journalDraft, journalPosted])
+  }, [totalStatements, unmatchedCount, reconciledCount, unreconciledCount, cashPending, cashOpenCount, cashCountedNotDeposited, feeDiscrepancyCount, expenseUncategorized, expenseUnjournaled, journalDraft, journalPosted])
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
