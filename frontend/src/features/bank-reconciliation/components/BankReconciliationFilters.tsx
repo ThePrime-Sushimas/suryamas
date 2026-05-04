@@ -62,6 +62,10 @@ const STATUS_OPTIONS: {
 // HELPERS
 // =============================================================================
 
+function getToday(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
 function getYesterday(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
@@ -70,11 +74,7 @@ function getYesterday(): string {
 
 function getWeekStart(): string {
   const d = new Date();
-  const day = d.getDay();
-  // getDay(): 0=Minggu, 1=Senin, ..., 6=Sabtu
-  // Kalau Minggu (0), mundur 6 hari ke Senin. Selain itu, mundur (day-1) hari.
-  const diff = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - diff);
+  d.setDate(d.getDate() - 6);
   return d.toISOString().split("T")[0];
 }
 
@@ -252,9 +252,10 @@ export const BankReconciliationFilters: React.FC<
     (filters.bankAccountIds && filters.bankAccountIds.length > 0);
 
   const presets = [
+    { label: "Hari Ini", start: getToday(), end: getToday() },
     { label: "Kemarin", start: getYesterday(), end: getYesterday() },
-    { label: "Minggu Ini", start: getWeekStart(), end: getYesterday() },
-    { label: "Bulan Ini", start: getMonthStart(), end: getYesterday() },
+    { label: "Minggu Ini", start: getWeekStart(), end: getToday() },
+    { label: "Bulan Ini", start: getMonthStart(), end: getToday() },
   ];
 
   const handleQuickDateClick = (preset: (typeof presets)[number]) => {
