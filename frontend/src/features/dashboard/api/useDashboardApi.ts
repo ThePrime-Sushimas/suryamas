@@ -104,6 +104,22 @@ export const useCashCountPending = (dateFrom?: string, dateTo?: string) =>
     staleTime: 2 * 60_000,
   })
 
+// HRD Dashboard summary
+export const useHrdSummary = () =>
+  useQuery({
+    queryKey: ['dashboard', 'hrd-summary'],
+    queryFn: async () => {
+      const { data } = await api.get('/dashboard/hrd-summary')
+      return data.data as {
+        summary: { total_employees: number; active_employees: number; active_branches: number; multi_branch_count: number }
+        branches: Array<{ branch_id: string; branch_name: string; employee_count: number; positions: Array<{ job_position: string; count: number }> }>
+        position_summary: Array<{ job_position: string; count: number }>
+        multi_branch_employees: Array<{ employee_id: string; full_name: string; job_position: string; role_name: string | null; branch_count: number; branches: string[] }>
+      }
+    },
+    staleTime: 10 * 60_000,
+  })
+
 // Basic stats
 export const useDashboardStats = (companyId: string | undefined) =>
   useQuery({
