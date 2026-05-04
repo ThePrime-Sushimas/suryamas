@@ -196,7 +196,7 @@ export class FiscalPeriodsController {
       const companyId = this.getCompanyId(req)
 
       const result = await fiscalPeriodsService.closePeriodWithEntries(
-        params.id, { ...body, close_reason: body.close_reason ?? undefined }, req.user!.id, companyId
+        params.id, { ...body, close_reason: body.close_reason ?? undefined }, req.user!.id, companyId, req.context?.employee_id
       )
 
       logInfo('Fiscal period closed with entries', {
@@ -214,7 +214,7 @@ export class FiscalPeriodsController {
       const companyId = this.getCompanyId(req)
 
       const result = await fiscalPeriodsService.reopenPeriod(
-        params.id, { reopen_reason: body.reopen_reason ?? undefined }, req.user!.id, companyId
+        params.id, { reopen_reason: body.reopen_reason ?? undefined }, req.user!.id, companyId, req.context?.employee_id
       )
 
       logInfo('Fiscal period reopened', {

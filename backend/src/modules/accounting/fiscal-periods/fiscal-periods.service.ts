@@ -810,6 +810,7 @@ export class FiscalPeriodsService {
     dto: ClosePeriodWithEntriesDto,
     userId: string,
     companyId: string,
+    employeeId?: string,
   ): Promise<ClosePeriodWithEntriesResult> {
     this.validateCompanyAccess(companyId)
     if (!id?.trim() || !userId?.trim()) {
@@ -891,7 +892,7 @@ export class FiscalPeriodsService {
       const seq = seqRes.rows[0].get_next_journal_sequence
       const journalNumber = `JG-${period.period}-${String(seq).padStart(4, '0')}`
 
-      // 2. Create journal header
+      // 2. Create journal header (created_by = employee ID from branch context)
       const headerRes = await client.query(
         `INSERT INTO journal_headers (
           company_id, branch_id, journal_number, sequence_number,
@@ -901,7 +902,7 @@ export class FiscalPeriodsService {
         ) VALUES ($1, NULL, $2, $3, 'GENERAL', $4, $5, $6, $7, $8, 'IDR', 1, 'POSTED', 'FISCAL_CLOSING', NOW(), $9, NOW(), NOW())
         RETURNING id, journal_number`,
         [companyId, journalNumber, seq, period.period_end, period.period,
-         `Closing Entry - ${period.period}`, totalAmount, totalAmount, userId]
+         `Closing Entry - ${period.period}`, totalAmount, totalAmount, employeeId || null]
       )
       const journalId = headerRes.rows[0].id
       const journalNum = headerRes.rows[0].journal_number
@@ -926,6 +927,8 @@ export class FiscalPeriodsService {
       )
 
       await client.query('COMMIT')
+
+      this.repository.clearCache()
 
       logInfo('Fiscal period closed with entries', {
         period_id: id, period: period.period, journal_id: journalId,
@@ -962,6 +965,7 @@ export class FiscalPeriodsService {
     dto: ReopenPeriodDto,
     userId: string,
     companyId: string,
+    employeeId?: string,
   ): Promise<ReopenPeriodResult> {
     this.validateCompanyAccess(companyId)
     if (!id?.trim() || !userId?.trim()) {
@@ -1008,8 +1012,14 @@ export class FiscalPeriodsService {
       reversal = await this.journalService.reverse(
         closingJournal.id,
         dto.reopen_reason || `Reopen periode ${period.period}`,
-        userId,
+        employeeId || userId,
         companyId,
+      )
+      // Mark reversal journal as is_reversed too, so both original + reversal
+      // are excluded from general_ledger_view (net zero, no ledger impact)
+      await pool.query(
+        `UPDATE journal_headers SET is_reversed = true, updated_at = NOW() WHERE id = $1`,
+        [reversal.id]
       )
     } catch (error) {
       // Compensating: rollback period to closed state
@@ -1030,6 +1040,8 @@ export class FiscalPeriodsService {
       period_id: id, period: period.period,
       reversed_journal_id: reversal.id, user_id: userId,
     })
+
+    this.repository.clearCache()
 
     await this.auditService.log('REOPEN', 'fiscal_period', id, userId,
       { is_open: false, closed_at: period.closed_at },

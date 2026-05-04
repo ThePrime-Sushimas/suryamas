@@ -30,6 +30,7 @@ export function FiscalPeriodsListPage() {
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; periodId: string | null }>({ isOpen: false, periodId: null })
   const [closingPeriod, setClosingPeriod] = useState<FiscalPeriodWithDetails | null>(null)
   const [reopenConfirm, setReopenConfirm] = useState<{ isOpen: boolean; period: FiscalPeriodWithDetails | null }>({ isOpen: false, period: null })
+  const [reopenLoading, setReopenLoading] = useState(false)
 
   useEffect(() => { fetchPeriods() }, [fetchPeriods])
 
@@ -77,11 +78,14 @@ export function FiscalPeriodsListPage() {
 
   const handleReopenConfirm = async () => {
     if (reopenConfirm.period) {
+      setReopenLoading(true)
       try {
         await reopenPeriod(reopenConfirm.period.id, { reopen_reason: `Reopen periode ${reopenConfirm.period.period}` })
         toast.success(`Periode ${reopenConfirm.period.period} berhasil dibuka kembali`)
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Gagal membuka kembali periode')
+      } finally {
+        setReopenLoading(false)
       }
     }
     setReopenConfirm({ isOpen: false, period: null })
@@ -174,6 +178,7 @@ export function FiscalPeriodsListPage() {
         title="Buka Kembali Periode"
         message={`Apakah Anda yakin ingin membuka kembali periode ${reopenConfirm.period?.period ?? ''}? Closing journal akan di-reverse dan periode bisa menerima jurnal baru.`}
         confirmText="Buka Kembali" cancelText="Batal" variant="warning"
+        isLoading={reopenLoading}
       />
     </div>
   )

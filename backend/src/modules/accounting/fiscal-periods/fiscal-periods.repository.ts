@@ -41,6 +41,10 @@ export class FiscalPeriodsRepository {
     if (pattern) { for (const k of this.cache.keys()) { if (k.startsWith(pattern)) this.cache.delete(k) } } else this.cache.clear()
   }
 
+  clearCache(): void {
+    this.cache.clear()
+  }
+
   private buildConditions(companyId: string, filter?: FiscalPeriodFilter, search?: string) {
     const conditions: string[] = ['company_id = $1']
     const params: (string | boolean | number)[] = [companyId]
@@ -301,7 +305,9 @@ export class FiscalPeriodsRepository {
   async hasClosingJournal(companyId: string, period: string): Promise<boolean> {
     const { rows } = await pool.query(
       `SELECT 1 FROM journal_headers
-       WHERE company_id = $1 AND period = $2 AND source_module = 'FISCAL_CLOSING' AND deleted_at IS NULL
+       WHERE company_id = $1 AND period = $2 AND source_module = 'FISCAL_CLOSING'
+         AND status = 'POSTED' AND (is_reversed IS NULL OR is_reversed = false)
+         AND deleted_at IS NULL
        LIMIT 1`,
       [companyId, period]
     )
@@ -341,7 +347,9 @@ export class FiscalPeriodsRepository {
   async findClosingJournal(companyId: string, period: string): Promise<{ id: string; journal_number: string; status: string } | null> {
     const { rows } = await pool.query(
       `SELECT id, journal_number, status FROM journal_headers
-       WHERE company_id = $1 AND period = $2 AND source_module = 'FISCAL_CLOSING' AND status = 'POSTED' AND deleted_at IS NULL
+       WHERE company_id = $1 AND period = $2 AND source_module = 'FISCAL_CLOSING'
+         AND status = 'POSTED' AND (is_reversed IS NULL OR is_reversed = false)
+         AND deleted_at IS NULL
        ORDER BY created_at DESC`,
       [companyId, period]
     )
