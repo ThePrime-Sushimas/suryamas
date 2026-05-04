@@ -8,7 +8,6 @@ import { PERIOD_FORMAT_REGEX } from './fiscal-periods.constants'
 import { FiscalPeriodsConfig, defaultConfig } from './fiscal-periods.config'
 import { logInfo, logError, logWarn } from '../../../config/logger'
 import { pool } from '../../../config/db'
-import { JournalHeadersService } from '../journals/journal-headers/journal-headers.service'
 
 export interface IAuditService {
   log(action: string, entity: string, entityId: string, userId: string, oldData?: any, newData?: any): Promise<void>
@@ -25,7 +24,6 @@ export class FiscalPeriodsService {
     private repository: FiscalPeriodsRepository = fiscalPeriodsRepository,
     private auditService: IAuditService = AuditService,
     private exportService: IExportService = ExportService,
-    private journalService: JournalHeadersService = new JournalHeadersService(),
     config: FiscalPeriodsConfig = defaultConfig
   ) {
     this.config = config
@@ -965,7 +963,6 @@ export class FiscalPeriodsService {
     dto: ReopenPeriodDto,
     userId: string,
     companyId: string,
-    employeeId?: string,
   ): Promise<ReopenPeriodResult> {
     this.validateCompanyAccess(companyId)
     if (!id?.trim() || !userId?.trim()) {
@@ -988,64 +985,58 @@ export class FiscalPeriodsService {
       throw FiscalPeriodErrors.CLOSING_JOURNAL_NOT_FOUND(period.period)
     }
 
-    // Strategy: reopen period first (in transaction), then reverse journal.
-    // If reverse fails, we rollback the period update via compensating query.
+    // Atomic: reopen period + hard delete closing journal (and any reversal) in one transaction
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+
+      // 1. Reopen period
       await client.query(
         `UPDATE fiscal_periods SET is_open = true, closed_at = NULL, closed_by = NULL, close_reason = NULL, updated_at = NOW(), updated_by = $1
          WHERE id = $2 AND company_id = $3`,
         [userId, id, companyId]
       )
+
+      // 2. Find any reversal journals linked to this closing journal
+      const { rows: reversals } = await client.query(
+        `SELECT id FROM journal_headers WHERE reversal_of_journal_id = $1 AND deleted_at IS NULL`,
+        [closingJournal.id]
+      )
+
+      // 3. Hard delete reversal journal lines + headers
+      for (const rev of reversals) {
+        await client.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [rev.id])
+        await client.query('DELETE FROM journal_headers WHERE id = $1', [rev.id])
+      }
+
+      // 4. Clear reversal references on closing journal, then delete it
+      await client.query(
+        `UPDATE journal_headers SET reversed_by_journal_id = NULL, is_reversed = false WHERE id = $1`,
+        [closingJournal.id]
+      )
+      await client.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [closingJournal.id])
+      await client.query('DELETE FROM journal_headers WHERE id = $1', [closingJournal.id])
+
       await client.query('COMMIT')
     } catch (error) {
       await client.query('ROLLBACK')
+      logError('Fiscal reopen failed, rolled back', { period_id: id, error })
       throw error
     } finally {
       client.release()
     }
 
-    // Reverse closing journal (uses its own pool connections internally)
-    let reversal
-    try {
-      reversal = await this.journalService.reverse(
-        closingJournal.id,
-        dto.reopen_reason || `Reopen periode ${period.period}`,
-        employeeId || userId,
-        companyId,
-      )
-      // Mark reversal journal as is_reversed too, so both original + reversal
-      // are excluded from general_ledger_view (net zero, no ledger impact)
-      await pool.query(
-        `UPDATE journal_headers SET is_reversed = true, updated_at = NOW() WHERE id = $1`,
-        [reversal.id]
-      )
-    } catch (error) {
-      // Compensating: rollback period to closed state
-      logError('Journal reversal failed during reopen, rolling back period', { period_id: id, error })
-      try {
-        await pool.query(
-          `UPDATE fiscal_periods SET is_open = false, closed_at = $1, closed_by = $2, close_reason = $3, updated_at = NOW()
-           WHERE id = $4 AND company_id = $5`,
-          [period.closed_at, period.closed_by, period.close_reason, id, companyId]
-        )
-      } catch (compErr) {
-        logError('CRITICAL: compensating rollback failed — period is open without closing journal', { period_id: id, period: period.period, compErr })
-      }
-      throw error
-    }
-
-    logInfo('Fiscal period reopened', {
+    logInfo('Fiscal period reopened (closing journal deleted)', {
       period_id: id, period: period.period,
-      reversed_journal_id: reversal.id, user_id: userId,
+      deleted_journal_id: closingJournal.id, deleted_journal_number: closingJournal.journal_number,
+      user_id: userId,
     })
 
     this.repository.clearCache()
 
     await this.auditService.log('REOPEN', 'fiscal_period', id, userId,
-      { is_open: false, closed_at: period.closed_at },
-      { is_open: true, reversed_journal_id: reversal.id },
+      { is_open: false, closed_at: period.closed_at, closing_journal_id: closingJournal.id },
+      { is_open: true, deleted_journal_id: closingJournal.id },
     ).catch(e => logWarn('Audit log failed for fiscal reopen', { error: String(e) }))
 
     const updatedPeriod = await this.repository.findById(id, companyId)
@@ -1053,8 +1044,8 @@ export class FiscalPeriodsService {
 
     return {
       period: updatedPeriod,
-      reversed_journal_id: reversal.id,
-      reversed_journal_number: reversal.journal_number,
+      reversed_journal_id: closingJournal.id,
+      reversed_journal_number: closingJournal.journal_number,
     }
   }
 

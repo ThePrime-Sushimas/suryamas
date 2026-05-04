@@ -214,7 +214,7 @@ export class FiscalPeriodsController {
       const companyId = this.getCompanyId(req)
 
       const result = await fiscalPeriodsService.reopenPeriod(
-        params.id, { reopen_reason: body.reopen_reason ?? undefined }, req.user!.id, companyId, req.context?.employee_id
+        params.id, { reopen_reason: body.reopen_reason ?? undefined }, req.user!.id, companyId
       )
 
       logInfo('Fiscal period reopened', {
