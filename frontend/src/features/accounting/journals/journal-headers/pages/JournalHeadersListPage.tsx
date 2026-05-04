@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ArrowUpDown, Trash2 } from 'lucide-react'
+import { Plus, ArrowUpDown } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
@@ -98,13 +98,6 @@ export function JournalHeadersListPage() {
           <p className="text-gray-500 dark:text-gray-400 mt-1">Manage journal entries and transactions</p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => navigate('/accounting/journals/deleted')}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-          >
-            <Trash2 size={18} />
-            <span className="hidden sm:inline">Deleted Journals</span>
-          </button>
           <GenerateBankRecJournalsButton onAfterClose={() => fetchJournals()} />
           {permissions.canCreate && (
             <button

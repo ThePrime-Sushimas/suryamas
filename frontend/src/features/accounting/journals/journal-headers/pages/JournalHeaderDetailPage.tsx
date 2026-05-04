@@ -132,7 +132,7 @@ export function JournalHeaderDetailPage() {
     !selectedJournal.reversal_of_journal_id
   const canForceDelete = permissions.canForceDelete && 
     selectedJournal.status === 'POSTED' &&
-    !selectedJournal.is_reversed
+    (!selectedJournal.is_reversed || selectedJournal.reference_type === 'journal_reversal')
 
   const handleEdit = () => navigate(`/accounting/journals/${id}/edit`)
   
@@ -360,7 +360,7 @@ export function JournalHeaderDetailPage() {
 
           {/* Quick Stats */}
           <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <QuickStatItem
                 icon={<Calendar className="w-5 h-5" />}
                 label="Tanggal"

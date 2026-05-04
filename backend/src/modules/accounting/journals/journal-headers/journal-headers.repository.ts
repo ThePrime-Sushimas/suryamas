@@ -229,6 +229,27 @@ export class JournalHeadersRepository {
     ])
   }
 
+  async clearReversalReferences(journalId: string): Promise<void> {
+    await Promise.all([
+      // If deleting a reversal journal: reset the original's reversed state
+      pool.query(
+        `UPDATE journal_headers SET is_reversed = false, reversed_by_journal_id = NULL, reversed_by = NULL, reversal_date = NULL, reversal_reason = NULL, updated_at = NOW()
+         WHERE reversed_by_journal_id = $1`,
+        [journalId]
+      ),
+      // If deleting an original journal: also delete its reversal journal (cascade)
+      pool.query(
+        `DELETE FROM journal_lines WHERE journal_header_id IN (SELECT id FROM journal_headers WHERE reversal_of_journal_id = $1)`,
+        [journalId]
+      ),
+    ])
+    // Delete orphan reversal headers after their lines are gone
+    await pool.query(
+      `DELETE FROM journal_headers WHERE reversal_of_journal_id = $1`,
+      [journalId]
+    )
+  }
+
   async updateLines(journalHeaderId: string, lines: Record<string, unknown>[]): Promise<void> {
     await pool.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [journalHeaderId])
     if (!lines.length) return

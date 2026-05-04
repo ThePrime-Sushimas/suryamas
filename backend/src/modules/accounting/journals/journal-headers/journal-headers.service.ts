@@ -211,6 +211,8 @@ export class JournalHeadersService {
     if (journal.source_module === 'FISCAL_CLOSING') {
       throw JournalErrors.CANNOT_DELETE_POSTED()
     }
+    // Clear reversal cross-references before delete
+    await journalHeadersRepository.clearReversalReferences(id)
     await journalHeadersRepository.clearJournalReferences(id)
     await journalHeadersRepository.delete(id, userId)
     await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, { journal_number: journal.journal_number, status: journal.status })
