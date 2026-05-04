@@ -1,134 +1,98 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { useAuthStore } from "@/features/auth";
-import { useToast } from "@/contexts/ToastContext";
-import { parseApiError } from "@/lib/errorParser";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { useState } from "react"
+import { useNavigate, Link } from "react-router-dom"
+import { useAuthStore } from "@/features/auth"
+import { useToast } from "@/contexts/ToastContext"
+import { parseApiError } from "@/lib/errorParser"
+import { ThemeToggle } from "@/components/ui/ThemeToggle"
+import { UserPlus } from "lucide-react"
 
 export default function RegisterPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [employeeId, setEmployeeId] = useState("");
-  const { register, isLoading } = useAuthStore();
-  const { success, error } = useToast();
-  const navigate = useNavigate();
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [employeeId, setEmployeeId] = useState("")
+  const { register, isLoading } = useAuthStore()
+  const { success, error } = useToast()
+  const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     try {
-      await register(email, password, employeeId);
-      success("Registration successful");
-      setTimeout(() => navigate("/login"), 2000);
+      await register(email, password, employeeId)
+      success("Registrasi berhasil")
+      setTimeout(() => navigate("/login"), 2000)
     } catch (err: unknown) {
-      error(parseApiError(err, "Gagal mendaftar"));
+      error(parseApiError(err, "Gagal mendaftar"))
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4 transition-colors duration-300">
-      <div className="absolute top-4 right-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#2D1B1B] via-[#1E1215] to-[#1A1018] px-4 py-12">
+      <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
       </div>
 
-      <div className="max-w-md w-full space-y-6 md:space-y-8 p-6 md:p-8 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-200 dark:shadow-none mb-4">
-            SIS
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-12 h-20 mx-auto rounded-lg bg-[#C53030] flex flex-col items-center justify-center shadow-lg mb-4 gap-1.5 border-[5px] border-[#D4A843]">
+            <span className="text-base font-black text-white leading-none">S</span>
+            <span className="text-base font-black text-white leading-none">I</span>
+            <span className="text-base font-black text-white leading-none">S</span>
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-            Create Account
-          </h2>
-          <p className="mt-2 text-sm md:text-base text-gray-500 dark:text-gray-400">
-            Join Sushimas Internal System V.2
-          </p>
+          <h2 className="text-xl text-gray-100" style={{ fontFamily: "'Gang of Three', sans-serif" }}>S U S H I M A S</h2>
+          <p className="text-xs text-[#D4A843] mt-1 tracking-widest uppercase">Internal System V.2</p>
         </div>
 
-        <form
-          className="mt-6 md:mt-8 space-y-4 md:space-y-6"
-          onSubmit={handleSubmit}
-        >
-          <div className="space-y-3 md:space-y-4">
-            <div>
-              <label
-                htmlFor="employeeId"
-                className="block text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
-                Employee ID
-              </label>
-              <input
-                id="employeeId"
-                type="text"
-                required
-                placeholder="EMP-12345"
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                className="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-h-11"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-h-11"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-h-11"
-              />
-            </div>
-          </div>
+        <div className="bg-[#1E1215]/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg border border-[#D4A843]/20">
+          <h2 className="text-2xl font-semibold text-white">Daftar Akun</h2>
+          <p className="text-gray-400 text-sm mt-1">Buat akun baru untuk akses sistem</p>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full flex justify-center items-center py-2.5 px-4 rounded-xl text-sm md:text-base font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-all shadow-lg shadow-blue-200 dark:shadow-none min-h-11 active:scale-[0.98]"
-          >
-            {isLoading ? (
-              <div className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Creating account...
-              </div>
-            ) : (
-              "Create Account"
-            )}
-          </button>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="employeeId" className="text-sm text-gray-300">Employee ID</label>
+              <input
+                id="employeeId" type="text" required placeholder="EMP-12345"
+                value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}
+                className="w-full mt-1 px-4 py-2.5 bg-[#1A1018] border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#C53030]/50 focus:border-[#C53030] transition-all"
+              />
+            </div>
+            <div>
+              <label htmlFor="email" className="text-sm text-gray-300">Email</label>
+              <input
+                id="email" type="email" required placeholder="nama@perusahaan.com"
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                className="w-full mt-1 px-4 py-2.5 bg-[#1A1018] border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#C53030]/50 focus:border-[#C53030] transition-all"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="text-sm text-gray-300">Password</label>
+              <input
+                id="password" type="password" required placeholder="••••••••"
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                className="w-full mt-1 px-4 py-2.5 bg-[#1A1018] border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#C53030]/50 focus:border-[#C53030] transition-all"
+              />
+            </div>
 
-          <div className="text-center">
-            <Link
-              to="/login"
-              className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-            >
-              Already have an account?{" "}
-              <span className="text-blue-600 dark:text-blue-400">
-                Sign in here
-              </span>
-            </Link>
-          </div>
-        </form>
+            <button type="submit" disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#C53030] hover:bg-[#B52828] text-white rounded-lg font-semibold text-sm transition-all disabled:opacity-50 shadow-lg shadow-red-900/30 active:scale-[0.98]">
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Mendaftar...
+                </span>
+              ) : (
+                <><UserPlus size={16} /> Daftar</>
+              )}
+            </button>
+
+            <div className="text-center pt-2">
+              <span className="text-sm text-gray-500">Sudah punya akun? </span>
+              <Link to="/login" className="text-sm font-medium text-[#D4A843] hover:text-[#E4B853] transition-colors">
+                Masuk di sini
+              </Link>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
-  );
+  )
 }
