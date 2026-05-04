@@ -5,76 +5,65 @@
 ### Infrastructure
 - Migrasi Supabase → Hetzner (DB, functions, triggers, views, FK)
 - SSH tunnel setup (DB + pgAdmin)
-- Cloudflare R2 storage (forcePathStyle fix)
-- Error monitoring (error_logs + Telegram alerts)
+- Cloudflare R2 storage (forcePathStyle fix, env vars on VPS)
+- Error monitoring (error_logs + Telegram alerts, no rate limit)
 - Job system (5 atomic functions)
+- Auto Deploy via GitHub Actions + Telegram notifications
+- Job worker: auto-rollback import status to FAILED on job failure
 
 ### Laporan Keuangan
 - Trial Balance, Laba Rugi (Income Statement), Neraca (Balance Sheet)
 - Compare period support, CSV export, COA hierarchy grouping
+- Opening Balance Entry (jurnal type OPENING, prefix JO)
 
-### Cash Flow Module
+### Fiscal Period Management
+- CRUD fiscal periods with validation (overlap, year-end rules)
+- **Fiscal Closing** — tutup buku dengan auto-generate closing journal
+  - Preview (revenue/expense summary) sebelum close
+  - Closing journal langsung POSTED (system-generated, source_module = FISCAL_CLOSING)
+  - Transfer net income ke Retained Earnings (default 310202)
+  - Permission guard: `canRelease('fiscal_periods')` untuk close
+  - Closing journal protected dari manual delete/edit
+- **Reopen Period** — buka kembali periode yang sudah closed
+  - Reverse closing journal (both original + reversal excluded from ledger via is_reversed)
+  - Chain guard: tidak bisa reopen jika periode berikutnya sudah closed (LIFO order)
+  - Compensating rollback jika reversal gagal
+  - Permission guard: `canApprove('fiscal_periods')` untuk reopen
+
+### Branch Closure
+- Closed branches are read-only (can view historical data, cannot create new transactions)
+- DB migration, middleware, write-guard on 39 mutation routes
+- Frontend: banner, switcher badges, CloseBranchModal
+
+### Cash Flow Module (renamed to "In-Out")
 - Period balance CRUD, payment method groups, cash flow daily
 
 ### Monitoring
-- Error persist ke DB + Telegram webhook
+- Error persist ke DB + Telegram webhook (all errors, no skip)
 - Error trend chart, recurring errors, user name lookup
 
 ### UI/UX
-- Sales Dashboard, POS Staging dark mode, Login redesign
+- Sales Dashboard, POS Staging dark mode, Login gate animation
 - Toast notifications (86 pages), zero `alert()`, zero `confirm()`
+- Responsive UI audit: 108 pages, 46 fixed, zero bare `grid-cols-2`
 
-### Code Quality (Phase 1-3 Compliance Review)
-- **46 backend modules** — all controllers + routes compliant
-- **33 frontend stores** — all using `parseApiError`
+### Code Quality
+- 46 backend modules, 33 frontend stores — all compliant
 - Zero `as any` in controllers, zero `ValidatedAuthRequest` in route casts
-- Zero correlationId boilerplate, zero dead code
+- Removed: JournalHeadersDeletedPage (hard delete only, no soft delete page)
 
 ---
 
 ## 📋 Backlog
 
 ### Feature Development
-- [ ] **Branch Closure** — tutup cabang permanen dengan akses read-only historis (design doc: `.amazonq/docs/BRANCH_CLOSURE_DESIGN.md`)
-  - [x] Phase 1: Database + Backend Core (migration, types, middleware, branch module, employee_branches)
-  - [x] Phase 2: Write Guard middleware + apply ke mutation routes (8 files, 61 routes)
-  - [x] Phase 3: Branch Dropdowns — include closed (3 files updated, 2 files verified active-only)
-  - [x] Phase 4: Frontend (types, hook, banner, switcher, table, detail page, dashboard filter, CloseBranchModal)
-  - [ ] Phase 5: End-to-End Test
+- [ ] Cash Count dashboard integration (pending count badge + counted display on accounting dashboard)
 - [ ] PO Flow (Purchase Order → Receiving → AP → Payment → Auto Journal)
 - [ ] COGS calculation (HPP dari inventory movement)
 - [ ] Laporan Arus Kas formal PSAK 2 (3 aktivitas: operasi/investasi/pendanaan)
 - [ ] User Management — create account dari UI (backend POST /auth/register sudah ada)
-- [ ] Deploy ke production (Nginx config, PM2, SSL via Certbot)
-
-### Responsive UI Audit — COMPLETED ✅
-
-108 pages audited. Semua 46 🔴 pages sudah di-fix + bonus sweep 37 files (`grid-cols-2` → `grid-cols-1 md:grid-cols-2`).
-
-Fixes applied:
-- `Pagination.tsx` global component — responsive (stack mobile, icon-only buttons)
-- `overflow-hidden` → `overflow-x-auto` pada table wrappers
-- `p-6` → `px-4 py-6 sm:p-6` pada form/page wrappers
-- `flex justify-between` → `flex flex-col sm:flex-row gap-3` pada headers
-- `grid grid-cols-2` → `grid grid-cols-1 md:grid-cols-2` pada semua forms/details/components (55+ occurrences)
-- Auth pages: dark mode support + responsive text size
-- Zero bare `grid-cols-2` tersisa di seluruh codebase
-
-Top 10 most responsive pages:
-| Page | Breakpoints |
-|------|-------------|
-| branches/BranchDetailPage | 41 |
-| employees/EmployeeDetailPage | 20 |
-| employees/ProfilePage | 20 |
-| permissions/PermissionsPage | 19 |
-| pages/HomePage | 19 |
-| employees/EmployeesPage | 18 |
-| employee_branches/EmployeeBranchDetailPage | 15 |
-| employee_branches/EmployeeBranchesPage | 15 |
-| bank-reconciliation/SettlementGroupDetailPage | 12 |
-| accounting/journals/JournalHeaderDetailPage | 12 |
-
-Pagination: 26 pages pakai global `Pagination`, 4 pages pakai custom pagination (UsersPage, PosAggregatesPage, BankReconciliationPage, MonitoringPage) — acceptable.
+- [ ] Branch name normalization (DB CAPS vs POS Title Case)
+- [ ] Bank reconciliation rounding fix (0.01 selisih dari bank rec journal)
 
 ---
 
@@ -83,91 +72,56 @@ Pagination: 26 pages pakai global `Pagination`, 4 pages pakai custom pagination 
 ### Backend — Controller & Routes
 1. `handleError(res, error, req, context)` — SELALU `await`, pass `req` langsung (tanpa cast), `context` berisi `{ action, id, query }`
 2. Controller method signature: `req: Request` dari express. Cast `ValidatedAuthRequest` di **dalam body**, bukan di signature
-3. Routes: `(req, res) => controller.method(req, res)` — tanpa cast. Tidak boleh `req as any` atau `req as ValidatedAuthRequest<>`
+3. Routes: `(req, res) => controller.method(req, res)` — tanpa cast
 4. `error: unknown` di semua catch blocks
 5. Custom error class dari `*.errors.ts`, daftarkan di `ERROR_REGISTRY`. Jangan `throw new Error()`
 6. `company_id` dari `req.context?.company_id`, BUKAN dari query param
 7. `employee_id` dari `req.context?.employee_id` untuk FK ke `employees` table (misal `created_by` di `journal_headers`). BUKAN `req.user.id` (itu auth_users ID)
 8. Express global augmentation (`backend/src/types/express.d.ts`): `user`, `validated`, `sort`, `filterParams`, `queryFilter`, `context`, `permissions`
-8. `isPostgresError(error, code)` dari `src/utils/postgres-error.util.ts` untuk cek PG error code
-9. DTO audit fields: `created_by`/`updated_by` WAJIB di DTO
-10. Repository type safety: `toRecord<T>()` helper untuk bulk insert. Dilarang `as any`
-11. Setelah ubah `.ts`, WAJIB rebuild: `cd backend && npx tsc`
+9. `isPostgresError(error, code)` dari `src/utils/postgres-error.util.ts` untuk cek PG error code
+10. DTO audit fields: `created_by`/`updated_by` WAJIB di DTO
+11. Repository type safety: `toRecord<T>()` helper untuk bulk insert. Dilarang `as any`
+12. Setelah ubah `.ts`, WAJIB rebuild: `cd backend && npx tsc`
 
 ### Backend — Routes Specific
-12. Middleware order: `authenticate → resolveBranchContext → requireWriteAccess (mutations) → permission → validateSchema`
-13. Static routes (`/search`, `/trash`, `/bulk/delete`, `/export`, `/options/active`) WAJIB sebelum `/:id` (Express evaluasi top-to-bottom)
-14. Schema HARUS dipasang di routes (entry point validation)
-15. Lazy Initialization: getter pattern (`getS3()`) untuk service eksternal
-16. S3Client (Cloudflare R2) WAJIB `forcePathStyle: true`
-17. `requireWriteAccess` WAJIB di semua mutation routes (POST/PUT/DELETE/PATCH) — termasuk `canApprove` dan `canRelease`, bukan hanya `canInsert/canUpdate/canDelete`
+13. Middleware order: `authenticate → resolveBranchContext → requireWriteAccess (mutations) → permission → validateSchema`
+14. Static routes (`/search`, `/trash`, `/bulk/delete`, `/export`, `/options/active`) WAJIB sebelum `/:id`
+15. Schema HARUS dipasang di routes (entry point validation)
+16. Lazy Initialization: getter pattern (`getS3()`) untuk service eksternal
+17. S3Client (Cloudflare R2) WAJIB `forcePathStyle: true`
+18. `requireWriteAccess` WAJIB di semua mutation routes — termasuk `canApprove` dan `canRelease`
 
 ### Backend — Schema & Validation
-17. Gunakan `import { z } from '@/lib/openapi'` (bukan raw zod)
-18. `.coerce` untuk query param, `.refine` untuk business validation
-19. Cross-validate compare periods, UUID regex untuk `branch_ids`
+19. Gunakan `import { z } from '@/lib/openapi'` (bukan raw zod)
+20. `.coerce` untuk query param, `.refine` untuk business validation
+
+### Backend — Fiscal Closing Specific
+21. Closing journal: `source_module = 'FISCAL_CLOSING'`, `branch_id = NULL`, langsung POSTED
+22. Reopen: reverse closing journal + mark reversal `is_reversed = true` (both excluded from ledger)
+23. `clearReversalReferences()`: reset `is_reversed` saat delete reversal, cascade delete reversal saat delete original
+24. Repository cache: panggil `clearCache()` setelah close/reopen untuk hindari stale data
 
 ### Frontend — Store & Error Handling
-20. Semua store WAJIB pakai `parseApiError()` dari `@/lib/errorParser`. Dilarang `error instanceof Error ? error.message : '...'`
-21. Toast: pakai global `useToast` dari `@/contexts/ToastContext`
-22. Confirm: pakai `ConfirmModal` component, bukan native `confirm()`
+25. Semua store WAJIB pakai `parseApiError()` dari `@/lib/errorParser`
+26. Toast: pakai global `useToast` dari `@/contexts/ToastContext`
+27. Confirm: pakai `ConfirmModal` component, bukan native `confirm()`
 
 ### Frontend — Pagination & Fetch Pattern
-23. Store WAJIB punya combined `fetchPage(page, limit?, ...params)` — gabung state update + fetch
-24. Search/filter berubah → reset ke page 1. Deps: hanya trigger values, BUKAN store functions
-25. DILARANG: `setPage()` + `useEffect([pagination.page])` terpisah (double-fetch)
-26. DILARANG: `skipNextPageEffect` ref atau `isFirstRender` ref
+28. Store WAJIB punya combined `fetchPage(page, limit?, ...params)`
+29. Search/filter berubah → reset ke page 1
+30. DILARANG: `setPage()` + `useEffect([pagination.page])` terpisah (double-fetch)
 
 ### Frontend — UI/UX
-27. Label/message: Bahasa Indonesia untuk user-facing, English untuk technical
-28. Action buttons: icon (Eye, Pencil, Trash2), bukan text
-29. Loading: skeleton (animate-pulse), bukan text "Loading..."
-30. Empty state: icon + pesan informatif
-31. Error state: error card + tombol "Coba Lagi"
-32. Styling: `rounded-lg`, `border border-gray-200 dark:border-gray-700`
+31. Label/message: Bahasa Indonesia untuk user-facing, English untuk technical
+32. Loading: skeleton (animate-pulse), bukan text "Loading..."
 33. Tailwind JIT: JANGAN dynamic class — pakai object mapping literal
 34. Format tanggal display: `dd-MMM-yyyy`. Backend: `YYYY-MM-DD` / ISO
-35. CSV export: pakai `escapeCsv()` dari `src/utils/csv.utils.ts`
-36. Error 500: tampilkan pesan generik, bukan detail teknis
-
-### Frontend — Code Quality
-37. TypeScript strict, no `any`
-38. Form: React Hook Form + Zod
-39. State filter: Zustand (small, specific stores)
-40. Data fetching: TanStack Query dengan `queryKeys` object
-41. Repository: jangan wrap try/catch tanpa transformasi error — biarkan bubble up
-42. Summary/totals: query terpisah untuk seluruh periode, jangan hitung dari paginated rows
+35. Permission guard di UI: pakai `usePermissionStore.hasPermission(module, action)` untuk conditional render tombol
 
 ### Database
-43. Akses DB dari lokal: via SSH tunnel (`tunnel`), JANGAN buka port 5432
-44. `DATABASE_URL` pakai `localhost:5433` (tunnel)
-45. Setelah migrasi, WAJIB compare: tables, views, functions, enums, triggers, sequences, indexes, FK
-
----
-
-## 🔍 Module Compliance — All ✅
-
-**46 backend modules**, **33 frontend stores** — semua compliant.
-
-### Backend Controllers (all pass)
-| Check | Status |
-|-------|--------|
-| `await handleError(res, error, req, { action })` | ✅ All 46 modules |
-| No `as any` / `as unknown` | ✅ Zero occurrences |
-| `error: unknown` in catch | ✅ All modules |
-| `context` param in handleError | ✅ All modules |
-| Express augmentation (no cast in routes) | ✅ All modules |
-| No correlationId boilerplate | ✅ Removed from 3 accounting modules |
-| No `AuthenticatedRequest` / `AuthenticatedQueryRequest` | ✅ Zero occurrences |
-
-### Frontend Stores (all pass)
-| Check | Status |
-|-------|--------|
-| `parseApiError` from `@/lib/errorParser` | ✅ All 33 stores |
-| No inline `error instanceof Error` | ✅ Only CanceledError checks remain (acceptable) |
-
-### Complete Module List
-bank-accounts, payment-methods, payment-terms, cash-counts, cash-flow, permissions, pricelists, product-uoms, users, auth, expense-categorization, jobs, monitoring, pos-sync, sub-categories, supplier-products, products, branches, categories, employees, companies, employee_branches, suppliers, banks, metric-units, accounting/chart-of-accounts, accounting/accounting-purposes, accounting/accounting-purpose-accounts, accounting/fiscal-periods, accounting/journals/journal-headers, accounting/journals/journal-lines, accounting/trial-balance, accounting/income-statement, accounting/balance-sheet, reconciliation/bank-statement-import, reconciliation/bank-reconciliation, reconciliation/bank-settlement-group, reconciliation/fee-reconciliation, reconciliation/fee-discrepancy-review, reconciliation/bank-mutation-entries, reconciliation/reports (stub), reconciliation/review-approval (stub), pos-imports/pos-imports, pos-imports/pos-aggregates, pos-imports/pos-transactions, pos-sync-aggregates
+36. Akses DB dari lokal: via SSH tunnel (`tunnel`), JANGAN buka port 5432
+37. `DATABASE_URL` pakai `localhost:5433` (tunnel)
+38. `general_ledger_view` filter: `status = 'POSTED'` AND `is_reversed = false` — reversed journals excluded
 
 ---
 
@@ -178,14 +132,16 @@ bank-accounts, payment-methods, payment-terms, cash-counts, cash-flow, permissio
 | `backend/src/types/express.d.ts` | Express augmentation (`user`, `validated`, `sort`, `context`, etc.) |
 | `backend/src/utils/error-handler.util.ts` | Global `handleError(res, error, req, context)` |
 | `backend/src/utils/postgres-error.util.ts` | `isPostgresError(error, code)` helper |
+| `backend/src/utils/employee.util.ts` | `getEmployeeId(req)`, `getEmployeeIdSafe(req)` — map auth user to employee |
 | `backend/src/config/error-registry.ts` | Error class → status code mapping |
 | `frontend/src/lib/errorParser.ts` | `parseApiError(err, fallbackMessage)` |
-| `frontend/src/contexts/ToastContext.tsx` | Global `useToast()` |
+| `frontend/src/features/branch_context/store/permission.store.ts` | `hasPermission(module, action)` for UI permission guard |
 
 ---
 
 ## 📚 Reference
 - **Backend/Frontend Standards**: `.amazonq/rules/Basic.md`
 - **Infrastructure & Deployment**: `.amazonq/docs/INFRASTRUCTURE.md`
+- **Fiscal Closing Design**: `.amazonq/docs/FISCAL_CLOSING_DESIGN.md`
 - **Reference Controller**: `backend/src/modules/branches/branches.controller.ts`
 - **Reference Page**: `frontend/src/features/products/pages/ProductsPage.tsx` (pagination pattern)

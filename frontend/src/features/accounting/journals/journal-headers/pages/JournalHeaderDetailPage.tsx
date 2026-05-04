@@ -132,6 +132,7 @@ export function JournalHeaderDetailPage() {
     !selectedJournal.reversal_of_journal_id
   const canForceDelete = permissions.canForceDelete && 
     selectedJournal.status === 'POSTED' &&
+    selectedJournal.source_module !== 'FISCAL_CLOSING' &&
     (!selectedJournal.is_reversed || selectedJournal.reference_type === 'journal_reversal')
 
   const handleEdit = () => navigate(`/accounting/journals/${id}/edit`)
