@@ -16,7 +16,7 @@ export const posSyncAggregatesRepository = {
     } = params;
 
     const selectFields = fields === 'slim'
-      ? `psa.id, psa.sales_date, psa.branch_id, psa.branch_name, psa.status, psa.grand_total, psa.nett_amount, psa.total_fee_amount, psa.transaction_count, psa.void_transaction_count, psa.skip_reason, psa.is_reconciled, psa.payment_method_id, pm.id AS pm_id, pm.name AS pm_name, pm.payment_type AS pm_payment_type`
+      ? `psa.id, psa.sales_date, psa.branch_id, psa.branch_name, psa.status, psa.grand_total, psa.nett_amount, psa.total_fee_amount, psa.transaction_count, psa.void_transaction_count, psa.skip_reason, psa.is_reconciled, psa.synced_at, psa.payment_method_id, pm.id AS pm_id, pm.name AS pm_name, pm.payment_type AS pm_payment_type`
       : `psa.*, pm.id AS pm_id, pm.name AS pm_name, pm.payment_type AS pm_payment_type`;
 
     const conditions: string[] = [];

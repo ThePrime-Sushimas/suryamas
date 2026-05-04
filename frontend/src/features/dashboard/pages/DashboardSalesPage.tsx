@@ -384,13 +384,35 @@ function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, active
 
 /* ── Sync Status Cell ── */
 
-function SyncStatusCell({ allBranches, salesData, isLoading }: { allBranches: Array<{ id: string; branch_name: string }> | undefined; salesData: Array<{ branch_name: string | null }> | undefined; isLoading: boolean }) {
+function SyncStatusCell({ allBranches, salesData, isLoading }: { allBranches: Array<{ id: string; branch_name: string; status: string }> | undefined; salesData: Array<{ branch_name: string | null; synced_at?: string | null }> | undefined; isLoading: boolean }) {
   const [expanded, setExpanded] = useState(false)
-  const missed = useMemo(() => {
-    if (!allBranches || !salesData) return []
-    const synced = new Set(salesData.map((r) => r.branch_name?.toLowerCase()))
-    return allBranches.filter((b) => !synced.has(b.branch_name.toLowerCase()))
+
+  const { synced, missed } = useMemo(() => {
+    if (!allBranches || !salesData) return { synced: [], missed: [] }
+    const activeBranches = allBranches.filter((b) => b.status === 'active')
+
+    // Get latest synced_at per branch
+    const syncMap = new Map<string, string>()
+    for (const r of salesData) {
+      if (!r.branch_name || !r.synced_at) continue
+      const key = r.branch_name.toLowerCase()
+      const existing = syncMap.get(key)
+      if (!existing || r.synced_at > existing) syncMap.set(key, r.synced_at)
+    }
+
+    const syncedBranches = activeBranches
+      .filter((b) => syncMap.has(b.branch_name.toLowerCase()))
+      .map((b) => ({ ...b, synced_at: syncMap.get(b.branch_name.toLowerCase())! }))
+      .sort((a, b) => b.synced_at.localeCompare(a.synced_at))
+
+    const missedBranches = activeBranches.filter((b) => !syncMap.has(b.branch_name.toLowerCase()))
+    return { synced: syncedBranches, missed: missedBranches }
   }, [allBranches, salesData])
+
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso)
+    return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+  }
 
   if (isLoading) return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
@@ -398,31 +420,36 @@ function SyncStatusCell({ allBranches, salesData, isLoading }: { allBranches: Ar
     </div>
   )
 
-  if (missed.length === 0) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-emerald-200 dark:border-emerald-800/40 p-4 shadow-sm">
-        <div className="flex items-center gap-1.5 mb-2">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-          <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Sync Cabang</p>
-        </div>
-        <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">Semua OK</p>
-      </div>
-    )
-  }
+  const total = synced.length + missed.length
 
   return (
-    <button onClick={() => setExpanded((v) => !v)} className="bg-white dark:bg-gray-800 rounded-xl border border-amber-200 dark:border-amber-800/40 p-4 shadow-sm text-left w-full">
+    <button onClick={() => setExpanded((v) => !v)} className={`bg-white dark:bg-gray-800 rounded-xl border p-4 shadow-sm text-left w-full transition-colors ${
+      missed.length === 0 ? 'border-emerald-200 dark:border-emerald-800/40' : 'border-amber-200 dark:border-amber-800/40'
+    }`}>
       <div className="flex items-center gap-1.5 mb-2">
-        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+        {missed.length === 0
+          ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+          : <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}
         <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Sync Cabang</p>
+        <span className="text-[10px] text-gray-400 ml-auto">{expanded ? '▲' : '▼'}</span>
       </div>
-      <p className="text-base font-bold text-amber-600 dark:text-amber-400">{missed.length} belum sync</p>
+      <p className={`text-base font-bold ${missed.length === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+        {missed.length === 0 ? 'Semua OK' : `${missed.length} belum sync`}
+        <span className="text-xs font-normal text-gray-400 ml-1.5">{synced.length}/{total}</span>
+      </p>
       {expanded && (
-        <div className="flex flex-wrap gap-1 mt-2">
+        <div className="mt-3 space-y-1">
+          {synced.map((b) => (
+            <div key={b.id} className="flex items-center justify-between text-[11px]">
+              <span className="text-gray-600 dark:text-gray-300">{b.branch_name}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-mono">{fmtTime(b.synced_at)}</span>
+            </div>
+          ))}
           {missed.map((b) => (
-            <span key={b.id} className="text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
-              {b.branch_name}
-            </span>
+            <div key={b.id} className="flex items-center justify-between text-[11px]">
+              <span className="text-gray-600 dark:text-gray-300">{b.branch_name}</span>
+              <span className="text-amber-500 font-medium">—</span>
+            </div>
           ))}
         </div>
       )}

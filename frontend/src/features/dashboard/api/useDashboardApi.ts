@@ -18,6 +18,7 @@ type SalesRow = {
   status: string
   is_reconciled: boolean
   skip_reason: string | null
+  synced_at?: string | null
 }
 
 export const fmtD = (d: Date) =>

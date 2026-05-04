@@ -365,35 +365,53 @@ function MetricCard({ label, value, loading, color }: { label: string; value: st
   )
 }
 
-function SyncStatusCell({ allBranches, salesData, isLoading }: { allBranches: Array<{ id: string; branch_name: string }> | undefined; salesData: Array<{ branch_name: string | null }> | undefined; isLoading: boolean }) {
+function SyncStatusCell({ allBranches, salesData, isLoading }: { allBranches: Array<{ id: string; branch_name: string; status: string }> | undefined; salesData: Array<{ branch_name: string | null; synced_at?: string | null }> | undefined; isLoading: boolean }) {
   const [expanded, setExpanded] = useState(false)
-  const missed = useMemo(() => {
-    if (!allBranches || !salesData) return []
-    const synced = new Set(salesData.map((r) => r.branch_name?.toLowerCase()))
-    return allBranches.filter((b) => !synced.has(b.branch_name.toLowerCase()))
+
+  const { synced, missed } = useMemo(() => {
+    if (!allBranches || !salesData) return { synced: [], missed: [] }
+    const activeBranches = allBranches.filter((b) => b.status === 'active')
+    const syncMap = new Map<string, string>()
+    for (const r of salesData) {
+      if (!r.branch_name || !r.synced_at) continue
+      const key = r.branch_name.toLowerCase()
+      const existing = syncMap.get(key)
+      if (!existing || r.synced_at > existing) syncMap.set(key, r.synced_at)
+    }
+    const syncedBranches = activeBranches
+      .filter((b) => syncMap.has(b.branch_name.toLowerCase()))
+      .map((b) => ({ ...b, synced_at: syncMap.get(b.branch_name.toLowerCase())! }))
+      .sort((a, b) => b.synced_at.localeCompare(a.synced_at))
+    const missedBranches = activeBranches.filter((b) => !syncMap.has(b.branch_name.toLowerCase()))
+    return { synced: syncedBranches, missed: missedBranches }
   }, [allBranches, salesData])
+
+  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 
   if (isLoading) return <div className="bg-gray-100 dark:bg-gray-800/60 rounded-lg p-3"><div className="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></div>
 
-  if (missed.length === 0) {
-    return (
-      <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3">
-        <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-0.5">Sync Cabang</p>
-        <p className="text-base font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Semua OK</p>
-      </div>
-    )
-  }
+  const total = synced.length + missed.length
 
   return (
-    <button onClick={() => setExpanded((v) => !v)} className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-left w-full">
-      <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-0.5">Sync Cabang</p>
-      <p className="text-base font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> {missed.length} belum</p>
+    <button onClick={() => setExpanded((v) => !v)} className={`rounded-lg p-3 text-left w-full ${missed.length === 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20'}`}>
+      <p className={`text-[11px] font-medium uppercase tracking-wide mb-0.5 ${missed.length === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>Sync Cabang</p>
+      <p className={`text-base font-semibold flex items-center gap-1 ${missed.length === 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+        {missed.length === 0 ? <><CheckCircle2 className="w-4 h-4" /> Semua OK</> : <><AlertTriangle className="w-4 h-4" /> {missed.length} belum</>}
+        <span className="text-[10px] font-normal text-gray-400 ml-1">{synced.length}/{total}</span>
+      </p>
       {expanded && (
-        <div className="flex flex-wrap gap-1 mt-1.5">
+        <div className="mt-2 space-y-0.5">
+          {synced.map((b) => (
+            <div key={b.id} className="flex items-center justify-between text-[10px]">
+              <span className="text-gray-600 dark:text-gray-300">{b.branch_name}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-mono">{fmtTime(b.synced_at)}</span>
+            </div>
+          ))}
           {missed.map((b) => (
-            <span key={b.id} className="text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded">
-              {b.branch_name}
-            </span>
+            <div key={b.id} className="flex items-center justify-between text-[10px]">
+              <span className="text-gray-600 dark:text-gray-300">{b.branch_name}</span>
+              <span className="text-amber-500">—</span>
+            </div>
           ))}
         </div>
       )}
