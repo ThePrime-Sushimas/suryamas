@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Zap, Plus, Trash2, Tag, AlertCircle, CheckCircle2, Settings, Eye, Search, Filter, X, Pencil, Check } from 'lucide-react'
+import { Zap, Plus, Trash2, Tag, AlertCircle, CheckCircle2, Settings, Eye, Search, Filter, X, Pencil, Check, Calendar } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
+import { useFiscalPeriodsStatus } from '@/features/dashboard/api/useDashboardApi'
 import {
   useExpenseRules, useUncategorized, useExpensePurposes,
   useCreateRule, useUpdateRule, useDeleteRule,
@@ -53,6 +54,12 @@ export default function ExpenseCategorizationPage() {
   const [filterCategorized, setFilterCategorized] = useState<'' | 'true' | 'false'>('')
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('')
+
+  // Fiscal periods
+  const fiscalPeriods = useFiscalPeriodsStatus()
+  const openPeriods = useMemo(() => (fiscalPeriods.data || []).filter(p => p.is_open).sort((a, b) => b.period.localeCompare(a.period)), [fiscalPeriods.data])
+  const selectedPeriod = useMemo(() => openPeriods.find(p => p.id === selectedPeriodId) || openPeriods[0], [openPeriods, selectedPeriodId])
 
   // Auto-categorize preview
   const [previewResult, setPreviewResult] = useState<CategorizeResult | null>(null)
@@ -71,14 +78,15 @@ export default function ExpenseCategorizationPage() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  useEffect(() => { setPage(1) }, [filterPurpose, filterCategorized])
+  useEffect(() => { setPage(1) }, [filterPurpose, filterCategorized, selectedPeriodId])
 
   const queryParams = useMemo(() => ({
     page, limit: 50,
     ...(filterPurpose ? { purpose_id: filterPurpose } : {}),
     ...(filterCategorized ? { categorized: filterCategorized } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
-  }), [page, filterPurpose, filterCategorized, debouncedSearch])
+    ...(selectedPeriod ? { date_from: selectedPeriod.period_start, date_to: selectedPeriod.period_end } : {}),
+  }), [page, filterPurpose, filterCategorized, debouncedSearch, selectedPeriod])
 
   const hasActiveFilters = !!filterPurpose || !!filterCategorized || !!debouncedSearch
 
@@ -197,6 +205,17 @@ export default function ExpenseCategorizationPage() {
         <div>
           <h1 className="text-base font-semibold text-gray-900 dark:text-white">Expense Categorization</h1>
           <p className="text-xs text-gray-400">Kategorikan pengeluaran bank untuk laporan keuangan</p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gray-400" />
+          <select value={selectedPeriodId || selectedPeriod?.id || ''}
+            onChange={e => setSelectedPeriodId(e.target.value)}
+            className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            {openPeriods.map(p => (
+              <option key={p.id} value={p.id}>{p.period} ({p.period_start} — {p.period_end})</option>
+            ))}
+            {openPeriods.length === 0 && <option value="">Tidak ada periode open</option>}
+          </select>
         </div>
       </div>
 
