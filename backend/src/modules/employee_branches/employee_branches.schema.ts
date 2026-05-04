@@ -54,3 +54,11 @@ export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
 })
+
+
+export const employeeBranchParamsSchema = z.object({
+  params: z.object({
+    employeeId: uuidSchema,
+    branchId: uuidSchema,
+  }),
+})

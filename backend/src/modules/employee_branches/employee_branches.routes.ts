@@ -5,7 +5,7 @@ import { resolveBranchContext } from '../../middleware/branch-context.middleware
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { PermissionService } from '../../services/permission.service'
-import { CreateEmployeeBranchSchema, UpdateEmployeeBranchSchema, employeeBranchIdSchema, BulkDeleteSchema, employeeIdSchema, branchIdSchema } from './employee_branches.schema'
+import { CreateEmployeeBranchSchema, UpdateEmployeeBranchSchema, employeeBranchIdSchema, BulkDeleteSchema, employeeIdSchema, branchIdSchema, employeeBranchParamsSchema } from './employee_branches.schema'
 
 PermissionService.registerModule('employee_branches', 'Employee Branch Management')
 
@@ -51,11 +51,11 @@ router.put('/:id/activate', canUpdate('employee_branches'), validateSchema(emplo
 router.get('/:id', canView('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res) => 
   employeeBranchesController.getById(req, res))
 
-router.delete('/:id', canDelete('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res) => 
-  employeeBranchesController.delete(req, res))
-
-router.delete('/employee/:employeeId/branch/:branchId', canDelete('employee_branches'), validateSchema(employeeIdSchema), (req, res) =>
+router.delete('/employee/:employeeId/branch/:branchId', canDelete('employee_branches'), validateSchema(employeeBranchParamsSchema), (req, res) =>
   employeeBranchesController.deleteByEmployeeAndBranch(req, res)
 )
+
+router.delete('/:id', canDelete('employee_branches'), validateSchema(employeeBranchIdSchema), (req, res) => 
+  employeeBranchesController.delete(req, res))
 
 export default router

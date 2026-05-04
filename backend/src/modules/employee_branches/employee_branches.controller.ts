@@ -121,8 +121,8 @@ export class EmployeeBranchesController {
 
   async deleteByEmployeeAndBranch(req: Request, res: Response): Promise<void> {
     try {
-      const { employeeId } = (req as ValidatedAuthRequest<typeof employeeIdSchema>).validated.params
-      const { branchId } = (req as ValidatedAuthRequest<typeof branchIdSchema>).validated.params
+      const employeeId = req.params.employeeId as string
+      const branchId = req.params.branchId as string
       await employeeBranchesService.deleteByEmployeeAndBranch(employeeId, branchId, req.user?.id)
       sendSuccess(res, null, 'Employee branch assignment deleted')
     } catch (error: unknown) {
