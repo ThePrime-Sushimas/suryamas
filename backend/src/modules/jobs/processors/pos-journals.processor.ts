@@ -659,8 +659,31 @@ export async function generateJournalsOptimized(
       )
 
       const branchSlug    = branchName.replace(/\s+/g, '-').toUpperCase()
-      const journalNumber = `RCP-${branchSlug}-${date}`
+      const baseNumber    = `RCP-${branchSlug}-${date}`
       const periodCode    = period.period
+
+      // ── Resolve journal number (handle POSTED conflict) ────────────
+      let journalNumber = baseNumber
+
+      const { rows: existingJournals } = await pool.query(
+        `SELECT journal_number, status FROM journal_headers
+         WHERE (journal_number = $1 OR journal_number LIKE $2)
+           AND company_id = $3 AND deleted_at IS NULL
+         ORDER BY journal_number`,
+        [baseNumber, `${baseNumber}-%`, companyId]
+      )
+
+      const baseJournal = existingJournals.find(j => j.journal_number === baseNumber)
+
+      if (baseJournal?.status === 'POSTED') {
+        const suffixed = existingJournals
+          .map(j => j.journal_number)
+          .filter(n => n.startsWith(`${baseNumber}-`))
+          .map(n => parseInt(n.replace(`${baseNumber}-`, ''), 10))
+          .filter(n => !isNaN(n))
+        const nextSeq = suffixed.length > 0 ? Math.max(...suffixed) + 1 : 2
+        journalNumber = `${baseNumber}-${String(nextSeq).padStart(2, '0')}`
+      }
 
       const journalHeader = await createJournalHeaderWithRetry({
         companyId,
@@ -669,14 +692,13 @@ export async function generateJournalsOptimized(
         journalDate: date,
         period: periodCode,
         description: `POS Sales ${date} - ${branchName}`,
-        totalAmount: grandTotalDebit, // ← total actual debit = total actual credit
+        totalAmount: grandTotalDebit,
       })
 
       if (!journalHeader) throw new Error('create_journal_header_atomic returned null')
 
       // ── 5.8 Idempotency check ──────────────────────────────────────
       if (journalHeader.isExisting) {
-        // Fetch status untuk cek apakah sudah POSTED
         const { rows: existingRows } = await pool.query(
           `SELECT status FROM journal_headers WHERE id = $1`,
           [journalHeader.id]
@@ -684,23 +706,18 @@ export async function generateJournalsOptimized(
         const existingHeader = existingRows[0]
 
         if (existingHeader?.status === 'POSTED') {
-          // Jurnal sudah final — jangan sentuh apapun
-          logInfo('Journal already POSTED, skipping', {
-            journalId: journalHeader.id,
-            date,
-            branchName,
+          // Race condition safety net
+          logInfo('Journal already POSTED (race condition), skipping', {
+            journalId: journalHeader.id, date, branchName,
           })
           failedResults.push({
-            date,
-            branch: branchName,
-            error: `Jurnal ${journalHeader.journalNumber} sudah berstatus POSTED dan tidak bisa di-generate ulang. Lakukan reversal terlebih dahulu jika perlu koreksi.`,
+            date, branch: branchName,
+            error: `Jurnal ${journalHeader.journalNumber} sudah berstatus POSTED (race condition). Coba generate ulang.`,
           })
           continue
         }
 
-        // Existing tapi belum POSTED — hapus lines lama dan re-generate
-        // Ini mencegah stale lines dari run sebelumnya yang mungkin sudah tidak akurat
-        // (misal: amount berubah karena re-reconciliation)
+        // DRAFT → hapus lines lama dan re-generate
         await pool.query(
           `DELETE FROM journal_lines WHERE journal_header_id = $1`,
           [journalHeader.id]
@@ -715,8 +732,7 @@ export async function generateJournalsOptimized(
         logInfo('Replacing DRAFT journal lines', {
           journalId: journalHeader.id,
           journalNumber: journalHeader.journalNumber,
-          date,
-          branchName,
+          date, branchName,
         })
       }
 
