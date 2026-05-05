@@ -286,6 +286,7 @@ export interface GenerateJournalDto {
   transaction_date_to?: string;
   branch_name?: string;
   payment_method_id?: number;
+  payment_method_ids?: number[];
 }
 
 /**

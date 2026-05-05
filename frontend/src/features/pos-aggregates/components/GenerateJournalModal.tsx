@@ -54,7 +54,7 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
   // Stores
   const { filter, fetchTransactions, fetchSummary, generateJournalWithJob, isMutating } = usePosAggregatesStore()
   const { branches, fetchPage: fetchBranches } = useBranchesStore()
-  const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
+  const { paymentMethods, setFilter: setPMFilter } = usePaymentMethodsStore()
 
   // Modal state
   const [step, setStep] = useState<'config' | 'processing' | 'result'>('config')
@@ -70,13 +70,14 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
   const [selectedBranch, setSelectedBranch] = useState<string>('')
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<number | ''>('')
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<number[]>([])
 
   // Fetch data on mount
   useEffect(() => {
     if (isOpen) {
       fetchBranches(1, 100, null, { status: 'active' })
-      fetchPaymentMethods(1, 100)
+      // Reset PM filter to load all active payment methods
+      setPMFilter({ payment_type: undefined, is_active: true, requires_bank_account: undefined, search: undefined })
       
       // Initialize dates from filter or default to current month
       const today = new Date()
@@ -85,9 +86,9 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
       setDateFrom(filter.transaction_date_from || firstDay.toISOString().split('T')[0])
       setDateTo(filter.transaction_date_to || today.toISOString().split('T')[0])
       setSelectedBranch(filter.branch_name || '')
-      setSelectedPaymentMethod(filter.payment_method_id || '')
+      setSelectedPaymentMethods(filter.payment_method_id ? [filter.payment_method_id] : [])
     }
-  }, [isOpen, fetchBranches, fetchPaymentMethods, filter])
+  }, [isOpen, fetchBranches, setPMFilter, filter])
 
   // Reset state when modal opens
   useEffect(() => {
@@ -228,7 +229,7 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
         transaction_date_from: dateFrom,
         transaction_date_to: dateTo,
         branch_name: selectedBranch || undefined,
-        payment_method_id: selectedPaymentMethod || undefined,
+        payment_method_ids: selectedPaymentMethods.length > 0 ? selectedPaymentMethods : undefined,
       }
 
       // Set initial progress
@@ -383,23 +384,47 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
                   </select>
                 </div>
 
-                {/* Payment Method Filter */}
+                {/* Payment Method Filter - Multi Select */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Metode Pembayaran (Kosongkan untuk semua)
                   </label>
-                  <select
-                    value={selectedPaymentMethod}
-                    onChange={(e) => setSelectedPaymentMethod(e.target.value ? Number(e.target.value) : '')}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Semua Metode Pembayaran</option>
+                  <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 max-h-48 overflow-y-auto">
                     {paymentMethods.map((pm) => (
-                      <option key={pm.id} value={pm.id}>
-                        {pm.name}
-                      </option>
+                      <label
+                        key={pm.id}
+                        className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedPaymentMethods.includes(pm.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPaymentMethods(prev => [...prev, pm.id])
+                            } else {
+                              setSelectedPaymentMethods(prev => prev.filter(id => id !== pm.id))
+                            }
+                          }}
+                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-900 dark:text-white">{pm.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  {selectedPaymentMethods.length > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {selectedPaymentMethods.length} dipilih
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPaymentMethods([])}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Info Box */}

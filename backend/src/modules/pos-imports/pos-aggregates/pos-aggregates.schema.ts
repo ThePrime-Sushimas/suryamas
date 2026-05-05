@@ -154,6 +154,7 @@ export const generateJournalSchema = z.object({
     transaction_date_to: z.string().optional(),
     branch_name: z.string().optional(),
     payment_method_id: z.number().int().positive().optional(),
+    payment_method_ids: z.array(z.number().int().positive()).optional(),
     total_amount: z.number().optional(), // internal use only
   }),
 })

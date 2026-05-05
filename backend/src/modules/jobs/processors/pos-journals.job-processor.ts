@@ -29,6 +29,7 @@ export interface PosJournalsJobMetadata {
   transaction_date_to?: string
   branch_name?: string
   payment_method_id?: number
+  payment_method_ids?: number[]
 }
 
 const MANDATORY_CONDITIONS = [
@@ -100,7 +101,11 @@ export const processPosJournals: JobProcessor<PosJournalsJobMetadata> = async (
       if (metadata.transaction_date_from) { conditions.push(`transaction_date >= $${idx++}`); values.push(metadata.transaction_date_from) }
       if (metadata.transaction_date_to) { conditions.push(`transaction_date <= $${idx++}`); values.push(metadata.transaction_date_to) }
       if (metadata.branch_name) { conditions.push(`branch_name ILIKE $${idx++}`); values.push(`%${escapeSearch(metadata.branch_name)}%`) }
-      if (metadata.payment_method_id) { conditions.push(`payment_method_id = $${idx++}`); values.push(metadata.payment_method_id) }
+      if (metadata.payment_method_ids && metadata.payment_method_ids.length > 0) {
+        conditions.push(`payment_method_id = ANY($${idx++}::int[])`); values.push(metadata.payment_method_ids)
+      } else if (metadata.payment_method_id) {
+        conditions.push(`payment_method_id = $${idx++}`); values.push(metadata.payment_method_id)
+      }
 
       const { rows } = await pool.query(
         `SELECT * FROM aggregated_transactions WHERE ${conditions.join(' AND ')}`,
