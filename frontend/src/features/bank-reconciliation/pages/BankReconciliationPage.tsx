@@ -313,7 +313,7 @@ export function BankReconciliationPage() {
   }, [refreshData]);
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950 p-4 lg:p-6 space-y-4 animate-in fade-in duration-500">
+    <div className="min-h-full bg-gray-50/50 dark:bg-gray-950 p-4 lg:p-6 space-y-4 animate-in fade-in duration-500">
       
       {/* Header — compact */}
       <div className="flex items-center justify-between gap-4">

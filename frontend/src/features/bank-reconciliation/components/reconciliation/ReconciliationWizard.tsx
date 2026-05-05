@@ -2418,7 +2418,7 @@ export function ReconciliationWizard({
                     </button>
                   )}
                   <div>
-                    <h2 className="text-xl font-bold text-white">Rekonsiliasi</h2>
+                    <h2 className="text-base font-bold text-white">Rekonsiliasi</h2>
                     <p className="text-white/60 text-xs mt-0.5">
                       {step === 0 && "Pilih metode pencocokan"}
                       {step === 1 && mode === "auto" && "Auto-Match Preview"}

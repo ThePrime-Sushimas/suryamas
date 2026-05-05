@@ -86,7 +86,7 @@ export default function SettlementGroupDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6 lg:p-8">
+      <div className="p-4 md:p-6 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-5xl mx-auto">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
             <div className="animate-pulse space-y-4">
@@ -105,7 +105,7 @@ export default function SettlementGroupDetailPage() {
 
   if (error || !sg) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6 lg:p-8">
+      <div className="p-4 md:p-6 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-5xl mx-auto">
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-400 mb-4">
             {error?.message || 'Settlement group not found'}
@@ -119,7 +119,7 @@ export default function SettlementGroupDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6 lg:p-8">
+    <div className="p-4 md:p-6 bg-gray-50 dark:bg-gray-900">
       <div className="max-w-5xl mx-auto">
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden">
           {/* Header */}
@@ -130,7 +130,7 @@ export default function SettlementGroupDetailPage() {
                   <FileText className="w-8 h-8" />
                 </div>
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-white">{sg.settlement_number}</h1>
+                  <h1 className="text-lg font-bold text-white">{sg.settlement_number}</h1>
                   <p className="text-blue-100 mt-1">{formatDate(sg.settlement_date)}</p>
                 </div>
               </div>
@@ -171,11 +171,11 @@ export default function SettlementGroupDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
                   <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">Statement Amount</div>
-                  <div className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-1">{formatCurrency(sg.total_statement_amount)}</div>
+                  <div className="text-lg font-bold text-blue-900 dark:text-blue-200 mt-1">{formatCurrency(sg.total_statement_amount)}</div>
                 </div>
                 <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-100 dark:border-green-800">
                   <div className="text-sm text-green-600 dark:text-green-400 font-medium">Allocated Amount</div>
-                  <div className="text-2xl font-bold text-green-900 dark:text-green-200 mt-1">{formatCurrency(sg.total_allocated_amount)}</div>
+                  <div className="text-lg font-bold text-green-900 dark:text-green-200 mt-1">{formatCurrency(sg.total_allocated_amount)}</div>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                   <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">Difference</div>

@@ -98,10 +98,10 @@ export const FeeDiscrepancyReviewPage = () => {
   const isPending = updateMutation.isPending || correctionMutation.isPending || undoMutation.isPending
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-full bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Fee Discrepancy Review</h1>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Review Selisih Fee</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Review selisih fee antara POS dan bank. Konfirmasi, dismiss, atau buat jurnal koreksi.</p>
         </div>
 
