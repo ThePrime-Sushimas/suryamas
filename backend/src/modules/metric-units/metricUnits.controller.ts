@@ -15,7 +15,7 @@ export class MetricUnitsController {
   list = async (req: Request, res: Response) => {
     try {
       const { offset } = getPaginationParams(req.query)
-      const filter = { ...(req.filterParams || req.queryFilter) }
+      const filter = { ...(req.filterParams) }
       if (req.query.q) filter.q = req.query.q as string
       const result = await metricUnitsService.list({ ...req.pagination!, offset }, req.sort, filter)
       sendSuccess(res, result.data, 'Success', 200, result.pagination)

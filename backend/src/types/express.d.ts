@@ -14,7 +14,6 @@ declare global {
         order: 'asc' | 'desc'
       }
       filterParams?: QueryFilter
-      queryFilter?: QueryFilter
       validated?: unknown
     }
   }

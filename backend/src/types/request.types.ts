@@ -46,7 +46,7 @@ export interface AuthenticatedSortedRequest extends AuthenticatedRequest {
 
 // Authenticated request with query filter
 export interface AuthenticatedFilteredRequest extends AuthenticatedRequest {
-  queryFilter?: QueryFilter
+  filterParams?: QueryFilter
 }
 
 // Authenticated request with pagination + sort + filter
@@ -54,6 +54,5 @@ export interface AuthenticatedQueryRequest extends AuthenticatedRequest {
   context: BranchContext
   pagination: PaginationParams
   sort?: SortParams
-  queryFilter?: QueryFilter
   filterParams?: QueryFilter
 }

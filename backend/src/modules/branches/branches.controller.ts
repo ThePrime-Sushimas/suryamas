@@ -11,7 +11,7 @@ export class BranchesController {
   list = async (req: Request, res: Response) => {
     try {
       const { page, limit, offset } = getPaginationParams(req.query)
-      const result = await branchesService.list({ page, limit, offset }, req.sort, req.queryFilter)
+      const result = await branchesService.list({ page, limit, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Branches retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_branches' })
@@ -62,7 +62,7 @@ export class BranchesController {
     try {
       const { page, limit, offset } = getPaginationParams(req.query)
       const q = String(req.query.q || '')
-      const result = await branchesService.search(q, { page, limit, offset }, req.sort, req.queryFilter)
+      const result = await branchesService.search(q, { page, limit, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Search completed', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'search_branches' })
