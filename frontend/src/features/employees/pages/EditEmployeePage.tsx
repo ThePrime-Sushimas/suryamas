@@ -115,7 +115,7 @@ export default function EditEmployeePage() {
     return (
       <div className="max-w-3xl mx-auto p-4">
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 md:p-6 text-center">
-          <p className="text-gray-600 dark:text-gray-400">Employee not found</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">Karyawan tidak ditemukan</p>
         </div>
       </div>
     )
@@ -124,23 +124,23 @@ export default function EditEmployeePage() {
   return (
     <div className="max-w-3xl mx-auto p-4">
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 md:p-6">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-4 md:mb-6">Edit Employee</h1>
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Ubah Karyawan</h1>
         
         {employee.branch_name && (
-          <div className="border-b border-gray-200 dark:border-gray-700 pb-4 md:pb-6 mb-4 md:mb-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded">
-            <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 md:mb-4">Branch Assignment</h3>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="border-b border-gray-200 dark:border-gray-700 pb-4 mb-4 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Penempatan Cabang</h3>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Current Branch:</p>
-                <p className="text-base font-medium text-gray-900 dark:text-white">
+                <p className="text-xs text-gray-600 dark:text-gray-400">Cabang saat ini:</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
                   {employee.branch_name} {employee.branch_code && `(${employee.branch_code})`}
                 </p>
               </div>
               <Link
-                to="/employee-branches"
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm md:text-base min-h-11 flex items-center justify-center"
+                to={`/employees/${id}/branches`}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium flex items-center justify-center"
               >
-                Manage Branches
+                Kelola Cabang
               </Link>
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function EditEmployeePage() {
           onSubmit={handleSubmit}
           onCancel={handleCancel}
           isLoading={mutationLoading}
-          submitLabel="Update Employee"
+          submitLabel="Simpan"
         />
       </div>
     </div>
