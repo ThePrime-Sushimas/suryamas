@@ -21,10 +21,50 @@ const fmt = (n: number) =>
 function firstOfMonth() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) }
 function yesterday() { const d = new Date(); d.setDate(d.getDate() - 1); return d }
 
+/**
+ * Determine effective "today" based on earliest jam_buka across active branches.
+ * Before jam_buka → show yesterday's data. After jam_buka → show today's data.
+ */
+function getEffectiveDate(branches: Array<{ status: string; jam_buka?: string | null }> | undefined): { effectiveDate: Date; isPreOpen: boolean } {
+  const now = new Date()
+  if (!branches || branches.length === 0) return { effectiveDate: now, isPreOpen: false }
+
+  const activeBranches = branches.filter(b => b.status === 'active' && b.jam_buka)
+  if (activeBranches.length === 0) return { effectiveDate: now, isPreOpen: false }
+
+  // Find earliest jam_buka (format: "HH:mm:ss" or "HH:mm")
+  const earliestOpen = activeBranches
+    .map(b => b.jam_buka!)
+    .sort()[0] // lexicographic sort works for HH:mm format
+
+  const [h, m] = earliestOpen.split(':').map(Number)
+  const openTime = new Date(now)
+  openTime.setHours(h, m, 0, 0)
+
+  if (now < openTime) {
+    // Before opening → use yesterday
+    const yd = new Date(now)
+    yd.setDate(yd.getDate() - 1)
+    return { effectiveDate: yd, isPreOpen: true }
+  }
+  return { effectiveDate: now, isPreOpen: false }
+}
+
 export default function DashboardSalesPage() {
   const allUserBranches = useBranchContextStore((s) => s.branches)
-  const todayStr = fmtDate(new Date())
-  const yesterdayStr = fmtDate(yesterday())
+
+  // Determine effective date based on jam_buka
+  const allBranches = useAllBranches()
+  const { effectiveDate, isPreOpen } = useMemo(
+    () => getEffectiveDate(allBranches.data),
+    [allBranches.data]
+  )
+  const effectiveDateStr = fmtDate(effectiveDate)
+  const effectiveYesterdayStr = useMemo(() => {
+    const d = new Date(effectiveDate)
+    d.setDate(d.getDate() - 1)
+    return fmtDate(d)
+  }, [effectiveDate])
 
   // Companies
   const companyIds = useMemo(() => [...new Set(allUserBranches.map((b) => b.company_id))], [allUserBranches])
@@ -54,9 +94,9 @@ export default function DashboardSalesPage() {
   const applyFilter = () => { setAppliedFrom(draftFrom); setAppliedTo(draftTo) }
   const hasApplied = !!appliedFrom && !!appliedTo
 
-  // Today's data
-  const todaySales = usePosSalesRange(todayStr, todayStr)
-  const allBranches = useAllBranches()
+  // Today's data (uses effective date — yesterday if before jam_buka)
+  // Wait for allBranches to resolve before fetching to avoid flicker
+  const todaySales = usePosSalesRange(effectiveDateStr, effectiveDateStr, !allBranches.isLoading)
   const failedTrxCount = useFailedTransactionsCount()
 
   // Range data
@@ -65,8 +105,8 @@ export default function DashboardSalesPage() {
   const isVoid = (r: { status: string }) => r.status === 'VOID'
 
   const todaySalesData = useMemo(() =>
-    todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === todayStr) || []
-  , [todaySales.data, todayStr])
+    todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === effectiveDateStr) || []
+  , [todaySales.data, effectiveDateStr])
 
   const todayNonVoid = useMemo(() => todaySalesData.filter(r => !isVoid(r)), [todaySalesData])
   const todayVoidData = useMemo(() => todaySalesData.filter(isVoid), [todaySalesData])
@@ -74,8 +114,8 @@ export default function DashboardSalesPage() {
   const todayVoidTrx = useMemo(() => todayVoidData.reduce((s, r) => s + (r.void_transaction_count ?? 0), 0), [todayVoidData])
 
   const yesterdayData = useMemo(() =>
-    todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === yesterdayStr) || []
-  , [todaySales.data, yesterdayStr])
+    todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === effectiveYesterdayStr) || []
+  , [todaySales.data, effectiveYesterdayStr])
 
   const rangeData = useMemo(() => {
     if (!hasApplied || !rangeSales.data) return []
@@ -176,7 +216,7 @@ export default function DashboardSalesPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
           <div className="flex items-center gap-1.5 mb-2">
             <Zap className="w-3.5 h-3.5 text-emerald-500" />
-            <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Penjualan Hari Ini</p>
+            <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{isPreOpen ? 'Penjualan Kemarin' : 'Penjualan Hari Ini'}</p>
           </div>
           {todaySales.isLoading ? <div className="h-6 w-28 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" /> : (
             <>

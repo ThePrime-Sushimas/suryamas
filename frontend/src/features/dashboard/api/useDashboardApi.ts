@@ -32,7 +32,7 @@ function dayBefore(dateStr: string): string {
 
 const todayStr = () => fmtD(new Date())
 
-export const usePosSalesRange = (dateFrom: string, dateTo: string) => {
+export const usePosSalesRange = (dateFrom: string, dateTo: string, enabled = true) => {
   const extendedFrom = dateFrom ? dayBefore(dateFrom) : ''
   const includesLive = dateTo >= todayStr()
 
@@ -44,7 +44,7 @@ export const usePosSalesRange = (dateFrom: string, dateTo: string) => {
       })
       return data.data as SalesRow[]
     },
-    enabled: !!dateFrom && !!dateTo,
+    enabled: !!dateFrom && !!dateTo && enabled,
     refetchInterval: includesLive ? 60_000 : false,
     staleTime: includesLive ? 30_000 : 30 * 60_000,
   })
@@ -143,7 +143,7 @@ export const useAllBranches = () =>
     queryKey: ['dashboard', 'all-branches'],
     queryFn: async () => {
       const { data } = await api.get('/branches', { params: { limit: 200 } })
-      return data.data as Array<{ id: string; branch_name: string; status: string }>
+      return data.data as Array<{ id: string; branch_name: string; status: string; jam_buka?: string | null }>
     },
     staleTime: 5 * 60_000,
   })
