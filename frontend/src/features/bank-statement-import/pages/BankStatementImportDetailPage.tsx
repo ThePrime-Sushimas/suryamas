@@ -285,7 +285,7 @@ function StatCard({
       <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
         {label}
       </p>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+      <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
         {typeof value === "number" ? value.toLocaleString("id-ID") : value}
       </p>
       {sub && (
@@ -654,7 +654,7 @@ export function BankStatementImportDetailPage() {
   // RENDER
   // -------------------------------------------------------------------------
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
@@ -666,7 +666,7 @@ export function BankStatementImportDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white break-all">
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white break-all">
                 {importData.file_name}
               </h1>
               <StatusBadge status={importData.status} />

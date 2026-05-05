@@ -47,7 +47,7 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
               {validPercentage}%
             </p>
             <p className="text-xs text-gray-500">Valid</p>
@@ -63,7 +63,7 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
             <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Valid</span>
             <CheckCircle className="w-4 h-4 text-green-500" />
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {validRows.toLocaleString()}
           </p>
           <div className="mt-2">
@@ -85,7 +85,7 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
             <span className="text-sm font-medium text-amber-800 dark:text-amber-200">Duplikat</span>
             <AlertCircle className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {duplicateCount.toLocaleString()}
           </p>
           <div className="mt-2">

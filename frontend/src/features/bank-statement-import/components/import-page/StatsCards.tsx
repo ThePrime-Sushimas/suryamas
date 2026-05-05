@@ -42,7 +42,7 @@ function StatCard({ title, value, icon: Icon, iconColor, iconBgColor, trend, suf
         )}
       </div>
       <div>
-        <p className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+        <p className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
           {typeof value === 'number' ? value.toLocaleString() : value}
           {suffix && <span className="text-sm font-medium text-gray-500 ml-1.5">{suffix}</span>}
         </p>

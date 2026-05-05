@@ -210,7 +210,7 @@ const handleConfirm = async () => {
                   <Sparkles className="w-8 h-8 text-blue-500 animate-pulse" />
                 </div>
               </div>
-              <p className="font-bold text-xl text-gray-900 dark:text-white mt-6">Memproses Import...</p>
+              <p className="font-bold text-base text-gray-900 dark:text-white mt-6">Memproses Import...</p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-xs">
                 {valid_rows.toLocaleString()} dari {total_rows.toLocaleString()} baris telah diproses
               </p>
@@ -247,7 +247,7 @@ const handleConfirm = async () => {
                   <FileBarChart className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-2xl text-white">Konfirmasi Import</h3>
+                  <h3 className="font-bold text-lg text-white">Konfirmasi Import</h3>
                   <p className="text-sm text-blue-100 dark:text-blue-200 mt-1">
                     Review dan validasi data sebelum import
                   </p>

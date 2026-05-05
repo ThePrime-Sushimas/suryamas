@@ -207,8 +207,8 @@ export function UploadModal({
                   <Upload className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-xl text-white">
-                    Upload Bank Statement
+                  <h3 className="font-bold text-base text-white">
+                    Upload Mutasi Bank
                   </h3>
                 </div>
               </div>

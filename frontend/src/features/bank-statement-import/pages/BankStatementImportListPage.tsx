@@ -233,39 +233,41 @@ export function BankStatementImportListPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Bank Statement Import
-          </h1>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={handleRefresh}
-            disabled={loading.list}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${loading.list ? "animate-spin" : ""}`}
-            />
-            <span>Refresh</span>
-          </button>
-          <button
-            type="button"
-            onClick={openUploadModal}
-            disabled={loading.upload}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Upload size={18} />
-            Upload Bank Statement
-          </button>
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Import Mutasi Bank</h1>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">{pagination.total} file diimport</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={loading.list}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading.list ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={openUploadModal}
+              disabled={loading.upload}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <Upload size={14} />
+              Upload
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Tab Bar */}
-      <div className="flex items-center border-b border-gray-200 dark:border-gray-700">
+      <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 flex items-center">
         <button
           onClick={() => setActiveTab('import')}
           className={`px-4 py-2.5 text-[13px] font-medium transition-colors relative ${
@@ -296,9 +298,12 @@ export function BankStatementImportListPage() {
         )}
       </div>
 
+      {/* Content area */}
+      <div className="flex-1 overflow-auto min-h-0">
+
       {/* Manual Entry Tab */}
       {canViewManualEntry && (
-        <div className={activeTab === 'manual' ? '' : 'hidden'}>
+        <div className={activeTab === 'manual' ? 'p-4 sm:p-6' : 'hidden'}>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <ManualEntryPanel />
           </div>
@@ -306,7 +311,7 @@ export function BankStatementImportListPage() {
       )}
 
       {/* File Import Tab */}
-      <div className={activeTab === 'import' ? 'space-y-6' : 'hidden'}>
+      <div className={activeTab === 'import' ? 'p-4 sm:p-6 space-y-4' : 'hidden'}>
 
       {/* Error Message */}
       {errors.general && (
@@ -710,6 +715,8 @@ export function BankStatementImportListPage() {
         </div>
       )}
       
+      </div>
+
       </div>
     </div>
   );
