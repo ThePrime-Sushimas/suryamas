@@ -7,9 +7,9 @@ export const incomeStatementKeys = {
   data: (filter: IncomeStatementFilter, companyId: string) => [...incomeStatementKeys.all, 'data', companyId, filter] as const,
 }
 
-export const useIncomeStatement = (filter: IncomeStatementFilter, companyId: string, enabled: boolean) =>
+export const useIncomeStatement = (filter: IncomeStatementFilter, companyId: string, enabled: boolean, fetchKey?: number) =>
   useQuery({
-    queryKey: incomeStatementKeys.data(filter, companyId),
+    queryKey: [...incomeStatementKeys.data(filter, companyId), fetchKey],
     queryFn: async () => {
       const params: Record<string, string> = {
         date_from: filter.date_from,

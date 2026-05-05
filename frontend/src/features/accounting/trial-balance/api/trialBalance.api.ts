@@ -7,9 +7,9 @@ export const trialBalanceKeys = {
   data: (filter: TrialBalanceFilter) => [...trialBalanceKeys.all, 'data', filter] as const,
 }
 
-export const useTrialBalance = (filter: TrialBalanceFilter, enabled: boolean) =>
+export const useTrialBalance = (filter: TrialBalanceFilter, enabled: boolean, fetchKey?: number) =>
   useQuery({
-    queryKey: trialBalanceKeys.data(filter),
+    queryKey: [...trialBalanceKeys.data(filter), fetchKey],
     queryFn: async () => {
       const params: Record<string, string> = {
         date_from: filter.date_from,

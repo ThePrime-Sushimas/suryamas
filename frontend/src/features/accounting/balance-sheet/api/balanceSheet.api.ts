@@ -7,9 +7,9 @@ export const balanceSheetKeys = {
   data: (filter: BalanceSheetFilter, companyId: string) => [...balanceSheetKeys.all, 'data', companyId, filter] as const,
 }
 
-export const useBalanceSheet = (filter: BalanceSheetFilter, companyId: string, enabled: boolean) =>
+export const useBalanceSheet = (filter: BalanceSheetFilter, companyId: string, enabled: boolean, fetchKey?: number) =>
   useQuery({
-    queryKey: balanceSheetKeys.data(filter, companyId),
+    queryKey: [...balanceSheetKeys.data(filter, companyId), fetchKey],
     queryFn: async () => {
       const params: Record<string, string> = { as_of_date: filter.as_of_date }
       if (filter.branch_ids.length > 0) params.branch_ids = filter.branch_ids.join(',')

@@ -138,7 +138,7 @@ export default function IncomeStatementPage() {
   )
 
   const [appliedFilter, setAppliedFilter] = useState(activeFilter)
-  const { data, isLoading, isError, error } = useIncomeStatement(appliedFilter, companyId, fetchKey > 0)
+  const { data, isLoading, isError, error } = useIncomeStatement(appliedFilter, companyId, fetchKey > 0, fetchKey)
 
   const sections = useMemo(() => groupRows(data?.rows ?? []), [data])
   const summary = data?.summary

@@ -1,9 +1,17 @@
 import { create } from 'zustand'
 import type { TrialBalanceFilter } from '../types/trial-balance.types'
 
-const now = new Date()
-const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+function getLocalDate(): { firstDay: string; lastDay: string } {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const first = `${y}-${String(m + 1).padStart(2, '0')}-01`
+  const last = new Date(y, m + 1, 0)
+  const lastStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
+  return { firstDay: first, lastDay: lastStr }
+}
+
+const { firstDay, lastDay } = getLocalDate()
 
 interface TrialBalanceFilterState {
   filter: TrialBalanceFilter

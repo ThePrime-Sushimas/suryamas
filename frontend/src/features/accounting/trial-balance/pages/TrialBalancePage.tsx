@@ -104,7 +104,7 @@ export default function TrialBalancePage() {
 
   const [appliedFilter, setAppliedFilter] = useState(activeFilter)
 
-  const { data: rows = [], isLoading, isError, error } = useTrialBalance(appliedFilter, fetchKey > 0)
+  const { data: rows = [], isLoading, isError, error } = useTrialBalance(appliedFilter, fetchKey > 0, fetchKey)
 
   const groups = useMemo(() => groupRows(rows), [rows])
   const summary = useMemo(() => buildSummary(rows), [rows])

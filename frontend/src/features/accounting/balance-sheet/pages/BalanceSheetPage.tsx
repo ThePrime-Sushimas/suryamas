@@ -162,7 +162,7 @@ export default function BalanceSheetPage() {
   )
 
   const [appliedFilter, setAppliedFilter] = useState(activeFilter)
-  const { data, isLoading, isError, error } = useBalanceSheet(appliedFilter, companyId, fetchKey > 0)
+  const { data, isLoading, isError, error } = useBalanceSheet(appliedFilter, companyId, fetchKey > 0, fetchKey)
 
   const sections = useMemo(() => buildSections(data?.rows ?? []), [data])
   const summary = data?.summary
