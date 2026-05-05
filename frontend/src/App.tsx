@@ -340,6 +340,9 @@ const TrialBalancePage = lazy(() =>
   import("./features/accounting/trial-balance").then((m) => ({
     default: m.TrialBalancePage,
   }))
+)
+const DailyLedgerPage = lazy(() =>
+  import("./features/accounting/daily-ledger/pages/DailyLedgerPage")
 );
 const IncomeStatementPage = lazy(() =>
   import("./features/accounting/income-statement").then((m) => ({
@@ -1260,6 +1263,16 @@ function App() {
                       <RequirePermission module="trial_balance">
                         <Suspense fallback={<LoadingFallback />}>
                           <TrialBalancePage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="accounting/daily-ledger"
+                    element={
+                      <RequirePermission module="trial_balance">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DailyLedgerPage />
                         </Suspense>
                       </RequirePermission>
                     }

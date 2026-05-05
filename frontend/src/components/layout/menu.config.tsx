@@ -17,6 +17,7 @@ import {
   Activity,
   Coins,
   Scale,
+  CalendarDays,
   TrendingUp,
   Layers,
   BookOpen,
@@ -363,6 +364,13 @@ export const menuItems: MenuItem[] = [
             name: "Neraca Saldo",
             href: "/accounting/trial-balance",
             icon: <Scale size={16} />,
+            module: "trial_balance",
+          },
+          {
+            id: "daily-ledger",
+            name: "Daily Ledger",
+            href: "/accounting/daily-ledger",
+            icon: <CalendarDays size={16} />,
             module: "trial_balance",
           },
           {
