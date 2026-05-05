@@ -908,23 +908,59 @@ export async function generateBankRecJournals(
       }
 
 
-      // -- 7.7 Balance validation (with debug) --
+      // -- 7.7 Balance validation (with auto-rounding correction) --
       const totalLineDebit  = round2(lines.reduce((s, l) => s + l.debit_amount, 0))
       const totalLineCredit = round2(lines.reduce((s, l) => s + l.credit_amount, 0))
       const balanceDiff     = round2(Math.abs(totalLineDebit - totalLineCredit))
 
-      if (balanceDiff > 0.01) {
+      // Auto-correct small rounding differences (≤ Rp 1)
+      // These arise from floating point drift when summing fee percentages
+      if (balanceDiff > 0 && balanceDiff <= 1) {
+        // Find rounding account (610801) — no fallback to random account
+        let roundingAccountId: string | null = null
+        try {
+          const { rows: roundingRows } = await pool.query(
+            `SELECT id FROM chart_of_accounts WHERE account_code = '610801' AND company_id = $1 AND is_active = true AND deleted_at IS NULL LIMIT 1`,
+            [companyId]
+          )
+          roundingAccountId = roundingRows[0]?.id || null
+        } catch { /* ignore */ }
+
+        if (roundingAccountId) {
+          if (totalLineDebit > totalLineCredit) {
+            lines.push({ journal_header_id: journalHeader.id, line_number: lines.length + 1, account_id: roundingAccountId, description: 'Rounding Adjustment', debit_amount: 0, credit_amount: balanceDiff, currency: 'IDR', exchange_rate: 1, base_debit_amount: 0, base_credit_amount: balanceDiff, created_at: new Date().toISOString() })
+          } else {
+            lines.push({ journal_header_id: journalHeader.id, line_number: lines.length + 1, account_id: roundingAccountId, description: 'Rounding Adjustment', debit_amount: balanceDiff, credit_amount: 0, currency: 'IDR', exchange_rate: 1, base_debit_amount: balanceDiff, base_credit_amount: 0, created_at: new Date().toISOString() })
+          }
+          logWarn('BANK-REC: Auto-corrected rounding difference', { journalDate, bankAccountId, balanceDiff, roundingAccountId })
+        } else {
+          logWarn('BANK-REC: Cannot auto-correct, rounding account 610801 not found', { journalDate, bankAccountId, balanceDiff, companyId })
+        }
+      }
+
+      // Re-check after rounding adjustment
+      const finalDebit  = round2(lines.reduce((s, l) => s + l.debit_amount, 0))
+      const finalCredit = round2(lines.reduce((s, l) => s + l.credit_amount, 0))
+      const finalDiff   = round2(Math.abs(finalDebit - finalCredit))
+
+      if (finalDiff > 0.01) {
         logError('BANK-REC: balance mismatch, rolling back', {
-          journalId: journalHeader.id, totalLineDebit, totalLineCredit, balanceDiff,
+          journalId: journalHeader.id, totalLineDebit: finalDebit, totalLineCredit: finalCredit, balanceDiff: finalDiff,
         })
         await rollbackJournalHeader(journalHeader.id)
         failedResults.push({
           bank_account_id: bankAccountId,
           journal_date:    journalDate,
-          error:           `Journal balance mismatch: debit=${totalLineDebit}, credit=${totalLineCredit}, diff=${balanceDiff}`,
+          error:           `Journal balance mismatch: debit=${finalDebit}, credit=${finalCredit}, diff=${finalDiff}`,
         })
         continue
       }
+
+      // Update header totals with final balanced amounts
+      await pool.query(
+        `UPDATE journal_headers SET total_debit = $1, total_credit = $2, updated_at = NOW() WHERE id = $3`,
+        [finalDebit, finalCredit, journalHeader.id]
+      )
 
       try {
         await pool.query(
