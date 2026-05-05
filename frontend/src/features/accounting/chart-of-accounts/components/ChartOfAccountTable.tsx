@@ -91,7 +91,7 @@ export const ChartOfAccountTable = ({
             className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <Eye className="w-4 h-4" />
-            View Details
+            Lihat Detail
           </button>
           {canEdit && (
             <button
@@ -102,7 +102,7 @@ export const ChartOfAccountTable = ({
               className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               <Edit className="w-4 h-4" />
-              Edit
+              Ubah
             </button>
           )}
           {onAddChild && account.is_header && (
@@ -114,7 +114,7 @@ export const ChartOfAccountTable = ({
               className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               <Plus className="w-4 h-4" />
-              Add Child Account
+              Tambah Sub-akun
             </button>
           )}
           {account.deleted_at && onRestore ? (
@@ -126,7 +126,7 @@ export const ChartOfAccountTable = ({
               className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
             >
               <RotateCcw className="w-4 h-4" />
-              Restore
+              Pulihkan
             </button>
           ) : (
             canDelete && (
@@ -138,7 +138,7 @@ export const ChartOfAccountTable = ({
                 className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete
+                Hapus
               </button>
             )
           )}
@@ -243,7 +243,7 @@ export const ChartOfAccountTable = ({
                 <td className="px-4 py-3 text-center">
                   {account.deleted_at ? (
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300">
-                      Deleted
+                      Dihapus
                     </span>
                   ) : (
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -251,7 +251,7 @@ export const ChartOfAccountTable = ({
                         ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' 
                         : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
                     }`}>
-                      {account.is_active ? 'Active' : 'Inactive'}
+                      {account.is_active ? 'Aktif' : 'Nonaktif'}
                     </span>
                   )}
                 </td>
@@ -267,7 +267,7 @@ export const ChartOfAccountTable = ({
       
       {accounts.length === 0 && (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-          No accounts found
+          Tidak ada akun ditemukan
         </div>
       )}
     </div>

@@ -150,18 +150,18 @@ export default function ChartOfAccountsPage() {
     const accountToDelete = flattenTree(tree).find(a => a.id === id)
     setConfirmModal({
       isOpen: true,
-      title: 'Delete Account',
-      message: `Are you sure you want to delete "${accountToDelete?.account_name || 'this account'}"? This action cannot be undone.`,
+      title: 'Hapus Akun',
+      message: `Yakin ingin menghapus "${accountToDelete?.account_name || 'akun ini'}"? Tindakan ini tidak bisa dibatalkan.`,
       variant: 'danger',
       onConfirm: async () => {
         try {
           await deleteAccount(id)
-          success('Account deleted successfully')
+          success('Akun berhasil dihapus')
         } catch {
           if (error?.scope === 'submit') {
             showError(error.message)
           } else {
-            showError('Failed to delete account')
+            showError('Gagal menghapus akun')
           }
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }))
@@ -175,19 +175,19 @@ export default function ChartOfAccountsPage() {
     
     setConfirmModal({
       isOpen: true,
-      title: 'Delete Accounts',
-      message: `Are you sure you want to delete ${selectedIds.length} accounts? This action cannot be undone.`,
+      title: 'Hapus Akun',
+      message: `Yakin ingin menghapus ${selectedIds.length} akun? Tindakan ini tidak bisa dibatalkan.`,
       variant: 'danger',
       onConfirm: async () => {
         try {
           await bulkDelete(selectedIds)
           setSelectedIds([])
-          success(`${selectedIds.length} accounts deleted successfully`)
+          success(`${selectedIds.length} akun berhasil dihapus`)
         } catch {
           if (error?.scope === 'submit') {
             showError(error.message)
           } else {
-            showError('Failed to delete accounts')
+            showError('Gagal menghapus akun')
           }
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }))
@@ -200,18 +200,18 @@ export default function ChartOfAccountsPage() {
     
     setConfirmModal({
       isOpen: true,
-      title: 'Restore Account',
-      message: 'Are you sure you want to restore this account?',
+      title: 'Pulihkan Akun',
+      message: 'Yakin ingin memulihkan akun ini?',
       variant: 'success',
       onConfirm: async () => {
         try {
           await restoreAccount(id)
-          success('Account restored successfully')
+          success('Akun berhasil dipulihkan')
         } catch {
           if (error?.scope === 'submit') {
             showError(error.message)
           } else {
-            showError('Failed to restore account')
+            showError('Gagal memulihkan akun')
           }
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }))
@@ -226,12 +226,12 @@ export default function ChartOfAccountsPage() {
     try {
       await bulkUpdateStatus(selectedIds, is_active)
       setSelectedIds([])
-      success(`${selectedIds.length} accounts ${is_active ? 'activated' : 'deactivated'} successfully`)
+      success(`${selectedIds.length} akun berhasil ${is_active ? 'diaktifkan' : 'dinonaktifkan'}`)
     } catch {
       if (error?.scope === 'submit') {
         showError(error.message)
       } else {
-        showError('Failed to update account status')
+        showError('Gagal mengubah status akun')
       }
     }
   }, [selectedCompanyId, selectedIds, bulkUpdateStatus, error, success, showError])
@@ -249,11 +249,11 @@ export default function ChartOfAccountsPage() {
           <div className="flex items-center gap-3">
             <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Chart of Accounts</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Daftar Akun</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 <span className="font-medium">{companyName}</span>
                 <span className="mx-2">•</span>
-                {viewMode === 'tree' ? `${tree.length} root accounts` : `${debouncedSearch ? filterTree(tree, debouncedSearch).length : flattenTree(tree).length} accounts`}
+                {viewMode === 'tree' ? `${tree.length} akun induk` : `${debouncedSearch ? filterTree(tree, debouncedSearch).length : flattenTree(tree).length} akun`}
               </p>
             </div>
           </div>
@@ -264,7 +264,7 @@ export default function ChartOfAccountsPage() {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              Create Account
+              Buat Akun
             </button>
           </div>
         </div>
@@ -277,7 +277,7 @@ export default function ChartOfAccountsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search accounts..."
+              placeholder="Cari akun..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -324,24 +324,24 @@ export default function ChartOfAccountsPage() {
           {/* Bulk Actions */}
           {selectedIds.length > 0 && viewMode === 'table' && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">{selectedIds.length} selected</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">{selectedIds.length} dipilih</span>
               <button
                 onClick={() => handleBulkStatusUpdate(true)}
                 className="px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50"
               >
-                Activate
+                Aktifkan
               </button>
               <button
                 onClick={() => handleBulkStatusUpdate(false)}
                 className="px-3 py-1.5 text-sm bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-md hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
               >
-                Deactivate
+                Nonaktifkan
               </button>
               <button
                 onClick={handleBulkDelete}
                 className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1"
               >
-                Delete
+                Hapus
               </button>
             </div>
           )}
@@ -352,10 +352,10 @@ export default function ChartOfAccountsPage() {
       <div className="flex-1 overflow-auto p-6">
         {!selectedCompanyId ? (
           <div className="text-center py-8">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">No branch context available</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">Tidak ada konteks cabang</p>
           </div>
         ) : (viewMode === 'table' ? loading.tree : loading.tree) ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Memuat...</div>
         ) : (
           <>
             {viewMode === 'tree' ? (

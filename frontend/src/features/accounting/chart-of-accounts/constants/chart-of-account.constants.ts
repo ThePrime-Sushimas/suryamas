@@ -3,11 +3,19 @@ import type { AccountType, NormalBalance } from '../types/chart-of-account.types
 export const ACCOUNT_TYPES: AccountType[] = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE']
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
-  ASSET: 'Asset',
-  LIABILITY: 'Liability', 
-  EQUITY: 'Equity',
-  REVENUE: 'Revenue',
-  EXPENSE: 'Expense'
+  ASSET: 'Aset',
+  LIABILITY: 'Kewajiban', 
+  EQUITY: 'Ekuitas',
+  REVENUE: 'Pendapatan',
+  EXPENSE: 'Beban'
+}
+
+export const ACCOUNT_TYPE_TOOLTIPS: Record<AccountType, string> = {
+  ASSET: 'Harta milik perusahaan (kas, piutang, persediaan, aset tetap)',
+  LIABILITY: 'Utang atau kewajiban perusahaan kepada pihak lain',
+  EQUITY: 'Modal pemilik dan laba ditahan perusahaan',
+  REVENUE: 'Pendapatan dari kegiatan usaha utama',
+  EXPENSE: 'Biaya yang dikeluarkan untuk operasional usaha'
 }
 
 export const NORMAL_BALANCE_MAP: Record<AccountType, NormalBalance> = {

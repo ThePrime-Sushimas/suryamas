@@ -60,7 +60,7 @@ const ActionDropdown = ({
           className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
           <Eye className="w-4 h-4" />
-          View Details
+          Lihat Detail
         </button>
         {canEdit && (
           <button
@@ -71,7 +71,7 @@ const ActionDropdown = ({
             className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <Edit className="w-4 h-4" />
-            Edit
+            Ubah
           </button>
         )}
         {onAddChild && node.is_header && (
@@ -83,7 +83,7 @@ const ActionDropdown = ({
             className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <Plus className="w-4 h-4" />
-            Add Child Account
+            Tambah Sub-akun
           </button>
         )}
         {node.deleted_at && onRestore ? (
@@ -95,7 +95,7 @@ const ActionDropdown = ({
             className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
           >
             <RotateCcw className="w-4 h-4" />
-            Restore
+            Pulihkan
           </button>
         ) : (
           canDelete && (
@@ -107,7 +107,7 @@ const ActionDropdown = ({
               className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
               <Trash2 className="w-4 h-4" />
-              Delete
+              Hapus
             </button>
           )
         )}
@@ -218,19 +218,19 @@ const TreeNode = ({
           </div>
           <div className="flex items-center gap-4 mt-1">
             {node.is_header && (
-              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Header</span>
+              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium" title="Akun induk yang mengelompokkan sub-akun">Induk</span>
             )}
             {node.is_postable && (
-              <span className="text-xs text-green-600 dark:text-green-400 font-medium">Postable</span>
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium" title="Bisa digunakan untuk posting jurnal">Posting</span>
             )}
             <span className="text-xs text-gray-500 dark:text-gray-400">{node.currency_code}</span>
             {node.deleted_at ? (
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Deleted</span>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Dihapus</span>
             ) : (
               <span className={`text-xs font-medium ${
                 node.is_active ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
               }`}>
-                {node.is_active ? 'Active' : 'Inactive'}
+                {node.is_active ? 'Aktif' : 'Nonaktif'}
               </span>
             )}
           </div>
@@ -330,7 +330,7 @@ export const ChartOfAccountTree = ({
   if (tree.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
-        No accounts found
+        Tidak ada akun ditemukan
       </div>
     )
   }
@@ -338,21 +338,21 @@ export const ChartOfAccountTree = ({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white">Chart of Accounts Tree</h3>
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white">Pohon Akun</h3>
         <div className="flex gap-2">
           <button
             onClick={handleExpandAll}
             className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50"
           >
             <Expand className="w-3 h-3" />
-            Expand All
+            Buka Semua
           </button>
           <button
             onClick={handleCollapseAll}
             className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"
           >
             <Minimize className="w-3 h-3" />
-            Collapse All
+            Tutup Semua
           </button>
         </div>
       </div>
