@@ -3017,6 +3017,7 @@ export class BankStatementImportService {
       debit_amount: r.debit_amount,
       credit_amount: r.credit_amount,
       description: r.description,
+      balance: r.balance,
       bank_account_id: bankAccountId
     }));
 
@@ -3035,6 +3036,7 @@ export class BankStatementImportService {
       description: ex.description || '',
       debit_amount: Number(ex.debit_amount),
       credit_amount: Number(ex.credit_amount),
+      balance: ex.balance != null ? Number(ex.balance) : undefined,
       existing_import_id: ex.import_id || 0,
       existing_statement_id: ex.id,
       row_numbers: [],

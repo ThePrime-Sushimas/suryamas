@@ -285,6 +285,7 @@ export interface BankStatementPreviewRow {
  */
 export interface BankStatementDuplicate {
   balance_matched?: boolean; // ✅ Balance indicator (user request)
+  balance?: number;
 
   reference_number?: string
   transaction_date: string
