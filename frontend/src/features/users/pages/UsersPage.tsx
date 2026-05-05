@@ -5,18 +5,15 @@ import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type { User } from '@/features/users'
-import UserTable from '../components/UserTable'
+import { Users, Search, X, Shield, UserCheck, UserX, Eye, Edit, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [search, setSearch] = useState('')
   const [selectedBranch, setSelectedBranch] = useState('all')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(() => new Set())
+  const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(new Set())
   const [removeRoleTarget, setRemoveRoleTarget] = useState<string | null>(null)
-  const itemsPerPage = 10
   const navigate = useNavigate()
   const { error: showError, success } = useToast()
 
@@ -31,39 +28,50 @@ export default function UsersPage() {
     }
   }, [showError])
 
-  const toggleBranch = (branch: string) => {
-    setCollapsedBranches(prev => {
-      const newSet = new Set(prev)
-      newSet.has(branch) ? newSet.delete(branch) : newSet.add(branch)
-      return newSet
-    })
-  }
-
   useEffect(() => { loadData() }, [loadData])
 
-  useEffect(() => {
-    let filtered = users
-    if (searchQuery) {
-      filtered = filtered.filter(u =>
-        (u.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (u.employee_id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (u.email || '').toLowerCase().includes(searchQuery.toLowerCase())
+  const branches = useMemo(() =>
+    Array.from(new Set(users.map(u => u.branch))).sort(),
+    [users]
+  )
+
+  const filtered = useMemo(() => {
+    let result = users
+    if (search) {
+      const s = search.toLowerCase()
+      result = result.filter(u =>
+        u.full_name.toLowerCase().includes(s) ||
+        u.email?.toLowerCase().includes(s) ||
+        u.employee_id?.toLowerCase().includes(s)
       )
     }
     if (selectedBranch !== 'all') {
-      filtered = filtered.filter(u => u.branch === selectedBranch)
+      result = result.filter(u => u.branch === selectedBranch)
     }
-    setFilteredUsers(filtered)
-    setCurrentPage(1)
-  }, [users, searchQuery, selectedBranch])
+    return result
+  }, [users, search, selectedBranch])
 
-  useEffect(() => {
-    const branches = Array.from(new Set(users.map(u => u.branch)))
-    setCollapsedBranches(new Set(branches))
-  }, [users])
+  const grouped = useMemo(() => {
+    const map: Record<string, User[]> = {}
+    filtered.forEach(u => {
+      if (!map[u.branch]) map[u.branch] = []
+      map[u.branch].push(u)
+    })
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b))
+  }, [filtered])
 
-  const handleDelete = async (employeeId: string) => {
-    setRemoveRoleTarget(employeeId)
+  const stats = useMemo(() => ({
+    total: users.length,
+    withAccount: users.filter(u => u.has_account).length,
+    withRole: users.filter(u => u.role_id).length,
+  }), [users])
+
+  const toggleBranch = (branch: string) => {
+    setCollapsedBranches(prev => {
+      const next = new Set(prev)
+      next.has(branch) ? next.delete(branch) : next.add(branch)
+      return next
+    })
   }
 
   const confirmRemoveRole = async () => {
@@ -79,105 +87,178 @@ export default function UsersPage() {
     }
   }
 
-  const branches = useMemo(() =>
-    ['all', ...Array.from(new Set(users.map(u => u.branch)))],
-    [users]
-  )
-
-  const groupedUsers = useMemo(() => {
-    if (selectedBranch !== 'all') return {}
-    return filteredUsers.reduce((acc, user) => {
-      if (!acc[user.branch]) acc[user.branch] = []
-      acc[user.branch].push(user)
-      return acc
-    }, {} as Record<string, User[]>)
-  }, [filteredUsers, selectedBranch])
-
-  const { totalPages, paginatedUsers } = useMemo(() => {
-    if (selectedBranch === 'all') return { totalPages: 0, paginatedUsers: [] }
-    const total = Math.ceil(filteredUsers.length / itemsPerPage)
-    const start = (currentPage - 1) * itemsPerPage
-    return { totalPages: total, paginatedUsers: filteredUsers.slice(start, start + itemsPerPage) }
-  }, [filteredUsers, currentPage, selectedBranch])
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">Memuat...</div>
-  }
-
   return (
-    <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-900">
-      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">Manajemen Pengguna</h1>
-
-      <div className="mb-4 flex flex-col sm:flex-row gap-3">
-        <input
-          type="text"
-          placeholder="Cari nama, ID, atau email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-        />
-        <select
-          value={selectedBranch}
-          onChange={(e) => setSelectedBranch(e.target.value)}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-        >
-          <option value="all">Semua Cabang</option>
-          {branches.filter(b => b !== 'all').map(branch => (
-            <option key={branch} value={branch}>{branch}</option>
-          ))}
-        </select>
+    <div className="h-full bg-gray-50 dark:bg-gray-900 flex flex-col">
+      {/* Header */}
+      <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Manajemen Pengguna</h1>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                {stats.total} karyawan · {stats.withAccount} punya akun · {stats.withRole} punya role
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {selectedBranch === 'all' ? (
-        Object.entries(groupedUsers).map(([branch, branchUsers]) => (
-          <div key={branch} className="mb-4 sm:mb-6">
-            <h2
-              onClick={() => toggleBranch(branch)}
-              className="text-base sm:text-lg font-semibold mb-3 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 flex justify-between items-center transition-colors"
-            >
-              <span>{branch} ({branchUsers.length})</span>
-              <span className="text-gray-400">{collapsedBranches.has(branch) ? '▼' : '▲'}</span>
-            </h2>
-            {!collapsedBranches.has(branch) && (
-              <UserTable
-                users={branchUsers}
-                onView={(id) => navigate(`/users/${id}`)}
-                onEdit={(id) => navigate(`/users/edit/${id}`)}
-                onDelete={handleDelete}
-              />
+      {/* Search & Filter */}
+      <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-2.5">
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Cari nama, email, atau ID..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-9 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
-        ))
-      ) : (
-        <UserTable
-          users={paginatedUsers}
-          onView={(id) => navigate(`/users/${id}`)}
-          onEdit={(id) => navigate(`/users/edit/${id}`)}
-          onDelete={handleDelete}
-        />
-      )}
-
-      {selectedBranch !== 'all' && totalPages > 1 && (
-        <div className="mt-4 flex justify-center gap-2">
-          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 disabled:opacity-50">
-            Sebelumnya
+          <select
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            className="px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value="all">Semua Cabang</option>
+            {branches.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <button
+            onClick={() => setCollapsedBranches(new Set())}
+            className="px-2.5 py-1.5 text-[11px] border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Buka Semua
           </button>
-          <span className="px-3 py-1 text-gray-700 dark:text-gray-300">Halaman {currentPage} dari {totalPages}</span>
-          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 disabled:opacity-50">
-            Selanjutnya
+          <button
+            onClick={() => setCollapsedBranches(new Set(branches))}
+            className="px-2.5 py-1.5 text-[11px] border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Tutup Semua
           </button>
         </div>
-      )}
+      </div>
 
-      {/* Remove Role Confirm */}
+      {/* Content */}
+      <div className="flex-1 overflow-auto min-h-0 p-4 sm:p-6">
+        {loading ? (
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-12 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12">
+            <Users className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {search ? 'Tidak ditemukan' : 'Belum ada data'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {grouped.map(([branch, branchUsers]) => (
+              <div key={branch} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                {/* Branch header */}
+                <button
+                  onClick={() => toggleBranch(branch)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    {collapsedBranches.has(branch)
+                      ? <ChevronRight className="w-4 h-4 text-gray-400" />
+                      : <ChevronDown className="w-4 h-4 text-gray-400" />
+                    }
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{branch}</span>
+                    <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{branchUsers.length}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                    <span className="flex items-center gap-0.5"><UserCheck className="w-3 h-3 text-green-500" />{branchUsers.filter(u => u.has_account).length}</span>
+                    <span className="flex items-center gap-0.5"><UserX className="w-3 h-3 text-gray-400" />{branchUsers.filter(u => !u.has_account).length}</span>
+                  </div>
+                </button>
+
+                {/* Users table */}
+                {!collapsedBranches.has(branch) && (
+                  <div className="border-t border-gray-100 dark:border-gray-700">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50/50 dark:bg-gray-700/30">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-gray-400">Nama</th>
+                          <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">Email</th>
+                          <th className="px-4 py-2 text-center font-medium text-gray-500 dark:text-gray-400">Akun</th>
+                          <th className="px-4 py-2 text-center font-medium text-gray-500 dark:text-gray-400">Role</th>
+                          <th className="px-4 py-2 text-right font-medium text-gray-500 dark:text-gray-400">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                        {branchUsers.map(user => (
+                          <tr key={user.employee_id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
+                            <td className="px-4 py-2">
+                              <p className="font-medium text-gray-900 dark:text-white truncate">{user.full_name}</p>
+                              <p className="text-[10px] text-gray-400 truncate">{user.job_position}</p>
+                            </td>
+                            <td className="px-4 py-2 text-gray-500 dark:text-gray-400 truncate hidden sm:table-cell">{user.email || '—'}</td>
+                            <td className="px-4 py-2 text-center">
+                              {user.has_account ? (
+                                <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                                  <UserCheck className="w-3 h-3 text-green-600 dark:text-green-400" />
+                                </span>
+                              ) : (
+                                <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+                                  <UserX className="w-3 h-3 text-gray-400" />
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              {user.role_name ? (
+                                <span className="px-1.5 py-0.5 text-[10px] rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-medium">
+                                  {user.role_name}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-300 dark:text-gray-600">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              <div className="flex items-center justify-end gap-0.5">
+                                <button onClick={() => navigate(`/users/${user.employee_id}`)} className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors" title="Lihat">
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                {user.has_account && (
+                                  <button onClick={() => navigate(`/users/edit/${user.employee_id}`)} className="p-1 text-gray-400 hover:text-green-600 rounded transition-colors" title="Ubah">
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {user.has_account && user.role_id && (
+                                  <button onClick={() => setRemoveRoleTarget(user.employee_id)} className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors" title="Hapus Role">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <ConfirmModal
         isOpen={!!removeRoleTarget}
         onClose={() => setRemoveRoleTarget(null)}
         onConfirm={confirmRemoveRole}
         title="Hapus Role"
-        message="Hapus role dari karyawan ini?"
+        message="Hapus role dari karyawan ini? Karyawan tidak akan bisa login setelah role dihapus."
         confirmText="Hapus"
         variant="danger"
       />
