@@ -50,29 +50,74 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onRes
   const labelCls = "text-xs text-gray-500 dark:text-gray-400"
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-800 lg:border-l border-gray-200 dark:border-gray-700">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-800 lg:border-l border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        {/* Back button visible on mobile only */}
+      <div className="shrink-0 flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={onClose}
-          className="lg:hidden p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          className="lg:hidden p-1.5 -ml-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           aria-label="Back"
         >
-          <ArrowLeft className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          <ArrowLeft className="w-4 h-4 text-gray-500 dark:text-gray-400" />
         </button>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Employee Details</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Detail Karyawan</h2>
         <button
           onClick={onClose}
-          className="hidden lg:block p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          className="hidden lg:block p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           aria-label="Close"
         >
-          <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
         </button>
       </div>
 
+      {/* Actions toolbar */}
+      <div className="shrink-0 px-3 py-2 border-b border-gray-100 dark:border-gray-700 flex flex-wrap gap-1.5">
+        {!employee.deleted_at ? (
+          <>
+            <button
+              onClick={() => onEdit(employee.id)}
+              className="px-2.5 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-[11px] font-medium flex items-center gap-1"
+            >
+              <Edit className="w-3 h-3" />
+              Ubah
+            </button>
+            <button
+              onClick={() => onManageBranches(employee.id)}
+              className="px-2.5 py-1 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-[11px] font-medium flex items-center gap-1"
+            >
+              <Building2 className="w-3 h-3" />
+              Cabang
+            </button>
+            <button
+              onClick={() => onToggleActive(employee.id, employee.full_name, employee.is_active)}
+              className={`px-2.5 py-1 rounded-md transition-colors text-[11px] font-medium ${
+                employee.is_active
+                  ? 'border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                  : 'border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+              }`}
+            >
+              {employee.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+            </button>
+            <button
+              onClick={() => onDelete(employee.id, employee.full_name)}
+              className="px-2.5 py-1 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-[11px] font-medium flex items-center gap-1"
+            >
+              <Trash2 className="w-3 h-3" />
+              Hapus
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => onRestore(employee.id, employee.full_name)}
+            className="px-2.5 py-1 bg-blue-600 text-white text-[11px] rounded-md hover:bg-blue-700 transition-colors font-medium"
+          >
+            Pulihkan
+          </button>
+        )}
+      </div>
+
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto min-h-0 p-6">
         {/* Profile */}
         <div className="text-center mb-6">
           {employee.profile_picture ? (
@@ -198,53 +243,6 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onRes
             </div>
           )}
         </div>
-      </div>
-
-      {/* Actions */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-        {!employee.deleted_at ? (
-          <>
-            <button
-              onClick={() => onToggleActive(employee.id, employee.full_name, employee.is_active)}
-              className={`w-full px-4 py-2 rounded-lg transition-colors font-medium ${
-                employee.is_active
-                  ? 'bg-yellow-600 text-white hover:bg-yellow-700'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              {employee.is_active ? 'Deactivate' : 'Activate'} Employee
-            </button>
-            <button
-              onClick={() => onManageBranches(employee.id)}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Manage Branches
-            </button>
-            <div className="flex gap-2">
-              <button
-                onClick={() => onEdit(employee.id)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                <Edit className="w-4 h-4" />
-                Edit
-              </button>
-              <button
-                onClick={() => onDelete(employee.id, employee.full_name)}
-                className="flex-1 px-4 py-2 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </div>
-          </>
-        ) : (
-          <button
-            onClick={() => onRestore(employee.id, employee.full_name)}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Restore Employee
-          </button>
-        )}
       </div>
     </div>
   )

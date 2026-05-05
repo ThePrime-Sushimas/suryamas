@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useEmployeeStore } from '@/features/employees'
 import { employeesApi } from '../api/employees.api'
@@ -72,7 +72,7 @@ export default function EmployeesPage() {
     branch: '',
     position: '',
     status: '',
-    isActive: '',
+    isActive: 'true',
     includeDeleted: false
   })
 
@@ -94,8 +94,13 @@ export default function EmployeesPage() {
     isAllSelected
   } = useBulkSelection(employees)
 
-  // Debounce search
+  // Debounce search — skip initial render
+  const isInitialMount = useRef(true)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
     const timer = setTimeout(() => {
       setQuery(q => ({ ...q, search: searchInput, page: 1 }))
     }, 300)
@@ -103,7 +108,10 @@ export default function EmployeesPage() {
   }, [searchInput])
 
   // Init filter options once
+  const filterFetched = useRef(false)
   useEffect(() => {
+    if (filterFetched.current) return
+    filterFetched.current = true
     fetchFilterOptions()
   }, [fetchFilterOptions])
 
@@ -143,18 +151,20 @@ export default function EmployeesPage() {
   }, [success, fetchRecentJobs])
 
   // Declarative data fetch with abort
+  const queryKey = JSON.stringify(query)
   useEffect(() => {
     const controller = new AbortController()
     const filters = buildFilters(query)
     const hasFilters = Object.keys(filters).length > 0
 
-    if (query.search || hasFilters) {
+    if (hasFilters || query.search) {
       searchPage(query.search || '', query.page, query.limit, query.sort, query.order, filters, controller.signal)
     } else {
       fetchPage(query.page, query.limit, query.sort, query.order, controller.signal)
     }
     return () => controller.abort()
-  }, [query, buildFilters, searchPage, fetchPage])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryKey])
 
   // Auto-clear selection when page changes
   useEffect(() => {
@@ -321,42 +331,42 @@ export default function EmployeesPage() {
     [employees, selectedEmployeeId]
   )
 
-  const selectCls = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+  const selectCls = "w-full px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-xs"
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Users className="w-6 h-6 text-blue-600 shrink-0" />
+            <Users className="w-5 h-5 text-blue-600 shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">Employees</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{pagination?.total || 0} total</p>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate">Karyawan</h1>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">{pagination?.total || 0} total</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setShowImportModal(true)}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              <Upload size={16} />
-              <span className="hidden md:inline">Import</span>
+              <Upload size={14} />
+              <span className="hidden md:inline">Impor</span>
             </button>
             <button
               onClick={handleExport}
               disabled={isExporting}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
-              <Download size={16} />
-              <span className="hidden md:inline">{isExporting ? 'Exporting...' : 'Export'}</span>
+              <Download size={14} />
+              <span className="hidden md:inline">{isExporting ? 'Exporting...' : 'Ekspor'}</span>
             </button>
             <button
               onClick={() => navigate('/employees/create')}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Add Employee</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tambah</span>
             </button>
           </div>
         </div>
@@ -371,8 +381,8 @@ export default function EmployeesPage() {
               type="text"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              placeholder="Search employees..."
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              placeholder="Cari karyawan..."
+              className="w-full pl-9 pr-9 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
             {searchInput && (
               <button
@@ -402,21 +412,21 @@ export default function EmployeesPage() {
         {showFilter && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
             <select value={query.branch} onChange={e => handleFilterChange('branch', e.target.value)} className={selectCls}>
-              <option value="">All Branches</option>
+              <option value="">Semua Cabang</option>
               {filterOptions?.branches.map(b => <option key={b.id} value={b.branch_name}>{b.branch_name}</option>)}
             </select>
             <select value={query.position} onChange={e => handleFilterChange('position', e.target.value)} className={selectCls}>
-              <option value="">All Positions</option>
+              <option value="">Semua Posisi</option>
               {filterOptions?.positions.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             <select value={query.status} onChange={e => handleFilterChange('status', e.target.value)} className={selectCls}>
-              <option value="">All Status</option>
+              <option value="">Semua Status</option>
               {filterOptions?.statuses.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <select value={query.isActive} onChange={e => handleFilterChange('isActive', e.target.value)} className={selectCls}>
-              <option value="">All Active Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="">Semua</option>
+              <option value="true">Aktif</option>
+              <option value="false">Nonaktif</option>
             </select>
             <div className="col-span-2 lg:col-span-4 flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
               <input
@@ -426,8 +436,8 @@ export default function EmployeesPage() {
                 onChange={e => setQuery(q => ({ ...q, includeDeleted: e.target.checked, page: 1 }))}
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
-              <label htmlFor="includeDeleted" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                Show deleted employees
+              <label htmlFor="includeDeleted" className="text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                Tampilkan karyawan yang dihapus
               </label>
             </div>
           </div>
@@ -444,7 +454,7 @@ export default function EmployeesPage() {
       {/* Split View: list + detail */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* List Panel — full width on mobile, fixed width on lg+ */}
-        <div className={`w-full lg:w-96 flex flex-col bg-white dark:bg-gray-800 lg:border-r border-gray-200 dark:border-gray-700 ${
+        <div className={`w-full lg:w-[420px] flex flex-col bg-white dark:bg-gray-800 lg:border-r border-gray-200 dark:border-gray-700 ${
           selectedEmployeeId ? 'hidden lg:flex' : 'flex'
         }`}>
           {/* Select All Header */}
@@ -517,7 +527,7 @@ export default function EmployeesPage() {
         </div>
 
         {/* Detail Panel — overlay on mobile, side panel on lg+ */}
-        <div className={`absolute inset-0 lg:relative lg:inset-auto lg:flex-1 ${
+        <div className={`absolute inset-0 lg:relative lg:inset-auto lg:flex-1 lg:h-full ${
           selectedEmployeeId ? 'block' : 'hidden lg:block'
         }`}>
           {selectedEmployee ? (
@@ -533,8 +543,8 @@ export default function EmployeesPage() {
           ) : (
             <div className="h-full hidden lg:flex items-center justify-center text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800">
               <div className="text-center">
-                <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>Select an employee to view details</p>
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <p className="text-sm">Pilih karyawan untuk melihat detail</p>
               </div>
             </div>
           )}
