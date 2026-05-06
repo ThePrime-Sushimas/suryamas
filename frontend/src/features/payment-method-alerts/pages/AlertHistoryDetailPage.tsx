@@ -1,4 +1,4 @@
-import { ArrowLeft, Calendar, MessageSquare, TrendingUp, MapPin } from 'lucide-react'
+import { ArrowLeft, MessageSquare, TrendingUp, MapPin } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { useAlertHistoryDetail } from '../api/alerts'
 

@@ -145,7 +145,17 @@ async function sendTelegramMessage(chatId: string, text: string): Promise<void> 
     logWarn('TELEGRAM_BOT_TOKEN not set, skipping alert')
     return
   }
-  const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+  
+  // Validate chatId format (must be numeric or start with - for group chats)
+  if (!/^-?\d+$/.test(chatId)) {
+    throw new Error('Invalid Telegram chat ID format')
+  }
+  
+  // Use fixed Telegram API URL (not user-controlled)
+  const TELEGRAM_API_BASE = 'https://api.telegram.org'
+  const url = new URL(`/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, TELEGRAM_API_BASE)
+  
+  const res = await fetch(url.toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),

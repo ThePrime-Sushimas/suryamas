@@ -28,17 +28,15 @@ export function AlertForm({ isOpen, onClose, onSubmit, editingAlert, loading }: 
         telegram_chat_id: editingAlert.telegram_chat_id,
         is_active: editingAlert.is_active,
       })
-    } else {
-      // Only set default payment method if we have payment methods loaded
-      const defaultPaymentMethodId = paymentMethods.length > 0 ? paymentMethods[0].id : 0
+    } else if (isOpen) {
       setForm({
-        payment_method_id: defaultPaymentMethodId,
+        payment_method_id: paymentMethods.length > 0 ? paymentMethods[0].id : 0,
         threshold_amount: 0,
         telegram_chat_id: import.meta.env.VITE_TELEGRAM_CHAT_ID || '-5202987932',
         is_active: true,
       })
     }
-  }, [editingAlert, paymentMethods])
+  }, [editingAlert, isOpen])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

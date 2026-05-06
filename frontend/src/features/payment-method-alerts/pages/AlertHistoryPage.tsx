@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { History, Calendar, Filter, Eye, ArrowLeft } from 'lucide-react'
+import { History, Filter, Eye, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAlertHistory, usePaymentMethods } from '../api/alerts'
 import { Pagination } from '@/components/ui/Pagination'
@@ -209,9 +209,17 @@ export default function AlertHistoryPage() {
       {totalPages > 1 && (
         <div className="shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3">
           <Pagination
-            currentPage={filters.page || 1}
-            totalPages={totalPages}
+            pagination={{
+              page: filters.page || 1,
+              limit: filters.limit || 25,
+              total,
+              totalPages,
+              hasNext: (filters.page || 1) < totalPages,
+              hasPrev: (filters.page || 1) > 1,
+            }}
             onPageChange={handlePageChange}
+            currentLength={history.length}
+            loading={isLoading}
           />
         </div>
       )}
