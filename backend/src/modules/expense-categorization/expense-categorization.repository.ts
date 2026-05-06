@@ -179,12 +179,13 @@ export class ExpenseCategorizationRepository {
   }
   async getStatementsForJournal(statementIds: number[], companyId: string): Promise<Array<{
     id: number; transaction_date: string; description: string; debit_amount: number;
+    bank_account_id: number | null;
     purpose_id: string; purpose_code: string; purpose_name: string;
     debit_accounts: Array<{ account_id: string; account_code: string; account_name: string; priority: number }>;
     credit_accounts: Array<{ account_id: string; account_code: string; account_name: string; priority: number }>;
   }>> {
     const { rows } = await pool.query(
-      `SELECT bs.id, bs.transaction_date, bs.description, bs.debit_amount,
+      `SELECT bs.id, bs.transaction_date, bs.description, bs.debit_amount, bs.bank_account_id,
               bs.purpose_id, ap.purpose_code, ap.purpose_name
        FROM bank_statements bs
        JOIN accounting_purposes ap ON bs.purpose_id = ap.id
@@ -221,6 +222,29 @@ export class ExpenseCategorizationRepository {
         credit_accounts: pm.credit.map(m => ({ account_id: m.account_id, account_code: m.account_code, account_name: m.account_name, priority: m.priority })),
       }
     })
+  }
+
+  async getBankAccountCoaMap(bankAccountIds: number[], companyId: string): Promise<Map<number, string>> {
+    if (bankAccountIds.length === 0) return new Map()
+    const { rows } = await pool.query(
+      `SELECT ba.id, ba.coa_account_id FROM bank_accounts ba
+       JOIN chart_of_accounts coa ON coa.id = ba.coa_account_id
+       WHERE ba.id = ANY($1::int[]) AND coa.company_id = $2 AND ba.coa_account_id IS NOT NULL AND ba.deleted_at IS NULL`,
+      [bankAccountIds, companyId]
+    )
+    const map = new Map<number, string>()
+    for (const r of rows) map.set(r.id, r.coa_account_id)
+    return map
+  }
+
+  async getAllBankCoaIds(companyId: string): Promise<Set<string>> {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ba.coa_account_id FROM bank_accounts ba
+       JOIN chart_of_accounts coa ON coa.id = ba.coa_account_id
+       WHERE coa.company_id = $1 AND ba.coa_account_id IS NOT NULL AND ba.deleted_at IS NULL`,
+      [companyId]
+    )
+    return new Set(rows.map(r => r.coa_account_id))
   }
 
   async linkJournalToStatements(statementIds: number[], journalId: string, companyId: string): Promise<number> {

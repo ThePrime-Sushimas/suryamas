@@ -173,6 +173,13 @@ export class ExpenseCategorizationService {
       throw new MissingCoaMappingError(codes)
     }
 
+    // Auto-detect credit account: batch lookup bank COA mappings
+    const bankAccountIds = [...new Set(stmts.map(s => s.bank_account_id).filter((id): id is number => id !== null))]
+    const [bankCoaMap, allBankCoaIds] = await Promise.all([
+      expenseCategorizationRepository.getBankAccountCoaMap(bankAccountIds, companyId),
+      expenseCategorizationRepository.getAllBankCoaIds(companyId),
+    ])
+
     // Use provided date, or latest transaction date from selected statements
     const latestDate = stmts.reduce((max, s) => s.transaction_date > max ? s.transaction_date : max, stmts[0].transaction_date)
     const journalDate = options?.journal_date || latestDate
@@ -183,7 +190,16 @@ export class ExpenseCategorizationService {
     for (const stmt of stmts) {
       // Note: uses first account per side (priority=1). Multi-account per side is a known limitation.
       const debitAccount = stmt.debit_accounts[0]
-      const creditAccount = stmt.credit_accounts[0]
+      let creditAccount = stmt.credit_accounts[0]
+
+      // Override credit account if it's a bank account and statement has bank_account_id
+      if (stmt.bank_account_id && allBankCoaIds.has(creditAccount.account_id)) {
+        const overrideCoa = bankCoaMap.get(stmt.bank_account_id)
+        if (overrideCoa) {
+          creditAccount = { ...creditAccount, account_id: overrideCoa }
+        }
+      }
+
       const desc = `${stmt.purpose_name} — ${stmt.description.substring(0, 100)}`
 
       lineNum++
