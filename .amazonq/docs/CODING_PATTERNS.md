@@ -233,6 +233,89 @@ UNIQUE(company_id, {code_column})
 
 ---
 
+## Identifier Stability
+
+- JANGAN compare by `name` field (bisa di-rename user) — compare by `code` field
+- Contoh SALAH:
+  ```typescript
+  if (row.category_name === 'Makanan') totalFoodCogs += cogs
+  ```
+- Contoh BENAR:
+  ```typescript
+  if (row.category_code === 'FOOD') totalFoodCogs += cogs
+  ```
+- Kalau perlu display name, ambil dari DB tapi compare/branch logic pakai code
+- Ini berlaku untuk: category, group, status, type — semua yang punya code + name pair
+
+---
+
+## Dynamic Import Anti-Pattern
+
+- DILARANG: `await (await import('...')).pool.query(...)` di dalam method
+- WAJIB: static import di top of file
+- Contoh SALAH:
+  ```typescript
+  const { rows } = await (await import('../../../config/db')).pool.query(...)
+  ```
+- Contoh BENAR:
+  ```typescript
+  import { pool } from '../../../config/db'
+  // ...
+  const { rows } = await pool.query(...)
+  ```
+- Exception: lazy initialization pattern untuk external services (S3, etc) — documented di Basic.md
+
+---
+
+## Supersede Pattern (untuk re-calculation)
+
+- Kalau modul support re-calculate (COGS, reconciliation, dll):
+  1. Check existing record untuk period/scope yang sama
+  2. Buat record baru
+  3. Set `existing.superseded_by = new.id`
+  4. Void jurnal lama jika ada
+- JANGAN delete record lama — history harus tersimpan
+- List query WAJIB filter `superseded_by IS NULL` untuk hide old records
+
+---
+
+## Fiscal Period Guard
+
+- Semua operasi yang generate jurnal WAJIB check fiscal period is open
+- Pattern:
+  ```typescript
+  const isOpen = await pool.query(
+    `SELECT id FROM fiscal_periods
+     WHERE company_id = $1 AND is_open = true
+       AND period_start <= $2::date AND period_end >= $3::date
+     LIMIT 1`,
+    [companyId, dateStart, dateEnd]
+  )
+  if (isOpen.rows.length === 0) throw new PeriodNotOpenError()
+  ```
+- Ini berlaku untuk: COGS finalize, expense categorization generate journal, manual journal entry
+
+---
+
+## PostgreSQL Array with Nullable Elements
+
+- `unnest($1::uuid[])` dengan null elements bisa error atau produce unexpected results
+- Untuk batch INSERT dengan nullable UUID columns, gunakan VALUES list pattern:
+  ```typescript
+  const valueRows: string[] = []
+  const params: unknown[] = []
+  let idx = 1
+  for (const item of items) {
+    valueRows.push(`($${idx}, $${idx+1}, ...)`)
+    params.push(item.id, item.nullable_field, ...)
+    idx += N
+  }
+  await pool.query(`INSERT INTO ... VALUES ${valueRows.join(', ')}`, params)
+  ```
+- Atau gunakan unnest HANYA untuk non-nullable columns
+
+---
+
 ## Generated Columns
 
 - Gunakan `GENERATED ALWAYS AS (...) STORED` untuk kalkulasi yang derivatif (percentage, line_cost, dll)

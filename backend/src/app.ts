@@ -57,6 +57,7 @@ import menuGroupsRoutes from "./modules/food-production/menu-groups/menu-groups.
 import menusRoutes from "./modules/food-production/menus/menus.routes";
 import wipRoutes from "./modules/food-production/wip/wip.routes";
 import recipesRoutes from "./modules/food-production/recipes/recipes.routes";
+import cogsRoutes from "./modules/food-production/cogs/cogs.routes";
 import dashboardHrdRoutes from "./modules/dashboard/dashboard-hrd.routes";
 import { pool } from "./config/db";
 
@@ -150,6 +151,7 @@ app.use("/api/v1/menu-groups", menuGroupsRoutes);
 app.use("/api/v1/menus", menusRoutes);
 app.use("/api/v1/wip-items", wipRoutes);
 app.use("/api/v1/recipes", recipesRoutes);
+app.use("/api/v1/cogs", cogsRoutes);
 app.use("/api/v1/dashboard", dashboardHrdRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
 
