@@ -2,6 +2,7 @@ import { wipRepository } from './wip.repository'
 import { WipItemNotFoundError, WipItemDuplicateError, WipItemInUseError } from './wip.errors'
 import { AuditService } from '../../monitoring/monitoring.service'
 import { isPostgresError } from '../../../utils/postgres-error.util'
+import { recipesService } from '../recipes/recipes.service'
 import type { CreateWipItemDto, UpdateWipItemDto, WipItem, WipItemWithIngredients } from './wip.types'
 
 export class WipService {
@@ -44,6 +45,16 @@ export class WipService {
     if (!updated) throw new WipItemNotFoundError(id)
 
     await AuditService.log('UPDATE', 'wip_item', id, userId, existing, updated)
+
+    // Auto-propagate cost to recipe_lines → menus if yield_qty or ingredients changed
+    // NOTE: This runs in a separate transaction from the WIP update above.
+    // If propagation fails, WIP is updated but menus may be stale — acceptable trade-off,
+    // can be retried via POST /recipes/recalculate/wip/:wipId
+    const costChanged = (dto.yield_qty !== undefined && dto.yield_qty !== Number(existing.yield_qty)) || dto.ingredients !== undefined
+    if (costChanged) {
+      await recipesService.recalculateCostFromWip(id, companyId, userId)
+    }
+
     return updated
   }
 
