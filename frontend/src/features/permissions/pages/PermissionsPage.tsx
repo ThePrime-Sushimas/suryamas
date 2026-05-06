@@ -78,7 +78,6 @@ export default function PermissionsPage() {
     filteredModules.forEach(m => updatePermissionLocal(m.id, field, value))
   }
 
-  const selectedRoleName = roles.find(r => r.id === selectedRole)?.name || ''
 
   return (
     <div className="h-full bg-gray-50 dark:bg-gray-900 flex flex-col">
