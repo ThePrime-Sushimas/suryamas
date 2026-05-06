@@ -206,11 +206,11 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {/* Header Fields - Single Row */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
             Branch <span className="text-red-500">*</span>
           </label>
           <select
@@ -218,7 +218,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
             onChange={(e) => setBranchId(e.target.value)}
             disabled={!!initialData}
             required
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
           >
             {companyBranches.map(b => (
               <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>
@@ -227,7 +227,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
             Tanggal <span className="text-red-500">*</span>
           </label>
           <input
@@ -235,12 +235,12 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
             value={journalDate}
             onChange={(e) => setJournalDate(e.target.value)}
             required
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
             Tipe <span className="text-red-500">*</span>
           </label>
           <select
@@ -248,7 +248,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
             onChange={(e) => setJournalType(e.target.value as JournalType)}
             disabled={!!initialData}
             required
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
           >
             {Object.values(JOURNAL_TYPES).map((type) => (
               <option key={type} value={type}>{type}</option>
@@ -257,7 +257,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
             Deskripsi <span className="text-red-500">*</span>
           </label>
           <input
@@ -266,23 +266,23 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
             onChange={(e) => setDescription(e.target.value)}
             required
             placeholder="Masukkan deskripsi jurnal"
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
           />
         </div>
       </div>
 
       {/* Lines Table */}
       <div>
-        <div className="flex justify-between items-center mb-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <div className="flex justify-between items-center mb-2">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
             Baris Jurnal <span className="text-red-500">*</span>
           </label>
           <button
             type="button"
             onClick={handleAddLine}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors font-medium"
           >
-            <Plus size={16} />
+            <Plus size={14} />
             Tambah Baris
           </button>
         </div>
@@ -294,16 +294,16 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
           formatCurrency={formatCurrency}
         />
 
-        <div className="mt-4">
+        <div className="mt-3">
           <BalanceIndicator balance={balance} />
         </div>
       </div>
 
       {/* Validation Errors */}
       {errors.length > 0 && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="font-medium text-red-800 dark:text-red-300 mb-2">Harap perbaiki kesalahan berikut:</p>
-          <ul className="list-disc list-inside text-red-700 dark:text-red-400 space-y-1">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+          <p className="font-medium text-xs text-red-800 dark:text-red-300 mb-1.5">Harap perbaiki kesalahan berikut:</p>
+          <ul className="list-disc list-inside text-xs text-red-700 dark:text-red-400 space-y-0.5">
             {errors.map((error, i) => (
               <li key={i}>{error}</li>
             ))}
@@ -312,27 +312,27 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
       )}
 
       {/* Actions */}
-      <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
         <button
           type="button"
           onClick={onCancel}
           disabled={isSubmitting}
-          className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors font-medium"
         >
           Batal
         </button>
         <button
           type="submit"
           disabled={isSubmitting || balance.total_debit !== balance.total_credit}
-          className="px-5 py-2.5 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+          className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-sm text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm font-medium"
         >
           {isSubmitting ? 'Menyimpan...' : initialData ? 'Update Jurnal' : 'Buat Jurnal'}
         </button>
       </div>
       
       {/* Keyboard Shortcuts Hint */}
-      <div className="text-xs text-gray-500 dark:text-gray-400 text-center bg-gray-50 dark:bg-gray-800/50 rounded-lg py-2 px-4">
-        <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300 font-mono text-xs">Ctrl+Enter</kbd> untuk submit, <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300 font-mono text-xs">Esc</kbd> untuk cancel
+      <div className="text-[10px] text-gray-500 dark:text-gray-400 text-center bg-gray-50 dark:bg-gray-800/50 rounded-md py-1.5 px-3">
+        <kbd className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300 font-mono text-[10px]">Ctrl+Enter</kbd> untuk submit, <kbd className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300 font-mono text-[10px]">Esc</kbd> untuk cancel
       </div>
 
       {/* Delete Line Confirmation Modal */}
