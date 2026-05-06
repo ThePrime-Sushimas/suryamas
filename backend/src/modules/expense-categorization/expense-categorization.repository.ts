@@ -150,9 +150,13 @@ export class ExpenseCategorizationRepository {
     return rowCount ?? 0
   }
 
-  async getUncategorizedForAutoMatch(companyId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string }): Promise<Array<{ id: number; description: string }>> {
-    const conditions = ['company_id = $1', 'debit_amount > 0', 'purpose_id IS NULL', 'journal_id IS NULL', 'deleted_at IS NULL']
+  async getUncategorizedForAutoMatch(companyId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string; include_categorized?: boolean }): Promise<Array<{ id: number; description: string }>> {
+    const conditions = ['company_id = $1', 'debit_amount > 0', 'journal_id IS NULL', 'deleted_at IS NULL']
     const params: unknown[] = [companyId]
+
+    if (!filters?.include_categorized) {
+      conditions.push('purpose_id IS NULL')
+    }
 
     if (filters?.bank_account_id) {
       params.push(filters.bank_account_id)

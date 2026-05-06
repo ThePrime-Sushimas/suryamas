@@ -71,7 +71,7 @@ export const useDeleteRule = () => {
 export const useAutoCategorize = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { bank_account_id?: number; date_from?: string; date_to?: string; dry_run?: boolean }) => {
+    mutationFn: async (body: { bank_account_id?: number; date_from?: string; date_to?: string; dry_run?: boolean; include_categorized?: boolean }) => {
       const { data } = await api.post('/expense-categorization/auto', body)
       return data.data as CategorizeResult
     },

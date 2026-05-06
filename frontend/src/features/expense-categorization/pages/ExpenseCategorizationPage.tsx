@@ -64,6 +64,7 @@ export default function ExpenseCategorizationPage() {
   // Auto-categorize preview
   const [previewResult, setPreviewResult] = useState<CategorizeResult | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [includeCategorized, setIncludeCategorized] = useState(false)
 
   // Rule form (create + edit)
   const [showRuleForm, setShowRuleForm] = useState(false)
@@ -147,14 +148,14 @@ export default function ExpenseCategorizationPage() {
 
   const handleAutoPreview = async () => {
     try {
-      const result = await autoCategorize.mutateAsync({ dry_run: true })
+      const result = await autoCategorize.mutateAsync({ dry_run: true, include_categorized: includeCategorized })
       setPreviewResult(result); setShowPreview(true)
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal preview')) }
   }
 
   const handleAutoConfirm = async () => {
     try {
-      const result = await autoCategorize.mutateAsync({ dry_run: false })
+      const result = await autoCategorize.mutateAsync({ dry_run: false, include_categorized: includeCategorized })
       toast.success(`${result.categorized} transaksi berhasil dikategorikan`)
       setShowPreview(false); setPreviewResult(null); setSelectedIds(new Set())
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal auto-categorize')) }
@@ -268,6 +269,11 @@ export default function ExpenseCategorizationPage() {
               className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-40">
               <Zap className={`w-3.5 h-3.5 ${autoCategorize.isPending ? 'animate-spin' : ''}`} /> Auto Categorize
             </button>
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+              <input type="checkbox" checked={includeCategorized} onChange={e => setIncludeCategorized(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-violet-600" />
+              Re-categorize
+            </label>
             {selectedIds.size > 0 && (
               <>
                 <div className="w-px h-6 bg-gray-200 dark:bg-gray-700" />

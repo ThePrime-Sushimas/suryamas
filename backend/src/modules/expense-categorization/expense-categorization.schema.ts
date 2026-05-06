@@ -43,6 +43,7 @@ export const autoCategorizeSchema = z.object({
     date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     dry_run: z.boolean().default(false),
+    include_categorized: z.boolean().default(false),
   }),
 })
 

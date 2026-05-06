@@ -60,7 +60,7 @@ export class ExpenseCategorizationService {
 
   // ── Auto-categorize engine ──
 
-  async autoCategorize(companyId: string, userId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string; dry_run?: boolean }): Promise<CategorizeResult> {
+  async autoCategorize(companyId: string, userId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string; dry_run?: boolean; include_categorized?: boolean }): Promise<CategorizeResult> {
     const rules = await expenseCategorizationRepository.getActiveRules(companyId)
     if (rules.length === 0) return { categorized: 0, skipped: 0, details: [] }
 
