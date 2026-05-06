@@ -87,8 +87,9 @@ export class PaymentMethodAlertsRepository {
         SUM(at.nett_amount)::numeric AS daily_total
        FROM aggregated_transactions at
        JOIN payment_methods pm ON pm.id = at.payment_method_id
+       JOIN branches b ON b.id = at.branch_id
        WHERE at.transaction_date = $1
-         AND at.company_id = $2
+         AND b.company_id = $2
          AND at.deleted_at IS NULL
          AND at.superseded_by IS NULL
          AND at.status != 'FAILED'

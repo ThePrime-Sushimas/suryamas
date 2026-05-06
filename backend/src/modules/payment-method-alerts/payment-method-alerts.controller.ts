@@ -67,6 +67,21 @@ class PaymentMethodAlertsController {
     }
   }
 
+  async debugCheckAlerts(req: Request, res: Response) {
+    try {
+      const companyId = req.context?.company_id
+      if (!companyId) { res.status(400).json({ success: false, message: 'Context required' }); return }
+      const salesDate = req.query.date as string || new Date().toISOString().split('T')[0]
+      
+      console.log('🐛 DEBUG: Manual alert check', { companyId, salesDate })
+      await paymentMethodAlertsService.checkAlerts(companyId, salesDate)
+      
+      sendSuccess(res, { companyId, salesDate }, 'Alert check completed')
+    } catch (error) {
+      await handleError(res, error, req, { action: 'debug_check_alerts' })
+    }
+  }
+
   async getHistory(req: Request, res: Response) {
     try {
       const companyId = req.context?.company_id

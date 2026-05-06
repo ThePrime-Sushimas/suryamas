@@ -842,6 +842,7 @@ export class BankStatementImportRepository {
 
   /**
    * Replace existing PEND records that match with settled rows
+   * ✅ FIXED: Properly delete PEND records after creating settled versions
    */
   async replacePendingWithSettled(
     companyId: string,
@@ -899,11 +900,13 @@ export class BankStatementImportRepository {
 
         for (const pend of matchedPends) {
           if (!pend.is_reconciled) {
+            // ✅ Kasus A: PEND belum reconciled → langsung hapus
             await client.query("DELETE FROM bank_statements WHERE id = $1", [
               pend.id,
             ]);
             replacedCount++;
           } else {
+            // ✅ Kasus B: PEND sudah reconciled → buat settled version, lalu hapus PEND
             await client.query(
               `INSERT INTO bank_statements (
                 company_id, bank_account_id, transaction_date, transaction_time, reference_number, 
@@ -924,8 +927,8 @@ export class BankStatementImportRepository {
                 row.import_id || null,
                 row.row_number || null,
                 row.source_file || null,
-                false,
-                true,
+                false, // is_pending = false (settled)
+                true,  // is_reconciled = true (inherit from PEND)
                 pend.reconciliation_id || null,
                 pend.reconciliation_group_id || null,
                 pend.payment_method_id || null,
@@ -933,10 +936,12 @@ export class BankStatementImportRepository {
               ],
             );
 
+            // ✅ FIXED: Hapus PEND record setelah membuat settled version
             await client.query(
-              "UPDATE bank_statements SET is_pending = false, updated_at = $1 WHERE id = $2",
-              [new Date().toISOString(), pend.id],
+              "DELETE FROM bank_statements WHERE id = $1",
+              [pend.id]
             );
+            
             handledSettledKeys.add(
               `${row.transaction_date}-${row.debit_amount}-${row.credit_amount}`,
             );

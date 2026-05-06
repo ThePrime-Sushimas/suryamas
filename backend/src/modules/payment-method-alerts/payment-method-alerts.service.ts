@@ -60,10 +60,16 @@ export class PaymentMethodAlertsService {
    */
   async checkAlerts(companyId: string, salesDate: string): Promise<void> {
     const alerts = await paymentMethodAlertsRepository.findActiveByCompany(companyId)
-    if (alerts.length === 0) return
+    
+    if (alerts.length === 0) {
+      return
+    }
 
     const totals = await paymentMethodAlertsRepository.getDailyTotals(companyId, salesDate)
-    if (totals.length === 0) return
+    
+    if (totals.length === 0) {
+      return
+    }
 
     // Aggregate per payment_method
     const pmMap = new Map<number, { name: string; total: number; branches: Array<{ branch_name: string; amount: number }> }>()
@@ -73,18 +79,25 @@ export class PaymentMethodAlertsService {
       }
       const entry = pmMap.get(t.payment_method_id)!
       entry.total += t.daily_total
-      entry.branches.push({ branch_name: t.branch_name, amount: t.daily_total })  // Fix: gunakan branch_name
+      entry.branches.push({ branch_name: t.branch_name, amount: t.daily_total })
     }
 
     for (const alert of alerts) {
       const pmData = pmMap.get(alert.payment_method_id)
-      if (!pmData) continue
+      if (!pmData) {
+        continue
+      }
 
       const currentTotal = pmData.total
-      if (currentTotal < alert.threshold_amount) continue
+
+      if (currentTotal < alert.threshold_amount) {
+        continue
+      }
 
       // Skip if already alerted for this amount level today
-      if (alert.last_triggered_date === salesDate && currentTotal <= Number(alert.last_triggered_amount)) continue
+      if (alert.last_triggered_date === salesDate && currentTotal <= Number(alert.last_triggered_amount)) {
+        continue
+      }
 
       // Send alert
       const branchLines = pmData.branches
@@ -120,8 +133,6 @@ export class PaymentMethodAlertsService {
           branch_breakdown: pmData.branches,
           telegram_chat_id: alert.telegram_chat_id
         })
-        
-        logInfo('Payment method alert sent', { alert_id: alert.id, payment_method: pmData.name, total: currentTotal, threshold: alert.threshold_amount })
       } catch (err) {
         logError('Failed to send payment method alert', { alert_id: alert.id, error: err })
       }

@@ -140,7 +140,11 @@ export const aggregateService = {
 
     // Check payment method threshold alerts (fire-and-forget)
     pool.query(
-      `SELECT DISTINCT company_id FROM aggregated_transactions WHERE transaction_date = $1 AND deleted_at IS NULL LIMIT 1`,
+      `SELECT DISTINCT b.company_id 
+       FROM aggregated_transactions at 
+       JOIN branches b ON b.id = at.branch_id 
+       WHERE at.transaction_date = $1 AND at.deleted_at IS NULL 
+       LIMIT 1`,
       [salesDate]
     ).then(({ rows }) => {
       if (rows[0]?.company_id) {

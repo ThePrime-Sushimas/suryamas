@@ -17,5 +17,6 @@ router.post('/', canInsert('payment_method_alerts'), validateSchema(createAlertS
 router.put('/:id', canUpdate('payment_method_alerts'), validateSchema(updateAlertSchema), (req, res) => paymentMethodAlertsController.update(req, res))
 router.delete('/:id', canDelete('payment_method_alerts'), validateSchema(alertIdSchema), (req, res) => paymentMethodAlertsController.delete(req, res))
 router.post('/test/:id', canUpdate('payment_method_alerts'), validateSchema(alertIdSchema), (req, res) => paymentMethodAlertsController.test(req, res))
+router.post('/debug/check-alerts', canView('payment_method_alerts'), (req, res) => paymentMethodAlertsController.debugCheckAlerts(req, res))
 
 export default router

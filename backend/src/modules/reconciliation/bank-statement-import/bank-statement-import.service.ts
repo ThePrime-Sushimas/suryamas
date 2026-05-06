@@ -1909,6 +1909,7 @@ export class BankStatementImportService {
 
   /**
    * Parse single BCA Personal row
+   * ✅ FIXED: Better PEND handling + amount parsing
    */
   private parseBCAPersonalRow(
     columns: string[],
@@ -1928,18 +1929,30 @@ export class BankStatementImportService {
 
       const transactionDate = this.parseDate(dateValue);
       if (!transactionDate) {
-        // Check if it's pending (PEND)
-        if (dateValue.toUpperCase().startsWith("PEND")) {
+        // ✅ IMPROVED: Better PEND detection for BCA Personal
+        if (dateValue.toUpperCase().startsWith("PEND") || dateValue.toUpperCase().includes("PEND")) {
           // Coba extract tanggal dari description
           const extractedDate = this.extractDateFromDescription(description);
           const resolvedDate = extractedDate || new Date().toISOString().split("T")[0];
 
           let debitAmountPend = 0;
           let creditAmountPend = 0;
+          
+          // ✅ IMPROVED: Better amount parsing for PEND rows
           const amountNumPend = parseFloat(amountRaw.replace(/[,\s]/g, ""));
-          if (!isNaN(amountNumPend)) {
-            if (creditDebit === "CR") creditAmountPend = amountNumPend;
-            else if (creditDebit === "DB") debitAmountPend = amountNumPend;
+          if (!isNaN(amountNumPend) && amountNumPend > 0) {
+            if (creditDebit === "CR") {
+              creditAmountPend = amountNumPend;
+            } else if (creditDebit === "DB") {
+              debitAmountPend = amountNumPend;
+            } else {
+              // ✅ FALLBACK: If no CR/DB indicator, try to detect from description
+              if (description.toLowerCase().includes('transfer') || description.toLowerCase().includes('trsf')) {
+                debitAmountPend = amountNumPend; // Most transfers are debit
+              } else {
+                creditAmountPend = amountNumPend; // Default to credit
+              }
+            }
           }
 
           const balance = this.parseAmount(balanceRaw);
@@ -1956,7 +1969,12 @@ export class BankStatementImportService {
             balance: balance || undefined,
             is_pending: true,
             transaction_type: PENDING_TRANSACTION.TRANSACTION_TYPE,
-            raw_data: { columns, extractedDateFrom: extractedDate ? 'description' : 'fallback' },
+            raw_data: { 
+              columns, 
+              extractedDateFrom: extractedDate ? 'description' : 'fallback',
+              originalDateValue: dateValue,
+              creditDebitIndicator: creditDebit
+            },
           };
         }
         return null;
@@ -1967,14 +1985,21 @@ export class BankStatementImportService {
 
       const amountNum = parseFloat(amountRaw.replace(/[,\s]/g, ""));
 
-      // Use DB/CR indicator if available
-      if (creditDebit === "CR") {
-        creditAmount = amountNum;
-      } else if (creditDebit === "DB") {
-        debitAmount = amountNum;
-      } else {
-        // Fallback: check amount sign or description?
-        // Usually BCA Personal has explicit column
+      // ✅ IMPROVED: Better amount parsing for settled transactions
+      if (!isNaN(amountNum) && amountNum > 0) {
+        // Use DB/CR indicator if available
+        if (creditDebit === "CR") {
+          creditAmount = amountNum;
+        } else if (creditDebit === "DB") {
+          debitAmount = amountNum;
+        } else {
+          // ✅ FALLBACK: If no indicator, try to infer from description or default to credit
+          if (description.toLowerCase().includes('transfer') || description.toLowerCase().includes('trsf')) {
+            debitAmount = amountNum;
+          } else {
+            creditAmount = amountNum; // Default assumption for BCA Personal
+          }
+        }
       }
 
       const balance = this.parseAmount(balanceRaw);
@@ -1990,9 +2015,19 @@ export class BankStatementImportService {
         credit_amount: creditAmount,
         balance: balance || undefined,
         is_pending: false,
-        raw_data: { columns, branch },
+        raw_data: { 
+          columns, 
+          branch, 
+          creditDebitIndicator: creditDebit,
+          originalAmountRaw: amountRaw
+        },
       };
     } catch (e: any) {
+      logError("BankStatementImport: Error parsing BCA Personal row", {
+        rowNumber,
+        columns: columns.slice(0, 6), // Log first 6 columns for debugging
+        error: e.message,
+      });
       return null;
     }
   }
