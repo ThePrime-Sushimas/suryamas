@@ -118,9 +118,9 @@ export const AccountingPurposeForm = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">System Purpose</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Purpose Sistem</h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            This is a system-defined accounting purpose and cannot be modified.
+            Ini adalah purpose yang didefinisikan sistem dan tidak bisa diubah.
           </p>
           {onCancel && (
             <button
@@ -128,7 +128,7 @@ export const AccountingPurposeForm = ({
               onClick={onCancel}
               className="bg-gray-600 dark:bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
             >
-              Back to List
+              Kembali
             </button>
           )}
         </div>
@@ -141,7 +141,7 @@ export const AccountingPurposeForm = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="purpose_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Purpose Code *
+            Kode Purpose *
           </label>
           <input
             id="purpose_code"
@@ -153,11 +153,11 @@ export const AccountingPurposeForm = ({
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isEdit || isLoading}
             maxLength={50}
-            placeholder="e.g., SALES_INVOICE"
+            placeholder="cth: SALES_INVOICE"
             aria-invalid={!!errors.purpose_code}
           />
           {isEdit && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Purpose code cannot be changed</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Kode purpose tidak bisa diubah</p>
           )}
           {errors.purpose_code && (
             <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.purpose_code}</p>
@@ -166,7 +166,7 @@ export const AccountingPurposeForm = ({
 
         <div>
           <label htmlFor="purpose_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Purpose Name *
+            Nama Purpose *
           </label>
           <input
             id="purpose_name"
@@ -178,7 +178,7 @@ export const AccountingPurposeForm = ({
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             disabled={isLoading}
             maxLength={255}
-            placeholder="e.g., Sales Invoice"
+            placeholder="cth: Invoice Penjualan"
             aria-invalid={!!errors.purpose_name}
           />
           {errors.purpose_name && (
@@ -190,7 +190,7 @@ export const AccountingPurposeForm = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="applied_to" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Applied To *
+            Diterapkan Pada *
           </label>
           <select
             id="applied_to"
@@ -209,7 +209,7 @@ export const AccountingPurposeForm = ({
             ))}
           </select>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Defines which type of transactions this purpose applies to
+            Menentukan tipe transaksi yang menggunakan purpose ini
           </p>
           {errors.applied_to && (
             <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.applied_to}</p>
@@ -219,7 +219,7 @@ export const AccountingPurposeForm = ({
 
       <div>
         <label htmlFor="branch_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Branch
+          Cabang
         </label>
         <select
           id="branch_id"
@@ -231,7 +231,7 @@ export const AccountingPurposeForm = ({
           disabled={isLoading || loadingBranches}
           aria-invalid={!!errors.branch_id}
         >
-          <option value="">All Branches</option>
+          <option value="">Semua Cabang</option>
           {branches.map(branch => (
             <option key={branch.id} value={branch.id}>
               {branch.branch_name}
@@ -239,7 +239,7 @@ export const AccountingPurposeForm = ({
           ))}
         </select>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Leave empty to apply to all branches, or select a specific branch
+          Kosongkan untuk berlaku di semua cabang, atau pilih cabang tertentu
         </p>
         {errors.branch_id && (
           <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.branch_id}</p>
@@ -248,7 +248,7 @@ export const AccountingPurposeForm = ({
 
       <div>
         <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Description
+          Deskripsi
         </label>
         <textarea
           id="description"
@@ -260,7 +260,7 @@ export const AccountingPurposeForm = ({
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           disabled={isLoading}
           maxLength={500}
-          placeholder="Optional description for this accounting purpose..."
+          placeholder="Deskripsi opsional untuk purpose ini..."
         />
         {errors.description && (
           <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.description}</p>
@@ -278,10 +278,10 @@ export const AccountingPurposeForm = ({
             className="mr-2 w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-white dark:bg-gray-700"
             disabled={isLoading}
           />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Aktif</span>
         </label>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
-          Only active purposes can be used in transactions
+          Hanya purpose aktif yang bisa digunakan dalam transaksi
         </p>
       </div>
 
@@ -293,7 +293,7 @@ export const AccountingPurposeForm = ({
             disabled={isLoading}
             className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
           >
-            Cancel
+            Batal
           </button>
         )}
         <button
@@ -301,7 +301,7 @@ export const AccountingPurposeForm = ({
           disabled={isLoading || Object.keys(errors).length > 0}
           className="flex-1 bg-blue-600 dark:bg-blue-700 text-white py-2 px-4 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {isLoading ? 'Saving...' : isEdit ? 'Update Purpose' : 'Create Purpose'}
+          {isLoading ? 'Menyimpan...' : isEdit ? 'Update Purpose' : 'Buat Purpose'}
         </button>
       </div>
     </form>

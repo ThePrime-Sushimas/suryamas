@@ -102,8 +102,8 @@ export const AccountingPurposesListPage = ({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Accounting Purposes</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Manage accounting purpose codes for transactions</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Tujuan Akuntansi</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Kelola kode tujuan akuntansi untuk transaksi</p>
             </div>
           </div>
           
@@ -113,7 +113,7 @@ export const AccountingPurposesListPage = ({
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              New Purpose
+              Tambah Purpose
             </button>
           </div>
         </div>
@@ -149,7 +149,7 @@ export const AccountingPurposesListPage = ({
         {selectedIds.length > 0 && (
           <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 flex items-center justify-between">
             <span className="text-sm text-blue-800 dark:text-blue-300">
-              {selectedIds.length} item(s) selected
+              {selectedIds.length} item dipilih
             </span>
             <div className="flex gap-2">
               {hasDeletedSelected ? (
@@ -158,7 +158,7 @@ export const AccountingPurposesListPage = ({
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-800"
                 >
                   <RotateCcw size={16} />
-                  Restore Selected
+                  Pulihkan Terpilih
                 </button>
               ) : (
                 <button
@@ -166,14 +166,14 @@ export const AccountingPurposesListPage = ({
                   className="flex items-center gap-2 px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800"
                 >
                   <Trash2 size={16} />
-                  Delete Selected
+                  Hapus Terpilih
                 </button>
               )}
               <button
                 onClick={clearSelection}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
               >
-                Clear
+                Batal
               </button>
             </div>
           </div>
@@ -217,9 +217,9 @@ export const AccountingPurposesListPage = ({
         isOpen={showBulkDeleteConfirm}
         onClose={() => setShowBulkDeleteConfirm(false)}
         onConfirm={handleBulkDelete}
-        title="Confirm Bulk Delete"
-        message={`Are you sure you want to delete ${selectedIds.length} item(s)?`}
-        confirmText={isBulkProcessing ? 'Deleting...' : 'Delete'}
+        title="Konfirmasi Hapus"
+        message={`Yakin ingin menghapus ${selectedIds.length} item?`}
+        confirmText={isBulkProcessing ? 'Menghapus...' : 'Hapus'}
         variant="danger"
         isLoading={isBulkProcessing}
       />
@@ -229,9 +229,9 @@ export const AccountingPurposesListPage = ({
         isOpen={showBulkRestoreConfirm}
         onClose={() => setShowBulkRestoreConfirm(false)}
         onConfirm={handleBulkRestore}
-        title="Confirm Bulk Restore"
-        message={`Are you sure you want to restore ${selectedIds.length} item(s)?`}
-        confirmText={isBulkProcessing ? 'Restoring...' : 'Restore'}
+        title="Konfirmasi Pulihkan"
+        message={`Yakin ingin memulihkan ${selectedIds.length} item?`}
+        confirmText={isBulkProcessing ? 'Memulihkan...' : 'Pulihkan'}
         variant="success"
         isLoading={isBulkProcessing}
       />

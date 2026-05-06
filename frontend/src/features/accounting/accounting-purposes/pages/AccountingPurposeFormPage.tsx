@@ -30,8 +30,8 @@ export const AccountingPurposeFormPage = ({
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Company Selected</h2>
-          <p className="text-gray-600 dark:text-gray-400">Please select a branch to continue.</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Belum Ada Perusahaan</h2>
+          <p className="text-gray-600 dark:text-gray-400">Silakan pilih cabang untuk melanjutkan.</p>
         </div>
       </div>
     )
@@ -72,12 +72,12 @@ export const AccountingPurposeFormPage = ({
         </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isEdit ? 'Edit Accounting Purpose' : 'Create New Accounting Purpose'}
+            {isEdit ? 'Edit Purpose' : 'Buat Purpose Baru'}
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
             {isEdit 
-              ? 'Update the accounting purpose details' 
-              : 'Add a new accounting purpose for transactions'
+              ? 'Ubah detail tujuan akuntansi' 
+              : 'Tambah tujuan akuntansi baru untuk transaksi'
             }
           </p>
         </div>

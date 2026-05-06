@@ -25,14 +25,14 @@ export const MAX_BULK_OPERATIONS = 100
 export const MAX_PRIORITY = 999
 
 export const FIELD_MAPPING_OPTIONS = [
-  { value: 'gross_revenue', label: 'Gross Revenue (Sales)' },
-  { value: 'tax_payable', label: 'Tax Payable (PB1/PPN)' },
-  { value: 'bill_discount', label: 'Bill Discount' },
-  { value: 'service_charge_payable', label: 'Service Charge Payable' },
-  { value: 'other_vat_payable', label: 'Other VAT Payable' },
-  { value: 'order_fee_revenue', label: 'Order Fee Revenue' },
-  { value: 'delivery_revenue', label: 'Delivery Revenue' },
-  { value: 'promotion_discount', label: 'Promotion Discount' },
-  { value: 'voucher_discount', label: 'Voucher Discount' },
-  { value: 'rounding_expense', label: 'Rounding Expense' },
+  { value: 'gross_revenue', label: 'Pendapatan Kotor (Penjualan)' },
+  { value: 'tax_payable', label: 'Utang Pajak (PB1/PPN)' },
+  { value: 'bill_discount', label: 'Diskon Tagihan' },
+  { value: 'service_charge_payable', label: 'Utang Service Charge' },
+  { value: 'other_vat_payable', label: 'Utang PPN Lainnya' },
+  { value: 'order_fee_revenue', label: 'Pendapatan Biaya Order' },
+  { value: 'delivery_revenue', label: 'Pendapatan Pengiriman' },
+  { value: 'promotion_discount', label: 'Diskon Promosi' },
+  { value: 'voucher_discount', label: 'Diskon Voucher' },
+  { value: 'rounding_expense', label: 'Beban Pembulatan' },
 ] as const

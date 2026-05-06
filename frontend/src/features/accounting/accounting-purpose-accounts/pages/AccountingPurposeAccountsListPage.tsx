@@ -144,10 +144,10 @@ export const AccountingPurposeAccountsListPage = () => {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Purpose Account Mappings
+              Mapping Akun Purpose
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Manage accounting purpose to account mappings
+              Kelola mapping tujuan akuntansi ke akun
             </p>
           </div>
 
@@ -156,7 +156,7 @@ export const AccountingPurposeAccountsListPage = () => {
               onClick={() => navigate('/accounting-purpose-accounts/deleted')}
               className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
             >
-              Show Deleted
+              Lihat Dihapus
             </button>
             <ExportButton
               endpoint="/accounting-purpose-accounts"
@@ -167,7 +167,7 @@ export const AccountingPurposeAccountsListPage = () => {
               onClick={() => navigate('/accounting-purpose-accounts/create')}
               className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
             >
-              Add Mapping
+              Tambah Mapping
             </button>
           </div>
         </div>
@@ -222,10 +222,10 @@ export const AccountingPurposeAccountsListPage = () => {
         isOpen={isDeleteModalOpen}
         onClose={handleCloseDeleteModal}
         onConfirm={handleConfirmDelete}
-        title="Delete Account Mapping"
-        message={`Are you sure you want to delete the mapping for ${accountToDelete?.account_code}? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title="Hapus Mapping Akun"
+        message={`Yakin ingin menghapus mapping untuk ${accountToDelete?.account_code}? Tindakan ini tidak bisa dibatalkan.`}
+        confirmText="Hapus"
+        cancelText="Batal"
         variant="danger"
       />
 
@@ -234,10 +234,10 @@ export const AccountingPurposeAccountsListPage = () => {
         isOpen={isBulkDeleteModalOpen}
         onClose={handleCloseBulkDeleteModal}
         onConfirm={handleConfirmBulkAction}
-        title="Delete Multiple Account Mappings"
-        message={`Are you sure you want to delete ${bulkActionIds.length} account mappings? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title="Hapus Beberapa Mapping"
+        message={`Yakin ingin menghapus ${bulkActionIds.length} mapping akun? Tindakan ini tidak bisa dibatalkan.`}
+        confirmText="Hapus"
+        cancelText="Batal"
         variant="danger"
       />
     </div>

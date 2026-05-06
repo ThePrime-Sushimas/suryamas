@@ -28,7 +28,7 @@ export const AccountingPurposeAccountFilters = ({ filter, onFilterChange }: Acco
           onChange={(e) => onFilterChange({ ...filter, purpose_id: e.target.value || undefined })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
-          <option value="">All Purposes</option>
+          <option value="">Semua Purpose</option>
           {purposeOptions.map(option => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -38,13 +38,13 @@ export const AccountingPurposeAccountFilters = ({ filter, onFilterChange }: Acco
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Side</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sisi</label>
         <select
           value={filter.side || ''}
           onChange={(e) => onFilterChange({ ...filter, side: (e.target.value as Side) || undefined })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
-          <option value="">All Sides</option>
+          <option value="">Semua Sisi</option>
           {sideOptions.map(option => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -54,13 +54,13 @@ export const AccountingPurposeAccountFilters = ({ filter, onFilterChange }: Acco
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Type</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipe Akun</label>
         <select
           value={filter.account_type || ''}
           onChange={(e) => onFilterChange({ ...filter, account_type: (e.target.value as AccountType) || undefined })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
-          <option value="">All Types</option>
+          <option value="">Semua Tipe</option>
           {accountTypeOptions.map(option => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -79,9 +79,9 @@ export const AccountingPurposeAccountFilters = ({ filter, onFilterChange }: Acco
           })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
+          <option value="">Semua Status</option>
+          <option value="true">Aktif</option>
+          <option value="false">Nonaktif</option>
         </select>
       </div>
     </div>

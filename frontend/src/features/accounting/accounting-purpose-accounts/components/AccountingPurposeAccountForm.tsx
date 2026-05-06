@@ -109,7 +109,7 @@ export const AccountingPurposeAccountForm = ({
             {...register('purpose_id')}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            <option value="">Select Purpose</option>
+            <option value="">Pilih Purpose</option>
             {purposeOptions.map(option => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -117,7 +117,7 @@ export const AccountingPurposeAccountForm = ({
             ))}
           </select>
           {errors.purpose_id && (
-            <p className="mt-1 text-sm text-red-600">{String(errors.purpose_id.message || 'Purpose is required')}</p>
+            <p className="mt-1 text-sm text-red-600">{String(errors.purpose_id.message || 'Purpose wajib diisi')}</p>
           )}
         </div>
       )}
@@ -125,13 +125,13 @@ export const AccountingPurposeAccountForm = ({
       {!isEdit && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Account <span className="text-red-500">*</span>
+            Akun <span className="text-red-500">*</span>
           </label>
           <select
             {...register('account_id')}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            <option value="">Select Account</option>
+            <option value="">Pilih Akun</option>
             {accountOptions.map(option => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -139,11 +139,11 @@ export const AccountingPurposeAccountForm = ({
             ))}
           </select>
           {errors.account_id && (
-            <p className="mt-1 text-sm text-red-600">{String(errors.account_id.message || 'Account is required')}</p>
+            <p className="mt-1 text-sm text-red-600">{String(errors.account_id.message || 'Akun wajib diisi')}</p>
           )}
           {selectedAccount && (
             <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              <p>Normal Balance: <span className="font-medium">{selectedAccount.normal_balance}</span></p>
+              <p>Saldo Normal: <span className="font-medium">{selectedAccount.normal_balance}</span></p>
               {sideValidation.warning && (
                 <p className="text-yellow-600 dark:text-yellow-400 font-medium">
                   ⚠️ {sideValidation.warning}
@@ -156,13 +156,13 @@ export const AccountingPurposeAccountForm = ({
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Side <span className="text-red-500">*</span>
+          Sisi <span className="text-red-500">*</span>
         </label>
         <select
           {...register('side')}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
-          <option value="">Select Side</option>
+          <option value="">Pilih Sisi</option>
           {SIDES.map(side => (
             <option key={side} value={side}>
               {side}
@@ -170,7 +170,7 @@ export const AccountingPurposeAccountForm = ({
           ))}
         </select>
         {errors.side && (
-          <p className="mt-1 text-sm text-red-600">{String(errors.side.message || 'Side is required')}</p>
+          <p className="mt-1 text-sm text-red-600">{String(errors.side.message || 'Sisi wajib diisi')}</p>
         )}
         {sideValidation.warning && (
           <p className="mt-1 text-sm text-yellow-600 dark:text-yellow-400">
@@ -180,7 +180,7 @@ export const AccountingPurposeAccountForm = ({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority (Optional)</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prioritas (Opsional)</label>
         <input
           type="number"
           min="1"
@@ -189,30 +189,30 @@ export const AccountingPurposeAccountForm = ({
             setValueAs: (value) => value === '' || value === null ? undefined : Number(value)
           })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          placeholder="Leave empty for auto-assignment"
+          placeholder="Kosongkan untuk auto-assign"
         />
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">If empty, system will auto-assign the next available priority</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Jika kosong, sistem akan otomatis menentukan prioritas berikutnya</p>
         {errors.priority && (
           <p className="mt-1 text-sm text-red-600">{String(errors.priority.message || 'Invalid priority')}</p>
         )}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Field Mapping (Optional)</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Field Mapping (Opsional)</label>
         <select
           {...register('field_mapping', {
             setValueAs: (value) => value === '' ? null : value
           })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         >
-          <option value="">No mapping</option>
+          <option value="">Tidak ada mapping</option>
           {FIELD_MAPPING_OPTIONS.map(opt => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used by journal processor to map POS fields to COA accounts</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Digunakan oleh prosesor jurnal untuk mapping field POS ke akun COA</p>
       </div>
 
       {isEdit && (
@@ -223,7 +223,7 @@ export const AccountingPurposeAccountForm = ({
               {...register('is_active')}
               className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
             />
-            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
+            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Aktif</span>
           </label>
         </div>
       )}
@@ -234,14 +234,14 @@ export const AccountingPurposeAccountForm = ({
           onClick={onCancel}
           className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
         >
-          Cancel
+          Batal
         </button>
         <button
           type="submit"
           disabled={isSubmitting || loading.submit}
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
         >
-          {isSubmitting || loading.submit ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+          {isSubmitting || loading.submit ? 'Menyimpan...' : isEdit ? 'Update' : 'Buat'}
         </button>
       </div>
     </form>

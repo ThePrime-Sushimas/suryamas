@@ -47,8 +47,8 @@ export const AccountingPurposeTable = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Accounting Purposes</h3>
-        <p className="text-gray-600 dark:text-gray-400">Get started by creating your first accounting purpose.</p>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Belum Ada Purpose</h3>
+        <p className="text-gray-600 dark:text-gray-400">Mulai dengan membuat tujuan akuntansi pertama Anda.</p>
       </div>
     )
   }
@@ -71,19 +71,19 @@ export const AccountingPurposeTable = ({
                 Purpose
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Applied To
+                Diterapkan Pada
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Type
+                Tipe
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Created
+                Dibuat
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Actions
+                Aksi
               </th>
             </tr>
           </thead>
@@ -126,11 +126,11 @@ export const AccountingPurposeTable = ({
                         ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' 
                         : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
                     }`}>
-                      {purpose.is_active ? 'Active' : 'Inactive'}
+                      {purpose.is_active ? 'Aktif' : 'Nonaktif'}
                     </span>
                     {purpose.is_deleted && (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300">
-                        Deleted
+                        Dihapus
                       </span>
                     )}
                   </div>
@@ -138,7 +138,7 @@ export const AccountingPurposeTable = ({
                 <td className="px-6 py-4 whitespace-nowrap">
                   <SystemLockBadge isSystem={purpose.is_system} />
                   {!purpose.is_system && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">Custom</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Kustom</span>
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -150,7 +150,7 @@ export const AccountingPurposeTable = ({
                       onClick={() => onRestore(purpose.id)}
                       className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
                     >
-                      Restore
+                      Pulihkan
                     </button>
                   ) : (
                     <div className="flex gap-2">
@@ -162,7 +162,7 @@ export const AccountingPurposeTable = ({
                             ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
                             : 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300'
                         }`}
-                        title={purpose.is_system ? 'System purposes cannot be edited' : ''}
+                        title={purpose.is_system ? 'Purpose sistem tidak bisa diedit' : ''}
                       >
                         Edit
                       </button>
@@ -174,9 +174,9 @@ export const AccountingPurposeTable = ({
                             ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
                             : 'text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300'
                         }`}
-                        title={purpose.is_system ? 'System purposes cannot be deleted' : ''}
+                        title={purpose.is_system ? 'Purpose sistem tidak bisa dihapus' : ''}
                       >
-                        Delete
+                        Hapus
                       </button>
                     </div>
                   )}

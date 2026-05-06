@@ -48,7 +48,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
-              placeholder="Search purposes..."
+              placeholder="Cari purpose..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -68,7 +68,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
           disabled={loading}
         >
           <Filter size={16} />
-          Filters
+          Filter
           {hasActiveFilters && (
             <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
               {(appliedTo ? 1 : 0) + (isActive !== '' ? 1 : 0) + (deletedFilter !== 'active' ? 1 : 0)}
@@ -82,7 +82,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Applied To
+                Diterapkan Pada
               </label>
               <select
                 value={appliedTo}
@@ -90,7 +90,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 disabled={loading}
               >
-                <option value="">All Types</option>
+                <option value="">Semua Tipe</option>
                 {APPLIED_TO_OPTIONS.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -109,15 +109,15 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 disabled={loading}
               >
-                <option value="">All Status</option>
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
+                <option value="">Semua Status</option>
+                <option value="true">Aktif</option>
+                <option value="false">Nonaktif</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Deleted Status
+                Status Hapus
               </label>
               <select
                 value={deletedFilter}
@@ -125,8 +125,8 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 disabled={loading}
               >
-                <option value="active">Active Only</option>
-                <option value="deleted">Deleted Only</option>
+                <option value="active">Aktif Saja</option>
+                <option value="deleted">Dihapus Saja</option>
               </select>
             </div>
 
@@ -138,7 +138,7 @@ export const AccountingPurposeFilters = ({ onSearch, onFilter, loading }: Accoun
                 disabled={loading || !hasActiveFilters}
               >
                 <X size={16} />
-                Clear Filters
+                Hapus Filter
               </button>
             </div>
           </div>

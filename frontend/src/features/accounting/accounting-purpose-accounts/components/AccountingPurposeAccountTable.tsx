@@ -98,26 +98,26 @@ export const AccountingPurposeAccountTable = ({
       {selectedCount > 0 && onBulkAction && (
         <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
           <span className="text-sm text-blue-700 dark:text-blue-400">
-            {selectedCount} item(s) selected
+            {selectedCount} item dipilih
           </span>
           <div className="space-x-2">
             <button
               onClick={() => handleBulkAction('activate')}
               className="px-3 py-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded hover:bg-green-200 dark:hover:bg-green-900/50"
             >
-              Activate
+              Aktifkan
             </button>
             <button
               onClick={() => handleBulkAction('deactivate')}
               className="px-3 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 rounded hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
             >
-              Deactivate
+              Nonaktifkan
             </button>
             <button
               onClick={() => handleBulkAction('delete')}
               className="px-3 py-1 text-xs font-medium text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded hover:bg-red-200 dark:hover:bg-red-900/50"
             >
-              Delete
+              Hapus
             </button>
           </div>
         </div>
@@ -260,7 +260,7 @@ export const AccountingPurposeAccountTable = ({
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
                             : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                         }`}>
-                          {account.is_active ? 'Active' : 'Inactive'}
+                          {account.is_active ? 'Aktif' : 'Nonaktif'}
                         </span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
@@ -305,7 +305,7 @@ export const AccountingPurposeAccountTable = ({
 
       {accounts.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-500 dark:text-gray-400">No purpose account mappings found</div>
+          <div className="text-gray-500 dark:text-gray-400">Tidak ada mapping akun purpose</div>
         </div>
       )}
     </div>
