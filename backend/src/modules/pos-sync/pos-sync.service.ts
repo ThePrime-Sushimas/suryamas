@@ -15,8 +15,10 @@ import {
 } from "./pos-sync.types";
 import { processPosSyncAggregates } from "../jobs/processors/pos-sync-aggregates.processor";
 import { logError } from "../../config/logger";
+import { pool } from "../../config/db";
 import { PosSyncAggregateResult } from "../jobs/processors/pos-sync-aggregates.processor";
 import { syncPosSyncToAggregated } from "../pos-sync-aggregates/pos-sync-aggregates.service";
+import { paymentMethodAlertsService } from "../payment-method-alerts/payment-method-alerts.service";
 
 export const salesService = {
   import: async (payload: ImportSalesPayload): Promise<ImportSalesResult> => {
@@ -135,6 +137,16 @@ export const aggregateService = {
     await syncPosSyncToAggregated(salesDate).catch((err) =>
       logError("syncPosSyncToAggregated failed", { err, salesDate }),
     );
+
+    // Check payment method threshold alerts (fire-and-forget)
+    pool.query(
+      `SELECT DISTINCT company_id FROM aggregated_transactions WHERE transaction_date = $1 AND deleted_at IS NULL LIMIT 1`,
+      [salesDate]
+    ).then(({ rows }) => {
+      if (rows[0]?.company_id) {
+        return paymentMethodAlertsService.checkAlerts(rows[0].company_id, salesDate)
+      }
+    }).catch((err) => logError("checkPaymentMethodAlerts failed", { err, salesDate }));
 
     return result;
   },

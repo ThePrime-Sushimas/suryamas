@@ -445,6 +445,9 @@ const CashFlowSettingsPage = lazy(() =>
 const ExpenseCategorizationPage = lazy(() =>
   import('./features/expense-categorization/pages/ExpenseCategorizationPage')
 )
+const AlertSettingsPage = lazy(() =>
+  import('./features/payment-method-alerts').then(m => ({ default: m.AlertSettingsPage }))
+)
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1449,6 +1452,16 @@ function App() {
                       <RequirePermission module="cash_flow">
                         <Suspense fallback={<LoadingFallback />}>
                           <ExpenseCategorizationPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="settings/alerts"
+                    element={
+                      <RequirePermission module="payment_method_alerts">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AlertSettingsPage />
                         </Suspense>
                       </RequirePermission>
                     }

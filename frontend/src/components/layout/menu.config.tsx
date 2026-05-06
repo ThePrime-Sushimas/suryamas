@@ -36,6 +36,7 @@ import {
   RefreshCcw,
   FileCheck,
   PieChart,
+  Bell,
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -438,6 +439,13 @@ export const menuItems: MenuItem[] = [
         href: "/permissions",
         icon: <Shield size={16} />,
         module: "permissions",
+      },
+      {
+        id: "alert-threshold",
+        name: "Alert Threshold",
+        href: "/settings/alerts",
+        icon: <Bell size={16} />,
+        module: "payment_method_alerts",
       },
       {
         id: "monitoring",
