@@ -54,6 +54,7 @@ import cashFlowRoutes from "./modules/cash-flow/cash-flow.router";
 import expenseCategorizationRoutes from "./modules/expense-categorization/expense-categorization.routes";
 import menuCategoriesRoutes from "./modules/food-production/menu-categories/menu-categories.routes";
 import menuGroupsRoutes from "./modules/food-production/menu-groups/menu-groups.routes";
+import menusRoutes from "./modules/food-production/menus/menus.routes";
 import dashboardHrdRoutes from "./modules/dashboard/dashboard-hrd.routes";
 import { pool } from "./config/db";
 
@@ -144,6 +145,7 @@ app.use("/api/v1/cash-flow", cashFlowRoutes);
 app.use("/api/v1/expense-categorization", expenseCategorizationRoutes);
 app.use("/api/v1/menu-categories", menuCategoriesRoutes);
 app.use("/api/v1/menu-groups", menuGroupsRoutes);
+app.use("/api/v1/menus", menusRoutes);
 app.use("/api/v1/dashboard", dashboardHrdRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
 

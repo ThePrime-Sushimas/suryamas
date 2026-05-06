@@ -361,7 +361,32 @@ journal_headers + journal_lines
 
 ---
 
-## ⚙️ Sync Logic (menus ↔ pos_staging_menus)
+## ⚡️ Sync Logic (menus ↔ pos_staging_menus)
+
+### POS Staging Tables — Data Ownership
+
+| Tabel | company_id? | Keterangan |
+|-------|-------------|------------|
+| `pos_staging_menus` | ❌ Tidak ada | Single-company by design. Semua data milik 1 company. |
+| `pos_staging_menu_groups` | ❌ Tidak ada | Single-company by design. |
+| `pos_staging_menu_categories` | ❌ Tidak ada | Single-company by design. |
+
+> PENTING: Tabel pos_staging tidak punya company_id. Query ke tabel ini tidak perlu filter company, tapi HARUS didokumentasikan di code dengan comment.
+
+### POS Category Mapping
+
+Mapping dari `pos_staging_menu_categories.pos_id` ke `menu_categories.category_code`:
+
+| pos_id | category_code | Keterangan |
+|--------|--------------|------------|
+| 2 | FOOD | Sesuai setup POS Sushimas |
+| 3 | BEVERAGE | |
+| lainnya | OTHER | Fallback + log warning |
+
+> Jika POS system berubah, update mapping di `batchSyncFromPos()` repository method.
+> TODO: Refactor ke constants file atau mapping table untuk decoupling.
+
+### Sync Behavior:
 
 ```
 Saat POS sync jalan (harian):

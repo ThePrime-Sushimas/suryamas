@@ -144,6 +144,7 @@
 - **Infrastructure & Deployment**: `.amazonq/docs/INFRASTRUCTURE.md`
 - **Fiscal Closing Design**: `.amazonq/docs/FISCAL_CLOSING_DESIGN.md`
 - **Coding Patterns & Contracts**: `.amazonq/docs/CODING_PATTERNS.md`
+- **Integration & Sync Patterns**: `.amazonq/docs/INTEGRATION_PATTERNS.md`
 - **Module Checklist**: `.amazonq/docs/MODULE_CHECKLIST.md`
 - **Food Production & COGS Design**: `.amazonq/docs/FOOD_PRODUCTION_DESIGN.md`
 - **Auto Credit Bank (Opsi B)**: `.amazonq/docs/OPSI_B_AUTO_CREDIT_BANK.md`

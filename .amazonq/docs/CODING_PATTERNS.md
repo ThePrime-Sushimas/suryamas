@@ -175,6 +175,64 @@ UNIQUE(company_id, {code_column})
 
 ---
 
+## Multi-Tenant Safety
+
+- SETIAP query ke tabel yang punya `company_id` WAJIB include `WHERE company_id = $N`
+- Tidak ada pengecualian, termasuk untuk internal service calls
+- Jika query tidak butuh company_id (misal lookup by PK yang sudah pasti milik company), tambahkan comment eksplisit: `-- company_id already guaranteed by caller`
+- Tabel yang TIDAK punya company_id (misal `pos_staging_menus`): dokumentasikan eksplisit apakah data-nya shared atau sudah per-company
+
+---
+
+## N+1 Query Prevention
+
+- DILARANG: loop `for...of` dengan `await query()` di dalam body loop
+- Exception HANYA jika jumlah item dijamin <= 10 dan ada comment yang menjelaskan
+- Untuk bulk operations, gunakan:
+  - `WHERE id = ANY($1::uuid[])` untuk batch fetch
+  - `INSERT ... SELECT unnest(...)` untuk batch insert
+  - `UPDATE ... FROM (SELECT unnest(...)) d WHERE table.id = d.id` untuk batch update
+  - Atau minimal batch dalam chunk 50 item per transaction
+
+---
+
+## Transaction Requirements
+
+- Setiap operasi yang menulis ke > 1 row ATAU > 1 tabel WAJIB dalam transaction
+- Bulk operations (sync, import, bulk delete) WAJIB dalam transaction atau per-batch transaction
+- Pattern:
+  ```typescript
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    // ... semua operasi pakai client, BUKAN pool
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+  ```
+- PENTING: di dalam transaction, semua query HARUS pakai `client.query()`, bukan `pool.query()`
+
+---
+
+## Error Message ↔ Implementation Contract
+
+- Error message HARUS match persis dengan apa yang dicek di code
+- Jika `MenuInUseError` bilang "has active recipes OR COGS calculations", maka KEDUA kondisi itu harus dicek sebelum throw
+- Sebelum merge, baca ulang semua custom error message dan verifikasi implementasinya
+- Pattern:
+  ```typescript
+  // Error message mentions 2 conditions → code MUST check both
+  const hasRecipes = await repo.hasRecipeLines(id)
+  const hasCogs = await repo.hasCogcCalculationLines(id)
+  if (hasRecipes || hasCogs) throw new MenuInUseError()
+  ```
+
+---
+
 ## Generated Columns
 
 - Gunakan `GENERATED ALWAYS AS (...) STORED` untuk kalkulasi yang derivatif (percentage, line_cost, dll)
