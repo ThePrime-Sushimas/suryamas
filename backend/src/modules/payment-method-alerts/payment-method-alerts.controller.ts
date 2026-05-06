@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import type { ParsedQs } from 'qs'
 import { paymentMethodAlertsService } from './payment-method-alerts.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
@@ -71,19 +72,28 @@ class PaymentMethodAlertsController {
       const companyId = req.context?.company_id
       if (!companyId) { res.status(400).json({ success: false, message: 'Company context required' }); return }
       
-      // Fix: Proper type conversion dari req.query strings dengan validation
-      const rawPaymentMethodId = req.query.payment_method_id as string | undefined
-      const rawPage = req.query.page as string | undefined
-      const rawLimit = req.query.limit as string | undefined
+      // Helper to handle Express query parameter types
+      const getQueryParam = (param: string | ParsedQs | (string | ParsedQs)[] | undefined): string | undefined => {
+        if (typeof param === 'string') return param
+        if (Array.isArray(param) && param.length > 0 && typeof param[0] === 'string') return param[0]
+        return undefined
+      }
       
       const filters = {
-        start_date: req.query.start_date as string | undefined,
-        end_date: req.query.end_date as string | undefined,
-        payment_method_id: rawPaymentMethodId && !isNaN(Number(rawPaymentMethodId))
-          ? Number(rawPaymentMethodId) 
-          : undefined,
-        page: rawPage && !isNaN(Number(rawPage)) ? Number(rawPage) : 1,
-        limit: rawLimit && !isNaN(Number(rawLimit)) ? Number(rawLimit) : 25,
+        start_date: getQueryParam(req.query.start_date),
+        end_date: getQueryParam(req.query.end_date),
+        payment_method_id: (() => {
+          const raw = getQueryParam(req.query.payment_method_id)
+          return raw && !isNaN(Number(raw)) ? Number(raw) : undefined
+        })(),
+        page: (() => {
+          const raw = getQueryParam(req.query.page)
+          return raw && !isNaN(Number(raw)) ? Number(raw) : 1
+        })(),
+        limit: (() => {
+          const raw = getQueryParam(req.query.limit)
+          return raw && !isNaN(Number(raw)) ? Number(raw) : 25
+        })(),
       }
       
       // Ensure page and limit are positive integers
@@ -101,7 +111,11 @@ class PaymentMethodAlertsController {
     try {
       const companyId = req.context?.company_id
       if (!companyId) { res.status(400).json({ success: false, message: 'Company context required' }); return }
-      const { id } = req.params
+      
+      // Handle req.params.id which can be string | string[]
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+      if (!id) { res.status(400).json({ success: false, message: 'Invalid ID parameter' }); return }
+      
       const data = await paymentMethodAlertsService.getHistoryById(id, companyId)
       sendSuccess(res, data, 'Alert history detail retrieved')
     } catch (error) {
