@@ -19,7 +19,6 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 
 function firstOfMonth() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) }
-function yesterday() { const d = new Date(); d.setDate(d.getDate() - 1); return d }
 
 /**
  * Determine effective "today" based on earliest jam_buka across active branches.
