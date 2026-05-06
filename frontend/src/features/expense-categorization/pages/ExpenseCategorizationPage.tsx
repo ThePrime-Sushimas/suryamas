@@ -6,7 +6,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { useFiscalPeriodsStatus } from '@/features/dashboard/api/useDashboardApi'
 import {
-  useExpenseRules, useUncategorized, useExpensePurposes,
+  useExpenseRules, useUncategorized, useExpensePurposes, useBankAccounts,
   useCreateRule, useUpdateRule, useDeleteRule,
   useAutoCategorize, useManualCategorize, useUncategorize, useGenerateJournal,
 } from '../api/expense-categorization.api'
@@ -52,6 +52,7 @@ export default function ExpenseCategorizationPage() {
   // Filters
   const [filterPurpose, setFilterPurpose] = useState('')
   const [filterCategorized, setFilterCategorized] = useState<'' | 'true' | 'false'>('')
+  const [filterBankAccount, setFilterBankAccount] = useState<string>('')
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('')
@@ -79,20 +80,22 @@ export default function ExpenseCategorizationPage() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  useEffect(() => { setPage(1) }, [filterPurpose, filterCategorized, selectedPeriodId])
+  useEffect(() => { setPage(1) }, [filterPurpose, filterCategorized, filterBankAccount, selectedPeriodId])
 
   const queryParams = useMemo(() => ({
     page, limit: 50,
     ...(filterPurpose ? { purpose_id: filterPurpose } : {}),
     ...(filterCategorized ? { categorized: filterCategorized } : {}),
+    ...(filterBankAccount ? { bank_account_id: Number(filterBankAccount) } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(selectedPeriod ? { date_from: selectedPeriod.period_start, date_to: selectedPeriod.period_end } : {}),
-  }), [page, filterPurpose, filterCategorized, debouncedSearch, selectedPeriod])
+  }), [page, filterPurpose, filterCategorized, filterBankAccount, debouncedSearch, selectedPeriod])
 
-  const hasActiveFilters = !!filterPurpose || !!filterCategorized || !!debouncedSearch
+  const hasActiveFilters = !!filterPurpose || !!filterCategorized || !!filterBankAccount || !!debouncedSearch
 
   const rules = useExpenseRules()
   const purposes = useExpensePurposes()
+  const bankAccounts = useBankAccounts()
   const uncategorized = useUncategorized(queryParams)
 
   const groupedPurposes = useMemo(() => {
@@ -112,7 +115,7 @@ export default function ExpenseCategorizationPage() {
   const uncategorizeMutation = useUncategorize()
   const generateJournal = useGenerateJournal()
 
-  const clearFilters = () => { setFilterPurpose(''); setFilterCategorized(''); setSearchInput(''); setDebouncedSearch('') }
+  const clearFilters = () => { setFilterPurpose(''); setFilterCategorized(''); setFilterBankAccount(''); setSearchInput(''); setDebouncedSearch('') }
 
   const resetRuleForm = useCallback(() => {
     setShowRuleForm(false); setEditingRuleId(null)
@@ -244,6 +247,13 @@ export default function ExpenseCategorizationPage() {
                 <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Cari deskripsi..."
                   className="w-full h-9 pl-8 pr-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-violet-500 outline-none" />
               </div>
+              <select value={filterBankAccount} onChange={e => setFilterBankAccount(e.target.value)}
+                className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-40">
+                <option value="">Semua Bank</option>
+                {(bankAccounts.data || []).map(ba => (
+                  <option key={ba.id} value={ba.id}>{ba.bank_name} — {ba.account_name}</option>
+                ))}
+              </select>
               <select value={filterPurpose} onChange={e => setFilterPurpose(e.target.value)}
                 className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]">
                 <option value="">Semua Kategori</option>

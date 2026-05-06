@@ -2,10 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import type { ExpenseAutoRule, UncategorizedStatement, CategorizeResult, AccountingPurposeOption } from '../types/expense-categorization.types'
 
+interface BankAccountOption {
+  id: number
+  account_name: string
+  bank_name: string
+  account_number: string
+}
+
 const KEYS = {
   rules: ['expense-categorization', 'rules'] as const,
   uncategorized: (params: Record<string, unknown>) => ['expense-categorization', 'uncategorized', params] as const,
   purposes: ['expense-categorization', 'purposes'] as const,
+  bankAccounts: ['expense-categorization', 'bank-accounts'] as const,
 }
 
 export const useExpenseRules = () =>
@@ -34,6 +42,16 @@ export const useExpensePurposes = () =>
     queryFn: async () => {
       const { data } = await api.get('/accounting-purposes', { params: { limit: 200 } })
       return (data.data || []) as AccountingPurposeOption[]
+    },
+    staleTime: 5 * 60_000,
+  })
+
+export const useBankAccounts = () =>
+  useQuery({
+    queryKey: KEYS.bankAccounts,
+    queryFn: async () => {
+      const { data } = await api.get('/bank-accounts')
+      return (data.data || []) as BankAccountOption[]
     },
     staleTime: 5 * 60_000,
   })
