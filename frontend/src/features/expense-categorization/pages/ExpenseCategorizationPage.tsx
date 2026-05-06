@@ -334,9 +334,27 @@ export default function ExpenseCategorizationPage() {
                         <td className="px-3 py-2.5 text-gray-900 dark:text-white max-w-xs " title={s.description}>{s.description}</td>
                         <td className="px-3 py-2.5 text-right font-mono text-gray-900 dark:text-white">{fmt(s.debit_amount)}</td>
                         <td className="px-3 py-2.5">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>
-                            {s.purpose_name || 'Belum dikategorikan'}
-                          </span>
+                          <select
+                            value={s.purpose_id || ''}
+                            onChange={async (e) => {
+                              const purposeId = e.target.value
+                              if (!purposeId) return
+                              try {
+                                await manualCategorize.mutateAsync({ statement_ids: [Number(s.id)], purpose_id: purposeId })
+                                toast.success('Kategori diupdate')
+                              } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal mengkategorikan')) }
+                            }}
+                            className={`h-7 px-2 text-xs rounded-lg border cursor-pointer ${s.purpose_name
+                              ? `${badge.bg} ${badge.text} border-transparent`
+                              : 'border-dashed border-gray-300 dark:border-gray-600 text-gray-400 bg-transparent hover:border-violet-400'}`}
+                          >
+                            <option value="">{s.purpose_name || '+ Pilih kategori'}</option>
+                            {groupedPurposes.map(([group, items]) => (
+                              <optgroup key={group} label={group}>
+                                {items.map(p => <option key={p.id} value={p.id}>{p.purpose_code} — {p.purpose_name}</option>)}
+                              </optgroup>
+                            ))}
+                          </select>
                         </td>
                       </tr>
                     )
