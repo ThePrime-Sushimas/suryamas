@@ -105,6 +105,18 @@ export class PaymentMethodAlertsService {
         .map(b => `• ${b.branch_name}: Rp ${b.amount.toLocaleString('id-ID')}`)
         .join('\n')
 
+      // Format date and time to Indonesian locale with WIB timezone
+      const now = new Date()
+      const formattedDateTime = now.toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+
       const msg = [
         `🔔 *ALERT: ${pmData.name}*`,
         '',
@@ -114,7 +126,7 @@ export class PaymentMethodAlertsService {
         '📍 Breakdown per cabang:',
         branchLines,
         '',
-        `📅 ${salesDate}`,
+        `📅 ${formattedDateTime} WIB`,
       ].join('\n')
 
       try {
