@@ -48,7 +48,10 @@ export class EmployeeBranchesRepository {
   }
 
   async findGroupedByEmployee(limit: number, offset: number, search?: string): Promise<{ data: Record<string, unknown>[]; total: number }> {
-    const { rows } = await pool.query(`SELECT ${BASE_SELECT} ${BASE_FROM} ORDER BY eb.created_at DESC`)
+    // Filter hanya employee dengan is_active = true
+    const { rows } = await pool.query(
+      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE e.is_active = true AND e.deleted_at IS NULL ORDER BY eb.created_at DESC`
+    )
     const mapped = rows.map(r => mapEmployeeBranch(mapRow(r)))
 
     const grouped = mapped.reduce((acc: Record<string, Record<string, unknown>>, item: EmployeeBranchWithRelations) => {
