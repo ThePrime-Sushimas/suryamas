@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Bell, Plus } from 'lucide-react'
+import { Bell, Plus, History } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { AlertCard } from '../components/AlertCard'
 import { AlertForm } from '../components/AlertForm'
@@ -70,9 +71,17 @@ export default function AlertSettingsPage() {
               <p className="text-[11px] text-gray-500 dark:text-gray-400">Notifikasi Telegram saat payment method mencapai threshold</p>
             </div>
           </div>
-          <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 font-medium">
-            <Plus className="w-3.5 h-3.5" /> Tambah
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/settings/alerts/history"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium"
+            >
+              <History className="w-3.5 h-3.5" /> History
+            </Link>
+            <button onClick={openCreate} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 font-medium">
+              <Plus className="w-3.5 h-3.5" /> Tambah
+            </button>
+          </div>
         </div>
       </div>
 

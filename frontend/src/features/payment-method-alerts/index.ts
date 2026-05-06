@@ -1,4 +1,6 @@
 export { default as AlertSettingsPage } from './pages/AlertSettingsPage'
+export { default as AlertHistoryPage } from './pages/AlertHistoryPage'
+export { default as AlertHistoryDetailPage } from './pages/AlertHistoryDetailPage'
 export { AlertForm } from './components/AlertForm'
 export { AlertCard } from './components/AlertCard'
 export * from './api/alerts'

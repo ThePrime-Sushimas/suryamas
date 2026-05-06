@@ -1,5 +1,5 @@
 import { pool } from '../../config/db'
-import type { PaymentMethodAlert, CreateAlertDto, UpdateAlertDto, DailyPaymentMethodTotal } from './payment-method-alerts.types'
+import type { PaymentMethodAlert, CreateAlertDto, UpdateAlertDto, DailyPaymentMethodTotal, PaymentMethodAlertHistory, BranchBreakdown, AlertHistoryFilters } from './payment-method-alerts.types'
 
 export class PaymentMethodAlertsRepository {
   async findAll(companyId: string): Promise<PaymentMethodAlert[]> {
@@ -97,6 +97,95 @@ export class PaymentMethodAlertsRepository {
       [salesDate, companyId]
     )
     return rows.map(r => ({ ...r, daily_total: Number(r.daily_total) }))
+  }
+
+  // Alert History Methods
+  async createHistory(data: {
+    alert_id: string
+    payment_method_id: number
+    payment_method_name: string
+    company_id: string
+    triggered_date: string
+    triggered_amount: number
+    threshold_amount: number
+    branch_breakdown: BranchBreakdown[]
+    telegram_chat_id: string
+  }): Promise<PaymentMethodAlertHistory> {
+    const { rows } = await pool.query(
+      `INSERT INTO payment_method_alert_history 
+       (alert_id, payment_method_id, payment_method_name, company_id, triggered_date, triggered_amount, threshold_amount, branch_breakdown, telegram_chat_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        data.alert_id,
+        data.payment_method_id,
+        data.payment_method_name,
+        data.company_id,
+        data.triggered_date,
+        data.triggered_amount,
+        data.threshold_amount,
+        JSON.stringify(data.branch_breakdown),
+        data.telegram_chat_id
+      ]
+    )
+    return rows[0]  // pg driver sudah parse JSONB otomatis
+  }
+
+  async getHistory(companyId: string, filters: AlertHistoryFilters = {}): Promise<{ data: PaymentMethodAlertHistory[], total: number }> {
+    const { start_date, end_date, payment_method_id, page = 1, limit = 25 } = filters
+    const offset = (page - 1) * limit
+    
+    let whereClause = 'WHERE h.company_id = $1'
+    const params: any[] = [companyId]
+    let paramIndex = 2
+
+    if (start_date) {
+      whereClause += ` AND h.triggered_date >= $${paramIndex++}`
+      params.push(start_date)
+    }
+    if (end_date) {
+      whereClause += ` AND h.triggered_date <= $${paramIndex++}`
+      params.push(end_date)
+    }
+    if (payment_method_id) {
+      whereClause += ` AND h.payment_method_id = $${paramIndex++}`
+      params.push(payment_method_id)
+    }
+
+    // Get total count
+    const countQuery = `SELECT COUNT(*)::int AS total FROM payment_method_alert_history h ${whereClause}`
+    const { rows: countRows } = await pool.query(countQuery, params)
+    const total = countRows[0].total
+
+    // Get paginated data
+    const limitIdx = paramIndex++
+    const offsetIdx = paramIndex++
+    const dataQuery = `
+      SELECT h.*, a.is_active as alert_is_active
+      FROM payment_method_alert_history h
+      LEFT JOIN payment_method_alerts a ON a.id = h.alert_id
+      ${whereClause}
+      ORDER BY h.triggered_date DESC, h.telegram_sent_at DESC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `
+    params.push(limit, offset)
+    
+    const { rows } = await pool.query(dataQuery, params)
+    const data = rows  // pg driver sudah parse JSONB otomatis
+
+    return { data, total }
+  }
+
+  async getHistoryById(id: string, companyId: string): Promise<PaymentMethodAlertHistory | null> {
+    const { rows } = await pool.query(
+      `SELECT h.*, a.is_active as alert_is_active
+       FROM payment_method_alert_history h
+       LEFT JOIN payment_method_alerts a ON a.id = h.alert_id
+       WHERE h.id = $1 AND h.company_id = $2`,
+      [id, companyId]
+    )
+    if (rows.length === 0) return null
+    return rows[0]  // pg driver sudah parse JSONB otomatis
   }
 }
 

@@ -29,8 +29,10 @@ export function AlertForm({ isOpen, onClose, onSubmit, editingAlert, loading }: 
         is_active: editingAlert.is_active,
       })
     } else {
+      // Only set default payment method if we have payment methods loaded
+      const defaultPaymentMethodId = paymentMethods.length > 0 ? paymentMethods[0].id : 0
       setForm({
-        payment_method_id: paymentMethods[0]?.id || 0,
+        payment_method_id: defaultPaymentMethodId,
         threshold_amount: 0,
         telegram_chat_id: import.meta.env.VITE_TELEGRAM_CHAT_ID || '-5202987932',
         is_active: true,
@@ -40,7 +42,9 @@ export function AlertForm({ isOpen, onClose, onSubmit, editingAlert, loading }: 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.payment_method_id || !form.threshold_amount || !form.telegram_chat_id) return
+    if (!form.payment_method_id || form.payment_method_id === 0 || !form.threshold_amount || !form.telegram_chat_id) {
+      return
+    }
     onSubmit(form)
   }
 
@@ -66,7 +70,9 @@ export function AlertForm({ isOpen, onClose, onSubmit, editingAlert, loading }: 
             <select
               value={form.payment_method_id}
               onChange={e => setForm({ ...form, payment_method_id: Number(e.target.value) })}
-              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+              className={`w-full px-3 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none ${
+                form.payment_method_id === 0 ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
               required
             >
               <option value={0}>Pilih...</option>
@@ -85,7 +91,10 @@ export function AlertForm({ isOpen, onClose, onSubmit, editingAlert, loading }: 
               value={form.threshold_amount || ''}
               onChange={e => setForm({ ...form, threshold_amount: Number(e.target.value) })}
               placeholder="12000000"
-              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+              min="1"
+              className={`w-full px-3 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none ${
+                !form.threshold_amount || form.threshold_amount <= 0 ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
               required
             />
           </div>
@@ -99,7 +108,9 @@ export function AlertForm({ isOpen, onClose, onSubmit, editingAlert, loading }: 
               value={form.telegram_chat_id}
               onChange={e => setForm({ ...form, telegram_chat_id: e.target.value })}
               placeholder="-5202987932"
-              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+              className={`w-full px-3 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none ${
+                !form.telegram_chat_id.trim() ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
               required
             />
           </div>
@@ -117,8 +128,8 @@ export function AlertForm({ isOpen, onClose, onSubmit, editingAlert, loading }: 
           <div className="flex gap-2 mt-4">
             <button
               type="submit"
-              disabled={loading}
-              className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+              disabled={loading || form.payment_method_id === 0 || !form.threshold_amount || form.threshold_amount <= 0 || !form.telegram_chat_id.trim()}
+              className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
               {loading ? 'Menyimpan...' : 'Simpan'}
             </button>

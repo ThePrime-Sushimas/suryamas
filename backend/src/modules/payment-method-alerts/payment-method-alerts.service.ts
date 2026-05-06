@@ -2,7 +2,7 @@ import { paymentMethodAlertsRepository } from './payment-method-alerts.repositor
 import { PaymentMethodAlertErrors } from './payment-method-alerts.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo, logError, logWarn } from '../../config/logger'
-import type { PaymentMethodAlert, CreateAlertDto, UpdateAlertDto } from './payment-method-alerts.types'
+import type { PaymentMethodAlert, CreateAlertDto, UpdateAlertDto, PaymentMethodAlertHistory, AlertHistoryFilters } from './payment-method-alerts.types'
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 
@@ -44,6 +44,16 @@ export class PaymentMethodAlertsService {
     await sendTelegramMessage(alert.telegram_chat_id, msg)
   }
 
+  async getHistory(companyId: string, filters: AlertHistoryFilters = {}): Promise<{ data: PaymentMethodAlertHistory[], total: number }> {
+    return paymentMethodAlertsRepository.getHistory(companyId, filters)
+  }
+
+  async getHistoryById(id: string, companyId: string): Promise<PaymentMethodAlertHistory> {
+    const history = await paymentMethodAlertsRepository.getHistoryById(id, companyId)
+    if (!history) throw PaymentMethodAlertErrors.NOT_FOUND(id)
+    return history
+  }
+
   /**
    * Check all active alerts for a company after POS sync
    * Called from pos-sync.service.ts (fire-and-forget)
@@ -56,14 +66,14 @@ export class PaymentMethodAlertsService {
     if (totals.length === 0) return
 
     // Aggregate per payment_method
-    const pmMap = new Map<number, { name: string; total: number; branches: Array<{ name: string; amount: number }> }>()
+    const pmMap = new Map<number, { name: string; total: number; branches: Array<{ branch_name: string; amount: number }> }>()
     for (const t of totals) {
       if (!pmMap.has(t.payment_method_id)) {
         pmMap.set(t.payment_method_id, { name: t.payment_method_name, total: 0, branches: [] })
       }
       const entry = pmMap.get(t.payment_method_id)!
       entry.total += t.daily_total
-      entry.branches.push({ name: t.branch_name, amount: t.daily_total })
+      entry.branches.push({ branch_name: t.branch_name, amount: t.daily_total })  // Fix: gunakan branch_name
     }
 
     for (const alert of alerts) {
@@ -79,7 +89,7 @@ export class PaymentMethodAlertsService {
       // Send alert
       const branchLines = pmData.branches
         .sort((a, b) => b.amount - a.amount)
-        .map(b => `• ${b.name}: Rp ${b.amount.toLocaleString('id-ID')}`)
+        .map(b => `• ${b.branch_name}: Rp ${b.amount.toLocaleString('id-ID')}`)
         .join('\n')
 
       const msg = [
@@ -97,6 +107,20 @@ export class PaymentMethodAlertsService {
       try {
         await sendTelegramMessage(alert.telegram_chat_id, msg)
         await paymentMethodAlertsRepository.updateLastTriggered(alert.id, salesDate, currentTotal)
+        
+        // Log to history
+        await paymentMethodAlertsRepository.createHistory({
+          alert_id: alert.id,
+          payment_method_id: alert.payment_method_id,
+          payment_method_name: pmData.name,
+          company_id: companyId,
+          triggered_date: salesDate,
+          triggered_amount: currentTotal,
+          threshold_amount: Number(alert.threshold_amount),
+          branch_breakdown: pmData.branches,
+          telegram_chat_id: alert.telegram_chat_id
+        })
+        
         logInfo('Payment method alert sent', { alert_id: alert.id, payment_method: pmData.name, total: currentTotal, threshold: alert.threshold_amount })
       } catch (err) {
         logError('Failed to send payment method alert', { alert_id: alert.id, error: err })

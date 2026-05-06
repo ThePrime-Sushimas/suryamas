@@ -448,6 +448,12 @@ const ExpenseCategorizationPage = lazy(() =>
 const AlertSettingsPage = lazy(() =>
   import('./features/payment-method-alerts').then(m => ({ default: m.AlertSettingsPage }))
 )
+const AlertHistoryPage = lazy(() =>
+  import('./features/payment-method-alerts').then(m => ({ default: m.AlertHistoryPage }))
+)
+const AlertHistoryDetailPage = lazy(() =>
+  import('./features/payment-method-alerts').then(m => ({ default: m.AlertHistoryDetailPage }))
+)
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1462,6 +1468,26 @@ function App() {
                       <RequirePermission module="payment_method_alerts">
                         <Suspense fallback={<LoadingFallback />}>
                           <AlertSettingsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="settings/alerts/history"
+                    element={
+                      <RequirePermission module="payment_method_alerts">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AlertHistoryPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="settings/alerts/history/:id"
+                    element={
+                      <RequirePermission module="payment_method_alerts">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AlertHistoryDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }

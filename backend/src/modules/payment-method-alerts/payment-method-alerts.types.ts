@@ -16,6 +16,26 @@ export interface PaymentMethodAlert {
   payment_method_name?: string
 }
 
+export interface PaymentMethodAlertHistory {
+  id: string
+  alert_id: string
+  payment_method_id: number
+  payment_method_name: string
+  company_id: string
+  triggered_date: string
+  triggered_amount: number
+  threshold_amount: number
+  branch_breakdown: BranchBreakdown[]
+  telegram_chat_id: string
+  telegram_sent_at: string
+  created_at: string
+}
+
+export interface BranchBreakdown {
+  branch_name: string
+  amount: number
+}
+
 export interface CreateAlertDto {
   payment_method_id: number
   threshold_amount: number
@@ -35,4 +55,12 @@ export interface DailyPaymentMethodTotal {
   payment_method_name: string
   branch_name: string
   daily_total: number
+}
+
+export interface AlertHistoryFilters {
+  start_date?: string
+  end_date?: string
+  payment_method_id?: number
+  page?: number
+  limit?: number
 }

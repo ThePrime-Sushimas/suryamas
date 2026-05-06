@@ -2,12 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import type { PaymentMethodAlert, CreateAlertDto, UpdateAlertDto, PaymentMethod } from '../types'
+import type { PaymentMethodAlert, CreateAlertDto, UpdateAlertDto, PaymentMethod, PaymentMethodAlertHistory, AlertHistoryFilters } from '../types'
 
 export const alertKeys = {
   all: ['payment-method-alerts'] as const,
   list: () => [...alertKeys.all, 'list'] as const,
   detail: (id: string) => [...alertKeys.all, 'detail', id] as const,
+  history: (filters?: AlertHistoryFilters) => [...alertKeys.all, 'history', filters] as const,
+  historyDetail: (id: string) => [...alertKeys.all, 'history', 'detail', id] as const,
 }
 
 export const useAlerts = () =>
@@ -23,7 +25,13 @@ export const usePaymentMethods = () =>
   useQuery({
     queryKey: ['payment-methods', 'list'],
     queryFn: async () => {
-      const { data } = await api.get('/payment-methods', { params: { limit: 100 } })
+      const { data } = await api.get('/payment-methods', { 
+        params: { 
+          limit: 100,
+          sort: 'name',
+          order: 'asc'
+        } 
+      })
       return data.data as PaymentMethod[]
     },
   })
@@ -89,3 +97,22 @@ export const useTestAlert = () => {
     onError: (err) => error(parseApiError(err, 'Gagal mengirim test alert')),
   })
 }
+
+export const useAlertHistory = (filters?: AlertHistoryFilters) =>
+  useQuery({
+    queryKey: alertKeys.history(filters),
+    queryFn: async () => {
+      const { data } = await api.get('/payment-method-alerts/history', { params: filters })
+      return data.data as { data: PaymentMethodAlertHistory[], total: number }
+    },
+  })
+
+export const useAlertHistoryDetail = (id: string) =>
+  useQuery({
+    queryKey: alertKeys.historyDetail(id),
+    queryFn: async () => {
+      const { data } = await api.get(`/payment-method-alerts/history/${id}`)
+      return data.data as PaymentMethodAlertHistory
+    },
+    enabled: !!id,
+  })
