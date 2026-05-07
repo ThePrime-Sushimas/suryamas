@@ -123,8 +123,24 @@ export class MenusRepository {
     try {
       await client.query('BEGIN')
 
-      // 1. Get all POS menus in one query
-      const { rows: posMenus } = await client.query('SELECT pos_id, menu_name, price, flag_active, pos_group_id FROM pos_staging_menus')
+      // 1. Get all POS menus with selling price
+      // Priority: pos_staging_menus.price (POS master) → latest transaction price (fallback)
+      // TODO: Replace with proper menu_prices table when pricing module is built
+      const { rows: posMenus } = await client.query(
+        `SELECT psm.pos_id, psm.menu_name, psm.flag_active, psm.pos_group_id,
+          COALESCE(NULLIF(psm.price, 0), latest_price.price, 0) AS price
+        FROM pos_staging_menus psm
+        LEFT JOIN LATERAL (
+          SELECT sm.original_price AS price
+          FROM tr_salesmenu sm
+          JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
+          WHERE sm.menu_id = psm.pos_id
+            AND sm.status_id != 12
+            AND sm.original_price > 0
+          ORDER BY sh.sales_date DESC
+          LIMIT 1
+        ) latest_price ON true`
+      )
 
       // 2. Get all existing menus for this company in one query
       const { rows: existingMenus } = await client.query(
