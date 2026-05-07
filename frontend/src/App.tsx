@@ -461,6 +461,8 @@ const MenuDetailPage = lazy(() => import('./features/food-production/pages/MenuD
 const WipItemsPage = lazy(() => import('./features/food-production/pages/WipItemsPage'))
 const WipDetailPage = lazy(() => import('./features/food-production/pages/WipDetailPage'))
 const CogsPage = lazy(() => import('./features/food-production/pages/CogsPage'))
+const MenuCategoriesPage = lazy(() => import('./features/food-production/pages/MenuCategoriesPage'))
+const MenuGroupsPage = lazy(() => import('./features/food-production/pages/MenuGroupsPage'))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1516,6 +1518,26 @@ function App() {
                       <RequirePermission module="cogs">
                         <Suspense fallback={<LoadingFallback />}>
                           <CogsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/categories"
+                    element={
+                      <RequirePermission module="menu_categories">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MenuCategoriesPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/groups"
+                    element={
+                      <RequirePermission module="menu_groups">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MenuGroupsPage />
                         </Suspense>
                       </RequirePermission>
                     }

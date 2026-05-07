@@ -48,6 +48,24 @@ export const useProductList = () =>
     staleTime: 5 * 60_000,
   })
 
+// ── COA Options (for category mapping) ──
+
+export interface CoaOption {
+  id: string
+  account_code: string
+  account_name: string
+}
+
+export const useCoaOptions = () =>
+  useQuery({
+    queryKey: ['food-production', 'coa-options'],
+    queryFn: async () => {
+      const { data } = await api.get('/chart-of-accounts', { params: { limit: 500, is_active: true } })
+      return (data.data || []) as CoaOption[]
+    },
+    staleTime: 5 * 60_000,
+  })
+
 // ── Menu Categories ──
 
 export const useMenuCategories = () =>
