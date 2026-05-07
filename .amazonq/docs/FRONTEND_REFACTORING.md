@@ -77,8 +77,8 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 | `/bank-accounts` | `bank-accounts/store/useBankAccounts.ts` | Medium |
 | `/employees` | `employees/store/employee.store.ts` | Medium |
 | `/users` | `users/store/users.store.ts` | Medium |
-| `/companies` | `companies/store/companies.store.ts` | Small |
-| `/employee-branches` | `employee_branches/store/employeeBranches.store.ts` | Small |
+| `/companies` | `companies/store/companies.store.ts` | ~~Small~~ ✅ Done (store kept for external) |
+| `/employee-branches` | `employee_branches/store/employeeBranches.store.ts` | ~~Small~~ ✅ Done (store was dead code, deleted) |
 
 ### Priority 3 — Complex / Bisa Nanti
 

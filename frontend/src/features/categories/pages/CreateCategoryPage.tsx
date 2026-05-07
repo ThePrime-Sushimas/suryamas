@@ -4,16 +4,16 @@ import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useCreateCategory } from '../api/categories.api'
 import { CategoryForm } from '../components/CategoryForm'
-import type { CreateCategoryDto } from '../types'
+import type { CreateCategoryDto, UpdateCategoryDto } from '../types'
 
 export default function CreateCategoryPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const createCategory = useCreateCategory()
 
-  const handleSubmit = async (data: CreateCategoryDto) => {
+  const handleSubmit = async (data: CreateCategoryDto | UpdateCategoryDto) => {
     try {
-      await createCategory.mutateAsync(data)
+      await createCategory.mutateAsync(data as CreateCategoryDto)
       toast.success('Kategori berhasil dibuat')
       navigate('/categories')
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal membuat kategori')) }

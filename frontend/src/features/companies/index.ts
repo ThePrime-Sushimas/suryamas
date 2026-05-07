@@ -1,7 +1,7 @@
 // API
 export * from './api/companies.api'
 
-// Store
+// Store (kept for BranchForm, ChartOfAccountsPage)
 export * from './store/companies.store'
 
 // Components
@@ -12,7 +12,7 @@ export { CompanyTable } from './components/CompanyTable'
 export { default as CompaniesPage } from './pages/CompaniesPage'
 export { default as CreateCompanyPage } from './pages/CreateCompanyPage'
 export { default as EditCompanyPage } from './pages/EditCompanyPage'
-export { default as CompaniesDetailPage } from './pages/CompaniesDetailPage'
+export { default as CompaniesDetailPage } from './pages/EditCompanyPage'
 
 // Types
 export * from './types'

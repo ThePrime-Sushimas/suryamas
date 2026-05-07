@@ -19,7 +19,7 @@ export function SupplierProductsPage() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [showFilter, setShowFilter] = useState(false)
-  const [supplierId, setSupplierId] = useState('')
+  const [supplierId] = useState('')
   const [isPreferred, setIsPreferred] = useState<string>('')
   const [isActive, setIsActive] = useState<string>('')
   const [includeDeleted, setIncludeDeleted] = useState(false)

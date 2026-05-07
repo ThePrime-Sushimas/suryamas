@@ -13,7 +13,6 @@ const CALC_TYPE_LABELS: Record<string, string> = {
   monthly: 'Bulanan',
 }
 
-const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtCurrency = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 
 export default function PaymentTermDetailPage() {
@@ -69,7 +68,7 @@ export default function PaymentTermDetailPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
           <p className="text-xs text-gray-400">Status</p>
-          <div className="mt-1"><PaymentTermStatusBadge isActive={t.is_active} /></div>
+          <div className="mt-1"><PaymentTermStatusBadge isActive={t.is_active} isDeleted={!!t.deleted_at} /></div>
         </div>
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
           <p className="text-xs text-gray-400">Tipe Kalkulasi</p>

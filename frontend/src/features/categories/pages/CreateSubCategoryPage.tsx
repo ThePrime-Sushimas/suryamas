@@ -4,16 +4,16 @@ import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useCreateSubCategory } from '../api/categories.api'
 import { SubCategoryForm } from '../components/SubCategoryForm'
-import type { CreateSubCategoryDto } from '../types'
+import type { CreateSubCategoryDto, UpdateSubCategoryDto } from '../types'
 
 export default function CreateSubCategoryPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const createSub = useCreateSubCategory()
 
-  const handleSubmit = async (data: CreateSubCategoryDto) => {
+  const handleSubmit = async (data: CreateSubCategoryDto | UpdateSubCategoryDto) => {
     try {
-      await createSub.mutateAsync(data)
+      await createSub.mutateAsync(data as CreateSubCategoryDto)
       toast.success('Sub-kategori berhasil dibuat')
       navigate('/sub-categories')
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal membuat sub-kategori')) }

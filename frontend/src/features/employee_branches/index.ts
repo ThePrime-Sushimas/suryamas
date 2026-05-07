@@ -1,5 +1,4 @@
 export * from './api/types'
 export * from './api/employeeBranches.api'
-export * from './store/employeeBranches.store'
 export { default as EmployeeBranchesPage } from './pages/EmployeeBranchesPage'
 export { EmployeeBranchDetailPage } from './pages/EmployeeBranchDetailPage'

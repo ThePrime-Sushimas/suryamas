@@ -8,7 +8,6 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import Pagination from '@/components/ui/Pagination'
 import { useSubCategories, useAllCategories, useDeleteSubCategory, useRestoreSubCategory } from '../api/categories.api'
 import { SubCategoryTable } from '../components/SubCategoryTable'
-import type { SubCategory } from '../types'
 
 export default function SubCategoriesPage() {
   const navigate = useNavigate()
