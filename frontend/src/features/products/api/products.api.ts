@@ -93,3 +93,24 @@ export const useBulkRestoreProducts = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   })
 }
+
+// Legacy API object for backward compat (used by supplier-products)
+export const productsApi = {
+  list: async (page = 1, limit = 10, sort?: Record<string, unknown>, filter?: Record<string, unknown>, includeDeleted = false) => {
+    const params: Record<string, unknown> = { page, limit, includeDeleted }
+    if (sort) Object.assign(params, sort)
+    if (filter) Object.assign(params, filter)
+    const res = await api.get('/products', { params })
+    return res.data
+  },
+  search: async (q: string, page = 1, limit = 10, includeDeleted = false, filter?: Record<string, unknown>) => {
+    const params: Record<string, unknown> = { q, page, limit, includeDeleted }
+    if (filter) Object.assign(params, filter)
+    const res = await api.get('/products/search', { params })
+    return res.data
+  },
+  getById: async (id: string) => {
+    const res = await api.get(`/products/${id}`)
+    return res.data.data
+  },
+}
