@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import { Package, Plus, ArrowLeft, X } from 'lucide-react'
+import { Ruler, Plus, ArrowLeft, X } from 'lucide-react'
 import { useProductUoms, useCreateProductUom, useUpdateProductUom, useDeleteProductUom, useRestoreProductUom } from '../api/productUoms.api'
+import { useProduct } from '@/features/products/api/products.api'
 import { ProductUomTable } from '../components/ProductUomTable'
 import { ProductUomForm } from '../components/ProductUomForm'
 import type { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../types'
@@ -20,6 +21,7 @@ export default function ProductUomsPage() {
   const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 
+  const product = useProduct(productId || '')
   const { data: uoms = [], isLoading } = useProductUoms(productId || '', showDeleted)
   const createUom = useCreateProductUom(productId || '')
   const updateUom = useUpdateProductUom(productId || '')
@@ -75,13 +77,15 @@ export default function ProductUomsPage() {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/products')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" disabled={isMutating}>
+            <button onClick={() => navigate(`/products/${productId}/edit`)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" disabled={isMutating}>
               <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             </button>
-            <Package className="w-6 h-6 text-blue-600" />
+            <Ruler className="w-6 h-6 text-purple-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Satuan Produk</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{uoms.length} satuan ukur</p>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Satuan Ukur</h1>
+              <p className="text-xs text-gray-400">
+                {product.data ? `${product.data.product_code} — ${product.data.product_name}` : 'Memuat...'} • {uoms.length} satuan
+              </p>
             </div>
           </div>
           {!showForm && (
@@ -96,20 +100,20 @@ export default function ProductUomsPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {showForm ? (
-          <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                 {editingUom ? 'Edit Satuan' : 'Buat Satuan Baru'}
               </h2>
-              <button onClick={handleCancel} disabled={isMutating} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded disabled:opacity-50">
-                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              <button onClick={handleCancel} disabled={isMutating} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50">
+                <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
               </button>
             </div>
             <ProductUomForm uom={editingUom} existingUoms={uoms} onSubmit={editingUom ? handleUpdate : handleCreate} onCancel={handleCancel} loading={isMutating} />
           </div>
         ) : (
-          <div className="max-w-6xl mx-auto">
-            <div className="mb-4">
+          <div className="max-w-5xl mx-auto space-y-4">
+            <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <input type="checkbox" checked={showDeleted} onChange={e => setShowDeleted(e.target.checked)}
                   className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />

@@ -1,5 +1,4 @@
 export * from './api/metricUnits.api'
-export * from './store/metricUnits.store'
 export { MetricUnitForm } from './components/MetricUnitForm'
 export { MetricUnitTable } from './components/MetricUnitTable'
 export { default as MetricUnitsPage } from './pages/MetricUnitsPage'

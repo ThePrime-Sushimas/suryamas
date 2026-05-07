@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Package } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -23,19 +23,24 @@ export default function CreateProductPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-      <div className="mb-6">
-        <button onClick={() => navigate('/products')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300 mb-2">
-          <ArrowLeft size={20} />
+    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-4 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/products')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+          <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
         </button>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tambah Produk Baru</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Tambahkan produk baru ke inventaris</p>
+        <Package className="w-6 h-6 text-blue-600" />
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Tambah Produk Baru</h1>
+          <p className="text-xs text-gray-400">Tambahkan produk baru ke inventaris</p>
+        </div>
       </div>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <ProductForm onSubmit={handleSubmit} onCancel={() => setCancelOpen(true)} isLoading={createProduct.isPending} />
-      </div>
+
+      {/* Form */}
+      <ProductForm onSubmit={handleSubmit} onCancel={() => setCancelOpen(true)} isLoading={createProduct.isPending} />
+
       <ConfirmModal isOpen={cancelOpen} onClose={() => setCancelOpen(false)} onConfirm={() => navigate('/products')}
-        title="Batalkan" message="Yakin ingin membatalkan? Perubahan akan hilang." confirmText="Ya, Batalkan" variant="danger" />
+        title="Batalkan" message="Yakin ingin membatalkan? Data yang diisi akan hilang." confirmText="Ya, Batalkan" variant="danger" />
     </div>
   )
 }
