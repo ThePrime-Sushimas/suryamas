@@ -37,6 +37,9 @@ import {
   FileCheck,
   PieChart,
   Bell,
+  UtensilsCrossed,
+  Beaker,
+  ChefHat,
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -234,7 +237,53 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 5. BANKING & REKONSILIASI — proses matching
+  // 5. FOOD PRODUCTION — Menu, Resep, COGS
+  // ─────────────────────────────────────────────
+  {
+    id: "food-production",
+    name: "Food Production",
+    icon: <ChefHat size={18} />,
+    submenu: [
+      {
+        id: "fp-menus",
+        name: "Master Menu",
+        href: "/food-production/menus",
+        icon: <UtensilsCrossed size={16} />,
+        module: "menus",
+      },
+      {
+        id: "fp-wip",
+        name: "WIP (Setengah Jadi)",
+        href: "/food-production/wip",
+        icon: <Beaker size={16} />,
+        module: "wip_items",
+      },
+      {
+        id: "fp-cogs",
+        name: "COGS Calculation",
+        href: "/food-production/cogs",
+        icon: <Calculator size={16} />,
+        module: "cogs",
+      },
+      {
+        id: "fp-categories",
+        name: "Kategori Menu",
+        href: "/food-production/categories",
+        icon: <FolderKanban size={16} />,
+        module: "menu_categories",
+      },
+      {
+        id: "fp-groups",
+        name: "Group Menu",
+        href: "/food-production/groups",
+        icon: <Layers size={16} />,
+        module: "menu_groups",
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // 6. BANKING & REKONSILIASI — proses matching
   //    Flow: Import Bank → Rekonsiliasi → Settlement → Voucher → Cash
   // ─────────────────────────────────────────────
   {

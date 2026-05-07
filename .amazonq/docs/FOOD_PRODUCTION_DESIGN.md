@@ -502,3 +502,158 @@
   | Re-calculate COGS setelah koreksi | Supersede pattern: old.superseded_by = new.id |
   | Fiscal period belum open | Block finalize, hanya bisa preview |
   | Menu dihapus tapi ada di historical COGS | `cogs_calculation_lines.menu_name` = snapshot, tidak FK cascade |
+
+
+---
+
+## 🖥️ Frontend Design
+
+### Folder Structure
+
+```
+frontend/src/features/food-production/
+├── api/
+│   └── food-production.api.ts        # Semua hooks (React Query)
+├── types/
+│   └── food-production.types.ts      # Interface untuk semua entity
+├── pages/
+│   ├── FoodProductionLayout.tsx       # Layout wrapper + sidebar nav
+│   ├── MenuCategoriesPage.tsx         # CRUD kategori menu
+│   ├── MenuGroupsPage.tsx            # CRUD group menu
+│   ├── MenusPage.tsx                 # Master menu + sync
+│   ├── MenuDetailPage.tsx            # Detail menu + recipe editor
+│   ├── WipItemsPage.tsx              # CRUD WIP + ingredients
+│   ├── WipDetailPage.tsx             # Detail WIP + ingredients editor
+│   └── CogsPage.tsx                  # Preview + finalize + history
+├── components/
+│   ├── RecipeEditor.tsx              # Inline editor untuk recipe lines
+│   ├── WipIngredientEditor.tsx       # Inline editor untuk WIP ingredients
+│   ├── CogsPreviewTable.tsx          # Tabel preview COGS per menu
+│   ├── CogsSummaryCard.tsx           # Summary card (food/bev/other/total)
+│   └── MenuSyncButton.tsx            # Tombol sync + result toast
+└── store/
+    └── food-production.store.ts      # Zustand (jika perlu global state)
+```
+
+### Routing
+
+| Path | Page | Deskripsi |
+|------|------|-----------|
+| `/food-production` | FoodProductionLayout | Redirect ke /menus |
+| `/food-production/categories` | MenuCategoriesPage | CRUD kategori (FOOD/BEVERAGE/OTHER) |
+| `/food-production/groups` | MenuGroupsPage | CRUD group (Sushi Roll, Nigiri, dll) |
+| `/food-production/menus` | MenusPage | List menu + filter + sync button |
+| `/food-production/menus/:id` | MenuDetailPage | Detail + recipe editor |
+| `/food-production/wip` | WipItemsPage | List WIP + CRUD |
+| `/food-production/wip/:id` | WipDetailPage | Detail + ingredients editor |
+| `/food-production/cogs` | CogsPage | Preview + finalize + history list |
+
+### Halaman Utama
+
+#### 1. MenusPage — Master Menu
+- **Header**: "Master Menu" + tombol "Sync dari POS" + filter bar
+- **Filter**: category, group, has_recipe (Ya/Tidak), sync_enabled, is_active, search
+- **Tabel**: menu_code, menu_name, category, group, selling_price, estimated_cost, cost_%, has_recipe badge, sync badge
+- **Actions per row**: Edit, Detail (→ recipe), Delete
+- **Sync button**: POST /menus/sync → toast result (inserted/updated/skipped)
+- **Bulk**: select + bulk delete
+
+#### 2. MenuDetailPage — Detail + Recipe
+- **Header**: menu_name + badge (synced/manual) + cost_percentage
+- **Info card**: code, category, group, selling_price, estimated_cost, sync_enabled toggle
+- **Recipe Editor** (inline table):
+  - Columns: Ingredient (dropdown product/WIP), Qty, UOM, Cost/Unit (readonly), Line Cost (readonly)
+  - Add row button
+  - Remove row button per line
+  - Save button → PUT /recipes/:menuId
+  - Total estimated_cost di footer
+- **Jika belum ada recipe**: empty state "Belum ada resep. Tambahkan bahan baku atau WIP."
+
+#### 3. WipItemsPage — WIP Management
+- **Header**: "Bahan Setengah Jadi (WIP)" + tombol "Tambah WIP"
+- **Tabel**: wip_code, wip_name, uom, yield_qty, estimated_cost, cost_per_unit, is_active
+- **Actions**: Edit, Detail, Delete
+
+#### 4. WipDetailPage — Detail + Ingredients
+- **Header**: wip_name + cost_per_unit badge
+- **Info card**: code, uom, yield_qty, estimated_cost
+- **Ingredients Editor** (inline table):
+  - Columns: Bahan Baku (dropdown products), Qty, UOM, Cost/Unit (readonly), Line Cost (readonly)
+  - Same pattern as Recipe Editor
+  - Save → PUT /wip-items/:id (with ingredients array)
+
+#### 5. CogsPage — COGS Calculation
+- **Tab 1: Hitung COGS** (preview + finalize)
+  - Form: period_start, period_end (date picker), branch (dropdown, optional)
+  - Tombol "Preview" → POST /cogs/preview
+  - Result:
+    - Summary cards: Food COGS, Beverage COGS, Other COGS, Total, Revenue, Cost %
+    - Warning badge: "X menu tanpa resep" (unmapped_menu_count)
+    - Detail table: menu_name, category, qty_sold, cost/unit, total_cogs, revenue, cost_%, has_recipe
+    - Filter table: show only unmapped (has_recipe = false)
+  - Tombol "Finalize & Generate Journal" → POST /cogs/finalize
+    - Confirm modal: "Ini akan membuat jurnal COGS. Lanjutkan?"
+    - Success: toast + link ke journal
+
+- **Tab 2: Riwayat** (history)
+  - Tabel: period, branch, total_cogs, total_revenue, cost_%, status badge, journal link
+  - Filter: period range, branch, status
+  - Click row → detail (calculation + lines)
+
+#### 6. MenuCategoriesPage — Kategori
+- Simple CRUD table: code, name, sales_coa, cogs_coa, sort_order, is_active
+- Inline edit atau modal form
+- COA dropdown untuk sales_coa_id dan cogs_coa_id
+
+#### 7. MenuGroupsPage — Group
+- Simple CRUD table: code, name, category (dropdown), sort_order, is_active
+- Filter by category
+
+### Komponen Shared
+
+#### RecipeEditor / WipIngredientEditor
+- Pattern yang sama: inline editable table
+- Dropdown ingredient: search-able, show code + name
+- Untuk Recipe: dropdown gabungan products + WIP (dengan label group)
+- Untuk WIP: dropdown hanya products
+- Qty input: number, positive
+- UOM: text input atau dropdown (gram, ml, pcs, dll)
+- Cost/Unit + Line Cost: readonly, auto-filled dari backend response
+- Save: kirim array lines ke backend, backend replace all + recalculate
+
+#### CogsSummaryCard
+- 4 cards: Food, Beverage, Other, Total
+- Masing-masing: amount + percentage of revenue
+- Color coding: hijau (<30%), kuning (30-40%), merah (>40%)
+
+### UX Flow Utama
+
+```
+User buka /food-production/menus
+  → Lihat semua menu, filter yang belum punya resep
+  → Klik menu → /food-production/menus/:id
+  → Tambah recipe lines (pilih bahan baku / WIP)
+  → Save → estimated_cost terupdate otomatis
+  → Kembali ke list, cost_% sudah terisi
+
+User buka /food-production/cogs
+  → Pilih periode + branch
+  → Klik Preview → lihat breakdown per menu
+  → Cek "menu tanpa resep" → fix dulu kalau perlu
+  → Klik Finalize → jurnal COGS tergenerate
+  → Lihat di riwayat, klik link journal
+```
+
+### State Management
+- Tidak perlu Zustand store global — semua pakai React Query (TanStack Query)
+- Query keys:
+  - `['food-production', 'menus', params]`
+  - `['food-production', 'menu', id]`
+  - `['food-production', 'recipe', menuId]`
+  - `['food-production', 'wip-items', params]`
+  - `['food-production', 'wip-item', id]`
+  - `['food-production', 'cogs', 'preview', params]`
+  - `['food-production', 'cogs', 'history', params]`
+  - `['food-production', 'categories']`
+  - `['food-production', 'groups', params]`
+- Invalidation: setelah mutasi, invalidate query key terkait

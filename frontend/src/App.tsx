@@ -455,6 +455,13 @@ const AlertHistoryDetailPage = lazy(() =>
   import('./features/payment-method-alerts').then(m => ({ default: m.AlertHistoryDetailPage }))
 )
 
+// Food Production
+const MenusPage = lazy(() => import('./features/food-production/pages/MenusPage'))
+const MenuDetailPage = lazy(() => import('./features/food-production/pages/MenuDetailPage'))
+const WipItemsPage = lazy(() => import('./features/food-production/pages/WipItemsPage'))
+const WipDetailPage = lazy(() => import('./features/food-production/pages/WipDetailPage'))
+const CogsPage = lazy(() => import('./features/food-production/pages/CogsPage'))
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1458,6 +1465,57 @@ function App() {
                       <RequirePermission module="cash_flow">
                         <Suspense fallback={<LoadingFallback />}>
                           <ExpenseCategorizationPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  {/* Food Production */}
+                  <Route
+                    path="food-production/menus"
+                    element={
+                      <RequirePermission module="menus">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MenusPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/menus/:id"
+                    element={
+                      <RequirePermission module="menus">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MenuDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/wip"
+                    element={
+                      <RequirePermission module="wip_items">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <WipItemsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/wip/:id"
+                    element={
+                      <RequirePermission module="wip_items">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <WipDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/cogs"
+                    element={
+                      <RequirePermission module="cogs">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CogsPage />
                         </Suspense>
                       </RequirePermission>
                     }
