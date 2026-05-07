@@ -32,10 +32,18 @@ export class ProductsRepository {
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(
-        `SELECT p.*, c.category_name, sc.sub_category_name
+        `SELECT p.*, c.category_name, sc.sub_category_name,
+                base_unit.unit_name AS base_unit_name
          FROM products p
          LEFT JOIN categories c ON c.id = p.category_id
          LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+         LEFT JOIN LATERAL (
+           SELECT mu.unit_name FROM product_uoms pu
+           JOIN metric_units mu ON mu.id = pu.metric_unit_id
+           WHERE pu.product_id = p.id AND pu.is_deleted = false
+           ORDER BY pu.is_base_unit DESC, pu.conversion_factor ASC
+           LIMIT 1
+         ) base_unit ON true
          ${where} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`,
         [...params, pagination.limit, pagination.offset]
       ),
@@ -58,10 +66,18 @@ export class ProductsRepository {
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(
-        `SELECT p.*, c.category_name, sc.sub_category_name
+        `SELECT p.*, c.category_name, sc.sub_category_name,
+                base_unit.unit_name AS base_unit_name
          FROM products p
          LEFT JOIN categories c ON c.id = p.category_id
          LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+         LEFT JOIN LATERAL (
+           SELECT mu.unit_name FROM product_uoms pu
+           JOIN metric_units mu ON mu.id = pu.metric_unit_id
+           WHERE pu.product_id = p.id AND pu.is_deleted = false
+           ORDER BY pu.is_base_unit DESC, pu.conversion_factor ASC
+           LIMIT 1
+         ) base_unit ON true
          ${where} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`,
         [...params, pagination.limit, pagination.offset]
       ),
@@ -72,7 +88,17 @@ export class ProductsRepository {
   }
 
   async findById(id: string, includeDeleted = false): Promise<Product | null> {
-    const { rows } = await pool.query('SELECT * FROM products WHERE id = $1', [id])
+    const { rows } = await pool.query(
+      `SELECT p.*, base_unit.unit_name AS base_unit_name
+       FROM products p
+       LEFT JOIN LATERAL (
+         SELECT mu.unit_name FROM product_uoms pu
+         JOIN metric_units mu ON mu.id = pu.metric_unit_id
+         WHERE pu.product_id = p.id AND pu.is_deleted = false
+         ORDER BY pu.is_base_unit DESC, pu.conversion_factor ASC
+         LIMIT 1
+       ) base_unit ON true
+       WHERE p.id = $1`, [id])
     if (!rows[0]) return null
     if (rows[0].is_deleted && !includeDeleted) return null
     return mapProductFromDb(rows[0])

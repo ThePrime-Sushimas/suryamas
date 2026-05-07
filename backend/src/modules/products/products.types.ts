@@ -11,6 +11,7 @@ export interface Product {
   sub_category_id: string
   product_type: ProductType
   average_cost: number
+  base_unit_name: string | null
   is_requestable: boolean
   is_purchasable: boolean
   notes: string | null

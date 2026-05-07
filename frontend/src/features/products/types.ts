@@ -11,6 +11,7 @@ export interface Product {
   sub_category_id: string
   product_type: ProductType
   average_cost: number
+  base_unit_name: string | null
   is_requestable: boolean
   is_purchasable: boolean
   notes: string | null
@@ -63,7 +64,6 @@ export interface UpdateProductDto {
   category_id?: string
   sub_category_id?: string
   product_type?: ProductType
-  average_cost?: number
   is_requestable?: boolean
   is_purchasable?: boolean
   notes?: string
@@ -91,4 +91,13 @@ export interface UpdateProductUomDto {
   is_default_purchase_unit?: boolean
   is_default_transfer_unit?: boolean
   status_uom?: UomStatus
+}
+
+export interface Pagination {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
 }

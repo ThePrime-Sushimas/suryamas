@@ -1,134 +1,95 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
-import type { Product, ProductUom, CreateProductDto, UpdateProductDto, CreateProductUomDto, UpdateProductUomDto } from '../types'
+import type { Product, CreateProductDto, UpdateProductDto, Pagination } from '../types'
 
-type ApiResponse<T> = { success: boolean; data: T }
-type PaginatedResponse<T> = ApiResponse<T[]> & { pagination: { total: number; page: number; limit: number; totalPages: number; hasNext: boolean; hasPrev: boolean } }
-
-const handleApiError = (error: unknown): never => {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const apiError = error as { response?: { data?: { error?: string; message?: string } } }
-    const errorMsg = apiError.response?.data?.error || apiError.response?.data?.message || 'An error occurred'
-    throw new Error(errorMsg)
-  }
-  throw new Error('An unexpected error occurred')
+const KEYS = {
+  products: (params: Record<string, unknown>) => ['products', params] as const,
+  product: (id: string) => ['products', id] as const,
 }
 
-export const productsApi = {
-  list: async (page = 1, limit = 10, sort?: Record<string, unknown>, filter?: Record<string, unknown>, includeDeleted = false, signal?: AbortSignal) => {
-    try {
-      const params: Record<string, unknown> = { page, limit, includeDeleted }
-      if (sort) Object.assign(params, sort)
-      if (filter) Object.assign(params, filter)
-      const res = await api.get<PaginatedResponse<Product>>('/products', { params, signal })
-      return res.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
+export const useProducts = (params: { page?: number; limit?: number; search?: string; status?: string; product_type?: string; includeDeleted?: boolean }) =>
+  useQuery({
+    queryKey: KEYS.products(params),
+    queryFn: async () => {
+      const queryParams: Record<string, unknown> = { page: params.page ?? 1, limit: params.limit ?? 20 }
+      if (params.search) queryParams.q = params.search
+      if (params.status) queryParams.status = params.status
+      if (params.product_type) queryParams.product_type = params.product_type
+      if (params.includeDeleted) queryParams.includeDeleted = true
 
-  search: async (q: string, page = 1, limit = 10, includeDeleted = false, filter?: Record<string, unknown>, signal?: AbortSignal) => {
-    try {
-      const params: Record<string, unknown> = { q, page, limit, includeDeleted }
-      if (filter) Object.assign(params, filter)
-      const res = await api.get<PaginatedResponse<Product>>('/products/search', { params, signal })
-      return res.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
+      const endpoint = params.search ? '/products/search' : '/products'
+      const { data } = await api.get(endpoint, { params: queryParams })
+      return { data: data.data as Product[], pagination: data.pagination as Pagination }
+    },
+    staleTime: 60_000,
+  })
 
-  getById: async (id: string, includeDeleted = false, signal?: AbortSignal) => {
-    try {
-      const res = await api.get<ApiResponse<Product>>(`/products/${id}`, { params: { includeDeleted }, signal })
-      return res.data.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
+export const useProduct = (id: string) =>
+  useQuery({
+    queryKey: KEYS.product(id),
+    queryFn: async () => {
+      const { data } = await api.get(`/products/${id}`)
+      return data.data as Product
+    },
+    enabled: !!id,
+  })
 
-  create: async (data: CreateProductDto) => {
-    try {
-      const res = await api.post<ApiResponse<Product>>('/products', data)
-      return res.data.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
+export const useCreateProduct = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: CreateProductDto) => {
+      const { data } = await api.post('/products', body)
+      return data.data as Product
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  })
+}
 
-  update: async (id: string, data: UpdateProductDto) => {
-    try {
-      const res = await api.put<ApiResponse<Product>>(`/products/${id}`, data)
-      return res.data.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
+export const useUpdateProduct = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...body }: UpdateProductDto & { id: string }) => {
+      const { data } = await api.put(`/products/${id}`, body)
+      return data.data as Product
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: KEYS.product(vars.id) })
+    },
+  })
+}
 
-  delete: async (id: string) => {
-    try {
-      await api.delete(`/products/${id}`)
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
+export const useDeleteProduct = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => { await api.delete(`/products/${id}`) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  })
+}
 
-  bulkDelete: async (ids: string[]) => {
-    try {
-      await api.post('/products/bulk/delete', { ids })
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
+export const useRestoreProduct = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/products/${id}/restore`, {})
+      return data.data as Product
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  })
+}
 
-  restore: async (id: string) => {
-    try {
-      const res = await api.post<ApiResponse<Product>>(`/products/${id}/restore`, {})
-      return res.data.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
+export const useBulkDeleteProducts = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => { await api.post('/products/bulk/delete', { ids }) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  })
+}
 
-  bulkRestore: async (ids: string[]) => {
-    try {
-      await api.post('/products/bulk/restore', { ids })
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
-
-  getUoms: async (productId: string, includeDeleted = false, signal?: AbortSignal) => {
-    try {
-      const res = await api.get<ApiResponse<ProductUom[]>>(`/products/${productId}/uoms`, { params: { includeDeleted }, signal })
-      return res.data.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
-
-  createUom: async (productId: string, data: CreateProductUomDto) => {
-    try {
-      const res = await api.post<ApiResponse<ProductUom>>(`/products/${productId}/uoms`, data)
-      return res.data.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
-
-  updateUom: async (productId: string, uomId: string, data: UpdateProductUomDto) => {
-    try {
-      const res = await api.put<ApiResponse<ProductUom>>(`/products/${productId}/uoms/${uomId}`, data)
-      return res.data.data
-    } catch (error) {
-      return handleApiError(error)
-    }
-  },
-
-  deleteUom: async (productId: string, uomId: string) => {
-    try {
-      await api.delete(`/products/${productId}/uoms/${uomId}`)
-    } catch (error) {
-      return handleApiError(error)
-    }
-  }
+export const useBulkRestoreProducts = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => { await api.post('/products/bulk/restore', { ids }) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  })
 }

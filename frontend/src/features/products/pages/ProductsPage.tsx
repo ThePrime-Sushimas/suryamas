@@ -1,168 +1,93 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useProductsStore } from '../store/products.store'
-import { ProductTable } from '../components/ProductTable'
-import { ProductDeleteDialog } from '../components/ProductDeleteDialog'
+import { Package, Plus, Search, X, Filter, RotateCcw, Trash2 } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
-import { useToast } from '@/contexts/ToastContext'
-import { useDebounce } from '@/hooks/_shared/useDebounce'
-import { parseApiError } from '@/lib/errorParser'
-import { Package, Plus, Search, Filter, X } from 'lucide-react'
-import { CardSkeleton } from '@/components/ui/Skeleton'
+import { useProducts, useDeleteProduct, useRestoreProduct, useBulkDeleteProducts, useBulkRestoreProducts } from '../api/products.api'
+import type { Product, ProductType, ProductStatus } from '../types'
+
+const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
+
+const TYPE_LABELS: Record<ProductType, string> = { raw: 'Bahan Baku', semi_finished: 'Setengah Jadi', finished_goods: 'Barang Jadi' }
+const TYPE_COLORS: Record<ProductType, string> = { raw: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', semi_finished: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', finished_goods: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' }
+const STATUS_COLORS: Record<ProductStatus, string> = { ACTIVE: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', INACTIVE: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400', DISCONTINUED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' }
 
 export default function ProductsPage() {
   const navigate = useNavigate()
-  const {
-    products,
-    pagination,
-    fetchLoading,
-    mutationLoading,
-    error: storeError,
-    selectedIds,
-    deleteProduct,
-    bulkDelete,
-    bulkRestore,
-    restoreProduct,
-    toggleSelect,
-    toggleSelectAll,
-    clearSelection,
-    clearError,
-    fetchPage,
-    searchPage
-  } = useProductsStore()
+  const toast = useToast()
 
-  const { success, error: showError } = useToast()
-  
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
-  const [showDeletedFilter, setShowDeletedFilter] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null)
-  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
-  const [bulkRestoreDialogOpen, setBulkRestoreDialogOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [showDeleted, setShowDeleted] = useState(false)
   const [showFilter, setShowFilter] = useState(false)
-  
-  const debouncedSearch = useDebounce(search, 500)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
+  const [bulkAction, setBulkAction] = useState<'delete' | 'restore' | null>(null)
 
-  const activeFilterCount = useMemo(() => {
-    let count = 0
-    if (statusFilter) count++
-    if (typeFilter) count++
-    if (showDeletedFilter) count++
-    return count
-  }, [statusFilter, typeFilter, showDeletedFilter])
+  const debouncedSearch = useDebounce(search, 400)
 
-  const buildFilter = useCallback(() => {
-    const filter: Record<string, string> = {}
-    if (statusFilter) filter.status = statusFilter
-    if (typeFilter) filter.product_type = typeFilter
-    return Object.keys(filter).length > 0 ? filter : undefined
-  }, [statusFilter, typeFilter])
+  const queryParams = useMemo(() => ({
+    page, limit, search: debouncedSearch || undefined,
+    status: statusFilter || undefined,
+    product_type: typeFilter || undefined,
+    includeDeleted: showDeleted || undefined,
+  }), [page, limit, debouncedSearch, statusFilter, typeFilter, showDeleted])
 
-  const doFetch = useCallback((page: number, limit?: number) => {
-    const filterObj = buildFilter()
-    if (debouncedSearch) {
-      searchPage(debouncedSearch, page, limit, showDeletedFilter, filterObj)
-    } else {
-      fetchPage(page, limit, undefined, filterObj, showDeletedFilter)
-    }
-  }, [debouncedSearch, buildFilter, showDeletedFilter, fetchPage, searchPage])
+  const { data, isLoading } = useProducts(queryParams)
+  const deleteProduct = useDeleteProduct()
+  const restoreProduct = useRestoreProduct()
+  const bulkDelete = useBulkDeleteProducts()
+  const bulkRestore = useBulkRestoreProducts()
 
-  // Search or filter changes → reset to page 1 and fetch (single action, no double-fetch)
-  useEffect(() => {
-    doFetch(1)
-  }, [debouncedSearch, statusFilter, typeFilter, showDeletedFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  const products = data?.data ?? []
+  const pagination = data?.pagination
 
-  useEffect(() => {
-    if (storeError) {
-      showError(storeError)
-      clearError()
-    }
-  }, [storeError, showError, clearError])
+  const handleLimitChange = (newLimit: number) => { setLimit(newLimit); setPage(1) }
+  const handleSearchChange = (v: string) => { setSearch(v); setPage(1) }
+  const handleStatusChange = (v: string) => { setStatusFilter(v); setPage(1) }
+  const handleTypeChange = (v: string) => { setTypeFilter(v); setPage(1) }
+  const handleDeletedChange = (v: boolean) => { setShowDeleted(v); setPage(1) }
 
-  const handleDelete = async (id: string) => {
-    const product = products.find(p => p.id === id)
-    if (!product) return
-    
-    setProductToDelete({ id, name: product.product_name })
-    setDeleteDialogOpen(true)
-  }
-
-  const confirmDelete = async () => {
-    if (!productToDelete) return
-
+  const handleDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await deleteProduct(productToDelete.id)
-      success('Produk berhasil dihapus')
-      setDeleteDialogOpen(false)
-      setProductToDelete(null)
-      doFetch(pagination.page)
-    } catch (err) {
-      showError(parseApiError(err, 'Gagal menghapus produk'))
-    }
+      await deleteProduct.mutateAsync(deleteTarget.id)
+      toast.success('Produk berhasil dihapus')
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus produk')) }
+    finally { setDeleteTarget(null) }
   }
 
   const handleRestore = async (id: string) => {
     try {
-      await restoreProduct(id)
-      success('Produk berhasil dipulihkan')
-      doFetch(pagination.page)
-    } catch (err) {
-      showError(parseApiError(err, 'Gagal memulihkan produk'))
-    }
+      await restoreProduct.mutateAsync(id)
+      toast.success('Produk berhasil dipulihkan')
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memulihkan produk')) }
   }
 
-  const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) {
-      showError('Pilih produk yang akan dihapus')
-      return
-    }
-
-    setBulkDeleteDialogOpen(true)
-  }
-
-  const confirmBulkDelete = async () => {
+  const handleBulkAction = async () => {
     try {
-      await bulkDelete(selectedIds)
-      success(`${selectedIds.length} produk berhasil dihapus`)
-      setBulkDeleteDialogOpen(false)
-      doFetch(pagination.page)
-    } catch (err) {
-      showError(parseApiError(err, 'Gagal menghapus produk'))
-    }
+      if (bulkAction === 'delete') {
+        await bulkDelete.mutateAsync(selectedIds)
+        toast.success(`${selectedIds.length} produk dihapus`)
+      } else {
+        await bulkRestore.mutateAsync(selectedIds)
+        toast.success(`${selectedIds.length} produk dipulihkan`)
+      }
+      setSelectedIds([])
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memproses')) }
+    finally { setBulkAction(null) }
   }
 
-  const handleBulkRestore = async () => {
-    if (selectedIds.length === 0) {
-      showError('Pilih produk yang akan dipulihkan')
-      return
-    }
+  const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  const toggleAll = () => setSelectedIds(prev => prev.length === products.length ? [] : products.map(p => p.id))
 
-    setBulkRestoreDialogOpen(true)
-  }
-
-  const confirmBulkRestore = async () => {
-    try {
-      await bulkRestore(selectedIds)
-      success(`${selectedIds.length} produk berhasil dipulihkan`)
-      setBulkRestoreDialogOpen(false)
-      doFetch(pagination.page)
-    } catch (err) {
-      showError(parseApiError(err, 'Gagal memulihkan produk'))
-    }
-  }
-
-  const handlePageChange = (newPage: number) => {
-    doFetch(newPage)
-  }
-
-  const handleLimitChange = (newLimit: number) => {
-    doFetch(1, newLimit)
-  }
-
-  const hasDeletedSelected = selectedIds.some(id => products.find(p => p.id === id)?.is_deleted)
+  const activeFilterCount = [statusFilter, typeFilter, showDeleted].filter(Boolean).length
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -173,212 +98,154 @@ export default function ProductsPage() {
             <Package className="w-6 h-6 text-blue-600" />
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Produk</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{pagination.total} total</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} total</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate('/products/create')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Tambah Produk
+          <button onClick={() => navigate('/products/create')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <Plus className="w-4 h-4" /> Tambah Produk
           </button>
         </div>
       </div>
 
-      {/* Search & Filter Bar */}
+      {/* Search & Filter */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Cari nama atau kode..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            <input type="text" placeholder="Cari nama atau kode..." value={search} onChange={e => handleSearchChange(e.target.value)}
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+            {search && <button onClick={() => handleSearchChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>}
           </div>
-          <button
-            onClick={() => setShowFilter(!showFilter)}
-            className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
-              showFilter 
-                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' 
-                : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
-            }`}
-          >
+          <button onClick={() => setShowFilter(!showFilter)}
+            className={`px-4 py-2 border rounded-lg flex items-center gap-2 ${showFilter ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
             <Filter className="w-4 h-4" />
-            {activeFilterCount > 0 && (
-              <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
-                {activeFilterCount}
-              </span>
-            )}
+            {activeFilterCount > 0 && <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">{activeFilterCount}</span>}
           </button>
         </div>
-
-        {/* Filter Panel */}
         {showFilter && (
-          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                <option value="">Semua Status</option>
-                  <option value="ACTIVE">Aktif</option>
-                  <option value="INACTIVE">Nonaktif</option>
-                  <option value="DISCONTINUED">Dihentikan</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipe Produk</label>
-                <select
-                  value={typeFilter}
-                  onChange={e => setTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="">Semua Tipe</option>
-                  <option value="raw">Bahan Baku</option>
-                  <option value="semi_finished">Setengah Jadi</option>
-                  <option value="finished_goods">Barang Jadi</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showDeletedFilter}
-                    onChange={e => setShowDeletedFilter(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
-                  />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Tampilkan Terhapus</span>
-                </label>
-              </div>
-            </div>
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <select value={statusFilter} onChange={e => handleStatusChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+              <option value="">Semua Status</option>
+              <option value="ACTIVE">Aktif</option>
+              <option value="INACTIVE">Nonaktif</option>
+              <option value="DISCONTINUED">Dihentikan</option>
+            </select>
+            <select value={typeFilter} onChange={e => handleTypeChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+              <option value="">Semua Tipe</option>
+              <option value="raw">Bahan Baku</option>
+              <option value="semi_finished">Setengah Jadi</option>
+              <option value="finished_goods">Barang Jadi</option>
+            </select>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={showDeleted} onChange={e => handleDeletedChange(e.target.checked)}
+                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
+              Tampilkan Terhapus
+            </label>
           </div>
         )}
       </div>
 
       {/* Bulk Actions */}
       {selectedIds.length > 0 && (
-        <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-blue-900 dark:text-blue-300">
-              {selectedIds.length} produk dipilih
-            </span>
-            <div className="space-x-2">
-              <button
-                onClick={clearSelection}
-                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-              >
-                Clear
-              </button>
-              {hasDeletedSelected ? (
-                <button
-                  onClick={handleBulkRestore}
-                  disabled={mutationLoading}
-                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:bg-gray-400 transition"
-                >
-                  {mutationLoading ? 'Memulihkan...' : 'Pulihkan Terpilih'}
-                </button>
-              ) : (
-                <button
-                  onClick={handleBulkDelete}
-                  disabled={mutationLoading}
-                  className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:bg-gray-400 transition"
-                >
-                  {mutationLoading ? 'Menghapus...' : 'Hapus Terpilih'}
-                </button>
-              )}
-            </div>
+        <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 flex items-center justify-between">
+          <span className="text-sm font-medium text-blue-900 dark:text-blue-300">{selectedIds.length} dipilih</span>
+          <div className="flex gap-2">
+            <button onClick={() => setSelectedIds([])} className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800">Clear</button>
+            <button onClick={() => setBulkAction('delete')} className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700">Hapus</button>
+            {showDeleted && <button onClick={() => setBulkAction('restore')} className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">Pulihkan</button>}
           </div>
         </div>
       )}
 
-      {/* Content */}
+      {/* Table */}
       <div className="flex-1 overflow-auto p-6">
-        {fetchLoading ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <CardSkeleton />
-              <p className="text-gray-500 dark:text-gray-400">Memuat produk...</p>
-            </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <tr>
+                  <th className="px-3 py-3 text-left w-10">
+                    <input type="checkbox" checked={products.length > 0 && selectedIds.length === products.length} onChange={toggleAll}
+                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kode</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nama Produk</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tipe</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Avg Cost</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {isLoading ? (
+                  <tr><td colSpan={7} className="px-3 py-12 text-center text-gray-400">Memuat...</td></tr>
+                ) : products.length === 0 ? (
+                  <tr><td colSpan={7} className="px-3 py-12 text-center text-gray-400">Tidak ada produk ditemukan</td></tr>
+                ) : products.map(p => (
+                  <tr key={p.id} onClick={() => navigate(`/products/${p.id}/edit`)}
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${p.is_deleted ? 'opacity-60 bg-red-50 dark:bg-red-900/10' : ''} ${selectedIds.includes(p.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                    <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={selectedIds.includes(p.id)} onChange={() => toggleSelect(p.id)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
+                    </td>
+                    <td className="px-3 py-3 font-mono text-gray-900 dark:text-gray-200">{p.product_code}</td>
+                    <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{p.product_name}</td>
+                    <td className="px-3 py-3">
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${TYPE_COLORS[p.product_type]}`}>
+                        {TYPE_LABELS[p.product_type]}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
+                      {p.average_cost > 0 ? (
+                        <span>Rp {fmt(p.average_cost)}<span className="text-gray-400 text-xs ml-1">/{p.base_unit_name || '?'}</span></span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_COLORS[p.status]}`}>{p.status}</span>
+                      {p.is_deleted && <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">DEL</span>}
+                    </td>
+                    <td className="px-3 py-3 text-right" onClick={e => e.stopPropagation()}>
+                      {p.is_deleted ? (
+                        <button onClick={() => handleRestore(p.id)} className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                          <RotateCcw className="w-3.5 h-3.5 inline" /> Pulihkan
+                        </button>
+                      ) : (
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => navigate(`/products/${p.id}/uoms`)} className="text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400">UOMs</button>
+                          <button onClick={() => navigate(`/products/${p.id}/edit`)} className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">Edit</button>
+                          <button onClick={() => setDeleteTarget(p)} className="text-xs text-red-500 hover:text-red-700 dark:text-red-400">
+                            <Trash2 className="w-3.5 h-3.5 inline" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <>
-            <ProductTable
-              products={products}
-              selectedIds={selectedIds}
-              deletingId={mutationLoading && productToDelete ? productToDelete.id : null}
-              onView={id => navigate(`/products/${id}`)}
-              onEdit={id => navigate(`/products/${id}/edit`)}
-              onDelete={handleDelete}
-              onRestore={handleRestore}
-              onManageUoms={id => navigate(`/products/${id}/uoms`)}
-              onToggleSelect={toggleSelect}
-              onToggleSelectAll={toggleSelectAll}
-            />
+        </div>
 
-            {/* Global Pagination Component */}
-            {pagination.total > 0 && (
-              <Pagination
-                pagination={pagination}
-                onPageChange={handlePageChange}
-                onLimitChange={handleLimitChange}
-                currentLength={products.length}
-                loading={fetchLoading}
-              />
-            )}
-          </>
+        {pagination && pagination.total > 0 && (
+          <Pagination pagination={pagination} onPageChange={setPage} onLimitChange={handleLimitChange} currentLength={products.length} loading={isLoading} />
         )}
       </div>
 
-      {/* Delete Dialogs */}
-      {productToDelete && (
-        <ProductDeleteDialog
-          isOpen={deleteDialogOpen}
-          onClose={() => {
-            setDeleteDialogOpen(false)
-            setProductToDelete(null)
-          }}
-          onConfirm={confirmDelete}
-          productName={productToDelete.name}
-          isLoading={mutationLoading}
-        />
-      )}
+      {/* Delete Modal */}
+      <ConfirmModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete}
+        title="Hapus Produk" message={`Yakin ingin menghapus "${deleteTarget?.product_name}"?`}
+        confirmText="Hapus" variant="danger" isLoading={deleteProduct.isPending} />
 
-      <ConfirmModal
-        isOpen={bulkDeleteDialogOpen}
-        onClose={() => setBulkDeleteDialogOpen(false)}
-        onConfirm={confirmBulkDelete}
-        title="Hapus Produk"
-        message={`Yakin ingin menghapus ${selectedIds.length} produk? Tindakan ini dapat dipulihkan nanti.`}
-        confirmText="Hapus"
-        variant="danger"
-        isLoading={mutationLoading}
-      />
-
-      <ConfirmModal
-        isOpen={bulkRestoreDialogOpen}
-        onClose={() => setBulkRestoreDialogOpen(false)}
-        onConfirm={confirmBulkRestore}
-        title="Pulihkan Produk"
-        message={`Yakin ingin memulihkan ${selectedIds.length} produk?`}
-        confirmText="Pulihkan"
-        variant="success"
-        isLoading={mutationLoading}
-      />
+      {/* Bulk Modal */}
+      <ConfirmModal isOpen={!!bulkAction} onClose={() => setBulkAction(null)} onConfirm={handleBulkAction}
+        title={bulkAction === 'delete' ? 'Hapus Produk' : 'Pulihkan Produk'}
+        message={`Yakin ingin ${bulkAction === 'delete' ? 'menghapus' : 'memulihkan'} ${selectedIds.length} produk?`}
+        confirmText={bulkAction === 'delete' ? 'Hapus' : 'Pulihkan'}
+        variant={bulkAction === 'delete' ? 'danger' : 'success'}
+        isLoading={bulkDelete.isPending || bulkRestore.isPending} />
     </div>
   )
 }

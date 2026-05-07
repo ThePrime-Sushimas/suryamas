@@ -166,7 +166,7 @@ const CreateProductPage = lazy(() =>
   import("./features/products").then((m) => ({ default: m.CreateProductPage })),
 );
 const ProductDetailPage = lazy(() =>
-  import("./features/products").then((m) => ({ default: m.ProductDetailPage })),
+  import("./features/products").then((m) => ({ default: m.EditProductPage })),
 );
 const EditProductPage = lazy(() =>
   import("./features/products").then((m) => ({ default: m.EditProductPage })),

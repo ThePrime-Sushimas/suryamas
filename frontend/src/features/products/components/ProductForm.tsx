@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useToast } from '@/contexts/ToastContext'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { Product, ProductStatus, ProductType, CreateProductDto, UpdateProductDto } from '../types'
 import api from '@/lib/axios'
 import { CardSkeleton } from '@/components/ui/Skeleton'
@@ -24,7 +24,6 @@ interface SubCategory {
 }
 
 export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading }: ProductFormProps) => {
-  const toast = useToast()
   const [formData, setFormData] = useState({
     product_code: initialData?.product_code || '',
     product_name: initialData?.product_name || '',
@@ -39,39 +38,22 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     status: (initialData?.status || 'ACTIVE') as ProductStatus
   })
 
-  const [categories, setCategories] = useState<Category[]>([])
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([])
-  const [filteredSubCategories, setFilteredSubCategories] = useState<SubCategory[]>([])
-  const [loadingCategories, setLoadingCategories] = useState(true)
+  const { data: categories = [], isLoading: loadingCat } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => { const { data } = await api.get('/categories'); return (data.data || []) as Category[] },
+    staleTime: 5 * 60_000,
+  })
+  const { data: subCategories = [], isLoading: loadingSub } = useQuery({
+    queryKey: ['sub-categories'],
+    queryFn: async () => { const { data } = await api.get('/sub-categories'); return (data.data || []) as SubCategory[] },
+    staleTime: 5 * 60_000,
+  })
+
+  const filteredSubCategories = formData.category_id
+    ? subCategories.filter(sub => sub.category_id === formData.category_id)
+    : []
+
   const [errors, setErrors] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const [catRes, subCatRes] = await Promise.all([
-          api.get('/categories'),
-          api.get('/sub-categories')
-        ])
-        setCategories(catRes.data.data || [])
-        setSubCategories(subCatRes.data.data || [])
-      } catch {
-        toast.error('Failed to load categories')
-      } finally {
-        setLoadingCategories(false)
-      }
-    }
-    fetchCategories()
-  }, [toast])
-
-  useEffect(() => {
-    if (formData.category_id) {
-      setFilteredSubCategories(
-        subCategories.filter(sub => sub.category_id === formData.category_id)
-      )
-    } else {
-      setFilteredSubCategories([])
-    }
-  }, [formData.category_id, subCategories])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
@@ -126,7 +108,6 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       category_id: formData.category_id,
       sub_category_id: formData.sub_category_id,
       product_type: formData.product_type,
-      average_cost: formData.average_cost,
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
       notes: formData.notes || undefined,
@@ -136,7 +117,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     await onSubmit(submitData)
   }
 
-  if (loadingCategories) {
+  if (loadingCat || loadingSub) {
     return (
       <div className="flex items-center justify-center py-8">
         <CardSkeleton />
