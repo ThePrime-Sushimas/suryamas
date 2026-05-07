@@ -1,130 +1,138 @@
-/**
- * Pricelist API Client
- * Type-safe REST API integration
- * 
- * @module pricelists/api
- */
-
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axiosInstance from '@/lib/axios'
 import type {
-  Pricelist,
-  PricelistWithRelations,
-  CreatePricelistDto,
-  UpdatePricelistDto,
-  PricelistApprovalDto,
-  PricelistListQuery,
-  PricelistListResponse,
-  PricelistLookupQuery,
-  PricelistLookupResponse
+  Pricelist, PricelistWithRelations, CreatePricelistDto, UpdatePricelistDto,
+  PricelistApprovalDto, PricelistListQuery, PricelistListResponse, PricelistLookupQuery, PricelistLookupResponse
 } from '../types/pricelist.types'
 
 const BASE_URL = '/pricelists'
 
-/**
- * Unwrap API response data consistently
- */
 function unwrapData<T>(response: { data: unknown }): T {
-  // For list responses, return the whole response (data + pagination)
-  // For single item responses, return just the data
   const responseData = response.data as Record<string, unknown>
-  
-  // If response has both 'data' and 'pagination', return the whole response
-  if (responseData?.data && responseData?.pagination) {
-    return responseData as T
-  }
-  
-  // Otherwise return just the data field or the whole response
+  if (responseData?.data && responseData?.pagination) return responseData as T
   return (responseData?.data ?? response.data) as T
 }
 
-/**
- * Build query string from params
- * Removes undefined/null values
- */
 function buildQueryString(params: Record<string, unknown>): string {
   const filtered = Object.entries(params)
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
     .join('&')
-  
   return filtered ? `?${filtered}` : ''
 }
 
+// ── React Query Hooks ──
+
+export const usePricelists = (query: PricelistListQuery = {}) =>
+  useQuery({
+    queryKey: ['pricelists', query],
+    queryFn: async () => {
+      const qs = buildQueryString(query as Record<string, unknown>)
+      const response = await axiosInstance.get<PricelistListResponse>(`${BASE_URL}${qs}`)
+      return unwrapData<PricelistListResponse>(response)
+    },
+    staleTime: 60_000,
+  })
+
+export const usePricelist = (id: string) =>
+  useQuery({
+    queryKey: ['pricelists', id],
+    queryFn: async () => {
+      const response = await axiosInstance.get(`${BASE_URL}/${id}`)
+      return unwrapData<PricelistWithRelations>(response)
+    },
+    enabled: !!id,
+  })
+
+export const useCreatePricelist = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: CreatePricelistDto) => {
+      const response = await axiosInstance.post(BASE_URL, data)
+      return unwrapData<Pricelist>(response)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pricelists'] }),
+  })
+}
+
+export const useUpdatePricelist = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...data }: UpdatePricelistDto & { id: string }) => {
+      const response = await axiosInstance.patch(`${BASE_URL}/${id}`, data)
+      return unwrapData<Pricelist>(response)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pricelists'] }),
+  })
+}
+
+export const useDeletePricelist = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => { await axiosInstance.delete(`${BASE_URL}/${id}`) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pricelists'] }),
+  })
+}
+
+export const useApprovePricelist = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...data }: PricelistApprovalDto & { id: string }) => {
+      const response = await axiosInstance.post(`${BASE_URL}/${id}/approve`, data)
+      return unwrapData<Pricelist>(response)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pricelists'] }),
+  })
+}
+
+export const useRestorePricelist = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await axiosInstance.post(`${BASE_URL}/${id}/restore`)
+      return unwrapData<Pricelist>(response)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pricelists'] }),
+  })
+}
+
+// ── Legacy API object (kept for complex form pages) ──
+
 export const pricelistsApi = {
-  /**
-   * List pricelists with pagination and filters
-   */
   async list(query: PricelistListQuery = {}, signal?: AbortSignal): Promise<PricelistListResponse> {
-    const queryString = buildQueryString(query as Record<string, unknown>)
-    const response = await axiosInstance.get<PricelistListResponse>(`${BASE_URL}${queryString}`, { signal })
+    const qs = buildQueryString(query as Record<string, unknown>)
+    const response = await axiosInstance.get<PricelistListResponse>(`${BASE_URL}${qs}`, { signal })
     return unwrapData<PricelistListResponse>(response)
   },
-
-  /**
-   * Get single pricelist by ID
-   */
   async getById(id: string, signal?: AbortSignal): Promise<PricelistWithRelations> {
     const response = await axiosInstance.get(`${BASE_URL}/${id}`, { signal })
     return unwrapData<PricelistWithRelations>(response)
   },
-
-  /**
-   * Create new pricelist
-   */
   async create(data: CreatePricelistDto): Promise<Pricelist> {
     const response = await axiosInstance.post(BASE_URL, data)
     return unwrapData<Pricelist>(response)
   },
-
-  /**
-   * Update existing pricelist (DRAFT only)
-   */
   async update(id: string, data: UpdatePricelistDto): Promise<Pricelist> {
     const response = await axiosInstance.patch(`${BASE_URL}/${id}`, data)
     return unwrapData<Pricelist>(response)
   },
-
-  /**
-   * Delete pricelist (soft delete)
-   */
-  async delete(id: string): Promise<void> {
-    await axiosInstance.delete(`${BASE_URL}/${id}`)
-  },
-
-  /**
-   * Approve or reject pricelist
-   */
+  async delete(id: string): Promise<void> { await axiosInstance.delete(`${BASE_URL}/${id}`) },
   async approve(id: string, data: PricelistApprovalDto): Promise<Pricelist> {
     const response = await axiosInstance.post(`${BASE_URL}/${id}/approve`, data)
     return unwrapData<Pricelist>(response)
   },
-
-  /**
-   * Lookup pricelist for PO integration
-   * Find active approved pricelist for specific combination
-   */
   async lookup(query: PricelistLookupQuery, signal?: AbortSignal): Promise<PricelistLookupResponse> {
-    const queryString = buildQueryString(query as unknown as Record<string, unknown>)
-    const response = await axiosInstance.get<PricelistLookupResponse>(`${BASE_URL}/lookup${queryString}`, { signal })
+    const qs = buildQueryString(query as unknown as Record<string, unknown>)
+    const response = await axiosInstance.get<PricelistLookupResponse>(`${BASE_URL}/lookup${qs}`, { signal })
     return unwrapData<PricelistLookupResponse>(response)
   },
-
-  /**
-   * Restore deleted pricelist
-   */
   async restore(id: string): Promise<Pricelist> {
     const response = await axiosInstance.post(`${BASE_URL}/${id}/restore`)
     return unwrapData<Pricelist>(response)
   },
-
-  /**
-   * Export pricelists to CSV
-   */
   async exportCSV(query: PricelistListQuery = {}): Promise<Blob> {
-    const queryString = buildQueryString(query as Record<string, unknown>)
-    const response = await axiosInstance.get(`${BASE_URL}/export${queryString}`, {
-      responseType: 'blob'
-    })
+    const qs = buildQueryString(query as Record<string, unknown>)
+    const response = await axiosInstance.get(`${BASE_URL}/export${qs}`, { responseType: 'blob' })
     return response.data
-  }
+  },
 }

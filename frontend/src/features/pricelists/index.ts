@@ -13,9 +13,7 @@ export * from './constants/pricelist.constants'
 
 // API
 export { pricelistsApi } from './api/pricelists.api'
-
-// Store
-export { usePricelistsStore } from './store/pricelists.store'
+export * from './api/pricelists.api'
 
 // Hooks
 export { useUomSearch } from '@/hooks/_shared/useUomSearch'

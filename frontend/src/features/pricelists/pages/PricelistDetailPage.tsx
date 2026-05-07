@@ -1,395 +1,155 @@
-/**
- * Pricelist Detail Page
- * View pricelist details with actions
- * 
- * @module pricelists/pages
- */
-
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, DollarSign, Pencil } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
-import { usePricelistsStore } from '../store/pricelists.store'
-import { pricelistsApi } from '../api/pricelists.api'
+import { parseApiError } from '@/lib/errorParser'
+import { FormSkeleton } from '@/components/ui/Skeleton'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { usePricelist, useDeletePricelist, useApprovePricelist, useRestorePricelist } from '../api/pricelists.api'
 import { formatPrice, formatDate, formatStatus, getValidityStatus, getValidityColorClass } from '../utils/format'
 import { isEditable, isApprovable, getStatusColorClass } from '../constants/pricelist.constants'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import type { PricelistWithRelations } from '../types/pricelist.types'
-import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export function PricelistDetailPage() {
-  const { id, supplierProductId, pricelistId } = useParams<{ 
-    id?: string
-    supplierProductId?: string
-    pricelistId?: string 
-  }>()
+  const { id, supplierProductId, pricelistId } = useParams<{ id?: string; supplierProductId?: string; pricelistId?: string }>()
   const navigate = useNavigate()
   const toast = useToast()
 
-  // Use pricelistId if available (from supplier-product route), otherwise use id
-  const actualId = pricelistId || id
+  const actualId = pricelistId || id || ''
+  const backPath = supplierProductId ? `/supplier-products/${supplierProductId}/pricelists` : '/pricelists'
 
-  // Determine the back navigation path based on whether supplierProductId exists
-  const backPath = supplierProductId 
-    ? `/supplier-products/${supplierProductId}/pricelists`
-    : '/pricelists'
+  const pricelist = usePricelist(actualId)
+  const deletePL = useDeletePricelist()
+  const approvePL = useApprovePricelist()
+  const restorePL = useRestorePricelist()
 
-  const deletePricelist = usePricelistsStore(s => s.deletePricelist)
-  const approvePricelist = usePricelistsStore(s => s.approvePricelist)
-  const loading = usePricelistsStore(s => s.loading)
-  
-  const [pricelist, setPricelist] = useState<PricelistWithRelations | null>(null)
-  const [pageLoading, setPageLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  
-  // Confirm modal states
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [approveModalOpen, setApproveModalOpen] = useState(false)
-  const [rejectModalOpen, setRejectModalOpen] = useState(false)
-  const [restoreModalOpen, setRestoreModalOpen] = useState(false)
+  const [modal, setModal] = useState<'delete' | 'approve' | 'reject' | 'restore' | null>(null)
 
-  useEffect(() => {
-    const controller = new AbortController()
-
-    const fetchPricelist = async () => {
-      if (!actualId) {
-        setError('Invalid pricelist ID')
-        return
-      }
-
-      try {
-        const data = await pricelistsApi.getById(actualId, controller.signal)
-        
-        if (!controller.signal.aborted) {
-          setPricelist(data)
-          setError(null)
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setError('Failed to load pricelist')
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setPageLoading(false)
-        }
-      }
-    }
-
-    fetchPricelist()
-    return () => controller.abort()
-  }, [actualId])
-
-  const handleEdit = useCallback(() => {
-    if (supplierProductId) {
-      navigate(`/supplier-products/${supplierProductId}/pricelists/${actualId}/edit`)
-    } else {
-      navigate(`/pricelists/${actualId}/edit`)
-    }
-  }, [navigate, actualId, supplierProductId])
-
-  const handleDeleteClick = () => {
-    setDeleteModalOpen(true)
+  const handleAction = async () => {
+    if (!actualId || !modal) return
+    try {
+      if (modal === 'delete') { await deletePL.mutateAsync(actualId); toast.success('Pricelist berhasil dihapus'); navigate(backPath) }
+      else if (modal === 'approve') { await approvePL.mutateAsync({ id: actualId, status: 'APPROVED' }); toast.success('Pricelist berhasil diapprove') }
+      else if (modal === 'reject') { await approvePL.mutateAsync({ id: actualId, status: 'REJECTED' }); toast.success('Pricelist ditolak') }
+      else if (modal === 'restore') { await restorePL.mutateAsync(actualId); toast.success('Pricelist berhasil dipulihkan') }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memproses')) }
+    finally { setModal(null) }
   }
 
-  const handleDeleteConfirm = useCallback(async () => {
-    if (!actualId) return
-
-    try {
-      await deletePricelist(actualId)
-      toast.success('Pricelist deleted successfully')
-      navigate(backPath)
-    } catch {
-      // Error handled in store
-    } finally {
-      setDeleteModalOpen(false)
-    }
-  }, [deletePricelist, actualId, toast, navigate, backPath])
-
-  const handleApproveClick = () => {
-    setApproveModalOpen(true)
-  }
-
-  const handleApproveConfirm = useCallback(async () => {
-    if (!actualId) return
-
-    try {
-      const updated = await approvePricelist(actualId, { status: 'APPROVED' })
-      setPricelist(prev => prev ? { ...prev, ...updated } : null)
-      toast.success('Pricelist approved successfully')
-    } catch {
-      // Error handled in store
-    } finally {
-      setApproveModalOpen(false)
-    }
-  }, [approvePricelist, actualId, toast])
-
-  const handleRejectClick = () => {
-    setRejectModalOpen(true)
-  }
-
-  const handleRejectConfirm = useCallback(async () => {
-    if (!actualId) return
-
-    try {
-      const updated = await approvePricelist(actualId, { status: 'REJECTED' })
-      setPricelist(prev => prev ? { ...prev, ...updated } : null)
-      toast.success('Pricelist rejected')
-    } catch {
-      // Error handled in store
-    } finally {
-      setRejectModalOpen(false)
-    }
-  }, [approvePricelist, actualId, toast])
-
-  const handleRestoreClick = () => {
-    setRestoreModalOpen(true)
-  }
-
-  const handleRestoreConfirm = useCallback(async () => {
-    if (!actualId) return
-
-    try {
-      await pricelistsApi.restore(actualId)
-      const data = await pricelistsApi.getById(actualId)
-      setPricelist(data)
-      toast.success('Pricelist restored successfully')
-    } catch (error: unknown) {
-      if (error && typeof error === 'object' && 'response' in error) {
-        const apiError = error as { response?: { status?: number } }
-        if (apiError.response?.status === 409) {
-          toast.error('Cannot restore: Another active pricelist exists for this supplier-product-UOM combination')
-        } else {
-          toast.error('Failed to restore pricelist')
-        }
-      } else {
-        toast.error('Failed to restore pricelist')
-      }
-    } finally {
-      setRestoreModalOpen(false)
-    }
-  }, [actualId, toast])
-
-  if (pageLoading) {
+  if (pricelist.isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-6">
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
+      <div className="max-w-3xl mx-auto p-4 lg:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3"><div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /><div className="h-6 w-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /><div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"><FormSkeleton /></div>
         </div>
       </div>
     )
   }
 
-  if (error || !pricelist) {
+  if (!pricelist.data) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Error</h2>
-          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Pricelist not found'}</p>
-          <button
-            onClick={() => navigate(backPath)}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-          >
-            Kembali
-          </button>
+      <div className="max-w-3xl mx-auto p-4 lg:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-12 text-center">
+          <DollarSign className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white">Pricelist tidak ditemukan</h3>
+          <button onClick={() => navigate(backPath)} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Kembali</button>
         </div>
       </div>
     )
   }
 
-  const validityStatus = getValidityStatus(pricelist.valid_from, pricelist.valid_to)
-  const statusColorClass = getStatusColorClass(pricelist.status)
-  const validityColorClass = getValidityColorClass(validityStatus.color)
-  const canEdit = isEditable(pricelist.status)
-  const canApprove = isApprovable(pricelist.status)
-  const canRestore = !!pricelist.deleted_at
+  const p = pricelist.data
+  const validityStatus = getValidityStatus(p.valid_from, p.valid_to)
+  const canEdit = isEditable(p.status)
+  const canApprove = isApprovable(p.status)
+  const canRestore = !!p.deleted_at
+  const isMutating = deletePL.isPending || approvePL.isPending || restorePL.isPending
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-4 bg-gray-50 dark:bg-gray-900 min-h-screen">
       {/* Header */}
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pricelist Details</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {pricelist.supplier_name} - {pricelist.product_name}
-          </p>
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate(backPath)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+          <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+        </button>
+        <DollarSign className="w-6 h-6 text-green-600" />
+        <div className="flex-1">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{p.supplier_name || p.supplier?.supplier_name}</h1>
+          <p className="text-xs text-gray-400">{p.product_name || p.product?.product_name} • {p.uom_name || p.uom?.uom_name}</p>
         </div>
-        <div className="flex gap-2">
-          {canEdit && (
-            <button
-              onClick={handleEdit}
-              disabled={loading.update || loading.delete || loading.approve}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-            >
-              Edit
-            </button>
-          )}
-          {canApprove && (
-            <>
-              <button
-                onClick={handleApproveClick}
-                disabled={loading.approve}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-              >
-                Approve
-              </button>
-              <button
-                onClick={handleRejectClick}
-                disabled={loading.approve}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50"
-              >
-                Reject
-              </button>
-            </>
-          )}
-          {canRestore ? (
-            <button
-              onClick={handleRestoreClick}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Restore
-            </button>
-          ) : (
-            <button
-              onClick={handleDeleteClick}
-              disabled={loading.delete}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
-            >
-              Delete
-            </button>
-          )}
-          <button
-            onClick={() => navigate(backPath)}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-          >
-            Kembali
+        {canEdit && (
+          <button onClick={() => supplierProductId ? navigate(`/supplier-products/${supplierProductId}/pricelists/${actualId}/edit`) : navigate(`/pricelists/${actualId}/edit`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+            <Pencil className="w-3.5 h-3.5" /> Edit
           </button>
+        )}
+      </div>
+
+      {/* Info Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Harga</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-white">{formatPrice(p.price, p.currency)}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Status</p>
+          <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColorClass(p.status)}`}>{formatStatus(p.status)}</span>
+        </div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Validitas</p>
+          <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${getValidityColorClass(validityStatus.color)}`}>{validityStatus.label}</span>
+        </div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Aktif</p>
+          <p className={`text-sm font-bold ${p.is_active ? 'text-emerald-600' : 'text-gray-500'}`}>{p.is_active ? 'Ya' : 'Tidak'}</p>
         </div>
       </div>
 
-      {/* Details */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Pricelist Information</h3>
+      {/* Detail */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Informasi</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><p className="text-xs text-gray-400">Supplier</p><p className="text-sm font-medium text-gray-900 dark:text-white">{p.supplier_name || p.supplier?.supplier_name || '—'}</p></div>
+            <div><p className="text-xs text-gray-400">Produk</p><p className="text-sm font-medium text-gray-900 dark:text-white">{p.product_name || p.product?.product_name || '—'}</p></div>
+            <div><p className="text-xs text-gray-400">UOM</p><p className="text-sm font-medium text-gray-900 dark:text-white">{p.uom_name || p.uom?.uom_name || '—'}</p></div>
+            <div><p className="text-xs text-gray-400">Mata Uang</p><p className="text-sm font-medium text-gray-900 dark:text-white">{p.currency}</p></div>
+          </div>
         </div>
-        <div className="px-6 py-4 space-y-6">
-          {/* Basic Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Supplier</label>
-              <p className="mt-1 text-sm text-gray-900 dark:text-white">{pricelist.supplier_name || '-'}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Product</label>
-              <p className="mt-1 text-sm text-gray-900 dark:text-white">{pricelist.product_name || '-'}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">UOM</label>
-              <p className="mt-1 text-sm text-gray-900 dark:text-white">{pricelist.uom_name || '-'}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Price</label>
-              <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {formatPrice(pricelist.price, pricelist.currency)}
-              </p>
-            </div>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Periode Berlaku</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><p className="text-xs text-gray-400">Berlaku Dari</p><p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(p.valid_from)}</p></div>
+            <div><p className="text-xs text-gray-400">Berlaku Sampai</p><p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(p.valid_to) || 'Tidak ada batas'}</p></div>
           </div>
-
-          {/* Status & Validity */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
-              <span className={`mt-1 inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColorClass}`}>
-                {formatStatus(pricelist.status)}
-              </span>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Validity</label>
-              <span className={`mt-1 inline-flex px-2 py-1 text-xs font-medium rounded-full ${validityColorClass}`}>
-                {validityStatus.label}
-              </span>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
-              <span className={`mt-1 inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                pricelist.is_active 
-                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-              }`}>
-                {pricelist.is_active ? 'Active' : 'Inactive'}
-              </span>
-            </div>
+        </div>
+        <div className="p-4 bg-gray-50 dark:bg-gray-900/50 flex items-center justify-between">
+          <div className="flex gap-4 text-xs text-gray-400">
+            <span>Dibuat: {formatDate(p.created_at)}</span>
+            <span>Diperbarui: {formatDate(p.updated_at)}</span>
           </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Valid From</label>
-              <p className="mt-1 text-sm text-gray-900 dark:text-white">{formatDate(pricelist.valid_from)}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Valid To</label>
-              <p className="mt-1 text-sm text-gray-900 dark:text-white">{formatDate(pricelist.valid_to) || 'No expiry'}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Created At</label>
-              <p className="mt-1 text-sm text-gray-900 dark:text-white">{formatDate(pricelist.created_at)}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Updated At</label>
-              <p className="mt-1 text-sm text-gray-900 dark:text-white">{formatDate(pricelist.updated_at)}</p>
-            </div>
+          <div className="flex gap-2">
+            {canApprove && (
+              <>
+                <button onClick={() => setModal('approve')} disabled={isMutating} className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">Approve</button>
+                <button onClick={() => setModal('reject')} disabled={isMutating} className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">Reject</button>
+              </>
+            )}
+            {canRestore ? (
+              <button onClick={() => setModal('restore')} disabled={isMutating} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">Pulihkan</button>
+            ) : (
+              <button onClick={() => setModal('delete')} disabled={isMutating} className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg disabled:opacity-50">Hapus</button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Pricelist"
-        message="Are you sure you want to delete this pricelist? This action cannot be undone."
-        confirmText="Delete"
-        variant="danger"
-        isLoading={loading.delete}
-      />
-
-      {/* Approve Confirmation Modal */}
-      <ConfirmModal
-        isOpen={approveModalOpen}
-        onClose={() => setApproveModalOpen(false)}
-        onConfirm={handleApproveConfirm}
-        title="Approve Pricelist"
-        message="Are you sure you want to approve this pricelist?"
-        confirmText="Approve"
-        variant="success"
-        isLoading={loading.approve}
-      />
-
-      {/* Reject Confirmation Modal */}
-      <ConfirmModal
-        isOpen={rejectModalOpen}
-        onClose={() => setRejectModalOpen(false)}
-        onConfirm={handleRejectConfirm}
-        title="Reject Pricelist"
-        message="Are you sure you want to reject this pricelist?"
-        confirmText="Reject"
-        variant="warning"
-        isLoading={loading.approve}
-      />
-
-      {/* Restore Confirmation Modal */}
-      <ConfirmModal
-        isOpen={restoreModalOpen}
-        onClose={() => setRestoreModalOpen(false)}
-        onConfirm={handleRestoreConfirm}
-        title="Restore Pricelist"
-        message="Are you sure you want to restore this pricelist?"
-        confirmText="Restore"
-        variant="success"
-      />
+      <ConfirmModal isOpen={!!modal} onClose={() => setModal(null)} onConfirm={handleAction}
+        title={modal === 'delete' ? 'Hapus Pricelist' : modal === 'approve' ? 'Approve Pricelist' : modal === 'reject' ? 'Reject Pricelist' : 'Pulihkan Pricelist'}
+        message={modal === 'delete' ? 'Yakin ingin menghapus pricelist ini?' : modal === 'approve' ? 'Yakin ingin approve pricelist ini?' : modal === 'reject' ? 'Yakin ingin reject pricelist ini?' : 'Yakin ingin memulihkan pricelist ini?'}
+        confirmText={modal === 'delete' ? 'Hapus' : modal === 'approve' ? 'Approve' : modal === 'reject' ? 'Reject' : 'Pulihkan'}
+        variant={modal === 'delete' ? 'danger' : modal === 'reject' ? 'warning' : 'success'}
+        isLoading={isMutating} />
     </div>
   )
 }
-

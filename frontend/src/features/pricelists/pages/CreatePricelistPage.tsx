@@ -20,7 +20,7 @@ import { useBranchContextStore } from '@/features/branch_context/store/branchCon
 import { suppliersApi } from '@/features/suppliers/api/suppliers.api'
 import { supplierProductsApi } from '@/features/supplier-products/api/supplierProducts.api'
 import { useUomSearch } from '@/hooks/_shared/useUomSearch'
-import { usePricelistsStore } from '../store/pricelists.store'
+import { useCreatePricelist } from '../api/pricelists.api'
 import { CURRENCY_OPTIONS } from '../constants/pricelist.constants'
 import { validateCreatePricelist, hasErrors } from '../utils/validation'
 import type { CreatePricelistDto, PricelistFormErrors } from '../types/pricelist.types'
@@ -48,11 +48,8 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
   // Branch context
   const currentBranch = useBranchContextStore(s => s.currentBranch)
 
-  // Store state
-  const createPricelist = usePricelistsStore(s => s.createPricelist)
-  const storeLoading = usePricelistsStore(s => s.loading)
-  const storeErrors = usePricelistsStore(s => s.errors)
-  const clearError = usePricelistsStore(s => s.clearError)
+  // React Query mutation
+  const createPL = useCreatePricelist()
 
   // Form state
   const [formData, setFormData] = useState<CreatePricelistDto>({
@@ -168,14 +165,6 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
     }
   }, [formData.supplier_id, productSearch])
 
-  // Store error handling
-  useEffect(() => {
-    if (storeErrors.mutation) {
-      toast.error(storeErrors.mutation)
-      clearError()
-    }
-  }, [storeErrors.mutation, toast, clearError])
-
   // Memoized validation
   const validationErrors = useMemo(() => {
     return validateCreatePricelist(formData)
@@ -236,13 +225,13 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
         ? { ...formData, currency: undefined }
         : { ...formData }
 
-      await createPricelist(submitData)
-      toast.success('Pricelist created successfully')
+      await createPL.mutateAsync(submitData)
+      toast.success('Pricelist berhasil dibuat')
       navigate('/pricelists')
-    } catch {
-      // Store handles error display
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal membuat pricelist')
     }
-  }, [formData, validationErrors, createPricelist, toast, navigate])
+  }, [formData, validationErrors, createPL, toast, navigate])
 
   const handleCancel = useCallback(() => {
     navigate('/pricelists')
@@ -266,7 +255,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
     )
   }
 
-  const isFormDisabled = storeLoading.create
+  const isFormDisabled = createPL.isPending
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -582,7 +571,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
               disabled={isFormDisabled || hasErrors(validationErrors)}
               className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {storeLoading.create ? 'Creating...' : 'Create Pricelist'}
+              {createPL.isPending ? 'Membuat...' : 'Buat Pricelist'}
             </button>
           </div>
         </form>

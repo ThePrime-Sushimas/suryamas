@@ -1,30 +1,15 @@
-/**
- * Supplier Product Pricelists Page
- * Lists pricelists for a specific supplier-product combination
- * 
- * Features:
- * - Context-aware filtering
- * - Pagination
- * - Sorting
- * - Bulk actions
- * - Export functionality
- * - Dark mode support
- * 
- * @module pricelists/pages
- */
-
 import { useEffect, useState, useCallback, useMemo, memo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 import { supplierProductsApi } from '@/features/supplier-products'
-import { usePricelistsStore } from '../store/pricelists.store'
-import { pricelistsApi } from '../api/pricelists.api'
+import { usePricelists, useDeletePricelist, useApprovePricelist, useRestorePricelist, pricelistsApi } from '../api/pricelists.api'
 import { PricelistTable } from '../components/PricelistTable'
 import { Pagination } from '@/components/ui/Pagination'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { DEFAULT_VALUES } from '../constants/pricelist.constants'
-import type { PricelistListQuery, SortField } from '../types/pricelist.types'
 import { CardSkeleton } from '@/components/ui/Skeleton'
+import type { PricelistListQuery, SortField } from '../types/pricelist.types'
 
 interface SupplierProductContext {
   id: string
@@ -34,28 +19,11 @@ interface SupplierProductContext {
   product?: { product_name: string }
 }
 
-/**
- * Main pricelists page for supplier-product context
- * Implements proper ERP domain hierarchy
- */
 export const SupplierProductPricelistsPage = memo(function SupplierProductPricelistsPage() {
   const { supplierProductId } = useParams<{ supplierProductId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
 
-  // Store = SSOT for domain state
-  const pricelists = usePricelistsStore(s => s.pricelists)
-  const pagination = usePricelistsStore(s => s.pagination)
-  const loading = usePricelistsStore(s => s.loading)
-  const errors = usePricelistsStore(s => s.errors)
-  const fetchPricelists = usePricelistsStore(s => s.fetchPricelists)
-  const deletePricelist = usePricelistsStore(s => s.deletePricelist)
-  const approvePricelist = usePricelistsStore(s => s.approvePricelist)
-  const restorePricelist = usePricelistsStore(s => s.restorePricelist)
-  const clearError = usePricelistsStore(s => s.clearError)
-  const reset = usePricelistsStore(s => s.reset)
-
-  // Page = Context resolver only
   const [supplierProduct, setSupplierProduct] = useState<SupplierProductContext | null>(null)
   const [contextLoading, setContextLoading] = useState(true)
   const [contextError, setContextError] = useState<string | null>(null)
@@ -67,89 +35,45 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
     sort_order: DEFAULT_VALUES.SORT_ORDER
   })
 
-  // Confirm modal states
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [restoreModalOpen, setRestoreModalOpen] = useState(false)
-  const [approveModalOpen, setApproveModalOpen] = useState(false)
-  const [itemToDelete, setItemToDelete] = useState<string | null>(null)
-  const [itemToRestore, setItemToRestore] = useState<string | null>(null)
-  const [itemToApprove, setItemToApprove] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [restoreId, setRestoreId] = useState<string | null>(null)
+  const [approveId, setApproveId] = useState<string | null>(null)
 
-  // Memoized query with context
-  const query = useMemo(() => ({
+  // Query with context
+  const query = useMemo((): PricelistListQuery => ({
     ...filters,
     supplier_id: supplierProduct?.supplier_id,
     product_id: supplierProduct?.product_id,
-    include_deleted: showDeleted
+    include_deleted: showDeleted || undefined,
   }), [filters, supplierProduct, showDeleted])
+
+  // React Query hooks
+  const { data, isLoading } = usePricelists(supplierProduct ? query : { page: 1, limit: 1 })
+  const deletePL = useDeletePricelist()
+  const approvePL = useApprovePricelist()
+  const restorePL = useRestorePricelist()
+
+  const pricelists = supplierProduct ? (data?.data ?? []) : []
+  const pagination = data?.pagination
 
   // Fetch supplier product context
   useEffect(() => {
     const controller = new AbortController()
-
     const fetchContext = async () => {
-      if (!supplierProductId) {
-        navigate('/supplier-products')
-        return
-      }
-
+      if (!supplierProductId) { navigate('/supplier-products'); return }
       try {
         const data = await supplierProductsApi.getById(supplierProductId, true, false, controller.signal)
-        
-        if (!controller.signal.aborted) {
-          setSupplierProduct(data)
-          setContextError(null)
-        }
+        if (!controller.signal.aborted) { setSupplierProduct(data); setContextError(null) }
       } catch {
-        if (!controller.signal.aborted) {
-          setContextError('Failed to load supplier product context')
-        }
+        if (!controller.signal.aborted) setContextError('Gagal memuat konteks produk supplier')
       } finally {
-        if (!controller.signal.aborted) {
-          setContextLoading(false)
-        }
+        if (!controller.signal.aborted) setContextLoading(false)
       }
     }
-
     fetchContext()
     return () => controller.abort()
-  }, [supplierProductId, navigate, toast])
+  }, [supplierProductId, navigate])
 
-  // Fetch pricelists when context or filters change
-  useEffect(() => {
-    if (!supplierProduct) return
-
-    const controller = new AbortController()
-    fetchPricelists(query, controller.signal)
-    return () => controller.abort()
-  }, [query, supplierProduct, fetchPricelists])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => reset()
-  }, [reset])
-
-  // Store error handling (domain errors only)
-  useEffect(() => {
-    if (errors.fetch) {
-      toast.error(errors.fetch)
-      clearError()
-    }
-    if (errors.mutation) {
-      toast.error(errors.mutation)
-      clearError()
-    }
-  }, [errors.fetch, errors.mutation, toast, clearError])
-
-  // Context error handling (routing errors only)
-  useEffect(() => {
-    if (contextError) {
-      toast.error(contextError)
-      navigate('/supplier-products')
-    }
-  }, [contextError, toast, navigate])
-
-  // Event handlers
   const handleSort = useCallback((field: string) => {
     setFilters(prev => ({
       ...prev,
@@ -159,78 +83,26 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
     }))
   }, [])
 
-  const handlePageChange = useCallback((page: number) => {
-    setFilters(prev => ({ ...prev, page }))
-  }, [])
+  const handleDelete = async () => {
+    if (!deleteId) return
+    try { await deletePL.mutateAsync(deleteId); toast.success('Pricelist berhasil dihapus') }
+    catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus')) }
+    finally { setDeleteId(null) }
+  }
 
-  const handleLimitChange = useCallback((limit: number) => {
-    setFilters(prev => ({ ...prev, limit, page: 1 }))
-  }, [])
+  const handleRestore = async () => {
+    if (!restoreId) return
+    try { await restorePL.mutateAsync(restoreId); toast.success('Pricelist berhasil dipulihkan') }
+    catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memulihkan')) }
+    finally { setRestoreId(null) }
+  }
 
-  const handleEdit = useCallback((id: string) => {
-    navigate(`/supplier-products/${supplierProductId}/pricelists/${id}/edit`)
-  }, [navigate, supplierProductId])
-
-  const handleView = useCallback((id: string) => {
-    navigate(`/supplier-products/${supplierProductId}/pricelists/${id}`)
-  }, [navigate, supplierProductId])
-
-  // Delete handlers
-  const handleDeleteClick = useCallback((id: string) => {
-    setItemToDelete(id)
-    setDeleteModalOpen(true)
-  }, [])
-
-  const handleDeleteConfirm = useCallback(async () => {
-    if (!itemToDelete) return
-    try {
-      await deletePricelist(itemToDelete)
-      toast.success('Pricelist deleted successfully')
-    } catch {
-      // Store handles error display
-    } finally {
-      setDeleteModalOpen(false)
-      setItemToDelete(null)
-    }
-  }, [itemToDelete, deletePricelist, toast])
-
-  // Restore handlers
-  const handleRestoreClick = useCallback((id: string) => {
-    setItemToRestore(id)
-    setRestoreModalOpen(true)
-  }, [])
-
-  const handleRestoreConfirm = useCallback(async () => {
-    if (!itemToRestore) return
-    try {
-      await restorePricelist(itemToRestore)
-      toast.success('Pricelist restored successfully')
-    } catch {
-      // Store handles error display
-    } finally {
-      setRestoreModalOpen(false)
-      setItemToRestore(null)
-    }
-  }, [itemToRestore, restorePricelist, toast])
-
-  // Approve handlers
-  const handleApproveClick = useCallback((id: string) => {
-    setItemToApprove(id)
-    setApproveModalOpen(true)
-  }, [])
-
-  const handleApproveConfirm = useCallback(async () => {
-    if (!itemToApprove) return
-    try {
-      await approvePricelist(itemToApprove, { status: 'APPROVED' })
-      toast.success('Pricelist approved successfully')
-    } catch {
-      // Store handles error display
-    } finally {
-      setApproveModalOpen(false)
-      setItemToApprove(null)
-    }
-  }, [itemToApprove, approvePricelist, toast])
+  const handleApprove = async () => {
+    if (!approveId) return
+    try { await approvePL.mutateAsync({ id: approveId, status: 'APPROVED' }); toast.success('Pricelist berhasil diapprove') }
+    catch (err: unknown) { toast.error(parseApiError(err, 'Gagal approve')) }
+    finally { setApproveId(null) }
+  }
 
   const handleExport = useCallback(async () => {
     try {
@@ -238,36 +110,29 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `pricelists-${supplierProduct?.supplier?.supplier_name}-${supplierProduct?.product?.product_name}-${Date.now()}.csv`
-      document.body.appendChild(a)
+      a.download = `pricelists-${supplierProduct?.supplier?.supplier_name}-${Date.now()}.csv`
       a.click()
-      document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
-      toast.success('Export completed')
-    } catch {
-      toast.error('Export failed')
-    }
+      toast.success('Ekspor berhasil')
+    } catch { toast.error('Gagal mengekspor') }
   }, [query, supplierProduct, toast])
 
-  // Loading state
   if (contextLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <CardSkeleton />
-      </div>
-    )
+    return <div className="flex items-center justify-center min-h-screen"><CardSkeleton /></div>
   }
 
-  // Context not found
   if (!supplierProduct || contextError) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-600 dark:text-red-400">{contextError || 'Supplier product not found'}</p>
+          <p className="text-red-600 dark:text-red-400">{contextError || 'Produk supplier tidak ditemukan'}</p>
+          <button onClick={() => navigate('/supplier-products')} className="mt-2 text-sm text-blue-600 hover:text-blue-800">Kembali</button>
         </div>
       </div>
     )
   }
+
+  const isMutating = deletePL.isPending || approvePL.isPending || restorePL.isPending
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -275,132 +140,86 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-300">Pricelists for:</h2>
+            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-300">Daftar Harga:</h2>
             <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
-              <span className="font-medium">Supplier:</span> {supplierProduct.supplier?.supplier_name || 'Unknown'}
+              <span className="font-medium">Supplier:</span> {supplierProduct.supplier?.supplier_name || '—'}
             </p>
             <p className="text-sm text-blue-700 dark:text-blue-400">
-              <span className="font-medium">Product:</span> {supplierProduct.product?.product_name || 'Unknown'}
+              <span className="font-medium">Produk:</span> {supplierProduct.product?.product_name || '—'}
             </p>
           </div>
-          <button
-            onClick={() => navigate('/supplier-products')}
-            className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-          >
+          <button onClick={() => navigate('/supplier-products')}
+            className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 rounded">
             Kembali
           </button>
         </div>
       </div>
 
-      {/* Page Header */}
+      {/* Actions */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Manage Pricelists</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Set pricing per UOM for this supplier-product combination</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Kelola Harga</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Atur harga per UOM untuk kombinasi supplier-produk ini</p>
         </div>
         <div className="flex gap-2">
           <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-md">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(e) => setShowDeleted(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600"
-            />
-            <span className="text-sm text-gray-700 dark:text-gray-300">Show deleted</span>
+            <input type="checkbox" checked={showDeleted} onChange={e => setShowDeleted(e.target.checked)}
+              className="rounded border-gray-300 dark:border-gray-600" />
+            <span className="text-sm text-gray-700 dark:text-gray-300">Terhapus</span>
           </label>
-          <button
-            onClick={handleExport}
-            disabled={loading.fetch || !pricelists || pricelists.length === 0}
-            className="px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            Export CSV
+          <button onClick={handleExport} disabled={isLoading || pricelists.length === 0}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+            Ekspor CSV
           </button>
-          <button
-            onClick={() => navigate(`/supplier-products/${supplierProductId}/pricelists/create`)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            Add New Price
+          <button onClick={() => navigate(`/supplier-products/${supplierProductId}/pricelists/create`)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            Tambah Harga
           </button>
         </div>
       </div>
 
       {/* Table */}
       <PricelistTable
-        data={pricelists || []}
-        loading={loading.fetch}
-        onEdit={handleEdit}
-        onDelete={handleDeleteClick}
-        onRestore={handleRestoreClick}
-        onView={handleView}
-        onApprove={handleApproveClick}
+        data={pricelists}
+        loading={isLoading}
+        onEdit={id => navigate(`/supplier-products/${supplierProductId}/pricelists/${id}/edit`)}
+        onDelete={setDeleteId}
+        onRestore={setRestoreId}
+        onView={id => navigate(`/supplier-products/${supplierProductId}/pricelists/${id}`)}
+        onApprove={setApproveId}
         sortBy={filters.sort_by}
         sortOrder={filters.sort_order}
         onSort={handleSort}
         showDeleted={showDeleted}
       />
 
-      {/* Pagination */}
       {pagination && pagination.total > 0 && (
         <div className="mt-6">
           <Pagination
-            pagination={{
-              page: pagination.page,
-              limit: pagination.limit,
-              total: pagination.total,
-              totalPages: pagination.totalPages,
-              hasNext: pagination.hasNext,
-              hasPrev: pagination.hasPrev
-            }}
-            onPageChange={handlePageChange}
-            onLimitChange={handleLimitChange}
-            currentLength={(pricelists || []).length}
-            loading={loading.fetch}
+            pagination={pagination}
+            onPageChange={p => setFilters(prev => ({ ...prev, page: p }))}
+            onLimitChange={l => setFilters(prev => ({ ...prev, limit: l, page: 1 }))}
+            currentLength={pricelists.length}
+            loading={isLoading}
           />
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Pricelist"
-        message="Are you sure you want to delete this pricelist? This action cannot be undone."
-        confirmText="Delete"
-        variant="danger"
-        isLoading={loading.delete}
-      />
+      <ConfirmModal isOpen={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={handleDelete}
+        title="Hapus Pricelist" message="Yakin ingin menghapus pricelist ini?"
+        confirmText="Hapus" variant="danger" isLoading={deletePL.isPending} />
+      <ConfirmModal isOpen={!!restoreId} onClose={() => setRestoreId(null)} onConfirm={handleRestore}
+        title="Pulihkan Pricelist" message="Yakin ingin memulihkan pricelist ini?"
+        confirmText="Pulihkan" variant="success" isLoading={restorePL.isPending} />
+      <ConfirmModal isOpen={!!approveId} onClose={() => setApproveId(null)} onConfirm={handleApprove}
+        title="Approve Pricelist" message="Yakin ingin approve pricelist ini?"
+        confirmText="Approve" variant="success" isLoading={approvePL.isPending} />
 
-      {/* Restore Confirmation Modal */}
-      <ConfirmModal
-        isOpen={restoreModalOpen}
-        onClose={() => setRestoreModalOpen(false)}
-        onConfirm={handleRestoreConfirm}
-        title="Restore Pricelist"
-        message="Are you sure you want to restore this pricelist?"
-        confirmText="Restore"
-        variant="success"
-        isLoading={loading.update}
-      />
-
-      {/* Approve Confirmation Modal */}
-      <ConfirmModal
-        isOpen={approveModalOpen}
-        onClose={() => setApproveModalOpen(false)}
-        onConfirm={handleApproveConfirm}
-        title="Approve Pricelist"
-        message="Are you sure you want to approve this pricelist?"
-        confirmText="Approve"
-        variant="success"
-        isLoading={loading.approve}
-      />
-
-      {/* Loading overlay for mutations */}
-      {(loading.create || loading.update || loading.delete || loading.approve) && (
+      {isMutating && (
         <div className="fixed inset-0 bg-gray-900/20 dark:bg-gray-900/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600 dark:text-gray-300">Processing...</p>
+            <p className="mt-4 text-gray-600 dark:text-gray-300">Memproses...</p>
           </div>
         </div>
       )}

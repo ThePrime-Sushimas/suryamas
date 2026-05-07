@@ -1,178 +1,101 @@
-/**
- * Edit Pricelist Page
- * Edit existing pricelist (DRAFT status only)
- * 
- * @module pricelists/pages
- */
-
-import { useEffect, useState, useCallback, memo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, DollarSign } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
+import { FormSkeleton } from '@/components/ui/Skeleton'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
-import { usePricelistsStore } from '../store/pricelists.store'
-import { pricelistsApi } from '../api/pricelists.api'
+import { usePricelist, useUpdatePricelist } from '../api/pricelists.api'
 import { PricelistFormContextual } from '../components/PricelistFormContextual'
 import { isEditable } from '../constants/pricelist.constants'
-import type { CreatePricelistDto, UpdatePricelistDto, PricelistWithRelations } from '../types/pricelist.types'
-import { CardSkeleton } from '@/components/ui/Skeleton'
+import type { CreatePricelistDto, UpdatePricelistDto } from '../types/pricelist.types'
 
-export const EditPricelistPage = memo(function EditPricelistPage() {
-  const { id, supplierProductId, pricelistId } = useParams<{ 
-    id?: string
-    supplierProductId?: string
-    pricelistId?: string 
-  }>()
+export const EditPricelistPage = function EditPricelistPage() {
+  const { id, supplierProductId, pricelistId } = useParams<{ id?: string; supplierProductId?: string; pricelistId?: string }>()
   const navigate = useNavigate()
   const toast = useToast()
 
-  // Use pricelistId if available (from supplier-product route), otherwise use id
-  const actualPricelistId = pricelistId || id
-
-  // Determine the back navigation path based on whether supplierProductId exists
-  const backPath = supplierProductId 
-    ? `/supplier-products/${supplierProductId}/pricelists`
-    : '/pricelists'
-
+  const actualId = pricelistId || id || ''
+  const backPath = supplierProductId ? `/supplier-products/${supplierProductId}/pricelists` : '/pricelists'
   const currentBranch = useBranchContextStore(s => s.currentBranch)
 
-  const updatePricelist = usePricelistsStore(s => s.updatePricelist)
-  const storeLoading = usePricelistsStore(s => s.loading)
-  const storeErrors = usePricelistsStore(s => s.errors)
-  const clearError = usePricelistsStore(s => s.clearError)
-  
-  const [pricelist, setPricelist] = useState<PricelistWithRelations | null>(null)
-  const [contextLoading, setContextLoading] = useState(true)
-  const [contextError, setContextError] = useState<string | null>(null)
+  const pricelist = usePricelist(actualId)
+  const updatePL = useUpdatePricelist()
 
-  useEffect(() => {
-    const controller = new AbortController()
-
-    const fetchPricelist = async () => {
-      if (!actualPricelistId) {
-        setContextError('Invalid pricelist ID')
-        setContextLoading(false)
-        return
-      }
-
-      // Early status validation to prevent unnecessary API calls
-      try {
-        const data = await pricelistsApi.getById(actualPricelistId, controller.signal)
-        
-        if (!controller.signal.aborted) {
-          // Business rule validation with specific error messages
-          if (!isEditable(data.status)) {
-            const statusMessages = {
-              'APPROVED': 'Approved pricelists cannot be edited. Create a new version instead.',
-              'REJECTED': 'Rejected pricelists cannot be edited. Create a new pricelist.',
-              'EXPIRED': 'Expired pricelists cannot be edited. Create a new pricelist.',
-              'ARCHIVED': 'Archived pricelists cannot be edited. Contact administrator if needed.'
-            }
-            const message = statusMessages[data.status as keyof typeof statusMessages] || 
-                           `Cannot edit pricelist with status: ${data.status}`
-            setContextError(message)
-            setContextLoading(false)
-            return
-          }
-          setPricelist(data)
-          setContextError(null)
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          const errorMessage = parseApiError(err, 'Gagal memuat daftar harga')
-          setContextError(errorMessage)
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setContextLoading(false)
-        }
-      }
-    }
-
-    fetchPricelist()
-    return () => controller.abort()
-  }, [actualPricelistId])
-
-  // Store error handling (domain errors only)
-  useEffect(() => {
-    if (storeErrors.mutation) {
-      toast.error(storeErrors.mutation)
-      clearError()
-    }
-  }, [storeErrors.mutation, toast, clearError])
-
-  const handleSubmit = useCallback(async (data: CreatePricelistDto | UpdatePricelistDto) => {
-    if (!actualPricelistId || !pricelist) return
-
-    // Double-check editability before submission
-    if (!isEditable(pricelist.status)) {
-      toast.error('This pricelist can no longer be edited')
-      return
-    }
-
+  const handleSubmit = async (data: CreatePricelistDto | UpdatePricelistDto) => {
+    if (!actualId || !pricelist.data) return
+    if (!isEditable(pricelist.data.status)) { toast.error('Pricelist ini tidak bisa diedit'); return }
     try {
-      await updatePricelist(actualPricelistId, data as UpdatePricelistDto)
-      toast.success('Pricelist updated successfully')
+      await updatePL.mutateAsync({ id: actualId, ...data as UpdatePricelistDto })
+      toast.success('Pricelist berhasil diperbarui')
       navigate(backPath)
-    } catch {
-      // Store handles error display
-    }
-  }, [updatePricelist, actualPricelistId, pricelist, toast, navigate, backPath])
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal mengupdate pricelist')) }
+  }
 
-  const handleCancel = useCallback(() => {
-    navigate(backPath)
-  }, [navigate, backPath])
-
-  if (contextLoading) {
+  if (pricelist.isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <CardSkeleton />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 lg:p-6">
+        <div className="max-w-4xl mx-auto space-y-4">
+          <div className="flex items-center gap-3"><div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /><div className="h-6 w-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /><div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"><FormSkeleton /></div>
+        </div>
       </div>
     )
   }
 
-  if (contextError || !pricelist) {
+  if (!pricelist.data) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Error</h2>
-          <p className="text-red-600 dark:text-red-400 mb-4">{contextError || 'Pricelist not found'}</p>
-          <button
-            onClick={() => navigate(backPath)}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-          >
-            Kembali
-          </button>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 lg:p-6">
+        <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow p-12 text-center">
+          <DollarSign className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white">Pricelist tidak ditemukan</h3>
+          <button onClick={() => navigate(backPath)} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Kembali</button>
+        </div>
+      </div>
+    )
+  }
+
+  const p = pricelist.data
+
+  if (!isEditable(p.status)) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 lg:p-6">
+        <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow p-12 text-center">
+          <p className="text-red-600 font-medium">Pricelist dengan status "{p.status}" tidak bisa diedit</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Buat pricelist baru jika perlu mengubah harga.</p>
+          <button onClick={() => navigate(backPath)} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Kembali</button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Pricelist</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Update pricing for {pricelist.supplier?.supplier_name} - {pricelist.product?.product_name}
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 lg:p-6">
+      <div className="max-w-4xl mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate(backPath)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+          </button>
+          <DollarSign className="w-6 h-6 text-green-600" />
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Pricelist</h1>
+            <p className="text-xs text-gray-400">{p.supplier?.supplier_name} → {p.product?.product_name}</p>
+          </div>
+        </div>
 
-      <div className="max-w-4xl">
         <PricelistFormContextual
-          initialData={pricelist}
+          initialData={p}
           onSubmit={handleSubmit}
-          onCancel={handleCancel}
-          submitLabel="Update Pricelist"
+          onCancel={() => navigate(backPath)}
+          submitLabel="Simpan Perubahan"
           isEdit={true}
-          submitting={storeLoading.update}
+          submitting={updatePL.isPending}
           companyId={currentBranch?.company_id || ''}
-          supplierId={pricelist.supplier_id}
-          productId={pricelist.product_id}
-          supplierName={pricelist.supplier?.supplier_name}
-          productName={pricelist.product?.product_name}
+          supplierId={p.supplier_id}
+          productId={p.product_id}
+          supplierName={p.supplier?.supplier_name}
+          productName={p.product?.product_name}
         />
       </div>
     </div>
   )
-})
-
+}

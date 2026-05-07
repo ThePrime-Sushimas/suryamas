@@ -51,6 +51,12 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 | `/supplier-products/create` | 2026-05-07 | React Query, polished header |
 | `/supplier-products/:id` | 2026-05-07 | View-only detail, info cards, delete |
 | `/supplier-products/:id/edit` | 2026-05-07 | React Query, info cards, Kelola Harga button |
+| `/pricelists` | 2026-05-07 | React Query, polished, Indonesian |
+| `/pricelists/:id` | 2026-05-07 | React Query, view-only, info cards, approve/reject |
+| `/pricelists/:id/edit` | 2026-05-07 | React Query, polished header |
+| `/pricelists/new` | 2026-05-07 | Swapped to React Query mutation (form kept) |
+| `/supplier-products/:spId/pricelists/create` | 2026-05-07 | Swapped to React Query mutation |
+| `/supplier-products/:spId/pricelists` | 2026-05-07 | Full rewrite, React Query, no more store |
 
 ---
 
@@ -67,7 +73,7 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 | Halaman | Store File | Est. Effort |
 |---------|-----------|-------------|
 | `/supplier-products` | `supplier-products/store/supplierProducts.store.ts` | ~~Medium~~ ✅ Done |
-| `/pricelists` | `pricelists/store/pricelists.store.ts` | Medium |
+| `/pricelists` | `pricelists/store/pricelists.store.ts` | ~~Medium~~ ✅ Done (store deleted) |
 | `/bank-accounts` | `bank-accounts/store/useBankAccounts.ts` | Medium |
 | `/employees` | `employees/store/employee.store.ts` | Medium |
 | `/users` | `users/store/users.store.ts` | Medium |
