@@ -4,11 +4,13 @@ import { useAuthStore } from "@/features/auth"
 import { useToast } from "@/contexts/ToastContext"
 import { parseApiError } from "@/lib/errorParser"
 import { ThemeToggle } from "@/components/ui/ThemeToggle"
-import { UserPlus } from "lucide-react"
+import { UserPlus, Eye, EyeOff } from "lucide-react"
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [employeeId, setEmployeeId] = useState("")
   const { register, isLoading } = useAuthStore()
   const { success, error } = useToast()
@@ -16,6 +18,10 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (password !== confirmPassword) {
+      error("Password tidak cocok")
+      return
+    }
     try {
       await register(email, password, employeeId)
       success("Registrasi berhasil")
@@ -65,11 +71,28 @@ export default function RegisterPage() {
             </div>
             <div>
               <label htmlFor="password" className="text-sm text-gray-300">Password</label>
+              <div className="relative">
+                <input
+                  id="password" type={showPassword ? "text" : "password"} required placeholder="Minimal 8 karakter"
+                  value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="w-full mt-1 px-4 py-2.5 pr-10 bg-[#1A1018] border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#C53030]/50 focus:border-[#C53030] transition-all"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5 text-gray-500 hover:text-gray-300">
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="confirmPassword" className="text-sm text-gray-300">Konfirmasi Password</label>
               <input
-                id="password" type="password" required placeholder="••••••••"
-                value={password} onChange={(e) => setPassword(e.target.value)}
-                className="w-full mt-1 px-4 py-2.5 bg-[#1A1018] border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#C53030]/50 focus:border-[#C53030] transition-all"
+                id="confirmPassword" type={showPassword ? "text" : "password"} required placeholder="Ulangi password"
+                value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                className={`w-full mt-1 px-4 py-2.5 bg-[#1A1018] border rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#C53030]/50 focus:border-[#C53030] transition-all ${confirmPassword && confirmPassword !== password ? 'border-red-500' : 'border-gray-700'}`}
               />
+              {confirmPassword && confirmPassword !== password && (
+                <p className="text-xs text-red-400 mt-1">Password tidak cocok</p>
+              )}
             </div>
 
             <button type="submit" disabled={isLoading}
