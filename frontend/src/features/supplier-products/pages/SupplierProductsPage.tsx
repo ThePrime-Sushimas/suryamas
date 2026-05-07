@@ -1,364 +1,286 @@
-// Supplier Products Page - Main list page
-
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ShoppingBag, Plus, Search, X, Filter, Trash2, RotateCcw, Star, Download } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
-import { useSupplierProductsStore } from '../store/supplierProducts.store'
-import { SupplierProductTable } from '../components/SupplierProductTable'
-import { SupplierProductFilters } from '../components/SupplierProductFilters'
-import { Pagination } from '@/components/ui/Pagination'
+import { parseApiError } from '@/lib/errorParser'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import { supplierProductsApi } from '../api/supplierProducts.api'
-import type { SupplierProductListQuery } from '../types/supplier-product.types'
+import { Pagination } from '@/components/ui/Pagination'
+import { useSupplierProducts, useDeleteSupplierProduct, useRestoreSupplierProduct, supplierProductsApi } from '../api/supplierProducts.api'
+import { formatPrice } from '../utils/format'
+import type { SupplierProductWithRelations, SupplierProductListQuery } from '../types/supplier-product.types'
+import api from '@/lib/axios'
 
 export function SupplierProductsPage() {
   const navigate = useNavigate()
   const toast = useToast()
-  
-  // Individual selectors (recommended pattern)
-  const supplierProducts = useSupplierProductsStore(s => s.supplierProducts)
-  const pagination = useSupplierProductsStore(s => s.pagination)
-  const fetchLoading = useSupplierProductsStore(s => s.fetchLoading)
-  const mutationLoading = useSupplierProductsStore(s => s.mutationLoading)
-  const error = useSupplierProductsStore(s => s.error)
-  const selectedItems = useSupplierProductsStore(s => s.selectedItems)
-  const fetchSupplierProducts = useSupplierProductsStore(s => s.fetchSupplierProducts)
-  const deleteSupplierProduct = useSupplierProductsStore(s => s.deleteSupplierProduct)
-  const restoreSupplierProduct = useSupplierProductsStore(s => s.restoreSupplierProduct)
-  const bulkDeleteSupplierProducts = useSupplierProductsStore(s => s.bulkDeleteSupplierProducts)
-  const bulkRestoreSupplierProducts = useSupplierProductsStore(s => s.bulkRestoreSupplierProducts)
-  const setSelectedItems = useSupplierProductsStore(s => s.setSelectedItems)
-  const clearError = useSupplierProductsStore(s => s.clearError)
-  const reset = useSupplierProductsStore(s => s.reset)
 
-  // Confirm modal states
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false)
-  const [itemToDelete, setItemToDelete] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [showFilter, setShowFilter] = useState(false)
+  const [supplierId, setSupplierId] = useState('')
+  const [isPreferred, setIsPreferred] = useState<string>('')
+  const [isActive, setIsActive] = useState<string>('')
+  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [sortBy, setSortBy] = useState<string>('created_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [deleteTarget, setDeleteTarget] = useState<SupplierProductWithRelations | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkAction, setBulkAction] = useState<'delete' | 'restore' | null>(null)
 
-  // Filter states
-  const [filters, setFilters] = useState<SupplierProductListQuery>({
-    page: 1,
-    limit: 10,
-    search: '',
-    supplier_id: '',
-    product_id: '',
-    is_preferred: undefined,
-    is_active: undefined,
-    include_deleted: false,
-    sort_by: 'created_at',
-    sort_order: 'desc'
-  })
+  const debouncedSearch = useDebounce(search, 400)
 
-  // Load data on mount and filter change
-  useEffect(() => {
-    const controller = new AbortController()
-    fetchSupplierProducts(filters, controller.signal)
-    return () => controller.abort()
-  }, [fetchSupplierProducts, filters])
+  const query = useMemo((): SupplierProductListQuery => ({
+    page, limit,
+    search: debouncedSearch || undefined,
+    supplier_id: supplierId || undefined,
+    is_preferred: isPreferred ? isPreferred === 'true' : undefined,
+    is_active: isActive ? isActive === 'true' : undefined,
+    include_deleted: includeDeleted || undefined,
+    sort_by: sortBy as SupplierProductListQuery['sort_by'],
+    sort_order: sortOrder,
+  }), [page, limit, debouncedSearch, supplierId, isPreferred, isActive, includeDeleted, sortBy, sortOrder])
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => reset()
-  }, [reset])
+  const { data, isLoading } = useSupplierProducts(query)
+  const deleteSP = useDeleteSupplierProduct()
+  const restoreSP = useRestoreSupplierProduct()
 
-  // Show error toast
-  useEffect(() => {
-    if (error) {
-      toast.error(error)
-      clearError()
-    }
-  }, [error, toast, clearError])
+  const items = data?.data ?? []
+  const pagination = data?.pagination
 
-  // Filter handlers
-  const handleSearchChange = useCallback((value: string) => {
-    setFilters(prev => ({ ...prev, search: value || '', page: 1 }))
-  }, [])
+  const handleSearchChange = (v: string) => { setSearch(v); setPage(1) }
+  const handleSort = (field: string) => {
+    if (sortBy === field) setSortOrder(o => o === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortOrder('asc') }
+    setPage(1)
+  }
 
-  const handleSupplierChange = useCallback((value: string) => {
-    setFilters(prev => ({ ...prev, supplier_id: value || '', page: 1 }))
-  }, [])
+  const activeFilterCount = [supplierId, isPreferred, isActive, includeDeleted].filter(Boolean).length
 
-  const handleProductChange = useCallback((value: string) => {
-    setFilters(prev => ({ ...prev, product_id: value || '', page: 1 }))
-  }, [])
-
-  const handlePreferredChange = useCallback((value: boolean | undefined) => {
-    setFilters(prev => ({ ...prev, is_preferred: value, page: 1 }))
-  }, [])
-
-  const handleActiveChange = useCallback((value: boolean | undefined) => {
-    setFilters(prev => ({ ...prev, is_active: value, page: 1 }))
-  }, [])
-
-  const handlePageSizeChange = useCallback((value: number) => {
-    setFilters(prev => ({ ...prev, limit: value, page: 1 }))
-  }, [])
-
-  const handleResetFilters = useCallback(() => {
-    setFilters({
-      page: 1,
-      limit: 10,
-      search: '',
-      supplier_id: '',
-      product_id: '',
-      is_preferred: undefined,
-      is_active: undefined,
-      include_deleted: false,
-      sort_by: 'created_at',
-      sort_order: 'desc'
-    })
-  }, [])
-
-  const handleSort = useCallback((field: string) => {
-    setFilters(prev => ({
-      ...prev,
-      sort_by: field as 'price' | 'lead_time_days' | 'min_order_qty' | 'created_at' | 'updated_at',
-      sort_order: prev.sort_by === field && prev.sort_order === 'asc' ? 'desc' : 'asc',
-      page: 1
-    }))
-  }, [])
-
-  const handlePageChange = useCallback((page: number) => {
-    setFilters(prev => ({ ...prev, page }))
-  }, [])
-
-  // Selection handlers
-  const handleSelectAll = useCallback((checked: boolean) => {
-    if (checked) {
-      setSelectedItems(supplierProducts.map(sp => sp.id))
-    } else {
-      setSelectedItems([])
-    }
-  }, [supplierProducts, setSelectedItems])
-
-  const handleSelectItem = useCallback((id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedItems([...selectedItems, id])
-    } else {
-      setSelectedItems(selectedItems.filter(itemId => itemId !== id))
-    }
-  }, [selectedItems, setSelectedItems])
-
-  // Action handlers
-  const handleEdit = useCallback((id: string) => {
-    navigate(`/supplier-products/${id}/edit`)
-  }, [navigate])
-
-  const handleView = useCallback((id: string) => {
-    navigate(`/supplier-products/${id}`)
-  }, [navigate])
-
-  const handleDeleteClick = useCallback((id: string) => {
-    setItemToDelete(id)
-    setDeleteModalOpen(true)
-  }, [])
-
-  const handleDeleteConfirm = useCallback(async () => {
-    if (!itemToDelete) return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await deleteSupplierProduct(itemToDelete)
+      await deleteSP.mutateAsync(deleteTarget.id)
       toast.success('Produk supplier berhasil dihapus')
-    } catch {
-      // Error handled in store
-    } finally {
-      setDeleteModalOpen(false)
-      setItemToDelete(null)
-    }
-  }, [itemToDelete, deleteSupplierProduct, toast])
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus')) }
+    finally { setDeleteTarget(null) }
+  }
 
-  const handleBulkDeleteClick = useCallback(() => {
-    if (selectedItems.length === 0) return
-    setBulkDeleteModalOpen(true)
-  }, [selectedItems])
-
-  const handleBulkDeleteConfirm = useCallback(async () => {
-    if (selectedItems.length === 0) return
+  const handleRestore = async (id: string) => {
     try {
-      await bulkDeleteSupplierProducts(selectedItems)
-      toast.success(`${selectedItems.length} produk supplier berhasil dihapus`)
-    } catch {
-      // Error handled in store
-    } finally {
-      setBulkDeleteModalOpen(false)
-    }
-  }, [selectedItems, bulkDeleteSupplierProducts, toast])
-
-  const handleManagePrices = useCallback((id: string) => {
-    navigate(`/supplier-products/${id}/pricelists`)
-  }, [navigate])
-
-  const handleRestore = useCallback(async (id: string) => {
-    try {
-      await restoreSupplierProduct(id)
+      await restoreSP.mutateAsync(id)
       toast.success('Produk supplier berhasil dipulihkan')
-    } catch {
-      // Error handled in store
-    }
-  }, [restoreSupplierProduct, toast])
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memulihkan')) }
+  }
 
-  const handleBulkRestore = useCallback(async () => {
-    if (selectedItems.length === 0) return
+  const handleBulkAction = async () => {
     try {
-      await bulkRestoreSupplierProducts(selectedItems)
-      toast.success(`${selectedItems.length} produk supplier berhasil dipulihkan`)
-    } catch {
-      // Error handled in store
-    }
-  }, [selectedItems, bulkRestoreSupplierProducts, toast])
+      if (bulkAction === 'delete') {
+        await api.post('/supplier-products/bulk/delete', { ids: selectedIds })
+        toast.success(`${selectedIds.length} produk supplier dihapus`)
+      } else {
+        await api.post('/supplier-products/bulk/restore', { ids: selectedIds })
+        toast.success(`${selectedIds.length} produk supplier dipulihkan`)
+      }
+      setSelectedIds([])
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memproses')) }
+    finally { setBulkAction(null) }
+  }
 
-  const handleExport = useCallback(async () => {
+  const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  const toggleAll = () => setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i.id))
+
+  const handleExport = async () => {
     try {
-      const blob = await supplierProductsApi.exportCSV(filters)
+      const blob = await supplierProductsApi.exportCSV(query)
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `supplier-products-${Date.now()}.csv`
-      a.click()
+      a.href = url; a.download = `supplier-products-${Date.now()}.csv`; a.click()
       window.URL.revokeObjectURL(url)
       toast.success('Ekspor berhasil')
-    } catch {
-      toast.error('Gagal mengekspor')
-    }
-  }, [filters, toast])
+    } catch { toast.error('Gagal mengekspor') }
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Produk Supplier</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Kelola harga dan preferensi produk supplier</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-500"
-          >
-            Ekspor CSV
-          </button>
-          <button
-            onClick={() => navigate('/supplier-products/create')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Tambah Produk Supplier
-          </button>
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ShoppingBag className="w-6 h-6 text-blue-600" />
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Produk Supplier</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} total</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+              <Download className="w-3.5 h-3.5" /> Ekspor
+            </button>
+            <button onClick={() => navigate('/supplier-products/create')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <Plus className="w-4 h-4" /> Tambah
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <SupplierProductFilters
-        search={filters.search || ''}
-        onSearchChange={handleSearchChange}
-        supplierId={filters.supplier_id || ''}
-        onSupplierChange={handleSupplierChange}
-        productId={filters.product_id || ''}
-        onProductChange={handleProductChange}
-        isPreferred={filters.is_preferred}
-        onPreferredChange={handlePreferredChange}
-        isActive={filters.is_active}
-        onActiveChange={handleActiveChange}
-        onReset={handleResetFilters}
-        includeDeleted={filters.include_deleted || false}
-        onIncludeDeletedChange={(value) => setFilters(prev => ({ ...prev, include_deleted: value, page: 1 }))}
-      />
+      {/* Search & Filter */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input type="text" placeholder="Cari supplier atau produk..." value={search} onChange={e => handleSearchChange(e.target.value)}
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+            {search && <button onClick={() => handleSearchChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>}
+          </div>
+          <button onClick={() => setShowFilter(!showFilter)}
+            className={`px-4 py-2 border rounded-lg flex items-center gap-2 ${showFilter ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+            <Filter className="w-4 h-4" />
+            {activeFilterCount > 0 && <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">{activeFilterCount}</span>}
+          </button>
+        </div>
+        {showFilter && (
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <select value={isPreferred} onChange={e => { setIsPreferred(e.target.value); setPage(1) }}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+              <option value="">Semua Preferensi</option>
+              <option value="true">★ Preferred</option>
+              <option value="false">Standar</option>
+            </select>
+            <select value={isActive} onChange={e => { setIsActive(e.target.value); setPage(1) }}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+              <option value="">Semua Status</option>
+              <option value="true">Aktif</option>
+              <option value="false">Nonaktif</option>
+            </select>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={includeDeleted} onChange={e => { setIncludeDeleted(e.target.checked); setPage(1) }}
+                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
+              Tampilkan Terhapus
+            </label>
+          </div>
+        )}
+      </div>
 
       {/* Bulk Actions */}
-      {selectedItems.length > 0 && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4 flex justify-between items-center">
-          <span className="text-sm font-medium text-green-800 dark:text-green-300">
-            {selectedItems.length} item dipilih
-          </span>
+      {selectedIds.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 border-b border-blue-200 dark:border-blue-800 px-6 py-2 flex items-center justify-between">
+          <span className="text-sm font-medium text-blue-900 dark:text-blue-300">{selectedIds.length} dipilih</span>
           <div className="flex gap-2">
-            {filters.include_deleted && (
-              <button
-                onClick={handleBulkRestore}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-              >
-                Pulihkan Terpilih
-              </button>
-            )}
-            <button
-              onClick={handleBulkDeleteClick}
-              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
-            >
-              Hapus Terpilih
-            </button>
+            <button onClick={() => setSelectedIds([])} className="text-sm text-gray-600 dark:text-gray-400">Clear</button>
+            {includeDeleted && <button onClick={() => setBulkAction('restore')} className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">Pulihkan</button>}
+            <button onClick={() => setBulkAction('delete')} className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700">Hapus</button>
           </div>
         </div>
       )}
 
       {/* Table */}
-      <SupplierProductTable
-        data={supplierProducts}
-        loading={fetchLoading}
-        selectedItems={selectedItems}
-        onSelectAll={handleSelectAll}
-        onSelectItem={handleSelectItem}
-        onEdit={handleEdit}
-        onDelete={handleDeleteClick}
-        onView={handleView}
-        onRestore={handleRestore}
-        onManagePrices={handleManagePrices}
-        sortBy={filters.sort_by}
-        sortOrder={filters.sort_order}
-        onSort={handleSort}
-      />
-
-      {/* Pagination */}
-      {pagination && pagination.total > 0 && (
-        <div className="mt-6">
-          <Pagination
-            pagination={{
-              page: pagination.page,
-              limit: pagination.limit,
-              total: pagination.total,
-              totalPages: pagination.totalPages,
-              hasNext: pagination.hasNext,
-              hasPrev: pagination.hasPrev
-            }}
-            onPageChange={handlePageChange}
-            onLimitChange={handlePageSizeChange}
-            currentLength={supplierProducts.length}
-            loading={fetchLoading}
-          />
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Hapus Produk Supplier"
-        message="Yakin ingin menghapus produk supplier ini? Tindakan ini tidak dapat dibatalkan."
-        confirmText="Hapus"
-        variant="danger"
-        isLoading={mutationLoading}
-      />
-
-      {/* Bulk Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={bulkDeleteModalOpen}
-        onClose={() => setBulkDeleteModalOpen(false)}
-        onConfirm={handleBulkDeleteConfirm}
-        title="Hapus Produk Supplier"
-        message={`Yakin ingin menghapus ${selectedItems.length} produk supplier? Tindakan ini tidak dapat dibatalkan.`}
-        confirmText="Hapus Semua"
-        variant="danger"
-        isLoading={mutationLoading}
-      />
-
-      {/* Loading Overlay */}
-      {mutationLoading && (
-        <div className="fixed inset-0 bg-gray-900/20 dark:bg-gray-900/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600 dark:text-gray-300">Memproses...</p>
+      <div className="flex-1 overflow-auto p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <tr>
+                  <th className="px-3 py-3 text-left w-10">
+                    <input type="checkbox" checked={items.length > 0 && selectedIds.length === items.length} onChange={toggleAll}
+                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
+                  <th onClick={() => handleSort('price')} className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                    Harga {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th onClick={() => handleSort('lead_time_days')} className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                    Lead Time {sortBy === 'lead_time_days' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Preferred</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}><td className="px-3 py-4"></td>{Array.from({ length: 8 }).map((_, j) => (
+                      <td key={j} className="px-4 py-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></td>
+                    ))}</tr>
+                  ))
+                ) : items.length === 0 ? (
+                  <tr><td></td><td colSpan={8} className="px-4 py-16 text-center">
+                    <ShoppingBag className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">Tidak ada produk supplier</p>
+                  </td></tr>
+                ) : items.map(sp => (
+                  <tr key={sp.id} onClick={() => navigate(`/supplier-products/${sp.id}`)}
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${sp.deleted_at ? 'opacity-50 bg-red-50 dark:bg-red-900/10' : ''} ${selectedIds.includes(sp.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                    <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={selectedIds.includes(sp.id)} onChange={() => toggleSelect(sp.id)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900 dark:text-white">{sp.supplier?.supplier_name || '—'}</p>
+                      <p className="text-xs text-gray-400">{sp.supplier?.supplier_code}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900 dark:text-white">{sp.product?.product_name || '—'}</p>
+                      <p className="text-xs text-gray-400">{sp.product?.product_code}</p>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
+                      {sp.current_unit || sp.product?.default_purchase_unit || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
+                      {sp.current_price ? formatPrice(sp.current_price, sp.current_currency || 'IDR') : formatPrice(sp.price, sp.currency)}
+                      {sp.current_price && <p className="text-[10px] text-gray-400">From pricelist</p>}
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">
+                      {sp.lead_time_days ? `${sp.lead_time_days} hari` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {sp.is_preferred ? <Star className="w-4 h-4 text-amber-500 mx-auto fill-amber-500" /> : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${sp.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                        {sp.is_active ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                      {sp.deleted_at ? (
+                        <button onClick={() => handleRestore(sp.id)} className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                          <RotateCcw className="w-3.5 h-3.5 inline mr-1" />Pulihkan
+                        </button>
+                      ) : (
+                        <div className="flex gap-1 justify-end">
+                          <button onClick={() => navigate(`/supplier-products/${sp.id}/pricelists`)} className="px-2 py-0.5 text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400">Harga</button>
+                          <button onClick={() => navigate(`/supplier-products/${sp.id}/edit`)} className="px-2 py-0.5 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">Edit</button>
+                          <button onClick={() => setDeleteTarget(sp)} className="p-1 text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+          {pagination && pagination.total > 0 && (
+            <Pagination pagination={pagination} onPageChange={setPage} onLimitChange={l => { setLimit(l); setPage(1) }} currentLength={items.length} loading={isLoading} />
+          )}
         </div>
-      )}
+      </div>
+
+      <ConfirmModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete}
+        title="Hapus Produk Supplier" message={`Yakin ingin menghapus produk "${deleteTarget?.product?.product_name}" dari "${deleteTarget?.supplier?.supplier_name}"?`}
+        confirmText="Hapus" variant="danger" isLoading={deleteSP.isPending} />
+
+      <ConfirmModal isOpen={!!bulkAction} onClose={() => setBulkAction(null)} onConfirm={handleBulkAction}
+        title={bulkAction === 'delete' ? 'Hapus Produk Supplier' : 'Pulihkan Produk Supplier'}
+        message={`Yakin ingin ${bulkAction === 'delete' ? 'menghapus' : 'memulihkan'} ${selectedIds.length} produk supplier?`}
+        confirmText={bulkAction === 'delete' ? 'Hapus' : 'Pulihkan'}
+        variant={bulkAction === 'delete' ? 'danger' : 'success'} />
     </div>
   )
 }
-

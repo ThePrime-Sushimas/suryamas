@@ -1,64 +1,39 @@
-// Create Supplier Product Page
-
-import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, ShoppingBag } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
-import { ArrowLeft } from 'lucide-react'
-import { useSupplierProductsStore } from '../store/supplierProducts.store'
+import { parseApiError } from '@/lib/errorParser'
+import { useCreateSupplierProduct } from '../api/supplierProducts.api'
 import { SupplierProductForm } from '../components/SupplierProductForm'
 import type { CreateSupplierProductDto, UpdateSupplierProductDto } from '../types/supplier-product.types'
 
 export function CreateSupplierProductPage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { createSupplierProduct, mutationLoading, error, clearError } = useSupplierProductsStore()
-
-  // Show error toast
-  useEffect(() => {
-    if (error) {
-      toast.error(error)
-      clearError()
-    }
-  }, [error, toast, clearError])
+  const createSP = useCreateSupplierProduct()
 
   const handleSubmit = async (data: CreateSupplierProductDto | UpdateSupplierProductDto) => {
     try {
-      await createSupplierProduct(data as CreateSupplierProductDto)
+      await createSP.mutateAsync(data as CreateSupplierProductDto)
       toast.success('Produk supplier berhasil dibuat')
       navigate('/supplier-products')
-    } catch {
-      // Error already handled in store and shown via useEffect
-    }
-  }
-
-  const handleCancel = () => {
-    navigate('/supplier-products')
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal membuat produk supplier')) }
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <button
-            onClick={() => navigate('/supplier-products')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 text-sm font-medium mb-4 flex items-center"
-          >
-            <ArrowLeft size={20} />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 lg:p-6">
+      <div className="max-w-3xl mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/supplier-products')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
           </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tambah Produk Supplier</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Tambahkan harga produk baru dari supplier</p>
+          <ShoppingBag className="w-6 h-6 text-blue-600" />
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Tambah Produk Supplier</h1>
+            <p className="text-xs text-gray-400">Tambahkan harga produk baru dari supplier</p>
+          </div>
         </div>
-
-        {/* Form */}
-        <SupplierProductForm
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-          submitLabel="Buat"
-          loading={mutationLoading}
-        />
+        <SupplierProductForm onSubmit={handleSubmit} onCancel={() => navigate('/supplier-products')} submitLabel="Buat" loading={createSP.isPending} />
       </div>
     </div>
   )
 }
-

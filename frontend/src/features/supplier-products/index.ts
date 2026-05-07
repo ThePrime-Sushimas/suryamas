@@ -1,5 +1,3 @@
-// Supplier Products Module - Main export file
-
 // Pages
 export { SupplierProductsPage } from './pages/SupplierProductsPage'
 export { CreateSupplierProductPage } from './pages/CreateSupplierProductPage'
@@ -10,9 +8,6 @@ export { SupplierProductDetailPage } from './pages/SupplierProductDetailPage'
 export { SupplierProductForm } from './components/SupplierProductForm'
 export { SupplierProductTable } from './components/SupplierProductTable'
 export { SupplierProductFilters } from './components/SupplierProductFilters'
-
-// Store
-export { useSupplierProductsStore } from './store/supplierProducts.store'
 
 // API
 export { supplierProductsApi } from './api/supplierProducts.api'
@@ -25,4 +20,3 @@ export * from './constants/supplier-product.constants'
 
 // Utils
 export { formatPrice, formatLeadTime, formatDate } from './utils/format'
-

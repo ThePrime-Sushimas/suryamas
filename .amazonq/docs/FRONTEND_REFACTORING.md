@@ -46,6 +46,11 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 | `/payment-terms` | 2026-05-07 | React Query, inline filter, polished |
 | `/payment-terms/new` | 2026-05-07 | React Query, polished header |
 | `/payment-terms/:id/edit` | 2026-05-07 | React Query, FormSkeleton, deleted guard |
+| `/payment-terms/:id` | 2026-05-07 | View-only detail page, info cards, polished |
+| `/supplier-products` | 2026-05-07 | Full rewrite, React Query, export CSV, polished |
+| `/supplier-products/create` | 2026-05-07 | React Query, polished header |
+| `/supplier-products/:id` | 2026-05-07 | View-only detail, info cards, delete |
+| `/supplier-products/:id/edit` | 2026-05-07 | React Query, info cards, Kelola Harga button |
 
 ---
 
@@ -61,7 +66,7 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 
 | Halaman | Store File | Est. Effort |
 |---------|-----------|-------------|
-| `/supplier-products` | `supplier-products/store/supplierProducts.store.ts` | Medium |
+| `/supplier-products` | `supplier-products/store/supplierProducts.store.ts` | ~~Medium~~ ✅ Done |
 | `/pricelists` | `pricelists/store/pricelists.store.ts` | Medium |
 | `/bank-accounts` | `bank-accounts/store/useBankAccounts.ts` | Medium |
 | `/employees` | `employees/store/employee.store.ts` | Medium |
