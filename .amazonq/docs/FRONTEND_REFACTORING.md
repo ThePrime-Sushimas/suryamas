@@ -40,6 +40,9 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 | `/sub-categories` | 2026-05-07 | React Query, category filter dropdown |
 | `/sub-categories/new` | 2026-05-07 | React Query |
 | `/sub-categories/:id/edit` | 2026-05-07 | React Query, FormSkeleton |
+| `/branches` | 2026-05-07 | React Query, simplified |
+| `/branches/new` | 2026-05-07 | React Query, polished header |
+| `/branches/:id/edit` | 2026-05-07 | React Query, FormSkeleton |
 
 ---
 
@@ -49,7 +52,6 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 
 | Halaman | Store File | Est. Effort |
 |---------|-----------|-------------|
-| `/branches` | `branches/store/branches.store.ts` | Small |
 | `/payment-terms` | `payment-terms/store/paymentTerms.store.ts` | Small |
 | `/payment-methods` | `payment-methods/store/paymentMethods.store.ts` | Small |
 
