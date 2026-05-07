@@ -61,7 +61,6 @@ export interface UpdateProductDto {
   category_id?: string
   sub_category_id?: string
   product_type?: ProductType
-  average_cost?: number
   is_requestable?: boolean
   is_purchasable?: boolean
   notes?: string

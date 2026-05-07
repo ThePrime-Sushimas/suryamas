@@ -112,7 +112,6 @@ registry.registerPath({
             category_id: z.string().uuid().optional(),
             sub_category_id: z.string().uuid().optional(),
             product_type: z.enum(['Finished Goods', 'Raw Material', 'Semi-Finished', 'Service']).optional(),
-            average_cost: z.number().min(0).optional(),
             is_requestable: z.boolean().optional(),
             is_purchasable: z.boolean().optional(),
             notes: z.string().optional(),

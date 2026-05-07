@@ -100,9 +100,10 @@ export class PricelistsRepository {
   }
 
   async updateStatus(id: string, status: 'APPROVED' | 'REJECTED' | 'EXPIRED'): Promise<Pricelist | null> {
+    const isActive = status === 'APPROVED'
     const { rows } = await pool.query(
-      'UPDATE pricelists SET status = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL RETURNING *',
-      [status, id]
+      'UPDATE pricelists SET status = $1, is_active = $2, updated_at = NOW() WHERE id = $3 AND deleted_at IS NULL RETURNING *',
+      [status, isActive, id]
     )
     return rows[0] ?? null
   }

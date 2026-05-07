@@ -24,7 +24,6 @@ export const updateProductSchema = z.object({
     category_id: z.string().uuid('Invalid category ID format').optional(),
     sub_category_id: z.string().uuid('Invalid sub-category ID format').optional(),
     product_type: z.enum(VALID_PRODUCT_TYPES as [string, ...string[]]).optional(),
-    average_cost: z.number().min(0).optional(),
     is_requestable: z.boolean().optional(),
     is_purchasable: z.boolean().optional(),
     notes: z.string().max(PRODUCT_LIMITS.NOTES_MAX_LENGTH).optional(),
