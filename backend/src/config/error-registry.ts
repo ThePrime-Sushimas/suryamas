@@ -313,6 +313,25 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'expense_categorization',
   },
+  // ============ MENU BRANCH PRICES MODULE ============
+  MenuBranchPriceNotFoundError: {
+    name: 'MenuBranchPriceNotFoundError',
+    importPath: '../modules/food-production/menu-branch-prices/menu-branch-prices.errors',
+    defaultStatusCode: 404,
+    category: 'food_production',
+  },
+  MenuBranchPriceDuplicateError: {
+    name: 'MenuBranchPriceDuplicateError',
+    importPath: '../modules/food-production/menu-branch-prices/menu-branch-prices.errors',
+    defaultStatusCode: 409,
+    category: 'food_production',
+  },
+  MenuBranchPriceSyncError: {
+    name: 'MenuBranchPriceSyncError',
+    importPath: '../modules/food-production/menu-branch-prices/menu-branch-prices.errors',
+    defaultStatusCode: 422,
+    category: 'food_production',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;
