@@ -42,7 +42,10 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 | `/sub-categories/:id/edit` | 2026-05-07 | React Query, FormSkeleton |
 | `/branches` | 2026-05-07 | React Query, simplified |
 | `/branches/new` | 2026-05-07 | React Query, polished header |
-| `/branches/:id/edit` | 2026-05-07 | React Query, FormSkeleton |
+| `/branches/:id/edit` | 2026-05-07 | React Query, info cards, FormSkeleton |
+| `/payment-terms` | 2026-05-07 | React Query, inline filter, polished |
+| `/payment-terms/new` | 2026-05-07 | React Query, polished header |
+| `/payment-terms/:id/edit` | 2026-05-07 | React Query, FormSkeleton, deleted guard |
 
 ---
 
@@ -52,8 +55,7 @@ Semua halaman harus mengikuti pattern yang sudah diterapkan di:
 
 | Halaman | Store File | Est. Effort |
 |---------|-----------|-------------|
-| `/payment-terms` | `payment-terms/store/paymentTerms.store.ts` | Small |
-| `/payment-methods` | `payment-methods/store/paymentMethods.store.ts` | Small |
+| `/payment-methods` | `payment-methods/store/paymentMethods.store.ts` | Skipped — single page, store shared with POS |
 
 ### Priority 2 — Medium Complexity
 

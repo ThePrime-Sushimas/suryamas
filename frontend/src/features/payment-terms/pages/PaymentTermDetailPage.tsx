@@ -1,228 +1,183 @@
-import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Edit, CheckCircle, XCircle } from 'lucide-react'
-import { paymentTermsApi } from '../api/paymentTerms.api'
-import type { PaymentTerm, CalculationType } from '../types'
+import { ArrowLeft, FileText, Pencil } from 'lucide-react'
+import { FormSkeleton } from '@/components/ui/Skeleton'
+import { usePaymentTerm } from '../api/paymentTerms.api'
+import { PaymentTermStatusBadge } from '../components/PaymentTermStatusBadge'
 
-const CALCULATION_TYPE_LABELS: Record<CalculationType, string> = {
-  from_invoice: 'From Invoice',
-  from_delivery: 'From Delivery',
-  fixed_date: 'Fixed Dates',
-  fixed_date_immediate: 'Fixed Dates (Immediate)',
-  weekly: 'Weekly',
-  monthly: 'Monthly'
+const CALC_TYPE_LABELS: Record<string, string> = {
+  from_invoice: 'Dari Invoice',
+  from_delivery: 'Dari Pengiriman',
+  fixed_date: 'Tanggal Tetap',
+  fixed_date_immediate: 'Tanggal Tetap (Segera)',
+  weekly: 'Mingguan',
+  monthly: 'Bulanan',
 }
 
-const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
+const fmtCurrency = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 
 export default function PaymentTermDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [paymentTerm, setPaymentTerm] = useState<PaymentTerm | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const numId = parseInt(id || '0')
+  const term = usePaymentTerm(numId)
 
-  useEffect(() => {
-    if (!id) return
-
-    const fetchPaymentTerm = async () => {
-      try {
-        setLoading(true)
-        const data = await paymentTermsApi.getById(Number(id))
-        setPaymentTerm(data)
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Gagal memuat data'
-        setError(message)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchPaymentTerm()
-  }, [id])
-
-  if (loading) {
+  if (term.isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-gray-500 dark:text-gray-400">Memuat...</div>
-      </div>
-    )
-  }
-
-  if (error || !paymentTerm) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Syarat pembayaran tidak ditemukan'}</p>
-          <button
-            onClick={() => navigate('/payment-terms')}
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            Kembali ke Syarat Pembayaran
-          </button>
+      <div className="max-w-3xl mx-auto p-4 lg:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3"><div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /><div className="h-6 w-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /><div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"><FormSkeleton /></div>
         </div>
       </div>
     )
   }
 
-  const isDeleted = !!paymentTerm.deleted_at
-
-  const getTermDetails = () => {
-    switch (paymentTerm.calculation_type) {
-      case 'from_invoice':
-      case 'from_delivery':
-        return `${paymentTerm.days} days`
-      case 'fixed_date':
-      case 'fixed_date_immediate':
-        return paymentTerm.payment_dates?.map(d => d === 999 ? 'End of Month' : `Day ${d}`).join(', ') || '-'
-      case 'weekly':
-        return paymentTerm.payment_day_of_week !== null ? WEEKDAY_LABELS[paymentTerm.payment_day_of_week] : '-'
-      case 'monthly':
-        return paymentTerm.payment_dates?.[0] === 999 ? 'End of month' : `Day ${paymentTerm.payment_dates?.[0] || '-'}`
-      default:
-        return '-'
-    }
+  if (!term.data) {
+    return (
+      <div className="max-w-3xl mx-auto p-4 lg:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-12 text-center">
+          <FileText className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white">Syarat pembayaran tidak ditemukan</h3>
+          <button onClick={() => navigate('/payment-terms')} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Kembali</button>
+        </div>
+      </div>
+    )
   }
+
+  const t = term.data
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-6">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <button
-            onClick={() => navigate('/payment-terms')}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Kembali
-          </button>
-          {!isDeleted && (
-            <button
-              onClick={() => navigate(`/payment-terms/${id}/edit`)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Edit className="w-4 h-4" />
-              Edit
-            </button>
-          )}
+    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-4 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/payment-terms')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+          <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+        </button>
+        <FileText className="w-6 h-6 text-blue-600" />
+        <div className="flex-1">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{t.term_name}</h1>
+          <p className="text-xs text-gray-400">{t.term_code}</p>
         </div>
+        <button onClick={() => navigate(`/payment-terms/${t.id}/edit`)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+          <Pencil className="w-3.5 h-3.5" /> Edit
+        </button>
+      </div>
 
-        {/* Main Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-          {/* Header Section */}
-          <div className="bg-linear-to-r from-blue-600 to-blue-700 px-8 py-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm mb-1">Term Code</p>
-                <h1 className="text-3xl font-bold">{paymentTerm.term_code}</h1>
-              </div>
-              <div className="flex items-center gap-2">
-                {isDeleted ? (
-                  <span className="flex items-center gap-1 px-3 py-1 bg-red-500 dark:bg-red-600 rounded-full text-sm font-medium">
-                    <XCircle className="w-4 h-4" />
-                    Deleted
-                  </span>
-                ) : paymentTerm.is_active ? (
-                  <span className="flex items-center gap-1 px-3 py-1 bg-green-500 dark:bg-green-600 rounded-full text-sm font-medium">
-                    <CheckCircle className="w-4 h-4" />
-                    Active
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 px-3 py-1 bg-gray-500 dark:bg-gray-600 rounded-full text-sm font-medium">
-                    <XCircle className="w-4 h-4" />
-                    Inactive
-                  </span>
-                )}
-              </div>
+      {/* Info Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Status</p>
+          <div className="mt-1"><PaymentTermStatusBadge isActive={t.is_active} /></div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Tipe Kalkulasi</p>
+          <p className="text-sm font-bold text-gray-900 dark:text-white">{CALC_TYPE_LABELS[t.calculation_type] || t.calculation_type}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Jatuh Tempo</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-white">{t.days} hari</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Grace Period</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-white">{t.grace_period_days} hari</p>
+        </div>
+      </div>
+
+      {/* Detail Sections */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        {/* Diskon & Penalti */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Diskon & Penalti</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-gray-400">Diskon Pembayaran Awal</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {t.early_payment_discount > 0 ? `${t.early_payment_discount}% (dalam ${t.early_payment_days} hari)` : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Penalti Keterlambatan</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {t.late_payment_penalty > 0 ? `${t.late_payment_penalty}%` : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Grace Period</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{t.grace_period_days} hari</p>
             </div>
           </div>
+        </div>
 
-          {/* Content Section */}
-          <div className="px-8 py-6 space-y-6">
-            {/* Term Name */}
+        {/* Order Limits */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Batas Order</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Term Name</label>
-              <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{paymentTerm.term_name}</p>
+              <p className="text-xs text-gray-400">Minimum Order</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {t.minimum_order_amount > 0 ? fmtCurrency(t.minimum_order_amount) : '—'}
+              </p>
             </div>
-
-            {/* Description */}
-            {paymentTerm.description && (
-              <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Description</label>
-                <p className="mt-1 text-gray-700 dark:text-gray-300 leading-relaxed">{paymentTerm.description}</p>
-              </div>
-            )}
-
-            {/* Calculation Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Calculation Type</label>
-                <p className="mt-1 text-lg text-gray-900 dark:text-white">{CALCULATION_TYPE_LABELS[paymentTerm.calculation_type]}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Payment Details</label>
-                <p className="mt-1 text-lg text-gray-900 dark:text-white">{getTermDetails()}</p>
-              </div>
+            <div>
+              <p className="text-xs text-gray-400">Maximum Order</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {t.maximum_order_amount ? fmtCurrency(t.maximum_order_amount) : 'Tidak terbatas'}
+              </p>
             </div>
+          </div>
+        </div>
 
-            {/* Discount & Penalty */}
-            {(paymentTerm.early_payment_discount > 0 || paymentTerm.late_payment_penalty > 0) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                {paymentTerm.early_payment_discount > 0 && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Early Payment Discount</label>
-                    <p className="mt-1 text-lg text-green-600 dark:text-green-400 font-semibold">
-                      {paymentTerm.early_payment_discount}% ({paymentTerm.early_payment_days} days)
-                    </p>
-                  </div>
-                )}
-                {paymentTerm.late_payment_penalty > 0 && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Late Payment Penalty</label>
-                    <p className="mt-1 text-lg text-red-600 dark:text-red-400 font-semibold">
-                      {paymentTerm.late_payment_penalty}% (Grace: {paymentTerm.grace_period_days} days)
-                    </p>
-                  </div>
-                )}
+        {/* Payment Schedule */}
+        {(t.payment_dates || t.payment_day_of_week !== null) && (
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Jadwal Pembayaran</h3>
+            {t.payment_dates && t.payment_dates.length > 0 && (
+              <div>
+                <p className="text-xs text-gray-400">Tanggal Pembayaran</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {t.payment_dates.map(d => `Tgl ${d}`).join(', ')}
+                </p>
               </div>
             )}
-
-            {/* Order Amount Limits */}
-            {(paymentTerm.minimum_order_amount > 0 || paymentTerm.maximum_order_amount) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                {paymentTerm.minimum_order_amount > 0 && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Minimum Order Amount</label>
-                    <p className="mt-1 text-lg text-gray-900 dark:text-white font-mono">
-                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(paymentTerm.minimum_order_amount)}
-                    </p>
-                  </div>
-                )}
-                {paymentTerm.maximum_order_amount && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Maximum Order Amount</label>
-                    <p className="mt-1 text-lg text-gray-900 dark:text-white font-mono">
-                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(paymentTerm.maximum_order_amount)}
-                    </p>
-                  </div>
-                )}
+            {t.payment_day_of_week !== null && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-400">Hari Pembayaran</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][t.payment_day_of_week] || `Hari ke-${t.payment_day_of_week}`}
+                </p>
               </div>
             )}
+          </div>
+        )}
 
-            {/* Payment Methods */}
-            {paymentTerm.allowed_payment_methods && paymentTerm.allowed_payment_methods.length > 0 && (
-              <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Allowed Payment Methods</label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {paymentTerm.allowed_payment_methods.map((method, idx) => (
-                    <span key={idx} className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm font-medium">
-                      {method}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Allowed Methods */}
+        {t.allowed_payment_methods && t.allowed_payment_methods.length > 0 && (
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Metode Pembayaran Diizinkan</h3>
+            <div className="flex flex-wrap gap-2">
+              {t.allowed_payment_methods.map(m => (
+                <span key={m} className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{m}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
+        {/* Description */}
+        {t.description && (
+          <div className="p-4">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Deskripsi</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t.description}</p>
+          </div>
+        )}
+
+        {/* Metadata */}
+        <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex gap-6 text-xs text-gray-400">
+            <span>Dibuat: {new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            <span>Diperbarui: {new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            {t.deleted_at && <span className="text-red-500">Dihapus: {new Date(t.deleted_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
           </div>
         </div>
       </div>

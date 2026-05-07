@@ -1,113 +1,80 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
-import { usePaymentTermsStore } from '../store/paymentTerms.store'
-import { PaymentTermForm } from '../components/PaymentTermForm'
+import { ArrowLeft, FileText } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
+import { FormSkeleton } from '@/components/ui/Skeleton'
+import { usePaymentTerm, useUpdatePaymentTerm } from '../api/paymentTerms.api'
+import { PaymentTermForm } from '../components/PaymentTermForm'
 import type { UpdatePaymentTermDto } from '../types'
-import { ArrowLeft } from 'lucide-react'
-import { CardSkeleton } from '@/components/ui/Skeleton'
 
 export default function EditPaymentTermPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
-  const { currentPaymentTerm, loading, updatePaymentTerm, fetchPaymentTermById } = usePaymentTermsStore()
-
-  useEffect(() => {
-    if (!id || isNaN(Number(id))) {
-      toast.error('Payment term tidak ditemukan')
-      navigate('/payment-terms')
-      return
-    }
-
-    fetchPaymentTermById(parseInt(id)).catch(() => {
-      toast.error('Payment term tidak ditemukan')
-      navigate('/payment-terms')
-    })
-  }, [id, navigate, toast, fetchPaymentTermById])
+  const numId = parseInt(id || '0')
+  const term = usePaymentTerm(numId)
+  const updateTerm = useUpdatePaymentTerm()
 
   const handleSubmit = async (data: UpdatePaymentTermDto) => {
-    if (!id) return
+    if (!numId) return
     try {
-      await updatePaymentTerm(parseInt(id), data)
-      toast.success('Payment term berhasil diupdate')
+      await updateTerm.mutateAsync({ id: numId, ...data })
+      toast.success('Syarat pembayaran berhasil diperbarui')
       navigate('/payment-terms')
-    } catch {
-      toast.error('Terjadi kesalahan. Silakan coba lagi.')
-    }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal mengupdate syarat pembayaran')) }
   }
 
-  const handleCancel = () => {
-    navigate('/payment-terms')
-  }
-
-  if (loading && !currentPaymentTerm) {
+  if (term.isLoading) {
     return (
-      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-        <div className="text-center py-12">
-          <CardSkeleton />
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Memuat data...</p>
+      <div className="max-w-4xl mx-auto p-4 lg:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3"><div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /><div className="h-6 w-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /><div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"><FormSkeleton /></div>
         </div>
       </div>
     )
   }
 
-  if (!currentPaymentTerm) {
+  if (!term.data) {
     return (
-      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-        <div className="text-center py-12">
-          <p className="text-red-600 font-medium">Payment term tidak ditemukan</p>
-          <button
-            onClick={() => navigate('/payment-terms')}
-            className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-          >
-            Kembali ke Syarat Pembayaran
-          </button>
+      <div className="max-w-4xl mx-auto p-4 lg:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-12 text-center">
+          <FileText className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white">Syarat pembayaran tidak ditemukan</h3>
+          <button onClick={() => navigate('/payment-terms')} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Kembali</button>
         </div>
       </div>
     )
   }
 
-  if (currentPaymentTerm.deleted_at) {
+  if (term.data.deleted_at) {
     return (
-      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-        <div className="text-center py-12">
-          <p className="text-red-600 font-medium">Tidak dapat mengedit payment term yang sudah dihapus</p>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Silakan restore terlebih dahulu</p>
-          <button
-            onClick={() => navigate('/payment-terms')}
-            className="mt-4 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-          >
-            Kembali ke Syarat Pembayaran
-          </button>
+      <div className="max-w-4xl mx-auto p-4 lg:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-12 text-center">
+          <p className="text-red-600 font-medium">Tidak dapat mengedit syarat yang sudah dihapus</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Silakan pulihkan terlebih dahulu</p>
+          <button onClick={() => navigate('/payment-terms')} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Kembali</button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-      <div className="mb-6 flex items-center gap-4">
-        <button
-          onClick={handleCancel}
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Payment Term</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{currentPaymentTerm?.term_name || ''}</p>
+    <div className="max-w-4xl mx-auto p-4 lg:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/payment-terms')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+          </button>
+          <FileText className="w-6 h-6 text-blue-600" />
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Syarat Pembayaran</h1>
+            <p className="text-xs text-gray-400">{term.data.term_code} — {term.data.term_name}</p>
+          </div>
         </div>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <PaymentTermForm 
-          initialData={currentPaymentTerm} 
-          isEdit 
-          onSubmit={handleSubmit} 
-          isLoading={loading}
-          onCancel={handleCancel}
-        />
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <PaymentTermForm initialData={term.data} isEdit onSubmit={handleSubmit} isLoading={updateTerm.isPending} onCancel={() => navigate('/payment-terms')} />
+        </div>
       </div>
     </div>
   )

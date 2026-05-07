@@ -1,135 +1,84 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import type { PaymentTerm, CreatePaymentTermDto, UpdatePaymentTermDto, SortParams, FilterParams, PaginationParams, MinimalPaymentTerm } from '../types'
 
-interface ApiResponse<T> {
-  success: boolean
-  data: T
-  message?: string
+interface ApiResponse<T> { success: boolean; data: T }
+interface PaginatedResponse<T> { success: boolean; data: T[]; pagination: PaginationParams }
+
+// ── React Query Hooks ──
+
+export const usePaymentTerms = (params: { page?: number; limit?: number; sort?: SortParams | null; filter?: FilterParams | null; includeDeleted?: boolean }) =>
+  useQuery({
+    queryKey: ['payment-terms', params],
+    queryFn: async () => {
+      const qp: Record<string, string | number | boolean> = { page: params.page ?? 1, limit: params.limit ?? 25 }
+      if (params.sort) { qp.sort = params.sort.field; qp.order = params.sort.order }
+      if (params.filter?.calculation_type) qp.calculation_type = params.filter.calculation_type
+      if (params.filter?.is_active !== undefined) qp.is_active = params.filter.is_active
+      if (params.filter?.q) qp.q = params.filter.q
+      if (params.includeDeleted) qp.includeDeleted = true
+      const { data } = await api.get<PaginatedResponse<PaymentTerm>>('/payment-terms', { params: qp })
+      return { data: data.data, pagination: data.pagination }
+    },
+    staleTime: 60_000,
+  })
+
+export const usePaymentTerm = (id: number) =>
+  useQuery({
+    queryKey: ['payment-terms', id],
+    queryFn: async () => { const { data } = await api.get<ApiResponse<PaymentTerm>>(`/payment-terms/${id}`); return data.data },
+    enabled: !!id,
+  })
+
+export const useCreatePaymentTerm = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: CreatePaymentTermDto) => { const { data } = await api.post<ApiResponse<PaymentTerm>>('/payment-terms', body); return data.data },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payment-terms'] }),
+  })
 }
 
-interface PaginatedResponse<T> {
-  success: boolean
-  data: T[]
-  pagination: PaginationParams
+export const useUpdatePaymentTerm = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...body }: UpdatePaymentTermDto & { id: number }) => { const { data } = await api.put<ApiResponse<PaymentTerm>>(`/payment-terms/${id}`, body); return data.data },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payment-terms'] }),
+  })
 }
 
-interface ListParams {
-  page: number
-  limit: number
-  sort?: string
-  order?: 'asc' | 'desc'
-  calculation_type?: string
-  is_active?: boolean
-  q?: string
+export const useDeletePaymentTerm = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => { await api.delete(`/payment-terms/${id}`) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payment-terms'] }),
+  })
 }
 
-const handleApiCall = async <T>(
-  apiCall: () => Promise<T>,
-  errorMessage = 'Operation failed'
-): Promise<T> => {
-  try {
-    return await apiCall()
-  } catch (error: unknown) {
-    if (error && typeof error === 'object' && 'response' in error) {
-      const axiosError = error as { response?: { data?: { error?: string } } }
-      const message = axiosError.response?.data?.error || errorMessage
-      throw new Error(message)
-    }
-    throw new Error(errorMessage)
-  }
+export const useRestorePaymentTerm = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => { const { data } = await api.post<ApiResponse<PaymentTerm>>(`/payment-terms/${id}/restore`); return data.data },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payment-terms'] }),
+  })
 }
 
-class RequestManager {
-  private controllers = new Map<string, AbortController>()
-  
-  getSignal(key: string): AbortSignal {
-    this.abort(key)
-    const controller = new AbortController()
-    this.controllers.set(key, controller)
-    return controller.signal
-  }
-  
-  abort(key: string) {
-    const controller = this.controllers.get(key)
-    if (controller) {
-      controller.abort()
-      this.controllers.delete(key)
-    }
-  }
-  
-  cleanup(key: string) {
-    this.controllers.delete(key)
-  }
-}
-
-const requestManager = new RequestManager()
+// ── Legacy API object (used by SupplierForm, etc.) ──
 
 export const paymentTermsApi = {
   list: async (page = 1, limit = 25, sort?: SortParams | null, filter?: FilterParams | null) => {
-    return handleApiCall(async () => {
-      const signal = requestManager.getSignal('payment-terms:list')
-      
-      const params: ListParams = { page, limit }
-      if (sort) {
-        params.sort = sort.field
-        params.order = sort.order
-      }
-      if (filter) {
-        Object.assign(params, filter)
-      }
-      
-      try {
-        const res = await api.get<PaginatedResponse<PaymentTerm>>('/payment-terms', { 
-          params,
-          signal
-        })
-        requestManager.cleanup('payment-terms:list')
-        return res.data
-      } catch (error) {
-        requestManager.cleanup('payment-terms:list')
-        throw error
-      }
-    }, 'Failed to fetch payment terms')
+    const params: Record<string, string | number | boolean> = { page, limit }
+    if (sort) { params.sort = sort.field; params.order = sort.order }
+    if (filter) Object.assign(params, filter)
+    const res = await api.get<PaginatedResponse<PaymentTerm>>('/payment-terms', { params })
+    return res.data
   },
-
   minimalActive: async () => {
-    return handleApiCall(async () => {
-      const res = await api.get<ApiResponse<MinimalPaymentTerm[]>>('/payment-terms/minimal/active')
-      return res.data.data
-    }, 'Failed to fetch active payment terms')
+    const res = await api.get<ApiResponse<MinimalPaymentTerm[]>>('/payment-terms/minimal/active')
+    return res.data.data
   },
-
-  getById: async (id: number) => {
-    return handleApiCall(async () => {
-      const res = await api.get<ApiResponse<PaymentTerm>>(`/payment-terms/${id}`)
-      return res.data.data
-    }, 'Failed to fetch payment term')
-  },
-
-  create: async (data: CreatePaymentTermDto) => {
-    return handleApiCall(async () => {
-      const res = await api.post<ApiResponse<PaymentTerm>>('/payment-terms', data)
-      return res.data.data
-    }, 'Failed to create payment term')
-  },
-
-  update: async (id: number, data: UpdatePaymentTermDto) => {
-    return handleApiCall(async () => {
-      const res = await api.put<ApiResponse<PaymentTerm>>(`/payment-terms/${id}`, data)
-      return res.data.data
-    }, 'Failed to update payment term')
-  },
-
-  delete: async (id: number) => {
-    return handleApiCall(async () => {
-      await api.delete(`/payment-terms/${id}`)
-    }, 'Failed to delete payment term')
-  },
-
-  restore: async (id: number) => {
-    return handleApiCall(async () => {
-      const res = await api.post<ApiResponse<PaymentTerm>>(`/payment-terms/${id}/restore`)
-      return res.data.data
-    }, 'Failed to restore payment term')
-  }
+  getById: async (id: number) => { const res = await api.get<ApiResponse<PaymentTerm>>(`/payment-terms/${id}`); return res.data.data },
+  create: async (data: CreatePaymentTermDto) => { const res = await api.post<ApiResponse<PaymentTerm>>('/payment-terms', data); return res.data.data },
+  update: async (id: number, data: UpdatePaymentTermDto) => { const res = await api.put<ApiResponse<PaymentTerm>>(`/payment-terms/${id}`, data); return res.data.data },
+  delete: async (id: number) => { await api.delete(`/payment-terms/${id}`) },
+  restore: async (id: number) => { const res = await api.post<ApiResponse<PaymentTerm>>(`/payment-terms/${id}/restore`); return res.data.data },
 }
