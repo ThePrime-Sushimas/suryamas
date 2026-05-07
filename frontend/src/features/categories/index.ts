@@ -6,9 +6,11 @@ export { SubCategoryTable } from './components/SubCategoryTable'
 export { default as CategoriesPage } from './pages/CategoriesPage'
 export { default as CreateCategoryPage } from './pages/CreateCategoryPage'
 export { default as EditCategoryPage } from './pages/EditCategoryPage'
-export { default as EditCategoryPage as CategoryDetailPage } from './pages/EditCategoryPage'
 export { default as SubCategoriesPage } from './pages/SubCategoriesPage'
 export { default as CreateSubCategoryPage } from './pages/CreateSubCategoryPage'
 export { default as EditSubCategoryPage } from './pages/EditSubCategoryPage'
-export { default as EditSubCategoryPage as SubCategoryDetailPage } from './pages/EditSubCategoryPage'
 export * from './types'
+
+// Detail pages aliased to Edit pages
+export { default as CategoryDetailPage } from './pages/EditCategoryPage'
+export { default as SubCategoryDetailPage } from './pages/EditSubCategoryPage'

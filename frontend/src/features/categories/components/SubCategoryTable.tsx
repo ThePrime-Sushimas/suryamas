@@ -2,7 +2,7 @@ import { FolderTree, Pencil, Trash2, RotateCcw } from 'lucide-react'
 import type { SubCategory } from '../types'
 
 interface SubCategoryTableProps {
-  subCategories: SubCategory[]
+  subCategories: (SubCategory & { cat_name?: string })[]
   loading?: boolean
   onView: (id: string) => void
   onEdit: (id: string) => void
@@ -33,7 +33,7 @@ export const SubCategoryTable = ({ subCategories, loading, onView, onEdit, onDel
           <tr>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kode</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nama</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Deskripsi</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kategori</th>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Urutan</th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
           </tr>
@@ -43,7 +43,7 @@ export const SubCategoryTable = ({ subCategories, loading, onView, onEdit, onDel
             <tr key={sc.id} onClick={() => onView(sc.id)} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
               <td className="px-4 py-3 font-mono text-gray-900 dark:text-gray-200">{sc.sub_category_code}</td>
               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{sc.sub_category_name}</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{sc.description || '—'}</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{sc.cat_name || '—'}</td>
               <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{sc.sort_order}</td>
               <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                 {showDeleted ? (
