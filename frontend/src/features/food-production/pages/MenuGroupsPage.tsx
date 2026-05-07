@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Layers, Plus, Pencil, Trash2, Check, X } from 'lucide-react'
+import { Layers, Plus, Pencil, Trash2, Check } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'

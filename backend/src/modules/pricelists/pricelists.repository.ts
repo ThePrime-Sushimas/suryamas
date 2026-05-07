@@ -151,6 +151,34 @@ export class PricelistsRepository {
     )
     return rows.length
   }
+
+  /**
+   * Get latest approved pricelist cost per base unit for a product.
+   * Returns price / conversion_factor from the most recent valid_from (not future).
+   */
+  async getLatestCostPerBaseUnit(productId: string): Promise<number | null> {
+    const { rows } = await pool.query(
+      `SELECT pl.price, pu.conversion_factor
+       FROM pricelists pl
+       JOIN product_uoms pu ON pu.id = pl.uom_id
+       WHERE pl.product_id = $1 AND pl.status = 'APPROVED' AND pl.is_active = true AND pl.deleted_at IS NULL
+         AND pu.conversion_factor > 0
+         AND pl.valid_from <= CURRENT_DATE
+       ORDER BY pl.valid_from DESC, pl.updated_at DESC
+       LIMIT 1`,
+      [productId]
+    )
+    if (rows.length === 0) return null
+    const cost = Number(rows[0].price) / Number(rows[0].conversion_factor)
+    return Number(cost.toFixed(6))
+  }
+
+  async updateProductAverageCost(productId: string, averageCost: number): Promise<void> {
+    await pool.query(
+      'UPDATE products SET average_cost = $1, updated_at = now() WHERE id = $2',
+      [averageCost, productId]
+    )
+  }
 }
 
 export const pricelistsRepository = new PricelistsRepository()

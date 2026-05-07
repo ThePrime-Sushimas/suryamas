@@ -1,4 +1,5 @@
 import { pricelistsRepository } from './pricelists.repository'
+import { recipesRepository } from '../food-production/recipes/recipes.repository'
 import { Pricelist, PricelistWithRelations, CreatePricelistDto, UpdatePricelistDto, PricelistListQuery, PricelistApprovalDto, PricelistLookup } from './pricelists.types'
 import { 
   PricelistNotFoundError, 
@@ -134,6 +135,11 @@ export class PricelistsService {
       )
     }
 
+    // Auto-update products.average_cost from latest approved pricelist
+    if (approval.status === 'APPROVED') {
+      await this.updateProductAverageCost(updated.product_id, updated.company_id)
+    }
+
     return updated
   }
 
@@ -162,6 +168,18 @@ export class PricelistsService {
 
   async expireOldPricelists(): Promise<number> {
     return pricelistsRepository.expireOldPricelists()
+  }
+
+  /**
+   * Update products.average_cost from the latest APPROVED pricelist,
+   * then propagate to wip_ingredients → wip_items → recipe_lines → menus.
+   */
+  async updateProductAverageCost(productId: string, companyId: string): Promise<void> {
+    const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(productId)
+    if (costPerBaseUnit === null) return
+    await pricelistsRepository.updateProductAverageCost(productId, costPerBaseUnit)
+    // Propagate cost change to recipe/WIP/menus
+    await recipesRepository.recalculateCostFromProduct(productId, companyId)
   }
 }
 

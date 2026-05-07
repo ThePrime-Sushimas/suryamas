@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UtensilsCrossed, RefreshCw, Search, Filter, X, Plus, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
+import { UtensilsCrossed, RefreshCw, Search, Filter, X, Plus, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { Pagination } from '@/components/ui/Pagination'
