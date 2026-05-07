@@ -5,9 +5,92 @@ import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useMenu, useRecipe, useSaveRecipe, useUpdateMenu, useCreateMenu, useMenuCategories, useMenuGroups, useWipItems, useProductList } from '../api/food-production.api'
 import type { ProductUomOption } from '../api/food-production.api'
+import type { Menu, MenuCategory, MenuGroup } from '../types/food-production.types'
 import api from '@/lib/axios'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
+
+// ── Edit Menu Section (collapsible) ──
+function EditMenuSection({ menu, categories, groups, onUpdate }: {
+  menu: Menu
+  categories: MenuCategory[]
+  groups: MenuGroup[]
+  onUpdate: (data: { id: string; category_id?: string; group_id?: string | null; menu_name?: string; selling_price?: number }) => Promise<unknown>
+}) {
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(menu.menu_name)
+  const [catId, setCatId] = useState(menu.category_id)
+  const [grpId, setGrpId] = useState(menu.group_id || '')
+  const [price, setPrice] = useState(menu.selling_price)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setName(menu.menu_name); setCatId(menu.category_id); setGrpId(menu.group_id || ''); setPrice(menu.selling_price)
+  }, [menu])
+
+  const handleSaveMenu = async () => {
+    setSaving(true)
+    try {
+      await onUpdate({ id: menu.id, menu_name: name, category_id: catId, group_id: grpId || null, selling_price: price })
+      toast.success('Menu diupdate')
+      setOpen(false)
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal update menu')) }
+    finally { setSaving(false) }
+  }
+
+  const filteredGroups = groups.filter(g => g.category_id === catId)
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 underline">
+        Edit detail menu
+      </button>
+    )
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-3">
+      <p className="text-xs font-medium text-gray-500 uppercase">✏️ Edit Menu</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Nama Menu</label>
+          <input value={name} onChange={e => setName(e.target.value)}
+            className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Harga Jual</label>
+          <input type="number" value={price || ''} onChange={e => setPrice(Number(e.target.value))} min={0}
+            className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Kategori</label>
+          <select value={catId} onChange={e => { setCatId(e.target.value); setGrpId('') }}
+            className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            {categories.map(c => <option key={c.id} value={c.id}>{c.category_name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Group</label>
+          <select value={grpId} onChange={e => setGrpId(e.target.value)}
+            className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option value="">Tanpa group</option>
+            {filteredGroups.map(g => <option key={g.id} value={g.id}>{g.group_name}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={handleSaveMenu} disabled={saving}
+          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          {saving ? 'Menyimpan...' : 'Simpan'}
+        </button>
+        <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg">Batal</button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Page ──
 
 interface EditableLine {
   product_id: string | null
@@ -269,6 +352,11 @@ export default function MenuDetailPage() {
             </p>
           </div>
         </div>
+      )}
+
+      {/* Edit Menu Details */}
+      {m && !isNew && (
+        <EditMenuSection menu={m} categories={categories.data || []} groups={groups.data || []} onUpdate={updateMenu.mutateAsync} />
       )}
 
       {/* Recipe Editor */}
