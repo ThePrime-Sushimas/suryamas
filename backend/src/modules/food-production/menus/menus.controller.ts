@@ -22,7 +22,8 @@ export class MenusController {
       const group_id = req.query.group_id as string | undefined
       const has_recipe = req.query.has_recipe === 'true' ? true : req.query.has_recipe === 'false' ? false : undefined
       const sync_enabled = req.query.sync_enabled === 'true' ? true : req.query.sync_enabled === 'false' ? false : undefined
-      const result = await menusService.list(companyId, { page, limit }, req.sort, { is_active, category_id, group_id, has_recipe, sync_enabled })
+      const search = (req.query.search as string) || (req.query.q as string) || undefined
+      const result = await menusService.list(companyId, { page, limit }, req.sort, { is_active, category_id, group_id, has_recipe, sync_enabled, search })
       sendSuccess(res, result.data, 'Menus retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_menus' })

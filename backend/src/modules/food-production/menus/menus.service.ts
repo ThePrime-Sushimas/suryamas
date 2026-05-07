@@ -5,7 +5,7 @@ import { isPostgresError } from '../../../utils/postgres-error.util'
 import type { CreateMenuDto, UpdateMenuDto, Menu, MenuWithRelations } from './menus.types'
 
 export class MenusService {
-  async list(companyId: string, pagination: { page: number; limit: number }, sort?: { field: string; order: string }, filter?: { is_active?: boolean; category_id?: string; group_id?: string; has_recipe?: boolean; sync_enabled?: boolean }) {
+  async list(companyId: string, pagination: { page: number; limit: number }, sort?: { field: string; order: string }, filter?: { is_active?: boolean; category_id?: string; group_id?: string; has_recipe?: boolean; sync_enabled?: boolean; search?: string }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await menusRepository.findAll(companyId, { limit: pagination.limit, offset }, sort, filter)
     const totalPages = Math.ceil(total / pagination.limit)

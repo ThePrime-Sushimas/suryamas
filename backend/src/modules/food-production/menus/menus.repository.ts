@@ -11,7 +11,7 @@ const BASE_FROM = `
 `
 
 export class MenusRepository {
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: string }, filter?: { is_active?: boolean; category_id?: string; group_id?: string; has_recipe?: boolean; sync_enabled?: boolean }): Promise<{ data: MenuWithRelations[]; total: number }> {
+  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: string }, filter?: { is_active?: boolean; category_id?: string; group_id?: string; has_recipe?: boolean; sync_enabled?: boolean; search?: string }): Promise<{ data: MenuWithRelations[]; total: number }> {
     const conditions = ['m.company_id = $1', 'm.deleted_at IS NULL']
     const params: unknown[] = [companyId]
     let idx = 2
@@ -21,6 +21,7 @@ export class MenusRepository {
     if (filter?.group_id) { params.push(filter.group_id); conditions.push(`m.group_id = $${idx++}`) }
     if (filter?.has_recipe !== undefined) { params.push(filter.has_recipe); conditions.push(`m.has_recipe = $${idx++}`) }
     if (filter?.sync_enabled !== undefined) { params.push(filter.sync_enabled); conditions.push(`m.sync_enabled = $${idx++}`) }
+    if (filter?.search) { params.push(`%${filter.search}%`); conditions.push(`(m.menu_name ILIKE $${idx} OR m.menu_code ILIKE $${idx})`); idx++ }
 
     const where = `WHERE ${conditions.join(' AND ')}`
     const allowedSort = ['menu_code', 'menu_name', 'selling_price', 'estimated_cost', 'cost_percentage', 'created_at']
