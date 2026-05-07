@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useWipItem, useUpdateWipItem, useCreateWipItem, useProductList } from '../api/food-production.api'
+import type { ProductUomOption } from '../api/food-production.api'
+import api from '@/lib/axios'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
 
@@ -36,6 +38,23 @@ export default function WipDetailPage() {
 
   // Build product cost map for live display
   const productCostMap = useMemo(() => new Map((products.data || []).map(p => [p.id, p.average_cost || 0])), [products.data])
+  const productUomMap = useMemo(() => new Map((products.data || []).map(p => [p.id, p.default_purchase_unit || 'gram'])), [products.data])
+
+  // Fetch UOMs per product on demand
+  const productUomsCache = useRef<Map<string, ProductUomOption[]>>(new Map())
+  const [productUomsMap, setProductUomsMap] = useState<Map<string, ProductUomOption[]>>(new Map())
+
+  const fetchUomsForProduct = useCallback(async (productId: string): Promise<ProductUomOption[]> => {
+    const cached = productUomsCache.current.get(productId)
+    if (cached) return cached
+    try {
+      const { data } = await api.get(`/products/${productId}/uoms`)
+      const uoms = (data.data || []) as ProductUomOption[]
+      productUomsCache.current.set(productId, uoms)
+      setProductUomsMap(new Map(productUomsCache.current))
+      return uoms
+    } catch { return [] }
+  }, [])
 
   useEffect(() => {
     if (wipItem.data) {
@@ -50,8 +69,12 @@ export default function WipDetailPage() {
         cost_per_unit: i.cost_per_unit,
       })))
       setDirty(false)
+      // Fetch UOMs for existing products
+      for (const i of wipItem.data.ingredients) {
+        if (i.product_id) fetchUomsForProduct(i.product_id)
+      }
     }
-  }, [wipItem.data])
+  }, [wipItem.data, fetchUomsForProduct])
 
   const addIngredient = () => {
     setIngredients([...ingredients, { product_id: '', qty: 0, uom: 'gram', cost_per_unit: 0 }])
@@ -63,10 +86,24 @@ export default function WipDetailPage() {
     setDirty(true)
   }
 
-  const updateIngredient = (idx: number, field: keyof EditableIngredient, value: string | number) => {
+  const updateIngredient = async (idx: number, field: keyof EditableIngredient, value: string | number) => {
     const updated = [...ingredients]
     if (field === 'product_id') {
-      updated[idx] = { ...updated[idx], product_id: value as string, cost_per_unit: productCostMap.get(value as string) ?? 0 }
+      const uoms = await fetchUomsForProduct(value as string)
+      const baseUom = uoms.find(u => u.is_base_unit)
+      const defaultUom = baseUom?.metric_units?.unit_name || productUomMap.get(value as string) || 'gram'
+      const baseCost = productCostMap.get(value as string) ?? 0
+      updated[idx] = { ...updated[idx], product_id: value as string, cost_per_unit: baseCost, uom: defaultUom }
+    } else if (field === 'uom') {
+      // Recalculate cost based on conversion factor
+      const productId = updated[idx].product_id
+      const uoms = productUomsMap.get(productId) || []
+      const selectedUom = uoms.find(u => u.metric_units?.unit_name === value)
+      const baseCost = productCostMap.get(productId) ?? 0
+      // cost_per_unit = average_cost (per base unit) × conversion_factor (base units per this UOM)
+      // Example: avg_cost = 0.05/gram, UOM = kg (factor=1000) → cost/kg = 50
+      const costPerUnit = selectedUom ? baseCost * selectedUom.conversion_factor : baseCost
+      updated[idx] = { ...updated[idx], uom: value as string, cost_per_unit: costPerUnit }
     } else {
       updated[idx] = { ...updated[idx], [field]: value }
     }
@@ -204,8 +241,15 @@ export default function WipDetailPage() {
                         className="w-full h-8 px-2 text-sm text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                     </td>
                     <td className="px-3 py-2">
-                      <input value={ing.uom} onChange={e => updateIngredient(idx, 'uom', e.target.value)}
-                        className="w-full h-8 px-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                      <select value={ing.uom} onChange={e => updateIngredient(idx, 'uom', e.target.value)}
+                        className="w-full h-8 px-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        {(productUomsMap.get(ing.product_id) || []).map(u => (
+                          <option key={u.metric_units?.unit_name || u.id} value={u.metric_units?.unit_name || ''}>{u.metric_units?.unit_name || '—'}</option>
+                        ))}
+                        {(productUomsMap.get(ing.product_id) || []).length === 0 && (
+                          <option value={ing.uom}>{ing.uom}</option>
+                        )}
+                      </select>
                     </td>
                     <td className="px-3 py-2 text-right text-gray-500 font-mono text-xs">
                       {ing.cost_per_unit > 0 ? fmt(ing.cost_per_unit) : '—'}

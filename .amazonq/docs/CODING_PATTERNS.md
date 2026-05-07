@@ -316,6 +316,39 @@ UNIQUE(company_id, {code_column})
 
 ---
 
+## UOM & Cost Calculation Contract
+
+### Arah conversion_factor
+```
+conversion_factor = "berapa base unit dalam 1 unit ini"
+BUKAN "berapa unit ini dalam 1 base unit"
+
+Validasi: is_base_unit = true → conversion_factor WAJIB = 1
+Enforced di: Zod schema (refine) + service layer (double guard)
+```
+
+### Cost Calculation Pattern
+```typescript
+// ✅ BENAR:
+cost_per_unit = product.average_cost × uom.conversion_factor
+
+// ❌ SALAH:
+cost_per_unit = product.average_cost / uom.conversion_factor
+```
+
+### Default UOM Priority (untuk auto-fill di form)
+Urutan fallback saat pilih ingredient:
+1. UOM dengan `is_base_unit = true` (paling reliable)
+2. UOM dengan `is_default_purchase_unit = true`
+3. `product.default_purchase_unit` (field denormalized di products)
+4. `'gram'` (hardcoded fallback)
+
+### WIP vs Product UOM
+- Product → punya banyak UOM dengan conversion table → dropdown
+- WIP → satu output unit dari `wip_items.uom` → readonly/static
+
+---
+
 ## Generated Columns
 
 - Gunakan `GENERATED ALWAYS AS (...) STORED` untuk kalkulasi yang derivatif (percentage, line_cost, dll)

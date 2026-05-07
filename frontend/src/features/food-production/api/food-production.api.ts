@@ -25,6 +25,7 @@ export interface ProductOption {
   product_code: string
   product_name: string
   average_cost: number
+  default_purchase_unit: string | null
 }
 
 export const useProductSearch = (q: string) =>
@@ -65,6 +66,15 @@ export const useCoaOptions = () =>
     },
     staleTime: 5 * 60_000,
   })
+
+export interface ProductUomOption {
+  id: string
+  product_id: string
+  conversion_factor: number
+  is_base_unit: boolean
+  base_price: number
+  metric_units: { id: string; unit_name: string; metric_type: string } | null
+}
 
 // ── Menu Categories ──
 

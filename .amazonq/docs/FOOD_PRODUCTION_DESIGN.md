@@ -657,3 +657,67 @@ User buka /food-production/cogs
   - `['food-production', 'categories']`
   - `['food-production', 'groups', params]`
 - Invalidation: setelah mutasi, invalidate query key terkait
+
+
+---
+
+## 📐 Product UOM — Struktur & Kalkulasi Cost
+
+### Schema `product_uoms`
+
+| Field | Type | Keterangan |
+|---|---|---|
+| product_id | UUID | FK ke products |
+| metric_unit_id | UUID | FK ke metric_units (gram, kg, dll) |
+| conversion_factor | NUMERIC | Berapa base unit dalam 1 unit ini |
+| is_base_unit | BOOLEAN | True = unit dasar (gram), factor WAJIB = 1 |
+| base_price | NUMERIC | Harga jual per unit ini (opsional) |
+| is_default_stock_unit | BOOLEAN | Default untuk stock opname |
+| is_default_purchase_unit | BOOLEAN | Default untuk purchase order |
+| is_default_transfer_unit | BOOLEAN | Default untuk transfer antar cabang |
+| status_uom | ENUM | Status UOM (dari VALID_UOM_STATUSES) |
+
+### Aturan Business
+
+1. **Satu base unit per product** — tidak bisa ada dua `is_base_unit = true`
+2. **Base unit conversion_factor WAJIB = 1** — divalidasi di service DAN schema (Zod refine)
+3. **Satu default per type** — kalau UOM baru di-set sebagai `is_default_purchase_unit`, UOM lama yang punya flag itu akan di-unset otomatis (`ensureSingleDefault`)
+4. **Base unit tidak bisa dihapus** — service throw error jika delete base unit
+
+### Kalkulasi Cost di Recipe/WIP
+
+```
+average_cost di products = cost per BASE UNIT
+
+cost_per_unit untuk UOM tertentu:
+  = average_cost × conversion_factor
+
+Contoh:
+  product: Salmon
+  average_cost = 0.05  (Rp 0.05 per gram — base unit)
+
+  UOM gram  → conversion_factor = 1    → cost = 0.05 × 1    = 0.05/gram
+  UOM ons   → conversion_factor = 100  → cost = 0.05 × 100  = 5/ons
+  UOM kg    → conversion_factor = 1000 → cost = 0.05 × 1000 = 50/kg
+```
+
+### Relasi ke `metric_units`
+
+`product_uoms` JOIN `metric_units` untuk mendapatkan `unit_name` dan `metric_type`.
+Response dari API sudah include nested object:
+
+```typescript
+metric_units: {
+  id: string
+  unit_name: string   // "Gram", "Kilogram", "Pack", dll
+  metric_type: string // "Weight", "Volume", dll
+} | null
+```
+
+### Constraint di Frontend (Recipe & WIP Editor)
+
+- Product ingredient → UOM dropdown dari `GET /products/:productId/uoms` (semua UOM product tersebut)
+- WIP ingredient di recipe → UOM READONLY, diambil dari `wip_items.uom` (WIP hanya punya 1 output unit)
+- WIP tidak punya conversion table, sehingga UOM-nya tidak bisa diganti di recipe
+- Saat user pilih product → fetch UOM → default ke base unit → cost = average_cost × 1
+- Saat user ganti UOM → recalculate cost = average_cost × conversion_factor
