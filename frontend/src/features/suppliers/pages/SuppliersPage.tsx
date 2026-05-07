@@ -1,294 +1,207 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSuppliersStore } from '../store/suppliers.store'
-import { SupplierFilterBar } from '../components/SupplierFilterBar'
-import { SupplierStatusBadge } from '../components/SupplierStatusBadge'
-import { SupplierTypeBadge } from '../components/SupplierTypeBadge'
+import { Plus, Search, X, Filter, Trash2, RotateCcw, Pencil, PackageSearch } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
-import { useToast } from '@/contexts/ToastContext'
-import { useDebounce } from '@/hooks/_shared/useDebounce'
-import type { SupplierType, SupplierListQuery } from '../types/supplier.types'
-import { Plus, Eye, Pencil, Trash2, RotateCcw, PackageSearch, RefreshCw } from 'lucide-react'
-
-const TABLE_COLS = 8
+import { useSuppliers, useDeleteSupplier, useRestoreSupplier } from '../api/suppliers.api'
+import { SupplierTypeBadge } from '../components/SupplierTypeBadge'
+import { SupplierStatusBadge } from '../components/SupplierStatusBadge'
+import type { Supplier, SupplierType } from '../types/supplier.types'
 
 export function SuppliersPage() {
   const navigate = useNavigate()
-  const { suppliers, pagination, fetchLoading, mutationLoading, error, fetchPage, deleteSupplier, restoreSupplier, clearError } = useSuppliersStore()
   const toast = useToast()
-  
+
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
   const [supplierType, setSupplierType] = useState<SupplierType | ''>('')
   const [isActive, setIsActive] = useState('')
   const [includeDeleted, setIncludeDeleted] = useState(false)
   const [sortBy, setSortBy] = useState('supplier_name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
+  const [showFilter, setShowFilter] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null)
 
-  const debouncedSearch = useDebounce(search, 500)
+  const debouncedSearch = useDebounce(search, 400)
 
-  const buildQuery = useCallback((): Omit<SupplierListQuery, 'page' | 'limit'> => {
-    const q: Omit<SupplierListQuery, 'page' | 'limit'> = { sort_by: sortBy, sort_order: sortOrder }
-    if (debouncedSearch) q.search = debouncedSearch
-    if (supplierType) q.supplier_type = supplierType
-    if (isActive) q.is_active = isActive === 'true'
-    if (includeDeleted) q.include_deleted = true
-    return q
-  }, [debouncedSearch, supplierType, isActive, includeDeleted, sortBy, sortOrder])
+  const query = useMemo(() => ({
+    page, limit, search: debouncedSearch || undefined,
+    supplier_type: supplierType || undefined,
+    is_active: isActive ? isActive === 'true' : undefined,
+    include_deleted: includeDeleted || undefined,
+    sort_by: sortBy, sort_order: sortOrder,
+  }), [page, limit, debouncedSearch, supplierType, isActive, includeDeleted, sortBy, sortOrder])
 
-  const doFetch = useCallback((page: number, limit?: number) => {
-    fetchPage(page, limit, buildQuery())
-  }, [fetchPage, buildQuery])
+  const { data, isLoading } = useSuppliers(query)
+  const deleteSupplier = useDeleteSupplier()
+  const restoreSupplier = useRestoreSupplier()
 
-  // Search/filter/sort changes → reset to page 1 and fetch
-  useEffect(() => {
-    doFetch(1)
-  }, [debouncedSearch, supplierType, isActive, includeDeleted, sortBy, sortOrder]) // eslint-disable-line react-hooks/exhaustive-deps
+  const suppliers = data?.data ?? []
+  const pagination = data?.pagination
 
-  const handleConfirmDelete = async () => {
-    if (!deleteConfirm) return
+  const handleSearchChange = (v: string) => { setSearch(v); setPage(1) }
+  const handleSort = (field: string) => {
+    if (sortBy === field) setSortOrder(o => o === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortOrder('asc') }
+    setPage(1)
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await deleteSupplier(deleteConfirm.id)
+      await deleteSupplier.mutateAsync(deleteTarget.id)
       toast.success('Supplier berhasil dihapus')
-      setDeleteConfirm(null)
-      doFetch(pagination.page)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gagal menghapus supplier')
-    }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus supplier')) }
+    finally { setDeleteTarget(null) }
   }
 
   const handleRestore = async (id: string) => {
     try {
-      await restoreSupplier(id)
+      await restoreSupplier.mutateAsync(id)
       toast.success('Supplier berhasil dipulihkan')
-      doFetch(pagination.page)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gagal memulihkan supplier')
-    }
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memulihkan supplier')) }
   }
 
-  const handleResetFilters = () => {
-    setSearch('')
-    setSupplierType('')
-    setIsActive('')
-    setIncludeDeleted(false)
-  }
-
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortBy(field)
-      setSortOrder('asc')
-    }
-  }
+  const activeFilterCount = [supplierType, isActive, includeDeleted].filter(Boolean).length
 
   return (
-    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Suppliers</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Kelola database supplier</p>
-      </div>
-
-      {/* Error State with Retry */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <span>Terjadi kesalahan saat memuat data</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { clearError(); doFetch(pagination.page) }}
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-red-100 dark:bg-red-800 rounded-lg hover:bg-red-200 dark:hover:bg-red-700"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Coba Lagi
-            </button>
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Supplier</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} total</p>
           </div>
+          <button onClick={() => navigate('/suppliers/create')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <Plus className="w-4 h-4" /> Tambah Supplier
+          </button>
         </div>
-      )}
-
-      <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          {`${pagination.total} total supplier`}
-        </div>
-        <button
-          onClick={() => navigate('/suppliers/create')}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Tambah Supplier
-        </button>
       </div>
 
-      <SupplierFilterBar
-        search={search}
-        supplierType={supplierType}
-        isActive={isActive}
-        includeDeleted={includeDeleted}
-        onSearchChange={setSearch}
-        onSupplierTypeChange={setSupplierType}
-        onIsActiveChange={setIsActive}
-        onIncludeDeletedChange={setIncludeDeleted}
-        onReset={handleResetFilters}
-      />
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                <th
-                  onClick={() => handleSort('supplier_code')}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  Kode {sortBy === 'supplier_code' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th
-                  onClick={() => handleSort('supplier_name')}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  Nama {sortBy === 'supplier_name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Tipe
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Kontak
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Telepon
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Rating
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Aksi
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {fetchLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: TABLE_COLS }).map((_, j) => (
-                      <td key={j} className="px-6 py-4">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : suppliers.length === 0 ? (
-                <tr>
-                  <td colSpan={TABLE_COLS} className="px-6 py-16 text-center">
-                    <PackageSearch className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-                    <p className="text-gray-500 dark:text-gray-400 font-medium">Tidak ada supplier ditemukan</p>
-                    <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Coba ubah filter atau tambah supplier baru</p>
-                  </td>
-                </tr>
-              ) : (
-                suppliers.map((supplier) => (
-                  <tr 
-                    key={supplier.id} 
-                    onClick={() => navigate(`/suppliers/${supplier.id}`)}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {supplier.supplier_code}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {supplier.supplier_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <SupplierTypeBadge type={supplier.supplier_type} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                      {supplier.contact_person}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                      {supplier.phone}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                      {supplier.rating ? '⭐'.repeat(supplier.rating) : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <SupplierStatusBadge isActive={supplier.is_active} />
-                      {supplier.deleted_at && (
-                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
-                          Dihapus
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-1">
-                        {supplier.deleted_at ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleRestore(supplier.id) }}
-                            disabled={mutationLoading}
-                            title="Pulihkan"
-                            className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg disabled:opacity-50"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); navigate(`/suppliers/${supplier.id}`) }}
-                              title="Lihat"
-                              className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); navigate(`/suppliers/${supplier.id}/edit`) }}
-                              title="Edit"
-                              className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ id: supplier.id, name: supplier.supplier_name }) }}
-                              disabled={mutationLoading}
-                              title="Hapus"
-                              className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg disabled:opacity-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Search & Filter */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input type="text" placeholder="Cari nama atau kode..." value={search} onChange={e => handleSearchChange(e.target.value)}
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+            {search && <button onClick={() => handleSearchChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>}
+          </div>
+          <button onClick={() => setShowFilter(!showFilter)}
+            className={`px-4 py-2 border rounded-lg flex items-center gap-2 ${showFilter ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+            <Filter className="w-4 h-4" />
+            {activeFilterCount > 0 && <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">{activeFilterCount}</span>}
+          </button>
         </div>
-
-        {pagination.total > 0 && (
-          <Pagination
-            pagination={pagination}
-            onPageChange={(p) => doFetch(p)}
-            onLimitChange={(l) => doFetch(1, l)}
-            currentLength={suppliers.length}
-            loading={fetchLoading}
-          />
+        {showFilter && (
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <select value={supplierType} onChange={e => { setSupplierType(e.target.value as SupplierType | ''); setPage(1) }}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+              <option value="">Semua Tipe</option>
+              <option value="vegetables">Sayuran</option>
+              <option value="meat">Daging</option>
+              <option value="seafood">Seafood</option>
+              <option value="dairy">Dairy</option>
+              <option value="beverage">Minuman</option>
+              <option value="dry_goods">Bahan Kering</option>
+              <option value="packaging">Packaging</option>
+              <option value="other">Lainnya</option>
+            </select>
+            <select value={isActive} onChange={e => { setIsActive(e.target.value); setPage(1) }}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+              <option value="">Semua Status</option>
+              <option value="true">Aktif</option>
+              <option value="false">Nonaktif</option>
+            </select>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={includeDeleted} onChange={e => { setIncludeDeleted(e.target.checked); setPage(1) }}
+                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
+              Tampilkan Terhapus
+            </label>
+          </div>
         )}
       </div>
 
-      <ConfirmModal
-        isOpen={!!deleteConfirm}
-        onClose={() => setDeleteConfirm(null)}
-        onConfirm={handleConfirmDelete}
-        title="Hapus Supplier"
-        message={`Apakah Anda yakin ingin menghapus "${deleteConfirm?.name}"? Tindakan ini tidak dapat dibatalkan.`}
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="danger"
-        isLoading={mutationLoading}
-      />
+      {/* Table */}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <tr>
+                  <th onClick={() => handleSort('supplier_code')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                    Kode {sortBy === 'supplier_code' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th onClick={() => handleSort('supplier_name')} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                    Nama {sortBy === 'supplier_name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tipe</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kontak</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Telepon</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>{Array.from({ length: 7 }).map((_, j) => (
+                      <td key={j} className="px-4 py-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></td>
+                    ))}</tr>
+                  ))
+                ) : suppliers.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-16 text-center">
+                    <PackageSearch className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">Tidak ada supplier ditemukan</p>
+                  </td></tr>
+                ) : suppliers.map(s => (
+                  <tr key={s.id} onClick={() => navigate(`/suppliers/${s.id}/edit`)}
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${s.deleted_at ? 'opacity-60 bg-red-50 dark:bg-red-900/10' : ''}`}>
+                    <td className="px-4 py-3 font-mono text-gray-900 dark:text-gray-200">{s.supplier_code}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{s.supplier_name}</td>
+                    <td className="px-4 py-3"><SupplierTypeBadge type={s.supplier_type} /></td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{s.contact_person}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{s.phone}</td>
+                    <td className="px-4 py-3 text-center">
+                      <SupplierStatusBadge isActive={s.is_active} />
+                      {s.deleted_at && <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">DEL</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                      {s.deleted_at ? (
+                        <button onClick={() => handleRestore(s.id)} className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                          <RotateCcw className="w-3.5 h-3.5 inline mr-1" />Pulihkan
+                        </button>
+                      ) : (
+                        <div className="flex gap-1 justify-end">
+                          <button onClick={() => navigate(`/suppliers/${s.id}/edit`)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => setDeleteTarget(s)} className="p-1.5 text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {pagination && pagination.total > 0 && (
+            <Pagination pagination={pagination} onPageChange={setPage} onLimitChange={l => { setLimit(l); setPage(1) }} currentLength={suppliers.length} loading={isLoading} />
+          )}
+        </div>
+      </div>
+
+      <ConfirmModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete}
+        title="Hapus Supplier" message={`Yakin ingin menghapus "${deleteTarget?.supplier_name}"?`}
+        confirmText="Hapus" variant="danger" isLoading={deleteSupplier.isPending} />
     </div>
   )
 }
