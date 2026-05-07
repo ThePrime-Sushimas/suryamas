@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Plus, Trash2, RefreshCw } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useMenu, useRecipe, useSaveRecipe, useUpdateMenu, useCreateMenu, useMenuCategories, useMenuGroups, useWipItems, useProductList } from '../api/food-production.api'
-import type { ProductUomOption } from '../api/food-production.api'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { useMenu, useRecipe, useSaveRecipe, useUpdateMenu, useCreateMenu, useMenuCategories, useMenuGroups, useWipItems, useProductList, useMenuBranchPrices, useActiveBranches, useUpsertMenuBranchPrice, useUpdateMenuBranchPrice, useDeleteMenuBranchPrice, useSyncMenuBranchPrices } from '../api/food-production.api'
+import type { ProductUomOption, MenuBranchPrice } from '../api/food-production.api'
 import type { Menu, MenuCategory, MenuGroup } from '../types/food-production.types'
 import api from '@/lib/axios'
 
@@ -86,6 +87,224 @@ function EditMenuSection({ menu, categories, groups, onUpdate }: {
         </button>
         <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg">Batal</button>
       </div>
+    </div>
+  )
+}
+
+// ── Branch Prices Section ──
+const PRICE_TYPES = [
+  { key: 'DINE_IN', label: 'Dine In' },
+  { key: 'TAKEAWAY', label: 'Take Away' },
+  { key: 'DELIVERY', label: 'Delivery' },
+] as const
+
+function BranchPricesSection({ menuId, defaultPrice }: { menuId: string; defaultPrice: number }) {
+  const toast = useToast()
+  const branchPrices = useMenuBranchPrices(menuId)
+  const branches = useActiveBranches()
+  const upsertPrice = useUpsertMenuBranchPrice()
+  const updatePrice = useUpdateMenuBranchPrice()
+  const deletePrice = useDeleteMenuBranchPrice()
+  const syncPrices = useSyncMenuBranchPrices()
+
+  const [activeTab, setActiveTab] = useState<string>('DINE_IN')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [newBranchId, setNewBranchId] = useState<string | null>(null)
+  const [newValue, setNewValue] = useState('')
+  const [resetTarget, setResetTarget] = useState<MenuBranchPrice | null>(null)
+
+  const startEdit = (price: MenuBranchPrice) => {
+    setNewBranchId(null); setNewValue('')
+    setEditingId(price.id); setEditValue(String(Number(price.selling_price)))
+  }
+
+  const startNew = (branchId: string) => {
+    setEditingId(null); setEditValue('')
+    setNewBranchId(branchId); setNewValue(String(defaultPrice))
+  }
+
+  // Merge branches with existing prices filtered by active tab
+  const rows = useMemo(() => {
+    const allBranches = branches.data || []
+    const prices = (branchPrices.data || []).filter(p => p.price_type === activeTab)
+    const priceMap = new Map(prices.map(p => [p.branch_id, p]))
+    return allBranches.map(b => ({ branch: b, price: priceMap.get(b.id) ?? null }))
+  }, [branches.data, branchPrices.data, activeTab])
+
+  // Count per tab
+  const tabCounts = useMemo(() => {
+    const prices = branchPrices.data || []
+    return {
+      DINE_IN: prices.filter(p => p.price_type === 'DINE_IN').length,
+      TAKEAWAY: prices.filter(p => p.price_type === 'TAKEAWAY').length,
+      DELIVERY: prices.filter(p => p.price_type === 'DELIVERY').length,
+    }
+  }, [branchPrices.data])
+
+  const handleSync = async () => {
+    try {
+      const result = await syncPrices.mutateAsync(menuId)
+      toast.success(`Sync selesai: ${result.inserted} baru, ${result.synced} diupdate, ${result.skipped_manual} skip (manual), ${result.skipped_threshold} skip (< 5%)`)
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal sync dari POS')) }
+  }
+
+  const handleSaveEdit = async (priceRecord: MenuBranchPrice) => {
+    const val = parseFloat(editValue)
+    if (!val || val <= 0) { toast.warning('Harga harus lebih dari 0'); return }
+    try {
+      await updatePrice.mutateAsync({ id: priceRecord.id, menuId, selling_price: val })
+      toast.success('Harga diupdate')
+      setEditingId(null)
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal update harga')) }
+  }
+
+  const handleSetNew = async (branchId: string) => {
+    const val = parseFloat(newValue)
+    if (!val || val <= 0) { toast.warning('Harga harus lebih dari 0'); return }
+    try {
+      await upsertPrice.mutateAsync({ menu_id: menuId, branch_id: branchId, selling_price: val, price_type: activeTab })
+      toast.success('Harga cabang disimpan')
+      setNewBranchId(null); setNewValue('')
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal set harga')) }
+  }
+
+  const handleReset = async () => {
+    if (!resetTarget) return
+    try {
+      await deletePrice.mutateAsync({ id: resetTarget.id, menuId })
+      toast.success('Harga direset ke default')
+    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal reset harga')) }
+    finally { setResetTarget(null) }
+  }
+
+  const sourceBadge = (source: string) => {
+    if (source === 'MANUAL') return <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">MANUAL</span>
+    if (source === 'POS_SYNC') return <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">POS</span>
+    return <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{source}</span>
+  }
+
+  const formatSyncedAt = (synced_at: string | null) => {
+    if (!synced_at) return '—'
+    const d = new Date(synced_at)
+    const diff = Date.now() - d.getTime()
+    const days = Math.floor(diff / 86400000)
+    if (days === 0) return 'Hari ini'
+    if (days === 1) return 'Kemarin'
+    return `${days} hari lalu`
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Harga Cabang</h2>
+        <button onClick={handleSync} disabled={syncPrices.isPending}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50">
+          <RefreshCw className={`w-3 h-3 ${syncPrices.isPending ? 'animate-spin' : ''}`} />
+          {syncPrices.isPending ? 'Syncing...' : 'Sync dari POS'}
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 dark:border-gray-700 px-4">
+        {PRICE_TYPES.map(t => (
+          <button key={t.key} onClick={() => { setActiveTab(t.key); setEditingId(null); setEditValue(''); setNewBranchId(null); setNewValue('') }}
+            className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === t.key
+                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}>
+            {t.label}
+            {tabCounts[t.key as keyof typeof tabCounts] > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full bg-gray-100 dark:bg-gray-700">
+                {tabCounts[t.key as keyof typeof tabCounts]}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-900/50">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cabang</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Harga</th>
+              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Source</th>
+              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Last POS Sync</th>
+              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-32">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+            {rows.map(({ branch, price }) => (
+              <tr key={branch.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td className="px-3 py-2 text-gray-900 dark:text-white">{branch.branch_name}</td>
+                <td className="px-3 py-2 text-right font-mono">
+                  {editingId === price?.id ? (
+                    <input type="number" value={editValue} onChange={e => setEditValue(e.target.value)} autoFocus
+                      onKeyDown={e => { if (e.key === 'Enter' && price) handleSaveEdit(price); if (e.key === 'Escape') setEditingId(null) }}
+                      className="w-28 h-7 px-2 text-sm text-right border border-blue-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                  ) : newBranchId === branch.id ? (
+                    <input type="number" value={newValue} onChange={e => setNewValue(e.target.value)} autoFocus
+                      onKeyDown={e => { if (e.key === 'Enter') handleSetNew(branch.id); if (e.key === 'Escape') setNewBranchId(null) }}
+                      className="w-28 h-7 px-2 text-sm text-right border border-blue-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                  ) : price ? (
+                    <span className="text-gray-900 dark:text-white">{fmt(price.selling_price)}</span>
+                  ) : (
+                    <span className="text-gray-400 italic text-xs">default ({fmt(defaultPrice)})</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-center">{price ? sourceBadge(price.source) : '—'}</td>
+                <td className="px-3 py-2 text-center text-xs text-gray-400">{price ? formatSyncedAt(price.synced_at) : '—'}</td>
+                <td className="px-3 py-2 text-center">
+                  {editingId === price?.id ? (
+                    <div className="flex gap-1 justify-center">
+                      <button onClick={() => price && handleSaveEdit(price)} className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded">✓</button>
+                      <button onClick={() => setEditingId(null)} className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded">✕</button>
+                    </div>
+                  ) : newBranchId === branch.id ? (
+                    <div className="flex gap-1 justify-center">
+                      <button onClick={() => handleSetNew(branch.id)} className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded">✓</button>
+                      <button onClick={() => setNewBranchId(null)} className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded">✕</button>
+                    </div>
+                  ) : price ? (
+                    <div className="flex gap-1 justify-center">
+                      <button onClick={() => startEdit(price)}
+                        className="px-2 py-0.5 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">Edit</button>
+                      <button onClick={() => setResetTarget(price)}
+                        className="px-2 py-0.5 text-xs text-red-500 hover:text-red-700 dark:text-red-400">Reset</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => startNew(branch.id)}
+                      className="px-2 py-0.5 text-xs text-emerald-600 hover:text-emerald-800 dark:text-emerald-400">Set Harga</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {/* Default fallback row */}
+            <tr className="bg-gray-50 dark:bg-gray-900/30">
+              <td className="px-3 py-2 text-gray-500 italic">Default (fallback)</td>
+              <td className="px-3 py-2 text-right font-mono text-gray-500">{fmt(defaultPrice)}</td>
+              <td className="px-3 py-2 text-center">—</td>
+              <td className="px-3 py-2 text-center">—</td>
+              <td className="px-3 py-2"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Reset Confirm Modal */}
+      <ConfirmModal
+        isOpen={!!resetTarget}
+        onClose={() => setResetTarget(null)}
+        onConfirm={handleReset}
+        title="Reset Harga Cabang"
+        message={`Reset harga ${resetTarget?.branch_name ?? ''} ke default? Record ini akan dihapus dan bisa di-sync ulang dari POS.`}
+        confirmText="Reset"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={deletePrice.isPending}
+      />
     </div>
   )
 }
@@ -357,6 +576,11 @@ export default function MenuDetailPage() {
       {/* Edit Menu Details */}
       {m && !isNew && (
         <EditMenuSection menu={m} categories={categories.data || []} groups={groups.data || []} onUpdate={updateMenu.mutateAsync} />
+      )}
+
+      {/* Branch Prices */}
+      {m && !isNew && (
+        <BranchPricesSection menuId={id} defaultPrice={m.selling_price} />
       )}
 
       {/* Recipe Editor */}

@@ -71,13 +71,17 @@ export class MenuBranchPricesRepository {
     try {
       await client.query('BEGIN')
 
-      // 1. Get MODE prices from POS transactions (last 90 days, min 3 tx)
+      // visit_purpose_id mapping: 1=DINE_IN, 2=TAKEAWAY, 3/4/5=DELIVERY
       const menuFilter = menuId ? 'AND m.id = $2' : ''
       const params: unknown[] = [companyId]
       if (menuId) params.push(menuId)
 
+      // 1. Get MODE prices grouped by menu × branch × price_type
       const { rows: modePrices } = await client.query(
         `SELECT m.id AS menu_id, sh.branch_id,
+                CASE WHEN sh.visit_purpose_id = 1 THEN 'DINE_IN'
+                     WHEN sh.visit_purpose_id = 2 THEN 'TAKEAWAY'
+                     ELSE 'DELIVERY' END AS price_type,
                 MODE() WITHIN GROUP (ORDER BY sm.original_price) AS mode_price,
                 COUNT(*)::int AS tx_count
          FROM tr_salesmenu sm
@@ -88,7 +92,10 @@ export class MenuBranchPricesRepository {
            AND sm.original_price > 0
            AND sh.sales_date >= (CURRENT_DATE - INTERVAL '90 days')
            ${menuFilter}
-         GROUP BY m.id, sh.branch_id
+         GROUP BY m.id, sh.branch_id,
+                  CASE WHEN sh.visit_purpose_id = 1 THEN 'DINE_IN'
+                       WHEN sh.visit_purpose_id = 2 THEN 'TAKEAWAY'
+                       ELSE 'DELIVERY' END
          HAVING COUNT(*) >= 3`,
         params
       )
@@ -98,29 +105,29 @@ export class MenuBranchPricesRepository {
         return { inserted: 0, synced: 0, skipped_manual: 0, skipped_threshold: 0 }
       }
 
-      // 2. Get existing branch prices for comparison
+      // 2. Get existing branch prices for comparison (all price_types)
       const menuIds = [...new Set(modePrices.map(r => r.menu_id))]
       const { rows: existing } = await client.query(
         `SELECT id, menu_id, branch_id, price_type, selling_price, source
          FROM menu_branch_prices
-         WHERE company_id = $1 AND menu_id = ANY($2) AND price_type = 'DINE_IN' AND is_deleted = false`,
+         WHERE company_id = $1 AND menu_id = ANY($2) AND is_deleted = false`,
         [companyId, menuIds]
       )
-      const existingMap = new Map(existing.map(r => [`${r.menu_id}:${r.branch_id}`, r]))
+      const existingMap = new Map(existing.map(r => [`${r.menu_id}:${r.branch_id}:${r.price_type}`, r]))
 
       // 3. Process each MODE price
       let synced = 0, skippedManual = 0, skippedThreshold = 0
 
-      const toInsert: Array<{ menu_id: string; branch_id: string; price: number }> = []
+      const toInsert: Array<{ menu_id: string; branch_id: string; price: number; price_type: string }> = []
       const toUpdate: Array<{ id: string; price: number }> = []
 
       for (const row of modePrices) {
-        const key = `${row.menu_id}:${row.branch_id}`
+        const key = `${row.menu_id}:${row.branch_id}:${row.price_type}`
         const ex = existingMap.get(key)
         const modePrice = Number(row.mode_price)
 
         if (!ex) {
-          toInsert.push({ menu_id: row.menu_id, branch_id: row.branch_id, price: modePrice })
+          toInsert.push({ menu_id: row.menu_id, branch_id: row.branch_id, price: modePrice, price_type: row.price_type })
         } else if (ex.source === 'MANUAL' || ex.source === 'IMPORT') {
           skippedManual++
         } else {
@@ -139,11 +146,11 @@ export class MenuBranchPricesRepository {
       if (toInsert.length > 0) {
         const insertResult = await client.query(
           `INSERT INTO menu_branch_prices (company_id, menu_id, branch_id, selling_price, price_type, source, synced_at)
-           SELECT $1, d.menu_id, d.branch_id, d.price, 'DINE_IN', 'POS_SYNC', now()
-           FROM (SELECT unnest($2::uuid[]) AS menu_id, unnest($3::uuid[]) AS branch_id, unnest($4::numeric[]) AS price) d
+           SELECT $1, d.menu_id, d.branch_id, d.price, d.price_type, 'POS_SYNC', now()
+           FROM (SELECT unnest($2::uuid[]) AS menu_id, unnest($3::uuid[]) AS branch_id, unnest($4::numeric[]) AS price, unnest($5::text[]) AS price_type) d
            ON CONFLICT (menu_id, branch_id, price_type) WHERE is_deleted = false DO NOTHING
            RETURNING id`,
-          [companyId, toInsert.map(i => i.menu_id), toInsert.map(i => i.branch_id), toInsert.map(i => i.price)]
+          [companyId, toInsert.map(i => i.menu_id), toInsert.map(i => i.branch_id), toInsert.map(i => i.price), toInsert.map(i => i.price_type)]
         )
         inserted = insertResult.rowCount ?? 0
       }

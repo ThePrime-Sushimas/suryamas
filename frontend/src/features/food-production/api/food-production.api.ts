@@ -312,7 +312,88 @@ export const useDeleteWipItem = () => {
   })
 }
 
-// ── COGS ──
+// ── Menu Branch Prices ──
+
+export interface MenuBranchPrice {
+  id: string
+  menu_id: string
+  branch_id: string
+  branch_name: string
+  selling_price: number
+  price_type: 'DINE_IN' | 'DELIVERY' | 'TAKEAWAY'
+  source: 'MANUAL' | 'POS_SYNC' | 'IMPORT'
+  synced_at: string | null
+}
+
+export const useMenuBranchPrices = (menuId: string) =>
+  useQuery({
+    queryKey: ['food-production', 'menu-branch-prices', menuId],
+    queryFn: async () => {
+      const { data } = await api.get('/menu-branch-prices', { params: { menu_id: menuId } })
+      return data.data as MenuBranchPrice[]
+    },
+    enabled: !!menuId,
+  })
+
+export const useUpsertMenuBranchPrice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { menu_id: string; branch_id: string; selling_price: number; price_type?: string }) => {
+      const { data } = await api.post('/menu-branch-prices', body)
+      return data.data as MenuBranchPrice
+    },
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ['food-production', 'menu-branch-prices', vars.menu_id] }),
+  })
+}
+
+export const useUpdateMenuBranchPrice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, selling_price }: { id: string; menuId: string; selling_price: number }) => {
+      const { data } = await api.put(`/menu-branch-prices/${id}`, { selling_price })
+      return data.data as MenuBranchPrice
+    },
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ['food-production', 'menu-branch-prices', vars.menuId] }),
+  })
+}
+
+export const useDeleteMenuBranchPrice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; menuId: string }) => {
+      await api.delete(`/menu-branch-prices/${id}`)
+    },
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ['food-production', 'menu-branch-prices', vars.menuId] }),
+  })
+}
+
+export const useSyncMenuBranchPrices = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (menuId?: string) => {
+      const { data } = await api.post('/menu-branch-prices/sync-from-pos', { menu_id: menuId })
+      return data.data as { inserted: number; synced: number; skipped_manual: number; skipped_threshold: number }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['food-production', 'menu-branch-prices'] }),
+  })
+}
+
+// ── Active Branches (for merge with branch prices) ──
+
+export interface BranchOption {
+  id: string
+  branch_name: string
+}
+
+export const useActiveBranches = () =>
+  useQuery({
+    queryKey: ['branches', 'active'],
+    queryFn: async () => {
+      const { data } = await api.get('/branches', { params: { limit: 100, status: 'active' } })
+      return (data.data || []) as BranchOption[]
+    },
+    staleTime: 5 * 60_000,
+  })
 
 export const useCogsPreview = () =>
   useMutation({
