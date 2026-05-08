@@ -279,7 +279,7 @@ export function BankReconciliationPage() {
       overrideDifference: boolean
     ): Promise<CreateSettlementGroupResultDto> => {
       const result = await settlementGroupsApi.createSettlementGroup({
-        bankStatementId,
+        bankStatementIds: [bankStatementId],
         aggregateIds,
         notes,
         overrideDifference,
