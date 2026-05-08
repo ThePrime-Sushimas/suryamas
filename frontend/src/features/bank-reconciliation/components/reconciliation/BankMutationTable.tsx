@@ -440,6 +440,7 @@ export function BankMutationTable({
             const groupDetailCount = groupInfo?.details?.length ?? 0;
             const isFirstInGroup = isInGroup && groupInfo.details?.[0]?.statement_id === item.id;
             const isSettlement = !!item.matched_aggregate?.is_settlement;
+            const isFirstInSettlement = !!item.matched_aggregate?.is_first_in_settlement;
             const settlementAggCount = item.matched_aggregate?.settlement_aggregate_count ?? 0;
 
             return (
@@ -538,9 +539,13 @@ export function BankMutationTable({
                         <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ grup</span>
                       )
                     ) : isSettlement && item.matched_aggregate ? (
-                      <span className="text-amber-600 dark:text-amber-400" title={`Settlement · ${settlementAggCount} aggregates`}>
-                        {formatNumber(item.matched_aggregate.nett_amount)}
-                      </span>
+                      isFirstInSettlement ? (
+                        <span className="text-amber-600 dark:text-amber-400" title={`Settlement · ${settlementAggCount} aggregates`}>
+                          {formatNumber(item.matched_aggregate.nett_amount)}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ settlement</span>
+                      )
                     ) : item.matched_aggregate?.is_bank_mutation_entry ? (
                       <span className="text-slate-500 dark:text-slate-400" title="Non-POS Entry">
                         —
@@ -563,6 +568,10 @@ export function BankMutationTable({
                       // Non-first group rows
                       if (isInGroup && !isFirstInGroup) {
                         return <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ grup</span>;
+                      }
+                      // Non-first settlement rows
+                      if (isSettlement && !isFirstInSettlement) {
+                        return <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">⤴ settlement</span>;
                       }
                       if (diff === 0) {
                         return <span className="text-green-600 dark:text-green-400">0</span>;

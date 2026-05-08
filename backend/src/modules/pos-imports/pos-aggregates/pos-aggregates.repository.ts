@@ -146,7 +146,8 @@ export class PosAggregatesRepository {
 
     try {
       const dataQuery = `
-        SELECT at.*, pm.code as pm_code, pm.name as pm_name
+        SELECT at.*, pm.code as pm_code, pm.name as pm_name,
+          (SELECT bsa.settlement_group_id FROM bank_settlement_aggregates bsa JOIN bank_settlement_groups bsg ON bsg.id = bsa.settlement_group_id WHERE bsa.aggregate_id = at.id AND bsg.deleted_at IS NULL LIMIT 1) as settlement_group_id
         FROM aggregated_transactions at
         LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
         ${where}
@@ -225,14 +226,25 @@ export class PosAggregatesRepository {
         }
       }
 
-      // 3. Query settlement group
+      // 3. Query settlement group (use junction table for statements)
       const settlementQuery = `
         SELECT bsa.settlement_group_id,
           bsg.id, bsg.settlement_number, bsg.settlement_date, bsg.status, bsg.bank_name,
-          bs.id as statement_id, bs.description, bs.credit_amount, bs.debit_amount
+          bss_stmts.statements
         FROM bank_settlement_aggregates bsa
         JOIN bank_settlement_groups bsg ON bsa.settlement_group_id = bsg.id
-        LEFT JOIN bank_statements bs ON bsg.bank_statement_id = bs.id
+        LEFT JOIN LATERAL (
+          SELECT json_agg(json_build_object(
+            'id', bs.id,
+            'description', bs.description,
+            'credit_amount', bs.credit_amount,
+            'debit_amount', bs.debit_amount,
+            'transaction_date', bs.transaction_date
+          )) as statements
+          FROM bank_settlement_statements bss
+          JOIN bank_statements bs ON bss.bank_statement_id = bs.id
+          WHERE bss.settlement_group_id = bsg.id
+        ) bss_stmts ON true
         WHERE bsa.aggregate_id = $1
         LIMIT 1
       `
@@ -240,6 +252,7 @@ export class PosAggregatesRepository {
       let settlementAgg = null
       if (settleRows[0]) {
         const s = settleRows[0]
+        const stmts = s.statements || []
         settlementAgg = {
           settlement_group_id: s.settlement_group_id,
           bank_settlement_groups: {
@@ -248,7 +261,7 @@ export class PosAggregatesRepository {
             settlement_date: s.settlement_date,
             status: s.status,
             bank_name: s.bank_name,
-            bank_statements: s.statement_id ? [{ id: s.statement_id, description: s.description, credit_amount: s.credit_amount, debit_amount: s.debit_amount }] : []
+            bank_statements: stmts
           }
         }
       }
@@ -887,6 +900,7 @@ export class PosAggregatesRepository {
       actual_fee_amount: row.actual_fee_amount != null ? Number(row.actual_fee_amount) : null,
       fee_discrepancy: row.fee_discrepancy != null ? Number(row.fee_discrepancy) : null,
       fee_discrepancy_note: row.fee_discrepancy_note as string | null,
+      settlement_group_id: row.settlement_group_id as string | null,
       currency: row.currency as string,
       status: row.status as AggregatedTransactionStatus,
       is_reconciled: row.is_reconciled as boolean,
@@ -994,10 +1008,17 @@ export class PosAggregatesRepository {
       settlement_status: settlementGroup?.status as string | null ?? null,
       settlement_bank_name: settlementGroup?.bank_name as string | null ?? null,
       settlement_bank_statement_id: settlementStmt?.id as string | null ?? null,
-      settlement_bank_statement_description: settlementStmt?.description as string | null ?? null,
-      settlement_bank_statement_amount: settlementStmt
-        ? (Number(settlementStmt.credit_amount) || 0) - (Number(settlementStmt.debit_amount) || 0)
-        : null,
+      settlement_bank_statement_description: (() => {
+        const stmts = Array.isArray(settlementGroup?.bank_statements) ? settlementGroup.bank_statements : [];
+        if (stmts.length === 0) return null;
+        if (stmts.length === 1) return (stmts[0] as Record<string, unknown>)?.description as string | null;
+        return stmts.map((s: any) => s.description).join(', ');
+      })(),
+      settlement_bank_statement_amount: (() => {
+        const stmts = Array.isArray(settlementGroup?.bank_statements) ? settlementGroup.bank_statements : [];
+        if (stmts.length === 0) return null;
+        return stmts.reduce((sum: number, s: any) => sum + ((Number(s.credit_amount) || 0) - (Number(s.debit_amount) || 0)), 0);
+      })(),
       multi_match_group_id: multiMatchAgg?.id as string | null ?? null,
       multi_match_status: multiMatchAgg?.status as string | null ?? null,
       multi_match_difference: multiMatchAgg?.difference != null ? Number(multiMatchAgg.difference) : null,

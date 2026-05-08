@@ -87,6 +87,7 @@ export interface BankStatementWithMatch {
     group_difference?: number;
     // Settlement group data (1 bank → many aggregates)
     is_settlement?: boolean;
+    is_first_in_settlement?: boolean;
     settlement_aggregate_count?: number;
     // Cash deposit data
     is_cash_deposit?: boolean;

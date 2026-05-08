@@ -107,10 +107,20 @@ export class FeeDiscrepancyReviewRepository {
 
     if (source === 'SETTLEMENT_GROUP') {
       const { rows } = await pool.query(
-        `SELECT sg.id, sg.bank_statement_id, sg.total_statement_amount, sg.total_allocated_amount, sg.difference,
-                bs.id AS bs_id, bs.transaction_date AS bs_date, bs.description AS bs_desc, bs.credit_amount AS bs_credit
+        `SELECT sg.id, sg.total_statement_amount, sg.total_allocated_amount, sg.difference,
+                (SELECT bs.id FROM bank_settlement_statements bss
+                 JOIN bank_statements bs ON bs.id = bss.bank_statement_id
+                 WHERE bss.settlement_group_id = sg.id ORDER BY bs.transaction_date ASC LIMIT 1) AS bs_id,
+                (SELECT bs.transaction_date FROM bank_settlement_statements bss
+                 JOIN bank_statements bs ON bs.id = bss.bank_statement_id
+                 WHERE bss.settlement_group_id = sg.id ORDER BY bs.transaction_date ASC LIMIT 1) AS bs_date,
+                (SELECT string_agg(bs.description, ', ' ORDER BY bs.transaction_date ASC) FROM bank_settlement_statements bss
+                 JOIN bank_statements bs ON bs.id = bss.bank_statement_id
+                 WHERE bss.settlement_group_id = sg.id) AS bs_desc,
+                (SELECT SUM(bs.credit_amount) FROM bank_settlement_statements bss
+                 JOIN bank_statements bs ON bs.id = bss.bank_statement_id
+                 WHERE bss.settlement_group_id = sg.id) AS bs_credit
          FROM bank_settlement_groups sg
-         LEFT JOIN bank_statements bs ON bs.id = sg.bank_statement_id
          WHERE sg.id = $1 AND sg.company_id = $2 AND sg.deleted_at IS NULL`,
         [sourceId, companyId]
       )
@@ -119,7 +129,7 @@ export class FeeDiscrepancyReviewRepository {
 
       return this.applyReview({
         id: `settlement_${data.id}`, source: 'SETTLEMENT_GROUP', sourceId: data.id,
-        transactionDate: data.bs_date || '', bankStatementId: data.bank_statement_id,
+        transactionDate: data.bs_date || '', bankStatementId: data.bs_id || null,
         bankDescription: data.bs_desc || null, bankAmount: Number(data.total_statement_amount),
         posNettAmount: Number(data.total_allocated_amount), discrepancyAmount: -Number(data.difference),
         paymentMethodName: null, branchName: null,
@@ -309,10 +319,14 @@ export class FeeDiscrepancyReviewRepository {
 
   private async getSettlementDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter): Promise<FeeDiscrepancyItem[]> {
     const { rows } = await pool.query(
-      `SELECT sg.id, sg.bank_statement_id, sg.total_statement_amount, sg.total_allocated_amount, sg.difference,
-              bs.transaction_date AS bs_date, bs.description AS bs_desc
+      `SELECT sg.id, sg.total_statement_amount, sg.total_allocated_amount, sg.difference,
+              (SELECT MIN(bs.transaction_date) FROM bank_settlement_statements bss
+               JOIN bank_statements bs ON bs.id = bss.bank_statement_id
+               WHERE bss.settlement_group_id = sg.id) AS bs_date,
+              (SELECT string_agg(bs.description, ', ' ORDER BY bs.transaction_date ASC) FROM bank_settlement_statements bss
+               JOIN bank_statements bs ON bs.id = bss.bank_statement_id
+               WHERE bss.settlement_group_id = sg.id) AS bs_desc
        FROM bank_settlement_groups sg
-       LEFT JOIN bank_statements bs ON bs.id = sg.bank_statement_id
        WHERE sg.company_id = $1 AND sg.difference != 0 AND sg.deleted_at IS NULL`,
       [companyId]
     )

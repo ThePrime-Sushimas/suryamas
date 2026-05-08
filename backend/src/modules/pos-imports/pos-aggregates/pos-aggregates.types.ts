@@ -93,6 +93,7 @@ export interface AggregatedTransaction {
   actual_fee_amount?: number | null; // From bank statement
   fee_discrepancy?: number | null; // expected - actual
   fee_discrepancy_note?: string | null;
+  settlement_group_id?: string | null;
 }
 
 /**
@@ -183,6 +184,7 @@ export interface AggregatedTransactionListItem extends Pick<
   | "actual_fee_amount"
   | "fee_discrepancy"
   | "fee_discrepancy_note"
+  | "settlement_group_id"
 > {
   branch_name?: string;
   payment_method_name?: string;

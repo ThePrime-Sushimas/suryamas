@@ -261,6 +261,7 @@ export const FeeDiscrepancyReviewPage = () => {
                         <select value={line.correctionType} onChange={(e) => updateLine(idx, 'correctionType', e.target.value)}
                           className="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                           <option value="POS_PENDING">POS Belum Masuk</option>
+                          <option value="MDR_ADDITIONAL">Selisih MDR (Fee Bank Lebih Besar)</option>
                           <option value="REFUND_CUSTOMER">Refund Customer</option>
                           <option value="PLATFORM_COMPENSATION">Kompensasi Platform</option>
                           <option value="STAFF_DEDUCTION">Potongan Staff</option>

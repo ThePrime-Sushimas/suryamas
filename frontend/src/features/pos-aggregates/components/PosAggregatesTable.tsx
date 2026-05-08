@@ -389,7 +389,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 
                   {/* Actual Fee Amount dari Bank */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    {transaction.is_reconciled && transaction.actual_fee_amount != null ? (
+                    {transaction.settlement_group_id ? (
+                      <span className="text-xs text-violet-600 dark:text-violet-400 font-medium">Bulk Settlement</span>
+                    ) : transaction.is_reconciled && transaction.actual_fee_amount != null ? (
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         {formatCurrency(transaction.actual_fee_amount)}
                       </span>
@@ -400,7 +402,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 
                   {/* Nett Aktual = from DB generated column */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    {transaction.is_reconciled && transaction.actual_fee_amount != null ? (
+                    {transaction.settlement_group_id ? (
+                      <span className="text-xs text-violet-600 dark:text-violet-400 font-medium">Bulk Settlement</span>
+                    ) : transaction.is_reconciled && transaction.actual_fee_amount != null ? (
                       <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
                         {formatCurrency(transaction.actual_nett_amount)}
                       </span>
@@ -411,7 +415,9 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 
                   {/* Fee Discrepancy */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
-                    {transaction.is_reconciled && transaction.fee_discrepancy != null ? (
+                    {transaction.settlement_group_id ? (
+                      <span className="text-xs text-violet-600 dark:text-violet-400 font-medium">Bulk Settlement</span>
+                    ) : transaction.is_reconciled && transaction.fee_discrepancy != null ? (
                       <div className="flex flex-col items-end gap-0.5">
                         <span className={`text-sm font-medium ${
                           transaction.fee_discrepancy === 0

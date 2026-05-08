@@ -226,13 +226,13 @@ export class SettlementGroupRepository {
   async markBankStatementsAsReconciled(statementIds: string[], userId?: string): Promise<void> {
     try {
       const numericIds = statementIds.map(Number);
-      const params: any[] = [true, new Date().toISOString(), numericIds];
-      let query = "UPDATE bank_statements SET is_reconciled = $1, updated_at = $2";
+      const params: any[] = [true, false, new Date().toISOString(), numericIds];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, is_pending = $2, updated_at = $3";
       if (userId) {
         params.push(userId);
         query += `, updated_by = $${params.length}`;
       }
-      query += ` WHERE id = ANY($3)`;
+      query += ` WHERE id = ANY($4)`;
       await pool.query(query, params);
     } catch (error: any) {
       logError('Mark bank statements as reconciled error', { statementIds, error: error.message });

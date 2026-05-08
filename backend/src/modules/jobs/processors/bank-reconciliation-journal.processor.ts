@@ -701,26 +701,38 @@ export async function generateBankRecJournals(
         const settlementMap: Record<string, string[]> = {} // statementId → aggregateIds[]
         let settlementGroupDifference = 0 // total difference from settlement groups
 
+        logInfo('Settlement debug: stmtsWithoutLink', { count: stmtsWithoutLink.length, ids: stmtIdsForSettlement.slice(0, 5) })
+
         if (stmtIdsForSettlement.length > 0) {
           const { rows: settlements } = await pool.query(
-            `SELECT sg.id, sg.bank_statement_id, sg.difference,
+            `SELECT sg.id, bss.bank_statement_id, sg.difference,
              json_agg(json_build_object('aggregate_id', bsa.aggregate_id)) FILTER (WHERE bsa.aggregate_id IS NOT NULL) AS bank_settlement_aggregates
-             FROM bank_settlement_groups sg
+             FROM bank_settlement_statements bss
+             JOIN bank_settlement_groups sg ON bss.settlement_group_id = sg.id
              LEFT JOIN bank_settlement_aggregates bsa ON bsa.settlement_group_id = sg.id
-             WHERE sg.bank_statement_id = ANY($1::int[]) AND sg.deleted_at IS NULL
-             GROUP BY sg.id`,
+             WHERE bss.bank_statement_id = ANY($1::int[]) AND sg.deleted_at IS NULL
+             GROUP BY sg.id, bss.bank_statement_id`,
             [stmtIdsForSettlement]
           )
 
+          logInfo('Settlement debug: query result', { rowCount: settlements.length, rows: settlements.map(s => ({ id: s.id, bsId: s.bank_statement_id, diff: s.difference, aggCount: s.bank_settlement_aggregates?.length })) })
+
+          const seenSettlementIds = new Set<string>()
           for (const sg of settlements) {
             const bsId = String(sg.bank_statement_id)
             const aggIds = ((sg as any).bank_settlement_aggregates || []).map((a: any) => a.aggregate_id as string)
             settlementMap[bsId] = aggIds
-            settlementAggIds.push(...aggIds)
-            // settlement group difference: positive = bank > aggregates = bank bayar lebih = fee disc negatif
-            settlementGroupDifference = round2(settlementGroupDifference - Number((sg as any).difference || 0))
+            // Only count difference and aggregates once per settlement group
+            if (!seenSettlementIds.has(sg.id)) {
+              seenSettlementIds.add(sg.id)
+              settlementAggIds.push(...aggIds)
+              // settlement group difference: positive = bank > aggregates = bank bayar lebih = fee disc negatif
+              settlementGroupDifference = round2(settlementGroupDifference - Number((sg as any).difference || 0))
+            }
           }
         }
+
+        logInfo('Settlement debug: final', { settlementMapKeys: Object.keys(settlementMap), settlementAggIds, settlementGroupDifference })
 
         const allAggIds = [...new Set([...reconIds, ...groupAggIds, ...settlementAggIds])]
 

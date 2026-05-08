@@ -170,6 +170,7 @@ export interface AggregatedTransactionListItem {
   actual_fee_amount?: number | null;
   fee_discrepancy?: number | null;
   fee_discrepancy_note?: string | null;
+  settlement_group_id?: string | null;
   pos_sync_aggregate_id?: string | null;
   currency: string;
   journal_id: string | null;
@@ -557,6 +558,7 @@ export function mapToAggregatedTransactionListItem(
     actual_fee_amount: transaction.actual_fee_amount ?? null,
     fee_discrepancy: transaction.fee_discrepancy ?? null,
     fee_discrepancy_note: transaction.fee_discrepancy_note ?? null,
+    settlement_group_id: transaction.settlement_group_id ?? null,
     pos_sync_aggregate_id: transaction.pos_sync_aggregate_id ?? null,
     currency: transaction.currency,
     journal_id: transaction.journal_id,

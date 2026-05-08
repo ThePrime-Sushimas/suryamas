@@ -10,6 +10,7 @@ const CORRECTION_LABELS: Record<CorrectionType, string> = {
   POS_PENDING: 'POS Belum Masuk',
   REFUND_CUSTOMER: 'Refund Customer',
   PLATFORM_COMPENSATION: 'Kompensasi/Promo Platform',
+  MDR_ADDITIONAL: 'Selisih MDR (Fee Bank Lebih Besar)',
   ROUNDING: 'Pembulatan',
   STAFF_DEDUCTION: 'Potongan Staff',
 }
@@ -241,6 +242,7 @@ export class FeeDiscrepancyReviewService {
     const purposeCodeMap: Record<Exclude<CorrectionType, 'POS_PENDING'>, string> = {
       REFUND_CUSTOMER:       'FEE-CORR-REFUND',
       PLATFORM_COMPENSATION: 'FEE-CORR-PLATFORM',
+      MDR_ADDITIONAL:        'FEE-CORR-MDR',
       ROUNDING:              'FEE-CORR-ROUNDING',
       STAFF_DEDUCTION:       'FEE-CORR-STAFF',
     }

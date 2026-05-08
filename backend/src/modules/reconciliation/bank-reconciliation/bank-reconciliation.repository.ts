@@ -243,14 +243,17 @@ export class BankReconciliationRepository {
 
       let settlementMap: Record<string, any> = {};
       if (reconciledWithoutLinkIds.length > 0) {
+        // Query settlement groups via junction table (bank_settlement_statements)
         const { rows: settlements } = await pool.query(
           `SELECT 
-             bsg.id, bsg.bank_statement_id, bsg.total_statement_amount, bsg.total_allocated_amount, bsg.difference, bsg.status,
+             bsg.id, bsg.total_statement_amount, bsg.total_allocated_amount, bsg.difference, bsg.status,
+             bss.bank_statement_id,
              COALESCE(jsonb_agg(bsa.*) FILTER (WHERE bsa.id IS NOT NULL), '[]') as bank_settlement_aggregates
-           FROM bank_settlement_groups bsg
+           FROM bank_settlement_statements bss
+           JOIN bank_settlement_groups bsg ON bss.settlement_group_id = bsg.id
            LEFT JOIN bank_settlement_aggregates bsa ON bsg.id = bsa.settlement_group_id
-           WHERE bsg.bank_statement_id = ANY($1) AND bsg.deleted_at IS NULL
-           GROUP BY bsg.id`,
+           WHERE bss.bank_statement_id = ANY($1) AND bsg.deleted_at IS NULL
+           GROUP BY bsg.id, bss.bank_statement_id`,
           [reconciledWithoutLinkIds]
         );
         settlementMap = settlements.reduce((acc, sg) => ({ ...acc, [String(sg.bank_statement_id)]: sg }), {});
@@ -269,6 +272,7 @@ export class BankReconciliationRepository {
       }
 
       // Map data to include matched_aggregate
+      const seenSettlementGroupIds = new Set<string>();
       const mappedData = data.map((row) => {
         if (row.reconciliation_id && aggregateMap[row.reconciliation_id]) {
           const agg = aggregateMap[row.reconciliation_id];
@@ -303,6 +307,8 @@ export class BankReconciliationRepository {
         const rowId = String(row.id);
         if (row.is_reconciled && settlementMap[rowId]) {
           const sg = settlementMap[rowId];
+          const isFirstInSettlement = !seenSettlementGroupIds.has(sg.id);
+          seenSettlementGroupIds.add(sg.id);
           return {
             ...row,
             matched_aggregate: {
@@ -312,6 +318,7 @@ export class BankReconciliationRepository {
               nett_amount: Number(sg.total_allocated_amount) || 0,
               payment_method_name: null,
               is_settlement: true,
+              is_first_in_settlement: isFirstInSettlement,
               settlement_aggregate_count: sg.bank_settlement_aggregates?.length || 0,
               group_total_bank_amount: Number(sg.total_statement_amount) || 0,
               group_difference: Number(sg.difference) || 0,
