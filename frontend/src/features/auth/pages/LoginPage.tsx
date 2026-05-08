@@ -85,12 +85,12 @@ export default function LoginPage() {
 
               {/* Selamat Datang */}
               <motion.p
-                className="text-[#D4A843] text-sm tracking-[0.3em] uppercase font-medium"
+                className="text-[#D4A843] text-3xl tracking-[0.3em] uppercase font-medium"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 1.3 }}
               >
-                Selamat Datang
+                いらっしゃいませ
               </motion.p>
             </motion.div>
           </motion.div>
