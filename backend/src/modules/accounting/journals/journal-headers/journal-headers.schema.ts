@@ -35,6 +35,7 @@ export const updateJournalSchema = z.object({
     id: z.string().uuid()
   }),
   body: z.object({
+    branch_id: z.string().uuid().optional(),
     journal_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     description: z.string().min(1).max(500).optional(),
     lines: z.array(journalLineSchema).refine(lines => lines.length >= 2, {

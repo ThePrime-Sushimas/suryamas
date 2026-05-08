@@ -183,6 +183,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
     try {
       const dto: CreateJournalDto | UpdateJournalDto = initialData
         ? {
+            branch_id: branchId,
             journal_date: journalDate,
             description,
             lines: linesForSubmit,
@@ -216,9 +217,8 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
           <select
             value={branchId}
             onChange={(e) => setBranchId(e.target.value)}
-            disabled={!!initialData}
             required
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
           >
             {companyBranches.map(b => (
               <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>

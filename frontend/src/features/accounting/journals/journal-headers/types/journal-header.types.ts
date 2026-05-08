@@ -68,6 +68,7 @@ export interface CreateJournalDto {
 }
 
 export interface UpdateJournalDto {
+  branch_id?: string
   journal_date?: string
   description?: string
   lines?: JournalLine[]
