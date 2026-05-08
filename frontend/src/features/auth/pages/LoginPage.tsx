@@ -47,7 +47,7 @@ export default function LoginPage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.4 }}
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-[#1A1018] via-[#2D1B1B] to-[#1A1018]" />
+            <div className="absolute inset-0 bg-linear-to-b from-[#1A1018] via-[#2D1B1B] to-[#1A1018]" />
 
             {/* Gold glow behind logo */}
             <motion.div
@@ -99,16 +99,16 @@ export default function LoginPage() {
 
       {/* LEFT GATE — Branding panel */}
       <motion.div
-        className="hidden lg:flex lg:w-1/2 bg-gradient-to-b from-[#2D1B1B] via-[#1E1215] to-[#1A1018] text-white relative items-center justify-center overflow-hidden z-20"
+        className="hidden lg:flex lg:w-1/2 bg-linear-to-b from-[#2D1B1B] via-[#1E1215] to-[#1A1018] text-white relative items-center justify-center overflow-hidden z-20"
         animate={gateOpen ? { x: "-100%", opacity: 0 } : { x: 0, opacity: 1 }}
         transition={{ duration: 1.6, ease: [0.76, 0, 0.24, 1] }}
       >
-        <div className="absolute inset-0 opacity-[0.07] bg-[radial-gradient(circle,white_1px,transparent_1px)] bg-[length:24px_24px]" />
+        <div className="absolute inset-0 opacity-[0.07] bg-[radial-gradient(circle,white_1px,transparent_1px)] bg-size-[24px_24px]" />
         <div className="absolute top-1/4 -left-20 w-80 h-80 bg-[#C53030]/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-[#C53030]/5 rounded-full blur-3xl" />
 
         {/* Gate edge line */}
-        <div className="absolute right-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-transparent via-[#D4A843]/40 to-transparent" />
+        <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-linear-to-b from-transparent via-[#D4A843]/40 to-transparent" />
 
         <div className="relative z-10 text-center px-12 max-w-md">
           <div className="w-16 h-28 mx-auto rounded-xl bg-[#C53030] flex flex-col items-center justify-center shadow-2xl shadow-red-900/30 mb-8 gap-2.5 border-[6px] border-[#D4A843]">
@@ -130,12 +130,12 @@ export default function LoginPage() {
 
       {/* RIGHT GATE — Login form panel */}
       <motion.div
-        className="flex-1 flex items-center justify-center bg-gradient-to-b from-[#2D1B1B] via-[#231418] to-[#1A1018] px-6 py-12 border-l border-[#D4A843]/20 z-20"
+        className="flex-1 flex items-center justify-center bg-linear-to-b from-[#2D1B1B] via-[#231418] to-[#1A1018] px-6 py-12 border-l border-[#D4A843]/20 z-20"
         animate={gateOpen ? { x: "100%", opacity: 0 } : { x: 0, opacity: 1 }}
         transition={{ duration: 1.6, ease: [0.76, 0, 0.24, 1] }}
       >
         {/* Gate edge line */}
-        <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-transparent via-[#D4A843]/40 to-transparent lg:hidden" />
+        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-linear-to-b from-transparent via-[#D4A843]/40 to-transparent lg:hidden" />
 
         <div className="w-full max-w-md">
           {/* Mobile logo */}
@@ -218,7 +218,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading || !isValid}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white font-medium bg-gradient-to-r from-[#C53030] to-[#1A1F2B] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C53030] disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-all"
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white font-medium bg-linear-to-r from-[#C53030] to-[#1A1F2B] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C53030] disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-all"
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
