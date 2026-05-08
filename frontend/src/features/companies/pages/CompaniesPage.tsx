@@ -103,7 +103,7 @@ export default function CompaniesPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        <CompanyTable companies={companies} loading={isLoading}
+        <CompanyTable companies={companies}
           onView={id => navigate(`/companies/${id}/edit`)} onEdit={id => navigate(`/companies/${id}/edit`)}
           onDelete={id => { const c = companies.find(x => x.id === id); if (c) setDeleteTarget(c) }}
           canEdit={true} canDelete={true} />
