@@ -138,7 +138,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     await onSubmit(submitData)
   }
 
-  if (loadingCat || loadingSub) {
+  if (loadingCat && loadingSub) {
     return (
       <div className="flex items-center justify-center py-8">
         <CardSkeleton />
