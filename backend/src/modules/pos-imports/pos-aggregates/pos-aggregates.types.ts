@@ -18,7 +18,7 @@ export type AggregatedTransactionStatus =
  * Source types for aggregated transactions
  * Maps to: source_type character varying(30) default 'POS'
  */
-export type AggregatedTransactionSourceType = "POS";
+export type AggregatedTransactionSourceType = "POS" | "POS_SYNC";
 
 /**
  * Main aggregated transaction interface

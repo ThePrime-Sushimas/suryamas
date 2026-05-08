@@ -261,6 +261,53 @@ async function loadSalInvConfig(companyId: string): Promise<SalInvConfig> {
 }
 
 // ==============================
+// CATEGORY REVENUE BREAKDOWN
+// ==============================
+
+interface CategoryRevenueRow {
+  sales_coa_id: string | null
+  account_name: string | null
+  category_revenue: number
+}
+
+/**
+ * Batch query revenue breakdown per menu category for a journal group.
+ * Uses: pos_sync_aggregate_lines → tr_salesmenu → menus → menu_categories → COA
+ * Note: pos_sync_aggregates & tr_salesmenu are single-company tables (no company_id filter needed)
+ *       Multi-tenant filter via menus.company_id only.
+ */
+async function fetchCategoryRevenue(
+  companyId: string,
+  posAggregateIds: string[]
+): Promise<CategoryRevenueRow[]> {
+  if (posAggregateIds.length === 0) return []
+
+  const { rows } = await pool.query(
+    `SELECT
+       mc.sales_coa_id,
+       coa.account_name,
+       SUM(sm.price * sm.qty)::numeric AS category_revenue
+     FROM pos_sync_aggregate_lines psal
+     JOIN tr_salesmenu sm
+       ON sm.sales_num = psal.sales_num AND sm.status_id != 2
+     JOIN pos_sync_aggregates psa
+       ON psa.id = psal.aggregate_id
+     LEFT JOIN menus m
+       ON m.pos_menu_id = sm.menu_id AND m.company_id = $1 AND m.deleted_at IS NULL
+     LEFT JOIN menu_categories mc ON mc.id = m.category_id
+     LEFT JOIN chart_of_accounts coa ON coa.id = mc.sales_coa_id
+     WHERE psa.id = ANY($2::uuid[])
+     GROUP BY mc.sales_coa_id, coa.account_name`,
+    [companyId, posAggregateIds]
+  )
+
+  return rows.map(r => ({
+    ...r,
+    category_revenue: Number(r.category_revenue),
+  }))
+}
+
+// ==============================
 // BRANCH LOOKUP WITH CACHE
 // ==============================
 
@@ -607,6 +654,11 @@ export async function generateJournalsOptimized(
 
       const pmAggList = Array.from(pmAggMap.values())
 
+      // ── 5.4b Collect pos_sync_aggregate IDs for category revenue breakdown
+      const posAggregateIds = groupTxs
+        .filter(tx => tx.source_type === 'POS_SYNC' && tx.source_id)
+        .map(tx => tx.source_id)
+
       // ── 5.5 Compute group totals ───────────────────────────────────
       const grandBill            = round2(pmAggList.reduce((s, a) => s + a.billTotal,            0))
       const grandGross           = round2(pmAggList.reduce((s, a) => s + a.grossTotal,           0))
@@ -797,8 +849,73 @@ export async function generateJournalsOptimized(
         })
       }
 
-      // ── CREDIT: gross sales revenue ────────────────────────────────
-      pushLine(salInvConfig.revenueAccountId, 'POS Sales Revenue', 0, grandGross)
+      // ── CREDIT: gross sales revenue — breakdown per category ───────
+      let categoryRevRows: CategoryRevenueRow[] = []
+
+      if (posAggregateIds.length > 0) {
+        try {
+          categoryRevRows = await fetchCategoryRevenue(companyId, posAggregateIds)
+        } catch (err) {
+          logWarn('fetchCategoryRevenue failed, falling back to single revenue line', {
+            date, branchName, err: err instanceof Error ? err.message : err,
+          })
+        }
+      }
+
+      const mappedRevenue = round2(
+        categoryRevRows
+          .filter(r => r.sales_coa_id !== null)
+          .reduce((s, r) => s + r.category_revenue, 0)
+      )
+
+      const unmappedRevenue = round2(
+        categoryRevRows
+          .filter(r => r.sales_coa_id === null)
+          .reduce((s, r) => s + r.category_revenue, 0)
+      )
+
+      const fallbackRevenue = round2(grandGross - mappedRevenue - unmappedRevenue)
+
+      if (unmappedRevenue > 0) {
+        logWarn('Menu tanpa category/COA mapping, masuk ke fallback account', {
+          date, branchName, unmappedRevenue,
+        })
+      }
+      if (fallbackRevenue !== 0) {
+        logWarn('Selisih grandGross vs SUM(category_revenue), masuk ke fallback account', {
+          date, branchName, grandGross, mappedRevenue, unmappedRevenue, fallbackRevenue,
+        })
+      }
+
+      if (categoryRevRows.length === 0 || (mappedRevenue === 0 && unmappedRevenue === 0)) {
+        // Fallback: tidak ada data tr_salesmenu → single line (behavior lama)
+        pushLine(salInvConfig.revenueAccountId, 'POS Sales Revenue', 0, grandGross)
+      } else {
+        // Per-category lines — sorted by revenue desc, remainder ke category terbesar
+        const mappedRows = categoryRevRows
+          .filter(r => r.sales_coa_id !== null && r.category_revenue > 0)
+          .sort((a, b) => b.category_revenue - a.category_revenue)
+
+        for (let i = 0; i < mappedRows.length; i++) {
+          const row = mappedRows[i]
+          let amount = row.category_revenue
+          // First line (largest) gets remainder for rounding
+          if (i === 0 && fallbackRevenue !== 0) {
+            amount = round2(amount + fallbackRevenue)
+          }
+          pushLine(row.sales_coa_id!, row.account_name ?? 'POS Sales Revenue', 0, amount)
+        }
+
+        // Unmapped + residual handling
+        const residual = round2(unmappedRevenue + fallbackRevenue)
+        if (mappedRows.length === 0 && residual > 0) {
+          // Tidak ada mapped rows — semua masuk 1 fallback line
+          pushLine(salInvConfig.revenueAccountId, 'POS Sales Revenue', 0, residual)
+        } else if (unmappedRevenue > 0) {
+          // Ada mapped rows, tapi juga ada unmapped — push unmapped terpisah
+          pushLine(salInvConfig.revenueAccountId, 'POS Sales Revenue (Unmapped)', 0, unmappedRevenue)
+        }
+      }
 
       // ── CREDIT: PB1 / PPN tax payable ─────────────────────────────
       if (grandTax > 0 && salInvConfig.taxAccountId) {
