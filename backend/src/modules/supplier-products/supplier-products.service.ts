@@ -100,7 +100,7 @@ export class SupplierProductsService {
   /**
    * Create new supplier product
    */
-  async create(dto: CreateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string): Promise<SupplierProduct> {
+  async create(dto: CreateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string, employeeId?: string): Promise<SupplierProduct> {
     // Validate supplier exists and is active
     await this.validateSupplier(dto.supplier_id)
     
@@ -130,6 +130,10 @@ export class SupplierProductsService {
 
     const { purchase_unit_id, conversion_factor, ...spDto } = dto
 
+    // DEBUG
+    console.log('[DEBUG] purchase_unit_id:', purchase_unit_id)
+    console.log('[DEBUG] conversion_factor:', conversion_factor)
+
     const data = {
       ...spDto,
       currency: spDto.currency || SUPPLIER_PRODUCT_DEFAULTS.CURRENCY,
@@ -141,55 +145,68 @@ export class SupplierProductsService {
 
     const supplierProduct = await this.repository.create(data)
 
-    // Auto-create purchase UOM + pricelist if purchase_unit_id provided
     if (purchase_unit_id && conversion_factor) {
-      let uom = await productUomsRepository.findByProductIdAndMetricUnit(dto.product_id, purchase_unit_id)
-      
-      if (!uom) {
-        // Create the purchase UOM
-        uom = await productUomsRepository.create({
-          product_id: dto.product_id,
-          metric_unit_id: purchase_unit_id,
-          conversion_factor,
-          is_base_unit: false,
-          is_default_purchase_unit: true,
-          is_default_stock_unit: false,
-          is_default_transfer_unit: false,
-          created_by: userId,
-          updated_by: userId,
-        })
-      } else {
-        // Mark existing UOM as default purchase unit
-        await productUomsRepository.updateById(uom.id, { is_default_purchase_unit: true })
+      console.log('[DEBUG] Entering UOM+pricelist block')
+
+      let uom: unknown = null
+      try {
+        uom = await productUomsRepository.findByProductIdAndMetricUnit(dto.product_id, purchase_unit_id)
+        console.log('[DEBUG] findByProductIdAndMetricUnit result:', uom ? (uom as { id: string }).id : 'null')
+      } catch (e) {
+        console.error('[DEBUG] findByProductIdAndMetricUnit threw:', e)
       }
 
-      // Auto-create pricelist
-      // Need company_id — get from product's context or use a default
-      const product = await productsRepository.findById(dto.product_id)
-      if (product && uom) {
+      if (!uom) {
         try {
-          await pricelistsRepository.create({
+          uom = await productUomsRepository.create({
+            product_id: dto.product_id,
+            metric_unit_id: purchase_unit_id,
+            conversion_factor,
+            is_base_unit: false,
+            is_default_purchase_unit: true,
+            is_default_stock_unit: false,
+            is_default_transfer_unit: false,
+            created_by: userId,
+            updated_by: userId,
+          })
+          console.log('[DEBUG] Created new UOM:', (uom as { id: string })?.id)
+        } catch (e) {
+          console.error('[DEBUG] productUomsRepository.create threw:', e)
+        }
+      } else {
+        await productUomsRepository.updateById((uom as { id: string }).id, { is_default_purchase_unit: true })
+      }
+
+      if (uom) {
+        const uomId = (uom as { id: string }).id
+        console.log('[DEBUG] Creating pricelist with uom_id:', uomId, 'companyId:', companyId)
+        try {
+          const pl = await pricelistsRepository.create({
             company_id: companyId || '00000000-0000-0000-0000-000000000001',
             supplier_id: dto.supplier_id,
             product_id: dto.product_id,
-            uom_id: uom.id,
+            uom_id: uomId,
             price: dto.price,
             currency: dto.currency || 'IDR',
             valid_from: new Date().toISOString().split('T')[0],
             is_active: true,
-            created_by: userId,
+            created_by: employeeId,
           })
+          console.log('[DEBUG] Pricelist created:', pl?.id, 'status:', pl?.status)
 
-          // Recalculate avg cost + UOM base prices
           const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(dto.product_id)
+          console.log('[DEBUG] costPerBaseUnit:', costPerBaseUnit)
           if (costPerBaseUnit !== null) {
             await pricelistsRepository.updateProductAverageCost(dto.product_id, costPerBaseUnit)
             await pricelistsRepository.updateAllUomBasePrices(dto.product_id, costPerBaseUnit)
+            console.log('[DEBUG] avg cost + base_price updated')
           }
         } catch (err) {
-          logError('Failed to auto-create pricelist', { error: err instanceof Error ? err.message : String(err) })
+          console.error('[DEBUG] Pricelist creation FULL ERROR:', err)
         }
       }
+    } else {
+      console.log('[DEBUG] SKIPPED: purchase_unit_id or conversion_factor is falsy')
     }
 
     // Audit logging

@@ -73,11 +73,12 @@ export class SupplierProductsController {
   create = async (req: Request, res: Response): Promise<void> => {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createSupplierProductSchema>).validated
+      logInfo('Create supplier product body', { purchase_unit_id: body.purchase_unit_id, conversion_factor: body.conversion_factor, company_id: req.context?.company_id })
       const supplierProduct = await supplierProductsService.create({
         ...body,
         lead_time_days: body.lead_time_days ?? undefined,
         min_order_qty: body.min_order_qty ?? undefined,
-      }, req.user?.id, req.context?.company_id)
+      }, req.user?.id, req.context?.company_id, req.context?.employee_id)
 
       logInfo('Supplier product created via API', {
         supplierProductId: supplierProduct.id,
