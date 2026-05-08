@@ -25,19 +25,18 @@ interface SettlementGroupsState {
   // Wizard state
   wizardSteps: SettlementWizardStep[];
   currentStep: number;
-  selectedBankStatement: string | null;
-  selectedBankStatementData: {
+  selectedBankStatements: Array<{
     id: string;
     transaction_date: string;
     description: string;
     amount: number;
-  } | null;
+  }>;
   wizardNotes: string;
   overrideDifference: boolean;
 
   // Actions
   setCurrentStep: (step: number) => void;
-  setSelectedBankStatement: (id: string | null, data?: { id: string; transaction_date: string; description: string; amount: number } | null) => void;
+  toggleBankStatement: (data: { id: string; transaction_date: string; description: string; amount: number }) => void;
   setWizardNotes: (notes: string) => void;
   setOverrideDifference: (value: boolean) => void;
   resetWizard: () => void;
@@ -45,9 +44,9 @@ interface SettlementGroupsState {
 
 const initialWizardSteps: SettlementWizardStep[] = [
   {
-    id: 'select-statement',
-    title: 'Select Bank Statement',
-    description: 'Choose the bank statement to reconcile',
+    id: 'select-statements',
+    title: 'Select Bank Statements',
+    description: 'Choose bank statements to reconcile',
     isCompleted: false,
     isActive: true,
   },
@@ -72,8 +71,7 @@ const useSettlementGroupsStore = create<SettlementGroupsState>((set) => ({
   // Initial state
   wizardSteps: initialWizardSteps,
   currentStep: 0,
-  selectedBankStatement: null,
-  selectedBankStatementData: null,
+  selectedBankStatements: [],
   wizardNotes: '',
   overrideDifference: false,
 
@@ -88,10 +86,14 @@ const useSettlementGroupsStore = create<SettlementGroupsState>((set) => ({
       })),
     })),
 
-  setSelectedBankStatement: (id, data = null) =>
-    set({
-      selectedBankStatement: id,
-      selectedBankStatementData: data
+  toggleBankStatement: (data) =>
+    set((state) => {
+      const exists = state.selectedBankStatements.some(s => s.id === data.id);
+      return {
+        selectedBankStatements: exists
+          ? state.selectedBankStatements.filter(s => s.id !== data.id)
+          : [...state.selectedBankStatements, data],
+      };
     }),
 
   setWizardNotes: (notes) => set({ wizardNotes: notes }),
@@ -101,8 +103,7 @@ const useSettlementGroupsStore = create<SettlementGroupsState>((set) => ({
   resetWizard: () =>
     set({
       currentStep: 0,
-      selectedBankStatement: null,
-      selectedBankStatementData: null,
+      selectedBankStatements: [],
       wizardNotes: '',
       overrideDifference: false,
       wizardSteps: initialWizardSteps.map((s, index) => ({

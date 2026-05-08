@@ -34,7 +34,7 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
     wizardSteps,
     currentStep,
     setCurrentStep,
-    selectedBankStatement,
+    selectedBankStatements,
     wizardNotes,
     overrideDifference,
     resetWizard,
@@ -52,8 +52,8 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
 
   const canProceedToNext = () => {
     switch (currentStep) {
-      case 0: // Select Bank Statement
-        return !!selectedBankStatement;
+      case 0: // Select Bank Statements
+        return selectedBankStatements.length > 0;
       case 1: // Select Aggregates
         return selectedAggregates.length > 0;
       case 2: // Review & Confirm
@@ -78,15 +78,13 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
   const handleComplete = async () => {
     setIsSubmitting(true);
     try {
-      // Call API to create settlement group
       const result = await createSettlementGroup.mutateAsync({
-        bankStatementId: selectedBankStatement!,
+        bankStatementIds: selectedBankStatements.map(s => s.id),
         aggregateIds: selectedAggregates.map(a => a.id),
         notes: wizardNotes,
         overrideDifference,
       });
 
-      // Show success message
       toast.success(`Settlement group created successfully! Settlement Number: ${result.settlementNumber}`);
 
       onComplete?.();
@@ -167,7 +165,7 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
           Create Settlement Group
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
-          Follow the steps to create a bulk settlement by matching multiple POS aggregates to a single bank statement.
+          Follow the steps to create a settlement by matching bank statements to POS aggregates (supports many-to-many).
         </p>
       </div>
 
@@ -259,18 +257,16 @@ export const SettlementWizard: React.FC<SettlementWizardProps> = ({
   );
 };
 
-// Placeholder components for each step
+// Step 1: Select Bank Statements (multi-select)
 const SelectBankStatementStep: React.FC = () => {
-  const { selectedBankStatement, setSelectedBankStatement } = useSettlementGroupsStore();
+  const { selectedBankStatements, toggleBankStatement } = useSettlementGroupsStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  // Debounce search input - wait 300ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
     }, 300);
-
     return () => clearTimeout(timer);
   }, [searchTerm]);
   
@@ -281,7 +277,6 @@ const SelectBankStatementStep: React.FC = () => {
 
   const bankStatements = bankStatementsData?.data || [];
 
-  // Infinite scroll: observe sentinel element at bottom of scrollable table
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLTableRowElement>(null);
   useEffect(() => {
@@ -300,23 +295,21 @@ const SelectBankStatementStep: React.FC = () => {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, bankStatements.length]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' });
 
-  const handleSelect = (statement: AvailableBankStatementDto) => {
-    setSelectedBankStatement(statement.id, {
+  const isSelected = (id: string) => selectedBankStatements.some(s => s.id === id);
+
+  const selectedTotal = useMemo(() =>
+    selectedBankStatements.reduce((sum, s) => sum + s.amount, 0),
+    [selectedBankStatements]
+  );
+
+  const handleToggle = (statement: AvailableBankStatementDto) => {
+    toggleBankStatement({
       id: statement.id,
       transaction_date: statement.transaction_date,
       description: statement.description,
@@ -327,7 +320,7 @@ const SelectBankStatementStep: React.FC = () => {
   return (
     <div className="space-y-4">
       <p className="text-gray-600 dark:text-gray-400">
-        Select a bank statement to reconcile with multiple POS aggregates.
+        Select one or more bank statements to reconcile with POS aggregates.
       </p>
 
       {/* Search */}
@@ -382,20 +375,20 @@ const SelectBankStatementStep: React.FC = () => {
                 {bankStatements.map((statement: AvailableBankStatementDto) => (
                   <tr 
                     key={statement.id}
-                    onClick={() => handleSelect(statement)}
+                    onClick={() => handleToggle(statement)}
                     className={`cursor-pointer transition-colors ${
-                      selectedBankStatement === statement.id
+                      isSelected(statement.id)
                         ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                     }`}
                   >
                     <td className="px-4 py-3 whitespace-nowrap">
                       <input
-                        type="radio"
-                        name="bankStatement"
-                        checked={selectedBankStatement === statement.id}
-                        onChange={() => handleSelect(statement)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                        type="checkbox"
+                        checked={isSelected(statement.id)}
+                        onChange={() => handleToggle(statement)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
                       />
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -425,7 +418,6 @@ const SelectBankStatementStep: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {/* Sentinel row for infinite scroll */}
                 <tr ref={sentinelRef}>
                   <td colSpan={5}>
                     {isFetchingNextPage && (
@@ -442,7 +434,6 @@ const SelectBankStatementStep: React.FC = () => {
         )}
       </div>
 
-      {/* Total count indicator */}
       {bankStatements.length > 0 && (
         <p className="text-xs text-gray-400">
           Menampilkan {bankStatements.length} dari {bankStatementsData?.total || bankStatements.length} mutasi
@@ -451,11 +442,18 @@ const SelectBankStatementStep: React.FC = () => {
       )}
 
       {/* Selection Summary */}
-      {selectedBankStatement && (
+      {selectedBankStatements.length > 0 && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <p className="text-sm text-blue-800 dark:text-blue-300">
-            <strong>Selected:</strong> Bank statement has been selected. Click "Next" to continue.
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-sm text-blue-800 dark:text-blue-300">
+                <strong>{selectedBankStatements.length}</strong> bank statement{selectedBankStatements.length > 1 ? 's' : ''} selected
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Total: {formatCurrency(selectedTotal)}
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -700,72 +698,71 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
   selectedAggregates,
 }) => {
   const {
-    selectedBankStatementData,
+    selectedBankStatements,
     wizardNotes,
     setWizardNotes,
     overrideDifference,
     setOverrideDifference,
   } = useSettlementGroupsStore();
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
 
+  const totalStatements = selectedBankStatements.reduce((sum, s) => sum + s.amount, 0);
   const totalAggregates = selectedAggregates.reduce((sum, agg) => sum + (agg.nett_amount || 0), 0);
-  const difference = selectedBankStatementData ? selectedBankStatementData.amount - totalAggregates : 0;
-  const differencePercent = selectedBankStatementData?.amount 
-    ? Math.abs(difference) / Math.abs(selectedBankStatementData.amount) * 100 
+  const difference = totalStatements - totalAggregates;
+  const differencePercent = totalStatements !== 0
+    ? Math.abs(difference) / Math.abs(totalStatements) * 100
     : 0;
   const isWithinThreshold = differencePercent <= 5;
 
-  if (!selectedBankStatementData) {
+  if (selectedBankStatements.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500">No bank statement selected</p>
+        <p className="text-gray-500">No bank statements selected</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-600">
-        Review the settlement details before confirming the settlement group.
+      <p className="text-gray-600 dark:text-gray-400">
+        Review the settlement details before confirming.
       </p>
 
-      {/* Bank Statement Summary */}
+      {/* Bank Statements Summary */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-3">Selected Bank Statement</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-blue-600 dark:text-blue-400">Date</p>
-            <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(selectedBankStatementData.transaction_date)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-blue-600 dark:text-blue-400">Amount</p>
-            <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(selectedBankStatementData.amount)}</p>
-          </div>
-          <div className="col-span-2">
-            <p className="text-xs text-blue-600 dark:text-blue-400">Description</p>
-            <p className="text-sm text-gray-900 dark:text-white">{selectedBankStatementData.description}</p>
-          </div>
+        <div className="flex justify-between items-start mb-3">
+          <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Bank Statements</h4>
+          <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-300 px-2 py-1 rounded-full">
+            {selectedBankStatements.length} item{selectedBankStatements.length > 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="space-y-2 max-h-36 overflow-y-auto">
+          {selectedBankStatements.map((s) => (
+            <div key={s.id} className="flex justify-between items-center text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 dark:text-gray-400">{formatDate(s.transaction_date)}</span>
+                <span className="text-gray-400 dark:text-gray-500">•</span>
+                <span className="text-gray-600 dark:text-gray-300 truncate max-w-48">{s.description}</span>
+              </div>
+              <span className="font-medium text-blue-700 dark:text-blue-300">{formatCurrency(s.amount)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800 flex justify-between items-center">
+          <span className="text-sm font-medium text-blue-800 dark:text-blue-300">Total Bank</span>
+          <span className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(totalStatements)}</span>
         </div>
       </div>
 
       {/* Aggregates Summary */}
       <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
         <div className="flex justify-between items-start mb-3">
-          <h4 className="text-sm font-semibold text-green-800 dark:text-green-300">Selected Aggregates</h4>
+          <h4 className="text-sm font-semibold text-green-800 dark:text-green-300">POS Aggregates</h4>
           <span className="text-xs bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-300 px-2 py-1 rounded-full">
             {selectedAggregates.length} items
           </span>
@@ -789,7 +786,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
         )}
         
         <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800 flex justify-between items-center">
-          <span className="text-sm font-medium text-green-800 dark:text-green-300">Total Aggregates</span>
+          <span className="text-sm font-medium text-green-800 dark:text-green-300">Total POS</span>
           <span className="text-lg font-bold text-green-700 dark:text-green-300">{formatCurrency(totalAggregates)}</span>
         </div>
       </div>
@@ -800,7 +797,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
           <div>
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Difference</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {formatCurrency(selectedBankStatementData.amount)} - {formatCurrency(totalAggregates)}
+              {formatCurrency(totalStatements)} - {formatCurrency(totalAggregates)}
             </p>
           </div>
           <div className="text-right">

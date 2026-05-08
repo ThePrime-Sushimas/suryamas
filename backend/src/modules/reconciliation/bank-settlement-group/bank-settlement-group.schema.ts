@@ -60,16 +60,22 @@ const dateFormat = z.string().refine(
 
 /**
  * Schema for create settlement group request (BULK SETTLEMENT)
+ * Supports many-to-many: N bank statements ↔ N aggregates
  */
 export const createSettlementGroupSchema = z.object({
   body: z.object({
-    bankStatementId: z.coerce.string().min(1, "Bank Statement ID is required"),
+    bankStatementIds: z.array(
+      z.coerce.string().min(1, "Bank Statement ID is required"),
+      { message: "Bank Statement IDs are required" }
+    )
+      .min(1, "At least one bank statement ID is required")
+      .transform((ids) => [...new Set(ids)]),
     aggregateIds: z.array(
       z.string().min(1, "Aggregate ID is required"),
       { message: "Aggregate IDs are required" }
     )
       .min(1, "At least one aggregate ID is required")
-      .transform((ids) => [...new Set(ids)]), // Remove duplicates
+      .transform((ids) => [...new Set(ids)]),
     notes: z.string().max(500).optional(),
     overrideDifference: z.boolean().optional().default(false),
   }),

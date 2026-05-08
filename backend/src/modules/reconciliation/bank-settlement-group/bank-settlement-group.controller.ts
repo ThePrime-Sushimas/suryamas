@@ -24,7 +24,7 @@ export class SettlementGroupController {
 
       const result = await this.service.createSettlementGroup({
         companyId: companyId || '',
-        bankStatementId: body.bankStatementId,
+        bankStatementIds: body.bankStatementIds,
         aggregateIds: body.aggregateIds,
         notes: body.notes,
         overrideDifference: body.overrideDifference,

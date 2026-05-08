@@ -31,7 +31,7 @@ export interface PaginationMeta {
 
 export const settlementGroupsApi = {
   /**
-   * Create a new settlement group
+   * Create a new settlement group (many-to-many)
    */
   async createSettlementGroup(
     payload: CreateSettlementGroupRequest

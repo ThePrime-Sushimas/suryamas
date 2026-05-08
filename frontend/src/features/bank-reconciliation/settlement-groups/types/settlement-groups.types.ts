@@ -17,12 +17,12 @@ export type SettlementGroupStatusType = typeof SettlementGroupStatus[keyof typeo
 // ==================== CORE INTERFACES ====================
 
 /**
- * Settlement Group - 1 Bank Statement → Many Aggregates
+ * Settlement Group - N Bank Statements ↔ N Aggregates
  */
 export interface SettlementGroup {
   id: string;
   company_id: string;
-  bank_statement_id: string;
+  bank_statement_id?: string; // legacy, nullable
   settlement_number: string;
   settlement_date: string;
   payment_method?: string;
@@ -36,9 +36,10 @@ export interface SettlementGroup {
   created_at: string;
   updated_at: string;
   confirmed_at?: string;
-  deleted_at?: string | null; // Soft delete timestamp
+  deleted_at?: string | null;
   aggregates?: SettlementAggregate[];
-  bank_statement?: BankStatementInfo;
+  statements?: BankStatementInfo[];
+  bank_statement?: BankStatementInfo; // legacy compat
 }
 
 /**
@@ -85,11 +86,11 @@ export interface BankStatementInfo {
 // ==================== DTOs ====================
 
 /**
- * Request untuk create settlement group (BULK SETTLEMENT)
+ * Request untuk create settlement group (MANY-TO-MANY)
  */
 export interface CreateSettlementGroupDto {
   companyId: string;
-  bankStatementId: string;
+  bankStatementIds: string[];
   aggregateIds: string[];
   notes?: string;
   overrideDifference?: boolean;
@@ -103,11 +104,12 @@ export interface CreateSettlementGroupResultDto {
   success: boolean;
   groupId: string;
   settlementNumber: string;
-  bankStatementId: string;
+  bankStatementIds: string[];
   statementAmount: number;
   totalAllocatedAmount: number;
   difference: number;
   differencePercent: number;
+  statementCount: number;
   aggregateCount: number;
   status: SettlementGroupStatusType;
 }
@@ -227,10 +229,10 @@ export interface SettlementGroupColumn {
 // ==================== API REQUEST/RESPONSE TYPES ====================
 
 /**
- * Request for creating settlement group
+ * Request for creating settlement group (many-to-many)
  */
 export interface CreateSettlementGroupRequest {
-  bankStatementId: string;
+  bankStatementIds: string[];
   aggregateIds: string[];
   notes?: string;
   overrideDifference?: boolean;

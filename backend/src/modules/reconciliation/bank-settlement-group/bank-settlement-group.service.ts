@@ -35,39 +35,39 @@ export class SettlementGroupService {
   }
 
   /**
-   * Create a new settlement group (BULK SETTLEMENT)
-   * Maps 1 Bank Statement → Multiple Aggregates
-   *
-   * @param dto - Settlement group creation data
-   * @returns Promise<CreateSettlementGroupResultDto> - Creation result with group details
-   * @throws {StatementAlreadyReconciledError} When bank statement is already reconciled
-   * @throws {AggregateAlreadyReconciledError} When any aggregate is already reconciled
-   * @throws {DifferenceThresholdExceededError} When difference exceeds allowed threshold
+   * Create a new settlement group (MANY-TO-MANY)
+   * Maps N Bank Statements ↔ N Aggregates
    */
   async createSettlementGroup(
     dto: CreateSettlementGroupDto,
   ): Promise<CreateSettlementGroupResultDto> {
     logInfo("Creating settlement group", {
       companyId: dto.companyId,
-      bankStatementId: dto.bankStatementId,
+      bankStatementIds: dto.bankStatementIds,
       aggregateCount: dto.aggregateIds.length,
     });
 
-    // 1. Validate bank statement
-    const statement = await this.repository.getBankStatementById(
-      dto.bankStatementId,
+    // 1. Validate all bank statements
+    const statements = await Promise.all(
+      dto.bankStatementIds.map(async (statementId) => {
+        const statement = await this.repository.getBankStatementById(statementId);
+        if (!statement) {
+          throw new SettlementGroupNotFoundError(statementId);
+        }
+        if (statement.is_reconciled) {
+          throw new StatementAlreadyReconciledError(statementId);
+        }
+        return statement;
+      }),
     );
-    if (!statement) {
-      throw new SettlementGroupNotFoundError(dto.bankStatementId);
-    }
 
-    if (statement.is_reconciled) {
-      throw new StatementAlreadyReconciledError(dto.bankStatementId);
-    }
-
-    const statementAmount = statement.amount;
-    const bankName = statement.bank_accounts?.banks?.bank_name || undefined;
-    const paymentMethod: string | undefined = undefined; // dari statement, bukan bank_accounts
+    const statementAmount = statements.reduce((sum, s) => sum + s.amount, 0);
+    const bankName = statements[0].bank_accounts?.banks?.bank_name || undefined;
+    // Use the latest transaction date among selected statements
+    const settlementDate = statements.reduce((latest, s) => 
+      s.transaction_date > latest ? s.transaction_date : latest,
+      statements[0].transaction_date
+    );
 
     // 2. Validate aggregate IDs (check for duplicates in request)
     const uniqueIds = [...new Set(dto.aggregateIds)];
@@ -98,7 +98,7 @@ export class SettlementGroupService {
     const differencePercent =
       statementAmount !== 0 ? Math.abs(difference) / statementAmount : 0;
 
-    // 4. Validate difference threshold
+    // 5. Validate difference threshold
     const isWithinTolerance =
       differencePercent <= bankSettlementConfig.defaultTolerancePercent;
     const isWithinAbsoluteThreshold =
@@ -116,24 +116,22 @@ export class SettlementGroupService {
       );
     }
 
-    // 5. Determine status
+    // 6. Determine status
     const isExactMatch = difference === 0;
     const isWithinAllowedThreshold =
       differencePercent <= bankSettlementConfig.defaultTolerancePercent ||
       isWithinAbsoluteThreshold;
-    // If overrideDifference is true, user is explicitly verifying the discrepancy is acceptable
-    // So status should be RECONCILED, not DISCREPANCY
     const status =
       isExactMatch || isWithinAllowedThreshold || dto.overrideDifference
         ? SettlementGroupStatus.RECONCILED
         : SettlementGroupStatus.DISCREPANCY;
 
-    // 6. Create settlement group
+    // 7. Create settlement group (junction table is source of truth, legacy column null)
     const groupId = await this.repository.createSettlementGroup({
       companyId: dto.companyId,
-      bankStatementId: dto.bankStatementId,
-      settlementDate: statement.transaction_date,
-      paymentMethod,
+      bankStatementId: undefined,
+      settlementDate,
+      paymentMethod: undefined,
       bankName,
       totalStatementAmount: statementAmount,
       totalAllocatedAmount,
@@ -143,52 +141,43 @@ export class SettlementGroupService {
       status,
     });
 
-    // 7. Add aggregates to group
+    // 8. Add statements to junction table
+    await this.repository.addStatementsToGroup(groupId, dto.bankStatementIds);
+
+    // 9. Add aggregates to group
     const aggregateRecords = aggregateDetails.map((agg) => ({
       aggregateId: agg.id,
       allocatedAmount: agg.nett_amount,
       originalAmount: agg.nett_amount,
     }));
-
     await this.repository.addAggregatesToGroup(groupId, aggregateRecords);
 
-    // 8. Update status and confirm
+    // 10. Update status and confirm
     const confirmedAt = new Date().toISOString();
     await this.repository.updateStatus(groupId, status, confirmedAt);
 
-    // 9. Mark aggregates and bank statement as reconciled
+    // 11. Mark aggregates and bank statements as reconciled
     if (status === SettlementGroupStatus.RECONCILED) {
       try {
         await this.repository.markAggregatesAsReconciled(dto.aggregateIds);
       } catch (error) {
-        logError(
-          "Failed to mark aggregates as reconciled",
-          {
-            groupId,
-            aggregateIds: dto.aggregateIds,
-            error: error instanceof Error ? error.message : "Unknown error",
-          },
-        );
+        logError("Failed to mark aggregates as reconciled", {
+          groupId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
 
       try {
-        await this.repository.markBankStatementAsReconciled(
-          dto.bankStatementId,
-          dto.userId,
-        );
+        await this.repository.markBankStatementsAsReconciled(dto.bankStatementIds, dto.userId);
       } catch (error) {
-        logError(
-          "Failed to mark bank statement as reconciled",
-          {
-            groupId,
-            bankStatementId: dto.bankStatementId,
-            error: error instanceof Error ? error.message : "Unknown error",
-          },
-        );
+        logError("Failed to mark bank statements as reconciled", {
+          groupId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
     }
 
-    // 10. Fetch the created group to get settlement_number
+    // 12. Fetch the created group to get settlement_number
     const createdGroup = await this.repository.findById(groupId);
 
     logInfo("Settlement group created successfully", {
@@ -198,9 +187,9 @@ export class SettlementGroupService {
       totalAllocatedAmount,
       difference,
       status,
+      statementCount: dto.bankStatementIds.length,
     });
 
-    // Audit log for settlement group creation
     await AuditService.log(
       "CREATE",
       "settlement_group",
@@ -209,8 +198,9 @@ export class SettlementGroupService {
       null,
       {
         settlement_number: createdGroup?.settlement_number,
-        bank_statement_id: dto.bankStatementId,
+        bank_statement_ids: dto.bankStatementIds,
         aggregate_count: dto.aggregateIds.length,
+        statement_count: dto.bankStatementIds.length,
         status,
         difference,
       },
@@ -220,11 +210,12 @@ export class SettlementGroupService {
       success: true,
       groupId,
       settlementNumber: createdGroup?.settlement_number || "",
-      bankStatementId: dto.bankStatementId,
+      bankStatementIds: dto.bankStatementIds,
       statementAmount,
       totalAllocatedAmount,
       difference,
       differencePercent,
+      statementCount: dto.bankStatementIds.length,
       aggregateCount: dto.aggregateIds.length,
       status,
     };
@@ -271,10 +262,8 @@ export class SettlementGroupService {
 
   /**
    * Delete a settlement group (HARD DELETE)
-   * Permanently removes the settlement group and its aggregates
-   * Also reverts is_reconciled to false for aggregates and bank statement
-   *
-   * @param groupId - The settlement group ID
+   * Permanently removes the settlement group and its aggregates/statements
+   * Also reverts is_reconciled to false for aggregates and bank statements
    */
   async deleteSettlementGroup(groupId: string, userId?: string): Promise<void> {
     logInfo("Deleting settlement group (hard delete)", { groupId });
@@ -289,11 +278,10 @@ export class SettlementGroupService {
       group.aggregates?.map((agg: SettlementAggregate) => agg.aggregate_id) ||
       [];
 
-    // Get bank_statement_id for reverting
-    const bankStatementId =
-      await this.repository.getBankStatementIdRaw(groupId);
+    // Get bank statement IDs from junction table
+    const bankStatementIds = await this.repository.getStatementIdsByGroupId(groupId);
 
-    // Hard delete the settlement group and its aggregates
+    // Hard delete the settlement group and its aggregates + statements
     await this.repository.hardDelete(groupId);
 
     // Revert aggregates is_reconciled to false
@@ -316,20 +304,20 @@ export class SettlementGroupService {
       }
     }
 
-    // Revert bank statement is_reconciled to false
-    if (bankStatementId !== null) {
+    // Revert bank statements is_reconciled to false
+    if (bankStatementIds.length > 0) {
       try {
-        await this.repository.markBankStatementAsUnreconciled(bankStatementId, userId);
-        logInfo("Bank statement marked as unreconciled after hard delete", {
+        await this.repository.markBankStatementsAsUnreconciled(bankStatementIds, userId);
+        logInfo("Bank statements marked as unreconciled after hard delete", {
           groupId,
-          bank_statement_id: bankStatementId,
+          statementCount: bankStatementIds.length,
         });
       } catch (error) {
         logError(
-          "Failed to revert bank statement is_reconciled after hard delete",
+          "Failed to revert bank statements is_reconciled after hard delete",
           {
             groupId,
-            bank_statement_id: bankStatementId,
+            bankStatementIds,
             error: error instanceof Error ? error.message : "Unknown error",
           },
         );
@@ -339,9 +327,9 @@ export class SettlementGroupService {
     logInfo("Settlement group deleted successfully", {
       groupId,
       aggregatesCount: aggregateIds.length,
+      statementsCount: bankStatementIds.length,
     });
 
-    // Audit log for settlement group deletion (hard delete)
     await AuditService.log(
       "DELETE",
       "settlement_group",

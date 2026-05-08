@@ -217,8 +217,16 @@ export const SettlementDashboard: React.FC<SettlementDashboardProps> = ({
                       {formatDate(group.settlement_date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">{group.bank_statement?.description || 'N/A'}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{group.bank_name || 'Unknown Bank'}</div>
+                      <div className="text-sm text-gray-900 dark:text-white">
+                        {group.statements && group.statements.length > 0
+                          ? group.statements.map(s => s.description).join(', ')
+                          : group.bank_statement?.description || 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {group.statements && group.statements.length > 1
+                          ? `${group.statements.length} statements`
+                          : group.bank_name || 'Unknown Bank'}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {formatCurrency(group.total_statement_amount)}

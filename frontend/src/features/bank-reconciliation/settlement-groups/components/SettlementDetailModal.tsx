@@ -123,37 +123,35 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
                   </div>
                 </div>
 
-                {/* Bank Statement Information */}
-                {settlementGroup.bank_statement && (
+                {/* Bank Statements Information */}
+                {((settlementGroup as any).statements?.length > 0 || settlementGroup.bank_statement) && (
                   <div className="border-t border-gray-200 pt-6">
-                    <h4 className="text-md font-medium text-gray-900 mb-4">Bank Statement</h4>
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <span className="text-sm text-gray-500">Description</span>
-                          <p className="text-sm font-medium text-gray-900">
-                            {settlementGroup.bank_statement.description}
-                          </p>
+                    <h4 className="text-md font-medium text-gray-900 mb-4">
+                      Bank Statement{(settlementGroup as any).statements?.length > 1 ? 's' : ''}
+                    </h4>
+                    <div className="space-y-3">
+                      {((settlementGroup as any).statements || (settlementGroup.bank_statement ? [settlementGroup.bank_statement] : [])).map((stmt: any) => (
+                        <div key={stmt.id} className="bg-gray-50 rounded-lg p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <span className="text-sm text-gray-500">Description</span>
+                              <p className="text-sm font-medium text-gray-900">{stmt.description}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-500">Amount</span>
+                              <p className="text-sm font-medium text-gray-900">{formatCurrency(stmt.amount || 0)}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-500">Transaction Date</span>
+                              <p className="text-sm font-medium text-gray-900">{formatDate(stmt.transaction_date)}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-500">Reference</span>
+                              <p className="text-sm font-medium text-gray-900">{stmt.reference_number || 'N/A'}</p>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-sm text-gray-500">Amount</span>
-                          <p className="text-sm font-medium text-gray-900">
-                            {formatCurrency(settlementGroup.bank_statement.amount || 0)}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-500">Transaction Date</span>
-                          <p className="text-sm font-medium text-gray-900">
-                            {formatDate(settlementGroup.bank_statement.transaction_date)}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-gray-500">Reference</span>
-                          <p className="text-sm font-medium text-gray-900">
-                            {settlementGroup.bank_statement.reference_number || 'N/A'}
-                          </p>
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
                 )}

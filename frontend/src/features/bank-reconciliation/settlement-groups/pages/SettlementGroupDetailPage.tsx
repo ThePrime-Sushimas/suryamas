@@ -186,19 +186,23 @@ export default function SettlementGroupDetailPage() {
               </div>
             </div>
 
-            {/* Bank Statement */}
-            {sg.bank_statement && (
+            {/* Bank Statements */}
+            {((sg as any).statements?.length > 0 || sg.bank_statement) && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Building className="w-5 h-5 text-gray-400" /> Bank Statement
+                  <Building className="w-5 h-5 text-gray-400" /> Bank Statement{(sg as any).statements?.length > 1 ? 's' : ''}
                 </h2>
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <InfoItem label="Description" value={sg.bank_statement.description} />
-                    <InfoItem label="Amount" value={formatCurrency(sg.bank_statement.amount || 0)} />
-                    <InfoItem label="Transaction Date" value={formatDate(sg.bank_statement.transaction_date)} />
-                    <InfoItem label="Reference" value={sg.bank_statement.reference_number || '-'} />
-                  </div>
+                <div className="space-y-3">
+                  {((sg as any).statements || (sg.bank_statement ? [sg.bank_statement] : [])).map((stmt: any) => (
+                    <div key={stmt.id} className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <InfoItem label="Description" value={stmt.description} />
+                        <InfoItem label="Amount" value={formatCurrency(stmt.amount || 0)} />
+                        <InfoItem label="Transaction Date" value={formatDate(stmt.transaction_date)} />
+                        <InfoItem label="Reference" value={stmt.reference_number || '-'} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

@@ -80,11 +80,12 @@ export interface BankStatementInfo {
 // ==================== DTOs ====================
 
 /**
- * Request untuk create settlement group (BULK SETTLEMENT)
+ * Request untuk create settlement group (MANY-TO-MANY)
+ * N Bank Statements ↔ N POS Aggregates
  */
 export interface CreateSettlementGroupDto {
   companyId: string;
-  bankStatementId: string;
+  bankStatementIds: string[];
   aggregateIds: string[];
   notes?: string;
   overrideDifference?: boolean;
@@ -98,11 +99,12 @@ export interface CreateSettlementGroupResultDto {
   success: boolean;
   groupId: string;
   settlementNumber: string;
-  bankStatementId: string;
+  bankStatementIds: string[];
   statementAmount: number;
   totalAllocatedAmount: number;
   difference: number;
   differencePercent: number;
+  statementCount: number;
   aggregateCount: number;
   status: SettlementGroupStatus;
 }

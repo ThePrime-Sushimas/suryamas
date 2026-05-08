@@ -48,7 +48,7 @@ export class SettlementGroupRepository {
    */
   async createSettlementGroup(data: {
     companyId: string;
-    bankStatementId: string;
+    bankStatementId?: string;
     settlementDate: string;
     paymentMethod?: string;
     bankName?: string;
@@ -60,7 +60,7 @@ export class SettlementGroupRepository {
     status?: SettlementGroupStatus;
   }): Promise<string> {
     try {
-      const bankStatementIdNum = Number(data.bankStatementId);
+      const bankStatementIdNum = data.bankStatementId ? Number(data.bankStatementId) : null;
       
       const query = `
         INSERT INTO bank_settlement_groups (
@@ -92,30 +92,14 @@ export class SettlementGroupRepository {
   }
 
   /**
-   * Get settlement group by ID with aggregates and bank statement
+   * Get settlement group by ID with aggregates, statements, and bank statement info
    */
   async findById(id: string): Promise<any> {
     try {
       const query = `
         SELECT 
-          bsg.*,
-          jsonb_build_object(
-            'id', bs.id,
-            'transaction_date', bs.transaction_date,
-            'description', bs.description,
-            'debit_amount', bs.debit_amount,
-            'credit_amount', bs.credit_amount,
-            'bank_accounts', jsonb_build_object(
-              'banks', jsonb_build_object(
-                'bank_name', b.bank_name,
-                'bank_code', b.bank_code
-              )
-            )
-          ) as bank_statements
+          bsg.*
         FROM bank_settlement_groups bsg
-        LEFT JOIN bank_statements bs ON bsg.bank_statement_id = bs.id
-        LEFT JOIN bank_accounts ba ON bs.bank_account_id = ba.id
-        LEFT JOIN banks b ON ba.bank_id = b.id
         WHERE bsg.id = $1 AND bsg.deleted_at IS NULL
       `;
       
@@ -124,11 +108,39 @@ export class SettlementGroupRepository {
 
       const data = rows[0];
       const aggregates = await this.getAggregatesByGroupId(id);
-      return this.transformSettlementGroup(data, aggregates);
+      const statements = await this.getStatementsByGroupId(id);
+      return this.transformSettlementGroup(data, aggregates, statements);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error fetching settlement group by ID", { id, error: errorMessage });
       throw error;
+    }
+  }
+
+  /**
+   * Get bank statements for a settlement group from junction table
+   */
+  async getStatementsByGroupId(settlementGroupId: string): Promise<any[]> {
+    try {
+      const query = `
+        SELECT 
+          bs.id, bs.transaction_date, bs.description,
+          bs.debit_amount, bs.credit_amount,
+          (bs.credit_amount - bs.debit_amount) as amount,
+          b.bank_name, ba.account_name, ba.account_number
+        FROM bank_settlement_statements bss
+        JOIN bank_statements bs ON bss.bank_statement_id = bs.id
+        LEFT JOIN bank_accounts ba ON bs.bank_account_id = ba.id
+        LEFT JOIN banks b ON ba.bank_id = b.id
+        WHERE bss.settlement_group_id = $1
+        ORDER BY bs.transaction_date ASC
+      `;
+      const { rows } = await pool.query(query, [settlementGroupId]);
+      return rows.map((r: any) => ({ ...r, id: String(r.id) }));
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching statements by group ID", { settlementGroupId, error: errorMessage });
+      return [];
     }
   }
 
@@ -160,6 +172,91 @@ export class SettlementGroupRepository {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       logError("Error fetching settlement group by number", { settlementNumber, error: errorMessage });
       throw error;
+    }
+  }
+
+  /**
+   * Add bank statements to settlement group junction table
+   */
+  async addStatementsToGroup(settlementGroupId: string, statementIds: string[]): Promise<void> {
+    try {
+      if (statementIds.length === 0) return;
+      const values: any[] = [];
+      const placeholders = statementIds.map((id, i) => {
+        const base = i * 2;
+        values.push(settlementGroupId, Number(id));
+        return `($${base + 1}, $${base + 2})`;
+      }).join(", ");
+
+      await pool.query(
+        `INSERT INTO bank_settlement_statements (settlement_group_id, bank_statement_id) VALUES ${placeholders}`,
+        values
+      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error adding statements to settlement group", {
+        settlementGroupId,
+        count: statementIds.length,
+        error: errorMessage
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get statement IDs from junction table for a settlement group
+   */
+  async getStatementIdsByGroupId(settlementGroupId: string): Promise<string[]> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT bank_statement_id FROM bank_settlement_statements WHERE settlement_group_id = $1",
+        [settlementGroupId]
+      );
+      return rows.map((r: any) => String(r.bank_statement_id));
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError("Error fetching statement IDs by group", { settlementGroupId, error: errorMessage });
+      return [];
+    }
+  }
+
+  /**
+   * Mark multiple bank statements as reconciled
+   */
+  async markBankStatementsAsReconciled(statementIds: string[], userId?: string): Promise<void> {
+    try {
+      const numericIds = statementIds.map(Number);
+      const params: any[] = [true, new Date().toISOString(), numericIds];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, updated_at = $2";
+      if (userId) {
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
+      }
+      query += ` WHERE id = ANY($3)`;
+      await pool.query(query, params);
+    } catch (error: any) {
+      logError('Mark bank statements as reconciled error', { statementIds, error: error.message });
+      throw new Error(`Failed to mark bank statements as reconciled: ${error.message}`);
+    }
+  }
+
+  /**
+   * Mark multiple bank statements as unreconciled
+   */
+  async markBankStatementsAsUnreconciled(statementIds: string[], userId?: string): Promise<void> {
+    try {
+      const numericIds = statementIds.map(Number);
+      const params: any[] = [false, new Date().toISOString(), numericIds];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, updated_at = $2";
+      if (userId) {
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
+      }
+      query += ` WHERE id = ANY($3)`;
+      await pool.query(query, params);
+    } catch (error: any) {
+      logError('Mark bank statements as unreconciled error', { statementIds, error: error.message });
+      throw new Error(`Failed to mark bank statements as unreconciled: ${error.message}`);
     }
   }
 
@@ -293,12 +390,13 @@ export class SettlementGroupRepository {
   }
 
   /**
-   * Hard delete settlement group and its aggregates
+   * Hard delete settlement group and its aggregates + statements
    */
   async hardDelete(id: string): Promise<void> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query("DELETE FROM bank_settlement_statements WHERE settlement_group_id = $1", [id]);
       await client.query("DELETE FROM bank_settlement_aggregates WHERE settlement_group_id = $1", [id]);
       await client.query("DELETE FROM bank_settlement_groups WHERE id = $1", [id]);
       await client.query('COMMIT');
@@ -358,17 +456,8 @@ export class SettlementGroupRepository {
       const offset = options?.offset || 0;
       const dataParams = [...params, limit, offset];
       const dataQuery = `
-        SELECT 
-          bsg.*,
-          jsonb_build_object(
-            'id', bs.id,
-            'transaction_date', bs.transaction_date,
-            'description', bs.description,
-            'debit_amount', bs.debit_amount,
-            'credit_amount', bs.credit_amount
-          ) as bank_statements
+        SELECT bsg.*
         FROM bank_settlement_groups bsg
-        LEFT JOIN bank_statements bs ON bsg.bank_statement_id = bs.id
         ${whereClause}
         ORDER BY bsg.created_at DESC
         LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}
@@ -378,14 +467,12 @@ export class SettlementGroupRepository {
 
       const groupIds = rows.map((g) => g.id);
       const aggregatesMap = await this.batchFetchAggregatesForGroups(groupIds);
+      const statementsMap = await this.batchFetchStatementsForGroups(groupIds);
 
       const transformedData = rows.map((group) => ({
         ...group,
         bank_statement_id: safeBankStatementIdToString(group.bank_statement_id),
-        bank_statement: group.bank_statements ? {
-          ...group.bank_statements,
-          amount: (group.bank_statements.credit_amount || 0) - (group.bank_statements.debit_amount || 0),
-        } : undefined,
+        statements: statementsMap[group.id] || [],
         aggregates: aggregatesMap[group.id] || [],
       }));
 
@@ -395,6 +482,47 @@ export class SettlementGroupRepository {
       logError("Error fetching settlement groups", { options, error: errorMessage });
       throw error;
     }
+  }
+
+  /**
+   * Batch fetch statements for multiple groups from junction table
+   */
+  private async batchFetchStatementsForGroups(
+    groupIds: string[]
+  ): Promise<Record<string, any[]>> {
+    const result: Record<string, any[]> = {};
+    if (groupIds.length === 0) return result;
+
+    try {
+      const query = `
+        SELECT 
+          bss.settlement_group_id,
+          bs.id, bs.transaction_date, bs.description,
+          bs.debit_amount, bs.credit_amount,
+          (bs.credit_amount - bs.debit_amount) as amount,
+          b.bank_name
+        FROM bank_settlement_statements bss
+        JOIN bank_statements bs ON bss.bank_statement_id = bs.id
+        LEFT JOIN bank_accounts ba ON bs.bank_account_id = ba.id
+        LEFT JOIN banks b ON ba.bank_id = b.id
+        WHERE bss.settlement_group_id = ANY($1)
+        ORDER BY bs.transaction_date ASC
+      `;
+      const { rows } = await pool.query(query, [groupIds]);
+
+      for (const row of rows) {
+        const gid = row.settlement_group_id;
+        if (!result[gid]) result[gid] = [];
+        result[gid].push({ ...row, id: String(row.id), settlement_group_id: undefined });
+      }
+    } catch (error) {
+      logError("Error in batchFetchStatementsForGroups", {
+        groupCount: groupIds.length,
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -624,14 +752,26 @@ export class SettlementGroupRepository {
 
   /**
    * Find active settlement group by bank_statement_id
+   * Checks both legacy column AND junction table
    */
   async findByBankStatementId(bankStatementId: string): Promise<{ id: string; status: string } | null> {
     try {
+      // Check junction table first (new pattern)
       const { rows } = await pool.query(
+        `SELECT bsg.id, bsg.status FROM bank_settlement_statements bss
+         JOIN bank_settlement_groups bsg ON bss.settlement_group_id = bsg.id
+         WHERE bss.bank_statement_id = $1 AND bsg.deleted_at IS NULL
+         LIMIT 1`,
+        [Number(bankStatementId)]
+      );
+      if (rows.length > 0) return rows[0];
+
+      // Fallback: check legacy column
+      const { rows: legacyRows } = await pool.query(
         "SELECT id, status FROM bank_settlement_groups WHERE bank_statement_id = $1 AND deleted_at IS NULL LIMIT 1",
         [Number(bankStatementId)]
       );
-      return rows[0] || null;
+      return legacyRows[0] || null;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logError("Error in findByBankStatementId", { bankStatementId, error: errorMessage });
@@ -693,15 +833,12 @@ export class SettlementGroupRepository {
   /**
    * Transform raw database response to settlement group format
    */
-  private transformSettlementGroup(data: any, aggregates: any[] = []): any {
+  private transformSettlementGroup(data: any, aggregates: any[] = [], statements: any[] = []): any {
     return {
       ...data,
       bank_statement_id: safeBankStatementIdToString(data.bank_statement_id),
-      bank_statement: data.bank_statements ? {
-        ...data.bank_statements,
-        amount: (data.bank_statements.credit_amount || 0) - (data.bank_statements.debit_amount || 0),
-      } : undefined,
-      aggregates: aggregates,
+      statements,
+      aggregates,
     };
   }
 }
