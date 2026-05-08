@@ -189,6 +189,7 @@ export function SupplierProductsPage() {
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Avg Cost</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
                   <th onClick={() => handleSort('price')} className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                     Harga {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
@@ -227,6 +228,9 @@ export function SupplierProductsPage() {
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900 dark:text-white">{sp.product?.product_name || '—'}</p>
                       <p className="text-xs text-gray-400">{sp.product?.product_code}</p>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
+                      {sp.product?.average_cost ? `Rp ${sp.product.average_cost.toLocaleString('id-ID')}` : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
                       {sp.current_unit || sp.product?.default_purchase_unit || '—'}

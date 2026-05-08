@@ -37,11 +37,26 @@ export interface ProductInfo {
   product_type: ProductType
   status: SupplierProductStatus
   default_purchase_unit?: string | null
+  average_cost?: number
+}
+
+export interface ProductUomInfo {
+  id: string
+  metric_unit_id: string
+  conversion_factor: number
+  is_base_unit: boolean
+  base_price: number | null
+  is_default_purchase_unit: boolean
+  is_default_stock_unit: boolean
+  is_default_transfer_unit: boolean
+  status_uom: string
+  metric_units?: { unit_name: string; metric_type: string } | null
 }
 
 export interface SupplierProductWithRelations extends SupplierProduct {
   supplier?: SupplierInfo
   product?: ProductInfo
+  product_uoms?: ProductUomInfo[]
   current_price?: number // Current price from active pricelist
   current_currency?: string // Currency from active pricelist
   current_unit?: string // UOM from active pricelist
@@ -56,6 +71,8 @@ export interface CreateSupplierProductDto {
   min_order_qty?: number | null
   is_preferred?: boolean
   is_active?: boolean
+  purchase_unit_id?: string
+  conversion_factor?: number
 }
 
 export type UpdateSupplierProductDto = Partial<Omit<CreateSupplierProductDto, 'supplier_id' | 'product_id'>>

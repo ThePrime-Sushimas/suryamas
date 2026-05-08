@@ -26,6 +26,8 @@ import {
 import { calculatePagination, calculateOffset } from '../../utils/pagination.util'
 import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo, logError } from '../../config/logger'
+import { productUomsRepository } from '../product-uoms/product-uoms.repository'
+import { pricelistsRepository } from '../pricelists/pricelists.repository'
 
 export class SupplierProductsService {
   // Cache for validation results (TTL: 5 minutes)
@@ -98,7 +100,7 @@ export class SupplierProductsService {
   /**
    * Create new supplier product
    */
-  async create(dto: CreateSupplierProductDto, userId?: string): Promise<SupplierProduct> {
+  async create(dto: CreateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string): Promise<SupplierProduct> {
     // Validate supplier exists and is active
     await this.validateSupplier(dto.supplier_id)
     
@@ -126,16 +128,69 @@ export class SupplierProductsService {
       await this.validatePreferredSupplierLimit(dto.product_id)
     }
 
+    const { purchase_unit_id, conversion_factor, ...spDto } = dto
+
     const data = {
-      ...dto,
-      currency: dto.currency || SUPPLIER_PRODUCT_DEFAULTS.CURRENCY,
-      is_preferred: dto.is_preferred ?? SUPPLIER_PRODUCT_DEFAULTS.IS_PREFERRED,
-      is_active: dto.is_active ?? SUPPLIER_PRODUCT_DEFAULTS.IS_ACTIVE,
+      ...spDto,
+      currency: spDto.currency || SUPPLIER_PRODUCT_DEFAULTS.CURRENCY,
+      is_preferred: spDto.is_preferred ?? SUPPLIER_PRODUCT_DEFAULTS.IS_PREFERRED,
+      is_active: spDto.is_active ?? SUPPLIER_PRODUCT_DEFAULTS.IS_ACTIVE,
       created_by: userId,
       updated_by: userId,
     }
 
     const supplierProduct = await this.repository.create(data)
+
+    // Auto-create purchase UOM + pricelist if purchase_unit_id provided
+    if (purchase_unit_id && conversion_factor) {
+      let uom = await productUomsRepository.findByProductIdAndMetricUnit(dto.product_id, purchase_unit_id)
+      
+      if (!uom) {
+        // Create the purchase UOM
+        uom = await productUomsRepository.create({
+          product_id: dto.product_id,
+          metric_unit_id: purchase_unit_id,
+          conversion_factor,
+          is_base_unit: false,
+          is_default_purchase_unit: true,
+          is_default_stock_unit: false,
+          is_default_transfer_unit: false,
+          created_by: userId,
+          updated_by: userId,
+        })
+      } else {
+        // Mark existing UOM as default purchase unit
+        await productUomsRepository.updateById(uom.id, { is_default_purchase_unit: true })
+      }
+
+      // Auto-create pricelist
+      // Need company_id — get from product's context or use a default
+      const product = await productsRepository.findById(dto.product_id)
+      if (product && uom) {
+        try {
+          await pricelistsRepository.create({
+            company_id: companyId || '00000000-0000-0000-0000-000000000001',
+            supplier_id: dto.supplier_id,
+            product_id: dto.product_id,
+            uom_id: uom.id,
+            price: dto.price,
+            currency: dto.currency || 'IDR',
+            valid_from: new Date().toISOString().split('T')[0],
+            is_active: true,
+            created_by: userId,
+          })
+
+          // Recalculate avg cost + UOM base prices
+          const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(dto.product_id)
+          if (costPerBaseUnit !== null) {
+            await pricelistsRepository.updateProductAverageCost(dto.product_id, costPerBaseUnit)
+            await pricelistsRepository.updateAllUomBasePrices(dto.product_id, costPerBaseUnit)
+          }
+        } catch (err) {
+          logError('Failed to auto-create pricelist', { error: err instanceof Error ? err.message : String(err) })
+        }
+      }
+    }
 
     // Audit logging
     if (userId) {

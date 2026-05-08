@@ -21,6 +21,8 @@ export const createSupplierProductSchema = z.object({
       .nullable(),
     is_preferred: z.boolean().optional(),
     is_active: z.boolean().optional(),
+    purchase_unit_id: z.string().uuid('Invalid metric unit ID').optional(),
+    conversion_factor: z.number().positive('Conversion factor must be positive').optional(),
   }),
 })
 

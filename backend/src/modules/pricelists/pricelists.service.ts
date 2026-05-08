@@ -40,6 +40,12 @@ export class PricelistsService {
       await AuditService.log('CREATE', 'pricelist', pricelist.id, userId, null, pricelist)
     }
 
+    // Auto-update average_cost and UOM base_prices (pricelist is created as APPROVED)
+    if (pricelist.status === 'APPROVED') {
+      await this.updateProductAverageCost(pricelist.product_id, pricelist.company_id)
+      await this.updateUomBasePrices(pricelist.product_id)
+    }
+
     return pricelist
   }
 
@@ -135,9 +141,10 @@ export class PricelistsService {
       )
     }
 
-    // Auto-update products.average_cost from latest approved pricelist
+    // Auto-update products.average_cost and product_uoms.base_price from latest approved pricelist
     if (approval.status === 'APPROVED') {
       await this.updateProductAverageCost(updated.product_id, updated.company_id)
+      await this.updateUomBasePrices(updated.product_id)
     }
 
     return updated
@@ -180,6 +187,17 @@ export class PricelistsService {
     await pricelistsRepository.updateProductAverageCost(productId, costPerBaseUnit)
     // Propagate cost change to recipe/WIP/menus
     await recipesRepository.recalculateCostFromProduct(productId, companyId)
+  }
+
+  /**
+   * Update product_uoms.base_price for all UOMs of a product
+   * based on the latest approved pricelist cost per base unit.
+   * base_price = cost_per_base_unit × conversion_factor
+   */
+  async updateUomBasePrices(productId: string): Promise<void> {
+    const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(productId)
+    if (costPerBaseUnit === null) return
+    await pricelistsRepository.updateAllUomBasePrices(productId, costPerBaseUnit)
   }
 }
 

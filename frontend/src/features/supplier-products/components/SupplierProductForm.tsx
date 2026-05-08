@@ -1,12 +1,14 @@
 // Supplier Product Form - Create/Edit form component
 
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useToast } from '@/contexts/ToastContext'
 import { supplierProductsApi } from '../api/supplierProducts.api'
 import { useSupplierSearch } from '../hooks/useSupplierSearch'
 import { useProductSearch } from '../hooks/useProductSearch'
 import { CURRENCY_OPTIONS, LEAD_TIME_OPTIONS } from '../constants/supplier-product.constants'
 import type { CreateSupplierProductDto, UpdateSupplierProductDto, SupplierProduct } from '../types/supplier-product.types'
+import api from '@/lib/axios'
 
 interface SupplierProductFormProps {
   initialData?: SupplierProduct
@@ -31,7 +33,13 @@ export function SupplierProductForm({
   const [submitting, setSubmitting] = useState(false)
   const [preferredCount, setPreferredCount] = useState(0)
 
-  const [formData, setFormData] = useState<CreateSupplierProductDto>({
+  const { data: metricUnits = [] } = useQuery({
+    queryKey: ['metric-units'],
+    queryFn: async () => { const { data } = await api.get('/metric-units', { params: { limit: 200 } }); return (data.data || []) as { id: string; unit_name: string }[] },
+    staleTime: 5 * 60_000,
+  })
+
+  const [formData, setFormData] = useState<CreateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }>({
     supplier_id: initialData?.supplier_id || '',
     product_id: initialData?.product_id || '',
     price: initialData?.price || 0,
@@ -39,7 +47,9 @@ export function SupplierProductForm({
     lead_time_days: initialData?.lead_time_days ?? undefined,
     min_order_qty: initialData?.min_order_qty ?? undefined,
     is_preferred: initialData?.is_preferred ?? false,
-    is_active: initialData?.is_active ?? true
+    is_active: initialData?.is_active ?? true,
+    purchase_unit_id: '',
+    conversion_factor: 1,
   })
 
   // Check preferred supplier count when product changes
@@ -88,7 +98,7 @@ export function SupplierProductForm({
 
       if (isEdit) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { supplier_id: _supplier_id, product_id: _product_id, ...updateData } = submitData
+        const { supplier_id: _supplier_id, product_id: _product_id, purchase_unit_id: _pu, conversion_factor: _cf, ...updateData } = submitData
         await onSubmit(updateData)
       } else {
         await onSubmit(submitData)
@@ -183,7 +193,7 @@ export function SupplierProductForm({
         </div>
       </div>
 
-      {/* Pricing */}
+      {/* Pricing & Purchase Unit */}
       <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Pricing</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -218,6 +228,44 @@ export function SupplierProductForm({
             </select>
           </div>
         </div>
+
+        {!isEdit && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Satuan Order *
+              </label>
+              <select
+                name="purchase_unit_id"
+                value={formData.purchase_unit_id || ''}
+                onChange={handleChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value="">Pilih satuan order</option>
+                {metricUnits.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Satuan saat beli (misal: Kilogram, Botol, Karton)</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Konversi ke Base Unit *
+              </label>
+              <input
+                type="number"
+                name="conversion_factor"
+                value={formData.conversion_factor || ''}
+                onChange={handleChange}
+                required
+                min="0.000001"
+                step="0.000001"
+                placeholder="misal: 1000 (1 Kg = 1000 Gram)"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-400 mt-1">Berapa base unit dalam 1 satuan order</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Lead Time & MOQ */}

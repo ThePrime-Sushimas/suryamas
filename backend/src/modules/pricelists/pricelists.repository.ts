@@ -180,6 +180,19 @@ export class PricelistsRepository {
       [averageCost, productId]
     )
   }
+
+  /**
+   * Update base_price for all UOMs of a product.
+   * base_price = costPerBaseUnit × conversion_factor
+   */
+  async updateAllUomBasePrices(productId: string, costPerBaseUnit: number): Promise<void> {
+    await pool.query(
+      `UPDATE product_uoms
+       SET base_price = ROUND(($1 * conversion_factor)::numeric, 2), updated_at = now()
+       WHERE product_id = $2 AND is_deleted = false`,
+      [costPerBaseUnit, productId]
+    )
+  }
 }
 
 export const pricelistsRepository = new PricelistsRepository()

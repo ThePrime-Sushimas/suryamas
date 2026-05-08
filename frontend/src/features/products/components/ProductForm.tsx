@@ -35,7 +35,8 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     is_requestable: initialData?.is_requestable ?? true,
     is_purchasable: initialData?.is_purchasable ?? true,
     notes: initialData?.notes || '',
-    status: (initialData?.status || 'ACTIVE') as ProductStatus
+    status: (initialData?.status || 'ACTIVE') as ProductStatus,
+    base_unit_id: '',
   })
 
   const { data: categories = [], isLoading: loadingCat } = useQuery({
@@ -46,6 +47,11 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
   const { data: subCategories = [], isLoading: loadingSub } = useQuery({
     queryKey: ['sub-categories'],
     queryFn: async () => { const { data } = await api.get('/sub-categories'); return (data.data || []) as SubCategory[] },
+    staleTime: 5 * 60_000,
+  })
+  const { data: metricUnits = [] } = useQuery({
+    queryKey: ['metric-units'],
+    queryFn: async () => { const { data } = await api.get('/metric-units', { params: { limit: 200 } }); return (data.data || []) as { id: string; unit_name: string }[] },
     staleTime: 5 * 60_000,
   })
 
@@ -90,6 +96,9 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     if (!formData.sub_category_id) {
       newErrors.sub_category_id = 'Sub-category is required'
     }
+    if (!isEdit && !formData.base_unit_id) {
+      newErrors.base_unit_id = 'Satuan dasar wajib dipilih'
+    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -112,7 +121,19 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       is_purchasable: formData.is_purchasable,
       notes: formData.notes || undefined,
       status: formData.status
-    } : formData
+    } : {
+      product_code: formData.product_code,
+      product_name: formData.product_name,
+      bom_name: formData.bom_name || undefined,
+      category_id: formData.category_id,
+      sub_category_id: formData.sub_category_id,
+      product_type: formData.product_type,
+      is_requestable: formData.is_requestable,
+      is_purchasable: formData.is_purchasable,
+      notes: formData.notes || undefined,
+      status: formData.status,
+      base_unit_id: formData.base_unit_id || undefined,
+    }
 
     await onSubmit(submitData)
   }
@@ -242,19 +263,42 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Average Cost</label>
-          <input
-            type="number"
-            name="average_cost"
-            value={formData.average_cost}
-            readOnly
-            disabled
-            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-            placeholder="0.00"
-          />
-          <p className="mt-1 text-xs text-gray-400">Otomatis dari pricelist yang diapprove</p>
-        </div>
+        {!isEdit && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Satuan Dasar <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="base_unit_id"
+              value={formData.base_unit_id}
+              onChange={handleChange}
+              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                errors.base_unit_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              }`}
+            >
+              <option value="">Pilih satuan dasar</option>
+              {metricUnits.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
+            </select>
+            {errors.base_unit_id && <p className="mt-1 text-sm text-red-600">{errors.base_unit_id}</p>}
+            <p className="mt-1 text-xs text-gray-400">Satuan terkecil (misal: Gram, Mililiter, Pcs)</p>
+          </div>
+        )}
+
+        {isEdit && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Average Cost</label>
+            <input
+              type="number"
+              name="average_cost"
+              value={formData.average_cost}
+              readOnly
+              disabled
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+              placeholder="0.00"
+            />
+            <p className="mt-1 text-xs text-gray-400">Otomatis dari pricelist</p>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-6">

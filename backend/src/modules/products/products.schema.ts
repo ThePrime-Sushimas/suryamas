@@ -14,6 +14,7 @@ export const createProductSchema = z.object({
     is_purchasable: z.boolean().optional(),
     notes: z.string().max(PRODUCT_LIMITS.NOTES_MAX_LENGTH).optional(),
     status: z.enum(VALID_PRODUCT_STATUSES as [string, ...string[]]).optional(),
+    base_unit_id: z.string().uuid('Invalid metric unit ID').optional(),
   }),
 })
 

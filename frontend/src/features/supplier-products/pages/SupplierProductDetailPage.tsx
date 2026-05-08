@@ -7,6 +7,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useState } from 'react'
 import { useSupplierProduct, useDeleteSupplierProduct } from '../api/supplierProducts.api'
 import { formatPrice, formatLeadTime, formatDate } from '../utils/format'
+import type { ProductUomInfo } from '../types/supplier-product.types'
 
 export function SupplierProductDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -118,6 +119,64 @@ export function SupplierProductDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* UOM Table */}
+      {d.product_uoms && d.product_uoms.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Satuan Ukur (UOM)</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-700/50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Satuan</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Konversi</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Harga Dasar</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Penggunaan</th>
+                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {d.product_uoms.map((uom: ProductUomInfo) => {
+                  const baseUom = d.product_uoms?.find(u => u.is_base_unit)
+                  const baseUnitName = baseUom?.metric_units?.unit_name || '?'
+                  const usages: string[] = []
+                  if (uom.is_default_purchase_unit) usages.push('Beli')
+                  if (uom.is_default_stock_unit) usages.push('Stok')
+                  if (uom.is_default_transfer_unit) usages.push('Transfer')
+
+                  return (
+                    <tr key={uom.id}>
+                      <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">
+                        {uom.metric_units?.unit_name || '—'}
+                        {uom.is_base_unit && <span className="ml-1 text-[10px] text-blue-600 font-semibold">BASE</span>}
+                      </td>
+                      <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
+                        {uom.is_base_unit
+                          ? <span className="text-xs text-gray-400">1 (Satuan Dasar)</span>
+                          : `1 ${uom.metric_units?.unit_name || '?'} = ${uom.conversion_factor.toLocaleString('id-ID')} ${baseUnitName}`
+                        }
+                      </td>
+                      <td className="px-4 py-2 text-right text-gray-900 dark:text-white">
+                        {uom.base_price ? `Rp ${uom.base_price.toLocaleString('id-ID')}` : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
+                        {usages.length > 0 ? usages.join(', ') : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${uom.status_uom === 'ACTIVE' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                          {uom.status_uom === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete}
         title="Hapus Produk Supplier" message={`Yakin ingin menghapus "${d.product?.product_name}" dari "${d.supplier?.supplier_name}"?`}

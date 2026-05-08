@@ -56,6 +56,7 @@ export interface CreateProductDto {
   is_purchasable?: boolean
   notes?: string
   status?: ProductStatus
+  base_unit_id?: string
 }
 
 export interface UpdateProductDto {

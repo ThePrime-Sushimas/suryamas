@@ -12,6 +12,7 @@ import {
 } from './product-uoms.errors'
 import { VALID_UOM_STATUSES, UOM_DEFAULTS } from './product-uoms.constants'
 import { metricUnitsRepository } from '../metric-units/metricUnits.repository'
+import { pricelistsRepository } from '../pricelists/pricelists.repository'
 
 type DefaultField = 'is_default_stock_unit' | 'is_default_purchase_unit' | 'is_default_transfer_unit'
 
@@ -79,8 +80,19 @@ export class ProductUomsService {
       await this.ensureSingleDefault(productId, 'is_default_transfer_unit')
     }
 
+    // Auto-fill base_price from latest approved pricelist if not provided
+    let basePrice = dto.base_price
+    if (!basePrice || basePrice === 0) {
+      const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(productId)
+      if (costPerBaseUnit !== null) {
+        const conversionFactor = dto.conversion_factor || 1
+        basePrice = Number((costPerBaseUnit * conversionFactor).toFixed(2))
+      }
+    }
+
     const data = {
       ...dto,
+      base_price: basePrice,
       product_id: productId,
       status_uom: dto.status_uom || UOM_DEFAULTS.STATUS,
       is_base_unit: dto.is_base_unit ?? UOM_DEFAULTS.IS_BASE_UNIT,
@@ -170,6 +182,15 @@ export class ProductUomsService {
 
     if (uom && userId) {
       await AuditService.log('UPDATE', 'product_uom', id, userId, current, dto)
+    }
+
+    // Recalculate base_prices + average_cost if conversion_factor changed
+    if (dto.conversion_factor !== undefined && dto.conversion_factor !== current.conversion_factor) {
+      const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(current.product_id)
+      if (costPerBaseUnit !== null) {
+        await pricelistsRepository.updateAllUomBasePrices(current.product_id, costPerBaseUnit)
+        await pricelistsRepository.updateProductAverageCost(current.product_id, costPerBaseUnit)
+      }
     }
 
     logInfo('Product UOM updated', { id, productId: current.product_id, userId })

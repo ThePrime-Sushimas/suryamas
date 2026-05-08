@@ -45,6 +45,7 @@ export const mapSupplierProductWithRelations = (raw: unknown): SupplierProductWi
       product_type: (item.products as Record<string, unknown>).product_type as string,
       status: (item.products as Record<string, unknown>).status as string,
       default_purchase_unit: (item.products as Record<string, unknown>).default_purchase_unit as string,
+      average_cost: (item.products as Record<string, unknown>).average_cost ? parseFloat((item.products as Record<string, unknown>).average_cost as string) : undefined,
     } : undefined,
   }
 }

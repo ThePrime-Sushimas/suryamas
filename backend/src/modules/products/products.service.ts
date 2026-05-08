@@ -12,6 +12,7 @@ import {
 } from './products.errors'
 import { VALID_PRODUCT_STATUSES, VALID_PRODUCT_TYPES, PRODUCT_DEFAULTS, PRODUCT_LIMITS } from './products.constants'
 import { calculatePagination, calculateOffset } from '../../utils/pagination.util'
+import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 
 export class ProductsService {
   constructor(
@@ -61,7 +62,7 @@ export class ProductsService {
     }
   }
 
-  async create(dto: CreateProductDto, userId?: string): Promise<Product> {
+  async create(dto: CreateProductDto & { base_unit_id?: string }, userId?: string): Promise<Product> {
     if (dto.status && !VALID_PRODUCT_STATUSES.includes(dto.status)) {
       throw new InvalidProductStatusError(dto.status, VALID_PRODUCT_STATUSES)
     }
@@ -78,18 +79,35 @@ export class ProductsService {
       throw new DuplicateProductNameError(dto.product_name)
     }
 
+    const { base_unit_id, ...productDto } = dto
+
     const data = {
-      ...dto,
-      status: dto.status || PRODUCT_DEFAULTS.STATUS,
-      product_type: dto.product_type || PRODUCT_DEFAULTS.PRODUCT_TYPE,
-      average_cost: dto.average_cost || PRODUCT_DEFAULTS.AVERAGE_COST,
-      is_requestable: dto.is_requestable ?? PRODUCT_DEFAULTS.IS_REQUESTABLE,
-      is_purchasable: dto.is_purchasable ?? PRODUCT_DEFAULTS.IS_PURCHASABLE,
+      ...productDto,
+      status: productDto.status || PRODUCT_DEFAULTS.STATUS,
+      product_type: productDto.product_type || PRODUCT_DEFAULTS.PRODUCT_TYPE,
+      average_cost: productDto.average_cost || PRODUCT_DEFAULTS.AVERAGE_COST,
+      is_requestable: productDto.is_requestable ?? PRODUCT_DEFAULTS.IS_REQUESTABLE,
+      is_purchasable: productDto.is_purchasable ?? PRODUCT_DEFAULTS.IS_PURCHASABLE,
       created_by: userId,
       updated_by: userId,
     }
 
     const product = await this.repository.create(data)
+
+    // Auto-create base UOM if base_unit_id provided
+    if (base_unit_id) {
+      await productUomsRepository.create({
+        product_id: product.id,
+        metric_unit_id: base_unit_id,
+        conversion_factor: 1,
+        is_base_unit: true,
+        is_default_stock_unit: true,
+        is_default_purchase_unit: true,
+        is_default_transfer_unit: true,
+        created_by: userId,
+        updated_by: userId,
+      })
+    }
 
     if (userId) {
       await this.auditService.log('CREATE', 'product', product.id, userId, undefined, product)

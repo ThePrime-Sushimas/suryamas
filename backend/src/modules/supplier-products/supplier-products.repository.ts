@@ -10,7 +10,7 @@ import { SupplierProductValidationError } from './supplier-products.errors'
 const RELATIONS_SELECT = `
   sp.*,
   s.id AS s_id, s.supplier_name, s.supplier_code, s.is_active AS s_is_active,
-  p.id AS p_id, p.product_name, p.product_code, p.product_type, p.status AS p_status, p.default_purchase_unit
+  p.id AS p_id, p.product_name, p.product_code, p.product_type, p.status AS p_status, p.default_purchase_unit, p.average_cost
 `
 const RELATIONS_FROM = `
   FROM supplier_products sp
@@ -22,7 +22,7 @@ function mapRowWithRelations(row: Record<string, unknown>): Record<string, unkno
   return {
     ...row,
     suppliers: row.s_id ? { id: row.s_id, supplier_name: row.supplier_name, supplier_code: row.supplier_code, is_active: row.s_is_active } : null,
-    products: row.p_id ? { id: row.p_id, product_name: row.product_name, product_code: row.product_code, product_type: row.product_type, status: row.p_status, default_purchase_unit: row.default_purchase_unit } : null,
+    products: row.p_id ? { id: row.p_id, product_name: row.product_name, product_code: row.product_code, product_type: row.product_type, status: row.p_status, default_purchase_unit: row.default_purchase_unit, average_cost: row.average_cost } : null,
   }
 }
 
@@ -73,9 +73,35 @@ export class SupplierProductsRepository {
     const { rows } = await pool.query(`SELECT ${selectFields} ${fromClause} WHERE sp.id = $1${deletedFilter}`, [id])
     if (!rows[0]) return null
 
-    return includeRelations
-      ? mapSupplierProductWithRelations(mapRowWithRelations(rows[0]))
-      : mapSupplierProductFromDb(rows[0])
+    if (!includeRelations) return mapSupplierProductFromDb(rows[0])
+
+    const mapped = mapSupplierProductWithRelations(mapRowWithRelations(rows[0])) as SupplierProductWithRelations
+
+    // Enrich with product UOMs
+    if (mapped.product_id) {
+      const { rows: uomRows } = await pool.query(
+        `SELECT pu.*, mu.unit_name AS mu_unit_name, mu.metric_type AS mu_metric_type
+         FROM product_uoms pu
+         LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
+         WHERE pu.product_id = $1 AND pu.is_deleted = false
+         ORDER BY pu.is_base_unit DESC, pu.conversion_factor ASC`,
+        [mapped.product_id]
+      )
+      ;(mapped as SupplierProductWithRelations & { product_uoms?: unknown[] }).product_uoms = uomRows.map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        metric_unit_id: r.metric_unit_id as string,
+        conversion_factor: parseFloat(r.conversion_factor as string),
+        is_base_unit: r.is_base_unit as boolean,
+        base_price: r.base_price ? parseFloat(r.base_price as string) : null,
+        is_default_purchase_unit: r.is_default_purchase_unit as boolean,
+        is_default_stock_unit: r.is_default_stock_unit as boolean,
+        is_default_transfer_unit: r.is_default_transfer_unit as boolean,
+        status_uom: r.status_uom as string,
+        metric_units: r.mu_unit_name ? { unit_name: r.mu_unit_name as string, metric_type: r.mu_metric_type as string } : null,
+      }))
+    }
+
+    return mapped
   }
 
   async findBySupplier(supplierId: string, includeRelations = false): Promise<SupplierProduct[] | SupplierProductWithRelations[]> {
