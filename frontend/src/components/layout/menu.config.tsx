@@ -266,6 +266,13 @@ export const menuItems: MenuItem[] = [
         module: "cogs",
       },
       {
+        id: "fp-cogs-breakdown",
+        name: "COGS Breakdown",
+        href: "/food-production/cogs/breakdown",
+        icon: <BarChart3 size={16} />,
+        module: "cogs_breakdown",
+      },
+      {
         id: "fp-categories",
         name: "Kategori Menu",
         href: "/food-production/categories",

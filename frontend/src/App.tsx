@@ -461,6 +461,7 @@ const MenuDetailPage = lazy(() => import('./features/food-production/pages/MenuD
 const WipItemsPage = lazy(() => import('./features/food-production/pages/WipItemsPage'))
 const WipDetailPage = lazy(() => import('./features/food-production/pages/WipDetailPage'))
 const CogsPage = lazy(() => import('./features/food-production/pages/CogsPage'))
+const CogsBreakdownPage = lazy(() => import('./features/food-production/pages/CogsBreakdownPage'))
 const MenuCategoriesPage = lazy(() => import('./features/food-production/pages/MenuCategoriesPage'))
 const MenuGroupsPage = lazy(() => import('./features/food-production/pages/MenuGroupsPage'))
 
@@ -1517,6 +1518,16 @@ function App() {
                       <RequirePermission module="cogs">
                         <Suspense fallback={<LoadingFallback />}>
                           <CogsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/cogs/breakdown"
+                    element={
+                      <RequirePermission module="cogs">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CogsBreakdownPage />
                         </Suspense>
                       </RequirePermission>
                     }
