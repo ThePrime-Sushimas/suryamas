@@ -588,7 +588,7 @@ export class BankStatementImportRepository {
       const { rows: existing } = await pool.query(
         `SELECT id, reference_number, transaction_date, credit_amount, debit_amount, import_id, description, balance, bank_account_id, is_pending 
          FROM bank_statements 
-         WHERE bank_account_id = $1 AND transaction_date >= $2 AND transaction_date <= $3 AND deleted_at IS NULL`,
+         WHERE bank_account_id = $1 AND transaction_date >= $2 AND transaction_date <= $3 AND deleted_at IS NULL AND is_pending = FALSE`,
         [
           bankAccountId,
           minDate.toISOString().split("T")[0],
@@ -635,8 +635,6 @@ export class BankStatementImportRepository {
             pair.reference_number !== ex.reference_number
           )
             return false;
-
-          if (ex.is_pending) return true;
 
           const exDescNorm = normalize(ex.description || "");
           if (pairDescNorm && exDescNorm && pairDescNorm === exDescNorm)
@@ -900,20 +898,25 @@ export class BankStatementImportRepository {
 
         for (const pend of matchedPends) {
           if (!pend.is_reconciled) {
-            // ✅ Kasus A: PEND belum reconciled → langsung hapus
+            // Kasus A: PEND belum reconciled → hapus (clear FK first if any)
+            await client.query(
+              "DELETE FROM bank_settlement_groups WHERE bank_statement_id = $1",
+              [pend.id]
+            );
             await client.query("DELETE FROM bank_statements WHERE id = $1", [
               pend.id,
             ]);
             replacedCount++;
           } else {
             // ✅ Kasus B: PEND sudah reconciled → buat settled version, lalu hapus PEND
-            await client.query(
+            const { rows: [newSettled] } = await client.query(
               `INSERT INTO bank_statements (
                 company_id, bank_account_id, transaction_date, transaction_time, reference_number, 
                 description, debit_amount, credit_amount, balance, import_id, row_number, 
                 source_file, is_pending, is_reconciled, reconciliation_id, reconciliation_group_id, 
                 payment_method_id, updated_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+              RETURNING id`,
               [
                 row.company_id || companyId,
                 row.bank_account_id || bankAccountId,
@@ -936,7 +939,13 @@ export class BankStatementImportRepository {
               ],
             );
 
-            // ✅ FIXED: Hapus PEND record setelah membuat settled version
+            // Re-point FK references from old PEND to new settled record
+            await client.query(
+              `UPDATE bank_settlement_groups SET bank_statement_id = $1 WHERE bank_statement_id = $2`,
+              [newSettled.id, pend.id]
+            );
+
+            // Now safe to delete PEND record (FK already re-pointed)
             await client.query(
               "DELETE FROM bank_statements WHERE id = $1",
               [pend.id]
@@ -996,8 +1005,12 @@ export class BankStatementImportRepository {
     cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
     try {
+      // Only delete PEND records that are NOT reconciled and have no FK references
       const { rows } = await pool.query(
-        "DELETE FROM bank_statements WHERE is_pending = true AND transaction_date < $1 RETURNING id",
+        `DELETE FROM bank_statements 
+         WHERE is_pending = true AND is_reconciled = FALSE AND transaction_date < $1 
+           AND id NOT IN (SELECT bank_statement_id FROM bank_settlement_groups WHERE bank_statement_id IS NOT NULL)
+         RETURNING id`,
         [cutoffDate.toISOString().split("T")[0]],
       );
       return rows.length;

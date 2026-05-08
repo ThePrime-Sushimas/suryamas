@@ -469,8 +469,11 @@ export class BankStatementImportService {
       const dateRangeStart = dates.length > 0 
         ? new Date(Math.min(...dates.map((d: any) => d.getTime()))).toISOString().split("T")[0]
         : null;
+      // +2 days buffer to catch PEND records assigned T+1 date by parser
+      const maxDate = new Date(Math.max(...dates.map((d: any) => d.getTime())));
+      maxDate.setDate(maxDate.getDate() + 2);
       const dateRangeEnd = dates.length > 0 
-        ? new Date(Math.max(...dates.map((d: any) => d.getTime()))).toISOString().split("T")[0]
+        ? maxDate.toISOString().split("T")[0]
         : null;
 
       if (dateRangeStart && dateRangeEnd) {
@@ -514,12 +517,24 @@ export class BankStatementImportService {
       }
     }
 
-    // STEP 2: Detect duplicates AFTER PEND cleanup
+    // STEP 2: Exclude Kasus B rows first (already inserted by replacePendingWithSettled)
+    let rowsForDuplicateCheck = validRows;
+    if (handledSettledKeys.size > 0) {
+      rowsForDuplicateCheck = validRows.filter((r: any) => {
+        const key = `${r.transaction_date}-${r.debit_amount}-${r.credit_amount}`;
+        return !handledSettledKeys.has(key);
+      });
+    }
+
+    // STEP 3: Detect duplicates on remaining rows only
     const existingDuplicates = await this.detectDuplicates(
-      validRows,
+      rowsForDuplicateCheck,
       companyId,
       importRecord.bank_account_id,
     );
+
+    // Default: use filtered rows (handledSettledKeys already excluded)
+    rowsToInsert = rowsForDuplicateCheck;
 
     if (existingDuplicates.length > 0) {
       // Build duplicate lookup keys
@@ -545,7 +560,7 @@ export class BankStatementImportService {
       );
 
       // ALWAYS filter duplicates
-      rowsToInsert = validRows.filter((r) => {
+      rowsToInsert = rowsForDuplicateCheck.filter((r) => {
         // Balance check first
         if (r.balance != null && Number(r.balance) !== 0) {
           if (duplicateBalanceKeys.has(Number(r.balance).toFixed(2))) return false;
@@ -567,13 +582,7 @@ export class BankStatementImportService {
       });
     }
 
-    // STEP 3: Exclude Kasus B rows (already inserted by replacePendingWithSettled)
-    if (handledSettledKeys.size > 0) {
-      rowsToInsert = rowsToInsert.filter((r: any) => {
-        const key = `${r.transaction_date}-${r.debit_amount}-${r.credit_amount}`;
-        return !handledSettledKeys.has(key);
-      });
-    }
+    // Rows already filtered by handledSettledKeys above, no need to re-filter
 
     // Bulk insert in batches
     const batchSize = BankStatementImportConfig.BATCH_SIZE;
