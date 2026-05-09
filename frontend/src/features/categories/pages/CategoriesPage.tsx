@@ -29,6 +29,8 @@ export default function CategoriesPage() {
     page, limit, search: debouncedSearch || undefined,
     is_active: statusFilter || undefined,
     is_deleted: deletedFilter !== 'false' ? deletedFilter : undefined,
+    sort: 'sort_order',
+    order: 'asc',
   }), [page, limit, debouncedSearch, statusFilter, deletedFilter])
 
   const { data, isLoading } = useCategories(queryParams)

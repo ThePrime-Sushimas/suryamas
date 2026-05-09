@@ -18,9 +18,9 @@ const sortFields = ['category_code', 'category_name', 'sort_order', 'created_at'
 
 router.use(authenticate, resolveBranchContext)
 
-router.get('/', canView('categories'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) => categoriesController.list(req, res))
-router.get('/search', canView('categories'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) => categoriesController.search(req, res))
-router.get('/trash', canView('categories'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) => categoriesController.trash(req, res))
+router.get('/', canView('categories'), queryMiddleware({ allowedSortFields: sortFields, defaultSort: 'sort_order' }), (req, res) => categoriesController.list(req, res))
+router.get('/search', canView('categories'), queryMiddleware({ allowedSortFields: sortFields, defaultSort: 'sort_order' }), (req, res) => categoriesController.search(req, res))
+router.get('/trash', canView('categories'), queryMiddleware({ allowedSortFields: sortFields, defaultSort: 'sort_order' }), (req, res) => categoriesController.trash(req, res))
 router.get('/:id', canView('categories'), validateSchema(categoryIdSchema), (req, res) => categoriesController.getById(req, res))
 router.post('/', canInsert('categories'), validateSchema(CreateCategorySchema), (req, res) => categoriesController.create(req, res))
 router.put('/:id', canUpdate('categories'), validateSchema(UpdateCategorySchema), (req, res) => categoriesController.update(req, res))

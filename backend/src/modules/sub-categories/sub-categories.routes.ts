@@ -17,16 +17,16 @@ router.use(authenticate, resolveBranchContext)
 
 const sortFields = ['sub_category_code', 'sub_category_name', 'category_id', 'sort_order', 'created_at', 'updated_at', 'id']
 
-router.get('/search', canView('sub_categories'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) =>
+router.get('/search', canView('sub_categories'), queryMiddleware({ allowedSortFields: sortFields, defaultSort: 'sort_order' }), (req, res) =>
   subCategoriesController.search(req, res))
 
-router.get('/trash', canView('sub_categories'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) =>
+router.get('/trash', canView('sub_categories'), queryMiddleware({ allowedSortFields: sortFields, defaultSort: 'sort_order' }), (req, res) =>
   subCategoriesController.trash(req, res))
 
 router.get('/category/:categoryId', canView('sub_categories'), validateSchema(categoryIdSchema), (req, res) =>
   subCategoriesController.getByCategory(req, res))
 
-router.get('/', canView('sub_categories'), queryMiddleware({ allowedSortFields: sortFields }), (req, res) =>
+router.get('/', canView('sub_categories'), queryMiddleware({ allowedSortFields: sortFields, defaultSort: 'sort_order' }), (req, res) =>
   subCategoriesController.list(req, res))
 
 router.get('/:id', canView('sub_categories'), validateSchema(subCategoryIdSchema), (req, res) =>

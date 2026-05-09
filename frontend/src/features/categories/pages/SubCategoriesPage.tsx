@@ -28,6 +28,8 @@ export default function SubCategoriesPage() {
     page, limit, search: debouncedSearch || undefined,
     category_id: categoryFilter || undefined,
     is_deleted: deletedFilter !== 'false' ? deletedFilter : undefined,
+    sort: 'sort_order',
+    order: 'asc',
   }), [page, limit, debouncedSearch, categoryFilter, deletedFilter])
 
   const { data, isLoading } = useSubCategories(queryParams)
