@@ -9,9 +9,9 @@ export class MenuBranchPricesRepository {
   /** INNER JOIN branches — only active branches shown. Closed branch prices are hidden intentionally. */
   async findByMenuId(menuId: string, companyId: string): Promise<MenuBranchPriceWithBranch[]> {
     const { rows } = await pool.query(
-      `SELECT mbp.*, b.branch_name, b.is_active AS branch_is_active
+      `SELECT mbp.*, b.branch_name, (b.status = 'active') AS branch_is_active
        FROM menu_branch_prices mbp
-       JOIN branches b ON b.id = mbp.branch_id AND b.is_active = true
+       JOIN branches b ON b.id = mbp.branch_id AND b.status = 'active'
        WHERE mbp.menu_id = $1 AND mbp.company_id = $2 AND mbp.is_deleted = false
        ORDER BY b.branch_name`,
       [menuId, companyId]
@@ -87,7 +87,7 @@ export class MenuBranchPricesRepository {
          FROM tr_salesmenu sm
          JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
          JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = $1 AND m.deleted_at IS NULL
-         JOIN branches br ON br.id = sh.branch_id AND br.is_active = true AND br.is_deleted = false
+         JOIN branches br ON br.id = sh.branch_id AND br.status = 'active'
          WHERE sm.status_id != 12
            AND sm.original_price > 0
            AND sh.sales_date >= (CURRENT_DATE - INTERVAL '90 days')
