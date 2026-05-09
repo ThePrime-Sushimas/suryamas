@@ -39,7 +39,7 @@ export class PricelistsRepository {
     if (query?.product_id) { params.push(query.product_id); conditions.push(`pl.product_id = $${idx}`); idx++ }
     if (query?.status) { params.push(query.status); conditions.push(`pl.status = $${idx}`); idx++ }
     if (query?.is_active !== undefined) { params.push(query.is_active); conditions.push(`pl.is_active = $${idx}`); idx++ }
-    if (query?.search) { params.push(`%${query.search}%`); conditions.push(`s.supplier_name ILIKE $${idx}`); idx++ }
+    if (query?.search) { params.push(`%${query.search}%`); conditions.push(`(s.supplier_name ILIKE $${idx} OR p.product_name ILIKE $${idx} OR p.product_code ILIKE $${idx})`); idx++ }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
     const sortBy = query?.sort_by && VALID_SORT_FIELDS.includes(query.sort_by) ? `pl.${query.sort_by}` : 'pl.created_at'
