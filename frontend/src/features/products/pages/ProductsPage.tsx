@@ -26,6 +26,8 @@ export default function ProductsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
   const [bulkAction, setBulkAction] = useState<'delete' | 'restore' | null>(null)
+  const [sortBy, setSortBy] = useState<string>('product_name')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
 
   const debouncedSearch = useDebounce(search, 400)
 
@@ -38,7 +40,8 @@ export default function ProductsPage() {
     category_id: categoryFilter || undefined,
     sub_category_id: subCategoryFilter || undefined,
     includeDeleted: showDeleted || undefined,
-  }), [page, limit, debouncedSearch, categoryFilter, subCategoryFilter, showDeleted])
+    sort: sortBy, order: sortOrder,
+  }), [page, limit, debouncedSearch, categoryFilter, subCategoryFilter, showDeleted, sortBy, sortOrder])
 
   const { data, isLoading } = useProducts(queryParams)
   const deleteProduct = useDeleteProduct()
@@ -54,6 +57,11 @@ export default function ProductsPage() {
   const handleCategoryChange = (v: string) => { setCategoryFilter(v); setSubCategoryFilter(''); setPage(1) }
   const handleSubCategoryChange = (v: string) => { setSubCategoryFilter(v); setPage(1) }
   const handleDeletedChange = (v: boolean) => { setShowDeleted(v); setPage(1) }
+  const handleSort = (field: string) => {
+    if (sortBy === field) setSortOrder(o => o === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortOrder('asc') }
+    setPage(1)
+  }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -168,8 +176,12 @@ export default function ProductsPage() {
                     <input type="checkbox" checked={products.length > 0 && selectedIds.length === products.length} onChange={toggleAll}
                       className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kode</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nama Produk</th>
+                  <th onClick={() => handleSort('product_code')} className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
+                    Kode {sortBy === 'product_code' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th onClick={() => handleSort('product_name')} className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none">
+                    Nama Produk {sortBy === 'product_name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kategori</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sub Kategori</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Avg Cost</th>

@@ -1,4 +1,4 @@
-export type SupplierType = 'vegetables' | 'meat' | 'seafood' | 'dairy' | 'beverage' | 'dry_goods' | 'packaging' | 'other' | ' frozen_food'
+export type SupplierType = 'vegetables' | 'meat' | 'seafood' | 'dairy' | 'beverage' | 'dry_goods' | 'packaging' | 'other' | 'frozen_food'
 
 export interface Supplier {
   id: string
