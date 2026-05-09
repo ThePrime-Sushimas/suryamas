@@ -658,23 +658,31 @@ export default function MenuDetailPage() {
               </div>
             </div>
 
-            {/* Quick Summary Card */}
+            {/* Profit Summary Card */}
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-6">Ringkasan Profit</h3>
-                <div className="space-y-6">
+                <div className="space-y-5">
                   <div className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
                     <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Laba Kotor / Porsi</p>
                     <p className={`text-2xl font-black font-mono ${testPrice > 0 && testPrice - liveTotal < 0 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
                       Rp {fmt(testPrice > 0 ? testPrice - liveTotal : 0)}
                     </p>
-                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 mt-4 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${testPrice > 0 ? Math.max(0, Math.min(100, 100 - (liveTotal / testPrice * 100))) : 0}%` }}></div>
-                    </div>
                   </div>
                   <div className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Break-even Qty / Hari</p>
-                    <p className="text-[10px] leading-relaxed text-gray-500 italic mt-2">Dengan overhead Rp 0 (belum dikonfigurasi), semua penjualan langsung profit.</p>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Komposisi Harga</p>
+                    {testPrice > 0 && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 rounded-full bg-red-400" style={{ width: `${Math.min(100, liveTotal / testPrice * 100)}%` }}></div>
+                          <span className="text-[10px] text-gray-500 whitespace-nowrap">Cost {(liveTotal / testPrice * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 rounded-full bg-emerald-400" style={{ width: `${Math.max(0, Math.min(100, (testPrice - liveTotal) / testPrice * 100))}%` }}></div>
+                          <span className="text-[10px] text-gray-500 whitespace-nowrap">Profit {Math.max(0, (testPrice - liveTotal) / testPrice * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
