@@ -27,17 +27,17 @@ export const createSupplierSchema = z.object({
       .max(SUPPLIER_LIMITS.EMAIL_MAX_LENGTH)
       .optional(),
     address: z.string()
-      .min(1, 'Address is required')
       .max(SUPPLIER_LIMITS.ADDRESS_MAX_LENGTH)
-      .trim(),
+      .trim()
+      .optional(),
     city: z.string()
-      .min(1, 'City is required')
       .max(SUPPLIER_LIMITS.CITY_MAX_LENGTH)
-      .trim(),
+      .trim()
+      .optional(),
     province: z.string()
-      .min(1, 'Province is required')
       .max(SUPPLIER_LIMITS.PROVINCE_MAX_LENGTH)
-      .trim(),
+      .trim()
+      .optional(),
     postal_code: z.string()
       .max(SUPPLIER_LIMITS.POSTAL_CODE_MAX_LENGTH)
       .trim()

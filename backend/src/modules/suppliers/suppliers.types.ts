@@ -34,9 +34,9 @@ export interface CreateSupplierDto {
   contact_person: string
   phone: string
   email?: string
-  address: string
-  city: string
-  province: string
+  address?: string
+  city?: string
+  province?: string
   postal_code?: string
   tax_id?: string
   business_license?: string
