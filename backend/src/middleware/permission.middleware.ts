@@ -10,47 +10,64 @@ import { logWarn } from '../config/logger'
 import { isPublicModule } from '../utils/permissions.util'
 
 /**
+ * Shared helper for permission logic
+ */
+async function validateAccess(
+  req: AuthRequest,
+  res: Response,
+  moduleName: string,
+  check: (permissions: any) => boolean,
+  onDenied: () => void
+): Promise<boolean> {
+  // Skip if public module
+  if (isPublicModule(moduleName)) {
+    return true
+  }
+
+  // User must be authenticated
+  if (!req.user?.id) {
+    logWarn('Permission check failed: No user', {
+      module: moduleName,
+      path: req.path,
+    })
+    sendError(res, 'Authentication required', 401)
+    return false
+  }
+
+  // Check permissions matrix
+  const allowed = check(req.permissions?.[moduleName] || {})
+
+  if (!allowed) {
+    onDenied()
+    return false
+  }
+
+  return true
+}
+
+/**
  * Generic permission checker middleware factory
  */
 function checkPermission(moduleName: string, action: PermissionAction) {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Skip if public module
-      if (isPublicModule(moduleName)) {
-        return next()
-      }
+      const isAllowed = await validateAccess(
+        req,
+        res,
+        moduleName,
+        (p) => !!p[action],
+        () => {
+          logWarn('Permission denied', {
+            userId: req.user?.id,
+            module: moduleName,
+            action,
+            path: req.path,
+          })
+          sendError(res, `You don't have permission to ${action} ${moduleName}`, 403)
+        }
+      )
 
-      // User must be authenticated
-      if (!req.user?.id) {
-        logWarn('Permission check failed: No user', {
-          module: moduleName,
-          action,
-          path: req.path,
-        })
-        sendError(res, 'Authentication required', 401)
-        return
-      }
-
-      // Check from preloaded permissions (no RPC)
-      const allowed = req.permissions?.[moduleName]?.[action] || false
-
-      if (!allowed) {
-        logWarn('Permission denied', {
-          userId: req.user.id,
-          module: moduleName,
-          action,
-          path: req.path,
-        })
-        sendError(
-          res,
-          `You don't have permission to ${action} ${moduleName}`,
-          403
-        )
-        return
-      }
-
-      // Permission granted
-      next()
+      if (isAllowed) next()
     } catch (error: any) {
       logWarn('Permission check error', {
         module: moduleName,
@@ -101,29 +118,22 @@ export function requirePermissions(
 ) {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (isPublicModule(moduleName)) {
-        return next()
-      }
+      const isAllowed = await validateAccess(
+        req,
+        res,
+        moduleName,
+        (p) => actions.every((action) => !!p[action]),
+        () => {
+          logWarn('Multiple permissions denied', {
+            userId: req.user?.id,
+            module: moduleName,
+            actions,
+          })
+          sendError(res, `Insufficient permissions for ${moduleName}`, 403)
+        }
+      )
 
-      if (!req.user?.id) {
-        sendError(res, 'Authentication required', 401)
-        return
-      }
-
-      // Check all permissions from preloaded matrix
-      const allAllowed = actions.every((action) => req.permissions?.[moduleName]?.[action])
-
-      if (!allAllowed) {
-        logWarn('Multiple permissions denied', {
-          userId: req.user.id,
-          module: moduleName,
-          actions,
-        })
-        sendError(res, `Insufficient permissions for ${moduleName}`, 403)
-        return
-      }
-
-      next()
+      if (isAllowed) next()
     } catch (error: any) {
       logWarn('Permission check error', {
         module: moduleName,
@@ -144,29 +154,22 @@ export function requireAnyPermission(
 ) {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (isPublicModule(moduleName)) {
-        return next()
-      }
+      const isAllowed = await validateAccess(
+        req,
+        res,
+        moduleName,
+        (p) => actions.some((action) => !!p[action]),
+        () => {
+          logWarn('No permissions matched', {
+            userId: req.user?.id,
+            module: moduleName,
+            actions,
+          })
+          sendError(res, `Insufficient permissions for ${moduleName}`, 403)
+        }
+      )
 
-      if (!req.user?.id) {
-        sendError(res, 'Authentication required', 401)
-        return
-      }
-
-      // Check any permission from preloaded matrix
-      const anyAllowed = actions.some((action) => req.permissions?.[moduleName]?.[action])
-
-      if (!anyAllowed) {
-        logWarn('No permissions matched', {
-          userId: req.user.id,
-          module: moduleName,
-          actions,
-        })
-        sendError(res, `Insufficient permissions for ${moduleName}`, 403)
-        return
-      }
-
-      next()
+      if (isAllowed) next()
     } catch (error: any) {
       logWarn('Permission check error', {
         module: moduleName,

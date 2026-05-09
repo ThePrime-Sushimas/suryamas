@@ -3,12 +3,8 @@ import { AuthRequest } from '../types/common.types'
 import { sendError } from '../utils/response.util'
 import { logWarn } from '../config/logger'
 import { authService } from '../modules/auth/auth.service'
-import { authRepository } from '../modules/auth/auth.repository'
 import { employeesRepository } from '../modules/employees/employees.repository'
 import { AuthenticatedRequest } from '../types/request.types'
-
-const resignedCache = new Map<string, { isResigned: boolean; expiresAt: number }>()
-const RESIGNED_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
 export const authenticate = async (
   req: AuthRequest,
@@ -31,16 +27,19 @@ export const authenticate = async (
     return
   }
 
-  // Check resigned status from cache first
-  let isResigned = false
-  const cached = resignedCache.get(user.id)
-  if (cached && cached.expiresAt > Date.now()) {
-    isResigned = cached.isResigned
-  } else {
-    const employee = await authRepository.findEmployeeByUserId(user.id)
-    isResigned = !!(employee?.resign_date && new Date(employee.resign_date) < new Date())
-    resignedCache.set(user.id, { isResigned, expiresAt: Date.now() + RESIGNED_CACHE_TTL })
+  // Fetch employee data once — used for both resignation check and request attachment
+  let employee = null
+  try {
+    employee = await employeesRepository.findByUserId(user.id)
+  } catch (error) {
+    logWarn('Failed to load employee data', {
+      user_id: user.id,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
+
+  // Check resigned status from fresh data — no cache, immediate effect on resign
+  const isResigned = !!(employee?.resign_date && new Date(employee.resign_date) < new Date())
 
   if (isResigned) {
     logWarn('Authentication failed: Employee has resigned', { path: req.path, user_id: user.id, ip: req.ip })
@@ -49,18 +48,8 @@ export const authenticate = async (
   }
 
   req.user = user as any
-
-  // Attach employee data
-  try {
-    const employee = await employeesRepository.findByUserId(user.id)
-    if (employee) {
-      (req as AuthenticatedRequest).employee = employee
-    }
-  } catch (error) {
-    logWarn('Failed to load employee data', {
-      user_id: user.id,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+  if (employee) {
+    (req as AuthenticatedRequest).employee = employee
   }
 
   next()
