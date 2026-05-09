@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { employeesApi } from '../api/employees.api'
 import { parseApiError } from '@/lib/errorParser'
+import { useAuthStore } from '@/features/auth'
 import type { EmployeeResponse, EmployeeFormData, FilterOptions, PaginationData } from '../types'
 
 interface EmployeeState {
@@ -101,6 +102,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
         profile: state.profile ? { ...state.profile, profile_picture: url } : null,
         mutationLoading: false
       }))
+      useAuthStore.getState().updateUser({ profile_picture: url })
     } catch (error: unknown) {
       const msg = parseApiError(error, 'Gagal mengunggah foto')
       set({ error: msg, mutationLoading: false })

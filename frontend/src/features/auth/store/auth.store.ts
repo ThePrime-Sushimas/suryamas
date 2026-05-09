@@ -8,6 +8,7 @@ interface User {
   job_position: string
   created_at: string
   is_active?: boolean
+  profile_picture?: string | null
 }
 
 interface ApiResponse<T> {
@@ -24,6 +25,7 @@ interface AuthState {
   register: (email: string, password: string, employee_id: string) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
+  updateUser: (partial: Partial<User>) => void
 }
 
 let _checkAuthPromise: Promise<void> | null = null
@@ -102,4 +104,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     })()
     return _checkAuthPromise
   },
+  updateUser: (partial) => set(state => ({
+    user: state.user ? { ...state.user, ...partial } : null
+  })),
 }))

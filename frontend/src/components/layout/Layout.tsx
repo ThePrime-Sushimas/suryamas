@@ -114,9 +114,17 @@ export default function Layout() {
                   aria-label="Profile menu"
                   aria-expanded={isProfileOpen}
                 >
-                  <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
-                    {userInitial}
-                  </div>
+                  {user?.profile_picture ? (
+                    <img
+                      src={user.profile_picture}
+                      alt={user.full_name}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+                      {userInitial}
+                    </div>
+                  )}
                   <ChevronDown
                     size={16}
                     className={`transition-transform ${isProfileOpen ? "rotate-180" : ""}`}
