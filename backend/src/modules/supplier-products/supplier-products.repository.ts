@@ -37,6 +37,7 @@ export class SupplierProductsRepository {
     let idx = 1
 
     if (!query?.include_deleted) conditions.push('sp.deleted_at IS NULL')
+    if (query?.search) { params.push(`%${query.search}%`); conditions.push(`(s.supplier_name ILIKE $${idx} OR p.product_name ILIKE $${idx} OR p.product_code ILIKE $${idx})`); idx++ }
     if (query?.supplier_id) { params.push(query.supplier_id); conditions.push(`sp.supplier_id = $${idx}`); idx++ }
     if (query?.product_id) { params.push(query.product_id); conditions.push(`sp.product_id = $${idx}`); idx++ }
     if (query?.is_preferred !== undefined) { params.push(query.is_preferred); conditions.push(`sp.is_preferred = $${idx}`); idx++ }
@@ -46,12 +47,14 @@ export class SupplierProductsRepository {
     const sortBy = query?.sort_by && SUPPLIER_PRODUCT_SORT_FIELDS.includes(query.sort_by as string) ? `sp.${query.sort_by}` : 'sp.created_at'
     const sortOrder = query?.sort_order === 'asc' ? 'ASC' : 'DESC'
 
+    const needsJoin = includeRelations || !!query?.search
     const selectFields = includeRelations ? RELATIONS_SELECT : 'sp.*'
-    const fromClause = includeRelations ? RELATIONS_FROM : 'FROM supplier_products sp'
+    const fromClause = needsJoin ? RELATIONS_FROM : 'FROM supplier_products sp'
+    const countFrom = needsJoin ? `FROM supplier_products sp LEFT JOIN suppliers s ON s.id = sp.supplier_id LEFT JOIN products p ON p.id = sp.product_id` : 'FROM supplier_products sp'
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(`SELECT ${selectFields} ${fromClause} ${where} ORDER BY ${sortBy} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
-      pool.query(`SELECT COUNT(*)::int AS total FROM supplier_products sp ${where}`, params)
+      pool.query(`SELECT COUNT(*)::int AS total ${countFrom} ${where}`, params)
     ])
 
     let mappedData = includeRelations
