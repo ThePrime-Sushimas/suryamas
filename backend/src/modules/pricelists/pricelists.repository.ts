@@ -71,6 +71,13 @@ export class PricelistsRepository {
     return rows[0]?.product_name || 'unknown'
   }
 
+  async deactivate(id: string, updatedBy?: string): Promise<void> {
+    await pool.query(
+      'UPDATE pricelists SET is_active = false, updated_by = $1, updated_at = now() WHERE id = $2',
+      [updatedBy || null, id]
+    )
+  }
+
   async create(data: CreatePricelistDto): Promise<Pricelist> {
     const insertData: Record<string, unknown> = {
       company_id: data.company_id, supplier_id: data.supplier_id, product_id: data.product_id,

@@ -17,17 +17,19 @@ export class PricelistsService {
       throw new InvalidDateRangeError()
     }
 
-    const duplicate = await pricelistsRepository.findActiveDuplicate(
+    // Auto-deactivate existing active pricelist for same combo
+    const existing = await pricelistsRepository.findActiveDuplicate(
       data.company_id,
       data.supplier_id,
       data.product_id,
       data.uom_id
     )
 
-    if (duplicate) {
-      // Get product name for better error message (via repository)
-      const productName = await pricelistsRepository.getProductName(data.product_id)
-      throw new DuplicateActivePricelistError(productName)
+    if (existing) {
+      await pricelistsRepository.deactivate(existing.id, userId)
+      if (userId) {
+        await AuditService.log('UPDATE', 'pricelist', existing.id, userId, { is_active: true }, { is_active: false })
+      }
     }
 
     const pricelist = await pricelistsRepository.create({
