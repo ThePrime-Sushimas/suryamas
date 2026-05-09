@@ -8,6 +8,7 @@ export const SUPPLIER_TYPES: Record<SupplierType, { label: string; color: string
   beverage: { label: 'Beverage', color: 'bg-purple-100 text-purple-800' },
   dry_goods: { label: 'Dry Goods', color: 'bg-orange-100 text-orange-800' },
   packaging: { label: 'Packaging', color: 'bg-gray-100 text-gray-800' },
+  frozen_food: { label: 'Frozen Food', color: 'bg-cyan-100 text-cyan-800' },
   other: { label: 'Other', color: 'bg-slate-100 text-slate-800' },
 }
 
