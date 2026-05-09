@@ -7,6 +7,7 @@ export const SUPPLIER_TYPES = {
   DRY_GOODS: 'dry_goods',
   PACKAGING: 'packaging',
   OTHER: 'other',
+  FROZEN_FOOD: 'frozen_food',
 } as const
 
 export const VALID_SUPPLIER_TYPES = Object.values(SUPPLIER_TYPES)
