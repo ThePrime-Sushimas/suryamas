@@ -9,6 +9,8 @@ export interface Product {
   bom_name: string | null
   category_id: string
   sub_category_id: string
+  category_name: string | null
+  sub_category_name: string | null
   product_type: ProductType
   average_cost: number
   base_unit_name: string | null

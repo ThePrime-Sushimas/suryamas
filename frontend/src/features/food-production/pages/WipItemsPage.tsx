@@ -71,8 +71,7 @@ export default function WipItemsPage() {
               <tr>
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Kode</th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Nama WIP</th>
-                <th className="px-3 py-2.5 text-center text-xs font-medium text-gray-500 uppercase">UOM</th>
-                <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Yield/Batch</th>
+                <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Hasil/Batch</th>
                 <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Cost/Batch</th>
                 <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Cost/Unit</th>
                 <th className="px-3 py-2.5 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
@@ -89,8 +88,7 @@ export default function WipItemsPage() {
                 <tr key={w.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => navigate(`/food-production/wip/${w.id}`)}>
                   <td className="px-3 py-2.5 font-mono text-xs text-gray-500">{w.wip_code}</td>
                   <td className="px-3 py-2.5 text-gray-900 dark:text-white font-medium">{w.wip_name}</td>
-                  <td className="px-3 py-2.5 text-center text-gray-500">{w.uom}</td>
-                  <td className="px-3 py-2.5 text-right font-mono">{w.yield_qty}</td>
+                  <td className="px-3 py-2.5 text-right font-mono">{w.yield_qty} <span className="text-gray-400 text-xs">{w.uom}</span></td>
                   <td className="px-3 py-2.5 text-right font-mono">{w.estimated_cost > 0 ? fmt(w.estimated_cost) : '—'}</td>
                   <td className="px-3 py-2.5 text-right font-mono font-medium">{w.cost_per_unit > 0 ? fmt(w.cost_per_unit) : '—'}</td>
                   <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useWipItem, useUpdateWipItem, useCreateWipItem, useProductList } from '../api/food-production.api'
@@ -26,6 +27,10 @@ export default function WipDetailPage() {
   const updateWip = useUpdateWipItem()
   const createWip = useCreateWipItem()
   const products = useProductList()
+  const { data: metricUnits = [] } = useQuery({
+    queryKey: ['metric-units'],
+    queryFn: async () => { const { data } = await api.get('/metric-units', { params: { limit: 200 } }); return (data.data || []) as { id: string; unit_name: string }[] },
+  })
 
   const [wipName, setWipName] = useState('')
   const [wipCode, setWipCode] = useState('')
@@ -126,7 +131,7 @@ export default function WipDetailPage() {
       try {
         await updateWip.mutateAsync({ id, wip_name: wipName, uom, yield_qty: yieldQty, notes: notes || undefined, ingredients: validIngredients })
         toast.success('WIP berhasil disimpan')
-        setDirty(false)
+        navigate('/food-production/wip')
       } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menyimpan WIP')) }
     }
   }
@@ -154,28 +159,34 @@ export default function WipDetailPage() {
       </div>
 
       {/* Info Cards */}
-      {w && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <p className="text-xs text-gray-400">Cost / Batch</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">{w.estimated_cost > 0 ? fmt(w.estimated_cost) : '—'}</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <p className="text-xs text-gray-400">Cost / Unit</p>
-            <p className="text-lg font-bold text-emerald-600">{w.cost_per_unit > 0 ? fmt(w.cost_per_unit) : '—'}</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <p className="text-xs text-gray-400">Yield / Batch</p>
-            <input type="number" value={yieldQty} onChange={e => { setYieldQty(Number(e.target.value)); setDirty(true) }} min={0.01} step="0.01"
-              className="text-lg font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-purple-500" />
-          </div>
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <p className="text-xs text-gray-400">UOM</p>
-            <input value={uom} onChange={e => { setUom(e.target.value); setDirty(true) }}
-              className="text-lg font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-purple-500" />
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {!isNew && (
+          <>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+              <p className="text-xs text-gray-400">Cost / Batch</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{w && w.estimated_cost > 0 ? fmt(w.estimated_cost) : '—'}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+              <p className="text-xs text-gray-400">Cost / Unit</p>
+              <p className="text-lg font-bold text-emerald-600">{w && w.cost_per_unit > 0 ? fmt(w.cost_per_unit) : '—'}</p>
+            </div>
+          </>
+        )}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">Hasil / Batch</p>
+          <input type="number" value={yieldQty} onChange={e => { setYieldQty(Number(e.target.value)); setDirty(true) }} min={0.01} step="0.01"
+            className="text-lg font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-purple-500" />
         </div>
-      )}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+          <p className="text-xs text-gray-400">UOM Hasil</p>
+          <select value={uom} onChange={e => { setUom(e.target.value); setDirty(true) }}
+            className="text-lg font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-purple-500">
+            {metricUnits.map(u => (
+              <option key={u.id} value={u.unit_name}>{u.unit_name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {/* WIP Name + Code + Notes */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
@@ -192,7 +203,7 @@ export default function WipDetailPage() {
             className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Catatan</label>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Catatan (opsional)</label>
           <textarea value={notes} onChange={e => { setNotes(e.target.value); setDirty(true) }} rows={2}
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
         </div>

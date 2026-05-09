@@ -84,7 +84,7 @@ export const useRestoreCategory = () => {
 
 // ── SubCategory React Query Hooks ──
 
-export const useSubCategories = (params: { page?: number; limit?: number; category_id?: string; is_deleted?: string; search?: string }) =>
+export const useSubCategories = (params: { page?: number; limit?: number; category_id?: string; is_active?: string; is_deleted?: string; search?: string }) =>
   useQuery({
     queryKey: ['sub-categories', params],
     queryFn: async () => {
@@ -98,6 +98,7 @@ export const useSubCategories = (params: { page?: number; limit?: number; catego
       }
       const qp: Record<string, string | number> = { page: params.page ?? 1, limit: params.limit ?? 10 }
       if (params.category_id) qp.category_id = params.category_id
+      if (params.is_active) qp.is_active = params.is_active
       const { data } = await api.get<PaginatedResponse<SubCategory>>('/sub-categories', { params: qp })
       return { data: data.data, pagination: data.pagination }
     },

@@ -30,7 +30,7 @@ export const mapProductWithRelations = (raw: any): Product & { category_name?: s
   
   return {
     ...product,
-    category_name: raw.categories?.category_name,
-    sub_category_name: raw.sub_categories?.sub_category_name,
+    category_name: raw.category_name || null,
+    sub_category_name: raw.sub_category_name || null,
   }
 }
