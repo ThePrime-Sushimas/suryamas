@@ -39,7 +39,17 @@ export default function WipDetailPage() {
   const [notes, setNotes] = useState('')
   const [ingredients, setIngredients] = useState<EditableIngredient[]>([])
   const [dirty, setDirty] = useState(false)
+  
+  // Pricing Calculator State
+  const [targetFoodCost, setTargetFoodCost] = useState(30) // Default 30%
+  const [sellingPrice, setSellingPrice] = useState(0)
+
   const liveTotal = ingredients.reduce((sum, i) => sum + (i.qty * i.cost_per_unit), 0)
+  const unitCost = yieldQty > 0 ? liveTotal / yieldQty : 0
+  
+  const suggestedPrice = targetFoodCost > 0 ? unitCost / (targetFoodCost / 100) : 0
+  const actualFoodCost = sellingPrice > 0 ? (unitCost / sellingPrice) * 100 : 0
+  const margin = sellingPrice > 0 ? ((sellingPrice - unitCost) / sellingPrice) * 100 : 0
 
   // Build product cost map for live display
   const productCostMap = useMemo(() => new Map((products.data || []).map(p => [p.id, p.average_cost || 0])), [products.data])
@@ -158,54 +168,111 @@ export default function WipDetailPage() {
         )}
       </div>
 
-      {/* Info Cards */}
+      {/* Info Cards - Live Updates */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {!isNew && (
-          <>
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-              <p className="text-xs text-gray-400">Cost / Batch</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white">{w && w.estimated_cost > 0 ? fmt(w.estimated_cost) : '—'}</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-              <p className="text-xs text-gray-400">Cost / Unit</p>
-              <p className="text-lg font-bold text-emerald-600">{w && w.cost_per_unit > 0 ? fmt(w.cost_per_unit) : '—'}</p>
-            </div>
-          </>
-        )}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-          <p className="text-xs text-gray-400">Hasil / Batch</p>
-          <input type="number" value={yieldQty} onChange={e => { setYieldQty(Number(e.target.value)); setDirty(true) }} min={0.01} step="0.01"
-            className="text-lg font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-purple-500" />
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Total Cost / Batch</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white font-mono">{fmt(liveTotal)}</p>
+          <p className="text-[10px] text-gray-500 mt-1">Estimasi bahan baku</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-          <p className="text-xs text-gray-400">UOM Hasil</p>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm border-l-4 border-l-emerald-500">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Cost / {uom || 'Unit'}</p>
+          <p className="text-xl font-bold text-emerald-600 font-mono">{fmt(unitCost)}</p>
+          <p className="text-[10px] text-gray-500 mt-1">Biaya produksi per {uom}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Hasil / Batch</p>
+          <div className="flex items-end gap-1">
+            <input type="number" value={yieldQty} onChange={e => { setYieldQty(Number(e.target.value)); setDirty(true) }} min={0.01} step="0.01"
+              className="text-xl font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-gray-100 dark:border-gray-700 focus:border-purple-500 font-mono" />
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1">Target produksi</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">UOM Hasil</p>
           <select value={uom} onChange={e => { setUom(e.target.value); setDirty(true) }}
-            className="text-lg font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-dashed border-gray-300 dark:border-gray-600 focus:border-purple-500">
+            className="text-xl font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-gray-100 dark:border-gray-700 focus:border-purple-500 appearance-none">
             {metricUnits.map(u => (
               <option key={u.id} value={u.unit_name}>{u.unit_name}</option>
             ))}
           </select>
+          <p className="text-[10px] text-gray-500 mt-1">Satuan pengukuran</p>
         </div>
       </div>
 
-      {/* WIP Name + Code + Notes */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-        {isNew && (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Kode WIP</label>
-            <input value={wipCode} onChange={e => { setWipCode(e.target.value); setDirty(true) }}
-              className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="cth: WIP-NASI-SUSHI" />
+      {/* Pricing Analysis Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-tight">Kalkulator Harga & Margin</h2>
+            <span className="px-2 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-[10px] font-bold rounded">LIVE ANALYSIS</span>
           </div>
-        )}
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Nama WIP</label>
-          <input value={wipName} onChange={e => { setWipName(e.target.value); setDirty(true) }}
-            className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase">Target Food Cost %</label>
+                <div className="relative">
+                  <input type="number" value={targetFoodCost} onChange={e => setTargetFoodCost(Number(e.target.value))}
+                    className="w-full h-11 pl-4 pr-10 text-lg font-mono border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900/50 focus:ring-2 focus:ring-purple-500 outline-none" />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2 italic">Harga jual yang disarankan: <span className="text-purple-600 font-bold font-mono">Rp {fmt(Math.ceil(suggestedPrice))}</span></p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase">Harga Jual Aktual</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">Rp</span>
+                  <input type="number" value={sellingPrice || ''} onChange={e => setSellingPrice(Number(e.target.value))} placeholder="Masukkan harga..."
+                    className="w-full h-11 pl-12 pr-4 text-lg font-mono border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900/50 focus:ring-2 focus:ring-purple-500 outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-900/30 rounded-2xl p-4 flex flex-col justify-center space-y-4 border border-dashed border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-500">Actual Food Cost</span>
+                <span className={`text-lg font-bold font-mono ${actualFoodCost > targetFoodCost ? 'text-red-500' : 'text-emerald-500'}`}>
+                  {actualFoodCost > 0 ? actualFoodCost.toFixed(1) : '0'}%
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-500">Gross Margin</span>
+                <span className="text-lg font-bold font-mono text-gray-900 dark:text-white">
+                  {margin > 0 ? margin.toFixed(1) : '0'}%
+                </span>
+              </div>
+              <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Laba Kotor / {uom}</span>
+                <span className="text-xl font-black font-mono text-emerald-600">
+                  Rp {fmt(Math.max(0, sellingPrice - unitCost))}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Catatan (opsional)</label>
-          <textarea value={notes} onChange={e => { setNotes(e.target.value); setDirty(true) }} rows={2}
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+
+        {/* Notes & Identitas */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm space-y-4">
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Identitas WIP</h2>
+          {isNew && (
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Kode WIP</label>
+              <input value={wipCode} onChange={e => { setWipCode(e.target.value); setDirty(true) }}
+                className="w-full h-10 px-3 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 focus:border-purple-500 outline-none" placeholder="cth: WIP-NASI-SUSHI" />
+            </div>
+          )}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Nama WIP</label>
+            <input value={wipName} onChange={e => { setWipName(e.target.value); setDirty(true) }}
+              className="w-full h-10 px-3 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 focus:border-purple-500 outline-none" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Catatan</label>
+            <textarea value={notes} onChange={e => { setNotes(e.target.value); setDirty(true) }} rows={2}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 focus:border-purple-500 outline-none" />
+          </div>
         </div>
       </div>
 

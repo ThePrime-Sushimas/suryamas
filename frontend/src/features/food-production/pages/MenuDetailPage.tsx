@@ -361,6 +361,18 @@ export default function MenuDetailPage() {
 
   const [lines, setLines] = useState<EditableLine[]>([])
   const [dirty, setDirty] = useState(false)
+  
+  // Pricing Calculator State
+  const [targetFoodCost, setTargetFoodCost] = useState(30)
+  const [testPrice, setTestPrice] = useState(0)
+  const [testPriceEdited, setTestPriceEdited] = useState(false)
+
+  // Sync testPrice with menu selling price only on initial load
+  useEffect(() => {
+    if (!testPriceEdited && menu.data?.selling_price !== undefined) {
+      setTestPrice(menu.data.selling_price)
+    }
+  }, [menu.data?.selling_price, testPriceEdited])
 
   // Build cost lookup maps
   const productCostMap = useMemo(() => {
@@ -547,28 +559,131 @@ export default function MenuDetailPage() {
         </div>
       )}
 
-      {/* Info Cards */}
+      {/* Pricing Analysis & Info Cards */}
       {m && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <p className="text-xs text-gray-400">Harga Jual</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">{fmt(m.selling_price)}</p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm border-l-4 border-l-indigo-500">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Total Production Cost</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white font-mono">{fmt(liveTotal)}</p>
+              <p className="text-[10px] text-gray-500 mt-1">Estimasi resep / porsi</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Actual Food Cost</p>
+              <p className={`text-xl font-bold font-mono ${(() => { 
+                const pct = m.selling_price > 0 ? (liveTotal / m.selling_price * 100) : 0; 
+                return pct > 40 ? 'text-red-500' : pct > targetFoodCost ? 'text-amber-500' : 'text-emerald-500' 
+              })()}`}>
+                {m.selling_price > 0 ? `${(liveTotal / m.selling_price * 100).toFixed(1)}%` : '0%'}
+              </p>
+              <p className="text-[10px] text-gray-500 mt-1">Berdasarkan harga jual aktif</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Gross Margin</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white font-mono">
+                {m.selling_price > 0 ? `${((m.selling_price - liveTotal) / m.selling_price * 100).toFixed(1)}%` : '0%'}
+              </p>
+              <p className="text-[10px] text-gray-500 mt-1">Margin laba kotor</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Recipe Status</p>
+              <p className={`text-lg font-bold ${r?.has_recipe ? 'text-emerald-600' : 'text-amber-500'}`}>
+                {r?.has_recipe ? 'Lengkap ✓' : 'Belum Ada'}
+              </p>
+              <p className="text-[10px] text-gray-500 mt-1">{lines.length} Bahan baku</p>
+            </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <p className="text-xs text-gray-400">Estimasi Cost</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">{dirty ? fmt(liveTotal) : r?.estimated_cost ? fmt(r.estimated_cost) : '—'}</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <p className="text-xs text-gray-400">Cost %</p>
-            <p className={`text-lg font-bold ${(() => { const pct = m.selling_price > 0 ? (dirty ? liveTotal : r?.estimated_cost || 0) / m.selling_price * 100 : 0; return pct > 40 ? 'text-red-600' : pct > 30 ? 'text-amber-600' : 'text-emerald-600' })()}`}>
-              {m.selling_price > 0 ? `${((dirty ? liveTotal : r?.estimated_cost || 0) / m.selling_price * 100).toFixed(1)}%` : '—'}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <p className="text-xs text-gray-400">Status Resep</p>
-            <p className={`text-lg font-bold ${r?.has_recipe ? 'text-emerald-600' : 'text-amber-500'}`}>
-              {r?.has_recipe ? 'Lengkap' : 'Belum Ada'}
-            </p>
+
+          {/* Detailed Analysis Section */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-tight">Kalkulator Harga & Profitabilitas</h2>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Analisa profit per porsi menu</p>
+                </div>
+                <span className="px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded">REAL-TIME ANALYSIS</span>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Target Food Cost %</label>
+                    <div className="relative">
+                      <input type="number" value={targetFoodCost} onChange={e => setTargetFoodCost(Number(e.target.value))}
+                        className="w-full h-12 pl-4 pr-10 text-xl font-mono border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900/50 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-2 italic">
+                      Harga jual disarankan: <span className="text-indigo-600 font-bold font-mono">Rp {fmt(Math.ceil(targetFoodCost > 0 ? liveTotal / (targetFoodCost / 100) : 0))}</span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Simulasi Harga Jual</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">Rp</span>
+                      <input type="number" value={testPrice || ''} onChange={e => { setTestPrice(Number(e.target.value)); setTestPriceEdited(true) }} placeholder="Masukkan harga..."
+                        className="w-full h-12 pl-12 pr-4 text-xl font-mono border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900/50 focus:ring-2 focus:ring-indigo-500 outline-none font-bold" />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-2">Harga aktif: <span className="font-bold">{fmt(m.selling_price)}</span></p>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-900/30 rounded-2xl p-5 flex flex-col justify-center space-y-4 border border-dashed border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500 uppercase font-medium">Simulated FC%</span>
+                    <span className={`text-xl font-black font-mono ${(() => {
+                      const fc = testPrice > 0 ? (liveTotal / testPrice * 100) : 0;
+                      return fc > targetFoodCost ? 'text-red-500' : 'text-emerald-500';
+                    })()}`}>
+                      {testPrice > 0 ? (liveTotal / testPrice * 100).toFixed(1) : '0'}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500 uppercase font-medium">Simulated Margin</span>
+                    <span className="text-xl font-black font-mono text-gray-900 dark:text-white">
+                      {testPrice > 0 ? (((testPrice - liveTotal) / testPrice) * 100).toFixed(1) : '0'}%
+                    </span>
+                  </div>
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-tight">Laba Kotor / Porsi</span>
+                    <div className="text-right">
+                      <span className="text-2xl font-black font-mono text-emerald-600 block">
+                        Rp {fmt(Math.max(0, testPrice - liveTotal))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Summary Card */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-6">Ringkasan Profit</h3>
+                <div className="space-y-6">
+                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Laba Kotor / Porsi</p>
+                    <p className={`text-2xl font-black font-mono ${testPrice > 0 && testPrice - liveTotal < 0 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
+                      Rp {fmt(testPrice > 0 ? testPrice - liveTotal : 0)}
+                    </p>
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 mt-4 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${testPrice > 0 ? Math.max(0, Math.min(100, 100 - (liveTotal / testPrice * 100))) : 0}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Break-even Qty / Hari</p>
+                    <p className="text-[10px] leading-relaxed text-gray-500 italic mt-2">Dengan overhead Rp 0 (belum dikonfigurasi), semua penjualan langsung profit.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+                <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Basis Kalkulasi</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">HPP rata-rata berjalan (avg cost)</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
