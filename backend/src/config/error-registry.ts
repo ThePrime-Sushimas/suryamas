@@ -332,6 +332,54 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'food_production',
   },
+  ProductionOrderNotFoundError: {
+    name: 'ProductionOrderNotFoundError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 404,
+    category: 'food_production',
+  },
+  ProductionOrderNotDraftError: {
+    name: 'ProductionOrderNotDraftError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 422,
+    category: 'food_production',
+  },
+  ProductionOrderNotCompletedError: {
+    name: 'ProductionOrderNotCompletedError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 422,
+    category: 'food_production',
+  },
+  ProductionOrderNotVoidableError: {
+    name: 'ProductionOrderNotVoidableError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 422,
+    category: 'food_production',
+  },
+  WasteExceedsActualError: {
+    name: 'WasteExceedsActualError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 422,
+    category: 'food_production',
+  },
+  FiscalPeriodClosedError: {
+    name: 'FiscalPeriodClosedError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 422,
+    category: 'food_production',
+  },
+  COANotFoundError: {
+    name: 'COANotFoundError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 422,
+    category: 'food_production',
+  },
+  OrderNumberCollisionError: {
+    name: 'OrderNumberCollisionError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 500,
+    category: 'food_production',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

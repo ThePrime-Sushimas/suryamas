@@ -226,6 +226,7 @@ export class JournalHeadersRepository {
     await Promise.all([
       pool.query("UPDATE bank_statements SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
       pool.query("UPDATE aggregated_transactions SET journal_id = NULL, status = 'READY', updated_at = NOW() WHERE journal_id = $1", [journalId]),
+      pool.query("UPDATE production_orders SET journal_id = NULL, status = 'COMPLETED', updated_at = NOW() WHERE journal_id = $1 AND status = 'JOURNALED'", [journalId]),
     ])
   }
 

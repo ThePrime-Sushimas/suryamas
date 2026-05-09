@@ -259,6 +259,13 @@ export const menuItems: MenuItem[] = [
         module: "wip_items",
       },
       {
+        id: "fp-production",
+        name: "Produksi Harian",
+        href: "/food-production/production",
+        icon: <Factory size={16} />,
+        module: "production_orders",
+      },
+      {
         id: "fp-cogs",
         name: "COGS Calculation",
         href: "/food-production/cogs",

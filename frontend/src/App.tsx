@@ -464,6 +464,9 @@ const CogsPage = lazy(() => import('./features/food-production/pages/CogsPage'))
 const CogsBreakdownPage = lazy(() => import('./features/food-production/pages/CogsBreakdownPage'))
 const MenuCategoriesPage = lazy(() => import('./features/food-production/pages/MenuCategoriesPage'))
 const MenuGroupsPage = lazy(() => import('./features/food-production/pages/MenuGroupsPage'))
+const ProductionOrdersPage = lazy(() => import('./features/food-production/pages/ProductionOrdersPage'))
+const ProductionOrderForm = lazy(() => import('./features/food-production/pages/ProductionOrderForm'))
+const ProductionOrderDetailPage = lazy(() => import('./features/food-production/pages/ProductionOrderDetailPage'))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1548,6 +1551,36 @@ function App() {
                       <RequirePermission module="menu_groups">
                         <Suspense fallback={<LoadingFallback />}>
                           <MenuGroupsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/production"
+                    element={
+                      <RequirePermission module="production_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ProductionOrdersPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/production/new"
+                    element={
+                      <RequirePermission module="production_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ProductionOrderForm />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/production/:id"
+                    element={
+                      <RequirePermission module="production_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ProductionOrderDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }

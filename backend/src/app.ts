@@ -60,6 +60,7 @@ import recipesRoutes from "./modules/food-production/recipes/recipes.routes";
 import cogsRoutes from "./modules/food-production/cogs/cogs.routes";
 import cogsBreakdownRoutes from "./modules/food-production/cogs/cogs-breakdown.routes";
 import menuBranchPricesRoutes from "./modules/food-production/menu-branch-prices/menu-branch-prices.routes";
+import productionOrdersRoutes from "./modules/food-production/production-orders/production-orders.routes";
 import dashboardHrdRoutes from "./modules/dashboard/dashboard-hrd.routes";
 import { pool } from "./config/db";
 
@@ -156,6 +157,7 @@ app.use("/api/v1/recipes", recipesRoutes);
 app.use("/api/v1/cogs", cogsRoutes);
 app.use("/api/v1/cogs-breakdown", cogsBreakdownRoutes);
 app.use("/api/v1/menu-branch-prices", menuBranchPricesRoutes);
+app.use("/api/v1/production-orders", productionOrdersRoutes);
 app.use("/api/v1/dashboard", dashboardHrdRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
 

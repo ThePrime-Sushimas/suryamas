@@ -436,3 +436,169 @@ export const useCogsDetail = (id: string) =>
     },
     enabled: !!id,
   })
+
+
+// ─── Production Orders ───
+
+export interface ProductionOrderListItem {
+  id: string
+  order_number: string
+  branch_id: string
+  branch_name: string
+  production_date: string
+  status: 'DRAFT' | 'COMPLETED' | 'JOURNALED' | 'VOID'
+  total_material_cost: number
+  total_waste_cost: number
+  notes: string | null
+  created_at: string
+}
+
+export interface ProductionOrderLine {
+  id: string
+  wip_id: string
+  wip_name: string
+  wip_code: string
+  planned_batch_qty: number
+  actual_batch_qty: number | null
+  yield_per_batch: number
+  uom: string
+  total_yield: number | null
+  cost_per_batch: number
+  total_cost: number | null
+  materials: ProductionOrderMaterial[]
+}
+
+export interface ProductionOrderMaterial {
+  id: string
+  production_line_id: string
+  product_id: string
+  product_name: string
+  product_code: string
+  planned_qty: number
+  actual_qty: number | null
+  uom: string
+  cost_per_unit: number
+  cost_source: string
+  total_cost: number | null
+  waste_qty: number
+  waste_reason: string | null
+}
+
+export interface ProductionOrderDetail extends ProductionOrderListItem {
+  lines: ProductionOrderLine[]
+  journal_id: string | null
+  completed_by: string | null
+  completed_at: string | null
+}
+
+export interface DailySummaryItem {
+  production_date: string
+  branch_id: string
+  branch_name: string
+  order_count: number
+  total_batches: number
+  total_cost: number
+  total_waste_cost: number
+}
+
+export interface MaterialUsageItem {
+  product_id: string
+  product_name: string
+  product_code: string
+  uom: string
+  total_used: number
+  total_waste: number
+  total_cost: number
+  total_waste_cost: number
+}
+
+export const useProductionOrders = (params: {
+  page?: number; limit?: number; branch_id?: string; status?: string; date_from?: string; date_to?: string
+}) =>
+  useQuery({
+    queryKey: ['production-orders', params],
+    queryFn: async () => {
+      const { data } = await api.get('/production-orders', { params })
+      return data as { data: ProductionOrderListItem[]; pagination: { page: number; limit: number; total: number; totalPages: number } }
+    },
+  })
+
+export const useProductionOrder = (id: string) =>
+  useQuery({
+    queryKey: ['production-order', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/production-orders/${id}`)
+      return data.data as ProductionOrderDetail
+    },
+    enabled: !!id,
+  })
+
+export const useProductionOrderSummary = (params: { date_from: string; date_to: string; branch_id?: string }) =>
+  useQuery({
+    queryKey: ['production-orders', 'summary', params],
+    queryFn: async () => {
+      const { data } = await api.get('/production-orders/summary', { params })
+      return (data.data || []) as DailySummaryItem[]
+    },
+    enabled: !!params.date_from && !!params.date_to,
+  })
+
+export const useProductionOrderMaterials = (params: { date_from: string; date_to: string; branch_id?: string }) =>
+  useQuery({
+    queryKey: ['production-orders', 'materials', params],
+    queryFn: async () => {
+      const { data } = await api.get('/production-orders/materials-report', { params })
+      return (data.data || []) as MaterialUsageItem[]
+    },
+    enabled: !!params.date_from && !!params.date_to,
+  })
+
+export const useCreateProductionOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { branch_id: string; production_date: string; notes?: string; lines: { wip_id: string; planned_batch_qty: number }[] }) => {
+      const { data } = await api.post('/production-orders', body)
+      return data.data as ProductionOrderListItem
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }) },
+  })
+}
+
+export const useCompleteProductionOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, lines }: { id: string; lines: { id: string; actual_batch_qty: number; materials: { id: string; actual_qty: number; waste_qty?: number; waste_reason?: string }[] }[] }) => {
+      await api.post(`/production-orders/${id}/complete`, { lines })
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); qc.invalidateQueries({ queryKey: ['production-order'] }) },
+  })
+}
+
+export const useGenerateProductionJournal = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/production-orders/${id}/generate-journal`)
+      return data.data as { journal_id: string }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); qc.invalidateQueries({ queryKey: ['production-order'] }) },
+  })
+}
+
+export const useVoidProductionOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await api.post(`/production-orders/${id}/void`, { reason })
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }); qc.invalidateQueries({ queryKey: ['production-order'] }) },
+  })
+}
+
+export const useDeleteProductionOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => { await api.delete(`/production-orders/${id}`) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }) },
+  })
+}
