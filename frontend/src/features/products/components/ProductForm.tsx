@@ -45,7 +45,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
   })
   const { data: subCategories = [], isLoading: loadingSub } = useQuery({
     queryKey: ['sub-categories'],
-    queryFn: async () => { const { data } = await api.get('/sub-categories'); return (data.data || []) as SubCategory[] },
+    queryFn: async () => { const { data } = await api.get('/sub-categories', { params: { limit: 200 } }); return (data.data || []) as SubCategory[] },
     staleTime: 5 * 60_000,
   })
   const { data: metricUnits = [] } = useQuery({
