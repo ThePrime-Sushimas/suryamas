@@ -226,9 +226,11 @@ export class EmployeesService {
   }
 
   private async uploadFile(file: Express.Multer.File, prefix?: string): Promise<string> {
-    const fileName = `${prefix || Date.now()}-${Date.now()}.${file.mimetype.split('/')[1]}`
-    await employeesRepository.uploadFile(fileName, file.buffer, file.mimetype)
-    return employeesRepository.getPublicUrl(fileName)
+    const ext = file.mimetype.split('/')[1] || 'jpg'
+    const fileName = `${prefix || Date.now()}-${Date.now()}.${ext}`
+    const path = `profiles/${fileName}`
+    await employeesRepository.uploadFile(path, file.buffer, file.mimetype)
+    return employeesRepository.getPublicUrl(path)
   }
 
   private enrichWithComputed(data: EmployeeWithBranch[]): EmployeeResponse[] {

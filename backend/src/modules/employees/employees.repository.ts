@@ -307,12 +307,12 @@ export class EmployeesRepository {
     return rows[0].id
   }
 
-  async uploadFile(fileName: string, buffer: Buffer, contentType: string) {
-    return storageService.upload(buffer, fileName, contentType, 'profilepictures')
+  async uploadFile(path: string, buffer: Buffer, contentType: string) {
+    await storageService.uploadToPath(buffer, path, contentType, 'profilepictures')
   }
 
-  getPublicUrl(fileName: string): string {
-    return storageService.getPublicUrl(fileName)
+  getPublicUrl(path: string): string {
+    return storageService.getPublicUrl(path)
   }
 }
 
