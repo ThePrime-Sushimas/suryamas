@@ -1,5 +1,4 @@
 export type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED'
-export type ProductType = 'raw' | 'semi_finished' | 'finished_goods'
 export type UomStatus = 'ACTIVE' | 'INACTIVE'
 
 export interface Product {
@@ -11,7 +10,6 @@ export interface Product {
   sub_category_id: string
   category_name: string | null
   sub_category_name: string | null
-  product_type: ProductType
   average_cost: number
   base_unit_name: string | null
   is_requestable: boolean
@@ -52,7 +50,6 @@ export interface CreateProductDto {
   bom_name?: string
   category_id: string
   sub_category_id: string
-  product_type?: ProductType
   average_cost?: number
   is_requestable?: boolean
   is_purchasable?: boolean
@@ -66,7 +63,6 @@ export interface UpdateProductDto {
   bom_name?: string
   category_id?: string
   sub_category_id?: string
-  product_type?: ProductType
   is_requestable?: boolean
   is_purchasable?: boolean
   notes?: string

@@ -7,10 +7,9 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { FormSkeleton } from '@/components/ui/Skeleton'
 import { useProduct, useUpdateProduct } from '../api/products.api'
 import { ProductForm } from '../components/ProductForm'
-import type { UpdateProductDto, ProductType } from '../types'
+import type { UpdateProductDto } from '../types'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
-const TYPE_LABELS: Record<ProductType, string> = { raw: 'Bahan Baku', semi_finished: 'Setengah Jadi', finished_goods: 'Barang Jadi' }
 
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>()
@@ -69,7 +68,7 @@ export default function EditProductPage() {
         </button>
         <div className="flex-1">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{p.product_name}</h1>
-          <p className="text-xs text-gray-400">{p.product_code} • {TYPE_LABELS[p.product_type]}</p>
+          <p className="text-xs text-gray-400">{p.product_code}</p>
         </div>
         <button onClick={() => navigate(`/products/${id}/uoms`)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -87,8 +86,8 @@ export default function EditProductPage() {
           {p.base_unit_name && <p className="text-[10px] text-gray-400">per {p.base_unit_name}</p>}
         </div>
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-          <p className="text-xs text-gray-400">Tipe</p>
-          <p className="text-lg font-bold text-gray-900 dark:text-white">{TYPE_LABELS[p.product_type]}</p>
+          <p className="text-xs text-gray-400">Kategori</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-white">{p.category_name || '—'}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
           <p className="text-xs text-gray-400">Status</p>

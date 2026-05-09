@@ -7,14 +7,13 @@ const KEYS = {
   product: (id: string) => ['products', id] as const,
 }
 
-export const useProducts = (params: { page?: number; limit?: number; search?: string; status?: string; product_type?: string; category_id?: string; sub_category_id?: string; includeDeleted?: boolean }) =>
+export const useProducts = (params: { page?: number; limit?: number; search?: string; status?: string; category_id?: string; sub_category_id?: string; includeDeleted?: boolean }) =>
   useQuery({
     queryKey: KEYS.products(params),
     queryFn: async () => {
       const queryParams: Record<string, unknown> = { page: params.page ?? 1, limit: params.limit ?? 20 }
       if (params.search) queryParams.q = params.search
       if (params.status) queryParams.status = params.status
-      if (params.product_type) queryParams.product_type = params.product_type
       if (params.category_id) queryParams.category_id = params.category_id
       if (params.sub_category_id) queryParams.sub_category_id = params.sub_category_id
       if (params.includeDeleted) queryParams.includeDeleted = true

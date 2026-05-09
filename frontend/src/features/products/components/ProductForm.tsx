@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { Product, ProductStatus, ProductType, CreateProductDto, UpdateProductDto } from '../types'
+import type { Product, ProductStatus, CreateProductDto, UpdateProductDto } from '../types'
 import api from '@/lib/axios'
 import { CardSkeleton } from '@/components/ui/Skeleton'
 
@@ -30,7 +30,6 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     bom_name: initialData?.bom_name || '',
     category_id: initialData?.category_id || '',
     sub_category_id: initialData?.sub_category_id || '',
-    product_type: (initialData?.product_type || 'raw') as ProductType,
     average_cost: initialData?.average_cost || 0,
     is_requestable: initialData?.is_requestable ?? true,
     is_purchasable: initialData?.is_purchasable ?? true,
@@ -116,7 +115,6 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       bom_name: formData.bom_name || undefined,
       category_id: formData.category_id,
       sub_category_id: formData.sub_category_id,
-      product_type: formData.product_type,
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
       notes: formData.notes || undefined,
@@ -127,7 +125,6 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       bom_name: formData.bom_name || undefined,
       category_id: formData.category_id,
       sub_category_id: formData.sub_category_id,
-      product_type: formData.product_type,
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
       notes: formData.notes || undefined,
@@ -249,20 +246,6 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Type</label>
-          <select
-            name="product_type"
-            value={formData.product_type}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value="raw">Raw Material</option>
-            <option value="semi_finished">Semi-Finished</option>
-            <option value="finished_goods">Finished Goods</option>
-          </select>
-        </div>
-
         {!isEdit && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
