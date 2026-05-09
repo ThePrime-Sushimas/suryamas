@@ -130,15 +130,15 @@ export function SupplierForm({ initialData, onSubmit, onCancel, submitLabel, isE
           </div>
           <div className="md:col-span-2">
             <label className={labelCls}>Alamat *</label>
-            <textarea name="address" value={formData.address} onChange={handleChange} required rows={2} className={inputCls} />
+            <textarea name="address" value={formData.address} onChange={handleChange} rows={2} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>Kota *</label>
-            <input type="text" name="city" value={formData.city} onChange={handleChange} required className={inputCls} />
+            <input type="text" name="city" value={formData.city} onChange={handleChange} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>Provinsi *</label>
-            <input type="text" name="province" value={formData.province} onChange={handleChange} required className={inputCls} />
+            <input type="text" name="province" value={formData.province} onChange={handleChange} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>Kode Pos</label>
