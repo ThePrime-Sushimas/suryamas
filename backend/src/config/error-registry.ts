@@ -416,6 +416,24 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'master_data',
   },
+  EmployeePositionNotFoundError: {
+    name: 'EmployeePositionNotFoundError',
+    importPath: '../modules/employee-positions/employee-positions.errors',
+    defaultStatusCode: 404,
+    category: 'master_data',
+  },
+  EmployeePositionDuplicateError: {
+    name: 'EmployeePositionDuplicateError',
+    importPath: '../modules/employee-positions/employee-positions.errors',
+    defaultStatusCode: 409,
+    category: 'master_data',
+  },
+  CannotRemoveLastPositionError: {
+    name: 'CannotRemoveLastPositionError',
+    importPath: '../modules/employee-positions/employee-positions.errors',
+    defaultStatusCode: 422,
+    category: 'master_data',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

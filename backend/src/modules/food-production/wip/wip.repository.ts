@@ -3,12 +3,22 @@ import type { PoolClient } from 'pg'
 import type { WipItem, WipItemWithIngredients, WipIngredientWithProduct, CreateWipItemDto, UpdateWipItemDto, CreateWipIngredientDto } from './wip.types'
 
 export class WipRepository {
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, filter?: { is_active?: boolean }): Promise<{ data: WipItem[]; total: number }> {
+  async findAll(companyId: string, pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean }): Promise<{ data: WipItem[]; total: number }> {
     const conditions = ['w.company_id = $1', 'w.deleted_at IS NULL']
     const params: unknown[] = [companyId]
     let idx = 2
 
     if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`w.is_active = $${idx++}`) }
+
+    // Position-based filter: only WIPs accessible by user's positions
+    if (filter?.positionIds && !filter.canAccessAll) {
+      params.push(filter.positionIds)
+      conditions.push(`(
+        NOT EXISTS (SELECT 1 FROM wip_position_access wpa WHERE wpa.wip_id = w.id)
+        OR EXISTS (SELECT 1 FROM wip_position_access wpa WHERE wpa.wip_id = w.id AND wpa.position_id = ANY($${idx}::uuid[]))
+      )`)
+      idx++
+    }
 
     const where = `WHERE ${conditions.join(' AND ')}`
     const [dataRes, countRes] = await Promise.all([

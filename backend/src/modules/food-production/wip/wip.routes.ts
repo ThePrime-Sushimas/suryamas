@@ -4,7 +4,8 @@ import { resolveBranchContext } from '../../../middleware/branch-context.middlew
 import { canView, canInsert, canUpdate, canDelete } from '../../../middleware/permission.middleware'
 import { validateSchema } from '../../../middleware/validation.middleware'
 import { wipController } from './wip.controller'
-import { createWipItemSchema, updateWipItemSchema, wipItemIdSchema, bulkDeleteWipSchema } from './wip.schema'
+import { createWipItemSchema, updateWipItemSchema, wipItemIdSchema, bulkDeleteWipSchema, wipPositionAccessSchema } from './wip.schema'
+import { wipPositionAccessController } from './wip-position-access.controller'
 import { PermissionService } from '../../../services/permission.service'
 
 PermissionService.registerModule('wip_items', 'WIP Item Management').catch((err) => {
@@ -23,5 +24,9 @@ router.get('/:id', canView('wip_items'), validateSchema(wipItemIdSchema), (req, 
 router.put('/:id', canUpdate('wip_items'), validateSchema(updateWipItemSchema), (req, res) => wipController.update(req, res))
 router.delete('/:id', canDelete('wip_items'), validateSchema(wipItemIdSchema), (req, res) => wipController.delete(req, res))
 router.patch('/:id/restore', canUpdate('wip_items'), validateSchema(wipItemIdSchema), (req, res) => wipController.restore(req, res))
+
+// Position Access
+router.get('/:id/position-access', canView('wip_items'), validateSchema(wipItemIdSchema), (req, res) => wipPositionAccessController.get(req, res))
+router.put('/:id/position-access', canUpdate('wip_items'), validateSchema(wipPositionAccessSchema), (req, res) => wipPositionAccessController.set(req, res))
 
 export default router

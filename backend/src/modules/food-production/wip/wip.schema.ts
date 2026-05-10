@@ -37,3 +37,10 @@ export const wipItemIdSchema = z.object({
 export const bulkDeleteWipSchema = z.object({
   body: z.object({ ids: z.array(z.string().uuid()).min(1) }),
 })
+
+export const wipPositionAccessSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    position_ids: z.array(z.string().uuid()),
+  }),
+})

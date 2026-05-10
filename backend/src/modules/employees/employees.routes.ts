@@ -11,6 +11,7 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, EmployeeSearchSchema, BulkUpdateActiveSchema, UpdateActiveSchema, BulkDeleteSchema, employeeIdSchema } from './employees.schema'
 import './employees.openapi'
 import rateLimit from 'express-rate-limit'
+import employeePositionsRoutes from '../employee-positions/employee-positions.routes'
 
 // Auto-register employees module
 PermissionService.registerModule('employees', 'Employee Management System')
@@ -136,6 +137,12 @@ router.post('/:id/restore', canUpdate('employees'), validateSchema(employeeIdSch
 
 router.patch('/:id/active', canUpdate('employees'), validateSchema(UpdateActiveSchema), (req, res) => 
   employeesController.updateActive(req, res))
+
+// ============================================
+// EMPLOYEE POSITIONS (sub-router)
+// ============================================
+
+router.use('/:employeeId/positions', employeePositionsRoutes)
 
 export default router
 

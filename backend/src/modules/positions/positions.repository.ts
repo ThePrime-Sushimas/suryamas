@@ -66,10 +66,12 @@ class PositionsRepository {
   }
 
   async hasChildren(id: string): Promise<boolean> {
-    const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS cnt FROM employee_positions WHERE position_id = $1 AND is_deleted = false`,
-      [id]
-    )
+    const { rows } = await pool.query(`
+      SELECT (
+        (SELECT COUNT(*) FROM employee_positions WHERE position_id = $1 AND is_deleted = false) +
+        (SELECT COUNT(*) FROM wip_position_access WHERE position_id = $1)
+      )::int AS cnt
+    `, [id])
     return rows[0].cnt > 0
   }
 }

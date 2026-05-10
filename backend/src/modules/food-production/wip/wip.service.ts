@@ -6,7 +6,7 @@ import { recipesService } from '../recipes/recipes.service'
 import type { CreateWipItemDto, UpdateWipItemDto, WipItem, WipItemWithIngredients } from './wip.types'
 
 export class WipService {
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { is_active?: boolean }) {
+  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await wipRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
     const totalPages = Math.ceil(total / pagination.limit)
