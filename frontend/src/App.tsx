@@ -448,6 +448,8 @@ const ExpenseCategorizationPage = lazy(() =>
 const AlertSettingsPage = lazy(() =>
   import('./features/payment-method-alerts').then(m => ({ default: m.AlertSettingsPage }))
 )
+const DepartmentsPage = lazy(() => import('./features/settings/pages/DepartmentsPage'))
+const PositionsPage = lazy(() => import('./features/settings/pages/PositionsPage'))
 const AlertHistoryPage = lazy(() =>
   import('./features/payment-method-alerts').then(m => ({ default: m.AlertHistoryPage }))
 )
@@ -1591,6 +1593,26 @@ function App() {
                       <RequirePermission module="payment_method_alerts">
                         <Suspense fallback={<LoadingFallback />}>
                           <AlertSettingsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="settings/departments"
+                    element={
+                      <RequirePermission module="departments">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DepartmentsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="settings/positions"
+                    element={
+                      <RequirePermission module="positions">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PositionsPage />
                         </Suspense>
                       </RequirePermission>
                     }

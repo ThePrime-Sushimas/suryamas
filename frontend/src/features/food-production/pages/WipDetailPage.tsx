@@ -6,6 +6,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useWipItem, useUpdateWipItem, useCreateWipItem, useProductList } from '../api/food-production.api'
 import type { ProductUomOption } from '../api/food-production.api'
+import { WipPositionAccessSection } from '../components/WipPositionAccessSection'
 import api from '@/lib/axios'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
@@ -356,6 +357,11 @@ export default function WipDetailPage() {
           </table>
         </div>
       </div>
+
+      {/* Position Access Section */}
+      {!isNew && (
+        <WipPositionAccessSection wipId={id!} />
+      )}
     </div>
   )
 }

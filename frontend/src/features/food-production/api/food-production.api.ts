@@ -255,7 +255,7 @@ export const useSaveRecipe = () => {
 
 // ── WIP Items ──
 
-export const useWipItems = (params: { page?: number; limit?: number; is_active?: boolean; search?: string } = {}) =>
+export const useWipItems = (params: { page?: number; limit?: number; is_active?: boolean; search?: string; filter_by_position?: boolean } = {}) =>
   useQuery({
     queryKey: KEYS.wipItems(params),
     queryFn: async () => {

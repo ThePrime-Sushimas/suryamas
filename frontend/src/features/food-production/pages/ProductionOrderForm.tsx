@@ -20,7 +20,7 @@ export default function ProductionOrderForm() {
 
   const branches = useActiveBranches()
   const userBranches = useBranchContextStore(s => s.branches)
-  const wipItems = useWipItems({ limit: 500 })
+  const wipItems = useWipItems({ limit: 500, filter_by_position: true })
   const createOrder = useCreateProductionOrder()
 
   // Filter branches to only those the user has access to

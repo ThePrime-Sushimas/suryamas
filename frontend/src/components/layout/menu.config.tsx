@@ -511,6 +511,20 @@ export const menuItems: MenuItem[] = [
         module: "payment_method_alerts",
       },
       {
+        id: "departments",
+        name: "Departemen",
+        href: "/settings/departments",
+        icon: <Building2 size={16} />,
+        module: "departments",
+      },
+      {
+        id: "positions",
+        name: "Posisi / Jabatan",
+        href: "/settings/positions",
+        icon: <Users size={16} />,
+        module: "positions",
+      },
+      {
         id: "monitoring",
         name: "System Monitoring",
         href: "/monitoring",
