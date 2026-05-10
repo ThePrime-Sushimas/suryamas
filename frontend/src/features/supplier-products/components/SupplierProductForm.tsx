@@ -9,6 +9,7 @@ import { useProductSearch } from '../hooks/useProductSearch'
 import { CURRENCY_OPTIONS, LEAD_TIME_OPTIONS } from '../constants/supplier-product.constants'
 import type { CreateSupplierProductDto, UpdateSupplierProductDto, SupplierProduct } from '../types/supplier-product.types'
 import api from '@/lib/axios'
+import type { ProductUom } from '@/features/product-uoms/types'
 
 interface SupplierProductFormProps {
   initialData?: SupplierProduct
@@ -33,12 +34,6 @@ export function SupplierProductForm({
   const [submitting, setSubmitting] = useState(false)
   const [preferredCount, setPreferredCount] = useState(0)
 
-  const { data: metricUnits = [] } = useQuery({
-    queryKey: ['metric-units'],
-    queryFn: async () => { const { data } = await api.get('/metric-units', { params: { limit: 200 } }); return (data.data || []) as { id: string; unit_name: string }[] },
-    staleTime: 5 * 60_000,
-  })
-
   const [formData, setFormData] = useState<CreateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }>({
     supplier_id: initialData?.supplier_id || '',
     product_id: initialData?.product_id || '',
@@ -50,6 +45,17 @@ export function SupplierProductForm({
     is_active: initialData?.is_active ?? true,
     purchase_unit_id: '',
     conversion_factor: 1,
+  })
+
+  // Fetch UOMs for selected product (only active ones)
+  const { data: productUoms = [] } = useQuery({
+    queryKey: ['product-uoms', formData.product_id, false],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: ProductUom[] }>(`/products/${formData.product_id}/uoms`)
+      return (data.data || []).filter(u => u.status_uom === 'ACTIVE' && !u.is_deleted)
+    },
+    enabled: !!formData.product_id,
+    staleTime: 60_000,
   })
 
   // Check preferred supplier count when product changes
@@ -121,7 +127,15 @@ export function SupplierProductForm({
         [name]: value === '' ? undefined : Number(value)
       }))
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }))
+      setFormData(prev => {
+        const next = { ...prev, [name]: value }
+        // Reset purchase_unit_id when product changes
+        if (name === 'product_id') {
+          next.purchase_unit_id = ''
+          next.conversion_factor = 1
+        }
+        return next
+      })
     }
   }
 
@@ -238,14 +252,27 @@ export function SupplierProductForm({
               <select
                 name="purchase_unit_id"
                 value={formData.purchase_unit_id || ''}
-                onChange={handleChange}
+                onChange={(e) => {
+                  const uomId = e.target.value
+                  const selected = productUoms.find(u => u.id === uomId)
+                  setFormData(prev => ({
+                    ...prev,
+                    purchase_unit_id: uomId,
+                    conversion_factor: selected?.conversion_factor ?? 1,
+                  }))
+                }}
                 required
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={!formData.product_id}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option value="">Pilih satuan order</option>
-                {metricUnits.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
+                <option value="">{!formData.product_id ? 'Pilih produk dulu' : 'Pilih satuan order'}</option>
+                {productUoms.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.metric_units?.unit_name || 'Unknown'}
+                  </option>
+                ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">Satuan saat beli (misal: Kilogram, Botol, Karton)</p>
+              <p className="text-xs text-gray-400 mt-1">Satuan dari UOM produk yang aktif</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
