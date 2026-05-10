@@ -25,6 +25,7 @@ export const CreateEmployeeBranchSchema = z.object({
     employee_id: uuidSchema,
     branch_id: uuidSchema,
     role_id: uuidSchema,
+    position_id: uuidSchema.optional().nullable(), // NEW: Optional position
     is_primary: z.boolean().optional().default(false),
     approval_limit: z.number().min(0).optional().default(0),
     status: z.enum(['active', 'inactive', 'suspended']).optional().default('active'),
@@ -37,6 +38,7 @@ export const UpdateEmployeeBranchSchema = z.object({
   }),
   body: z.object({
     role_id: uuidSchema.optional(),
+    position_id: uuidSchema.optional().nullable(), // NEW: Can update position
     is_primary: z.boolean().optional(),
     approval_limit: z.number().min(0).optional(),
     status: z.enum(['active', 'inactive', 'suspended']).optional(),

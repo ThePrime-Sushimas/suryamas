@@ -6,6 +6,7 @@ export interface EmployeeBranchEntity {
   employee_id: string
   branch_id: string
   role_id: string
+  position_id: string | null // NEW: Position at this specific branch
   is_primary: boolean
   approval_limit: number
   status: 'active' | 'inactive' | 'suspended'
@@ -24,6 +25,12 @@ export interface EmployeeBranchWithRelations extends EmployeeBranchEntity {
   }
   branch: { branch_name: string; branch_code: string; company_id: string; status: string }
   role: { name: string; description: string | null }
+  position: { // NEW: Position details
+    position_code: string
+    position_name: string
+    department_code: string
+    department_name: string
+  } | null
 }
 
 // =========================
@@ -34,6 +41,7 @@ export interface EmployeeBranchDto {
   employee_id: string
   branch_id: string
   role_id: string
+  position_id: string | null // NEW
   is_primary: boolean
   approval_limit: number
   status: 'active' | 'inactive' | 'suspended'
@@ -44,6 +52,9 @@ export interface EmployeeBranchDto {
   branch_name: string
   branch_code: string
   role_name: string
+  position_code: string | null // NEW
+  position_name: string | null // NEW
+  department_name: string | null // NEW
   created_at: string
 }
 
@@ -56,6 +67,7 @@ export interface CreateEmployeeBranchData {
   employee_id: string
   branch_id: string
   role_id: string
+  position_id?: string | null // NEW: Optional position
   is_primary: boolean
   approval_limit?: number
   status?: 'active' | 'inactive' | 'suspended'
@@ -63,6 +75,7 @@ export interface CreateEmployeeBranchData {
 
 export interface UpdateEmployeeBranchData {
   role_id?: string
+  position_id?: string | null // NEW: Can update position
   is_primary?: boolean
   approval_limit?: number
   status?: 'active' | 'inactive' | 'suspended'
@@ -99,6 +112,9 @@ export interface MyBranchDto {
   employee_id: string
   role_id: string
   role_name: string
+  position_id: string | null // NEW
+  position_name: string | null // NEW
+  department_name: string | null // NEW
   approval_limit: number
   status: 'active' | 'inactive' | 'suspended'
   is_primary: boolean

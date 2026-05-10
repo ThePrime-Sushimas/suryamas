@@ -8,6 +8,7 @@ export function mapEmployeeBranch(row: any): EmployeeBranchWithRelations {
   const employee = Array.isArray(row.employees) ? row.employees[0] : row.employees
   const branch = Array.isArray(row.branches) ? row.branches[0] : row.branches
   const role = Array.isArray(row.perm_roles) ? row.perm_roles[0] : row.perm_roles
+  const position = Array.isArray(row.positions) ? row.positions[0] : row.positions
 
   if (!employee?.full_name) throw new Error('Employee relation missing')
   if (!branch?.branch_name) throw new Error('Branch relation missing')
@@ -18,6 +19,7 @@ export function mapEmployeeBranch(row: any): EmployeeBranchWithRelations {
     employee_id: row.employee_id,
     branch_id: row.branch_id,
     role_id: row.role_id,
+    position_id: row.position_id || null,
     is_primary: Boolean(row.is_primary),
     approval_limit: Number(row.approval_limit ?? 0),
     status: (row.status || 'active') as 'active' | 'inactive' | 'suspended',
@@ -38,5 +40,11 @@ export function mapEmployeeBranch(row: any): EmployeeBranchWithRelations {
       name: role.name,
       description: role.description || null,
     },
+    position: position ? {
+      position_code: position.position_code,
+      position_name: position.position_name,
+      department_code: position.department_code,
+      department_name: position.department_name,
+    } : null,
   }
 }

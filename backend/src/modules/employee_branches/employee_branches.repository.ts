@@ -4,16 +4,19 @@ import { mapEmployeeBranch } from './employee_branches.mapper'
 import { employeesRepository } from '../employees/employees.repository'
 
 const BASE_SELECT = `
-  eb.id, eb.employee_id, eb.branch_id, eb.role_id, eb.is_primary, eb.approval_limit, eb.status, eb.created_at,
+  eb.id, eb.employee_id, eb.branch_id, eb.role_id, eb.position_id, eb.is_primary, eb.approval_limit, eb.status, eb.created_at,
   e.full_name AS emp_full_name, e.job_position AS emp_job_position, e.email AS emp_email, e.mobile_phone AS emp_mobile_phone,
   b.branch_name AS br_branch_name, b.branch_code AS br_branch_code, b.company_id AS br_company_id, b.status AS br_status,
-  r.name AS role_name, r.description AS role_description
+  r.name AS role_name, r.description AS role_description,
+  p.position_code AS pos_position_code, p.position_name AS pos_position_name, d.department_code AS pos_department_code, d.department_name AS pos_department_name
 `
 const BASE_FROM = `
   FROM employee_branches eb
   JOIN employees e ON e.id = eb.employee_id
   JOIN branches b ON b.id = eb.branch_id
   JOIN perm_roles r ON r.id = eb.role_id
+  LEFT JOIN positions p ON p.id = eb.position_id
+  LEFT JOIN departments d ON d.id = p.department_id
 `
 
 function mapRow(row: Record<string, unknown>): Record<string, unknown> {
@@ -22,6 +25,12 @@ function mapRow(row: Record<string, unknown>): Record<string, unknown> {
     employees: { full_name: row.emp_full_name, job_position: row.emp_job_position, email: row.emp_email, mobile_phone: row.emp_mobile_phone },
     branches: { branch_name: row.br_branch_name, branch_code: row.br_branch_code, company_id: row.br_company_id, status: row.br_status },
     perm_roles: { name: row.role_name, description: row.role_description },
+    positions: row.pos_position_code ? {
+      position_code: row.pos_position_code,
+      position_name: row.pos_position_name,
+      department_code: row.pos_department_code,
+      department_name: row.pos_department_name
+    } : null,
   }
 }
 
@@ -104,7 +113,7 @@ export class EmployeeBranchesRepository {
 
   async findByEmployeeAndBranch(employeeId: string, branchId: string): Promise<EmployeeBranchEntity | null> {
     const { rows } = await pool.query(
-      'SELECT id, employee_id, branch_id, role_id, is_primary, approval_limit, status, created_at FROM employee_branches WHERE employee_id = $1 AND branch_id = $2',
+      'SELECT id, employee_id, branch_id, role_id, position_id, is_primary, approval_limit, status, created_at FROM employee_branches WHERE employee_id = $1 AND branch_id = $2',
       [employeeId, branchId]
     )
     return (rows[0] as EmployeeBranchEntity) ?? null
@@ -139,7 +148,7 @@ export class EmployeeBranchesRepository {
     if (!keys.length) { const { rows } = await pool.query('SELECT * FROM employee_branches WHERE id = $1', [id]); return rows[0] ?? null }
     const values = Object.values(updates)
     const { rows } = await pool.query(
-      `UPDATE employee_branches SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING id, employee_id, branch_id, role_id, is_primary, approval_limit, status, created_at`,
+      `UPDATE employee_branches SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING id, employee_id, branch_id, role_id, position_id, is_primary, approval_limit, status, created_at`,
       [...values, id]
     )
     return (rows[0] as EmployeeBranchEntity) ?? null
