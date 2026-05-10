@@ -1,12 +1,13 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { useEffect } from 'react'
+import type { ReactNode } from 'react'
 
 interface ConfirmModalProps {
   isOpen: boolean
   onClose: () => void
   onConfirm: () => void
   title: string
-  message: string
+  message: string | ReactNode
   confirmText?: string
   cancelText?: string
   variant?: 'danger' | 'warning' | 'info' | 'success'

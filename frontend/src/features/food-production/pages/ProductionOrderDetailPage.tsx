@@ -284,7 +284,7 @@ export default function ProductionOrderDetailPage() {
         message={
           <div className="space-y-3">
             <p>Yakin ingin void order ini?{o.status === 'JOURNALED' && ' Jurnal yang sudah dibuat akan di-reverse.'}</p>
-            <input value={voidReason} onChange={e => setVoidReason(e.target.value)} placeholder="Alasan void..."
+            <input value={voidReason} onChange={e => setVoidReason(e.target.value)} placeholder="Alasan void (wajib)..."
               className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
           </div>
         }
