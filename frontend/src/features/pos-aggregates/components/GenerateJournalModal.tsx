@@ -14,6 +14,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
 import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
+import { useToast } from '@/contexts/ToastContext'
 import { X, FileText, CheckCircle, AlertCircle, Clock, RefreshCw } from 'lucide-react'
 import type { GenerateJournalDto } from '../types'
 
@@ -55,6 +56,7 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
   const { filter, fetchTransactions, fetchSummary, generateJournalWithJob, isMutating } = usePosAggregatesStore()
   const { branches, fetchPage: fetchBranches } = useBranchesStore()
   const { paymentMethods, setFilter: setPMFilter } = usePaymentMethodsStore()
+  const toast = useToast()
 
   // Modal state
   const [step, setStep] = useState<'config' | 'processing' | 'result'>('config')
@@ -152,16 +154,16 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
             message: 'Selesai!'
           })
           
-          const importResults = job.metadata?.importResults as any
+          const importResults = job.metadata?.importResults as Record<string, unknown> | undefined
           
           setResult({
             success: true,
             jobId: id,
-            journals_created: importResults?.total_journals || 0,
-            transactions_processed: importResults?.total_transactions || 0,
-            failed_count: importResults?.failed?.length || 0,
-            duration_ms: importResults?.duration_ms || 0,
-            failed_details: importResults?.failed || []
+            journals_created: (importResults?.total_journals as number) || 0,
+            transactions_processed: (importResults?.total_transactions as number) || 0,
+            failed_count: (Array.isArray(importResults?.failed) ? importResults.failed.length : 0),
+            duration_ms: (importResults?.duration_ms as number) || 0,
+            failed_details: (Array.isArray(importResults?.failed) ? importResults.failed : []) as Array<{ date: string; branch: string; error: string }>
           })
 
           // Refresh data
@@ -287,15 +289,7 @@ export const GenerateJournalModal: React.FC<GenerateJournalModalProps> = ({
     onClose()
   }
 
-  // Simple toast for success messages
-  const toast = {
-    success: (msg: string) => {
-      console.log('Toast success:', msg)
-    },
-    error: (msg: string) => {
-      console.error('Toast error:', msg)
-    }
-  }
+
 
   if (!isOpen) return null
 

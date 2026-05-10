@@ -106,7 +106,7 @@ export const PosAggregateDetailPage: React.FC = () => {
     posSyncAggregatesApi
       .getLines(posSyncId)
       .then(setPosSyncLines)
-      .catch((err) => console.error('Failed to fetch pos sync lines:', err))
+      .catch(() => { /* silently fail — non-critical data */ })
       .finally(() => setIsLoadingLines(false))
   }, [selectedTransaction?.id, selectedTransaction?.source_type, selectedTransaction?.source_id])
 

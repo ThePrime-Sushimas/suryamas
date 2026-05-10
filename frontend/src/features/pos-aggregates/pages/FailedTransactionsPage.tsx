@@ -119,14 +119,15 @@ export const FailedTransactionsPage: React.FC = () => {
   }, [selectedIds, toast])
 
   const confirmBatchDelete = useCallback(async () => {
-    for (const id of selectedIds) {
-      try {
-        await deleteTransaction(id)
-      } catch (error) {
-        console.error('Failed to delete:', id, error)
-      }
+    const results = await Promise.allSettled(
+      Array.from(selectedIds).map(id => deleteTransaction(id))
+    )
+    const failedCount = results.filter(r => r.status === 'rejected').length
+    if (failedCount > 0) {
+      toast.warning(`${selectedIds.size - failedCount} dihapus, ${failedCount} gagal`)
+    } else {
+      toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_SELECTED_DELETED)
     }
-    toast.success(FAILED_TRANSACTIONS_MESSAGES.TRANSACTION_SELECTED_DELETED)
     clearSelection()
     setBatchDeleteConfirm(false)
   }, [selectedIds, deleteTransaction, clearSelection, toast])

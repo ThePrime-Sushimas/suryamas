@@ -329,8 +329,8 @@ export const PosAggregatesPage: React.FC = () => {
                   const result = await posAggregatesApi.recalculateFee(recalcDate)
                   toast.success(`Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
                   fetchTransactions()
-                } catch (err: any) {
-                  toast.error(err?.message || 'Gagal recalculate fee')
+                } catch (err: unknown) {
+                  toast.error(err instanceof Error ? err.message : 'Gagal recalculate fee')
                 } finally {
                   setIsRecalculating(false)
                 }

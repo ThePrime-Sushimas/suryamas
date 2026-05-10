@@ -50,17 +50,11 @@ const MAX_RETRY_COUNT = 3;
 const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
 
 // ============================================================================
-// ANALYTICS TRACKING (Placeholder - replace dengan analytics service Anda)
+// ANALYTICS TRACKING (no-op — replace with real analytics service if needed)
 // ============================================================================
 const createAnalyticsTracker = () => {
-  const trackEvent = (eventName: string, properties?: Record<string, unknown>) => {
-    try {
-      // Replace dengan analytics service call
-      console.log(`[Analytics] ${eventName}:`, properties);
-    } catch (error) {
-      // Prevent analytics errors from breaking the app
-      console.error('[Analytics] Error tracking event:', error);
-    }
+  const trackEvent = (_eventName: string, _properties?: Record<string, unknown>) => {
+    // no-op: replace with real analytics service when available
   };
 
   return { trackEvent };
