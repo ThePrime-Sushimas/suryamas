@@ -147,9 +147,11 @@ export class PosAggregatesRepository {
     try {
       const dataQuery = `
         SELECT at.*, pm.code as pm_code, pm.name as pm_name,
+          jh.journal_number,
           (SELECT bsa.settlement_group_id FROM bank_settlement_aggregates bsa JOIN bank_settlement_groups bsg ON bsg.id = bsa.settlement_group_id WHERE bsa.aggregate_id = at.id AND bsg.deleted_at IS NULL LIMIT 1) as settlement_group_id
         FROM aggregated_transactions at
         LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
+        LEFT JOIN journal_headers jh ON at.journal_id = jh.id
         ${where}
         ${orderBy}
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -913,6 +915,7 @@ export class PosAggregatesRepository {
       payment_method_name: (paymentMethod as Record<string, unknown>)?.name as string | undefined,
       failed_reason: (row.failed_reason as string) || null,
       failed_at: (row.failed_at as string) || null,
+      journal_number: (row.journal_number as string) || undefined,
     }
   }
 

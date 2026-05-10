@@ -7,7 +7,7 @@
 
 import React, { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, FileText, CheckCircle, Database, Calculator } from "lucide-react";
+import { Plus, FileText, CheckCircle, Database, Calculator, RefreshCw } from "lucide-react";
 import { usePosAggregatesStore } from "../store/posAggregates.store";
 import { useToast } from "@/contexts/ToastContext";
 import { useBranchContextStore } from "@/features/branch_context";
@@ -301,105 +301,107 @@ export const PosAggregatesPage: React.FC = () => {
   );
 
   return (
-    <div className="px-4 py-6 sm:p-6">
-      {/* Page Header */}
-      <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
+    <div className="p-6 space-y-4">
+      {/* Header — compact style */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Transaksi Agregat POS
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Agregat POS
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Kelola transaksi agregat dari import POS dan buat jurnal
-          </p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Generate from POS Import Button */}
-          <div className="flex items-center gap-1">
-            <input
-              type="date"
-              value={recalcDate}
-              onChange={(e) => setRecalcDate(e.target.value)}
-              className="px-2 py-2 text-sm border rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300"
-            />
-            <button
-              onClick={async () => {
-                if (!recalcDate) return
-                setIsRecalculating(true)
-                try {
-                  const result = await posAggregatesApi.recalculateFee(recalcDate)
-                  toast.success(`Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
-                  fetchTransactions()
-                } catch (err: unknown) {
-                  toast.error(err instanceof Error ? err.message : 'Gagal recalculate fee')
-                } finally {
-                  setIsRecalculating(false)
-                }
-              }}
-              disabled={isRecalculating}
-              className="px-3 py-2 text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 flex items-center gap-2 text-sm disabled:opacity-50"
-            >
-              <Calculator className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
-              Recalc Fee
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          {/* Recalc Fee */}
+          <input
+            type="date"
+            value={recalcDate}
+            onChange={(e) => setRecalcDate(e.target.value)}
+            className="px-2 py-2 text-sm border rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300"
+          />
+          <button
+            onClick={async () => {
+              if (!recalcDate) return
+              setIsRecalculating(true)
+              try {
+                const result = await posAggregatesApi.recalculateFee(recalcDate)
+                toast.success(`Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
+                fetchTransactions()
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : 'Gagal recalculate fee')
+              } finally {
+                setIsRecalculating(false)
+              }
+            }}
+            disabled={isRecalculating}
+            className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:border-orange-700 dark:text-orange-300 disabled:opacity-50"
+          >
+            <Calculator size={15} className={isRecalculating ? 'animate-spin' : ''} />
+            Recalc Fee
+          </button>
 
+          {/* Generate dari Import */}
           <button
             onClick={() => setShowGenerateFromImportModal(true)}
-            className="px-3 py-2 text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
+            className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-700 dark:text-blue-300"
           >
-            <Database className="w-4 h-4" />
+            <Database size={15} />
             Generate dari Import
           </button>
 
-          {/* Generate Journal Button */}
+          {/* Buat Jurnal */}
           <button
             onClick={() => setShowGenerateJournalModal(true)}
-            className="px-3 py-2 text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center gap-2"
+            className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 dark:border-purple-700 dark:text-purple-300"
           >
-            <FileText className="w-4 h-4" />
+            <FileText size={15} />
             Buat Jurnal
           </button>
 
-          {/* Create Button */}
+          {/* Refresh */}
+          <button
+            onClick={() => fetchTransactions()}
+            className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+          >
+            <RefreshCw size={15} className={isDataLoading() ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+
+          {/* Tambah Transaksi */}
           <button
             onClick={() => setShowForm(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            <Plus className="w-5 h-5" />
-            Tambah Transaksi
+            <Plus size={15} />
+            Tambah
           </button>
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary Cards */}
       <PosAggregatesSummary
         summary={summary}
         isLoading={isDataLoading()}
-        className="mb-6"
       />
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 flex items-center justify-between">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+            {selectedIds.size} transaksi dipilih
+          </span>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
-              {selectedIds.size} transaksi dipilih
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
             <button
               onClick={handleBatchReconcile}
               disabled={batchInFlight.current}
-              className="px-3 py-1.5 text-sm text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-1 disabled:opacity-50"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 disabled:opacity-50"
             >
-              <CheckCircle className="w-4 h-4" />
+              <CheckCircle size={14} />
               Rekonsiliasi Terpilih
             </button>
             <button
               onClick={clearSelection}
-              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
             >
-              Batalkan Pilihan
+              Batalkan
             </button>
           </div>
         </div>
@@ -407,7 +409,7 @@ export const PosAggregatesPage: React.FC = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -514,9 +516,5 @@ export const PosAggregatesPage: React.FC = () => {
     </div>
   );
 };
-
-// =============================================================================
-// EXPORT DEFAULT
-// =============================================================================
 
 export default PosAggregatesPage;

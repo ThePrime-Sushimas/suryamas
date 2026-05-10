@@ -188,6 +188,7 @@ export interface AggregatedTransactionListItem extends Pick<
 > {
   branch_name?: string;
   payment_method_name?: string;
+  journal_number?: string;
 }
 
 /**
