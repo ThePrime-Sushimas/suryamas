@@ -380,6 +380,42 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 500,
     category: 'food_production',
   },
+  DepartmentNotFoundError: {
+    name: 'DepartmentNotFoundError',
+    importPath: '../modules/departments/departments.errors',
+    defaultStatusCode: 404,
+    category: 'master_data',
+  },
+  DepartmentDuplicateError: {
+    name: 'DepartmentDuplicateError',
+    importPath: '../modules/departments/departments.errors',
+    defaultStatusCode: 409,
+    category: 'master_data',
+  },
+  DepartmentInUseError: {
+    name: 'DepartmentInUseError',
+    importPath: '../modules/departments/departments.errors',
+    defaultStatusCode: 422,
+    category: 'master_data',
+  },
+  PositionNotFoundError: {
+    name: 'PositionNotFoundError',
+    importPath: '../modules/positions/positions.errors',
+    defaultStatusCode: 404,
+    category: 'master_data',
+  },
+  PositionDuplicateError: {
+    name: 'PositionDuplicateError',
+    importPath: '../modules/positions/positions.errors',
+    defaultStatusCode: 409,
+    category: 'master_data',
+  },
+  PositionInUseError: {
+    name: 'PositionInUseError',
+    importPath: '../modules/positions/positions.errors',
+    defaultStatusCode: 422,
+    category: 'master_data',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;
