@@ -24,7 +24,8 @@ export class CogsController {
   finalize = async (req: Request, res: Response) => {
     try {
       const { body } = (req as FinalizeReq).validated
-      const result = await cogsService.finalize(req.context?.company_id ?? '', body, req.user?.id ?? '')
+      const employeeId = req.context?.employee_id ?? ''
+      const result = await cogsService.finalize(req.context?.company_id ?? '', body, employeeId)
       sendSuccess(res, result, `COGS finalized — Journal ${result.journal_number} created`, 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cogs_finalize' })
