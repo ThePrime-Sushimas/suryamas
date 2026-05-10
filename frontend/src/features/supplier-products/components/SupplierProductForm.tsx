@@ -9,7 +9,7 @@ import { useProductSearch } from '../hooks/useProductSearch'
 import { CURRENCY_OPTIONS, LEAD_TIME_OPTIONS } from '../constants/supplier-product.constants'
 import type { CreateSupplierProductDto, UpdateSupplierProductDto, SupplierProduct } from '../types/supplier-product.types'
 import api from '@/lib/axios'
-import type { ProductUom } from '@/features/product-uoms/types'
+import type { MetricUnit } from '@/features/metric_units/types'
 
 interface SupplierProductFormProps {
   initialData?: SupplierProduct
@@ -47,15 +47,14 @@ export function SupplierProductForm({
     conversion_factor: 1,
   })
 
-  // Fetch UOMs for selected product (only active ones)
-  const { data: productUoms = [] } = useQuery({
-    queryKey: ['product-uoms', formData.product_id, false],
+  // Fetch all active metric units for order unit dropdown
+  const { data: metricUnits = [] } = useQuery({
+    queryKey: ['metric-units', 'active-all'],
     queryFn: async () => {
-      const { data } = await api.get<{ data: ProductUom[] }>(`/products/${formData.product_id}/uoms`)
-      return (data.data || []).filter(u => u.status_uom === 'ACTIVE' && !u.is_deleted)
+      const { data } = await api.get<{ data: MetricUnit[] }>('/metric-units', { params: { limit: 200 } })
+      return (data.data || []).filter(u => u.is_active)
     },
-    enabled: !!formData.product_id,
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
   })
 
   // Check preferred supplier count when product changes
@@ -129,11 +128,6 @@ export function SupplierProductForm({
     } else {
       setFormData(prev => {
         const next = { ...prev, [name]: value }
-        // Reset purchase_unit_id when product changes
-        if (name === 'product_id') {
-          next.purchase_unit_id = ''
-          next.conversion_factor = 1
-        }
         return next
       })
     }
@@ -253,26 +247,22 @@ export function SupplierProductForm({
                 name="purchase_unit_id"
                 value={formData.purchase_unit_id || ''}
                 onChange={(e) => {
-                  const uomId = e.target.value
-                  const selected = productUoms.find(u => u.id === uomId)
                   setFormData(prev => ({
                     ...prev,
-                    purchase_unit_id: uomId,
-                    conversion_factor: selected?.conversion_factor ?? 1,
+                    purchase_unit_id: e.target.value,
                   }))
                 }}
                 required
-                disabled={!formData.product_id}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option value="">{!formData.product_id ? 'Pilih produk dulu' : 'Pilih satuan order'}</option>
-                {productUoms.map(u => (
+                <option value="">Pilih satuan order</option>
+                {metricUnits.map(u => (
                   <option key={u.id} value={u.id}>
-                    {u.metric_units?.unit_name || 'Unknown'}
+                    {u.unit_name} ({u.metric_type})
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">Satuan dari UOM produk yang aktif</p>
+              <p className="text-xs text-gray-400 mt-1">Satuan pembelian dari supplier</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
