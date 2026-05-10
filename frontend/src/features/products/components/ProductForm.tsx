@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Product, ProductStatus, CreateProductDto, UpdateProductDto } from '../types'
 import api from '@/lib/axios'
 import { CardSkeleton } from '@/components/ui/Skeleton'
-import { STATIONS } from '../constants/stations'
+import { usePositions } from '@/features/settings/api/settings.api'
 
 interface ProductFormProps {
   initialData?: Product
@@ -25,6 +25,7 @@ interface SubCategory {
 }
 
 export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading }: ProductFormProps) => {
+  const positions = usePositions()
   const [formData, setFormData] = useState({
     product_code: initialData?.product_code || '',
     product_name: initialData?.product_name || '',
@@ -259,7 +260,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
           className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
         >
           <option value="">Tidak ada station</option>
-          {STATIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          {(positions.data || []).filter(p => p.is_active).map(p => <option key={p.position_code} value={p.position_code}>{p.position_name} ({p.department_name})</option>)}
         </select>
       </div>
 

@@ -6,7 +6,7 @@ import {
   useMenuProfitability, useCostTrend, useWasteSummary,
 } from '../api/theoretical-consumption.api'
 import { useActiveBranches } from '../api/food-production.api'
-import { STATIONS } from '@/features/products/constants/stations'
+import { usePositions } from '@/features/settings/api/settings.api'
 import { escapeCsv } from '@/utils/csv.utils'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(Math.round(n))
@@ -67,6 +67,7 @@ export default function TheoreticalConsumptionPage() {
   const [activeTab, setActiveTab] = useState<Tab>('theoretical')
 
   const branches = useActiveBranches()
+  const positions = usePositions()
   const params = useMemo(() => ({
     period_start: periodStart,
     period_end: periodEnd,
@@ -116,7 +117,7 @@ export default function TheoreticalConsumptionPage() {
             <select value={station} onChange={e => setStation(e.target.value)}
               className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
               <option value="">Semua Station</option>
-              {STATIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {(positions.data || []).filter(p => p.is_active).map(p => <option key={p.position_code} value={p.position_code}>{p.position_name} ({p.department_name})</option>)}
             </select>
           </div>
         </div>
