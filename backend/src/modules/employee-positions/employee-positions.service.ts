@@ -23,6 +23,16 @@ class EmployeePositionsService {
     try {
       await client.query('BEGIN')
 
+      // Check if already exists (active or deleted)
+      const { rows: existing } = await client.query(
+        `SELECT id, is_deleted FROM employee_positions WHERE employee_id = $1 AND position_id = $2`,
+        [employeeId, positionId]
+      )
+
+      if (existing.length > 0 && !existing[0].is_deleted) {
+        throw new EmployeePositionDuplicateError()
+      }
+
       // If assigning as primary, clear existing primary atomically
       if (isPrimary) {
         await client.query(
@@ -31,16 +41,27 @@ class EmployeePositionsService {
         )
       }
 
-      await client.query(
-        `INSERT INTO employee_positions (employee_id, position_id, is_primary, assigned_by)
-         VALUES ($1, $2, $3, $4)`,
-        [employeeId, positionId, isPrimary, userId || null]
-      )
+      if (existing.length > 0 && existing[0].is_deleted) {
+        // Restore soft-deleted record
+        await client.query(
+          `UPDATE employee_positions SET is_deleted = false, deleted_at = NULL, is_primary = $1, assigned_by = $2, assigned_at = now()
+           WHERE id = $3`,
+          [isPrimary, userId || null, existing[0].id]
+        )
+      } else {
+        // Insert new
+        await client.query(
+          `INSERT INTO employee_positions (employee_id, position_id, is_primary, assigned_by)
+           VALUES ($1, $2, $3, $4)`,
+          [employeeId, positionId, isPrimary, userId || null]
+        )
+      }
 
       await client.query('COMMIT')
       await AuditService.log('CREATE', 'employee_position', employeeId, userId, undefined, { position_id: positionId, is_primary: isPrimary })
     } catch (err: unknown) {
       await client.query('ROLLBACK')
+      if (err instanceof EmployeePositionDuplicateError) throw err
       if (isPostgresError(err, '23505')) throw new EmployeePositionDuplicateError()
       throw err
     } finally {

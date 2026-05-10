@@ -958,6 +958,8 @@ frontend/src/features/food-production/pages/
 | Same WIP 2x di 1 order | Boleh — beda line record, beda batch count |
 | Void setelah JOURNALED | Buat reversal journal → mark original `is_reversed = true` |
 | COA tidak ditemukan saat generate journal | Throw error `COA_NOT_FOUND` — jangan generate jurnal partial |
+| User pilih WIP yang restricted ke posisi lain | Block: `filterAccessibleWipIds()` dari `wip-access.util.ts` reject di service layer |
+| User dengan `can_access_all_wip` position | Bypass semua WIP position filter |
 
 ---
 

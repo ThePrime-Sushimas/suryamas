@@ -3,6 +3,7 @@ import { BusinessRuleError } from '../../../utils/errors.base'
 import { AuditService } from '../../monitoring/monitoring.service'
 import { productionOrdersRepository } from './production-orders.repository'
 import { WipRepository } from '../wip/wip.repository'
+import { filterAccessibleWipIds } from '../wip/wip-access.util'
 import {
   ProductionOrderNotFoundError, ProductionOrderNotDraftError,
   ProductionOrderNotCompletedError, ProductionOrderNotVoidableError,
@@ -46,6 +47,14 @@ class ProductionOrdersService {
     )
     if (accessCheck.rows.length === 0) {
       throw new BusinessRuleError('Anda tidak memiliki akses ke cabang ini')
+    }
+
+    // Validate WIP position access
+    const requestedWipIds = dto.lines.map(l => l.wip_id)
+    const allowedWipIds = await filterAccessibleWipIds(dto.created_by, requestedWipIds)
+    const blockedWips = requestedWipIds.filter(id => !allowedWipIds.includes(id))
+    if (blockedWips.length > 0) {
+      throw new BusinessRuleError('Anda tidak memiliki akses posisi untuk memproduksi beberapa WIP yang dipilih')
     }
 
     const client = await pool.connect()

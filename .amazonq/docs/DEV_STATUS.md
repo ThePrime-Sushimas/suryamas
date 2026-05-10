@@ -133,6 +133,7 @@
 | `backend/src/utils/error-handler.util.ts` | Global `handleError(res, error, req, context)` |
 | `backend/src/utils/postgres-error.util.ts` | `isPostgresError(error, code)` helper |
 | `backend/src/utils/employee.util.ts` | `getEmployeeId(req)`, `getEmployeeIdSafe(req)` — map auth user to employee |
+| `backend/src/modules/food-production/wip/wip-access.util.ts` | `resolveUserWipAccess()`, `canUserAccessWip()`, `filterAccessibleWipIds()` — WIP position access guard |
 | `backend/src/config/error-registry.ts` | Error class → status code mapping |
 | `frontend/src/lib/errorParser.ts` | `parseApiError(err, fallbackMessage)` |
 | `frontend/src/features/branch_context/store/permission.store.ts` | `hasPermission(module, action)` for UI permission guard |

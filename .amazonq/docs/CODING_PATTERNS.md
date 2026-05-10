@@ -378,3 +378,43 @@ Urutan fallback saat pilih ingredient:
 | Error class | `{Entity}{Type}Error` | `MenuCategoryNotFoundError` |
 | Permission module | snake_case | `menu_categories` |
 | API route | kebab-case | `/api/v1/menu-categories` |
+
+
+---
+
+## WIP Position Access Guard
+
+### Utility File
+`backend/src/modules/food-production/wip/wip-access.util.ts`
+
+### Exported Functions
+
+| Function | Input | Output | Use Case |
+|----------|-------|--------|----------|
+| `resolveUserWipAccess(userId)` | auth user UUID | `{ positionIds, canAccessAll }` | Get user's positions (cover + per-branch) |
+| `canUserAccessWip(userId, wipId)` | auth user + WIP UUID | `boolean` | Single WIP check |
+| `filterAccessibleWipIds(userId, wipIds)` | auth user + array WIP UUIDs | filtered array | Batch check (no N+1) |
+
+### Rules
+1. WIP tanpa record di `wip_position_access` → **semua boleh** (backward compatible)
+2. User punya position dengan `can_access_all_wip = true` → **bypass semua filter**
+3. User punya position yang ada di `wip_position_access` untuk WIP tersebut → **boleh**
+4. Selain itu → **block**
+
+### Position Sources (UNION)
+- `employee_positions` → posisi cover (global, berlaku di semua cabang)
+- `employee_branches.position_id` → posisi per cabang
+
+### Usage Pattern
+```typescript
+// Di service layer (production-orders, dll):
+import { filterAccessibleWipIds } from '../wip/wip-access.util'
+
+const allowed = await filterAccessibleWipIds(userId, requestedWipIds)
+const blocked = requestedWipIds.filter(id => !allowed.includes(id))
+if (blocked.length > 0) throw new BusinessRuleError('...')
+```
+
+### Frontend Integration
+- WIP dropdown di Production Order form: `GET /wip-items?filter_by_position=true`
+- Backend double-check di service layer saat create (prevent bypass)

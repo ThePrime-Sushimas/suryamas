@@ -170,22 +170,46 @@ WHERE w.company_id = $1 AND w.deleted_at IS NULL
   )
 ```
 
-Backend resolve `$2` (position IDs) dan `$3` (has bypass) sebelum query:
+Backend resolve `$2` (position IDs) dan `$3` (has bypass) sebelum query.
+
+### Implementation: `wip-access.util.ts`
+
+**File**: `backend/src/modules/food-production/wip/wip-access.util.ts`
+
+Utility reusable untuk WIP position access check. Dipakai oleh:
+- `production-orders.service.ts` → guard saat create (reject jika user tidak punya posisi)
+- `wip.controller.ts` → filter list WIP (`?filter_by_position=true`)
 
 ```typescript
-async function resolveUserWipAccess(userId: string): Promise<{ positionIds: string[]; canAccessAll: boolean }> {
-  const { rows } = await pool.query(`
-    SELECT ep.position_id, p.can_access_all_wip
-    FROM employee_positions ep
-    JOIN employees e ON e.id = ep.employee_id
-    JOIN positions p ON p.id = ep.position_id
-    WHERE e.user_id = $1 AND ep.is_deleted = false AND p.is_deleted = false
-  `, [userId])
+// Exported functions:
 
-  return {
-    positionIds: rows.map(r => r.position_id),
-    canAccessAll: rows.some(r => r.can_access_all_wip),
-  }
+/** Resolve semua position IDs user (dari employee_positions + employee_branches) */
+resolveUserWipAccess(userId: string): Promise<{ positionIds: string[]; canAccessAll: boolean }>
+
+/** Check apakah user boleh akses 1 WIP tertentu */
+canUserAccessWip(userId: string, wipId: string): Promise<boolean>
+
+/** Batch filter: dari array wipIds, return hanya yang user boleh akses */
+filterAccessibleWipIds(userId: string, wipIds: string[]): Promise<string[]>
+```
+
+**Logic `resolveUserWipAccess`:**
+- Gabungkan positions dari `employee_positions` (cover/global) + `employee_branches.position_id` (per-branch)
+- Return unique position IDs + flag `canAccessAll` jika salah satu position punya `can_access_all_wip = true`
+
+**Logic `filterAccessibleWipIds` (batch, no N+1):**
+1. Resolve user positions (1 query)
+2. Batch fetch semua restrictions untuk requested WIP IDs (1 query)
+3. Filter di memory — O(n) loop, no additional DB calls
+
+**Guard di Production Order create:**
+```typescript
+// production-orders.service.ts → create()
+const requestedWipIds = dto.lines.map(l => l.wip_id)
+const allowedWipIds = await filterAccessibleWipIds(dto.created_by, requestedWipIds)
+const blockedWips = requestedWipIds.filter(id => !allowedWipIds.includes(id))
+if (blockedWips.length > 0) {
+  throw new BusinessRuleError('Anda tidak memiliki akses posisi untuk memproduksi beberapa WIP yang dipilih')
 }
 ```
 
