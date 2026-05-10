@@ -1,4 +1,5 @@
 import { pool } from '../../../config/db'
+import { BusinessRuleError } from '../../../utils/errors.base'
 import { AuditService } from '../../monitoring/monitoring.service'
 import { productionOrdersRepository } from './production-orders.repository'
 import { WipRepository } from '../wip/wip.repository'
@@ -32,6 +33,21 @@ class ProductionOrdersService {
   }
 
   async create(dto: CreateProductionOrderDto): Promise<ProductionOrder> {
+    // Validate user has access to the target branch
+    if (!dto.created_by) {
+      throw new BusinessRuleError('User tidak teridentifikasi')
+    }
+    const accessCheck = await pool.query(
+      `SELECT 1 FROM employee_branches eb
+       JOIN employees e ON e.id = eb.employee_id
+       WHERE e.user_id = $1 AND eb.branch_id = $2 AND eb.deleted_at IS NULL
+       LIMIT 1`,
+      [dto.created_by, dto.branch_id]
+    )
+    if (accessCheck.rows.length === 0) {
+      throw new BusinessRuleError('Anda tidak memiliki akses ke cabang ini')
+    }
+
     const client = await pool.connect()
     try {
       await client.query('BEGIN')

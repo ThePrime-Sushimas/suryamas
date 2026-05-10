@@ -125,6 +125,7 @@ export default function ProductionOrdersPage() {
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">No Order</th>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Cabang</th>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Dibuat Oleh</th>
                   <th className="px-3 py-2.5 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
                   <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Waste</th>
@@ -133,15 +134,16 @@ export default function ProductionOrdersPage() {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {orders.isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}><td colSpan={6} className="px-3 py-3"><div className="h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
+                    <tr key={i}><td colSpan={7} className="px-3 py-3"><div className="h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
                   ))
                 ) : data.length === 0 ? (
-                  <tr><td colSpan={6} className="px-3 py-12 text-center text-gray-400">Belum ada production order</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-12 text-center text-gray-400">Belum ada production order</td></tr>
                 ) : data.map(o => (
                   <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => navigate(`/food-production/production/${o.id}`)}>
                     <td className="px-3 py-2.5 font-mono text-xs">{o.order_number}</td>
                     <td className="px-3 py-2.5 text-gray-900 dark:text-white">{o.branch_name}</td>
                     <td className="px-3 py-2.5 text-gray-500">{new Date(o.production_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400 text-xs">{o.created_by_name || '—'}</td>
                     <td className="px-3 py-2.5 text-center">
                       <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${PRODUCTION_STATUS_COLORS[o.status] || ''}`}>{o.status}</span>
                     </td>

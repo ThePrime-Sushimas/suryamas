@@ -28,9 +28,10 @@ export class ProductionOrdersRepository {
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(
-        `SELECT po.*, b.branch_name
+        `SELECT po.*, b.branch_name, e.full_name AS created_by_name
          FROM production_orders po
          JOIN branches b ON b.id = po.branch_id
+         LEFT JOIN employees e ON e.user_id = po.created_by
          ${where}
          ORDER BY po.production_date DESC, po.created_at DESC
          LIMIT $${idx} OFFSET $${idx + 1}`,

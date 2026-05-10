@@ -27,6 +27,7 @@ export interface ProductionOrder {
 
 export interface ProductionOrderWithBranch extends ProductionOrder {
   branch_name: string
+  created_by_name: string | null
 }
 
 export interface ProductionOrderLine {

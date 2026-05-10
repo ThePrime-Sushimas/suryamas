@@ -451,6 +451,7 @@ export interface ProductionOrderListItem {
   total_waste_cost: number
   notes: string | null
   created_at: string
+  created_by_name: string | null
 }
 
 export interface ProductionOrderLine {

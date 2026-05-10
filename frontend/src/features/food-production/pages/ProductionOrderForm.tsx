@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useActiveBranches, useWipItems, useCreateProductionOrder } from '../api/food-production.api'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
 const today = () => new Date().toISOString().slice(0, 10)
@@ -18,8 +19,14 @@ export default function ProductionOrderForm() {
   const toast = useToast()
 
   const branches = useActiveBranches()
+  const userBranches = useBranchContextStore(s => s.branches)
   const wipItems = useWipItems({ limit: 500 })
   const createOrder = useCreateProductionOrder()
+
+  // Filter branches to only those the user has access to
+  const availableBranches = (branches.data || []).filter(b =>
+    userBranches.some(ub => ub.branch_id === b.id)
+  )
 
   const [branchId, setBranchId] = useState('')
   const [productionDate, setProductionDate] = useState(today())
@@ -77,7 +84,7 @@ export default function ProductionOrderForm() {
             <select value={branchId} onChange={e => setBranchId(e.target.value)}
               className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
               <option value="">Pilih cabang...</option>
-              {(branches.data || []).map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+              {availableBranches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
             </select>
           </div>
           <div>
