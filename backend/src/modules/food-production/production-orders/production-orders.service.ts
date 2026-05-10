@@ -40,7 +40,7 @@ class ProductionOrdersService {
     const accessCheck = await pool.query(
       `SELECT 1 FROM employee_branches eb
        JOIN employees e ON e.id = eb.employee_id
-       WHERE e.user_id = $1 AND eb.branch_id = $2 AND eb.deleted_at IS NULL
+       WHERE e.user_id = $1 AND eb.branch_id = $2 AND eb.status = 'active'
        LIMIT 1`,
       [dto.created_by, dto.branch_id]
     )
