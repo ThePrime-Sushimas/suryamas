@@ -8,6 +8,10 @@ interface EmployeeBranch {
   branch_name: string
   branch_code: string
   role_name: string
+  position_id: string | null
+  position_code: string | null
+  position_name: string | null
+  department_name: string | null
   is_primary: boolean
 }
 
@@ -195,21 +199,83 @@ export const EmployeeDetailPanel = ({ employee, onClose, onEdit, onDelete, onRes
           <div className="flex items-start gap-3">
             <Building2 className="w-5 h-5 text-gray-400 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className={`${labelCls} mb-2`}>Branches ({branches.length})</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className={labelCls}>Penempatan Cabang ({branches.length})</p>
+                <button
+                  onClick={() => onManageBranches(employee.id)}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  Kelola →
+                </button>
+              </div>
               {loadingBranches ? (
-                <p className="text-xs text-gray-400">Loading...</p>
+                <div className="space-y-2">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={i} className="h-16 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+                  ))}
+                </div>
               ) : branches.length === 0 ? (
-                <p className="text-xs text-gray-400">No branches assigned</p>
+                <div className="p-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg text-center">
+                  <p className="text-xs text-gray-400">Belum ada penempatan cabang</p>
+                  <button
+                    onClick={() => onManageBranches(employee.id)}
+                    className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                  >
+                    Tambah Cabang
+                  </button>
+                </div>
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {branches.map(branch => (
-                    <div key={branch.id} className="flex items-center gap-2 text-sm flex-wrap">
-                      {branch.is_primary && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 shrink-0" />}
-                      <span className="text-gray-900 dark:text-white">{branch.branch_name}</span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">({branch.branch_code})</span>
-                      {branch.is_primary && (
-                        <span className="text-xs px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">Primary</span>
-                      )}
+                    <div 
+                      key={branch.id} 
+                      className={`p-3 rounded-lg border transition-all ${
+                        branch.is_primary 
+                          ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20' 
+                          : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {branch.is_primary && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                              {branch.branch_name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{branch.branch_code}</p>
+                          </div>
+                        </div>
+                        {branch.is_primary && (
+                          <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded shrink-0">
+                            PRIMARY
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-1.5 text-xs">
+                        {/* Position */}
+                        <div className="flex items-center gap-2">
+                          <Briefcase className="w-3 h-3 text-purple-500 dark:text-purple-400 shrink-0" />
+                          {branch.position_name ? (
+                            <div className="min-w-0 flex-1">
+                              <span className="font-medium text-gray-900 dark:text-white">{branch.position_name}</span>
+                              {branch.department_name && (
+                                <span className="text-gray-500 dark:text-gray-400"> • {branch.department_name}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 dark:text-gray-500 italic">Tidak ada posisi</span>
+                          )}
+                        </div>
+                        
+                        {/* Role */}
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 flex items-center justify-center shrink-0">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400" />
+                          </div>
+                          <span className="text-gray-700 dark:text-gray-300">{branch.role_name}</span>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -181,9 +181,9 @@ const EmployeeBranchesPage = lazy(() =>
     default: m.EmployeeBranchesPage,
   })),
 );
-const EmployeeBranchDetailPage = lazy(() =>
+const EmployeeBranchPositionPage = lazy(() =>
   import("./features/employee_branches").then((m) => ({
-    default: m.EmployeeBranchDetailPage,
+    default: m.EmployeeBranchPositionPage,
   })),
 );
 const PaymentTermsPage = lazy(() =>
@@ -905,7 +905,7 @@ function App() {
                     element={
                       <RequirePermission module="employee_branches">
                         <Suspense fallback={<LoadingFallback />}>
-                          <EmployeeBranchDetailPage />
+                          <EmployeeBranchPositionPage />
                         </Suspense>
                       </RequirePermission>
                     }

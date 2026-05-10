@@ -128,9 +128,9 @@ export default function EditEmployeePage() {
         <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Ubah Karyawan</h1>
         
         {employee.branch_name && (
-          <div className="border-b border-gray-200 dark:border-gray-700 pb-4 mb-4 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Penempatan Cabang</h3>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+          <div className="border-b border-gray-200 dark:border-gray-700 pb-4 mb-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-lg">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Penempatan Cabang & Posisi</h3>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
                 <p className="text-xs text-gray-600 dark:text-gray-400">Cabang saat ini:</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -139,9 +139,12 @@ export default function EditEmployeePage() {
               </div>
               <Link
                 to={`/employees/${id}/branches`}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium flex items-center justify-center"
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 text-xs font-medium flex items-center justify-center gap-1.5 shadow-sm transition-all"
               >
-                Kelola Cabang
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Kelola Cabang & Posisi
               </Link>
             </div>
           </div>

@@ -5,6 +5,7 @@ export interface EmployeeBranch {
   employee_id: string
   branch_id: string
   role_id: string
+  position_id: string | null
   is_primary: boolean
   approval_limit: number
   status: BranchAssignmentStatus
@@ -12,6 +13,9 @@ export interface EmployeeBranch {
   branch_name: string
   branch_code: string
   role_name: string
+  position_code: string | null
+  position_name: string | null
+  department_name: string | null
   created_at: string
 }
 
@@ -50,6 +54,7 @@ export interface CreateEmployeeBranchDTO {
   employee_id: string
   branch_id: string
   role_id: string
+  position_id?: string | null
   is_primary: boolean
   approval_limit: number
   status: BranchAssignmentStatus
@@ -57,6 +62,7 @@ export interface CreateEmployeeBranchDTO {
 
 export interface UpdateEmployeeBranchDTO {
   role_id?: string
+  position_id?: string | null
   is_primary?: boolean
   approval_limit?: number
   status?: BranchAssignmentStatus
