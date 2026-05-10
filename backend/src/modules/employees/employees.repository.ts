@@ -312,7 +312,7 @@ export class EmployeesRepository {
   }
 
   getPublicUrl(path: string): string {
-    return storageService.getPublicUrl(path)
+    return storageService.getPublicUrl(path, 'profilepictures')
   }
 }
 
