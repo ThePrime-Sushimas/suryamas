@@ -1,5 +1,5 @@
 import React from "react";
-import { Calendar, Check, Clock, AlertCircle, Shield } from "lucide-react";
+import { Calendar, Check, AlertCircle, Shield } from "lucide-react";
 import type { AggregatedTransactionWithDetails } from "../../types";
 import {
   formatDate,
