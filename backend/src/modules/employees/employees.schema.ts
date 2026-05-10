@@ -15,6 +15,7 @@ export const CreateEmployeeSchema = z.object({
     employee_id: z.string().max(50).optional(),
     full_name: z.string().min(1).max(255),
     job_position: z.string().min(1).max(100),
+    position_id: uuidSchema.optional(), // For auto-assign to employee_positions
     brand_name: z.string().min(1).max(100),
     join_date: isoDate,
     resign_date: nullableDate.optional(),

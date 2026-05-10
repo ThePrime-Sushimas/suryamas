@@ -6,6 +6,7 @@ export const employeeFormSchema = z.object({
   employee_id: z.string().max(50).optional(),
   full_name: z.string().min(1, 'Name is required').max(255),
   job_position: z.string().min(1, 'Position is required').max(100),
+  position_id: z.string().uuid('Invalid position').optional(), // For create mode
   brand_name: z.string().min(1, 'Brand is required').max(100),
   join_date: isoDate,
   resign_date: isoDate.optional().or(z.literal('')),

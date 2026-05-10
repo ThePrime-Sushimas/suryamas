@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { employeeFormSchema } from '../schemas/employee.schema'
 import type { EmployeeFormData } from '../types'
 import { ZodError } from 'zod'
+import { usePositions } from '@/features/settings/api/settings.api'
 
 interface EmployeeFormProps {
   initialData?: Partial<EmployeeFormData>
@@ -9,6 +10,7 @@ interface EmployeeFormProps {
   onCancel: () => void
   isLoading?: boolean
   submitLabel?: string
+  mode?: 'create' | 'edit'
 }
 
 const defaultFormData: EmployeeFormData = {
@@ -45,8 +47,10 @@ export default function EmployeeForm({
   onSubmit, 
   onCancel, 
   isLoading = false,
-  submitLabel = 'Submit'
+  submitLabel = 'Submit',
+  mode = 'create'
 }: EmployeeFormProps) {
+  const positions = usePositions()
   const [formData, setFormData] = useState<EmployeeFormData>(() => {
     const initial = { ...defaultFormData }
     if (initialData) Object.assign(initial, initialData)
@@ -106,11 +110,18 @@ export default function EmployeeForm({
             <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} className={inputCls} />
             <ErrorMessage field="full_name" />
           </div>
-          <div>
-            <label className={labelCls}>Job Position *</label>
-            <input type="text" name="job_position" value={formData.job_position} onChange={handleChange} className={inputCls} />
-            <ErrorMessage field="job_position" />
-          </div>
+          {mode === 'create' && (
+            <div>
+              <label className={labelCls}>Position *</label>
+              <select name="position_id" value={formData.position_id || ''} onChange={handleChange} className={inputCls}>
+                <option value="">Pilih posisi...</option>
+                {(positions.data || []).map(p => (
+                  <option key={p.id} value={p.id}>{p.position_name} ({p.department_name})</option>
+                ))}
+              </select>
+              <ErrorMessage field="position_id" />
+            </div>
+          )}
           <div>
             <label className={labelCls}>Brand Name *</label>
             <input type="text" name="brand_name" value={formData.brand_name} onChange={handleChange} className={inputCls} />

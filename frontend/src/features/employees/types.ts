@@ -57,6 +57,7 @@ export interface EmployeeFormData {
   employee_id?: string
   full_name: string
   job_position: string
+  position_id?: string // For create: assign first position
   brand_name: string
   join_date: string
   resign_date?: string

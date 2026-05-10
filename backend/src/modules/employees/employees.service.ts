@@ -6,6 +6,7 @@ import { ImportService } from '../../services/import.service'
 import { AuditService } from '../monitoring/monitoring.service'
 import { calculateAge, calculateYearsOfService } from '../../utils/age.util'
 import { EmployeeErrors } from './employees.errors'
+import { employeePositionsRepository } from '../employee-positions/employee-positions.repository'
 
 export class EmployeesService {
   async list(params: PaginationParams): Promise<PaginatedResponse<EmployeeResponse>> {
@@ -22,11 +23,19 @@ export class EmployeesService {
     const profilePictureUrl = file ? await this.uploadFile(file) : null
     const employeeId = payload.employee_id || await this.generateEmployeeId(payload)
     
+    // Extract position_id before creating employee (not stored in employees table)
+    const { position_id, ...employeeData } = payload
+    
     const employee = await employeesRepository.create({
-      ...payload,
+      ...employeeData,
       employee_id: employeeId,
       profile_picture: profilePictureUrl
     })
+
+    // Auto-assign position if provided
+    if (position_id) {
+      await employeePositionsRepository.assign(employee.id, position_id, true, userId || undefined)
+    }
 
     await AuditService.log('CREATE', 'employee', employee.id, userId || null, null, employee)
 

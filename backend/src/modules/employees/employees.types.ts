@@ -51,6 +51,7 @@ export interface EmployeeCreatePayload {
   employee_id?: string
   full_name: string
   job_position: string
+  position_id?: string // For auto-assign to employee_positions
   brand_name: string
   join_date: string
   resign_date?: string | null

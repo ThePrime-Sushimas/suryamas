@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useEmployeeStore } from '@/features/employees'
 import { useToast } from '@/contexts/ToastContext'
-import { EmployeeForm } from '@/features/employees'
+import { EmployeeForm, EmployeePositionsTab } from '@/features/employees'
 import type { EmployeeFormData, EmployeeResponse } from '@/features/employees'
 
 export default function EditEmployeePage() {
@@ -14,6 +14,7 @@ export default function EditEmployeePage() {
   const [employee, setEmployee] = useState<EmployeeResponse | null>(null)
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(true)
   const [initialData, setInitialData] = useState<Partial<EmployeeFormData> | null>(null)
+  const [activeTab, setActiveTab] = useState<'info' | 'positions'>('info')
   const isMountedRef = useRef(true)
 
   useEffect(() => {
@@ -146,13 +147,45 @@ export default function EditEmployeePage() {
           </div>
         )}
 
-        <EmployeeForm
-          initialData={initialData}
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-          isLoading={mutationLoading}
-          submitLabel="Simpan"
-        />
+        {/* Tabs */}
+        <div className="border-b border-gray-200 dark:border-gray-700 mb-4">
+          <nav className="flex gap-4">
+            <button
+              onClick={() => setActiveTab('info')}
+              className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'info'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Informasi Dasar
+            </button>
+            <button
+              onClick={() => setActiveTab('positions')}
+              className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'positions'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Posisi
+            </button>
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'info' ? (
+          <EmployeeForm
+            initialData={initialData}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            isLoading={mutationLoading}
+            submitLabel="Simpan"
+            mode="edit"
+          />
+        ) : (
+          <EmployeePositionsTab employeeId={id!} />
+        )}
       </div>
     </div>
   )

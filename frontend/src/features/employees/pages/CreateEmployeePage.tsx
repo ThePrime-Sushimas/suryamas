@@ -34,6 +34,7 @@ export default function CreateEmployeePage() {
           onCancel={handleCancel}
           isLoading={mutationLoading}
           submitLabel="Simpan"
+          mode="create"
         />
       </div>
     </div>
