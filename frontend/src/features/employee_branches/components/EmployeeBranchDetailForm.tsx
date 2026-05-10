@@ -19,7 +19,7 @@ const labelCls = "block text-xs font-semibold text-gray-700 dark:text-gray-300 m
 export const EmployeeBranchDetailForm = ({ employeeId, assignment, assignedBranchIds, roles, branches, onSubmit, onCancel, hasPrimaryBranch }: Props) => {
   const [branchId, setBranchId] = useState(assignment?.branch_id || '')
   const [roleId, setRoleId] = useState(assignment?.role_id || '')
-  const [positionId, setPositionId] = useState<string>(assignment?.position_id || '')
+  const [positionId, setPositionId] = useState<string>(assignment?.position_id ?? '')
   const [approvalLimit, setApprovalLimit] = useState(assignment?.approval_limit.toString() || '0')
   const [isPrimary, setIsPrimary] = useState(assignment?.is_primary || false)
   const [status, setStatus] = useState<BranchAssignmentStatus>(assignment?.status || 'active')

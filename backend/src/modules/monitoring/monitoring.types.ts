@@ -62,8 +62,11 @@ export interface ErrorLogRecord {
   error_type: ErrorType;
   severity: ErrorSeverity;
   module: string;
+  module_name?: string;
   submodule?: string;
   user_id?: string;
+  user_name?: string;
+  user_email?: string;
   branch_id?: string;
   url: string;
   route: string;

@@ -86,7 +86,19 @@ export class MonitoringRepository {
 
     try {
       const [dataRes, countRes] = await Promise.all([
-        pool.query(`SELECT el.*, e.full_name AS user_name, au.email AS user_email FROM error_logs el LEFT JOIN employees e ON e.user_id = el.user_id LEFT JOIN auth_users au ON au.id = el.user_id ${where} ORDER BY el.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+        pool.query(`
+          SELECT el.*, 
+            e.full_name AS user_name, 
+            au.email AS user_email,
+            pm.name AS module_name
+          FROM error_logs el 
+          LEFT JOIN employees e ON e.user_id = el.user_id 
+          LEFT JOIN auth_users au ON au.id = el.user_id
+          LEFT JOIN perm_modules pm ON pm.id::text = el.module
+          ${where} 
+          ORDER BY el.created_at DESC 
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `, [...params, pagination.limit, pagination.offset]),
         pool.query(`SELECT COUNT(*)::int AS total FROM error_logs el ${where}`, params)
       ])
       return { data: dataRes.rows as ErrorLogRecord[], total: countRes.rows[0].total }

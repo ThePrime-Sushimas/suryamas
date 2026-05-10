@@ -154,7 +154,7 @@ export const ErrorTable: React.FC<ErrorTableProps> = ({
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                  {log.module}
+                  {log.module_name || log.module}
                   {log.submodule && (
                     <span className="text-xs ml-1">({log.submodule})</span>
                   )}
