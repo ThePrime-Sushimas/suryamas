@@ -40,6 +40,7 @@ import {
   UtensilsCrossed,
   Beaker,
   ChefHat,
+  FlaskConical,
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -278,6 +279,13 @@ export const menuItems: MenuItem[] = [
         href: "/food-production/cogs/breakdown",
         icon: <BarChart3 size={16} />,
         module: "cogs_breakdown",
+      },
+      {
+        id: "fp-consumption",
+        name: "Analisa Konsumsi",
+        href: "/food-production/consumption",
+        icon: <FlaskConical size={16} />,
+        module: "consumption_analysis",
       },
       {
         id: "fp-categories",

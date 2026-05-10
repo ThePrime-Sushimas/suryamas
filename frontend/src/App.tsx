@@ -469,6 +469,7 @@ const MenuGroupsPage = lazy(() => import('./features/food-production/pages/MenuG
 const ProductionOrdersPage = lazy(() => import('./features/food-production/pages/ProductionOrdersPage'))
 const ProductionOrderForm = lazy(() => import('./features/food-production/pages/ProductionOrderForm'))
 const ProductionOrderDetailPage = lazy(() => import('./features/food-production/pages/ProductionOrderDetailPage'))
+const TheoreticalConsumptionPage = lazy(() => import('./features/food-production/pages/TheoreticalConsumptionPage'))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1583,6 +1584,16 @@ function App() {
                       <RequirePermission module="production_orders">
                         <Suspense fallback={<LoadingFallback />}>
                           <ProductionOrderDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/consumption"
+                    element={
+                      <RequirePermission module="consumption_analysis">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <TheoreticalConsumptionPage />
                         </Suspense>
                       </RequirePermission>
                     }
