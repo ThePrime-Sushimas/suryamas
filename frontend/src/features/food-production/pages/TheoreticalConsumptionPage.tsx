@@ -6,6 +6,7 @@ import {
   useMenuProfitability, useCostTrend, useWasteSummary,
 } from '../api/theoretical-consumption.api'
 import { useActiveBranches } from '../api/food-production.api'
+import { STATIONS } from '@/features/products/constants/stations'
 import { escapeCsv } from '@/utils/csv.utils'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(Math.round(n))
@@ -62,6 +63,7 @@ export default function TheoreticalConsumptionPage() {
   const [periodStart, setPeriodStart] = useState(defaults.start)
   const [periodEnd, setPeriodEnd] = useState(defaults.end)
   const [branchId, setBranchId] = useState('')
+  const [station, setStation] = useState('')
   const [activeTab, setActiveTab] = useState<Tab>('theoretical')
 
   const branches = useActiveBranches()
@@ -69,7 +71,8 @@ export default function TheoreticalConsumptionPage() {
     period_start: periodStart,
     period_end: periodEnd,
     ...(branchId ? { branch_id: branchId } : {}),
-  }), [periodStart, periodEnd, branchId])
+    ...(station ? { station } : {}),
+  }), [periodStart, periodEnd, branchId, station])
 
   const theoretical = useTheoreticalConsumption(params)
   const variance = useVariance(params)
@@ -106,6 +109,14 @@ export default function TheoreticalConsumptionPage() {
               className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
               <option value="">Semua Cabang</option>
               {(branches.data || []).map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Divisi / Station</label>
+            <select value={station} onChange={e => setStation(e.target.value)}
+              className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+              <option value="">Semua Station</option>
+              {STATIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
         </div>

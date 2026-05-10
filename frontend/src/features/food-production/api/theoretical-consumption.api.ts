@@ -9,6 +9,7 @@ interface ConsumptionParams {
   period_start: string
   period_end: string
   branch_id?: string
+  station?: string
 }
 
 const KEYS = {

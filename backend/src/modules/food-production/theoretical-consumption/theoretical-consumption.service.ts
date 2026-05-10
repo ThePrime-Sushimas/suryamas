@@ -19,7 +19,7 @@ export class TheoreticalConsumptionService {
     }
 
     const [items, coverageData] = await Promise.all([
-      theoreticalConsumptionRepository.getTheoreticalConsumption(query.period_start, query.period_end, branchPosId),
+      theoreticalConsumptionRepository.getTheoreticalConsumption(query.period_start, query.period_end, branchPosId, query.station),
       theoreticalConsumptionRepository.getCoverage(query.period_start, query.period_end, branchPosId),
     ])
 
@@ -42,7 +42,7 @@ export class TheoreticalConsumptionService {
       branchUuid = resolved.branchUuid
     }
 
-    const items = await theoreticalConsumptionRepository.getVariance(query.period_start, query.period_end, branchPosId, branchUuid)
+    const items = await theoreticalConsumptionRepository.getVariance(query.period_start, query.period_end, branchPosId, branchUuid, query.station)
 
     // Apply severity
     const withSeverity = items.map(item => ({
@@ -84,7 +84,7 @@ export class TheoreticalConsumptionService {
       branchPosId = resolved.branchPosId
     }
 
-    const items = await theoreticalConsumptionRepository.getMenuProfitability(query.period_start, query.period_end, branchPosId)
+    const items = await theoreticalConsumptionRepository.getMenuProfitability(query.period_start, query.period_end, branchPosId, query.station)
 
     // Assign tier: A = cost% <= 30, B = 30-45, C = > 45
     return items.map(item => ({
@@ -112,7 +112,7 @@ export class TheoreticalConsumptionService {
       branchUuid = resolved.branchUuid
     }
 
-    const items = await theoreticalConsumptionRepository.getWasteSummary(query.period_start, query.period_end, branchUuid)
+    const items = await theoreticalConsumptionRepository.getWasteSummary(query.period_start, query.period_end, branchUuid, query.station)
 
     const totalWasteCost = items.reduce((s, i) => s + i.waste_cost, 0)
     const totalUsedCost = items.reduce((s, i) => s + i.total_used_cost, 0)

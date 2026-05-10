@@ -184,15 +184,16 @@ export default function ProductsPage() {
                   </th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kategori</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sub Kategori</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Station</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Avg Cost</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {isLoading ? (
-                  <tr><td colSpan={7} className="px-3 py-12 text-center text-gray-400">Memuat...</td></tr>
+                  <tr><td colSpan={8} className="px-3 py-12 text-center text-gray-400">Memuat...</td></tr>
                 ) : products.length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-12 text-center text-gray-400">Tidak ada produk ditemukan</td></tr>
+                  <tr><td colSpan={8} className="px-3 py-12 text-center text-gray-400">Tidak ada produk ditemukan</td></tr>
                 ) : products.map(p => (
                   <tr key={p.id} onClick={() => navigate(`/products/${p.id}/edit`)}
                     className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${p.is_deleted ? 'opacity-60 bg-red-50 dark:bg-red-900/10' : ''} ${selectedIds.includes(p.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
@@ -204,6 +205,7 @@ export default function ProductsPage() {
                     <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{p.product_name}</td>
                     <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.category_name || '—'}</td>
                     <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.sub_category_name || '—'}</td>
+                    <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.station || '—'}</td>
                     <td className="px-3 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
                       {p.average_cost > 0 ? (
                         <span>Rp {fmt(p.average_cost)}<span className="text-gray-400 text-xs ml-1">/{p.base_unit_name || '?'}</span></span>

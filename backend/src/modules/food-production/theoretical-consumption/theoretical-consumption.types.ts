@@ -41,6 +41,7 @@ export interface TheoreticalConsumptionQuery {
   period_start: string
   period_end: string
   branch_id?: string
+  station?: string
 }
 
 export interface BranchIds {

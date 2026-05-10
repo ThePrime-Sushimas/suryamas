@@ -27,10 +27,13 @@ export class TheoreticalConsumptionRepository {
     throw new BusinessRuleError(`Tidak dapat menemukan POS branch_id untuk cabang ini. Pastikan cabang sudah pernah sync POS.`)
   }
 
-  async getTheoreticalConsumption(periodStart: string, periodEnd: string, branchPosId?: number): Promise<TheoreticalConsumptionItem[]> {
-    const branchFilter = branchPosId != null ? 'AND sh.branch_id = $3' : ''
+  async getTheoreticalConsumption(periodStart: string, periodEnd: string, branchPosId?: number, station?: string): Promise<TheoreticalConsumptionItem[]> {
     const params: unknown[] = [periodStart, periodEnd]
-    if (branchPosId != null) params.push(branchPosId)
+    let idx = 3
+    const branchFilter = branchPosId != null ? `AND sh.branch_id = $${idx}` : ''
+    if (branchPosId != null) { params.push(branchPosId); idx++ }
+    const stationFilter = station ? `AND p.station = $${idx}` : ''
+    if (station) { params.push(station); idx++ }
 
     const { rows } = await pool.query(
       `WITH
@@ -50,6 +53,7 @@ export class TheoreticalConsumptionRepository {
         WHERE sm.status_id = 13
           AND sh.sales_date BETWEEN $1 AND $2
           ${branchFilter}
+          ${stationFilter}
         GROUP BY rl.product_id, p.product_name, p.product_code, rl.uom
       ),
       wip_consumption AS (
@@ -70,6 +74,7 @@ export class TheoreticalConsumptionRepository {
         WHERE sm.status_id = 13
           AND sh.sales_date BETWEEN $1 AND $2
           ${branchFilter}
+          ${stationFilter}
         GROUP BY wi.product_id, p.product_name, p.product_code, wi.uom
       ),
       all_consumption AS (
@@ -100,14 +105,17 @@ export class TheoreticalConsumptionRepository {
     }))
   }
 
-  async getVariance(periodStart: string, periodEnd: string, branchPosId?: number, branchUuid?: string): Promise<VarianceItem[]> {
-    const branchFilterPos = branchPosId != null ? 'AND sh.branch_id = $3' : ''
+  async getVariance(periodStart: string, periodEnd: string, branchPosId?: number, branchUuid?: string, station?: string): Promise<VarianceItem[]> {
     const params: unknown[] = [periodStart, periodEnd]
-    if (branchPosId != null) params.push(branchPosId)
-
-    const branchUuidIdx = params.length + 1
-    if (branchUuid) params.push(branchUuid)
-    const branchFilterUuid = branchUuid ? `AND po.branch_id = $${branchUuidIdx}` : ''
+    let idx = 3
+    const branchFilterPos = branchPosId != null ? `AND sh.branch_id = $${idx}` : ''
+    if (branchPosId != null) { params.push(branchPosId); idx++ }
+    const branchFilterUuid = branchUuid ? `AND po.branch_id = $${idx}` : ''
+    if (branchUuid) { params.push(branchUuid); idx++ }
+    let stationParamIdx = 0
+    const stationFilter = station ? `AND p.station = $${idx}` : ''
+    if (station) { stationParamIdx = idx; params.push(station); idx++ }
+    const stationFilterActual = station ? `AND pm.product_id IN (SELECT id FROM products WHERE station = $${stationParamIdx})` : ''
 
     const { rows } = await pool.query(
       `WITH
@@ -123,6 +131,7 @@ export class TheoreticalConsumptionRepository {
         WHERE sm.status_id = 13
           AND sh.sales_date BETWEEN $1 AND $2
           ${branchFilterPos}
+          ${stationFilter}
         GROUP BY rl.product_id, p.product_name, p.product_code, rl.uom
       ),
       wip_consumption AS (
@@ -139,6 +148,7 @@ export class TheoreticalConsumptionRepository {
         WHERE sm.status_id = 13
           AND sh.sales_date BETWEEN $1 AND $2
           ${branchFilterPos}
+          ${stationFilter}
         GROUP BY wi.product_id, p.product_name, p.product_code, wi.uom
       ),
       theoretical AS (
@@ -158,6 +168,7 @@ export class TheoreticalConsumptionRepository {
           ${branchFilterUuid}
           AND po.status IN ('COMPLETED', 'JOURNALED')
           AND po.deleted_at IS NULL
+          ${stationFilterActual}
         GROUP BY pm.product_id, pm.product_name, pm.product_code, pm.uom
       )
       SELECT
@@ -249,10 +260,21 @@ export class TheoreticalConsumptionRepository {
    * Menu Profitability: HPP % per menu, ranked by margin.
    * Uses actual sales qty × estimated_cost for COGS, actual revenue from tr_salesmenu.
    */
-  async getMenuProfitability(periodStart: string, periodEnd: string, branchPosId?: number): Promise<MenuProfitabilityRaw[]> {
-    const branchFilter = branchPosId != null ? 'AND sh.branch_id = $3' : ''
+  async getMenuProfitability(periodStart: string, periodEnd: string, branchPosId?: number, station?: string): Promise<MenuProfitabilityRaw[]> {
     const params: unknown[] = [periodStart, periodEnd]
-    if (branchPosId != null) params.push(branchPosId)
+    let idx = 3
+    const branchFilter = branchPosId != null ? `AND sh.branch_id = $${idx}` : ''
+    if (branchPosId != null) { params.push(branchPosId); idx++ }
+    let stationFilter = ''
+    if (station) {
+      params.push(station)
+      stationFilter = `AND m.id IN (
+        SELECT rl.menu_id FROM recipe_lines rl JOIN products p ON p.id = rl.product_id WHERE p.station = $${idx}
+        UNION
+        SELECT rl.menu_id FROM recipe_lines rl JOIN wip_ingredients wi ON wi.wip_id = rl.wip_id JOIN products p ON p.id = wi.product_id WHERE p.station = $${idx}
+      )`
+      idx++
+    }
 
     const { rows } = await pool.query(
       `SELECT
@@ -276,6 +298,7 @@ export class TheoreticalConsumptionRepository {
       WHERE sm.status_id = 13
         AND sh.sales_date BETWEEN $1 AND $2
         ${branchFilter}
+        ${stationFilter}
       GROUP BY m.id, m.menu_name, mc.category_name, m.selling_price, m.estimated_cost
       ORDER BY margin DESC`,
       params
@@ -338,10 +361,13 @@ export class TheoreticalConsumptionRepository {
   /**
    * Waste Summary: from production_order_materials, ranked by waste cost.
    */
-  async getWasteSummary(periodStart: string, periodEnd: string, branchUuid?: string): Promise<WasteSummaryItem[]> {
-    const branchFilter = branchUuid ? 'AND po.branch_id = $3' : ''
+  async getWasteSummary(periodStart: string, periodEnd: string, branchUuid?: string, station?: string): Promise<WasteSummaryItem[]> {
     const params: unknown[] = [periodStart, periodEnd]
-    if (branchUuid) params.push(branchUuid)
+    let idx = 3
+    const branchFilter = branchUuid ? `AND po.branch_id = $${idx}` : ''
+    if (branchUuid) { params.push(branchUuid); idx++ }
+    const stationFilter = station ? `AND pm.product_id IN (SELECT id FROM products WHERE station = $${idx})` : ''
+    if (station) { params.push(station); idx++ }
 
     const { rows } = await pool.query(
       `SELECT
@@ -364,6 +390,7 @@ export class TheoreticalConsumptionRepository {
         AND po.status IN ('COMPLETED', 'JOURNALED')
         AND po.deleted_at IS NULL
         AND pm.waste_qty > 0
+        ${stationFilter}
       GROUP BY pm.product_id, pm.product_name, pm.product_code, pm.uom
       ORDER BY waste_cost DESC`,
       params

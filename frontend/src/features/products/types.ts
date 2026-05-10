@@ -12,6 +12,7 @@ export interface Product {
   sub_category_name: string | null
   average_cost: number
   base_unit_name: string | null
+  station: string | null
   is_requestable: boolean
   is_purchasable: boolean
   notes: string | null
@@ -50,6 +51,7 @@ export interface CreateProductDto {
   bom_name?: string
   category_id: string
   sub_category_id: string
+  station?: string | null
   average_cost?: number
   is_requestable?: boolean
   is_purchasable?: boolean
@@ -63,6 +65,7 @@ export interface UpdateProductDto {
   bom_name?: string
   category_id?: string
   sub_category_id?: string
+  station?: string | null
   is_requestable?: boolean
   is_purchasable?: boolean
   notes?: string

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Product, ProductStatus, CreateProductDto, UpdateProductDto } from '../types'
 import api from '@/lib/axios'
 import { CardSkeleton } from '@/components/ui/Skeleton'
+import { STATIONS } from '../constants/stations'
 
 interface ProductFormProps {
   initialData?: Product
@@ -30,6 +31,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     bom_name: initialData?.bom_name || '',
     category_id: initialData?.category_id || '',
     sub_category_id: initialData?.sub_category_id || '',
+    station: initialData?.station || '',
     average_cost: initialData?.average_cost || 0,
     is_requestable: initialData?.is_requestable ?? true,
     is_purchasable: initialData?.is_purchasable ?? true,
@@ -115,6 +117,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       bom_name: formData.bom_name || undefined,
       category_id: formData.category_id,
       sub_category_id: formData.sub_category_id,
+      station: formData.station || null,
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
       notes: formData.notes || undefined,
@@ -125,6 +128,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       bom_name: formData.bom_name || undefined,
       category_id: formData.category_id,
       sub_category_id: formData.sub_category_id,
+      station: formData.station || null,
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
       notes: formData.notes || undefined,
@@ -243,6 +247,20 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
             <p className="mt-1 text-sm text-red-600">{errors.sub_category_id}</p>
           )}
         </div>
+      </div>
+
+      {/* Station */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Station</label>
+        <select
+          name="station"
+          value={formData.station}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+        >
+          <option value="">Tidak ada station</option>
+          {STATIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
