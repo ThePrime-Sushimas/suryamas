@@ -1,5 +1,6 @@
 import { theoreticalConsumptionRepository } from './theoretical-consumption.repository'
-import type { TheoreticalConsumptionItem, VarianceItem, CoverageSummary, TheoreticalConsumptionQuery } from './theoretical-consumption.types'
+import { BusinessRuleError } from '../../../utils/errors.base'
+import type { TheoreticalConsumptionItem, VarianceItem, CoverageSummary, TheoreticalConsumptionQuery, MenuProfitabilityItem, CostTrendItem, WasteSummaryItem } from './theoretical-consumption.types'
 
 function getSeverity(variancePct: number | null): 'normal' | 'warning' | 'critical' {
   if (variancePct === null) return 'normal'
@@ -74,6 +75,52 @@ export class TheoreticalConsumptionService {
       coverage_pct: pct,
       items: data.items,
     }
+  }
+
+  async getMenuProfitability(query: TheoreticalConsumptionQuery): Promise<MenuProfitabilityItem[]> {
+    let branchPosId: number | undefined
+    if (query.branch_id) {
+      const resolved = await theoreticalConsumptionRepository.resolveBranchIds(query.branch_id)
+      branchPosId = resolved.branchPosId
+    }
+
+    const items = await theoreticalConsumptionRepository.getMenuProfitability(query.period_start, query.period_end, branchPosId)
+
+    // Assign tier: A = cost% <= 30, B = 30-45, C = > 45
+    return items.map(item => ({
+      ...item,
+      tier: item.cost_pct <= 30 ? 'A' : item.cost_pct <= 45 ? 'B' : 'C',
+    }))
+  }
+
+  async getCostTrend(companyId: string, query: TheoreticalConsumptionQuery): Promise<CostTrendItem[]> {
+    if (!companyId) throw new BusinessRuleError('Company context tidak tersedia. Pastikan branch sudah dipilih.')
+
+    let branchPosId: number | undefined
+    if (query.branch_id) {
+      const resolved = await theoreticalConsumptionRepository.resolveBranchIds(query.branch_id)
+      branchPosId = resolved.branchPosId
+    }
+
+    return theoreticalConsumptionRepository.getCostTrend(companyId, query.period_start, query.period_end, branchPosId)
+  }
+
+  async getWasteSummary(query: TheoreticalConsumptionQuery): Promise<{ items: WasteSummaryItem[]; totals: { total_waste_cost: number; total_used_cost: number; overall_waste_pct: number } }> {
+    let branchUuid: string | undefined
+    if (query.branch_id) {
+      const resolved = await theoreticalConsumptionRepository.resolveBranchIds(query.branch_id)
+      branchUuid = resolved.branchUuid
+    }
+
+    const items = await theoreticalConsumptionRepository.getWasteSummary(query.period_start, query.period_end, branchUuid)
+
+    const totalWasteCost = items.reduce((s, i) => s + i.waste_cost, 0)
+    const totalUsedCost = items.reduce((s, i) => s + i.total_used_cost, 0)
+    const totalUsed = items.reduce((s, i) => s + i.total_used, 0)
+    const totalWaste = items.reduce((s, i) => s + i.total_waste, 0)
+    const overallWastePct = totalUsed > 0 ? Number(((totalWaste / totalUsed) * 100).toFixed(1)) : 0
+
+    return { items, totals: { total_waste_cost: totalWasteCost, total_used_cost: totalUsedCost, overall_waste_pct: overallWastePct } }
   }
 }
 

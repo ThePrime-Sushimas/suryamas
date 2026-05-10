@@ -1,6 +1,6 @@
 import { pool } from '../../../config/db'
 import { BusinessRuleError } from '../../../utils/errors.base'
-import type { TheoreticalConsumptionItem, CoverageItem, VarianceItem, BranchIds } from './theoretical-consumption.types'
+import type { TheoreticalConsumptionItem, CoverageItem, VarianceItem, BranchIds, MenuProfitabilityRaw, CostTrendItem, WasteSummaryItem } from './theoretical-consumption.types'
 
 export class TheoreticalConsumptionRepository {
   async resolveBranchIds(branchUuid: string): Promise<BranchIds> {
@@ -243,6 +243,143 @@ export class TheoreticalConsumptionRepository {
       totalMenusSold: summary.total_menus_sold,
       menusWithRecipe: summary.menus_with_recipe,
     }
+  }
+
+  /**
+   * Menu Profitability: HPP % per menu, ranked by margin.
+   * Uses actual sales qty × estimated_cost for COGS, actual revenue from tr_salesmenu.
+   */
+  async getMenuProfitability(periodStart: string, periodEnd: string, branchPosId?: number): Promise<MenuProfitabilityRaw[]> {
+    const branchFilter = branchPosId != null ? 'AND sh.branch_id = $3' : ''
+    const params: unknown[] = [periodStart, periodEnd]
+    if (branchPosId != null) params.push(branchPosId)
+
+    const { rows } = await pool.query(
+      `SELECT
+        m.id AS menu_id,
+        m.menu_name,
+        mc.category_name,
+        m.selling_price::numeric,
+        m.estimated_cost::numeric,
+        CASE WHEN m.selling_price > 0
+          THEN ROUND(m.estimated_cost / m.selling_price * 100, 1)
+          ELSE 0
+        END AS cost_pct,
+        SUM(sm.qty)::numeric AS qty_sold,
+        SUM(sm.price * sm.qty)::numeric AS total_revenue,
+        SUM(sm.qty * m.estimated_cost)::numeric AS total_cogs,
+        SUM(sm.price * sm.qty - sm.qty * m.estimated_cost)::numeric AS margin
+      FROM tr_salesmenu sm
+      JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
+      JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.deleted_at IS NULL AND m.has_recipe = true
+      LEFT JOIN menu_categories mc ON mc.id = m.category_id
+      WHERE sm.status_id = 13
+        AND sh.sales_date BETWEEN $1 AND $2
+        ${branchFilter}
+      GROUP BY m.id, m.menu_name, mc.category_name, m.selling_price, m.estimated_cost
+      ORDER BY margin DESC`,
+      params
+    )
+
+    return rows.map(r => ({
+      menu_id: r.menu_id,
+      menu_name: r.menu_name,
+      category_name: r.category_name,
+      selling_price: Number(r.selling_price) || 0,
+      estimated_cost: Number(r.estimated_cost) || 0,
+      cost_pct: Number(r.cost_pct) || 0,
+      qty_sold: Number(r.qty_sold) || 0,
+      total_revenue: Number(r.total_revenue) || 0,
+      total_cogs: Number(r.total_cogs) || 0,
+      margin: Number(r.margin) || 0,
+    }))
+  }
+
+  /**
+   * Cost Trend: monthly COGS % over time.
+   * Uses period_start/period_end from query params.
+   */
+  async getCostTrend(companyId: string, periodStart: string, periodEnd: string, branchPosId?: number): Promise<CostTrendItem[]> {
+    const branchFilter = branchPosId != null ? 'AND sh.branch_id = $4' : ''
+    const params: unknown[] = [companyId, periodStart, periodEnd]
+    if (branchPosId != null) params.push(branchPosId)
+
+    const { rows } = await pool.query(
+      `SELECT
+        TO_CHAR(sh.sales_date, 'YYYY-MM') AS period,
+        SUM(sm.price * sm.qty)::numeric AS total_revenue,
+        SUM(sm.qty * COALESCE(m.estimated_cost, 0))::numeric AS total_cogs,
+        CASE WHEN SUM(sm.price * sm.qty) > 0
+          THEN ROUND(SUM(sm.qty * COALESCE(m.estimated_cost, 0)) / SUM(sm.price * sm.qty) * 100, 1)
+          ELSE 0
+        END AS cost_pct,
+        COUNT(DISTINCT sm.menu_id)::int AS menu_count
+      FROM tr_salesmenu sm
+      JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
+      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id
+        AND m.company_id = $1 AND m.deleted_at IS NULL
+      WHERE sm.status_id = 13
+        AND sh.sales_date BETWEEN $2 AND $3
+        ${branchFilter}
+      GROUP BY TO_CHAR(sh.sales_date, 'YYYY-MM')
+      ORDER BY period`,
+      params
+    )
+
+    return rows.map(r => ({
+      period: r.period,
+      total_revenue: Number(r.total_revenue) || 0,
+      total_cogs: Number(r.total_cogs) || 0,
+      cost_pct: Number(r.cost_pct) || 0,
+      menu_count: r.menu_count,
+    }))
+  }
+
+  /**
+   * Waste Summary: from production_order_materials, ranked by waste cost.
+   */
+  async getWasteSummary(periodStart: string, periodEnd: string, branchUuid?: string): Promise<WasteSummaryItem[]> {
+    const branchFilter = branchUuid ? 'AND po.branch_id = $3' : ''
+    const params: unknown[] = [periodStart, periodEnd]
+    if (branchUuid) params.push(branchUuid)
+
+    const { rows } = await pool.query(
+      `SELECT
+        pm.product_id,
+        pm.product_name,
+        pm.product_code,
+        pm.uom,
+        SUM(pm.actual_qty)::numeric AS total_used,
+        SUM(pm.waste_qty)::numeric AS total_waste,
+        CASE WHEN SUM(pm.actual_qty) > 0
+          THEN ROUND(SUM(pm.waste_qty) / SUM(pm.actual_qty) * 100, 1)
+          ELSE 0
+        END AS waste_pct,
+        SUM(pm.waste_qty * pm.cost_per_unit)::numeric AS waste_cost,
+        SUM(pm.actual_qty * pm.cost_per_unit)::numeric AS total_used_cost
+      FROM production_order_materials pm
+      JOIN production_orders po ON po.id = pm.production_order_id
+      WHERE po.production_date BETWEEN $1 AND $2
+        ${branchFilter}
+        AND po.status IN ('COMPLETED', 'JOURNALED')
+        AND po.deleted_at IS NULL
+        AND pm.waste_qty > 0
+      GROUP BY pm.product_id, pm.product_name, pm.product_code, pm.uom
+      ORDER BY waste_cost DESC`,
+      params
+    )
+
+    return rows.map(r => ({
+      product_id: r.product_id,
+      product_name: r.product_name,
+      product_code: r.product_code,
+      uom: r.uom,
+      total_used: Number(r.total_used) || 0,
+      total_waste: Number(r.total_waste) || 0,
+      waste_pct: Number(r.waste_pct) || 0,
+      waste_cost: Number(r.waste_cost) || 0,
+      total_used_cost: Number(r.total_used_cost) || 0,
+    }))
   }
 }
 

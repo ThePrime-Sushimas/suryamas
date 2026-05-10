@@ -47,3 +47,53 @@ export interface BranchIds {
   branchUuid: string
   branchPosId: number
 }
+
+// ── Menu Profitability ──
+export interface MenuProfitabilityItem {
+  menu_id: string | null
+  menu_name: string
+  category_name: string | null
+  selling_price: number
+  estimated_cost: number
+  cost_pct: number
+  qty_sold: number
+  total_revenue: number
+  total_cogs: number
+  margin: number
+  tier: 'A' | 'B' | 'C'
+}
+
+export interface MenuProfitabilityRaw {
+  menu_id: string | null
+  menu_name: string
+  category_name: string | null
+  selling_price: number
+  estimated_cost: number
+  cost_pct: number
+  qty_sold: number
+  total_revenue: number
+  total_cogs: number
+  margin: number
+}
+
+// ── Cost Trend ──
+export interface CostTrendItem {
+  period: string
+  total_revenue: number
+  total_cogs: number
+  cost_pct: number
+  menu_count: number
+}
+
+// ── Waste Summary ──
+export interface WasteSummaryItem {
+  product_id: string
+  product_name: string
+  product_code: string
+  uom: string
+  total_used: number
+  total_waste: number
+  waste_pct: number
+  waste_cost: number
+  total_used_cost: number
+}

@@ -18,5 +18,8 @@ router.use(authenticate, resolveBranchContext)
 router.get('/', canView('consumption_analysis'), validateSchema(theoreticalConsumptionQuerySchema), (req, res) => theoreticalConsumptionController.getTheoretical(req, res))
 router.get('/variance', canView('consumption_analysis'), validateSchema(theoreticalConsumptionQuerySchema), (req, res) => theoreticalConsumptionController.getVariance(req, res))
 router.get('/coverage', canView('consumption_analysis'), validateSchema(theoreticalConsumptionQuerySchema), (req, res) => theoreticalConsumptionController.getCoverage(req, res))
+router.get('/menu-profitability', canView('consumption_analysis'), validateSchema(theoreticalConsumptionQuerySchema), (req, res) => theoreticalConsumptionController.getMenuProfitability(req, res))
+router.get('/cost-trend', canView('consumption_analysis'), validateSchema(theoreticalConsumptionQuerySchema), (req, res) => theoreticalConsumptionController.getCostTrend(req, res))
+router.get('/waste-summary', canView('consumption_analysis'), validateSchema(theoreticalConsumptionQuerySchema), (req, res) => theoreticalConsumptionController.getWasteSummary(req, res))
 
 export default router
