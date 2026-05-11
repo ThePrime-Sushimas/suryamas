@@ -10,7 +10,6 @@ import { usePermissionStore } from '@/features/branch_context/store/permission.s
 import { usePurchaseRequests, useDeletePurchaseRequest, useCancelPurchaseRequest } from '../api/purchaseRequests.api'
 import type { PurchaseRequest } from '../api/purchaseRequests.api'
 
-const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -73,7 +72,7 @@ export default function PurchaseRequestsPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ClipboardList className="w-6 h-6 text-orange-600" />
@@ -92,7 +91,7 @@ export default function PurchaseRequestsPage() {
       </div>
 
       {/* Search & Filter */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -109,61 +108,60 @@ export default function PurchaseRequestsPage() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">No. PR</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cabang</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tanggal</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Dibutuhkan</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Items</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Est. Total</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Oleh</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}><td colSpan={9} className="px-4 py-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
-                ))
-              ) : requests.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">Tidak ada purchase request</td></tr>
-              ) : requests.map(pr => {
-                const statusCfg = STATUS_CONFIG[pr.status] ?? STATUS_CONFIG.DRAFT
-                return (
-                  <tr key={pr.id} onClick={() => navigate(`/inventory/purchase-requests/${pr.id}`)}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
-                    <td className="px-4 py-3 font-mono font-medium text-gray-900 dark:text-white">{pr.request_number}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{pr.branch_name}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{fmtDate(pr.request_date)}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{pr.needed_by_date ? fmtDate(pr.needed_by_date) : '—'}</td>
-                    <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{pr.line_count}</td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
-                      {pr.total_estimated > 0 ? `Rp ${fmt(pr.total_estimated)}` : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.color}`}>{statusCfg.label}</span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{pr.requested_by_name || '—'}</td>
-                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex gap-1 justify-end">
-                        {['DRAFT', 'PENDING_APPROVAL'].includes(pr.status) && (
-                          <button onClick={() => setCancelTarget(pr)} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">Batal</button>
-                        )}
-                        {['DRAFT', 'REJECTED', 'CANCELLED'].includes(pr.status) && canDelete && (
-                          <button onClick={() => setDeleteTarget(pr)} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">Hapus</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <tr>
+                  <th className="px-3 md:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">No. PR</th>
+                  <th className="px-3 md:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cabang</th>
+                  <th className="px-3 md:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tanggal</th>
+                  <th className="px-3 md:px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Items</th>
+                  <th className="px-3 md:px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-3 md:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden md:table-cell">Oleh</th>
+                  <th className="px-3 md:px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}><td colSpan={7} className="px-4 py-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
+                  ))
+                ) : requests.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">Tidak ada purchase request</td></tr>
+                ) : requests.map(pr => {
+                  const statusCfg = STATUS_CONFIG[pr.status] ?? STATUS_CONFIG.DRAFT
+                  return (
+                    <tr key={pr.id} onClick={() => navigate(`/inventory/purchase-requests/${pr.id}`)}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
+                      <td className="px-3 md:px-4 py-3">
+                        <div className="font-mono font-medium text-gray-900 dark:text-white text-xs md:text-sm">{pr.request_number}</div>
+                        <div className="text-xs text-gray-500 md:hidden">{fmtDate(pr.request_date)}</div>
+                      </td>
+                      <td className="px-3 md:px-4 py-3 text-gray-600 dark:text-gray-400 text-xs md:text-sm">{pr.branch_name}</td>
+                      <td className="px-3 md:px-4 py-3 text-gray-600 dark:text-gray-400 text-xs md:text-sm">{fmtDate(pr.request_date)}</td>
+                      <td className="px-3 md:px-4 py-3 text-center text-gray-600 dark:text-gray-400">{pr.line_count}</td>
+                      <td className="px-3 md:px-4 py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.color}`}>{statusCfg.label}</span>
+                      </td>
+                      <td className="px-3 md:px-4 py-3 text-gray-600 dark:text-gray-400 text-xs hidden md:table-cell">{pr.requested_by_name || '—'}</td>
+                      <td className="px-3 md:px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                        <div className="flex gap-1 justify-end">
+                          {['DRAFT', 'PENDING_APPROVAL'].includes(pr.status) && (
+                            <button onClick={() => setCancelTarget(pr)} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">Batal</button>
+                          )}
+                          {['DRAFT', 'REJECTED', 'CANCELLED'].includes(pr.status) && canDelete && (
+                            <button onClick={() => setDeleteTarget(pr)} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">Hapus</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {pagination && pagination.total > 0 && (
