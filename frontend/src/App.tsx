@@ -477,6 +477,11 @@ const StockBalancesPage = lazy(() => import('./features/inventory/pages/StockBal
 const StockMovementsPage = lazy(() => import('./features/inventory/pages/StockMovementsPage'))
 const OpeningBalancePage = lazy(() => import('./features/inventory/pages/OpeningBalancePage'))
 
+// Purchase Requests
+const PurchaseRequestsPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestsPage'))
+const PurchaseRequestFormPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestFormPage'))
+const PurchaseRequestDetailPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestDetailPage'))
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1641,6 +1646,47 @@ function App() {
                       <RequirePermission module="stock">
                         <Suspense fallback={<LoadingFallback />}>
                           <OpeningBalancePage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  {/* Purchase Requests */}
+                  <Route
+                    path="inventory/purchase-requests"
+                    element={
+                      <RequirePermission module="purchase_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseRequestsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-requests/new"
+                    element={
+                      <RequirePermission module="purchase_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseRequestFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-requests/:id"
+                    element={
+                      <RequirePermission module="purchase_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseRequestDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-requests/:id/edit"
+                    element={
+                      <RequirePermission module="purchase_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseRequestFormPage />
                         </Suspense>
                       </RequirePermission>
                     }

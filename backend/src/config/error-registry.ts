@@ -490,6 +490,31 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 400,
     category: 'inventory',
   },
+  // ============ PURCHASE REQUEST MODULE ============
+  PurchaseRequestNotFoundError: {
+    name: 'PurchaseRequestNotFoundError',
+    importPath: '../modules/purchase-requests/purchase-requests.errors',
+    defaultStatusCode: 404,
+    category: 'inventory',
+  },
+  PurchaseRequestDuplicateError: {
+    name: 'PurchaseRequestDuplicateError',
+    importPath: '../modules/purchase-requests/purchase-requests.errors',
+    defaultStatusCode: 409,
+    category: 'inventory',
+  },
+  PurchaseRequestInvalidStatusError: {
+    name: 'PurchaseRequestInvalidStatusError',
+    importPath: '../modules/purchase-requests/purchase-requests.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  PurchaseRequestEmptyLinesError: {
+    name: 'PurchaseRequestEmptyLinesError',
+    importPath: '../modules/purchase-requests/purchase-requests.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

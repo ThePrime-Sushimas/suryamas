@@ -802,3 +802,39 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS default_source VARCHAR(20) DEFAULT
 5. **Prediksi akurat dari hari 1** — karena ada historis POS 1 tahun
 6. **Tidak bisa dirapel** — non-negotiable, data variance harus per hari
 7. **Cost ikut barang** — setiap transfer/loan harus pindahkan cost ke cabang tujuan
+
+
+---
+
+## Implementation Status
+
+### ✅ Completed
+
+| Module | BE | FE | DB | Menu | Routes |
+|--------|----|----|----|----|--------|
+| Warehouses | ✅ | ✅ | ✅ | ✅ `/inventory/warehouses` | ✅ App.tsx |
+| Stock (Balances + Movements) | ✅ | ✅ | ✅ | ✅ `/inventory/stock` + `/inventory/movements` | ✅ App.tsx |
+| Opening Balance | ✅ | ✅ | — (uses stock_movements) | — (button di Stok Gudang) | ✅ `/inventory/opening-balance` |
+| Stock Adjustment | ✅ | ✅ (modal) | — (uses stock_movements) | — (button di Stok Gudang) | — |
+| Purchase Requests | ✅ | ✅ | ✅ | ✅ `/inventory/purchase-requests` | ✅ App.tsx |
+
+### ⬜ Next
+
+| Module | Priority | Notes |
+|--------|----------|-------|
+| Purchase Orders | Must | Dari PR APPROVED → PO ke supplier |
+| Goods Receipt | Must | Cocokkan PO, update stock |
+| Transfer Orders | Must | Central → Cabang |
+| Branch Loans | Should | Cabang ↔ Cabang |
+| Daily Requisitions | Should | Turun barang harian (Gudang 1 → Ready) |
+| Daily Closing Counts | Should | Konfirmasi malam + foto |
+| Prediksi Harian | Later | Butuh semua di atas + POS historis |
+
+### Checklist per Module (FE)
+
+- [x] Lazy import di App.tsx
+- [x] Route registered di App.tsx
+- [x] Menu item di `menu.config.tsx`
+- [x] Permission module registered (BE `PermissionService.registerModule`)
+- [x] Permission guard di halaman (`RequirePermission`)
+- [x] Permission guard di tombol aksi (`usePermissionStore.hasPermission`)

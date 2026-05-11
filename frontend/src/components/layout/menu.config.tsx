@@ -333,6 +333,13 @@ export const menuItems: MenuItem[] = [
         icon: <ArrowLeftRight size={16} />,
         module: "stock",
       },
+      {
+        id: "inv-purchase-requests",
+        name: "Purchase Request",
+        href: "/inventory/purchase-requests",
+        icon: <ClipboardList size={16} />,
+        module: "purchase_requests",
+      },
     ],
   },
 

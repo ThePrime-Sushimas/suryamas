@@ -25,13 +25,13 @@ const MOVEMENT_SELECT = `
   sm.*,
   w.warehouse_code, w.warehouse_name,
   p.product_code, p.product_name,
-  au.full_name AS created_by_name
+  e.full_name AS created_by_name
 `
 const MOVEMENT_FROM = `
   FROM stock_movements sm
   JOIN warehouses w ON w.id = sm.warehouse_id
   JOIN products p ON p.id = sm.product_id
-  LEFT JOIN auth_users au ON au.id = sm.created_by
+  LEFT JOIN employees e ON e.user_id = sm.created_by
 `
 
 export class StockRepository {
