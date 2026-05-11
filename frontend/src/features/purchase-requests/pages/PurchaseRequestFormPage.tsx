@@ -348,62 +348,95 @@ export default function PurchaseRequestFormPage() {
         )}
       </div>
 
-      {/* Lines Table */}
+      {/* Lines Table - Grouped by Supplier */}
       <div className="flex-1 overflow-auto p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">UOM</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-16">Hapus</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {lines.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
-                    Belum ada item. Cari dan tambahkan produk di atas.
-                  </td>
-                </tr>
-              ) : lines.map(l => (
-                <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900 dark:text-white">{l.product_name}</div>
-                    {l.supplier_name && <div className="text-xs text-blue-600 dark:text-blue-400">{l.supplier_name}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={l.qty || ''}
-                      onChange={e => updateLine(l.id, 'qty', parseFloat(e.target.value) || 0)}
-                      className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-gray-600 dark:text-gray-400 text-sm">{l.uom}</span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <button onClick={() => removeLine(l.id)} className="text-red-500 hover:text-red-700">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            {lines.length > 0 && (
-              <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
-                <tr>
-                  <td colSpan={4} className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                    {lines.length} item
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
+          {lines.length === 0 ? (
+            <div className="px-4 py-12 text-center text-gray-400">
+              Belum ada item. Cari dan tambahkan produk di atas.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+              {/* Group lines by supplier */}
+              {(() => {
+                const grouped = lines.reduce((acc, line) => {
+                  const key = line.supplier_id ?? '__no_supplier__'
+                  if (!acc[key]) acc[key] = []
+                  acc[key].push(line)
+                  return acc
+                }, {} as Record<string, LineItem[]>)
+
+                return Object.entries(grouped).map(([supplierId, supplierLines]) => {
+                  const supplierName = supplierLines[0].supplier_name ?? 'Tanpa Supplier'
+                  return (
+                    <div key={supplierId} className="">
+                      {/* Supplier Header */}
+                      <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-2 border-b border-blue-100 dark:border-blue-800">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                            <span className="font-semibold text-blue-900 dark:text-blue-300 text-sm">
+                              {supplierName}
+                            </span>
+                            <span className="text-xs text-blue-600 dark:text-blue-400">
+                              ({supplierLines.length} item)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Items Table */}
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">UOM</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-16">Hapus</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                          {supplierLines.map(l => (
+                            <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-gray-900 dark:text-white">{l.product_name}</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">{l.product_code}</div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <input
+                                  type="number"
+                                  min="0.01"
+                                  step="0.01"
+                                  value={l.qty || ''}
+                                  onChange={e => updateLine(l.id, 'qty', parseFloat(e.target.value) || 0)}
+                                  className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-gray-600 dark:text-gray-400 text-sm">{l.uom}</span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button onClick={() => removeLine(l.id)} className="text-red-500 hover:text-red-700">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                })
+              })()}
+
+              {/* Footer Total */}
+              <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3">
+                <div className="font-medium text-gray-900 dark:text-white">
+                  Total: {lines.length} item dari {Object.keys(lines.reduce((acc, l) => ({ ...acc, [l.supplier_id ?? '__no_supplier__']: true }), {})).length} supplier
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
