@@ -105,8 +105,8 @@ export class StockService {
 
       return { movement, newBalance: newQty }
     } catch (e) {
-      if (isPostgresError(e, '23503')) throw new InvalidReferenceError('warehouse_id or product_id does not exist')
       await client.query('ROLLBACK')
+      if (isPostgresError(e, '23503')) throw new InvalidReferenceError('warehouse_id or product_id does not exist')
       throw e
     } finally {
       client.release()
@@ -204,8 +204,8 @@ export class StockService {
 
       return { total: items.length, success: results.length, skipped: items.length - results.length, details: results }
     } catch (e) {
-      if (isPostgresError(e, '23503')) throw new InvalidReferenceError('One or more product_id does not exist')
       await client.query('ROLLBACK')
+      if (isPostgresError(e, '23503')) throw new InvalidReferenceError('One or more product_id does not exist')
       throw e
     } finally {
       client.release()

@@ -135,7 +135,7 @@ export default function OpeningBalancePage() {
         <div className="flex gap-2 items-end">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tambah Produk</label>
-            <input type="text" value={productSearch} onChange={e => setProductSearch(e.target.value)} placeholder="Ketik nama produk..."
+            <input type="text" value={productSearch} onChange={e => setProductSearch(e.target.value)} placeholder="Ketik min. 2 karakter untuk cari produk..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
           </div>
         </div>

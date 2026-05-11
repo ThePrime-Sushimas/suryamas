@@ -30,8 +30,8 @@ export const createOpeningBalanceSchema = z.object({
   body: z.object({
     warehouse_id: z.string().uuid(),
     product_id: z.string().uuid(),
-    qty: z.number().min(0),
-    cost_per_unit: z.number().min(0),
+    qty: z.number().positive(),
+    cost_per_unit: z.number().positive(),
     notes: z.string().max(500).optional(),
   }),
 })
@@ -41,8 +41,8 @@ export const bulkOpeningBalanceSchema = z.object({
     warehouse_id: z.string().uuid(),
     items: z.array(z.object({
       product_id: z.string().uuid(),
-      qty: z.number().min(0),
-      cost_per_unit: z.number().min(0),
+      qty: z.number().positive(),
+      cost_per_unit: z.number().positive(),
     })).min(1),
     notes: z.string().max(500).optional(),
   }),
