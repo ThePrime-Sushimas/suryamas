@@ -471,6 +471,12 @@ const ProductionOrderForm = lazy(() => import('./features/food-production/pages/
 const ProductionOrderDetailPage = lazy(() => import('./features/food-production/pages/ProductionOrderDetailPage'))
 const TheoreticalConsumptionPage = lazy(() => import('./features/food-production/pages/TheoreticalConsumptionPage'))
 
+// Inventory
+const WarehousesPage = lazy(() => import('./features/inventory/pages/WarehousesPage'))
+const StockBalancesPage = lazy(() => import('./features/inventory/pages/StockBalancesPage'))
+const StockMovementsPage = lazy(() => import('./features/inventory/pages/StockMovementsPage'))
+const OpeningBalancePage = lazy(() => import('./features/inventory/pages/OpeningBalancePage'))
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1594,6 +1600,47 @@ function App() {
                       <RequirePermission module="consumption_analysis">
                         <Suspense fallback={<LoadingFallback />}>
                           <TheoreticalConsumptionPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  {/* Inventory */}
+                  <Route
+                    path="inventory/warehouses"
+                    element={
+                      <RequirePermission module="warehouses">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <WarehousesPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/stock"
+                    element={
+                      <RequirePermission module="stock">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <StockBalancesPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/movements"
+                    element={
+                      <RequirePermission module="stock">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <StockMovementsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/opening-balance"
+                    element={
+                      <RequirePermission module="stock">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <OpeningBalancePage />
                         </Suspense>
                       </RequirePermission>
                     }

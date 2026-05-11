@@ -65,6 +65,8 @@ import theoreticalConsumptionRoutes from "./modules/food-production/theoretical-
 import departmentsRoutes from "./modules/departments/departments.routes";
 import positionsRoutes from "./modules/positions/positions.routes";
 import dashboardHrdRoutes from "./modules/dashboard/dashboard-hrd.routes";
+import warehousesRoutes from "./modules/warehouses/warehouses.routes";
+import stockRoutes from "./modules/stock/stock.routes";
 import { pool } from "./config/db";
 
 const app = express();
@@ -165,6 +167,8 @@ app.use("/api/v1/theoretical-consumption", theoreticalConsumptionRoutes);
 app.use("/api/v1/departments", departmentsRoutes);
 app.use("/api/v1/positions", positionsRoutes);
 app.use("/api/v1/dashboard", dashboardHrdRoutes);
+app.use("/api/v1/warehouses", warehousesRoutes);
+app.use("/api/v1/stock", stockRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
 
 // Error handler

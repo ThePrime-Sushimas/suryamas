@@ -305,6 +305,38 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
+  // 5b. INVENTORY — Gudang, Stok, Mutasi
+  // ─────────────────────────────────────────────
+  {
+    id: "inventory",
+    name: "Inventory",
+    icon: <Warehouse size={18} />,
+    submenu: [
+      {
+        id: "inv-warehouses",
+        name: "Gudang",
+        href: "/inventory/warehouses",
+        icon: <Warehouse size={16} />,
+        module: "warehouses",
+      },
+      {
+        id: "inv-stock",
+        name: "Stok Gudang",
+        href: "/inventory/stock",
+        icon: <Package size={16} />,
+        module: "stock",
+      },
+      {
+        id: "inv-movements",
+        name: "Mutasi Stok",
+        href: "/inventory/movements",
+        icon: <ArrowLeftRight size={16} />,
+        module: "stock",
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
   // 6. BANKING & REKONSILIASI — proses matching
   //    Flow: Import Bank → Rekonsiliasi → Settlement → Voucher → Cash
   // ─────────────────────────────────────────────

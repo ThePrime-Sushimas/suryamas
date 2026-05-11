@@ -434,6 +434,62 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'master_data',
   },
+  // ============ WAREHOUSE MODULE ============
+  WarehouseNotFoundError: {
+    name: 'WarehouseNotFoundError',
+    importPath: '../modules/warehouses/warehouses.errors',
+    defaultStatusCode: 404,
+    category: 'inventory',
+  },
+  WarehouseDuplicateError: {
+    name: 'WarehouseDuplicateError',
+    importPath: '../modules/warehouses/warehouses.errors',
+    defaultStatusCode: 409,
+    category: 'inventory',
+  },
+  WarehouseInUseError: {
+    name: 'WarehouseInUseError',
+    importPath: '../modules/warehouses/warehouses.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  // ============ STOCK MODULE ============
+  StockBalanceNotFoundError: {
+    name: 'StockBalanceNotFoundError',
+    importPath: '../modules/stock/stock.errors',
+    defaultStatusCode: 404,
+    category: 'inventory',
+  },
+  InsufficientStockError: {
+    name: 'InsufficientStockError',
+    importPath: '../modules/stock/stock.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  DuplicateOpeningBalanceError: {
+    name: 'DuplicateOpeningBalanceError',
+    importPath: '../modules/stock/stock.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  InvalidMovementError: {
+    name: 'InvalidMovementError',
+    importPath: '../modules/stock/stock.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  WarehouseAccessDeniedError: {
+    name: 'WarehouseAccessDeniedError',
+    importPath: '../modules/stock/stock.errors',
+    defaultStatusCode: 403,
+    category: 'inventory',
+  },
+  InvalidReferenceError: {
+    name: 'InvalidReferenceError',
+    importPath: '../modules/stock/stock.errors',
+    defaultStatusCode: 400,
+    category: 'inventory',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;
