@@ -21,6 +21,7 @@ export class GoodsReceiptsController {
       if (req.query.status) filter.status = req.query.status as string
       if (req.query.po_id) filter.po_id = req.query.po_id as string
       if (req.query.branch_id) filter.branch_id = req.query.branch_id as string
+      else if (req.context?.branch_id) filter.branch_id = req.context.branch_id
       if (req.query.date_from) filter.date_from = req.query.date_from as string
       if (req.query.date_to) filter.date_to = req.query.date_to as string
 
