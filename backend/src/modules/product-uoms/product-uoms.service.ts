@@ -232,6 +232,22 @@ export class ProductUomsService {
     logInfo('Product UOM restored', { id, productId: current.product_id, userId })
     return uom
   }
+
+  async getPurchaseUnit(productId: string): Promise<{ uom: string; unit_name: string } | null> {
+    const purchaseUom = await productUomsRepository.findDefaultByProduct(productId, 'is_default_purchase_unit')
+    if (purchaseUom) {
+      const metricUnit = await metricUnitsRepository.findById(purchaseUom.metric_unit_id)
+      return { uom: purchaseUom.metric_unit_id, unit_name: metricUnit?.unit_name ?? 'pcs' }
+    }
+
+    const baseUom = await productUomsRepository.findBaseUom(productId)
+    if (baseUom) {
+      const metricUnit = await metricUnitsRepository.findById(baseUom.metric_unit_id)
+      return { uom: baseUom.metric_unit_id, unit_name: metricUnit?.unit_name ?? 'pcs' }
+    }
+
+    return null
+  }
 }
 
 export const productUomsService = new ProductUomsService()

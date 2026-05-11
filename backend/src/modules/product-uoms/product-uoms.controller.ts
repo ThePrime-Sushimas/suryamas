@@ -66,6 +66,16 @@ export class ProductUomsController {
       await handleError(res, error, req, { action: 'restore_product_uom', uomId: req.params.uomId })
     }
   }
+
+  getPurchaseUnit = async (req: Request, res: Response) => {
+    try {
+      const { productId } = (req as ListReq).validated.params
+      const uom = await productUomsService.getPurchaseUnit(productId)
+      sendSuccess(res, uom, 'Purchase unit retrieved successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_purchase_unit', productId: req.params.productId })
+    }
+  }
 }
 
 export const productUomsController = new ProductUomsController()

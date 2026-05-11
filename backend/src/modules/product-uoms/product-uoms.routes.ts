@@ -14,6 +14,7 @@ const router = Router({ mergeParams: true })
 router.use(authenticate, resolveBranchContext)
 
 router.get('/', canView('product_uoms'), validateSchema(productUomListSchema), (req, res) => productUomsController.list(req, res))
+router.get('/purchase-unit', canView('product_uoms'), validateSchema(productUomListSchema), (req, res) => productUomsController.getPurchaseUnit(req, res))
 router.post('/', canInsert('product_uoms'), validateSchema(createProductUomSchema), (req, res) => productUomsController.create(req, res))
 router.put('/:uomId', canUpdate('product_uoms'), validateSchema(updateProductUomSchema), (req, res) => productUomsController.update(req, res))
 router.delete('/:uomId', canDelete('product_uoms'), validateSchema(productUomIdSchema), (req, res) => productUomsController.delete(req, res))
