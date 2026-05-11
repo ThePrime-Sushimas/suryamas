@@ -7,6 +7,7 @@ import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePurchaseRequests, useDeletePurchaseRequest, useCancelPurchaseRequest } from '../api/purchaseRequests.api'
 import type { PurchaseRequest } from '../api/purchaseRequests.api'
 
@@ -27,10 +28,12 @@ export default function PurchaseRequestsPage() {
   const hasPermission = usePermissionStore(state => state.hasPermission)
   const canInsert = hasPermission('purchase_requests', 'insert')
   const canDelete = hasPermission('purchase_requests', 'delete')
+  const branches = useBranchContextStore(state => state.branches)
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [cancelTarget, setCancelTarget] = useState<PurchaseRequest | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<PurchaseRequest | null>(null)
 
@@ -40,7 +43,8 @@ export default function PurchaseRequestsPage() {
     page, limit: 25,
     search: debouncedSearch || undefined,
     status: statusFilter || undefined,
-  }), [page, debouncedSearch, statusFilter])
+    branch_id: branchFilter || undefined,
+  }), [page, debouncedSearch, statusFilter, branchFilter])
 
   const { data, isLoading } = usePurchaseRequests(queryParams)
   const deletePR = useDeletePurchaseRequest()
@@ -99,6 +103,11 @@ export default function PurchaseRequestsPage() {
               className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
             {search && <button onClick={() => handleSearchChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>}
           </div>
+          <select value={branchFilter} onChange={e => { setBranchFilter(e.target.value); setPage(1) }}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            <option value="">Semua Cabang</option>
+            {branches.map((b: { branch_id: string; branch_name: string }) => <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>)}
+          </select>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
             <option value="">Semua Status</option>
