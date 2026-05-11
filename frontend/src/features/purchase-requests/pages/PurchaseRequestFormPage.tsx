@@ -27,6 +27,7 @@ export default function PurchaseRequestFormPage() {
   const toast = useToast()
 
   const [branchId, setBranchId] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [neededByDate, setNeededByDate] = useState('')
   const [priority, setPriority] = useState<'normal' | 'medium' | 'high'>('normal')
   const [notes, setNotes] = useState('')
@@ -75,11 +76,39 @@ export default function PurchaseRequestFormPage() {
   })
   const branches = branchesData ?? []
 
-  // Search products
-  const { data: productsData } = useQuery({
-    queryKey: ['products', 'search-pr', debouncedProductSearch],
+  // Fetch categories for product filter
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories', 'active'],
     queryFn: async () => {
-      const { data } = await api.get('/products/search', { params: { q: debouncedProductSearch, limit: 20 } })
+      const { data } = await api.get('/categories', { params: { limit: 50 } })
+      return data.data as { id: string; category_name: string }[]
+    },
+    staleTime: 120_000,
+  })
+  const categories = categoriesData ?? []
+
+  // Fetch stock balances for items in lines (based on selected branch)
+  const lineProductIds = lines.map(l => l.product_id)
+  const { data: stockByProduct } = useQuery({
+    queryKey: ['stock-balances', 'pr-form', branchId, lineProductIds],
+    queryFn: async () => {
+      // Fetch all stock for this branch's MAIN warehouse, filter client-side
+      const { data } = await api.get('/stock/balances', { params: { branch_id: branchId, warehouse_type: 'MAIN', limit: 200 } })
+      const map: Record<string, number> = {}
+      for (const row of (data.data ?? [])) map[row.product_id] = parseFloat(row.qty)
+      return map
+    },
+    enabled: !!branchId && lineProductIds.length > 0,
+    staleTime: 30_000,
+  })
+
+  // Search products (filtered by category if selected)
+  const { data: productsData } = useQuery({
+    queryKey: ['products', 'search-pr', debouncedProductSearch, categoryFilter],
+    queryFn: async () => {
+      const params: Record<string, string> = { q: debouncedProductSearch, limit: '20' }
+      if (categoryFilter) params.category_id = categoryFilter
+      const { data } = await api.get('/products/search', { params })
       return data.data as { id: string; product_code: string; product_name: string; base_unit_name: string | null }[]
     },
     enabled: debouncedProductSearch.length >= 2,
@@ -308,13 +337,20 @@ export default function PurchaseRequestFormPage() {
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Tambah Produk
         </label>
-        <input
-          type="text"
-          value={productSearch}
-          onChange={e => setProductSearch(e.target.value)}
-          placeholder="Ketik min. 2 karakter untuk cari produk..."
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-        />
+        <div className="flex gap-3">
+          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+            className="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            <option value="">Semua Kategori</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.category_name}</option>)}
+          </select>
+          <input
+            type="text"
+            value={productSearch}
+            onChange={e => setProductSearch(e.target.value)}
+            placeholder="Ketik min. 2 karakter untuk cari produk..."
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+          />
+        </div>
         {debouncedProductSearch.length >= 2 && products.length > 0 && (
           <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg max-h-60 overflow-auto bg-white dark:bg-gray-800 shadow-lg">
             {products.map(p => {
@@ -392,6 +428,7 @@ export default function PurchaseRequestFormPage() {
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">UOM</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Stock</th>
                             <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-16">Hapus</th>
                           </tr>
                         </thead>
@@ -414,6 +451,15 @@ export default function PurchaseRequestFormPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <span className="text-gray-600 dark:text-gray-400 text-sm">{l.uom}</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {branchId && stockByProduct ? (
+                                  <span className={`text-sm font-mono ${(stockByProduct[l.product_id] ?? 0) < l.qty ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                                    {stockByProduct[l.product_id] ?? 0}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">—</span>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <button onClick={() => removeLine(l.id)} className="text-red-500 hover:text-red-700">

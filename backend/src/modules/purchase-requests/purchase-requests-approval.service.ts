@@ -229,12 +229,21 @@ export class PurchaseRequestApprovalService {
         }
       }
 
-      // Update PR → CONVERTED
+      // Update PR → CONVERTED + set qty_approved on selected lines
       await client.query(
         `UPDATE purchase_requests SET status = 'CONVERTED', approved_by = $1, approved_at = now(), updated_by = $1, updated_at = now()
          WHERE id = $2 AND company_id = $3`,
         [userId, prId, companyId]
       )
+
+      // Set qty_approved = qty for all lines that were selected
+      const allSelectedLineIds = dto.supplier_selections.flatMap(s => s.line_ids)
+      if (allSelectedLineIds.length > 0) {
+        await client.query(
+          `UPDATE purchase_request_lines SET qty_approved = qty WHERE id = ANY($1::uuid[])`,
+          [allSelectedLineIds]
+        )
+      }
 
       await client.query('COMMIT')
 
