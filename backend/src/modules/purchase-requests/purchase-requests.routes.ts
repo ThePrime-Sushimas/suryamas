@@ -1,12 +1,12 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
+import { canView, canInsert, canUpdate, canDelete, canApprove } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { purchaseRequestsController } from './purchase-requests.controller'
 import {
   createPurchaseRequestSchema, updatePurchaseRequestSchema, purchaseRequestIdSchema,
-  approveSchema, rejectSchema, purchaseRequestListSchema, submitForApprovalSchema
+  approveSchema, rejectSchema, purchaseRequestListSchema, submitForApprovalSchema, approveAndGenerateSchema
 } from './purchase-requests.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -33,5 +33,9 @@ router.post('/:id/submit', canUpdate('purchase_requests'), validateSchema(submit
 router.post('/:id/approve', canUpdate('purchase_requests'), validateSchema(approveSchema), (req, res) => purchaseRequestsController.approve(req, res))
 router.post('/:id/reject', canUpdate('purchase_requests'), validateSchema(rejectSchema), (req, res) => purchaseRequestsController.reject(req, res))
 router.post('/:id/cancel', canUpdate('purchase_requests'), validateSchema(purchaseRequestIdSchema), (req, res) => purchaseRequestsController.cancel(req, res))
+
+// Approval flow (halaman terpisah)
+router.get('/:id/approval-data', canApprove('purchase_requests'), validateSchema(purchaseRequestIdSchema), (req, res) => purchaseRequestsController.getApprovalData(req, res))
+router.post('/:id/approve-and-generate', canApprove('purchase_requests'), validateSchema(approveAndGenerateSchema), (req, res) => purchaseRequestsController.approveAndGenerate(req, res))
 
 export default router

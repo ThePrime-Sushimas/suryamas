@@ -481,6 +481,8 @@ const OpeningBalancePage = lazy(() => import('./features/inventory/pages/Opening
 const PurchaseRequestsPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestsPage'))
 const PurchaseRequestFormPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestFormPage'))
 const PurchaseRequestDetailPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestDetailPage'))
+const PRApprovalListPage = lazy(() => import('./features/purchase-requests/pages/PRApprovalListPage'))
+const PurchaseRequestApprovalPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestApprovalPage'))
 
 // Purchase Orders
 const PurchaseOrdersPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrdersPage'))
@@ -1677,6 +1679,26 @@ function App() {
                       <RequirePermission module="purchase_requests">
                         <Suspense fallback={<LoadingFallback />}>
                           <PurchaseRequestFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/pr-approval"
+                    element={
+                      <RequirePermission module="purchase_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PRApprovalListPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-requests/:id/approve"
+                    element={
+                      <RequirePermission module="purchase_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseRequestApprovalPage />
                         </Suspense>
                       </RequirePermission>
                     }

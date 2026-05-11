@@ -58,3 +58,18 @@ export const purchaseRequestListSchema = z.object({
     date_to: z.string().optional(),
   }),
 })
+
+export const approveAndGenerateSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    supplier_selections: z.array(z.object({
+      supplier_id: z.string().uuid(),
+      line_ids: z.array(z.string().uuid()).min(1),
+      payment_type: z.enum(['CASH', 'CREDIT']),
+      payment_terms_days: z.number().int().min(0).nullable().optional(),
+      expected_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      notes: z.string().max(500).nullable().optional(),
+    })).min(1),
+    send_whatsapp: z.boolean().optional().default(false),
+  }),
+})

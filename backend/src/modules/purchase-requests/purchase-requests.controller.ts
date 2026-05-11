@@ -5,13 +5,14 @@ import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type {
   createPurchaseRequestSchema, updatePurchaseRequestSchema, purchaseRequestIdSchema,
-  approveSchema, rejectSchema
+  approveSchema, rejectSchema, approveAndGenerateSchema
 } from './purchase-requests.schema'
 
 type CreateReq = ValidatedAuthRequest<typeof createPurchaseRequestSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updatePurchaseRequestSchema>
 type IdReq = ValidatedAuthRequest<typeof purchaseRequestIdSchema>
 type RejectReq = ValidatedAuthRequest<typeof rejectSchema>
+type ApproveAndGenerateReq = ValidatedAuthRequest<typeof approveAndGenerateSchema>
 
 export class PurchaseRequestsController {
   list = async (req: Request, res: Response) => {
@@ -127,6 +128,29 @@ export class PurchaseRequestsController {
       sendSuccess(res, null, 'Purchase request deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_purchase_request', id: req.params.id })
+    }
+  }
+
+  getApprovalData = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as IdReq).validated.params
+      const companyId = req.context?.company_id ?? ''
+      const data = await purchaseRequestsService.getApprovalData(id, companyId)
+      sendSuccess(res, data, 'Approval data retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_approval_data', id: req.params.id })
+    }
+  }
+
+  approveAndGenerate = async (req: Request, res: Response) => {
+    try {
+      const { params, body } = (req as ApproveAndGenerateReq).validated
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const result = await purchaseRequestsService.approveAndGenerate(params.id, companyId, body, userId)
+      sendSuccess(res, result, `${result.po_ids.length} PO berhasil dibuat`)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'approve_and_generate', id: req.params.id })
     }
   }
 }

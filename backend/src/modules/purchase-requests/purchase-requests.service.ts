@@ -6,6 +6,7 @@ import {
 } from './purchase-requests.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
+import { purchaseRequestApprovalService } from './purchase-requests-approval.service'
 import type {
   CreatePurchaseRequestDto, UpdatePurchaseRequestDto,
   ApprovePurchaseRequestDto, RejectPurchaseRequestDto,
@@ -163,6 +164,14 @@ export class PurchaseRequestsService {
     if (!deleted) throw new PurchaseRequestInvalidStatusError(existing.status, 'DRAFT, REJECTED, or CANCELLED')
 
     await AuditService.log('DELETE', 'purchase_request', id, userId, existing)
+  }
+
+  async getApprovalData(id: string, companyId: string) {
+    return purchaseRequestApprovalService.getApprovalData(id, companyId)
+  }
+
+  async approveAndGenerate(id: string, companyId: string, dto: { supplier_selections: Array<{ supplier_id: string; line_ids: string[]; payment_type: 'CASH' | 'CREDIT'; payment_terms_days?: number | null; expected_delivery_date?: string | null; notes?: string | null }>; send_whatsapp?: boolean }, userId: string) {
+    return purchaseRequestApprovalService.approveAndGenerate(id, companyId, dto, userId)
   }
 }
 
