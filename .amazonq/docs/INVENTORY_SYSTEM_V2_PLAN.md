@@ -817,12 +817,12 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS default_source VARCHAR(20) DEFAULT
 | Opening Balance | ✅ | ✅ | — (uses stock_movements) | — (button di Stok Gudang) | ✅ `/inventory/opening-balance` |
 | Stock Adjustment | ✅ | ✅ (modal) | — (uses stock_movements) | — (button di Stok Gudang) | — |
 | Purchase Requests | ✅ | ✅ | ✅ | ✅ `/inventory/purchase-requests` | ✅ App.tsx |
+| Purchase Orders | ✅ | ✅ | ✅ | ✅ `/inventory/purchase-orders` | ✅ App.tsx |
 
 ### ⬜ Next
 
 | Module | Priority | Notes |
 |--------|----------|-------|
-| Purchase Orders | Must | Dari PR APPROVED → PO ke supplier |
 | Goods Receipt | Must | Cocokkan PO, update stock |
 | Transfer Orders | Must | Central → Cabang |
 | Branch Loans | Should | Cabang ↔ Cabang |

@@ -515,6 +515,43 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  // ============ PURCHASE ORDER MODULE ============
+  PurchaseOrderNotFoundError: {
+    name: 'PurchaseOrderNotFoundError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 404,
+    category: 'inventory',
+  },
+  PurchaseOrderDuplicateError: {
+    name: 'PurchaseOrderDuplicateError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 409,
+    category: 'inventory',
+  },
+  PurchaseOrderInvalidStatusError: {
+    name: 'PurchaseOrderInvalidStatusError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  PurchaseOrderEmptyLinesError: {
+    name: 'PurchaseOrderEmptyLinesError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  PurchaseRequestNotApprovedError: {
+    name: 'PurchaseRequestNotApprovedError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  PurchaseOrderHasReceiptsError: {
+    name: 'PurchaseOrderHasReceiptsError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

@@ -68,6 +68,7 @@ import dashboardHrdRoutes from "./modules/dashboard/dashboard-hrd.routes";
 import warehousesRoutes from "./modules/warehouses/warehouses.routes";
 import stockRoutes from "./modules/stock/stock.routes";
 import purchaseRequestsRoutes from "./modules/purchase-requests/purchase-requests.routes";
+import purchaseOrdersRoutes from "./modules/purchase-orders/purchase-orders.routes";
 import { pool } from "./config/db";
 
 const app = express();
@@ -171,6 +172,7 @@ app.use("/api/v1/dashboard", dashboardHrdRoutes);
 app.use("/api/v1/warehouses", warehousesRoutes);
 app.use("/api/v1/stock", stockRoutes);
 app.use("/api/v1/purchase-requests", purchaseRequestsRoutes);
+app.use("/api/v1/purchase-orders", purchaseOrdersRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
 
 // Error handler

@@ -482,6 +482,11 @@ const PurchaseRequestsPage = lazy(() => import('./features/purchase-requests/pag
 const PurchaseRequestFormPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestFormPage'))
 const PurchaseRequestDetailPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestDetailPage'))
 
+// Purchase Orders
+const PurchaseOrdersPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrdersPage'))
+const PurchaseOrderFormPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrderFormPage'))
+const PurchaseOrderDetailPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrderDetailPage'))
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1687,6 +1692,47 @@ function App() {
                       <RequirePermission module="purchase_requests">
                         <Suspense fallback={<LoadingFallback />}>
                           <PurchaseRequestFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  {/* Purchase Orders */}
+                  <Route
+                    path="inventory/purchase-orders"
+                    element={
+                      <RequirePermission module="purchase_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseOrdersPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-orders/new"
+                    element={
+                      <RequirePermission module="purchase_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseOrderFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-orders/:id/edit"
+                    element={
+                      <RequirePermission module="purchase_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseOrderFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-orders/:id"
+                    element={
+                      <RequirePermission module="purchase_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseOrderDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }
