@@ -63,13 +63,8 @@ export class PurchaseOrdersService {
     try {
       await client.query('BEGIN')
 
-      // Advisory lock — use hashCode of prefix string for uniqueness
-      const prefix = `PO-${companyId}-${branchCode}`
-      let lockKey = 0
-      for (let i = 0; i < prefix.length; i++) {
-        lockKey = ((lockKey << 5) - lockKey + prefix.charCodeAt(i)) | 0
-      }
-      await client.query('SELECT pg_advisory_xact_lock($1)', [lockKey])
+      // Advisory lock using Postgres hashtext for proper distribution
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${companyId}-PO-${branchCode}`])
 
       const poNumber = await purchaseOrdersRepository.generatePoNumber(client, companyId, branchCode)
 

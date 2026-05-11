@@ -1,0 +1,81 @@
+export type GoodsReceiptStatus = 'DRAFT' | 'CONFIRMED'
+export type VarianceStatus = 'OK' | 'NOTICE' | 'DISPUTED'
+
+export interface GoodsReceipt {
+  id: string
+  company_id: string
+  branch_id: string
+  po_id: string
+  warehouse_id: string
+  gr_number: string
+  status: GoodsReceiptStatus
+  received_date: string
+  invoice_number: string | null
+  invoice_date: string | null
+  invoice_photo_url: string | null
+  journal_id: string | null
+  notes: string | null
+  is_deleted: boolean
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+}
+
+export interface GoodsReceiptWithRelations extends GoodsReceipt {
+  branch_name: string
+  branch_code: string
+  po_number: string
+  supplier_name: string
+  warehouse_name: string
+  created_by_name: string | null
+  line_count: number
+  total_invoice_amount: number
+}
+
+export interface GoodsReceiptLine {
+  id: string
+  gr_id: string
+  po_line_id: string
+  product_id: string
+  qty_received: number
+  unit_price_invoice: number
+  total_price_invoice: number
+  unit_price_po: number
+  price_variance: number
+  price_variance_pct: number
+  variance_status: VarianceStatus
+  notes: string | null
+}
+
+export interface GoodsReceiptLineWithRelations extends GoodsReceiptLine {
+  product_code: string
+  product_name: string
+  uom: string
+}
+
+export interface GoodsReceiptWithLines extends GoodsReceiptWithRelations {
+  lines: GoodsReceiptLineWithRelations[]
+}
+
+// DTOs
+export interface CreateGoodsReceiptLineDto {
+  po_line_id: string
+  product_id: string
+  qty_received: number
+  unit_price_invoice: number
+  notes?: string | null
+}
+
+export interface CreateGoodsReceiptDto {
+  po_id: string
+  warehouse_id: string
+  received_date?: string
+  invoice_number?: string | null
+  invoice_date?: string | null
+  invoice_photo_url?: string | null
+  notes?: string | null
+  lines: CreateGoodsReceiptLineDto[]
+  created_by?: string
+}

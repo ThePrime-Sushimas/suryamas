@@ -552,6 +552,43 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  // ============ GOODS RECEIPT MODULE ============
+  GoodsReceiptNotFoundError: {
+    name: 'GoodsReceiptNotFoundError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 404,
+    category: 'inventory',
+  },
+  GoodsReceiptDuplicateError: {
+    name: 'GoodsReceiptDuplicateError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 409,
+    category: 'inventory',
+  },
+  GoodsReceiptAlreadyConfirmedError: {
+    name: 'GoodsReceiptAlreadyConfirmedError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsReceiptInvalidPOStatusError: {
+    name: 'GoodsReceiptInvalidPOStatusError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsReceiptExceedsOrderedError: {
+    name: 'GoodsReceiptExceedsOrderedError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsReceiptInvoiceRequiredError: {
+    name: 'GoodsReceiptInvoiceRequiredError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Package,
+  PackageCheck,
   Factory,
   Warehouse,
   ShoppingCart,
@@ -346,6 +347,13 @@ export const menuItems: MenuItem[] = [
         href: "/inventory/purchase-orders",
         icon: <ShoppingCart size={16} />,
         module: "purchase_orders",
+      },
+      {
+        id: "inv-goods-receipts",
+        name: "Penerimaan Barang",
+        href: "/inventory/goods-receipts",
+        icon: <PackageCheck size={16} />,
+        module: "goods_receipts",
       },
     ],
   },

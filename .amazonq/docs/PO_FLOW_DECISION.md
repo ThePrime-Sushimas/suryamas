@@ -13,7 +13,7 @@
 | 2 | PO tanpa PR | **Tidak boleh** — semua PO harus dari PR yang APPROVED |
 | 3 | Approval PO | Pakai sistem `/permissions` yang sudah ada, register module `purchase_orders` dengan permission type `approve` |
 | 4 | Invoice verification | Tabel terpisah `invoice_verifications` — 1 GR bisa punya banyak invoice |
-| 5 | Journal trigger | Dibuat saat invoice diverifikasi, bukan saat GR |
+| 5 | Journal trigger | Dibuat saat **GR CONFIRMED** (bukan saat invoice verify) |
 
 ---
 
@@ -38,34 +38,48 @@ Cabang input Goods Receipt (GR)
   → Upload foto invoice (WAJIB)
   → Input nomor invoice + tanggal invoice
   → Status GR: DRAFT → CONFIRMED
-  → Stok masuk Gudang 1:
-      stock_movements: IN_PURCHASE
-      (stok masuk, tapi BELUM ada journal keuangan)
+  → Saat CONFIRMED (dalam 1 transaction):
+      1. Stok masuk Gudang 1 (stock_movements: IN_PURCHASE)
+      2. Journal otomatis:
+         DEBIT  Persediaan Bahan Baku     = harga invoice × qty
+         CREDIT Hutang Dagang             (jika CREDIT/tempo)
+         atau CREDIT Kas / Petty Cash     (jika CASH)
+      3. Jika ada selisih harga PO vs Invoice:
+         DEBIT/CREDIT 510303 Selisih Harga Pembelian
+      4. Update qty_received di PO lines
+      5. Update PO status → PARTIAL_RECEIVED atau FULLY_RECEIVED
         ↓
 Sistem otomatis hitung selisih harga per line:
-  → Selisih ≤ 15% : variance_status = 'NOTICE'  → lanjut otomatis
-  → Selisih > 15% : variance_status = 'DISPUTED' → butuh approval finance
+  → Selisih ≤ 15% : variance_status = 'NOTICE'  → journal tetap dibuat
+  → Selisih > 15% : variance_status = 'DISPUTED' → journal tetap dibuat, tapi di-flag untuk review finance
         ↓
-Finance input Invoice Verification
-  → Bisa 1 GR punya beberapa invoice (salmon invoice terpisah, sayuran terpisah)
-  → Setiap invoice diverifikasi satu per satu
-  → Jika ada DISPUTED line → finance approve/reject selisih
-        ↓
-Invoice terverifikasi → Journal otomatis per invoice:
-
-  DEBIT  Persediaan Bahan Baku (cabang)     = harga invoice × qty
-  CREDIT Hutang Dagang (jika CREDIT/tempo)
-  atau
-  CREDIT Kas / Petty Cash (jika CASH)
-
-  Jika ada selisih harga:
-  DEBIT  510303 Selisih Harga Pembelian     = selisih positif (invoice > PO)
-  CREDIT 510303 Selisih Harga Pembelian     = selisih negatif (invoice < PO)
+Invoice Verification (OPSIONAL — audit tool)
+  → Finance review GR yang punya DISPUTED lines
+  → Verifikasi foto invoice vs fisik
+  → Approve/reject selisih (untuk audit trail, bukan trigger journal)
         ↓
 Jatuh tempo → Finance approve payment:
   DEBIT  Hutang Dagang
   CREDIT Kas / Bank
 ```
+
+---
+
+## Perubahan dari Versi Sebelumnya
+
+| Aspek | Sebelum (Opsi A) | Sekarang (Opsi B) |
+|-------|-------------------|-------------------|
+| Journal trigger | Saat invoice verify | **Saat GR confirmed** |
+| Invoice verification | Wajib, trigger journal | **Opsional, audit tool** |
+| Neraca akurasi | Hutang belum tercatat sampai verify | **Hutang langsung tercatat saat barang masuk** |
+| Selisih > 15% | Block journal sampai finance approve | **Journal tetap dibuat, di-flag untuk review** |
+| Kompleksitas | Tinggi (2 step) | **Rendah (1 step)** |
+
+**Alasan perubahan:**
+- Accrual basis: barang diterima = hutang terjadi, harus langsung dicatat
+- Operasional lebih simpel: cabang confirm GR → selesai, tidak perlu tunggu finance
+- Neraca selalu akurat: stok dan hutang sinkron
+- Selisih harga bisa di-review kemudian tanpa menahan pencatatan
 
 ---
 
@@ -86,18 +100,34 @@ Jatuh tempo → Finance approve payment:
 - Dilakukan oleh tim cabang saat barang datang
 - **Foto invoice wajib diupload** — pusat tidak perlu tunggu fisik
 - Invoice fisik menyusul via mobil saos (seminggu sekali) → hanya untuk arsip
-- 1 GR bisa dikonfirmasi partial (barang datang bertahap)
+- 1 PO bisa punya banyak GR (barang datang bertahap / partial)
+- **Saat GR CONFIRMED → journal + stok langsung tercatat**
 
-### Invoice & Selisih Harga
-- Selisih ≤ 15% dari harga PO → `NOTICE` — lanjut otomatis, finance tetap dapat notifikasi
-- Selisih > 15% → `DISPUTED` — finance harus review dan approve sebelum jurnal dibuat
+### Journal saat GR Confirmed
+```
+DEBIT  Persediaan Bahan Baku (cabang)     = harga_invoice × qty_received
+CREDIT Hutang Dagang                       = total (jika payment_type = CREDIT)
+atau
+CREDIT Kas / Petty Cash                    = total (jika payment_type = CASH)
+
+Jika ada selisih harga (invoice ≠ PO):
+  Selisih positif (invoice > PO):
+    DEBIT  510303 Selisih Harga Pembelian  = (invoice - PO) × qty
+  Selisih negatif (invoice < PO):
+    CREDIT 510303 Selisih Harga Pembelian  = (PO - invoice) × qty
+```
+
+### Selisih Harga
+- Selisih ≤ 15% dari harga PO → `NOTICE` — journal tetap dibuat, finance dapat notifikasi
+- Selisih > 15% → `DISPUTED` — journal tetap dibuat, tapi di-flag merah untuk review finance
 - Selisih dicatat ke akun `510303 - Selisih Harga Pembelian`
+- Finance review via Invoice Verification (audit, bukan blocker)
 
-### Invoice Verification
-- 1 GR bisa punya **lebih dari 1 invoice** (supplier pisah invoice per kategori)
-- Setiap invoice diverifikasi terpisah
-- Setiap invoice yang terverifikasi → 1 journal entry otomatis
-- Finance yang verifikasi, bukan Stock Keeper
+### Invoice Verification (Audit Tool)
+- **Tidak wajib** — journal sudah dibuat saat GR
+- Fungsi: rekonsiliasi foto invoice vs fisik, review selisih harga besar
+- Finance bisa mark sebagai VERIFIED atau DISPUTED
+- Tidak trigger journal tambahan
 
 ### Payment
 - Ada 2 jenis: **CASH** (petty cash, sayuran) dan **CREDIT** (tempo, supplier tetap)
@@ -113,7 +143,7 @@ Jatuh tempo → Finance approve payment:
 | (sesuai COA) | Persediaan Bahan Baku | Aset | ✅ Sudah ada |
 | (sesuai COA) | Hutang Dagang | Liabilitas | ✅ Sudah ada |
 | (sesuai COA) | Kas / Bank | Aset | ✅ Sudah ada |
-| 510303 | Selisih Harga Pembelian | Beban HPP | ⬜ Perlu dibuat |
+| 510303 | Selisih Harga Pembelian | Beban HPP | ✅ Sudah dibuat |
 
 ---
 
@@ -131,7 +161,7 @@ SENT
 PARTIAL_RECEIVED
   ↓ (semua item GR selesai)
 FULLY_RECEIVED
-  ↓ (semua invoice verified + journal dibuat)
+  ↓ (semua payment lunas — nanti)
 CLOSED
 
 Dari DRAFT atau SENT (belum ada GR) → bisa CANCELLED
@@ -160,7 +190,7 @@ CREATE TABLE purchase_orders (
   payment_type          VARCHAR(10) NOT NULL CHECK (payment_type IN ('CASH', 'CREDIT')),
   payment_terms_days    INT,
   notes                 TEXT,
-  approved_by           UUID,
+  approved_by           UUID REFERENCES auth_users(id),
   approved_at           TIMESTAMPTZ,
   cancelled_reason      TEXT,
   total_amount          NUMERIC(20,4) NOT NULL DEFAULT 0,
@@ -211,6 +241,10 @@ CREATE TABLE goods_receipts (
   status                VARCHAR(20) NOT NULL DEFAULT 'DRAFT'
                           CHECK (status IN ('DRAFT', 'CONFIRMED')),
   received_date         DATE NOT NULL DEFAULT CURRENT_DATE,
+  invoice_number        VARCHAR(100),
+  invoice_date          DATE,
+  invoice_photo_url     TEXT,
+  journal_id            UUID REFERENCES journal_headers(id),
   notes                 TEXT,
   is_deleted            BOOLEAN NOT NULL DEFAULT false,
   deleted_at            TIMESTAMPTZ,
@@ -247,7 +281,7 @@ CREATE INDEX idx_gr_lines_gr ON goods_receipt_lines(gr_id);
 CREATE INDEX idx_gr_lines_po_line ON goods_receipt_lines(po_line_id);
 ```
 
-### `invoice_verifications`
+### `invoice_verifications` (audit tool — opsional)
 ```sql
 CREATE TABLE invoice_verifications (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -279,8 +313,8 @@ CREATE INDEX idx_invoice_verifications_status ON invoice_verifications(status);
 
 | Step | Module | Dependency |
 |------|--------|-----------|
-| 1 | Tambah akun 510303 di COA | Manual |
-| 2 | Purchase Orders (BE + FE) | PR module done |
-| 3 | Goods Receipts (BE + FE) | PO module done |
-| 4 | Invoice Verifications + Journal (BE + FE) | GR module done |
-| 5 | Payment (BE + FE) | Invoice verified |
+| 1 | Tambah akun 510303 di COA | ✅ Done |
+| 2 | Purchase Orders (BE + FE) | ✅ Done |
+| 3 | Goods Receipts (BE + FE) | ⬜ Next — termasuk journal generation saat confirm |
+| 4 | Invoice Verifications (BE + FE) | Later — audit tool, tidak blocking |
+| 5 | Payment (BE + FE) | Later — hutang lunas |

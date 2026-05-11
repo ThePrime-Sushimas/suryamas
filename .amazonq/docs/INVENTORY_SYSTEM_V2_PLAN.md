@@ -818,12 +818,13 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS default_source VARCHAR(20) DEFAULT
 | Stock Adjustment | ✅ | ✅ (modal) | — (uses stock_movements) | — (button di Stok Gudang) | — |
 | Purchase Requests | ✅ | ✅ | ✅ | ✅ `/inventory/purchase-requests` | ✅ App.tsx |
 | Purchase Orders | ✅ | ✅ | ✅ | ✅ `/inventory/purchase-orders` | ✅ App.tsx |
+| Goods Receipt | ✅ | ✅ | ✅ | ✅ `/inventory/goods-receipts` | ✅ App.tsx |
 
 ### ⬜ Next
 
 | Module | Priority | Notes |
 |--------|----------|-------|
-| Goods Receipt | Must | Cocokkan PO, update stock |
+| Transfer Orders | Must | Central → Cabang |
 | Transfer Orders | Must | Central → Cabang |
 | Branch Loans | Should | Cabang ↔ Cabang |
 | Daily Requisitions | Should | Turun barang harian (Gudang 1 → Ready) |

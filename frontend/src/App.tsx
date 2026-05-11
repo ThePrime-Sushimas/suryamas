@@ -487,6 +487,11 @@ const PurchaseOrdersPage = lazy(() => import('./features/purchase-orders/pages/P
 const PurchaseOrderFormPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrderFormPage'))
 const PurchaseOrderDetailPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrderDetailPage'))
 
+// Goods Receipts
+const GoodsReceiptsPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptsPage'))
+const GoodsReceiptFormPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptFormPage'))
+const GoodsReceiptDetailPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptDetailPage'))
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1733,6 +1738,37 @@ function App() {
                       <RequirePermission module="purchase_orders">
                         <Suspense fallback={<LoadingFallback />}>
                           <PurchaseOrderDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  {/* Goods Receipts */}
+                  <Route
+                    path="inventory/goods-receipts"
+                    element={
+                      <RequirePermission module="goods_receipts">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GoodsReceiptsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/goods-receipts/new"
+                    element={
+                      <RequirePermission module="goods_receipts">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GoodsReceiptFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/goods-receipts/:id"
+                    element={
+                      <RequirePermission module="goods_receipts">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GoodsReceiptDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }
