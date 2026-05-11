@@ -48,6 +48,7 @@ export class PurchaseRequestsService {
         priority: dto.priority,
         notes: dto.notes,
         requested_by: userId,
+        status: 'PENDING_APPROVAL',
         created_by: userId,
       })
 
