@@ -151,3 +151,23 @@ export const useDeletePurchaseOrder = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
   })
 }
+
+/** Check for duplicate POs (same supplier + branch + similar amount in 30 days) */
+export const useCheckDuplicatePO = (params: { supplier_id?: string; branch_id?: string; total_amount?: number }) =>
+  useQuery({
+    queryKey: ['purchase-orders', 'check-duplicates', params],
+    queryFn: async () => {
+      const { data } = await api.get('/purchase-orders/check-duplicates', { params })
+      return data.data as { count: number; similar_pos: { id: string; po_number: string; total_amount: number; order_date: string; status: string; supplier_name: string }[] }
+    },
+    enabled: !!params.supplier_id && !!params.branch_id && (params.total_amount ?? 0) > 0,
+    staleTime: 10_000,
+  })
+
+/** Get latest price for a product (from GR history or supplier_products) */
+export const getLatestPrice = async (productId: string, supplierId?: string): Promise<{ price: number; source: string }> => {
+  const params: Record<string, string> = { product_id: productId }
+  if (supplierId) params.supplier_id = supplierId
+  const { data } = await api.get('/purchase-orders/latest-price', { params })
+  return data.data
+}

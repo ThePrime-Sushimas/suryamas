@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Save, ClipboardList } from 'lucide-react'
+import { ArrowLeft, Trash2, Save, ClipboardList } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
@@ -28,6 +28,7 @@ export default function PurchaseRequestFormPage() {
 
   const [branchId, setBranchId] = useState('')
   const [neededByDate, setNeededByDate] = useState('')
+  const [priority, setPriority] = useState<'normal' | 'medium' | 'high'>('normal')
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineItem[]>([])
   const [productSearch, setProductSearch] = useState('')
@@ -75,14 +76,12 @@ export default function PurchaseRequestFormPage() {
   const branches = branchesData ?? []
 
   // Search products
+  // Search products with suppliers
   const { data: productsData } = useQuery({
-    queryKey: ['products', 'search-pr', debouncedProductSearch],
+    queryKey: ['products', 'search-with-suppliers', debouncedProductSearch],
     queryFn: async () => {
-      const params: Record<string, unknown> = { limit: 30, status: 'ACTIVE' }
-      if (debouncedProductSearch) params.q = debouncedProductSearch
-      const endpoint = debouncedProductSearch ? '/products/search' : '/products'
-      const { data } = await api.get(endpoint, { params })
-      return data.data as { id: string; product_code: string; product_name: string; average_cost: number; base_unit_name: string | null }[]
+      const { data } = await api.get('/products/search-with-suppliers', { params: { q: debouncedProductSearch } })
+      return data.data as { id: string; product_name: string; purchase_unit: string; suppliers: { supplier_id: string; supplier_name: string }[] }[]
     },
     enabled: debouncedProductSearch.length >= 2,
     staleTime: 30_000,
@@ -93,21 +92,21 @@ export default function PurchaseRequestFormPage() {
   const updatePR = useUpdatePurchaseRequest()
   const isPending = createPR.isPending || updatePR.isPending
 
-  const addLine = (product: { id: string; product_name: string; product_code: string; average_cost: number; base_unit_name: string | null }) => {
-    if (lines.some(l => l.product_id === product.id)) {
-      toast.error('Produk sudah ada di daftar')
+  const addLine = (product: { id: string; product_name: string; purchase_unit: string }, supplier?: { supplier_id: string; supplier_name: string }) => {
+    if (lines.some(l => l.product_id === product.id && l.supplier_id === (supplier?.supplier_id ?? null))) {
+      toast.error('Produk + supplier sudah ada di daftar')
       return
     }
     setLines(prev => [...prev, {
       id: crypto.randomUUID(),
       product_id: product.id,
       product_name: product.product_name,
-      product_code: product.product_code,
+      product_code: '',
       qty: 1,
-      uom: product.base_unit_name || 'pcs',
-      estimated_price: product.average_cost || null,
-      supplier_id: null,
-      supplier_name: null,
+      uom: product.purchase_unit || 'pcs',
+      estimated_price: null,
+      supplier_id: supplier?.supplier_id ?? null,
+      supplier_name: supplier?.supplier_name ?? null,
     }])
     setProductSearch('')
   }
@@ -126,6 +125,7 @@ export default function PurchaseRequestFormPage() {
 
     const payload = {
       needed_by_date: neededByDate || null,
+      priority,
       notes: notes || null,
       lines: lines.map(l => ({
         product_id: l.product_id,
@@ -149,9 +149,6 @@ export default function PurchaseRequestFormPage() {
       toast.error(parseApiError(err, isEdit ? 'Gagal memperbarui purchase request' : 'Gagal membuat purchase request'))
     }
   }
-
-  const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
-  const totalEstimated = lines.reduce((s, l) => s + l.qty * (l.estimated_price ?? 0), 0)
 
   // Loading state for edit mode
   if (isEdit && isLoadingPR) {
@@ -250,6 +247,15 @@ export default function PurchaseRequestFormPage() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prioritas</label>
+            <select value={priority} onChange={e => setPriority(e.target.value as 'normal' | 'medium' | 'high')}
+              className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm ${priority === 'high' ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600'}`}>
+              <option value="normal">Normal</option>
+              <option value="medium">Sedang</option>
+              <option value="high">Tinggi ⚠️</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Catatan
             </label>
@@ -277,19 +283,27 @@ export default function PurchaseRequestFormPage() {
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
         />
         {debouncedProductSearch.length >= 2 && products.length > 0 && (
-          <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg max-h-40 overflow-auto bg-white dark:bg-gray-800 shadow-lg">
+          <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg max-h-60 overflow-auto bg-white dark:bg-gray-800 shadow-lg">
             {products.map(p => (
-              <button
-                key={p.id}
-                onClick={() => addLine(p)}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex justify-between items-center border-b border-gray-100 dark:border-gray-700 last:border-0"
-              >
-                <span className="text-gray-900 dark:text-white">
-                  {p.product_name}{' '}
-                  <span className="text-gray-400">({p.product_code})</span>
-                </span>
-                <Plus className="w-4 h-4 text-orange-600 flex-shrink-0" />
-              </button>
+              <div key={p.id} className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                <div className="font-medium text-sm text-gray-900 dark:text-white">{p.product_name}</div>
+                <div className="text-xs text-gray-500 mt-0.5">UOM: {p.purchase_unit}</div>
+                {p.suppliers.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {p.suppliers.map(s => (
+                      <button key={s.supplier_id} onClick={() => addLine(p, s)}
+                        className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded text-xs hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                        {s.supplier_name}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <button onClick={() => addLine(p)}
+                    className="mt-1.5 px-2 py-0.5 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded text-xs hover:bg-gray-200">
+                    + Tambah (tanpa supplier)
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -307,8 +321,6 @@ export default function PurchaseRequestFormPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">UOM</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-36">Est. Harga/Unit</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-16">Hapus</th>
               </tr>
             </thead>
@@ -323,7 +335,7 @@ export default function PurchaseRequestFormPage() {
                 <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900 dark:text-white">{l.product_name}</div>
-                    <div className="text-xs text-gray-500">{l.product_code}</div>
+                    {l.supplier_name && <div className="text-xs text-blue-600 dark:text-blue-400">{l.supplier_name}</div>}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <input
@@ -343,19 +355,6 @@ export default function PurchaseRequestFormPage() {
                       className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                     />
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={l.estimated_price ?? ''}
-                      onChange={e => updateLine(l.id, 'estimated_price', parseFloat(e.target.value) || null)}
-                      className="w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm"
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
-                    {l.estimated_price ? `Rp ${fmt(l.qty * l.estimated_price)}` : '—'}
-                  </td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => removeLine(l.id)} className="text-red-500 hover:text-red-700">
                       <Trash2 className="w-4 h-4" />
@@ -367,13 +366,9 @@ export default function PurchaseRequestFormPage() {
             {lines.length > 0 && (
               <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
                 <tr>
-                  <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
-                    {lines.length} item — Total Estimasi:
+                  <td colSpan={4} className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                    {lines.length} item
                   </td>
-                  <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">
-                    Rp {fmt(totalEstimated)}
-                  </td>
-                  <td></td>
                 </tr>
               </tfoot>
             )}

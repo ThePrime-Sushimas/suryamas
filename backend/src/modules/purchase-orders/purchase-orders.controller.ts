@@ -126,6 +126,43 @@ export class PurchaseOrdersController {
       await handleError(res, error, req, { action: 'delete_purchase_order', id: req.params.id })
     }
   }
+
+  checkDuplicates = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const supplier_id = req.query.supplier_id as string
+      const branch_id = req.query.branch_id as string
+      const total_amount = parseFloat(req.query.total_amount as string) || 0
+
+      if (!supplier_id || !branch_id) {
+        res.status(400).json({ success: false, message: 'supplier_id and branch_id required' })
+        return
+      }
+
+      const result = await purchaseOrdersService.checkDuplicates(companyId, supplier_id, branch_id, total_amount)
+      sendSuccess(res, result, 'Duplicate check completed')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'check_duplicate_po' })
+    }
+  }
+
+  getLatestPrice = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const product_id = req.query.product_id as string
+      const supplier_id = req.query.supplier_id as string | undefined
+
+      if (!product_id) {
+        res.status(400).json({ success: false, message: 'product_id required' })
+        return
+      }
+
+      const result = await purchaseOrdersService.getLatestPrice(companyId, product_id, supplier_id)
+      sendSuccess(res, result, 'Latest price retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_latest_price' })
+    }
+  }
 }
 
 export const purchaseOrdersController = new PurchaseOrdersController()

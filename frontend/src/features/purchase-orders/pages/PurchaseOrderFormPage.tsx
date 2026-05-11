@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ShoppingCart, Save, Trash2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useCreatePurchaseOrder } from '../api/purchaseOrders.api'
+import { useCreatePurchaseOrder, useCheckDuplicatePO, getLatestPrice } from '../api/purchaseOrders.api'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
 
@@ -72,20 +72,34 @@ export default function PurchaseOrderFormPage() {
   const suppliers = suppliersData ?? []
 
   // Auto-populate lines when PR is selected
+  // Auto-populate lines when PR selected, fetch latest prices
   useEffect(() => {
     if (selectedPR?.lines) {
-      setLines(selectedPR.lines.map(l => ({
-        key: crypto.randomUUID(),
-        pr_line_id: l.id,
-        product_id: l.product_id,
-        product_name: l.product_name,
-        product_code: l.product_code,
-        qty: l.qty,
-        uom: l.uom,
-        unit_price: l.estimated_price ?? 0,
-      })))
+      const populateLines = async () => {
+        const newLines = await Promise.all(selectedPR.lines.map(async l => {
+          let unitPrice = l.estimated_price ?? 0
+          if (supplierId) {
+            try {
+              const priceData = await getLatestPrice(l.product_id, supplierId)
+              if (priceData.price > 0) unitPrice = priceData.price
+            } catch { /* fallback to estimated */ }
+          }
+          return {
+            key: crypto.randomUUID(),
+            pr_line_id: l.id,
+            product_id: l.product_id,
+            product_name: l.product_name,
+            product_code: l.product_code,
+            qty: l.qty,
+            uom: l.uom,
+            unit_price: unitPrice,
+          }
+        }))
+        setLines(newLines)
+      }
+      populateLines()
     }
-  }, [selectedPR])
+  }, [selectedPR, supplierId])
 
   const createPO = useCreatePurchaseOrder()
 
@@ -129,6 +143,14 @@ export default function PurchaseOrderFormPage() {
 
   const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
   const totalAmount = lines.reduce((s, l) => s + l.qty * l.unit_price, 0)
+
+  // Duplicate PO check
+  const selectedPRBranchId = selectedPR?.branch_id ?? approvedPRs.find(p => p.id === selectedPrId)?.branch_id
+  const { data: duplicateCheck } = useCheckDuplicatePO({
+    supplier_id: supplierId || undefined,
+    branch_id: selectedPRBranchId || undefined,
+    total_amount: totalAmount > 0 ? totalAmount : undefined,
+  })
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -200,6 +222,26 @@ export default function PurchaseOrderFormPage() {
           </div>
         </div>
       </div>
+
+      {/* Duplicate Warning */}
+      {duplicateCheck && duplicateCheck.count > 0 && (
+        <div className="mx-6 mt-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+          <div className="flex items-start gap-2">
+            <span className="text-orange-500 mt-0.5">⚠️</span>
+            <div>
+              <p className="text-sm font-medium text-orange-800 dark:text-orange-300">Potensi Duplikasi PO ({duplicateCheck.count} PO serupa)</p>
+              <p className="text-xs text-orange-700 dark:text-orange-400 mt-1">Ditemukan PO dengan supplier, cabang, dan nominal serupa dalam 30 hari terakhir:</p>
+              <div className="mt-2 space-y-1">
+                {duplicateCheck.similar_pos.slice(0, 3).map(po => (
+                  <div key={po.id} className="text-xs text-orange-600 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded">
+                    {po.po_number} — Rp {fmt(po.total_amount)} ({po.status})
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lines Table */}
       <div className="flex-1 overflow-auto p-6">

@@ -213,6 +213,63 @@ export class PurchaseOrdersService {
 
     await AuditService.log('DELETE', 'purchase_order', id, userId, existing)
   }
+
+  /**
+   * Check for similar POs (same supplier + branch + similar amount) in last 30 days.
+   * Used as warning before creating new PO.
+   */
+  async checkDuplicates(companyId: string, supplierId: string, branchId: string, totalAmount: number) {
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const { rows } = await pool.query(
+      `SELECT po.id, po.po_number, po.total_amount, po.order_date, po.status, s.supplier_name
+       FROM purchase_orders po
+       JOIN suppliers s ON s.id = po.supplier_id
+       WHERE po.company_id = $1 AND po.supplier_id = $2 AND po.branch_id = $3
+         AND po.created_at >= $4
+         AND po.status != 'CANCELLED'
+         AND po.deleted_at IS NULL
+         AND ABS(po.total_amount - $5) <= ($5 * 0.05)`,
+      [companyId, supplierId, branchId, thirtyDaysAgo.toISOString(), totalAmount]
+    )
+
+    return { count: rows.length, similar_pos: rows }
+  }
+
+  /**
+   * Get latest price for a product.
+   * Priority: pricelists (active, valid date) → supplier_products.price → products.average_cost
+   */
+  async getLatestPrice(companyId: string, productId: string, supplierId?: string): Promise<{ price: number; source: string }> {
+    // 1. Try pricelists (active + valid date range)
+    if (supplierId) {
+      const { rows: plRows } = await pool.query(
+        `SELECT price FROM pricelists
+         WHERE product_id = $1 AND supplier_id = $2 AND company_id = $3
+           AND is_active = true AND deleted_at IS NULL
+           AND status = 'approved'
+           AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+           AND (valid_to IS NULL OR valid_to >= CURRENT_DATE)
+         ORDER BY updated_at DESC LIMIT 1`,
+        [productId, supplierId, companyId]
+      )
+      if (plRows[0]?.price) return { price: Number(plRows[0].price), source: 'pricelist' }
+    }
+
+    // 2. Fallback: supplier_products price
+    if (supplierId) {
+      const { rows: spRows } = await pool.query(
+        'SELECT price FROM supplier_products WHERE product_id = $1 AND supplier_id = $2 AND is_active = true AND deleted_at IS NULL LIMIT 1',
+        [productId, supplierId]
+      )
+      if (spRows[0]?.price) return { price: Number(spRows[0].price), source: 'supplier_product' }
+    }
+
+    // 3. Fallback: products.average_cost
+    const { rows: pRows } = await pool.query('SELECT average_cost FROM products WHERE id = $1', [productId])
+    return { price: Number(pRows[0]?.average_cost ?? 0), source: 'average_cost' }
+  }
 }
 
 export const purchaseOrdersService = new PurchaseOrdersService()

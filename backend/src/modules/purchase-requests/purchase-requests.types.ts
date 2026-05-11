@@ -1,4 +1,5 @@
 export type PurchaseRequestStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CONVERTED' | 'CANCELLED'
+export type PurchaseRequestPriority = 'normal' | 'medium' | 'high'
 
 export interface PurchaseRequest {
   id: string
@@ -6,6 +7,7 @@ export interface PurchaseRequest {
   branch_id: string
   request_number: string
   status: PurchaseRequestStatus
+  priority: PurchaseRequestPriority
   request_date: string
   needed_by_date: string | null
   notes: string | null
@@ -66,6 +68,7 @@ export interface CreatePurchaseRequestDto {
   branch_id: string
   request_date?: string
   needed_by_date?: string | null
+  priority?: PurchaseRequestPriority
   notes?: string | null
   lines: CreatePurchaseRequestLineDto[]
   created_by?: string

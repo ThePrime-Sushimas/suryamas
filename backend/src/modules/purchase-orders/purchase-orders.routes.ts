@@ -19,6 +19,8 @@ const router = Router()
 router.use(authenticate, resolveBranchContext)
 
 // CRUD
+router.get('/check-duplicates', canView('purchase_orders'), (req, res) => purchaseOrdersController.checkDuplicates(req, res))
+router.get('/latest-price', canView('purchase_orders'), (req, res) => purchaseOrdersController.getLatestPrice(req, res))
 router.get('/', canView('purchase_orders'), validateSchema(purchaseOrderListSchema), (req, res) => purchaseOrdersController.list(req, res))
 router.post('/', canInsert('purchase_orders'), validateSchema(createPurchaseOrderSchema), (req, res) => purchaseOrdersController.create(req, res))
 router.get('/:id', canView('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.getById(req, res))

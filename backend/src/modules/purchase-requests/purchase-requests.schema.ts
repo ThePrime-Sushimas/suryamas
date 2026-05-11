@@ -14,6 +14,7 @@ export const createPurchaseRequestSchema = z.object({
     branch_id: z.string().uuid(),
     request_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     needed_by_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    priority: z.enum(['normal', 'medium', 'high']).optional().default('normal'),
     notes: z.string().max(500).nullable().optional(),
     lines: z.array(lineSchema).min(1),
   }),

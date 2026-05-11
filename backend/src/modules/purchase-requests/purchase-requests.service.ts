@@ -45,6 +45,7 @@ export class PurchaseRequestsService {
         request_number: requestNumber,
         request_date: dto.request_date,
         needed_by_date: dto.needed_by_date,
+        priority: dto.priority,
         notes: dto.notes,
         requested_by: userId,
         created_by: userId,
