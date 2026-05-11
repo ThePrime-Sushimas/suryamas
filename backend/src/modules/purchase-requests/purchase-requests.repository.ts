@@ -92,7 +92,7 @@ export class PurchaseRequestsRepository {
   }): Promise<PurchaseRequest> {
     const { rows } = await client.query(
       `INSERT INTO purchase_requests (company_id, branch_id, request_number, request_date, needed_by_date, priority, notes, requested_by, status, created_by, updated_by)
-       VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE), $5, $6, $7, $8, COALESCE($9, 'DRAFT'), $9, $9) RETURNING *`,
+       VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE), $5, $6, $7, $8, COALESCE($9, 'DRAFT'), $10, $10) RETURNING *`,
       [companyId, data.branch_id, data.request_number, data.request_date ?? null, data.needed_by_date ?? null, data.priority ?? 'normal', data.notes ?? null, data.requested_by ?? null, data.status ?? 'DRAFT', data.created_by ?? null]
     )
     return rows[0]
