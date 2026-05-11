@@ -76,23 +76,35 @@ export default function PurchaseRequestFormPage() {
   const branches = branchesData ?? []
 
   // Search products
-  // Search products with suppliers
+  // Search products
   const { data: productsData } = useQuery({
-    queryKey: ['products', 'search-with-suppliers', debouncedProductSearch],
+    queryKey: ['products', 'search-pr', debouncedProductSearch],
     queryFn: async () => {
-      const { data } = await api.get('/products/search-with-suppliers', { params: { q: debouncedProductSearch } })
-      return data.data as { id: string; product_name: string; purchase_unit: string; suppliers: { supplier_id: string; supplier_name: string }[] }[]
+      const { data } = await api.get('/products/search', { params: { q: debouncedProductSearch, limit: 20 } })
+      return data.data as { id: string; product_code: string; product_name: string; base_unit_name: string | null }[]
     },
     enabled: debouncedProductSearch.length >= 2,
     staleTime: 30_000,
   })
   const products = productsData ?? []
 
+  // Batch fetch suppliers for search results
+  const productIds = products.map(p => p.id)
+  const { data: suppliersByProduct } = useQuery({
+    queryKey: ['supplier-products', 'by-products', productIds],
+    queryFn: async () => {
+      const { data } = await api.post('/supplier-products/by-products', { product_ids: productIds })
+      return data.data as Record<string, { supplier_id: string; supplier_name: string }[]>
+    },
+    enabled: productIds.length > 0,
+    staleTime: 60_000,
+  })
+
   const createPR = useCreatePurchaseRequest()
   const updatePR = useUpdatePurchaseRequest()
   const isPending = createPR.isPending || updatePR.isPending
 
-  const addLine = (product: { id: string; product_name: string; purchase_unit: string }, supplier?: { supplier_id: string; supplier_name: string }) => {
+  const addLine = (product: { id: string; product_name: string; base_unit_name: string | null }, supplier?: { supplier_id: string; supplier_name: string }) => {
     if (lines.some(l => l.product_id === product.id && l.supplier_id === (supplier?.supplier_id ?? null))) {
       toast.error('Produk + supplier sudah ada di daftar')
       return
@@ -103,7 +115,7 @@ export default function PurchaseRequestFormPage() {
       product_name: product.product_name,
       product_code: '',
       qty: 1,
-      uom: product.purchase_unit || 'pcs',
+      uom: product.base_unit_name || 'pcs',
       estimated_price: null,
       supplier_id: supplier?.supplier_id ?? null,
       supplier_name: supplier?.supplier_name ?? null,
@@ -284,27 +296,30 @@ export default function PurchaseRequestFormPage() {
         />
         {debouncedProductSearch.length >= 2 && products.length > 0 && (
           <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg max-h-60 overflow-auto bg-white dark:bg-gray-800 shadow-lg">
-            {products.map(p => (
-              <div key={p.id} className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
-                <div className="font-medium text-sm text-gray-900 dark:text-white">{p.product_name}</div>
-                <div className="text-xs text-gray-500 mt-0.5">UOM: {p.purchase_unit}</div>
-                {p.suppliers.length > 0 ? (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {p.suppliers.map(s => (
-                      <button key={s.supplier_id} onClick={() => addLine(p, s)}
-                        className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded text-xs hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
-                        {s.supplier_name}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <button onClick={() => addLine(p)}
-                    className="mt-1.5 px-2 py-0.5 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded text-xs hover:bg-gray-200">
-                    + Tambah (tanpa supplier)
-                  </button>
-                )}
-              </div>
-            ))}
+            {products.map(p => {
+              const suppliers = suppliersByProduct?.[p.id] ?? []
+              return (
+                <div key={p.id} className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                  <div className="font-medium text-sm text-gray-900 dark:text-white">{p.product_name}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">UOM: {p.base_unit_name || 'pcs'}</div>
+                  {suppliers.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {suppliers.map(s => (
+                        <button key={s.supplier_id} onClick={() => addLine(p, s)}
+                          className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded text-xs hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                          {s.supplier_name}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <button onClick={() => addLine(p)}
+                      className="mt-1.5 px-2 py-0.5 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded text-xs hover:bg-gray-200">
+                      + Tambah (tanpa supplier)
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
         {debouncedProductSearch.length >= 2 && products.length === 0 && (

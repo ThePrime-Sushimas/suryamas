@@ -98,6 +98,14 @@ export class SupplierProductsService {
   }
 
   /**
+   * Batch fetch suppliers grouped by product_id.
+   * Returns: { [product_id]: [{ supplier_id, supplier_name }] }
+   */
+  async findByProducts(productIds: string[]): Promise<Record<string, { supplier_id: string; supplier_name: string }[]>> {
+    return this.repository.findByProducts(productIds)
+  }
+
+  /**
    * Create new supplier product
    */
   async create(dto: CreateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string, employeeId?: string): Promise<SupplierProduct> {

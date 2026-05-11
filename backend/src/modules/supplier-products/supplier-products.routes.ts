@@ -39,6 +39,9 @@ router.get('/supplier/:supplier_id', canView('supplier_products'), validateSchem
 router.get('/product/:product_id', canView('supplier_products'), validateSchema(getByProductSchema), (req, res) =>
   supplierProductsController.findByProduct(req, res))
 
+router.post('/by-products', canView('supplier_products'), (req, res) =>
+  supplierProductsController.findByProducts(req, res))
+
 router.get('/', canView('supplier_products'), queryMiddleware({ allowedSortFields: sortFields }), validateSchema(supplierProductListSchema), (req, res) =>
   supplierProductsController.list(req, res))
 

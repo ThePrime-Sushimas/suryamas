@@ -135,6 +135,32 @@ export class SupplierProductsRepository {
       : rows.map(mapSupplierProductFromDb)
   }
 
+  /**
+   * Batch fetch suppliers for multiple product IDs in 1 query.
+   * Returns grouped by product_id.
+   */
+  async findByProducts(productIds: string[]): Promise<Record<string, { supplier_id: string; supplier_name: string }[]>> {
+    if (productIds.length === 0) return {}
+
+    const { rows } = await pool.query(
+      `SELECT sp.product_id, s.id AS supplier_id, s.supplier_name
+       FROM supplier_products sp
+       JOIN suppliers s ON s.id = sp.supplier_id
+       WHERE sp.product_id = ANY($1::uuid[])
+         AND sp.is_active = true AND sp.deleted_at IS NULL
+         AND s.deleted_at IS NULL
+       ORDER BY sp.is_preferred DESC, s.supplier_name`,
+      [productIds]
+    )
+
+    const result: Record<string, { supplier_id: string; supplier_name: string }[]> = {}
+    for (const row of rows) {
+      if (!result[row.product_id]) result[row.product_id] = []
+      result[row.product_id].push({ supplier_id: row.supplier_id, supplier_name: row.supplier_name })
+    }
+    return result
+  }
+
   async findBySupplierAndProduct(supplierId: string, productId: string, excludeId?: string): Promise<SupplierProduct | null> {
     const params: string[] = [supplierId, productId]
     let query = 'SELECT * FROM supplier_products WHERE supplier_id = $1 AND product_id = $2 AND deleted_at IS NULL'

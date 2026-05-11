@@ -70,6 +70,26 @@ export class SupplierProductsController {
     }
   }
 
+  /**
+   * Batch fetch suppliers for multiple product IDs.
+   * POST /supplier-products/by-products { product_ids: [...] }
+   * Returns: { [product_id]: [{ supplier_id, supplier_name }] }
+   */
+  findByProducts = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { product_ids } = req.body as { product_ids: string[] }
+      if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
+        sendSuccess(res, {}, 'No product IDs provided')
+        return
+      }
+
+      const result = await supplierProductsService.findByProducts(product_ids)
+      sendSuccess(res, result, 'Supplier products by products retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_by_products_batch' })
+    }
+  }
+
   create = async (req: Request, res: Response): Promise<void> => {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createSupplierProductSchema>).validated
