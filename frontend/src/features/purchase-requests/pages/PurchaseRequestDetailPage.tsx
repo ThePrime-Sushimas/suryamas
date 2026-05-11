@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ClipboardList, Send, CheckCircle, XCircle, Ban } from 'lucide-react'
+import { ArrowLeft, ClipboardList, Send, CheckCircle, Ban, Package } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import {
-  usePurchaseRequest, useSubmitPurchaseRequest, useApprovePurchaseRequest,
-  useRejectPurchaseRequest, useCancelPurchaseRequest
+  usePurchaseRequest, useSubmitPurchaseRequest,
+  useCancelPurchaseRequest,
+  type PurchaseRequestLine
 } from '../api/purchaseRequests.api'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
@@ -22,6 +23,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   CANCELLED: { label: 'Dibatalkan', color: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' },
 }
 
+interface SupplierGroup {
+  supplierName: string
+  supplierId: string | null
+  lines: (PurchaseRequestLine & { _origIdx: number })[]
+}
+
 export default function PurchaseRequestDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -32,33 +39,44 @@ export default function PurchaseRequestDetailPage() {
 
   const { data: pr, isLoading } = usePurchaseRequest(id ?? '')
   const submitPR = useSubmitPurchaseRequest()
-  const approvePR = useApprovePurchaseRequest()
-  const rejectPR = useRejectPurchaseRequest()
   const cancelPR = useCancelPurchaseRequest()
 
-  const [showRejectModal, setShowRejectModal] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
-  const [confirmAction, setConfirmAction] = useState<'submit' | 'approve' | 'cancel' | null>(null)
+  const [confirmAction, setConfirmAction] = useState<'submit' | 'cancel' | null>(null)
+
+  // Group lines by supplier
+  const supplierGroups = useMemo<SupplierGroup[]>(() => {
+    const lines = pr?.lines ?? []
+    const groupMap = new Map<string, SupplierGroup>()
+
+    lines.forEach((line, idx) => {
+      const key = line.supplier_id ?? '__no_supplier__'
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          supplierName: line.supplier_name || 'Tanpa Supplier',
+          supplierId: line.supplier_id ?? null,
+          lines: [],
+        })
+      }
+      const group = groupMap.get(key)!
+      group.lines.push({ ...line, _origIdx: idx + 1 })
+    })
+
+    // Sort: named suppliers first (alphabetical), "Tanpa Supplier" last
+    return Array.from(groupMap.values()).sort((a, b) => {
+      if (!a.supplierId) return 1
+      if (!b.supplierId) return -1
+      return a.supplierName.localeCompare(b.supplierName)
+    })
+  }, [pr?.lines])
 
   const handleAction = async () => {
     if (!id || !confirmAction) return
     try {
       if (confirmAction === 'submit') await submitPR.mutateAsync(id)
-      else if (confirmAction === 'approve') await approvePR.mutateAsync(id)
       else if (confirmAction === 'cancel') await cancelPR.mutateAsync(id)
-      toast.success(confirmAction === 'submit' ? 'Berhasil diajukan' : confirmAction === 'approve' ? 'Berhasil disetujui' : 'Berhasil dibatalkan')
+      toast.success(confirmAction === 'submit' ? 'Berhasil diajukan' : 'Berhasil dibatalkan')
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memproses')) }
     finally { setConfirmAction(null) }
-  }
-
-  const handleReject = async () => {
-    if (!id || !rejectReason.trim()) { toast.error('Alasan penolakan wajib diisi'); return }
-    try {
-      await rejectPR.mutateAsync({ id, rejected_reason: rejectReason.trim() })
-      toast.success('Purchase request ditolak')
-      setShowRejectModal(false)
-      setRejectReason('')
-    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menolak')) }
   }
 
   if (isLoading) {
@@ -113,17 +131,12 @@ export default function PurchaseRequestDetailPage() {
               </>
             )}
             {pr.status === 'PENDING_APPROVAL' && canApprove && (
-              <>
-                <button onClick={() => setShowRejectModal(true)}
-                  className="flex items-center gap-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
-                  <XCircle className="w-4 h-4" /> Tolak
-                </button>
-                <button onClick={() => setConfirmAction('approve')}
-                  className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
-                  <CheckCircle className="w-4 h-4" /> Setujui
-                </button>
-              </>
+              <button onClick={() => navigate(`/inventory/purchase-requests/${id}/approve`)}
+                className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                <CheckCircle className="w-4 h-4" /> Review & Approve
+              </button>
             )}
+
             {['DRAFT', 'PENDING_APPROVAL'].includes(pr.status) && canUpdate && (
               <button onClick={() => setConfirmAction('cancel')}
                 className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -149,10 +162,7 @@ export default function PurchaseRequestDetailPage() {
             <span className="text-gray-500 dark:text-gray-400">Disetujui oleh</span>
             <p className="font-medium text-gray-900 dark:text-white">{pr.approved_by_name || '—'}</p>
           </div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">Total Estimasi</span>
-            <p className="font-medium text-gray-900 dark:text-white">Rp {fmt(pr.total_estimated)}</p>
-          </div>
+
           <div>
             <span className="text-gray-500 dark:text-gray-400">Catatan</span>
             <p className="font-medium text-gray-900 dark:text-white">{pr.notes || '—'}</p>
@@ -165,43 +175,52 @@ export default function PurchaseRequestDetailPage() {
         )}
       </div>
 
-      {/* Lines Table */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">#</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qty</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">UOM</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Est. Harga</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {(pr.lines ?? []).map((line, idx) => (
-                <tr key={line.id ?? idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                  <td className="px-4 py-3 text-gray-500">{idx + 1}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900 dark:text-white">{line.product_name}</div>
-                    <div className="text-xs text-gray-500">{line.product_code}</div>
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">{fmt(line.qty)}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{line.uom}</td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">
-                    {line.estimated_price ? `Rp ${fmt(line.estimated_price)}` : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
-                    {line.estimated_price ? `Rp ${fmt(line.qty * line.estimated_price)}` : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{line.supplier_name || '—'}</td>
+      {/* Lines Grouped by Supplier */}
+      <div className="flex-1 overflow-auto p-6 space-y-4">
+        {supplierGroups.map((group) => (
+          <div key={group.supplierId ?? '__none__'} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            {/* Supplier Header */}
+            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-orange-500" />
+                <span className="font-semibold text-gray-900 dark:text-white text-sm">
+                  {group.supplierName}
+                </span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  ({group.lines.length} item)
+                </span>
+              </div>
+
+            </div>
+
+            {/* Table */}
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50/50 dark:bg-gray-700/30 border-b dark:border-gray-700">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-12">#</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">Qty</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">UOM</th>
+
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {group.lines.map((line) => (
+                  <tr key={line.id ?? line._origIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td className="px-4 py-3 text-gray-500">{line._origIdx}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-900 dark:text-white">{line.product_name}</div>
+                      <div className="text-xs text-gray-500">{line.product_code}</div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">{fmt(line.qty)}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{line.uom}</td>
+
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
 
       {/* Confirm Action Modal */}
@@ -209,33 +228,12 @@ export default function PurchaseRequestDetailPage() {
         isOpen={!!confirmAction}
         onClose={() => setConfirmAction(null)}
         onConfirm={handleAction}
-        title={confirmAction === 'submit' ? 'Ajukan Approval' : confirmAction === 'approve' ? 'Setujui PR' : 'Batalkan PR'}
-        message={confirmAction === 'submit' ? 'PR akan diajukan ke Stock Keeper untuk approval. Lanjutkan?' : confirmAction === 'approve' ? 'Yakin ingin menyetujui purchase request ini?' : 'Yakin ingin membatalkan purchase request ini?'}
-        confirmText={confirmAction === 'submit' ? 'Ajukan' : confirmAction === 'approve' ? 'Setujui' : 'Batalkan'}
+        title={confirmAction === 'submit' ? 'Ajukan Approval' : 'Batalkan PR'}
+        message={confirmAction === 'submit' ? 'PR akan diajukan ke Stock Keeper untuk approval. Lanjutkan?' : 'Yakin ingin membatalkan purchase request ini?'}
+        confirmText={confirmAction === 'submit' ? 'Ajukan' : 'Batalkan'}
         variant={confirmAction === 'cancel' ? 'danger' : 'success'}
-        isLoading={submitPR.isPending || approvePR.isPending || cancelPR.isPending}
+        isLoading={submitPR.isPending || cancelPR.isPending}
       />
-
-      {/* Reject Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowRejectModal(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Tolak Purchase Request</h3>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Alasan Penolakan *</label>
-              <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} placeholder="Jelaskan alasan penolakan..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowRejectModal(false)} className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300">Batal</button>
-              <button onClick={handleReject} disabled={rejectPR.isPending || !rejectReason.trim()}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
-                {rejectPR.isPending ? 'Menolak...' : 'Tolak'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
