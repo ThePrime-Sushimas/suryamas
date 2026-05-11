@@ -3,6 +3,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
+import { upload } from '../../middleware/upload.middleware'
 import { goodsReceiptsController } from './goods-receipts.controller'
 import { createGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema, goodsReceiptListSchema } from './goods-receipts.schema'
 import { PermissionService } from '../../services/permission.service'
@@ -14,6 +15,9 @@ PermissionService.registerModule('goods_receipts', 'Goods Receipt / Penerimaan B
 const router = Router()
 
 router.use(authenticate, resolveBranchContext)
+
+// Static routes BEFORE /:id
+router.post('/upload/invoice', canInsert('goods_receipts'), upload.single('file'), (req, res) => goodsReceiptsController.uploadInvoice(req, res))
 
 router.get('/', canView('goods_receipts'), validateSchema(goodsReceiptListSchema), (req, res) => goodsReceiptsController.list(req, res))
 router.post('/', canInsert('goods_receipts'), validateSchema(createGoodsReceiptSchema), (req, res) => goodsReceiptsController.create(req, res))

@@ -98,7 +98,7 @@ export class CashCountsController {
 
       const rawDate = req.body?.deposited_at
       const depositedAt: string = (typeof rawDate === 'string' ? rawDate : null) || new Date().toISOString().split('T')[0]
-      const result = await cashCountsService.confirmDeposit(id, { proof_url: uploaded.publicUrl, deposited_at: depositedAt }, req.context?.employee_id)
+      const result = await cashCountsService.confirmDeposit(id, { proof_url: uploaded.path, deposited_at: depositedAt }, req.context?.employee_id)
       sendSuccess(res, result, 'Deposit confirmed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'confirm_deposit', id: req.params.id })

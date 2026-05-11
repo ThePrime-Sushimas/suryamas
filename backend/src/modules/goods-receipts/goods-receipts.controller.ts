@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
 import { goodsReceiptsService } from './goods-receipts.service'
+import { storageService } from '../../services/storage.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
@@ -76,6 +77,42 @@ export class GoodsReceiptsController {
       await handleError(res, error, req, { action: 'delete_goods_receipt', id: req.params.id })
     }
   }
+
+  uploadInvoice = async (req: Request, res: Response) => {
+    try {
+      const file = req.file
+      if (!file) {
+        res.status(400).json({ success: false, message: 'No file uploaded' })
+        return
+      }
+
+      // Whitelist allowed extensions
+      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf']
+      const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        res.status(400).json({ success: false, message: `File type .${ext} not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` })
+        return
+      }
+
+      // Max 5MB check (multer already limits 50MB, but invoice should be smaller)
+      if (file.size > 5 * 1024 * 1024) {
+        res.status(400).json({ success: false, message: 'File too large. Maximum 5MB.' })
+        return
+      }
+
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const companyId = req.context?.company_id ?? 'unknown'
+      const now = new Date()
+      const path = `${companyId}/invoices/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
+
+      await storageService.uploadToPath(file.buffer, path, file.mimetype, 'invoices')
+
+      sendSuccess(res, { path }, 'Invoice uploaded', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upload_invoice' })
+    }
+  }
+
 }
 
 export const goodsReceiptsController = new GoodsReceiptsController()

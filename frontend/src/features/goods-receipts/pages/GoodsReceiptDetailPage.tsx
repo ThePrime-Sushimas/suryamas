@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, PackageCheck, CheckCircle, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, PackageCheck, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { useGoodsReceipt, useConfirmGoodsReceipt } from '../api/goodsReceipts.api'
+import { useGoodsReceipt, useConfirmGoodsReceipt, useInvoiceSignedUrl } from '../api/goodsReceipts.api'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -25,6 +25,7 @@ export default function GoodsReceiptDetailPage() {
 
   const { data: gr, isLoading } = useGoodsReceipt(id ?? '')
   const confirmGR = useConfirmGoodsReceipt()
+  const { data: invoiceUrl } = useInvoiceSignedUrl(gr?.invoice_photo_url ?? null)
 
   const [showConfirm, setShowConfirm] = useState(false)
 
@@ -93,6 +94,16 @@ export default function GoodsReceiptDetailPage() {
           <div>
             <span className="text-gray-500 dark:text-gray-400">No. Invoice</span>
             <p className="font-medium text-gray-900 dark:text-white">{gr.invoice_number || '—'}</p>
+          </div>
+          <div>
+            <span className="text-gray-500 dark:text-gray-400">Foto Invoice</span>
+            {invoiceUrl ? (
+              <a href={invoiceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-blue-600 hover:underline font-medium">
+                <ExternalLink className="w-3 h-3" /> Lihat Foto
+              </a>
+            ) : (
+              <p className="font-medium text-gray-500">—</p>
+            )}
           </div>
           <div>
             <span className="text-gray-500 dark:text-gray-400">Total Invoice</span>

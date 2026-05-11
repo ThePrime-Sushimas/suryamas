@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, PackageCheck, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, PackageCheck, Save, Trash2, Upload, Image } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useCreateGoodsReceipt } from '../api/goodsReceipts.api'
@@ -43,6 +43,8 @@ export default function GoodsReceiptFormPage() {
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [invoiceDate, setInvoiceDate] = useState('')
   const [invoicePhotoUrl, setInvoicePhotoUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [lines, setLines] = useState<LineItem[]>([])
 
   // Fetch POs that can receive goods (SENT or PARTIAL_RECEIVED)
@@ -97,6 +99,25 @@ export default function GoodsReceiptFormPage() {
         }))
     }
   }, [selectedPO])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post('/goods-receipts/upload/invoice', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setInvoicePhotoUrl(data.data.path) // Store path, not public URL
+      toast.success('Foto invoice berhasil diupload')
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal upload foto invoice'))
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const createGR = useCreateGoodsReceipt()
 
@@ -199,9 +220,19 @@ export default function GoodsReceiptFormPage() {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Foto Invoice URL</label>
-            <input type="text" value={invoicePhotoUrl} onChange={e => setInvoicePhotoUrl(e.target.value)} placeholder="URL foto invoice (wajib saat confirm)"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Foto Invoice</label>
+            <div className="flex gap-2 items-center">
+              <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*,.pdf" className="hidden" />
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                className="flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+                <Upload className="w-4 h-4" /> {uploading ? 'Uploading...' : 'Upload Foto'}
+              </button>
+              {invoicePhotoUrl && (
+                <span className="flex items-center gap-1 text-xs text-green-600">
+                  <Image className="w-3 h-3" /> Terupload — {invoicePhotoUrl.split('/').pop()}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

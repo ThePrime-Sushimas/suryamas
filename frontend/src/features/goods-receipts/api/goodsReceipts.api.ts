@@ -118,3 +118,15 @@ export const useDeleteGoodsReceipt = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-receipts'] }),
   })
 }
+
+/** Fetch signed URL for viewing invoice photo (valid 15 min) */
+export const useInvoiceSignedUrl = (path: string | null) =>
+  useQuery({
+    queryKey: ['storage', 'signed-url', path],
+    queryFn: async () => {
+      const { data } = await api.get('/storage/signed-url', { params: { path, bucket: 'invoices' } })
+      return data.data.url as string
+    },
+    enabled: !!path,
+    staleTime: 10 * 60 * 1000, // cache 10 min (URL valid 15 min)
+  })

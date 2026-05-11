@@ -239,7 +239,8 @@ export class EmployeesService {
     const fileName = `${prefix || Date.now()}-${Date.now()}.${ext}`
     const path = `profiles/${fileName}`
     await employeesRepository.uploadFile(path, file.buffer, file.mimetype)
-    return employeesRepository.getPublicUrl(path)
+    // Store path only — use signed URL to view
+    return path
   }
 
   private enrichWithComputed(data: EmployeeWithBranch[]): EmployeeResponse[] {
