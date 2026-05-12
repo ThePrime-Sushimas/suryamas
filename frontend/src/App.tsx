@@ -1796,6 +1796,16 @@ function App() {
                     }
                   />
                   <Route
+                    path="inventory/goods-receipts/:id/edit"
+                    element={
+                      <RequirePermission module="goods_receipts">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GoodsReceiptFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
                     path="settings/alerts"
                     element={
                       <RequirePermission module="payment_method_alerts">

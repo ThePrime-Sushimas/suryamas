@@ -4,9 +4,10 @@ import { storageService } from '../../services/storage.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import type { createGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema } from './goods-receipts.schema'
+import type { createGoodsReceiptSchema, updateGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema } from './goods-receipts.schema'
 
 type CreateReq = ValidatedAuthRequest<typeof createGoodsReceiptSchema>
+type UpdateReq = ValidatedAuthRequest<typeof updateGoodsReceiptSchema>
 type ConfirmReq = ValidatedAuthRequest<typeof confirmGoodsReceiptSchema>
 type IdReq = ValidatedAuthRequest<typeof goodsReceiptIdSchema>
 
@@ -64,6 +65,18 @@ export class GoodsReceiptsController {
       sendSuccess(res, gr, 'Goods receipt confirmed — stock & journal created')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'confirm_goods_receipt', id: req.params.id })
+    }
+  }
+
+  update = async (req: Request, res: Response) => {
+    try {
+      const { params, body } = (req as UpdateReq).validated
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const gr = await goodsReceiptsService.update(params.id, companyId, body, userId)
+      sendSuccess(res, gr, 'Goods receipt updated')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_goods_receipt', id: req.params.id })
     }
   }
 

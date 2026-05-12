@@ -79,3 +79,14 @@ export interface CreateGoodsReceiptDto {
   lines: CreateGoodsReceiptLineDto[]
   created_by?: string
 }
+
+export interface UpdateGoodsReceiptDto {
+  warehouse_id?: string
+  received_date?: string
+  invoice_number?: string | null
+  invoice_date?: string | null
+  invoice_photo_url?: string | null
+  notes?: string | null
+  lines?: CreateGoodsReceiptLineDto[]
+  updated_by?: string
+}

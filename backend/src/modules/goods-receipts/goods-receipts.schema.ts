@@ -43,3 +43,16 @@ export const goodsReceiptListSchema = z.object({
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
 })
+
+export const updateGoodsReceiptSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    warehouse_id: z.string().uuid().optional(),
+    received_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    invoice_number: z.string().max(100).nullable().optional(),
+    invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    invoice_photo_url: z.string().nullable().optional(),
+    notes: z.string().max(500).nullable().optional(),
+    lines: z.array(lineSchema).min(1).optional(),
+  }),
+})

@@ -8,7 +8,7 @@ import {
 import { InvalidReferenceError } from '../stock/stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
-import type { CreateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
+import type { CreateGoodsReceiptDto, UpdateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
 
 export class GoodsReceiptsService {
   async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; date_from?: string; date_to?: string }) {
@@ -248,6 +248,74 @@ export class GoodsReceiptsService {
       await client.query('COMMIT')
 
       await AuditService.log('UPDATE', 'goods_receipt', id, userId, { status: 'DRAFT' }, { status: 'CONFIRMED' })
+      return goodsReceiptsRepository.findWithLines(id, companyId)
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+  }
+
+  async update(id: string, companyId: string, dto: UpdateGoodsReceiptDto, userId: string) {
+    const existing = await goodsReceiptsRepository.findById(id, companyId)
+    if (!existing) throw new GoodsReceiptNotFoundError(id)
+    if (existing.status !== 'DRAFT') throw new GoodsReceiptAlreadyConfirmedError()
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // Update header
+      await client.query(
+        `UPDATE goods_receipts SET
+          warehouse_id = COALESCE($1, warehouse_id),
+          received_date = COALESCE($2::date, received_date),
+          invoice_number = $3,
+          invoice_date = $4::date,
+          invoice_photo_url = $5,
+          notes = $6,
+          updated_by = $7, updated_at = now()
+        WHERE id = $8 AND company_id = $9 AND status = 'DRAFT'`,
+        [dto.warehouse_id ?? null, dto.received_date ?? null, dto.invoice_number ?? null, dto.invoice_date ?? null, dto.invoice_photo_url ?? null, dto.notes ?? null, userId, id, companyId]
+      )
+
+      // Replace lines if provided
+      if (dto.lines && dto.lines.length > 0) {
+        // Fetch PO line prices for variance calculation
+        const poLineIds = dto.lines.map(l => l.po_line_id).filter(Boolean)
+        const { rows: poLines } = await client.query(
+          `SELECT id, unit_price FROM purchase_order_lines WHERE id = ANY($1::uuid[])`,
+          [poLineIds]
+        )
+        const poLineMap = new Map(poLines.map((r: { id: string; unit_price: string }) => [r.id, parseFloat(r.unit_price)]))
+
+        await client.query('DELETE FROM goods_receipt_lines WHERE gr_id = $1', [id])
+        for (const line of dto.lines) {
+          const unitPricePo = poLineMap.get(line.po_line_id) ?? line.unit_price_invoice
+          const variance = line.unit_price_invoice - unitPricePo
+          const variancePct = unitPricePo > 0 ? Math.abs(variance / unitPricePo) * 100 : 0
+          const varianceStatus = variancePct > 15 ? 'DISPUTED' : variancePct > 5 ? 'NOTICE' : 'OK'
+
+          await client.query(
+            `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_received, unit_price_invoice, unit_price_po, total_price_invoice, price_variance, price_variance_pct, variance_status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              id, line.po_line_id, line.product_id, line.qty_received, line.unit_price_invoice,
+              unitPricePo,
+              line.qty_received * line.unit_price_invoice,
+              variance, Math.round(variancePct * 100) / 100, varianceStatus
+            ]
+          )
+        }
+
+        // Update total
+        const total = dto.lines.reduce((s, l) => s + l.qty_received * l.unit_price_invoice, 0)
+        await client.query('UPDATE goods_receipts SET total_invoice_amount = $1 WHERE id = $2', [total, id])
+      }
+
+      await client.query('COMMIT')
+      await AuditService.log('UPDATE', 'goods_receipt', id, userId, existing)
       return goodsReceiptsRepository.findWithLines(id, companyId)
     } catch (e) {
       await client.query('ROLLBACK')

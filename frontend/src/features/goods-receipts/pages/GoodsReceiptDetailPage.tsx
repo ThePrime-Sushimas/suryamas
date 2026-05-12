@@ -68,10 +68,16 @@ export default function GoodsReceiptDetailPage() {
           </div>
 
           {gr.status === 'DRAFT' && canUpdate && (
-            <button onClick={() => setShowConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
-              <CheckCircle className="w-4 h-4" /> Konfirmasi Penerimaan
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => navigate(`/inventory/goods-receipts/${id}/edit`)}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+                Edit
+              </button>
+              <button onClick={() => setShowConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+                <CheckCircle className="w-4 h-4" /> Konfirmasi Penerimaan
+              </button>
+            </div>
           )}
         </div>
       </div>
