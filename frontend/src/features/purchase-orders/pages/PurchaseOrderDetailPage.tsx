@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShoppingCart, Send, CheckCircle, Truck, XCircle } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, CheckCircle, XCircle, MessageCircle } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import {
-  usePurchaseOrder, useSubmitPurchaseOrder, useApprovePurchaseOrder,
-  useMarkSentPurchaseOrder, useCancelPurchaseOrder
+  usePurchaseOrder, useMarkSentPurchaseOrder, useMarkOrderedPurchaseOrder, useCancelPurchaseOrder
 } from '../api/purchaseOrders.api'
+import { useQuery } from '@tanstack/react-query'
+import api from '@/lib/axios'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -17,7 +17,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   DRAFT: { label: 'Draft', color: 'bg-gray-100 text-gray-700' },
   PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
   APPROVED: { label: 'Disetujui', color: 'bg-green-100 text-green-700' },
-  SENT: { label: 'Dikirim ke Supplier', color: 'bg-blue-100 text-blue-700' },
+  SENT: { label: 'Dikirim ke Purchasing', color: 'bg-blue-100 text-blue-700' },
+  ORDERED: { label: 'Sudah Order ke Supplier', color: 'bg-green-100 text-green-700' },
   PARTIAL_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-indigo-100 text-indigo-700' },
   FULLY_RECEIVED: { label: 'Diterima Semua', color: 'bg-emerald-100 text-emerald-700' },
   CLOSED: { label: 'Selesai', color: 'bg-purple-100 text-purple-700' },
@@ -30,27 +31,74 @@ export default function PurchaseOrderDetailPage() {
   const toast = useToast()
   const hasPermission = usePermissionStore(state => state.hasPermission)
   const canUpdate = hasPermission('purchase_orders', 'update')
-  const canApprove = hasPermission('purchase_orders', 'approve')
 
   const { data: po, isLoading } = usePurchaseOrder(id ?? '')
-  const submitPO = useSubmitPurchaseOrder()
-  const approvePO = useApprovePurchaseOrder()
   const markSent = useMarkSentPurchaseOrder()
+  const markOrdered = useMarkOrderedPurchaseOrder()
   const cancelPO = useCancelPurchaseOrder()
 
-  const [confirmAction, setConfirmAction] = useState<'submit' | 'approve' | 'send' | null>(null)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+  const [whatsappNumber, setWhatsappNumber] = useState('')
 
-  const handleAction = async () => {
-    if (!id || !confirmAction) return
+  // Fetch employees with phone for WhatsApp
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', 'with-phone'],
+    queryFn: async () => {
+      const { data } = await api.get('/employees', { params: { limit: 100 } })
+      return (data.data ?? []).filter((e: Record<string, unknown>) => e.mobile_phone) as Array<{ id: string; full_name: string; mobile_phone: string }>
+    },
+    staleTime: 120_000,
+  })
+  const employees = employeesData ?? []
+
+  const handleSendToPurchasing = () => {
+    setShowWhatsAppModal(true)
+  }
+
+  const handleConfirmSend = async () => {
+    if (!id) return
     try {
-      if (confirmAction === 'submit') await submitPO.mutateAsync(id)
-      else if (confirmAction === 'approve') await approvePO.mutateAsync(id)
-      else if (confirmAction === 'send') await markSent.mutateAsync(id)
-      toast.success(confirmAction === 'submit' ? 'PO diajukan' : confirmAction === 'approve' ? 'PO disetujui' : 'PO ditandai terkirim')
-    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal memproses')) }
-    finally { setConfirmAction(null) }
+      await markSent.mutateAsync(id)
+      toast.success('PO ditandai terkirim')
+
+      // Open WhatsApp if number provided
+      if (whatsappNumber.trim() && po) {
+        const items = (po.lines ?? []).map((l, i) =>
+          `${i + 1}. ${l.product_name} - ${fmt(l.qty)} ${l.uom}`
+        ).join('\n')
+
+        const message = `*ORDERAN ${po.branch_name}*\n\n` +
+          `• PO: ${po.po_number}\n` +
+          `• Tanggal: ${new Date(po.order_date).toLocaleDateString('id-ID')}\n` +
+          `• Cabang: ${po.branch_name}\n` +
+          `• Supplier: ${po.supplier_name}\n\n` +
+          `*DETAIL ITEM*\n${items}` +
+          (po.notes ? `\n\n📝 Catatan: ${po.notes}` : '') +
+          `\n\n_Dokumen ini digenerate otomatis_`
+
+        let cleanPhone = whatsappNumber.replace(/[^0-9]/g, '')
+        if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.substring(1)
+        if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone
+
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank')
+      }
+
+      setShowWhatsAppModal(false)
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal mengirim PO'))
+    }
+  }
+
+  const handleMarkOrdered = async () => {
+    if (!id) return
+    try {
+      await markOrdered.mutateAsync(id)
+      toast.success('PO dikonfirmasi sudah di-order ke supplier')
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal mengubah status'))
+    }
   }
 
   const handleCancel = async () => {
@@ -98,21 +146,17 @@ export default function PurchaseOrderDetailPage() {
               </button>
             )}
             {po.status === 'DRAFT' && canUpdate && (
-              <button onClick={() => setConfirmAction('submit')} className="flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                <Send className="w-4 h-4" /> Ajukan Approval
+              <button onClick={handleSendToPurchasing} className="flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                <MessageCircle className="w-4 h-4" /> Kirim ke Purchasing
               </button>
             )}
-            {po.status === 'PENDING_APPROVAL' && canApprove && (
-              <button onClick={() => setConfirmAction('approve')} className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
-                <CheckCircle className="w-4 h-4" /> Setujui
+            {po.status === 'SENT' && canUpdate && (
+              <button onClick={handleMarkOrdered} disabled={markOrdered.isPending}
+                className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm">
+                <CheckCircle className="w-4 h-4" /> {markOrdered.isPending ? 'Memproses...' : 'Konfirmasi Sudah Order'}
               </button>
             )}
-            {po.status === 'APPROVED' && canUpdate && (
-              <button onClick={() => setConfirmAction('send')} className="flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
-                <Truck className="w-4 h-4" /> Tandai Terkirim
-              </button>
-            )}
-            {['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT'].includes(po.status) && canUpdate && (
+            {['DRAFT', 'SENT'].includes(po.status) && canUpdate && (
               <button onClick={() => setShowCancelModal(true)} className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20">
                 <XCircle className="w-4 h-4" /> Batalkan
               </button>
@@ -197,12 +241,57 @@ export default function PurchaseOrderDetailPage() {
         </div>
       </div>
 
-      {/* Confirm Modal */}
-      <ConfirmModal isOpen={!!confirmAction} onClose={() => setConfirmAction(null)} onConfirm={handleAction}
-        title={confirmAction === 'submit' ? 'Ajukan PO' : confirmAction === 'approve' ? 'Setujui PO' : 'Tandai Terkirim'}
-        message={confirmAction === 'submit' ? 'PO akan diajukan untuk approval. Lanjutkan?' : confirmAction === 'approve' ? 'Yakin ingin menyetujui PO ini?' : 'Tandai PO sudah dikirim ke supplier?'}
-        confirmText={confirmAction === 'submit' ? 'Ajukan' : confirmAction === 'approve' ? 'Setujui' : 'Tandai Terkirim'}
-        variant="success" isLoading={submitPO.isPending || approvePO.isPending || markSent.isPending} />
+      {/* WhatsApp Modal */}
+      {showWhatsAppModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowWhatsAppModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <MessageCircle className="w-6 h-6 text-green-600" />
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Kirim ke Purchasing</h3>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-4">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                PO akan ditandai sebagai "Dikirim" dan pesan WhatsApp akan dibuka untuk dikirim ke tim purchasing.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pilih Penerima</label>
+                <select onChange={e => {
+                    const emp = employees.find(x => x.id === e.target.value)
+                    if (emp) setWhatsappNumber(emp.mobile_phone)
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                  <option value="">Pilih employee...</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.full_name} - {emp.mobile_phone}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nomor WhatsApp</label>
+                <input type="tel" value={whatsappNumber} onChange={e => setWhatsappNumber(e.target.value)}
+                  placeholder="08xxxxxxxxxx"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+                <p className="text-xs text-gray-500 mt-1">Kosongkan jika tidak ingin kirim WA (status tetap berubah)</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button onClick={() => setShowWhatsAppModal(false)}
+                className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300">
+                Batal
+              </button>
+              <button onClick={handleConfirmSend} disabled={markSent.isPending}
+                className="flex-1 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                {markSent.isPending ? 'Mengirim...' : <><MessageCircle className="w-4 h-4" /> Kirim</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancel Modal */}
       {showCancelModal && (

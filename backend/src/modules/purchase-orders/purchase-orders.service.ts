@@ -183,10 +183,19 @@ export class PurchaseOrdersService {
   async markSent(id: string, companyId: string, userId: string) {
     const existing = await purchaseOrdersRepository.findById(id, companyId)
     if (!existing) throw new PurchaseOrderNotFoundError(id)
-    if (existing.status !== 'APPROVED') throw new PurchaseOrderInvalidStatusError(existing.status, 'APPROVED')
+    if (existing.status !== 'DRAFT') throw new PurchaseOrderInvalidStatusError(existing.status, 'DRAFT')
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'SENT', { updated_by: userId })
-    await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: 'APPROVED' }, { status: 'SENT' })
+    await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: 'DRAFT' }, { status: 'SENT' })
+  }
+
+  async markOrdered(id: string, companyId: string, userId: string) {
+    const existing = await purchaseOrdersRepository.findById(id, companyId)
+    if (!existing) throw new PurchaseOrderNotFoundError(id)
+    if (existing.status !== 'SENT') throw new PurchaseOrderInvalidStatusError(existing.status, 'SENT')
+
+    await purchaseOrdersRepository.updateStatus(id, companyId, 'ORDERED', { updated_by: userId })
+    await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: 'SENT' }, { status: 'ORDERED' })
   }
 
   async cancel(id: string, companyId: string, userId: string, reason: string) {

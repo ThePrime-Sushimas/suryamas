@@ -31,6 +31,7 @@ router.delete('/:id', canDelete('purchase_orders'), validateSchema(purchaseOrder
 router.post('/:id/submit', canUpdate('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.submitForApproval(req, res))
 router.post('/:id/approve', canApprove('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.approve(req, res))
 router.post('/:id/send', canUpdate('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.markSent(req, res))
+router.post('/:id/mark-ordered', canUpdate('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.markOrdered(req, res))
 router.post('/:id/cancel', canUpdate('purchase_orders'), validateSchema(cancelSchema), (req, res) => purchaseOrdersController.cancel(req, res))
 
 export default router

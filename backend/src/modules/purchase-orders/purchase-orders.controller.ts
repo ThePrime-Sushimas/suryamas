@@ -110,6 +110,17 @@ export class PurchaseOrdersController {
     }
   }
 
+  markOrdered = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as IdReq).validated.params
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      await purchaseOrdersService.markOrdered(id, companyId, userId)
+      sendSuccess(res, null, 'Purchase order marked as ordered')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'mark_ordered_purchase_order', id: req.params.id })
+    }
+  }
   cancel = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as CancelReq).validated

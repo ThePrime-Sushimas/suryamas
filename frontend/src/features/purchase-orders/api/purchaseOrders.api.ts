@@ -110,26 +110,19 @@ export const useUpdatePurchaseOrder = () => {
   })
 }
 
-export const useSubmitPurchaseOrder = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => { await api.post(`/purchase-orders/${id}/submit`) },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
-  })
-}
-
-export const useApprovePurchaseOrder = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => { await api.post(`/purchase-orders/${id}/approve`) },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
-  })
-}
 
 export const useMarkSentPurchaseOrder = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-orders/${id}/send`) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
+  })
+}
+
+export const useMarkOrderedPurchaseOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => { await api.post(`/purchase-orders/${id}/mark-ordered`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
   })
 }
