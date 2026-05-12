@@ -172,7 +172,7 @@ export class PurchaseRequestsService {
     return purchaseRequestApprovalService.getApprovalData(id, companyId)
   }
 
-  async approveAndGenerate(id: string, companyId: string, dto: { supplier_selections: Array<{ supplier_id: string; line_ids: string[]; payment_type: 'CASH' | 'CREDIT'; payment_terms_days?: number | null; expected_delivery_date?: string | null; notes?: string | null }>; send_whatsapp?: boolean }, userId: string) {
+  async approveAndGenerate(id: string, companyId: string, dto: { supplier_selections: Array<{ supplier_id: string; lines: Array<{ pr_line_id: string; qty_approved: number }>; payment_type: 'CASH' | 'CREDIT'; payment_terms_days?: number | null; expected_delivery_date?: string | null; notes?: string | null }>; send_whatsapp?: boolean }, userId: string) {
     return purchaseRequestApprovalService.approveAndGenerate(id, companyId, dto, userId)
   }
 }

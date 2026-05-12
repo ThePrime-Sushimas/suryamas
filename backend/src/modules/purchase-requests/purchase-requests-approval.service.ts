@@ -41,7 +41,7 @@ interface ApprovalData {
 
 interface SupplierSelection {
   supplier_id: string
-  line_ids: string[]
+  lines: Array<{ pr_line_id: string; qty_approved: number }>
   payment_type: 'CASH' | 'CREDIT'
   payment_terms_days?: number | null
   expected_delivery_date?: string | null
@@ -166,11 +166,18 @@ export class PurchaseRequestApprovalService {
       const whatsappFailed: string[] = []
 
       for (const sel of dto.supplier_selections) {
-        const lines = prLines.filter(l => sel.line_ids.includes(l.id))
+        const selLineIds = sel.lines.map(l => l.pr_line_id)
+        const lines = prLines.filter(l => selLineIds.includes(l.id))
         if (lines.length === 0) continue
 
+        // Build qty map from approval
+        const qtyMap = new Map(sel.lines.map(l => [l.pr_line_id, l.qty_approved]))
+
         const poNumber = await purchaseOrdersRepository.generatePoNumber(client, companyId, pr.branch_code)
-        const totalAmount = lines.reduce((s, l) => s + (parseFloat(l.estimated_price ?? '0')) * parseFloat(l.qty), 0)
+        const totalAmount = lines.reduce((s, l) => {
+          const qty = qtyMap.get(l.id) ?? parseFloat(l.qty)
+          return s + (parseFloat(l.estimated_price ?? '0')) * qty
+        }, 0)
 
         const po = await purchaseOrdersRepository.create(client, companyId, {
           branch_id: pr.branch_id,
@@ -188,7 +195,7 @@ export class PurchaseRequestApprovalService {
         await purchaseOrdersRepository.insertLines(client, po.id, lines.map(l => ({
           pr_line_id: l.id,
           product_id: l.product_id,
-          qty: parseFloat(l.qty),
+          qty: qtyMap.get(l.id) ?? parseFloat(l.qty),
           uom: l.uom,
           unit_price: parseFloat(l.estimated_price ?? '0'),
           notes: l.notes,
@@ -210,7 +217,7 @@ export class PurchaseRequestApprovalService {
                 total_amount: totalAmount,
                 lines: lines.map(l => ({
                   product_name: l.product_name,
-                  qty: parseFloat(l.qty),
+                  qty: qtyMap.get(l.id) ?? parseFloat(l.qty),
                   uom: l.uom,
                   unit_price: parseFloat(l.estimated_price ?? '0'),
                 })),
@@ -226,8 +233,8 @@ export class PurchaseRequestApprovalService {
 
       // Update PR → CONVERTED + set qty_approved
       await purchaseRequestsRepository.setConvertedStatus(client, prId, companyId, userId)
-      const allSelectedLineIds = dto.supplier_selections.flatMap(s => s.line_ids)
-      await purchaseRequestsRepository.setQtyApprovedBatch(client, allSelectedLineIds)
+      const allSelectedLines = dto.supplier_selections.flatMap(s => s.lines)
+      await purchaseRequestsRepository.setQtyApprovedBatchWithValues(client, allSelectedLines)
 
       await client.query('COMMIT')
 

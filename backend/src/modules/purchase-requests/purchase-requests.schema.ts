@@ -64,7 +64,10 @@ export const approveAndGenerateSchema = z.object({
   body: z.object({
     supplier_selections: z.array(z.object({
       supplier_id: z.string().uuid(),
-      line_ids: z.array(z.string().uuid()).min(1),
+      lines: z.array(z.object({
+        pr_line_id: z.string().uuid(),
+        qty_approved: z.number().positive(),
+      })).min(1),
       payment_type: z.enum(['CASH', 'CREDIT']),
       payment_terms_days: z.number().int().min(0).nullable().optional(),
       expected_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),

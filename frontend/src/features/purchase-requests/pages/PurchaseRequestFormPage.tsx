@@ -122,7 +122,7 @@ export default function PurchaseRequestFormPage() {
 
   // Batch fetch purchase UOM for search results
   const productIdsForUom = products.map(p => p.id)
-  const { data: purchaseUomsByProduct } = useQuery({
+  const { data: purchaseUomsByProduct, isLoading: isLoadingUoms } = useQuery({
     queryKey: ['product-uoms', 'purchase-units-batch', productIdsForUom],
     queryFn: async () => {
       if (productIdsForUom.length === 0) return {}
@@ -518,14 +518,14 @@ export default function PurchaseRequestFormPage() {
                               <div className="flex flex-wrap gap-1">
                                 {suppliers.map(s => (
                                   <button key={s.supplier_id} onClick={() => { addLine(p, s) }}
-                                    disabled={lines.some(l => l.product_id === p.id && l.supplier_id === s.supplier_id)}
+                                    disabled={isLoadingUoms || lines.some(l => l.product_id === p.id && l.supplier_id === s.supplier_id)}
                                     className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded text-xs hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-40 disabled:cursor-not-allowed">
                                     + {s.supplier_name}
                                   </button>
                                 ))}
                               </div>
                             ) : (
-                              <button onClick={() => addLine(p)} disabled={alreadyAdded}
+                              <button onClick={() => addLine(p)} disabled={isLoadingUoms || alreadyAdded}
                                 className="px-2 py-0.5 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded text-xs hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed">
                                 + Tambah
                               </button>

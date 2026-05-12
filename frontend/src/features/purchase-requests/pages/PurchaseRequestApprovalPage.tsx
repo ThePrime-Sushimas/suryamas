@@ -15,6 +15,7 @@ interface ApprovalItem {
   product_code: string
   product_name: string
   qty: number
+  qty_approved: number
   uom: string
   estimated_price: number | null
   latest_price: number | null
@@ -66,7 +67,7 @@ export default function PurchaseRequestApprovalPage() {
       const termDays = g.supplier_payment_term_days as number | null
       return {
         ...(g as object),
-        items: (g.items as Array<Record<string, unknown>>).map((i) => ({ ...i, selected: true })),
+        items: (g.items as Array<Record<string, unknown>>).map((i) => ({ ...i, selected: true, qty_approved: i.qty as number })),
         selected: g.supplier_id !== null,
         payment_type: (termDays === 0 ? 'CASH' : 'CREDIT') as 'CASH' | 'CREDIT',
         payment_terms_days: termDays ?? 30,
@@ -94,20 +95,14 @@ export default function PurchaseRequestApprovalPage() {
     const selected = groups.filter(g => g.selected && g.supplier_id)
     if (selected.length === 0) { toast.error('Pilih minimal 1 supplier'); return }
 
-    const missingTerms = selected.filter(g => g.supplier_payment_term_days === null)
-    if (missingTerms.length > 0) {
-      toast.error(`Supplier ${missingTerms.map(g => g.supplier_name).join(', ')} belum punya payment terms. Atur di halaman Supplier.`)
-      return
-    }
-
     const supplier_selections = selected.map(g => ({
       supplier_id: g.supplier_id!,
-      line_ids: g.items.filter(i => i.selected).map(i => i.pr_line_id),
+      lines: g.items.filter(i => i.selected).map(i => ({ pr_line_id: i.pr_line_id, qty_approved: i.qty_approved })),
       payment_type: (g.supplier_payment_term_days === 0 ? 'CASH' : 'CREDIT') as 'CASH' | 'CREDIT',
       payment_terms_days: g.supplier_payment_term_days ?? 0,
       expected_delivery_date: g.expected_delivery_date || null,
       notes: g.notes || null,
-    })).filter(s => s.line_ids.length > 0)
+    })).filter(s => s.lines.length > 0)
 
     if (supplier_selections.length === 0) { toast.error('Pilih minimal 1 item per supplier'); return }
     approveAndGenerate.mutate({ supplier_selections, send_whatsapp: sendWhatsApp })
@@ -129,6 +124,11 @@ export default function PurchaseRequestApprovalPage() {
     return { ...g, items: g.items.map((item, j) => j === iIdx ? { ...item, selected: !item.selected } : item) }
   }))
   const updateField = (idx: number, field: string, value: unknown) => setGroups(prev => prev.map((g, i) => i === idx ? { ...g, [field]: value } : g))
+
+  const updateItemQty = (sIdx: number, iIdx: number, qty: number) => setGroups(prev => prev.map((g, i) => {
+    if (i !== sIdx) return g
+    return { ...g, items: g.items.map((item, j) => j === iIdx ? { ...item, qty_approved: qty } : item) }
+  }))
 
   if (isLoading) {
     return (
@@ -199,7 +199,7 @@ export default function PurchaseRequestApprovalPage() {
       <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4">
         {groups.map((group, gIdx) => {
           const selectedItems = group.items.filter(i => i.selected)
-          const total = selectedItems.reduce((sum, i) => sum + (i.latest_price ?? i.estimated_price ?? 0) * i.qty, 0)
+          const total = selectedItems.reduce((sum, i) => sum + (i.latest_price ?? i.estimated_price ?? 0) * i.qty_approved, 0)
 
           return (
             <div key={gIdx} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -231,7 +231,8 @@ export default function PurchaseRequestApprovalPage() {
                     <tr>
                       <th className="px-4 py-2 text-left w-8"></th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qty</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Request</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Approve</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Stock</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Harga</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
@@ -240,7 +241,7 @@ export default function PurchaseRequestApprovalPage() {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                     {group.items.map((item, iIdx) => {
                       const price = item.latest_price ?? item.estimated_price ?? 0
-                      const stockOk = item.stock_balance >= item.qty
+                      const stockOk = item.stock_balance >= item.qty_approved
                       return (
                         <tr key={iIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                           <td className="px-4 py-2.5">
@@ -251,15 +252,22 @@ export default function PurchaseRequestApprovalPage() {
                             <p className="font-medium text-gray-900 dark:text-white">{item.product_name}</p>
                             <p className="text-xs text-gray-500">{item.product_code}</p>
                           </td>
-                          <td className="px-4 py-2.5 text-right font-mono text-gray-900 dark:text-gray-200">{item.qty} {item.uom}</td>
+                          <td className="px-4 py-2.5 text-right font-mono text-gray-500 dark:text-gray-400 text-xs">{item.qty} {item.uom}</td>
                           <td className="px-4 py-2.5 text-right">
-                            <span className={`font-mono flex items-center justify-end gap-1 ${stockOk ? 'text-green-600 dark:text-green-400' : item.stock_balance > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                            <input type="number" min="0.01" step="0.01"
+                              value={item.qty_approved || ''}
+                              onChange={e => updateItemQty(gIdx, iIdx, parseFloat(e.target.value) || 0)}
+                              disabled={!item.selected || !group.selected}
+                              className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm disabled:opacity-50" />
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <span className={`font-mono text-xs flex items-center justify-end gap-1 ${stockOk ? 'text-green-600 dark:text-green-400' : item.stock_balance > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
                               {stockOk ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
                               {item.stock_balance} {item.uom}
                             </span>
                           </td>
                           <td className="px-4 py-2.5 text-right font-mono text-gray-600 dark:text-gray-400">Rp {fmt(price)}</td>
-                          <td className="px-4 py-2.5 text-right font-mono font-medium text-gray-900 dark:text-gray-200">Rp {fmt(price * item.qty)}</td>
+                          <td className="px-4 py-2.5 text-right font-mono font-medium text-gray-900 dark:text-gray-200">Rp {fmt(price * item.qty_approved)}</td>
                         </tr>
                       )
                     })}
@@ -271,7 +279,7 @@ export default function PurchaseRequestApprovalPage() {
               <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
                 {group.items.map((item, iIdx) => {
                   const price = item.latest_price ?? item.estimated_price ?? 0
-                  const stockOk = item.stock_balance >= item.qty
+                  const stockOk = item.stock_balance >= item.qty_approved
                   return (
                     <div key={iIdx} className="px-4 py-3">
                       <div className="flex items-start gap-3">
@@ -280,15 +288,23 @@ export default function PurchaseRequestApprovalPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between">
                             <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{item.product_name}</p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white ml-2">Rp {fmt(price * item.qty)}</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white ml-2">Rp {fmt(price * item.qty_approved)}</p>
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                            <span>Qty: {item.qty} {item.uom}</span>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                            <span>Request: {item.qty} {item.uom}</span>
                             <span className={`flex items-center gap-0.5 ${stockOk ? 'text-green-600' : item.stock_balance > 0 ? 'text-yellow-600' : 'text-red-600'}`}>
                               {stockOk ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
                               Stock: {item.stock_balance}
                             </span>
-                            <span>@ Rp {fmt(price)}</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-xs text-gray-500">Approve:</span>
+                            <input type="number" min="0.01" step="0.01"
+                              value={item.qty_approved || ''}
+                              onChange={e => updateItemQty(gIdx, iIdx, parseFloat(e.target.value) || 0)}
+                              disabled={!item.selected || !group.selected}
+                              className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-xs disabled:opacity-50" />
+                            <span className="text-xs text-gray-500">{item.uom}</span>
                           </div>
                         </div>
                       </div>

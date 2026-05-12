@@ -266,7 +266,10 @@ export default function PurchaseRequestDetailPage() {
                     Produk
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
-                    Qty
+                    Request
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
+                    Approved
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">
                     UOM
@@ -288,8 +291,17 @@ export default function PurchaseRequestDetailPage() {
                         {line.product_code}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
+                    <td className="px-4 py-3 text-right font-mono text-gray-500 dark:text-gray-400">
                       {fmt(line.qty)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      {line.qty_approved != null ? (
+                        <span className={line.qty_approved !== line.qty ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-900 dark:text-gray-200'}>
+                          {fmt(line.qty_approved)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                       {line.uom}

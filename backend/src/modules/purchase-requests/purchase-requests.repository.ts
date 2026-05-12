@@ -265,11 +265,16 @@ export class PurchaseRequestsRepository {
     )
   }
 
-  async setQtyApprovedBatch(client: PoolClient, lineIds: string[]): Promise<void> {
-    if (lineIds.length === 0) return
+  async setQtyApprovedBatchWithValues(client: PoolClient, lines: Array<{ pr_line_id: string; qty_approved: number }>): Promise<void> {
+    if (lines.length === 0) return
+    const cases = lines.map((l, i) => `WHEN id = $${i * 2 + 1}::uuid THEN $${i * 2 + 2}::numeric`).join(' ')
+    const ids = lines.map(l => l.pr_line_id)
+    const params: unknown[] = []
+    for (const l of lines) { params.push(l.pr_line_id, l.qty_approved) }
+    params.push(ids)
     await client.query(
-      `UPDATE purchase_request_lines SET qty_approved = qty WHERE id = ANY($1::uuid[])`,
-      [lineIds]
+      `UPDATE purchase_request_lines SET qty_approved = CASE ${cases} END WHERE id = ANY($${params.length}::uuid[])`,
+      params
     )
   }
 }
