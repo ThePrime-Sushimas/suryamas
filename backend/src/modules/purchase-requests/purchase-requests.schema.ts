@@ -73,6 +73,5 @@ export const approveAndGenerateSchema = z.object({
       expected_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
       notes: z.string().max(500).nullable().optional(),
     })).min(1),
-    send_whatsapp: z.boolean().optional().default(false),
   }),
 })

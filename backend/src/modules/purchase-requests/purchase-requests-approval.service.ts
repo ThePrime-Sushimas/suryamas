@@ -2,9 +2,8 @@ import { pool } from '../../config/db'
 import { purchaseRequestsRepository } from './purchase-requests.repository'
 import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.repository'
 import { PurchaseRequestNotFoundError, PurchaseRequestInvalidStatusError } from './purchase-requests.errors'
-import { whatsappService } from '../../services/whatsapp.service'
 import { AuditService } from '../monitoring/monitoring.service'
-import { logInfo, logError } from '../../config/logger'
+import { logInfo } from '../../config/logger'
 import type { PurchaseRequestWithLines, PurchaseRequestLineWithRelations } from './purchase-requests.types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -50,14 +49,11 @@ interface SupplierSelection {
 
 interface ApproveAndGenerateDto {
   supplier_selections: SupplierSelection[]
-  send_whatsapp?: boolean
 }
 
 interface ApproveAndGenerateResult {
   pr_id: string
   po_ids: string[]
-  whatsapp_sent: string[]
-  whatsapp_failed: string[]
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -162,8 +158,6 @@ export class PurchaseRequestApprovalService {
       const prLines = await purchaseRequestsRepository.findLinesWithProducts(client, prId)
 
       const poIds: string[] = []
-      const whatsappSent: string[] = []
-      const whatsappFailed: string[] = []
 
       for (const sel of dto.supplier_selections) {
         const selLineIds = sel.lines.map(l => l.pr_line_id)
@@ -202,33 +196,6 @@ export class PurchaseRequestApprovalService {
         })))
 
         poIds.push(po.id)
-
-        // WhatsApp (non-blocking)
-        if (dto.send_whatsapp) {
-          const sup = await purchaseRequestsRepository.findSupplierWithPaymentTerms(sel.supplier_id)
-          if (sup?.phone) {
-            try {
-              await whatsappService.sendPONotification({
-                po_number: poNumber,
-                order_date: new Date().toISOString().slice(0, 10),
-                expected_delivery_date: sel.expected_delivery_date ?? null,
-                supplier_name: sup.supplier_name,
-                branch_name: pr.branch_name,
-                total_amount: totalAmount,
-                lines: lines.map(l => ({
-                  product_name: l.product_name,
-                  qty: qtyMap.get(l.id) ?? parseFloat(l.qty),
-                  uom: l.uom,
-                  unit_price: parseFloat(l.estimated_price ?? '0'),
-                })),
-              }, sup.phone)
-              whatsappSent.push(sup.phone)
-            } catch (e: unknown) {
-              logError('WhatsApp send failed', { po_number: poNumber, error: e })
-              whatsappFailed.push(sup.phone)
-            }
-          }
-        }
       }
 
       // Update PR → CONVERTED + set qty_approved
@@ -242,7 +209,7 @@ export class PurchaseRequestApprovalService {
         { status: 'PENDING_APPROVAL' }, { status: 'CONVERTED', po_ids: poIds })
       logInfo('PR approved and POs generated', { pr_id: prId, po_count: poIds.length })
 
-      return { pr_id: prId, po_ids: poIds, whatsapp_sent: whatsappSent, whatsapp_failed: whatsappFailed }
+      return { pr_id: prId, po_ids: poIds }
     } catch (e) {
       await client.query('ROLLBACK')
       throw e

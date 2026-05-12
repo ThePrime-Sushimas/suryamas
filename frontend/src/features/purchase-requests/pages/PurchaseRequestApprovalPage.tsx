@@ -46,7 +46,6 @@ export default function PurchaseRequestApprovalPage() {
   const queryClient = useQueryClient()
 
   const [groups, setGroups] = useState<SupplierGroup[]>([])
-  const [sendWhatsApp, setSendWhatsApp] = useState(true)
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -105,7 +104,7 @@ export default function PurchaseRequestApprovalPage() {
     })).filter(s => s.lines.length > 0)
 
     if (supplier_selections.length === 0) { toast.error('Pilih minimal 1 item per supplier'); return }
-    approveAndGenerate.mutate({ supplier_selections, send_whatsapp: sendWhatsApp })
+    approveAndGenerate.mutate({ supplier_selections })
   }
 
   const handleReject = async () => {
@@ -169,11 +168,6 @@ export default function PurchaseRequestApprovalPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <label className="flex items-center gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={sendWhatsApp} onChange={e => setSendWhatsApp(e.target.checked)}
-                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-              WhatsApp
-            </label>
             <button onClick={() => setShowRejectModal(true)}
               className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs sm:text-sm">
               <XCircle className="w-4 h-4" /> Reject
