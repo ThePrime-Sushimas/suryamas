@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, Plus, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
+import { PO_STATUS_CONFIG } from '../constants'
 import { parseApiError } from '@/lib/errorParser'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -13,16 +14,6 @@ import type { PurchaseOrder } from '../api/purchaseOrders.api'
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  DRAFT: { label: 'Draft', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
-  APPROVED: { label: 'Disetujui', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
-  SENT: { label: 'Dikirim', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  PARTIAL_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' },
-  FULLY_RECEIVED: { label: 'Diterima Semua', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
-  CLOSED: { label: 'Selesai', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' },
-  CANCELLED: { label: 'Dibatalkan', color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300' },
-}
 
 export default function PurchaseOrdersPage() {
   const navigate = useNavigate()
@@ -94,7 +85,7 @@ export default function PurchaseOrdersPage() {
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
             <option value="">Semua Status</option>
-            {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            {Object.entries(PO_STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
       </div>
@@ -123,7 +114,7 @@ export default function PurchaseOrdersPage() {
               ) : orders.length === 0 ? (
                 <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">Tidak ada purchase order</td></tr>
               ) : orders.map(po => {
-                const statusCfg = STATUS_CONFIG[po.status] ?? STATUS_CONFIG.DRAFT
+                const statusCfg = PO_STATUS_CONFIG[po.status] ?? PO_STATUS_CONFIG.DRAFT
                 return (
                   <tr key={po.id} onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
                     className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">

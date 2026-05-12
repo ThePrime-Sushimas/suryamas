@@ -47,15 +47,15 @@ export default function GoodsReceiptFormPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [lines, setLines] = useState<LineItem[]>([])
 
-  // Fetch POs that can receive goods (SENT or PARTIAL_RECEIVED)
+  // Fetch POs that can receive goods (ORDERED or PARTIAL_RECEIVED)
   const { data: posData } = useQuery({
     queryKey: ['purchase-orders', 'receivable'],
     queryFn: async () => {
-      const { data } = await api.get('/purchase-orders', { params: { status: 'SENT', limit: 50 } })
-      const sent = data.data as POOption[]
+      const { data } = await api.get('/purchase-orders', { params: { status: 'ORDERED', limit: 50 } })
+      const ordered = data.data as POOption[]
       const { data: data2 } = await api.get('/purchase-orders', { params: { status: 'PARTIAL_RECEIVED', limit: 50 } })
       const partial = data2.data as POOption[]
-      return [...sent, ...partial]
+      return [...ordered, ...partial]
     },
     staleTime: 30_000,
   })
@@ -75,7 +75,7 @@ export default function GoodsReceiptFormPage() {
   const { data: warehousesData } = useWarehouses({ limit: 50, warehouse_type: 'MAIN' })
   const warehouses = warehousesData?.data ?? []
 
-  // Auto-populate lines when PO selected
+  // Auto-populate lines and warehouse when PO selected
   useEffect(() => {
     if (selectedPO?.lines) {
       setLines(selectedPO.lines
@@ -97,7 +97,12 @@ export default function GoodsReceiptFormPage() {
             unit_price_po: Number(l.unit_price),
           }
         }))
+
+      // Auto-set warehouse based on PO's branch
+      const poWarehouse = warehouses.find(w => w.branch_id === selectedPO.branch_id)
+      if (poWarehouse) setWarehouseId(poWarehouse.id)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPO])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -4,6 +4,7 @@ import { ArrowLeft, ShoppingCart, CheckCircle, XCircle, MessageCircle } from 'lu
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { PO_STATUS_CONFIG } from '../constants'
 import {
   usePurchaseOrder, useMarkSentPurchaseOrder, useMarkOrderedPurchaseOrder, useCancelPurchaseOrder
 } from '../api/purchaseOrders.api'
@@ -13,17 +14,6 @@ import api from '@/lib/axios'
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  DRAFT: { label: 'Draft', color: 'bg-gray-100 text-gray-700' },
-  PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800' },
-  APPROVED: { label: 'Disetujui', color: 'bg-green-100 text-green-700' },
-  SENT: { label: 'Dikirim ke Purchasing', color: 'bg-blue-100 text-blue-700' },
-  ORDERED: { label: 'Sudah Order ke Supplier', color: 'bg-green-100 text-green-700' },
-  PARTIAL_RECEIVED: { label: 'Diterima Sebagian', color: 'bg-indigo-100 text-indigo-700' },
-  FULLY_RECEIVED: { label: 'Diterima Semua', color: 'bg-emerald-100 text-emerald-700' },
-  CLOSED: { label: 'Selesai', color: 'bg-purple-100 text-purple-700' },
-  CANCELLED: { label: 'Dibatalkan', color: 'bg-red-100 text-red-600' },
-}
 
 export default function PurchaseOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -119,7 +109,7 @@ export default function PurchaseOrderDetailPage() {
     return <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900"><p className="text-gray-500">Purchase order tidak ditemukan</p></div>
   }
 
-  const statusCfg = STATUS_CONFIG[po.status] ?? STATUS_CONFIG.DRAFT
+  const statusCfg = PO_STATUS_CONFIG[po.status] ?? PO_STATUS_CONFIG.DRAFT
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">

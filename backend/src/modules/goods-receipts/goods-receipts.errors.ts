@@ -13,7 +13,7 @@ export class GoodsReceiptAlreadyConfirmedError extends BusinessRuleError {
 }
 
 export class GoodsReceiptInvalidPOStatusError extends BusinessRuleError {
-  constructor(poStatus: string) { super(`Cannot create GR: PO status is '${poStatus}', expected SENT or PARTIAL_RECEIVED`) }
+  constructor(poStatus: string) { super(`Cannot create GR: PO status is '${poStatus}', expected ORDERED or PARTIAL_RECEIVED`) }
 }
 
 export class GoodsReceiptExceedsOrderedError extends BusinessRuleError {

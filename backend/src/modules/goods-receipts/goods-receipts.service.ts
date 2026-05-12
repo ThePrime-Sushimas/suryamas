@@ -35,7 +35,7 @@ export class GoodsReceiptsService {
     )
     const po = poRows[0]
     if (!po) throw new InvalidReferenceError('purchase order not found')
-    if (!['SENT', 'PARTIAL_RECEIVED'].includes(po.status)) {
+    if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)) {
       throw new GoodsReceiptInvalidPOStatusError(po.status)
     }
 
