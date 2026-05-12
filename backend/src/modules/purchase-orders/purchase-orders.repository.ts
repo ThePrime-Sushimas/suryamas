@@ -32,7 +32,7 @@ export class PurchaseOrdersRepository {
   async findAll(
     companyId: string,
     pagination: { limit: number; offset: number },
-    filter?: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string },
+    filter?: { status?: string; supplier_id?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string },
     search?: string
   ): Promise<{ data: PurchaseOrderWithRelations[]; total: number }> {
     const conditions = ['po.company_id = $1', 'po.deleted_at IS NULL']
@@ -42,6 +42,7 @@ export class PurchaseOrdersRepository {
     if (filter?.status) { params.push(filter.status); conditions.push(`po.status = $${idx++}`) }
     if (filter?.supplier_id) { params.push(filter.supplier_id); conditions.push(`po.supplier_id = $${idx++}`) }
     if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`po.branch_id = $${idx++}`) }
+    else if (filter?.branch_ids && (filter.branch_ids as string[]).length > 0) { params.push(filter.branch_ids); conditions.push(`po.branch_id = ANY($${idx++}::uuid[])`) }
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`po.order_date >= $${idx++}::date`) }
     if (filter?.date_to) { params.push(filter.date_to); conditions.push(`po.order_date <= $${idx++}::date`) }
     if (search) { params.push(`%${search}%`); conditions.push(`(po.po_number ILIKE $${idx} OR s.supplier_name ILIKE $${idx})`); idx++ }

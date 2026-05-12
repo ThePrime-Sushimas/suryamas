@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { purchaseOrdersService } from './purchase-orders.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
+import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { createPurchaseOrderSchema, updatePurchaseOrderSchema, purchaseOrderIdSchema, cancelSchema } from './purchase-orders.schema'
 
@@ -14,17 +15,22 @@ export class PurchaseOrdersController {
   list = async (req: Request, res: Response) => {
     try {
       const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
       const page = parseInt(req.query.page as string) || 1
       const limit = parseInt(req.query.limit as string) || 25
       const search = req.query.q as string | undefined
 
-      const filter: Record<string, string | undefined> = {}
+      const filter: Record<string, unknown> = {}
       if (req.query.status) filter.status = req.query.status as string
       if (req.query.supplier_id) filter.supplier_id = req.query.supplier_id as string
       if (req.query.branch_id) filter.branch_id = req.query.branch_id as string
-      else if (req.context?.branch_id) filter.branch_id = req.context.branch_id
       if (req.query.date_from) filter.date_from = req.query.date_from as string
       if (req.query.date_to) filter.date_to = req.query.date_to as string
+
+      // Guard: only show POs from branches user has access to
+      if (!filter.branch_id) {
+        filter.branch_ids = await getAccessibleBranchIds(userId)
+      }
 
       const result = await purchaseOrdersService.list(companyId, { page, limit }, filter, search)
       sendSuccess(res, result.data, 'Purchase orders retrieved', 200, result.pagination)

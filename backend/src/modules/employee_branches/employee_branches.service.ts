@@ -1,5 +1,6 @@
 import { employeeBranchesRepository } from './employee_branches.repository'
 import { EmployeeBranchErrors } from './employee_branches.errors'
+import { invalidateBranchCache } from '../../utils/branch-access.util'
 import {
   EmployeeBranchDto,
   EmployeeBranchWithRelations,
@@ -171,6 +172,7 @@ export class EmployeeBranchesService {
     }
 
     logInfo('Employee branch created', { id: created.id, employee_id: data.employee_id, branch_id: data.branch_id })
+    invalidateBranchCache()
 
     const result = await employeeBranchesRepository.findById(created.id)
     return this.toDto(result!)
@@ -193,6 +195,7 @@ export class EmployeeBranchesService {
     }
 
     logInfo('Employee branch updated', { id })
+    invalidateBranchCache()
 
     const result = await employeeBranchesRepository.findById(id)
     return this.toDto(result!)
@@ -232,6 +235,7 @@ export class EmployeeBranchesService {
     }
 
     logInfo('Employee branch deleted', { id })
+    invalidateBranchCache()
   }
 
   async suspend(id: string, userId?: string): Promise<EmployeeBranchDto> {
