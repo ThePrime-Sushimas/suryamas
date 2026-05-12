@@ -204,7 +204,7 @@ export default function PurchaseRequestApprovalPage() {
           return (
             <div key={gIdx} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
               {/* Supplier Header */}
-              <div className="bg-gradient-to-r from-slate-700 to-slate-800 dark:from-slate-600 dark:to-slate-700 px-4 py-3">
+              <div className="bg-linear-to-r from-slate-700 to-slate-800 dark:from-slate-600 dark:to-slate-700 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" checked={group.selected} onChange={() => toggleSupplier(gIdx)}
