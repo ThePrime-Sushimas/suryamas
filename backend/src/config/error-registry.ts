@@ -589,6 +589,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  GoodsReceiptAttachmentNotFoundError: {
+    name: 'GoodsReceiptAttachmentNotFoundError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 404,
+    category: 'inventory',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

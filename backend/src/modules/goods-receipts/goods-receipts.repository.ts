@@ -34,11 +34,21 @@ const LINE_FROM = `
   JOIN purchase_order_lines pol ON pol.id = grl.po_line_id
 `
 
+export interface GoodsReceiptAttachment {
+  id: string
+  gr_id: string
+  file_type: string
+  file_path: string
+  file_name: string | null
+  uploaded_at: string
+  uploaded_by: string | null
+}
+
 export class GoodsReceiptsRepository {
   async findAll(
     companyId: string,
     pagination: { limit: number; offset: number },
-    filter?: { status?: string; po_id?: string; branch_id?: string; date_from?: string; date_to?: string }
+    filter?: { status?: string; po_id?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string }
   ): Promise<{ data: GoodsReceiptWithRelations[]; total: number }> {
     const conditions = ['gr.company_id = $1', 'gr.deleted_at IS NULL']
     const params: unknown[] = [companyId]
@@ -47,6 +57,7 @@ export class GoodsReceiptsRepository {
     if (filter?.status) { params.push(filter.status); conditions.push(`gr.status = $${idx++}`) }
     if (filter?.po_id) { params.push(filter.po_id); conditions.push(`gr.po_id = $${idx++}`) }
     if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`gr.branch_id = $${idx++}`) }
+    else if (filter?.branch_ids && filter.branch_ids.length > 0) { params.push(filter.branch_ids); conditions.push(`gr.branch_id = ANY($${idx++}::uuid[])`) }
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`gr.received_date >= $${idx++}::date`) }
     if (filter?.date_to) { params.push(filter.date_to); conditions.push(`gr.received_date <= $${idx++}::date`) }
 
@@ -77,14 +88,14 @@ export class GoodsReceiptsRepository {
   async create(client: PoolClient, companyId: string, data: {
     branch_id: string; po_id: string; warehouse_id: string; gr_number: string;
     received_date?: string; invoice_number?: string | null; invoice_date?: string | null;
-    invoice_photo_url?: string | null; notes?: string | null; created_by?: string
+    notes?: string | null; created_by?: string
   }): Promise<GoodsReceipt> {
     const { rows } = await client.query(
-      `INSERT INTO goods_receipts (company_id, branch_id, po_id, warehouse_id, gr_number, received_date, invoice_number, invoice_date, invoice_photo_url, notes, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8, $9, $10, $11, $11) RETURNING *`,
+      `INSERT INTO goods_receipts (company_id, branch_id, po_id, warehouse_id, gr_number, received_date, invoice_number, invoice_date, notes, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8, $9, $10, $10) RETURNING *`,
       [companyId, data.branch_id, data.po_id, data.warehouse_id, data.gr_number,
        data.received_date ?? null, data.invoice_number ?? null, data.invoice_date ?? null,
-       data.invoice_photo_url ?? null, data.notes ?? null, data.created_by ?? null]
+       data.notes ?? null, data.created_by ?? null]
     )
     return rows[0]
   }
@@ -109,14 +120,13 @@ export class GoodsReceiptsRepository {
     )
   }
 
-  async updateStatus(client: PoolClient, id: string, status: string, extra?: { journal_id?: string; updated_by?: string; invoice_photo_url?: string }): Promise<void> {
+  async updateStatus(client: PoolClient, id: string, status: string, extra?: { journal_id?: string; updated_by?: string }): Promise<void> {
     const fields = ['status = $1', 'updated_at = now()']
     const params: unknown[] = [status]
     let idx = 2
 
     if (extra?.journal_id) { params.push(extra.journal_id); fields.push(`journal_id = $${idx++}`) }
     if (extra?.updated_by) { params.push(extra.updated_by); fields.push(`updated_by = $${idx++}`) }
-    if (extra?.invoice_photo_url) { params.push(extra.invoice_photo_url); fields.push(`invoice_photo_url = $${idx++}`) }
 
     params.push(id)
     await client.query(`UPDATE goods_receipts SET ${fields.join(', ')} WHERE id = $${idx}`, params)
@@ -136,6 +146,33 @@ export class GoodsReceiptsRepository {
 
     const lastSeq = rows.length > 0 ? parseInt(rows[0].gr_number.split('-').pop() || '0') : 0
     return `${prefix}-${String(lastSeq + 1).padStart(3, '0')}`
+  }
+
+  // ── Attachments ──
+
+  async findAttachments(grId: string): Promise<GoodsReceiptAttachment[]> {
+    const { rows } = await pool.query(
+      'SELECT * FROM goods_receipt_attachments WHERE gr_id = $1 ORDER BY uploaded_at DESC',
+      [grId]
+    )
+    return rows
+  }
+
+  async insertAttachment(grId: string, data: { file_type: string; file_path: string; file_name: string | null; uploaded_by: string | null }): Promise<GoodsReceiptAttachment> {
+    const { rows } = await pool.query(
+      `INSERT INTO goods_receipt_attachments (gr_id, file_type, file_path, file_name, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [grId, data.file_type, data.file_path, data.file_name, data.uploaded_by]
+    )
+    return rows[0]
+  }
+
+  async deleteAttachment(attachmentId: string, grId: string): Promise<boolean> {
+    const { rowCount } = await pool.query(
+      'DELETE FROM goods_receipt_attachments WHERE id = $1 AND gr_id = $2',
+      [attachmentId, grId]
+    )
+    return (rowCount ?? 0) > 0
   }
 
   async softDelete(id: string, companyId: string, userId?: string): Promise<boolean> {

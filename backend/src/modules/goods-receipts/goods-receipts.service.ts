@@ -12,7 +12,7 @@ import { isPostgresError } from '../../utils/postgres-error.util'
 import type { CreateGoodsReceiptDto, UpdateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
 
 export class GoodsReceiptsService {
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; date_from?: string; date_to?: string }) {
+  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await goodsReceiptsRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
     const totalPages = Math.ceil(total / pagination.limit)
@@ -26,7 +26,6 @@ export class GoodsReceiptsService {
   }
 
   async create(companyId: string, dto: CreateGoodsReceiptDto, userId: string) {
-    // Verify PO exists, belongs to company, and is in correct status
     const { rows: poRows } = await pool.query(
       `SELECT po.id, po.status, po.branch_id, b.branch_code
        FROM purchase_orders po
@@ -40,14 +39,12 @@ export class GoodsReceiptsService {
       throw new GoodsReceiptInvalidPOStatusError(po.status)
     }
 
-    // Verify warehouse belongs to company
     const { rows: whRows } = await pool.query(
       'SELECT id FROM warehouses WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
       [dto.warehouse_id, companyId]
     )
     if (!whRows[0]) throw new InvalidReferenceError('warehouse not found or does not belong to your company')
 
-    // Fetch PO lines to validate qty and get unit_price_po + product names
     const { rows: poLines } = await pool.query(
       `SELECT pol.id, pol.product_id, pol.qty, pol.qty_received, pol.unit_price, pol.uom, p.product_name
        FROM purchase_order_lines pol
@@ -57,7 +54,6 @@ export class GoodsReceiptsService {
     )
     const poLineMap = new Map(poLines.map(l => [l.id, l]))
 
-    // Validate lines and calculate variance
     const processedLines = dto.lines.map(line => {
       const poLine = poLineMap.get(line.po_line_id)
       if (!poLine) throw new InvalidReferenceError(`PO line ${line.po_line_id} not found`)
@@ -103,7 +99,6 @@ export class GoodsReceiptsService {
         received_date: dto.received_date,
         invoice_number: dto.invoice_number,
         invoice_date: dto.invoice_date,
-        invoice_photo_url: dto.invoice_photo_url,
         notes: dto.notes,
         created_by: userId,
       })
@@ -124,20 +119,16 @@ export class GoodsReceiptsService {
     }
   }
 
-  /**
-   * Confirm GR: update stock + create journal + update PO qty_received + update PO status
-   * ALL operations in a single transaction via client.
-   */
-  async confirm(id: string, companyId: string, userId: string, invoicePhotoUrl?: string) {
+  async confirm(id: string, companyId: string, userId: string) {
     const gr = await goodsReceiptsRepository.findWithLines(id, companyId)
     if (!gr) throw new GoodsReceiptNotFoundError(id)
     if (gr.status === 'CONFIRMED') throw new GoodsReceiptAlreadyConfirmedError()
 
-    // Invoice photo required
-    const photoUrl = invoicePhotoUrl ?? gr.invoice_photo_url
-    if (!photoUrl) throw new GoodsReceiptInvoiceRequiredError()
+    // Check invoice attachment exists
+    const attachments = await goodsReceiptsRepository.findAttachments(id)
+    const hasInvoice = attachments.some(a => a.file_type === 'INVOICE')
+    if (!hasInvoice) throw new GoodsReceiptInvoiceRequiredError()
 
-    // Get PO for payment_type
     const { rows: poRows } = await pool.query('SELECT payment_type FROM purchase_orders WHERE id = $1', [gr.po_id])
     const paymentType = poRows[0]?.payment_type ?? 'CREDIT'
 
@@ -145,9 +136,8 @@ export class GoodsReceiptsService {
     try {
       await client.query('BEGIN')
 
-      // 1. Create stock movements for each line (using client, not pool)
+      // 1. Create stock movements
       for (const line of gr.lines) {
-        // Lock balance row
         const { rows: lockRows } = await client.query(
           'SELECT * FROM stock_balances WHERE warehouse_id = $1 AND product_id = $2 FOR UPDATE',
           [gr.warehouse_id, line.product_id]
@@ -156,12 +146,10 @@ export class GoodsReceiptsService {
         const currentAvgCost = lockRows[0] ? Number(lockRows[0].avg_cost) : 0
         const newQty = currentQty + line.qty_received
 
-        // Weighted average cost
         const totalExisting = currentQty * currentAvgCost
         const incoming = line.qty_received * line.unit_price_invoice
         const newAvgCost = newQty > 0 ? (totalExisting + incoming) / newQty : line.unit_price_invoice
 
-        // Insert movement
         await stockRepository.createMovement(client, {
           warehouse_id: gr.warehouse_id,
           product_id: line.product_id,
@@ -174,7 +162,6 @@ export class GoodsReceiptsService {
           created_by: userId,
         }, newQty)
 
-        // Update balance
         await stockRepository.upsertBalance(client, gr.warehouse_id, line.product_id, newQty, newAvgCost)
       }
 
@@ -186,7 +173,7 @@ export class GoodsReceiptsService {
         )
       }
 
-      // 3. Update PO status (PARTIAL or FULLY RECEIVED)
+      // 3. Update PO status
       const { rows: updatedPoLines } = await client.query(
         'SELECT qty, qty_received FROM purchase_order_lines WHERE po_id = $1',
         [gr.po_id]
@@ -199,14 +186,8 @@ export class GoodsReceiptsService {
       )
 
       // 4. Generate journal entry
-      // Accounting logic:
-      //   DEBIT  Persediaan = totalInvoice (actual cost of goods received)
-      //   CREDIT Hutang     = totalInvoice (liability to supplier)
-      //   Variance is informational only — recorded in GR lines, not in journal
-      //   (Variance journal entry is optional, only if company wants to track PO vs Invoice diff)
       const totalInvoice = gr.lines.reduce((s, l) => s + l.qty_received * l.unit_price_invoice, 0)
 
-      // Get COA IDs
       const { rows: coaRows } = await client.query(
         `SELECT account_code, id FROM chart_of_accounts
          WHERE company_id = $1 AND account_code IN ('110501', '210101')`,
@@ -219,7 +200,6 @@ export class GoodsReceiptsService {
       let journalId: string | null = null
 
       if (persediaanCoaId && hutangCoaId) {
-        // Create journal header
         const { rows: journalRows } = await client.query(
           `INSERT INTO journal_headers (company_id, branch_id, journal_date, journal_type, source_module, reference_type, reference_id, reference_number, description, status, is_auto, created_by, updated_by)
            VALUES ($1, $2, $3, 'GENERAL', 'purchase', 'goods_receipt', $4, $5, $6, 'POSTED', true, $7, $7) RETURNING id`,
@@ -228,14 +208,12 @@ export class GoodsReceiptsService {
         )
         journalId = journalRows[0].id
 
-        // DEBIT Persediaan Bahan Baku
         await client.query(
           `INSERT INTO journal_lines (journal_id, account_id, description, debit, credit, sort_order)
            VALUES ($1, $2, 'Persediaan Bahan Baku', $3, 0, 1)`,
           [journalId, persediaanCoaId, totalInvoice]
         )
 
-        // CREDIT Hutang Dagang / Kas
         await client.query(
           `INSERT INTO journal_lines (journal_id, account_id, description, debit, credit, sort_order)
            VALUES ($1, $2, $3, 0, $4, 2)`,
@@ -243,11 +221,10 @@ export class GoodsReceiptsService {
         )
       }
 
-      // 5. Update GR status + invoice_photo_url + journal_id
+      // 5. Update GR status
       await goodsReceiptsRepository.updateStatus(client, id, 'CONFIRMED', {
         journal_id: journalId ?? undefined,
         updated_by: userId,
-        invoice_photo_url: photoUrl,
       })
 
       await client.query('COMMIT')
@@ -271,23 +248,19 @@ export class GoodsReceiptsService {
     try {
       await client.query('BEGIN')
 
-      // Update header
       await client.query(
         `UPDATE goods_receipts SET
           warehouse_id = COALESCE($1, warehouse_id),
           received_date = COALESCE($2::date, received_date),
           invoice_number = $3,
           invoice_date = $4::date,
-          invoice_photo_url = $5,
-          notes = $6,
-          updated_by = $7, updated_at = now()
-        WHERE id = $8 AND company_id = $9 AND status = 'DRAFT'`,
-        [dto.warehouse_id ?? null, dto.received_date ?? null, dto.invoice_number ?? null, dto.invoice_date ?? null, dto.invoice_photo_url ?? null, dto.notes ?? null, userId, id, companyId]
+          notes = $5,
+          updated_by = $6, updated_at = now()
+        WHERE id = $7 AND company_id = $8 AND status = 'DRAFT'`,
+        [dto.warehouse_id ?? null, dto.received_date ?? null, dto.invoice_number ?? null, dto.invoice_date ?? null, dto.notes ?? null, userId, id, companyId]
       )
 
-      // Replace lines if provided
       if (dto.lines && dto.lines.length > 0) {
-        // Fetch PO line prices for variance calculation
         const poLineIds = dto.lines.map(l => l.po_line_id).filter(Boolean)
         const { rows: poLines } = await client.query(
           `SELECT id, unit_price FROM purchase_order_lines WHERE id = ANY($1::uuid[])`,
@@ -303,13 +276,14 @@ export class GoodsReceiptsService {
           const varianceStatus = variancePct > 15 ? 'DISPUTED' : variancePct > 5 ? 'NOTICE' : 'OK'
 
           await client.query(
-            `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_received, unit_price_invoice, unit_price_po, total_price_invoice, price_variance, price_variance_pct, variance_status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_received, unit_price_invoice, unit_price_po, total_price_invoice, price_variance, price_variance_pct, variance_status, qty_rejected, reject_reason)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
             [
               id, line.po_line_id, line.product_id, line.qty_received, line.unit_price_invoice,
               unitPricePo,
               line.qty_received * line.unit_price_invoice,
-              variance, Math.round(variancePct * 100) / 100, varianceStatus
+              variance, Math.round(variancePct * 100) / 100, varianceStatus,
+              line.qty_rejected ?? 0, line.reject_reason ?? null
             ]
           )
         }

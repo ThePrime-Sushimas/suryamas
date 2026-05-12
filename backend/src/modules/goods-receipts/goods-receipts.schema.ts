@@ -17,7 +17,6 @@ export const createGoodsReceiptSchema = z.object({
     received_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     invoice_number: z.string().max(100).nullable().optional(),
     invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-    invoice_photo_url: z.string().url().nullable().optional(),
     notes: z.string().max(500).nullable().optional(),
     lines: z.array(lineSchema).min(1),
   }),
@@ -25,9 +24,6 @@ export const createGoodsReceiptSchema = z.object({
 
 export const confirmGoodsReceiptSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
-  body: z.object({
-    invoice_photo_url: z.string().url().optional(),
-  }).optional(),
 })
 
 export const goodsReceiptIdSchema = z.object({
@@ -53,8 +49,22 @@ export const updateGoodsReceiptSchema = z.object({
     received_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     invoice_number: z.string().max(100).nullable().optional(),
     invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-    invoice_photo_url: z.string().nullable().optional(),
     notes: z.string().max(500).nullable().optional(),
     lines: z.array(lineSchema).min(1).optional(),
   }),
+})
+
+export const attachmentParamsSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+})
+
+export const createAttachmentSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    file_type: z.enum(['INVOICE', 'DELIVERY_NOTE', 'SURAT_JALAN', 'PHOTO_BARANG', 'OTHER']),
+  }),
+})
+
+export const deleteAttachmentSchema = z.object({
+  params: z.object({ id: z.string().uuid(), attachmentId: z.string().uuid() }),
 })

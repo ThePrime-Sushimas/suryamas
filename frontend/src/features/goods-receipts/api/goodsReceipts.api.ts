@@ -31,7 +31,6 @@ export interface GoodsReceipt {
   received_date: string
   invoice_number: string | null
   invoice_date: string | null
-  invoice_photo_url: string | null
   journal_id: string | null
   notes: string | null
   branch_name: string
@@ -84,7 +83,7 @@ export const useCreateGoodsReceipt = () => {
   return useMutation({
     mutationFn: async (body: {
       po_id: string; warehouse_id: string; received_date?: string;
-      invoice_number?: string | null; invoice_date?: string | null; invoice_photo_url?: string | null;
+      invoice_number?: string | null; invoice_date?: string | null;
       notes?: string | null;
       lines: { po_line_id: string; product_id: string; qty_received: number; unit_price_invoice: number; notes?: string | null }[]
     }) => {
@@ -101,8 +100,8 @@ export const useCreateGoodsReceipt = () => {
 export const useConfirmGoodsReceipt = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, invoice_photo_url }: { id: string; invoice_photo_url?: string }) => {
-      const { data } = await api.post(`/goods-receipts/${id}/confirm`, { invoice_photo_url })
+    mutationFn: async ({ id }: { id: string }) => {
+      const { data } = await api.post(`/goods-receipts/${id}/confirm`)
       return data.data as GoodsReceipt
     },
     onSuccess: () => {
@@ -121,14 +120,54 @@ export const useDeleteGoodsReceipt = () => {
   })
 }
 
-/** Fetch signed URL for viewing invoice photo (valid 15 min) */
-export const useInvoiceSignedUrl = (path: string | null) =>
+// ── Attachments ──
+
+export interface GoodsReceiptAttachment {
+  id: string
+  gr_id: string
+  file_type: 'INVOICE' | 'DELIVERY_NOTE' | 'SURAT_JALAN' | 'PHOTO_BARANG' | 'OTHER'
+  file_path: string
+  file_name: string | null
+  uploaded_at: string
+  uploaded_by: string | null
+}
+
+export const useGRAttachments = (grId: string) =>
   useQuery({
-    queryKey: ['storage', 'signed-url', path],
+    queryKey: ['goods-receipts', grId, 'attachments'],
     queryFn: async () => {
-      const { data } = await api.get('/storage/signed-url', { params: { path, bucket: 'invoices' } })
-      return data.data.url as string
+      const { data } = await api.get(`/goods-receipts/${grId}/attachments`)
+      return data.data as GoodsReceiptAttachment[]
     },
-    enabled: !!path,
-    staleTime: 10 * 60 * 1000, // cache 10 min (URL valid 15 min)
+    enabled: !!grId,
   })
+
+export const useUploadGRAttachment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ grId, file, fileType }: { grId: string; file: File; fileType: string }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('file_type', fileType)
+      const { data } = await api.post(`/goods-receipts/${grId}/attachments`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data.data as GoodsReceiptAttachment
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['goods-receipts', vars.grId, 'attachments'] })
+    },
+  })
+}
+
+export const useDeleteGRAttachment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ grId, attachmentId }: { grId: string; attachmentId: string }) => {
+      await api.delete(`/goods-receipts/${grId}/attachments/${attachmentId}`)
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['goods-receipts', vars.grId, 'attachments'] })
+    },
+  })
+}

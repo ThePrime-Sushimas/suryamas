@@ -23,5 +23,9 @@ export class GoodsReceiptExceedsOrderedError extends BusinessRuleError {
 }
 
 export class GoodsReceiptInvoiceRequiredError extends BusinessRuleError {
-  constructor() { super('Invoice photo URL is required to confirm goods receipt') }
+  constructor() { super('Upload lampiran invoice terlebih dahulu sebelum konfirmasi') }
+}
+
+export class GoodsReceiptAttachmentNotFoundError extends NotFoundError {
+  constructor(id?: string) { super(id ? `Attachment ${id} not found` : 'Attachment not found') }
 }
