@@ -12,7 +12,8 @@ const HEADER_SELECT = `
   req_emp.full_name AS requested_by_name,
   app_emp.full_name AS approved_by_name,
   COALESCE(lines_agg.line_count, 0)::int AS line_count,
-  COALESCE(lines_agg.total_estimated, 0)::numeric AS total_estimated
+  COALESCE(lines_agg.total_estimated, 0)::numeric AS total_estimated,
+  COALESCE(lines_agg.total_pricelist, 0)::numeric AS total_pricelist
 `
 const HEADER_FROM = `
   FROM purchase_requests pr
@@ -20,7 +21,17 @@ const HEADER_FROM = `
   LEFT JOIN employees req_emp ON req_emp.user_id = pr.requested_by
   LEFT JOIN employees app_emp ON app_emp.user_id = pr.approved_by
   LEFT JOIN LATERAL (
-    SELECT COUNT(*)::int AS line_count, SUM(COALESCE(prl.estimated_price, 0) * prl.qty) AS total_estimated
+    SELECT
+      COUNT(*)::int AS line_count,
+      SUM(COALESCE(prl.estimated_price, 0) * prl.qty) AS total_estimated,
+      SUM(COALESCE((
+        SELECT pl.price FROM pricelists pl
+        WHERE pl.product_id = prl.product_id
+          AND pl.supplier_id = prl.supplier_id
+          AND pl.status = 'APPROVED' AND pl.is_active = true AND pl.deleted_at IS NULL
+          AND pl.valid_from <= CURRENT_DATE AND (pl.valid_to IS NULL OR pl.valid_to >= CURRENT_DATE)
+        ORDER BY pl.valid_from DESC LIMIT 1
+      ), prl.estimated_price, 0) * prl.qty) AS total_pricelist
     FROM purchase_request_lines prl WHERE prl.request_id = pr.id
   ) lines_agg ON true
 `

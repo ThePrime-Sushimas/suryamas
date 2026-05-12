@@ -60,7 +60,7 @@ export default function PRApprovalListPage() {
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{pr.branch_name as string}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{fmtDate(pr.request_date as string)}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{pr.needed_by_date ? fmtDate(pr.needed_by_date as string) : '—'}</td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">Rp {fmt(pr.total_estimated as number)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">{(pr.total_pricelist as number) > 0 ? `Rp ${fmt(pr.total_pricelist as number)}` : (pr.total_estimated as number) > 0 ? `Rp ${fmt(pr.total_estimated as number)}` : '—'}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{(pr.requested_by_name as string) || '—'}</td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => navigate(`/inventory/purchase-requests/${pr.id}/approve`)}

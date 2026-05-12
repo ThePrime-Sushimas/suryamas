@@ -30,6 +30,7 @@ export interface PurchaseRequestWithRelations extends PurchaseRequest {
   approved_by_name: string | null
   line_count: number
   total_estimated: number
+  total_pricelist: number
 }
 
 export interface PurchaseRequestLine {
