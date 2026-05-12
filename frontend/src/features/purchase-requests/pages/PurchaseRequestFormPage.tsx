@@ -225,7 +225,7 @@ export default function PurchaseRequestFormPage() {
   }
 
   // PR not found or wrong status for edit
-  if (isEdit && initialized && existingPR?.status !== 'DRAFT') {
+  if (isEdit && initialized && !['DRAFT', 'PENDING_APPROVAL'].includes(existingPR?.status ?? '')) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">

@@ -71,7 +71,9 @@ export class PurchaseRequestsService {
   async update(id: string, companyId: string, dto: UpdatePurchaseRequestDto, userId: string) {
     const existing = await purchaseRequestsRepository.findById(id, companyId)
     if (!existing) throw new PurchaseRequestNotFoundError(id)
-    if (existing.status !== 'DRAFT') throw new PurchaseRequestInvalidStatusError(existing.status, 'DRAFT')
+    if (!['DRAFT', 'PENDING_APPROVAL'].includes(existing.status)) {
+      throw new PurchaseRequestInvalidStatusError(existing.status, 'DRAFT or PENDING_APPROVAL')
+    }
 
     // All updates in single transaction
     const client = await pool.connect()
@@ -89,7 +91,7 @@ export class PurchaseRequestsService {
       params.push(id, companyId)
 
       await client.query(
-        `UPDATE purchase_requests SET ${fields.join(', ')} WHERE id = $${idx} AND company_id = $${idx + 1} AND deleted_at IS NULL AND status = 'DRAFT'`,
+        `UPDATE purchase_requests SET ${fields.join(', ')} WHERE id = $${idx} AND company_id = $${idx + 1} AND deleted_at IS NULL AND status IN ('DRAFT', 'PENDING_APPROVAL')`,
         params
       )
 
