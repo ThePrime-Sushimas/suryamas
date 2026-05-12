@@ -26,6 +26,8 @@ interface ApprovalSupplierGroup {
   supplier_id: string | null
   supplier_name: string
   supplier_phone: string | null
+  supplier_payment_term_days: number | null
+  supplier_payment_term_name: string | null
   items: ApprovalItem[]
   total_estimated: number
 }
@@ -69,39 +71,24 @@ export class PurchaseRequestApprovalService {
       throw new PurchaseRequestInvalidStatusError(pr.status, 'PENDING_APPROVAL')
     }
 
-    // Warehouse MAIN for this branch
-    const { rows: whRows } = await pool.query(
-      `SELECT id, warehouse_name FROM warehouses WHERE branch_id = $1 AND warehouse_type = 'MAIN' AND deleted_at IS NULL LIMIT 1`,
-      [pr.branch_id]
-    )
-    const warehouse = whRows[0] ?? { id: null, warehouse_name: 'N/A' }
+    const warehouse = await purchaseRequestsRepository.findMainWarehouseByBranch(pr.branch_id)
+    const warehouseId = warehouse?.id ?? null
+    const warehouseName = warehouse?.warehouse_name ?? 'N/A'
 
     // Batch stock balances
     const productIds = pr.lines.map(l => l.product_id)
     const stockMap = new Map<string, number>()
-    if (warehouse.id && productIds.length > 0) {
-      const { rows } = await pool.query(
-        `SELECT product_id, qty FROM stock_balances WHERE warehouse_id = $1 AND product_id = ANY($2::uuid[])`,
-        [warehouse.id, productIds]
-      )
-      for (const r of rows) stockMap.set(r.product_id, parseFloat(r.qty))
+    if (warehouseId && productIds.length > 0) {
+      const stockRows = await purchaseRequestsRepository.findStockBalancesBatch(warehouseId, productIds)
+      for (const r of stockRows) stockMap.set(r.product_id, r.qty)
     }
 
     // Batch latest prices
     const supplierIds = [...new Set(pr.lines.map(l => l.supplier_id).filter(Boolean))] as string[]
     const priceMap = new Map<string, number>()
     if (supplierIds.length > 0 && productIds.length > 0) {
-      const { rows } = await pool.query(
-        `SELECT DISTINCT ON (pl.product_id, pl.supplier_id)
-           pl.product_id, pl.supplier_id, pl.price
-         FROM pricelists pl
-         WHERE pl.product_id = ANY($1::uuid[]) AND pl.supplier_id = ANY($2::uuid[])
-           AND pl.status = 'APPROVED' AND pl.is_active = true AND pl.deleted_at IS NULL
-           AND pl.valid_from <= CURRENT_DATE AND (pl.valid_to IS NULL OR pl.valid_to >= CURRENT_DATE)
-         ORDER BY pl.product_id, pl.supplier_id, pl.valid_from DESC, pl.created_at DESC`,
-        [productIds, supplierIds]
-      )
-      for (const r of rows) priceMap.set(`${r.product_id}:${r.supplier_id}`, parseFloat(r.price))
+      const priceRows = await purchaseRequestsRepository.findLatestPricesBatch(productIds, supplierIds)
+      for (const r of priceRows) priceMap.set(`${r.product_id}:${r.supplier_id}`, r.price)
     }
 
     // Group lines by supplier
@@ -127,22 +114,38 @@ export class PurchaseRequestApprovalService {
         estimated_price: line.estimated_price,
         latest_price: noSupplier ? null : (priceMap.get(`${line.product_id}:${key}`) ?? null),
         stock_balance: stockMap.get(line.product_id) ?? 0,
-        stock_warehouse_name: warehouse.warehouse_name,
+        stock_warehouse_name: warehouseName,
       }))
 
       const totalEstimated = items.reduce((sum, i) => sum + (i.latest_price ?? i.estimated_price ?? 0) * i.qty, 0)
 
       let supplierName = 'Tanpa Supplier'
       let supplierPhone: string | null = null
+      let supplierPaymentTermDays: number | null = null
+      let supplierPaymentTermName: string | null = null
+
       if (!noSupplier) {
-        const { rows } = await pool.query(`SELECT supplier_name, phone FROM suppliers WHERE id = $1`, [key])
-        if (rows[0]) { supplierName = rows[0].supplier_name; supplierPhone = rows[0].phone }
+        const sup = await purchaseRequestsRepository.findSupplierWithPaymentTerms(key)
+        if (sup) {
+          supplierName = sup.supplier_name
+          supplierPhone = sup.phone
+          supplierPaymentTermDays = sup.payment_term_days
+          supplierPaymentTermName = sup.payment_term_name
+        }
       }
 
-      supplierGroups.push({ supplier_id: noSupplier ? null : key, supplier_name: supplierName, supplier_phone: supplierPhone, items, total_estimated: totalEstimated })
+      supplierGroups.push({
+        supplier_id: noSupplier ? null : key,
+        supplier_name: supplierName,
+        supplier_phone: supplierPhone,
+        supplier_payment_term_days: supplierPaymentTermDays,
+        supplier_payment_term_name: supplierPaymentTermName,
+        items,
+        total_estimated: totalEstimated,
+      })
     }
 
-    return { pr, warehouse_id: warehouse.id, warehouse_name: warehouse.warehouse_name, supplier_groups: supplierGroups }
+    return { pr, warehouse_id: warehouseId, warehouse_name: warehouseName, supplier_groups: supplierGroups }
   }
 
   async approveAndGenerate(prId: string, companyId: string, dto: ApproveAndGenerateDto, userId: string): Promise<ApproveAndGenerateResult> {
@@ -151,33 +154,23 @@ export class PurchaseRequestApprovalService {
       await client.query('BEGIN')
 
       // Lock PR
-      const { rows: prRows } = await client.query(
-        `SELECT pr.*, b.branch_code, b.branch_name FROM purchase_requests pr
-         JOIN branches b ON b.id = pr.branch_id
-         WHERE pr.id = $1 AND pr.company_id = $2 AND pr.deleted_at IS NULL FOR UPDATE`,
-        [prId, companyId]
-      )
-      const pr = prRows[0]
+      const pr = await purchaseRequestsRepository.lockPRForUpdate(client, prId, companyId)
       if (!pr) throw new PurchaseRequestNotFoundError(prId)
       if (pr.status !== 'PENDING_APPROVAL') throw new PurchaseRequestInvalidStatusError(pr.status, 'PENDING_APPROVAL')
 
       // Fetch lines
-      const { rows: prLines } = await client.query(
-        `SELECT prl.*, p.product_name, p.product_code FROM purchase_request_lines prl
-         JOIN products p ON p.id = prl.product_id WHERE prl.request_id = $1`,
-        [prId]
-      )
+      const prLines = await purchaseRequestsRepository.findLinesWithProducts(client, prId)
 
       const poIds: string[] = []
       const whatsappSent: string[] = []
       const whatsappFailed: string[] = []
 
       for (const sel of dto.supplier_selections) {
-        const lines = prLines.filter((l: { id: string }) => sel.line_ids.includes(l.id))
+        const lines = prLines.filter(l => sel.line_ids.includes(l.id))
         if (lines.length === 0) continue
 
         const poNumber = await purchaseOrdersRepository.generatePoNumber(client, companyId, pr.branch_code)
-        const totalAmount = lines.reduce((s: number, l: { estimated_price: string | null; qty: string }) => s + (parseFloat(l.estimated_price ?? '0')) * parseFloat(l.qty), 0)
+        const totalAmount = lines.reduce((s, l) => s + (parseFloat(l.estimated_price ?? '0')) * parseFloat(l.qty), 0)
 
         const po = await purchaseOrdersRepository.create(client, companyId, {
           branch_id: pr.branch_id,
@@ -192,7 +185,7 @@ export class PurchaseRequestApprovalService {
           created_by: userId,
         })
 
-        await purchaseOrdersRepository.insertLines(client, po.id, lines.map((l: { id: string; product_id: string; qty: string; uom: string; estimated_price: string | null; notes: string | null }) => ({
+        await purchaseOrdersRepository.insertLines(client, po.id, lines.map(l => ({
           pr_line_id: l.id,
           product_id: l.product_id,
           qty: parseFloat(l.qty),
@@ -205,8 +198,7 @@ export class PurchaseRequestApprovalService {
 
         // WhatsApp (non-blocking)
         if (dto.send_whatsapp) {
-          const { rows: supRows } = await client.query(`SELECT supplier_name, phone FROM suppliers WHERE id = $1`, [sel.supplier_id])
-          const sup = supRows[0]
+          const sup = await purchaseRequestsRepository.findSupplierWithPaymentTerms(sel.supplier_id)
           if (sup?.phone) {
             try {
               await whatsappService.sendPONotification({
@@ -216,8 +208,11 @@ export class PurchaseRequestApprovalService {
                 supplier_name: sup.supplier_name,
                 branch_name: pr.branch_name,
                 total_amount: totalAmount,
-                lines: lines.map((l: { product_name: string; qty: string; uom: string; estimated_price: string | null }) => ({
-                  product_name: l.product_name, qty: parseFloat(l.qty), uom: l.uom, unit_price: parseFloat(l.estimated_price ?? '0'),
+                lines: lines.map(l => ({
+                  product_name: l.product_name,
+                  qty: parseFloat(l.qty),
+                  uom: l.uom,
+                  unit_price: parseFloat(l.estimated_price ?? '0'),
                 })),
               }, sup.phone)
               whatsappSent.push(sup.phone)
@@ -229,21 +224,10 @@ export class PurchaseRequestApprovalService {
         }
       }
 
-      // Update PR → CONVERTED + set qty_approved on selected lines
-      await client.query(
-        `UPDATE purchase_requests SET status = 'CONVERTED', approved_by = $1, approved_at = now(), updated_by = $1, updated_at = now()
-         WHERE id = $2 AND company_id = $3`,
-        [userId, prId, companyId]
-      )
-
-      // Set qty_approved = qty for all lines that were selected
+      // Update PR → CONVERTED + set qty_approved
+      await purchaseRequestsRepository.setConvertedStatus(client, prId, companyId, userId)
       const allSelectedLineIds = dto.supplier_selections.flatMap(s => s.line_ids)
-      if (allSelectedLineIds.length > 0) {
-        await client.query(
-          `UPDATE purchase_request_lines SET qty_approved = qty WHERE id = ANY($1::uuid[])`,
-          [allSelectedLineIds]
-        )
-      }
+      await purchaseRequestsRepository.setQtyApprovedBatch(client, allSelectedLineIds)
 
       await client.query('COMMIT')
 

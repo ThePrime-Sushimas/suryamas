@@ -18,6 +18,7 @@ import {
   useCancelPurchaseRequest,
   type PurchaseRequestLine,
 } from "../api/purchaseRequests.api";
+import { PR_STATUS_CONFIG } from "../constants";
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 const fmtDate = (d: string) =>
@@ -27,34 +28,6 @@ const fmtDate = (d: string) =>
     year: "numeric",
   });
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  DRAFT: {
-    label: "Draft",
-    color: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300",
-  },
-  PENDING_APPROVAL: {
-    label: "Menunggu Approval",
-    color:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-  },
-  APPROVED: {
-    label: "Disetujui",
-    color:
-      "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  },
-  REJECTED: {
-    label: "Ditolak",
-    color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  },
-  CONVERTED: {
-    label: "Dikonversi ke PO",
-    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  },
-  CANCELLED: {
-    label: "Dibatalkan",
-    color: "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
-  },
-};
 
 interface SupplierGroup {
   supplierName: string;
@@ -144,7 +117,7 @@ export default function PurchaseRequestDetailPage() {
     );
   }
 
-  const statusCfg = STATUS_CONFIG[pr.status] ?? STATUS_CONFIG.DRAFT;
+  const statusCfg = PR_STATUS_CONFIG[pr.status] ?? PR_STATUS_CONFIG.DRAFT;
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">

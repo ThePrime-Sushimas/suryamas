@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ClipboardList, Plus, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
+import { PR_STATUS_CONFIG } from '../constants'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
@@ -12,15 +13,6 @@ import { usePurchaseRequests, useDeletePurchaseRequest, useCancelPurchaseRequest
 import type { PurchaseRequest } from '../api/purchaseRequests.api'
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  DRAFT: { label: 'Draft', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  PENDING_APPROVAL: { label: 'Menunggu Approval', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
-  APPROVED: { label: 'Disetujui', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
-  REJECTED: { label: 'Ditolak', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
-  CONVERTED: { label: 'Dikonversi ke PO', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  CANCELLED: { label: 'Dibatalkan', color: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' },
-}
 
 export default function PurchaseRequestsPage() {
   const navigate = useNavigate()
@@ -111,7 +103,7 @@ export default function PurchaseRequestsPage() {
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
             <option value="">Semua Status</option>
-            {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            {Object.entries(PR_STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
       </div>
@@ -140,7 +132,7 @@ export default function PurchaseRequestsPage() {
                 ) : requests.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">Tidak ada purchase request</td></tr>
                 ) : requests.map(pr => {
-                  const statusCfg = STATUS_CONFIG[pr.status] ?? STATUS_CONFIG.DRAFT
+                  const statusCfg = PR_STATUS_CONFIG[pr.status] ?? PR_STATUS_CONFIG.DRAFT
                   return (
                     <tr key={pr.id} onClick={() => navigate(`/inventory/purchase-requests/${pr.id}`)}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">

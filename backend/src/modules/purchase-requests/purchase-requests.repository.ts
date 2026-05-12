@@ -183,7 +183,6 @@ export class PurchaseRequestsRepository {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const prefix = `PR-${branchCode}-${dateStr}`
 
-    // Use FOR UPDATE to prevent race condition on sequence
     const { rows } = await client.query(
       `SELECT request_number FROM purchase_requests
        WHERE company_id = $1 AND request_number LIKE $2
@@ -194,6 +193,84 @@ export class PurchaseRequestsRepository {
 
     const lastSeq = rows.length > 0 ? parseInt(rows[0].request_number.split('-').pop() || '0') : 0
     return `${prefix}-${String(lastSeq + 1).padStart(3, '0')}`
+  }
+
+  // ─── Approval-related queries ────────────────────────────────────────────
+
+  async findMainWarehouseByBranch(branchId: string): Promise<{ id: string; warehouse_name: string } | null> {
+    const { rows } = await pool.query(
+      `SELECT id, warehouse_name FROM warehouses WHERE branch_id = $1 AND warehouse_type = 'MAIN' AND deleted_at IS NULL LIMIT 1`,
+      [branchId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findStockBalancesBatch(warehouseId: string, productIds: string[]): Promise<Array<{ product_id: string; qty: number }>> {
+    const { rows } = await pool.query(
+      `SELECT product_id, qty::numeric FROM stock_balances WHERE warehouse_id = $1 AND product_id = ANY($2::uuid[])`,
+      [warehouseId, productIds]
+    )
+    return rows.map(r => ({ product_id: r.product_id, qty: parseFloat(r.qty) }))
+  }
+
+  async findLatestPricesBatch(productIds: string[], supplierIds: string[]): Promise<Array<{ product_id: string; supplier_id: string; price: number }>> {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ON (pl.product_id, pl.supplier_id)
+         pl.product_id, pl.supplier_id, pl.price
+       FROM pricelists pl
+       WHERE pl.product_id = ANY($1::uuid[]) AND pl.supplier_id = ANY($2::uuid[])
+         AND pl.status = 'APPROVED' AND pl.is_active = true AND pl.deleted_at IS NULL
+         AND pl.valid_from <= CURRENT_DATE AND (pl.valid_to IS NULL OR pl.valid_to >= CURRENT_DATE)
+       ORDER BY pl.product_id, pl.supplier_id, pl.valid_from DESC, pl.created_at DESC`,
+      [productIds, supplierIds]
+    )
+    return rows.map(r => ({ product_id: r.product_id, supplier_id: r.supplier_id, price: parseFloat(r.price) }))
+  }
+
+  async findSupplierWithPaymentTerms(supplierId: string): Promise<{ supplier_name: string; phone: string | null; payment_term_days: number | null; payment_term_name: string | null } | null> {
+    const { rows } = await pool.query(
+      `SELECT s.supplier_name, s.phone, pt.days AS payment_term_days, pt.term_name AS payment_term_name
+       FROM suppliers s
+       LEFT JOIN payment_terms pt ON pt.id_payment_term = s.payment_term_id
+       WHERE s.id = $1`,
+      [supplierId]
+    )
+    return rows[0] ?? null
+  }
+
+  async lockPRForUpdate(client: PoolClient, prId: string, companyId: string): Promise<{ id: string; status: string; branch_id: string; branch_code: string; branch_name: string } | null> {
+    const { rows } = await client.query(
+      `SELECT pr.*, b.branch_code, b.branch_name FROM purchase_requests pr
+       JOIN branches b ON b.id = pr.branch_id
+       WHERE pr.id = $1 AND pr.company_id = $2 AND pr.deleted_at IS NULL FOR UPDATE`,
+      [prId, companyId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findLinesWithProducts(client: PoolClient, requestId: string): Promise<Array<{ id: string; product_id: string; product_name: string; product_code: string; qty: string; uom: string; estimated_price: string | null; supplier_id: string | null; notes: string | null }>> {
+    const { rows } = await client.query(
+      `SELECT prl.*, p.product_name, p.product_code FROM purchase_request_lines prl
+       JOIN products p ON p.id = prl.product_id WHERE prl.request_id = $1`,
+      [requestId]
+    )
+    return rows
+  }
+
+  async setConvertedStatus(client: PoolClient, prId: string, companyId: string, userId: string): Promise<void> {
+    await client.query(
+      `UPDATE purchase_requests SET status = 'CONVERTED', approved_by = $1, approved_at = now(), updated_by = $1, updated_at = now()
+       WHERE id = $2 AND company_id = $3`,
+      [userId, prId, companyId]
+    )
+  }
+
+  async setQtyApprovedBatch(client: PoolClient, lineIds: string[]): Promise<void> {
+    if (lineIds.length === 0) return
+    await client.query(
+      `UPDATE purchase_request_lines SET qty_approved = qty WHERE id = ANY($1::uuid[])`,
+      [lineIds]
+    )
   }
 }
 
