@@ -27,6 +27,7 @@ export default function PurchaseRequestFormPage() {
   const toast = useToast()
 
   const [branchId, setBranchId] = useState('')
+  const [requestDate, setRequestDate] = useState(new Date().toISOString().slice(0, 10))
   const [neededByDate, setNeededByDate] = useState('')
   const [priority, setPriority] = useState<'normal' | 'medium' | 'high'>('normal')
   const [notes, setNotes] = useState('')
@@ -46,6 +47,7 @@ export default function PurchaseRequestFormPage() {
     if (!isEdit || initialized || !existingPR) return
 
     setBranchId(existingPR.branch_id)
+    setRequestDate(existingPR.request_date ?? new Date().toISOString().slice(0, 10))
     setNeededByDate(existingPR.needed_by_date ?? '')
     setNotes(existingPR.notes ?? '')
 
@@ -182,6 +184,7 @@ export default function PurchaseRequestFormPage() {
     if (invalidLines.length > 0) { toast.error('Semua qty harus lebih dari 0'); return }
 
     const payload = {
+      request_date: requestDate,
       needed_by_date: neededByDate || null,
       priority,
       notes: notes || null,
@@ -275,7 +278,7 @@ export default function PurchaseRequestFormPage() {
 
       {/* Form Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Cabang *
@@ -283,7 +286,7 @@ export default function PurchaseRequestFormPage() {
             <select
               value={branchId}
               onChange={e => setBranchId(e.target.value)}
-              disabled={isEdit} // Cabang tidak bisa diubah saat edit
+              disabled={isEdit}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <option value="">Pilih Cabang</option>
@@ -292,6 +295,17 @@ export default function PurchaseRequestFormPage() {
             {isEdit && (
               <p className="mt-1 text-xs text-gray-400">Cabang tidak dapat diubah setelah PR dibuat</p>
             )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Tanggal PR *
+            </label>
+            <input
+              type="date"
+              value={requestDate}
+              onChange={e => setRequestDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
