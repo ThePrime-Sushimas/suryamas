@@ -29,6 +29,8 @@ interface LineItem {
   qty_already_received: number
   qty_remaining: number
   qty_received: number
+  qty_rejected: number
+  reject_reason: string
   unit_price_invoice: number
   unit_price_po: number
 }
@@ -120,6 +122,8 @@ export default function GoodsReceiptFormPage() {
         qty_already_received: 0,
         qty_remaining: Number(l.qty_received),
         qty_received: Number(l.qty_received),
+        qty_rejected: 0,
+        reject_reason: '',
         unit_price_invoice: Number(l.unit_price_invoice),
         unit_price_po: Number(l.unit_price_po ?? l.unit_price_invoice),
       })))
@@ -158,6 +162,8 @@ export default function GoodsReceiptFormPage() {
           qty_already_received: Number(l.qty_received),
           qty_remaining: remaining,
           qty_received: remaining,
+          qty_rejected: 0,
+          reject_reason: '',
           unit_price_invoice: Number(l.unit_price),
           unit_price_po: Number(l.unit_price),
         }
@@ -187,8 +193,13 @@ export default function GoodsReceiptFormPage() {
 
   const createGR = useCreateGoodsReceipt()
 
-  const updateLine = (key: string, field: 'qty_received' | 'unit_price_invoice', value: number) => {
-    setLines(prev => prev.map(l => l.key === key ? { ...l, [field]: value } : l))
+  const updateLine = (key: string, field: 'qty_received' | 'unit_price_invoice' | 'qty_rejected' | 'reject_reason', value: number | string) => {
+    setLines(prev => prev.map(l => {
+      if (l.key !== key) return l
+      const updated = { ...l, [field]: value }
+      if (field === 'qty_rejected' && (value as number) === 0) updated.reject_reason = ''
+      return updated
+    }))
   }
 
   const removeLine = (key: string) => setLines(prev => prev.filter(l => l.key !== key))
@@ -201,6 +212,12 @@ export default function GoodsReceiptFormPage() {
     if (!isEdit) {
       const invalidLines = lines.filter(l => l.qty_received > l.qty_remaining)
       if (invalidLines.length > 0) { toast.error('Qty diterima tidak boleh melebihi sisa qty PO'); return }
+
+      const invalidReject = lines.filter(l => l.qty_rejected > l.qty_received)
+      if (invalidReject.length > 0) { toast.error('Qty ditolak tidak boleh melebihi qty diterima'); return }
+
+      const missingReason = lines.filter(l => l.qty_rejected > 0 && !l.reject_reason)
+      if (missingReason.length > 0) { toast.error('Pilih alasan penolakan untuk item yang ditolak'); return }
     }
 
     const payload = {
@@ -215,6 +232,8 @@ export default function GoodsReceiptFormPage() {
         po_line_id: l.po_line_id,
         product_id: l.product_id,
         qty_received: l.qty_received,
+        qty_rejected: l.qty_rejected || 0,
+        reject_reason: l.reject_reason || null,
         unit_price_invoice: l.unit_price_invoice,
       })),
     }
@@ -324,6 +343,7 @@ export default function GoodsReceiptFormPage() {
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ordered</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sisa</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Diterima</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">Ditolak</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-36">Harga Invoice</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Harga PO</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
@@ -348,6 +368,20 @@ export default function GoodsReceiptFormPage() {
                           className={`w-24 px-2 py-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm ${l.qty_received > l.qty_remaining ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} />
                       </td>
                       <td className="px-4 py-3 text-right">
+                        <input type="number" min="0" step="0.01" value={l.qty_rejected || ''} onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
+                          className={`w-20 px-2 py-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm ${l.qty_rejected > 0 ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} />
+                        {l.qty_rejected > 0 && (
+                          <select value={l.reject_reason} onChange={e => updateLine(l.key, 'reject_reason', e.target.value)}
+                            className="mt-1 w-20 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="">Alasan</option>
+                            <option value="DAMAGED">Rusak</option>
+                            <option value="EXPIRED">Expired</option>
+                            <option value="WRONG_ITEM">Salah</option>
+                            <option value="OTHER">Lain</option>
+                          </select>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
                         <input type="number" min="0" step="1" value={l.unit_price_invoice || ''} onChange={e => updateLine(l.key, 'unit_price_invoice', parseFloat(e.target.value) || 0)}
                           className={`w-32 px-2 py-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm ${variance ? 'border-yellow-500' : 'border-gray-300 dark:border-gray-600'}`} />
                       </td>
@@ -363,7 +397,7 @@ export default function GoodsReceiptFormPage() {
               {lines.length > 0 && (
                 <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
                   <tr>
-                    <td colSpan={6} className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">Total Invoice:</td>
+                    <td colSpan={7} className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">Total Invoice:</td>
                     <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">Rp {fmt(totalInvoice)}</td>
                     <td></td>
                   </tr>
@@ -394,12 +428,18 @@ export default function GoodsReceiptFormPage() {
                         <span>Sisa: {fmt(l.qty_remaining)}</span>
                         <span>PO: Rp {fmt(l.unit_price_po)}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="text-xs text-gray-500">Diterima</label>
                           <input type="number" min="0.01" max={l.qty_remaining} step="0.01" value={l.qty_received || ''}
                             onChange={e => updateLine(l.key, 'qty_received', parseFloat(e.target.value) || 0)}
                             className={`w-full px-2 py-1.5 border rounded text-sm text-right ${l.qty_received > l.qty_remaining ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Ditolak</label>
+                          <input type="number" min="0" step="0.01" value={l.qty_rejected || ''}
+                            onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
+                            className={`w-full px-2 py-1.5 border rounded text-sm text-right ${l.qty_rejected > 0 ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
                         </div>
                         <div>
                           <label className="text-xs text-gray-500">Harga Invoice</label>
@@ -408,6 +448,18 @@ export default function GoodsReceiptFormPage() {
                             className={`w-full px-2 py-1.5 border rounded text-sm text-right ${variance ? 'border-yellow-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
                         </div>
                       </div>
+                      {l.qty_rejected > 0 && (
+                        <div className="mt-2">
+                          <select value={l.reject_reason} onChange={e => updateLine(l.key, 'reject_reason', e.target.value)}
+                            className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="">Alasan tolak...</option>
+                            <option value="DAMAGED">Rusak</option>
+                            <option value="EXPIRED">Expired</option>
+                            <option value="WRONG_ITEM">Tidak Sesuai</option>
+                            <option value="OTHER">Lainnya</option>
+                          </select>
+                        </div>
+                      )}
                       <p className="text-right text-sm font-mono font-medium text-gray-900 dark:text-white mt-2">Rp {fmt(l.qty_received * l.unit_price_invoice)}</p>
                     </div>
                   )

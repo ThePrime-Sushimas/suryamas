@@ -64,6 +64,8 @@ export interface CreateGoodsReceiptLineDto {
   po_line_id: string
   product_id: string
   qty_received: number
+  qty_rejected?: number
+  reject_reason?: string | null
   unit_price_invoice: number
   notes?: string | null
 }

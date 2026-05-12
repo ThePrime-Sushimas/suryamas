@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import { goodsReceiptsRepository } from './goods-receipts.repository'
 import { stockRepository } from '../stock/stock.repository'
+import { BusinessRuleError } from '../../utils/errors.base'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
   GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError, GoodsReceiptInvoiceRequiredError
@@ -66,6 +67,10 @@ export class GoodsReceiptsService {
         throw new GoodsReceiptExceedsOrderedError(
           poLine.product_name, Number(poLine.qty), Number(poLine.qty_received), line.qty_received
         )
+      }
+
+      if ((line.qty_rejected ?? 0) > line.qty_received) {
+        throw new BusinessRuleError(`Qty ditolak (${line.qty_rejected}) tidak boleh melebihi qty diterima (${line.qty_received}) untuk ${poLine.product_name}`)
       }
 
       const unitPricePo = Number(poLine.unit_price)
@@ -308,10 +313,6 @@ export class GoodsReceiptsService {
             ]
           )
         }
-
-        // Update total
-        const total = dto.lines.reduce((s, l) => s + l.qty_received * l.unit_price_invoice, 0)
-        await client.query('UPDATE goods_receipts SET total_invoice_amount = $1 WHERE id = $2', [total, id])
       }
 
       await client.query('COMMIT')

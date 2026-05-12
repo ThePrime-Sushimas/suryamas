@@ -9,6 +9,8 @@ export interface GoodsReceiptLine {
   product_name?: string
   uom?: string
   qty_received: number
+  qty_rejected?: number
+  reject_reason?: string | null
   unit_price_invoice: number
   total_price_invoice?: number
   unit_price_po?: number

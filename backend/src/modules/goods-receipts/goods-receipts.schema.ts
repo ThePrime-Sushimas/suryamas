@@ -4,6 +4,8 @@ const lineSchema = z.object({
   po_line_id: z.string().uuid(),
   product_id: z.string().uuid(),
   qty_received: z.number().positive(),
+  qty_rejected: z.number().min(0).optional().default(0),
+  reject_reason: z.string().max(50).nullable().optional(),
   unit_price_invoice: z.number().min(0),
   notes: z.string().max(200).nullable().optional(),
 })

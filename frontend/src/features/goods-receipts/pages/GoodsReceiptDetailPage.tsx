@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, PackageCheck, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react'
+import { ArrowLeft, PackageCheck, CheckCircle, AlertTriangle, ExternalLink, Printer } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -28,6 +28,57 @@ export default function GoodsReceiptDetailPage() {
   const { data: invoiceUrl } = useInvoiceSignedUrl(gr?.invoice_photo_url ?? null)
 
   const [showConfirm, setShowConfirm] = useState(false)
+
+  const esc = (s: string) => s?.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') ?? ''
+
+  const handlePrint = () => {
+    if (!gr) return
+    const lines = gr.lines ?? []
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+    printWindow.document.write(`<html><head><title>GR ${gr.gr_number}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; font-size: 11pt; color: #000; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
+        th { background: #f5f5f5; font-weight: bold; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; font-size: 10pt; }
+        .signatures { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; text-align: center; }
+        .sig-line { border-bottom: 1px solid #000; width: 150px; margin: 50px auto 5px; }
+        @media print { body { margin: 0; } }
+      </style></head><body>
+      <div class="header">
+        <h2 style="margin:0">BUKTI PENERIMAAN BARANG</h2>
+        <p style="margin:5px 0">No: ${esc(gr.gr_number)}</p>
+      </div>
+      <div class="info-grid">
+        <div><strong>Tanggal:</strong> ${fmtDate(gr.received_date)}</div>
+        <div><strong>PO:</strong> ${esc(gr.po_number)}</div>
+        <div><strong>Supplier:</strong> ${esc(gr.supplier_name)}</div>
+        <div><strong>Gudang:</strong> ${esc(gr.warehouse_name)}</div>
+        <div><strong>Cabang:</strong> ${esc(gr.branch_name)}</div>
+        <div><strong>No. Invoice:</strong> ${esc(gr.invoice_number || '-')}</div>
+      </div>
+      <table>
+        <thead><tr><th class="text-center">No</th><th>Produk</th><th class="text-right">Diterima</th><th class="text-right">Ditolak</th><th>UOM</th><th class="text-right">Harga</th><th class="text-right">Subtotal</th></tr></thead>
+        <tbody>
+          ${lines.map((l, i) => `<tr><td class="text-center">${i + 1}</td><td>${esc(l.product_name ?? '')}</td><td class="text-right">${fmt(l.qty_received)}</td><td class="text-right">${(l.qty_rejected ?? 0) > 0 ? fmt(l.qty_rejected ?? 0) : '-'}</td><td>${esc(l.uom ?? '')}</td><td class="text-right">Rp ${fmt(l.unit_price_invoice)}</td><td class="text-right">Rp ${fmt(l.total_price_invoice ?? l.qty_received * l.unit_price_invoice)}</td></tr>`).join('')}
+        </tbody>
+        <tfoot><tr><td colspan="6" class="text-right"><strong>Total:</strong></td><td class="text-right"><strong>Rp ${fmt(gr.total_invoice_amount)}</strong></td></tr></tfoot>
+      </table>
+      ${gr.notes ? `<p><strong>Catatan:</strong> ${esc(gr.notes)}</p>` : ''}
+      <div class="signatures">
+        <div><p><strong>Diterima oleh:</strong></p><div class="sig-line"></div><p>(________________)</p></div>
+        <div><p><strong>Diketahui oleh:</strong></p><div class="sig-line"></div><p>(________________)</p></div>
+      </div>
+      <p style="text-align:center;font-size:9pt;color:#666;margin-top:30px">Dokumen ini digenerate otomatis pada ${new Date().toLocaleDateString('id-ID')}</p>
+    </body></html>`)
+    printWindow.document.close()
+    printWindow.print()
+  }
 
   const handleConfirm = async () => {
     if (!id) return
@@ -78,6 +129,12 @@ export default function GoodsReceiptDetailPage() {
                 <CheckCircle className="w-4 h-4" /> Konfirmasi Penerimaan
               </button>
             </div>
+          )}
+          {gr.status === 'DRAFT' && (
+            <button onClick={handlePrint}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+              <Printer className="w-4 h-4" /> Cetak
+            </button>
           )}
         </div>
       </div>
@@ -133,7 +190,8 @@ export default function GoodsReceiptDetailPage() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">#</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qty</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Diterima</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ditolak</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Harga Invoice</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Harga PO</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Selisih</th>
@@ -150,6 +208,13 @@ export default function GoodsReceiptDetailPage() {
                     <div className="text-xs text-gray-500">{line.product_code} · {line.uom}</div>
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">{fmt(line.qty_received)}</td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {(line.qty_rejected ?? 0) > 0 ? (
+                      <span className="text-red-600 dark:text-red-400">{fmt(line.qty_rejected ?? 0)}
+                        {line.reject_reason && <span className="text-xs ml-1">({line.reject_reason === 'DAMAGED' ? 'Rusak' : line.reject_reason === 'EXPIRED' ? 'Expired' : line.reject_reason === 'WRONG_ITEM' ? 'Salah' : 'Lain'})</span>}
+                      </span>
+                    ) : <span className="text-gray-400">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">Rp {fmt(line.unit_price_invoice)}</td>
                   <td className="px-4 py-3 text-right font-mono text-gray-500">Rp {fmt(line.unit_price_po ?? 0)}</td>
                   <td className="px-4 py-3 text-right font-mono">
@@ -169,7 +234,7 @@ export default function GoodsReceiptDetailPage() {
             </tbody>
             <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
               <tr>
-                <td colSpan={7} className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">Total:</td>
+                <td colSpan={8} className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">Total:</td>
                 <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">Rp {fmt(gr.total_invoice_amount)}</td>
               </tr>
             </tfoot>

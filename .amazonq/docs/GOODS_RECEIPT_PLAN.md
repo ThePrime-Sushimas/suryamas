@@ -256,11 +256,11 @@ Atau: 1 template, harga di-hide by default, ada toggle "Tampilkan Harga" sebelum
 
 | # | Fitur | Effort | Impact | Status |
 |---|-------|--------|--------|--------|
-| 1 | Notes/Catatan | Rendah | Medium | TODO |
-| 2 | Responsive | Medium | High | TODO |
-| 3 | Edit GR Draft | Medium | High | TODO |
-| 4 | Print/Export | Rendah | Medium | TODO |
-| 5 | Reject/Return | Medium | Medium | TODO |
+| 1 | Notes/Catatan | Rendah | Medium | ✅ DONE |
+| 2 | Responsive | Medium | High | ✅ DONE |
+| 3 | Edit GR Draft | Medium | High | ✅ DONE |
+| 4 | Print/Export | Rendah | Medium | ✅ DONE |
+| 5 | Reject/Return | Medium | Medium | ✅ DONE (DB + UI + schema) |
 | 6 | Multiple Attachments | Medium | Medium | TODO |
 | 7 | Notifikasi Purchasing | Rendah | Medium | TODO |
 | 8 | Harga Warning di Form | Rendah | Low | Partial (backend done) |
