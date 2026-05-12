@@ -61,3 +61,9 @@ export const updateProductUomSchema = z.object({
   ),
 })
 
+
+export const purchaseUnitsBatchSchema = z.object({
+  body: z.object({
+    product_ids: z.array(z.string().uuid()).min(1).max(500),
+  }),
+})

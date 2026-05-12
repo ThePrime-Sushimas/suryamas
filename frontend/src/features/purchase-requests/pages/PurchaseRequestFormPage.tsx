@@ -120,17 +120,14 @@ export default function PurchaseRequestFormPage() {
   })
   const products = productsData ?? []
 
-  // Batch fetch purchase UOM for search results (single query, not N+1)
+  // Batch fetch purchase UOM for search results
   const productIdsForUom = products.map(p => p.id)
   const { data: purchaseUomsByProduct } = useQuery({
     queryKey: ['product-uoms', 'purchase-units-batch', productIdsForUom],
     queryFn: async () => {
-      // Fetch all UOMs for these products in one query via list endpoint
-      const map: Record<string, string> = {}
-      for (const p of products) {
-        map[p.id] = p.base_unit_name ?? 'pcs'
-      }
-      return map
+      if (productIdsForUom.length === 0) return {}
+      const { data } = await api.post('/product-uoms/purchase-units-batch', { product_ids: productIdsForUom })
+      return data.data as Record<string, string>
     },
     enabled: productIdsForUom.length > 0,
     staleTime: 60_000,

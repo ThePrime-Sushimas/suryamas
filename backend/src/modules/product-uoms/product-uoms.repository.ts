@@ -77,6 +77,32 @@ export class ProductUomsRepository {
     )
     return rows[0] ?? null
   }
+
+  async findPurchaseUnitsBatch(productIds: string[]): Promise<Array<{ product_id: string; unit_name: string }>> {
+    const { rows } = await pool.query(
+      `SELECT pu.product_id, mu.unit_name
+       FROM product_uoms pu
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pu.product_id = ANY($1::uuid[])
+         AND pu.is_default_purchase_unit = true
+         AND pu.is_deleted = false`,
+      [productIds]
+    )
+    return rows
+  }
+
+  async findBaseUnitsBatch(productIds: string[]): Promise<Array<{ product_id: string; unit_name: string }>> {
+    const { rows } = await pool.query(
+      `SELECT pu.product_id, mu.unit_name
+       FROM product_uoms pu
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pu.product_id = ANY($1::uuid[])
+         AND pu.is_base_unit = true
+         AND pu.is_deleted = false`,
+      [productIds]
+    )
+    return rows
+  }
 }
 
 export const productUomsRepository = new ProductUomsRepository()

@@ -8,12 +8,14 @@ import {
   productUomListSchema,
   createProductUomSchema,
   updateProductUomSchema,
+  purchaseUnitsBatchSchema,
 } from './product-uoms.schema'
 
 type ListReq = ValidatedAuthRequest<typeof productUomListSchema>
 type IdReq = ValidatedAuthRequest<typeof productUomIdSchema>
 type CreateReq = ValidatedAuthRequest<typeof createProductUomSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updateProductUomSchema>
+type BatchReq = ValidatedAuthRequest<typeof purchaseUnitsBatchSchema>
 
 export class ProductUomsController {
   list = async (req: Request, res: Response) => {
@@ -74,6 +76,16 @@ export class ProductUomsController {
       sendSuccess(res, uom, 'Purchase unit retrieved successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_purchase_unit', productId: req.params.productId })
+    }
+  }
+
+  getPurchaseUnitsBatch = async (req: Request, res: Response) => {
+    try {
+      const { product_ids } = (req as BatchReq).validated.body
+      const result = await productUomsService.getPurchaseUnitsBatch(product_ids)
+      sendSuccess(res, result, 'Purchase units retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_purchase_units_batch' })
     }
   }
 }

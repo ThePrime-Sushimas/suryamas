@@ -248,6 +248,21 @@ export class ProductUomsService {
 
     return null
   }
+
+  async getPurchaseUnitsBatch(productIds: string[]): Promise<Record<string, string>> {
+    const purchaseRows = await productUomsRepository.findPurchaseUnitsBatch(productIds)
+    const map: Record<string, string> = {}
+    for (const r of purchaseRows) map[r.product_id] = r.unit_name
+
+    // Fallback to base unit for products without purchase unit
+    const missing = productIds.filter(id => !map[id])
+    if (missing.length > 0) {
+      const baseRows = await productUomsRepository.findBaseUnitsBatch(missing)
+      for (const r of baseRows) if (!map[r.product_id]) map[r.product_id] = r.unit_name
+    }
+
+    return map
+  }
 }
 
 export const productUomsService = new ProductUomsService()
