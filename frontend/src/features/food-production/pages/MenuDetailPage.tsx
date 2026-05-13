@@ -754,7 +754,6 @@ export default function MenuDetailPage() {
                   Belum ada resep. Klik "Tambah Bahan" untuk mulai.
                 </td></tr>
               ) : lines.map((line, idx) => {
-                const ingredientValue = line.product_id ? `product:${line.product_id}` : line.wip_id ? `wip:${line.wip_id}` : ''
                 const lineCost = line.qty * line.cost_per_unit
                 return (
                   <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
