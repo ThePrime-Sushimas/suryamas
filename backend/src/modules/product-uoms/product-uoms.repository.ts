@@ -18,9 +18,10 @@ export class ProductUomsRepository {
     })) as unknown as ProductUom[]
   }
 
-  async findByProductIdAndMetricUnit(productId: string, metricUnitId: string): Promise<ProductUom | null> {
+  async findByProductIdAndMetricUnit(productId: string, metricUnitId: string, includeDeleted = false): Promise<ProductUom | null> {
+    const deletedFilter = includeDeleted ? '' : ' AND is_deleted = false'
     const { rows } = await pool.query(
-      'SELECT * FROM product_uoms WHERE product_id = $1 AND metric_unit_id = $2 AND is_deleted = false',
+      `SELECT * FROM product_uoms WHERE product_id = $1 AND metric_unit_id = $2${deletedFilter}`,
       [productId, metricUnitId]
     )
     return rows[0] ?? null
@@ -59,6 +60,24 @@ export class ProductUomsRepository {
       [...values, id]
     )
     return rows[0] ?? null
+  }
+
+  async restoreById(id: string, updates: UpdateProductUomDto & { updated_by?: string }): Promise<ProductUom | null> {
+    const allUpdates = { ...updates, is_deleted: false }
+    const keys = Object.keys(allUpdates)
+    const values = Object.values(allUpdates)
+    const { rows } = await pool.query(
+      `UPDATE product_uoms SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    )
+    return rows[0] ?? null
+  }
+
+  async clearDefaultPurchaseUnit(productId: string, excludeId?: string): Promise<void> {
+    const params: unknown[] = [productId]
+    let query = 'UPDATE product_uoms SET is_default_purchase_unit = false WHERE product_id = $1 AND is_default_purchase_unit = true AND is_deleted = false'
+    if (excludeId) { params.push(excludeId); query += ' AND id != $2' }
+    await pool.query(query, params)
   }
 
   async delete(id: string): Promise<void> {

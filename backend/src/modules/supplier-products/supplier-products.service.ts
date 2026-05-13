@@ -79,21 +79,17 @@ export class SupplierProductsService {
 
   /**
    * Get supplier products by supplier ID
+   * Note: No validateSupplier here — read-only endpoint should work for inactive/all suppliers
    */
   async findBySupplier(supplierId: string, includeRelations = false) {
-    // Validate supplier exists and is active
-    await this.validateSupplier(supplierId)
-    
     return this.repository.findBySupplier(supplierId, includeRelations)
   }
 
   /**
    * Get supplier products by product ID
+   * Note: No validateProduct here — read-only endpoint should work for inactive/all products
    */
   async findByProduct(productId: string, includeRelations = false) {
-    // Validate product exists and is active
-    await this.validateProduct(productId)
-    
     return this.repository.findByProduct(productId, includeRelations)
   }
 
@@ -221,8 +217,8 @@ export class SupplierProductsService {
   /**
    * Update supplier product
    */
-  async update(id: string, dto: UpdateSupplierProductDto, userId?: string): Promise<SupplierProduct> {
-    const existing = await this.repository.findById(id)
+  async update(id: string, dto: UpdateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string, employeeId?: string): Promise<SupplierProduct> {
+    const existing = await this.repository.findById(id, true) as SupplierProductWithRelations | null
     if (!existing) {
       throw new SupplierProductNotFoundError(id)
     }
@@ -237,11 +233,67 @@ export class SupplierProductsService {
       await this.validatePreferredSupplierLimit(existing.product_id, id)
     }
 
-    const data = { ...dto, updated_by: userId }
+    const { purchase_unit_id, conversion_factor, ...updateDto } = dto
+    const data = { ...updateDto, updated_by: userId }
     const supplierProduct = await this.repository.updateById(id, data)
 
     if (!supplierProduct) {
       throw new SupplierProductNotFoundError(id)
+    }
+
+    // Handle UOM update
+    if (purchase_unit_id && conversion_factor) {
+      // UOM upsert
+      let uom = await productUomsRepository.findByProductIdAndMetricUnit(existing.product_id, purchase_unit_id)
+        ?? await productUomsRepository.findByProductIdAndMetricUnit(existing.product_id, purchase_unit_id, true)
+
+      try {
+        if (uom) {
+          uom = uom.is_deleted
+            ? await productUomsRepository.restoreById(uom.id, { conversion_factor, is_default_purchase_unit: true, updated_by: userId })
+            : await productUomsRepository.updateById(uom.id, { conversion_factor, is_default_purchase_unit: true, updated_by: userId })
+        } else {
+          uom = await productUomsRepository.create({
+            product_id: existing.product_id,
+            metric_unit_id: purchase_unit_id,
+            conversion_factor,
+            is_base_unit: false,
+            is_default_purchase_unit: true,
+            is_default_stock_unit: false,
+            is_default_transfer_unit: false,
+            created_by: userId,
+            updated_by: userId,
+          })
+        }
+        if (uom) await productUomsRepository.clearDefaultPurchaseUnit(existing.product_id, uom.id)
+      } catch (e) {
+        logError('UOM update failed', { error: e instanceof Error ? e.message : String(e), product_id: existing.product_id, purchase_unit_id })
+      }
+
+      // Pricelist creation
+      if (uom && dto.price !== undefined && companyId) {
+        try {
+          await pricelistsRepository.create({
+            company_id: companyId,
+            supplier_id: existing.supplier_id,
+            product_id: existing.product_id,
+            uom_id: uom.id,
+            price: dto.price,
+            currency: dto.currency || existing.currency || 'IDR',
+            valid_from: new Date().toISOString().split('T')[0],
+            is_active: true,
+            created_by: employeeId,
+          })
+
+          const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(existing.product_id)
+          if (costPerBaseUnit !== null) {
+            await pricelistsRepository.updateProductAverageCost(existing.product_id, costPerBaseUnit)
+            await pricelistsRepository.updateAllUomBasePrices(existing.product_id, costPerBaseUnit)
+          }
+        } catch (e) {
+          logError('Pricelist update failed', { error: e instanceof Error ? e.message : String(e), product_id: existing.product_id, supplier_id: existing.supplier_id })
+        }
+      }
     }
 
     // Audit logging

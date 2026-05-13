@@ -7,12 +7,12 @@ import { supplierProductsApi } from '../api/supplierProducts.api'
 import { useSupplierSearch } from '../hooks/useSupplierSearch'
 import { useProductSearch } from '../hooks/useProductSearch'
 import { CURRENCY_OPTIONS, LEAD_TIME_OPTIONS } from '../constants/supplier-product.constants'
-import type { CreateSupplierProductDto, UpdateSupplierProductDto, SupplierProduct } from '../types/supplier-product.types'
+import type { CreateSupplierProductDto, UpdateSupplierProductDto, SupplierProductWithRelations } from '../types/supplier-product.types'
 import api from '@/lib/axios'
 import type { MetricUnit } from '@/features/metric_units/types'
 
 interface SupplierProductFormProps {
-  initialData?: SupplierProduct
+  initialData?: SupplierProductWithRelations
   onSubmit: (data: CreateSupplierProductDto | UpdateSupplierProductDto) => Promise<void>
   onCancel: () => void
   submitLabel: string
@@ -43,8 +43,8 @@ export function SupplierProductForm({
     min_order_qty: initialData?.min_order_qty ?? undefined,
     is_preferred: initialData?.is_preferred ?? false,
     is_active: initialData?.is_active ?? true,
-    purchase_unit_id: '',
-    conversion_factor: 1,
+    purchase_unit_id: initialData?.product_uoms?.find(u => u.is_default_purchase_unit)?.metric_unit_id || '',
+    conversion_factor: initialData?.product_uoms?.find(u => u.is_default_purchase_unit)?.conversion_factor || 1,
   })
 
   // Fetch all active metric units for order unit dropdown
@@ -103,7 +103,12 @@ export function SupplierProductForm({
 
       if (isEdit) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { supplier_id: _supplier_id, product_id: _product_id, purchase_unit_id: _pu, conversion_factor: _cf, ...updateData } = submitData
+        const { supplier_id: _supplier_id, product_id: _product_id, ...updateData } = submitData
+        // Only send UOM fields if purchase_unit_id is selected
+        if (!updateData.purchase_unit_id) {
+          delete updateData.purchase_unit_id
+          delete updateData.conversion_factor
+        }
         await onSubmit(updateData)
       } else {
         await onSubmit(submitData)
@@ -237,52 +242,50 @@ export function SupplierProductForm({
           </div>
         </div>
 
-        {!isEdit && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Satuan Order *
-              </label>
-              <select
-                name="purchase_unit_id"
-                value={formData.purchase_unit_id || ''}
-                onChange={(e) => {
-                  setFormData(prev => ({
-                    ...prev,
-                    purchase_unit_id: e.target.value,
-                  }))
-                }}
-                required
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="">Pilih satuan order</option>
-                {metricUnits.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.unit_name} ({u.metric_type})
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-400 mt-1">Satuan pembelian dari supplier</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Konversi ke Base Unit *
-              </label>
-              <input
-                type="number"
-                name="conversion_factor"
-                value={formData.conversion_factor || ''}
-                onChange={handleChange}
-                required
-                min="0.000001"
-                step="0.000001"
-                placeholder="misal: 1000 (1 Kg = 1000 Gram)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
-              <p className="text-xs text-gray-400 mt-1">Berapa base unit dalam 1 satuan order</p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Satuan Order {!isEdit && '*'}
+            </label>
+            <select
+              name="purchase_unit_id"
+              value={formData.purchase_unit_id || ''}
+              onChange={(e) => {
+                setFormData(prev => ({
+                  ...prev,
+                  purchase_unit_id: e.target.value,
+                }))
+              }}
+              required={!isEdit}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="">Pilih satuan order</option>
+              {metricUnits.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.unit_name} ({u.metric_type})
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Satuan pembelian dari supplier</p>
           </div>
-        )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Konversi ke Base Unit {!isEdit && '*'}
+            </label>
+            <input
+              type="number"
+              name="conversion_factor"
+              value={formData.conversion_factor || ''}
+              onChange={handleChange}
+              required={!isEdit}
+              min="0.000001"
+              step="0.000001"
+              placeholder="misal: 1000 (1 Kg = 1000 Gram)"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-400 mt-1">Berapa base unit dalam 1 satuan order</p>
+          </div>
+        </div>
       </div>
 
       {/* Lead Time & MOQ */}

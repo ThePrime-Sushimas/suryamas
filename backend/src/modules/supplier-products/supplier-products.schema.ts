@@ -45,9 +45,15 @@ export const updateSupplierProductSchema = z.object({
       .nullable(),
     is_preferred: z.boolean().optional(),
     is_active: z.boolean().optional(),
-  }).refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one field must be provided for update',
-  }),
+    purchase_unit_id: z.string().uuid('Invalid metric unit ID').optional(),
+    conversion_factor: z.number().positive('Conversion factor must be positive').optional(),
+  })
+    .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided for update' })
+    .refine((data) => {
+      const hasPurchaseUnit = !!data.purchase_unit_id
+      const hasConversion = data.conversion_factor !== undefined
+      return hasPurchaseUnit === hasConversion
+    }, { message: 'purchase_unit_id dan conversion_factor harus diisi bersama' }),
   params: z.object({
     id: z.string().uuid('Invalid supplier product ID format'),
   }),

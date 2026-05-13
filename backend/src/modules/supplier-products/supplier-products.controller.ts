@@ -119,7 +119,7 @@ export class SupplierProductsController {
         ...body,
         lead_time_days: body.lead_time_days ?? undefined,
         min_order_qty: body.min_order_qty ?? undefined,
-      }, req.user?.id)
+      }, req.user?.id, req.context?.company_id, req.context?.employee_id)
 
       logInfo('Supplier product updated via API', {
         supplierProductId: params.id,
