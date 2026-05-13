@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import api from '@/lib/axios'
-import { X, Search, Package, ChevronDown } from 'lucide-react'
+import { X, Search, Package, ChevronDown, Loader2 } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -51,6 +51,13 @@ interface CategoryOption {
   category_name: string
 }
 
+interface ProductPage {
+  data: ProductRow[]
+  pagination: { page: number; totalPages: number; hasNext: boolean }
+}
+
+const PAGE_SIZE = 100
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function ProductPickerModal({
@@ -66,6 +73,7 @@ export function ProductPickerModal({
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -95,24 +103,47 @@ export function ProductPickerModal({
     staleTime: 5 * 60_000,
   })
 
-  // ── Fetch products ──
+  // ── Infinite scroll products ──
   const productsEnabled = open && (!!categoryFilter || debouncedSearch.length >= 2)
 
-  const { data: products = [], isFetching } = useQuery({
+  const {
+    data: infiniteData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetching,
+  } = useInfiniteQuery({
     queryKey: ['product-picker', debouncedSearch, categoryFilter],
-    queryFn: async () => {
-      const params: Record<string, string> = { limit: '100' }
+    queryFn: async ({ pageParam = 1 }) => {
+      const params: Record<string, string> = { limit: String(PAGE_SIZE), page: String(pageParam) }
       if (debouncedSearch) params.q = debouncedSearch
       if (categoryFilter) params.category_id = categoryFilter
       const { data } = await api.get('/products/search', { params })
-      return data.data as ProductRow[]
+      return { data: data.data as ProductRow[], pagination: data.pagination } as ProductPage
     },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => lastPage.pagination.hasNext ? lastPage.pagination.page + 1 : undefined,
     enabled: productsEnabled,
     staleTime: 30_000,
   })
 
-  // Memoize productIds to prevent unstable queryKey references
+  const products = useMemo(() => infiniteData?.pages.flatMap(p => p.data) ?? [], [infiniteData])
   const productIds = useMemo(() => products.map(p => p.id), [products])
+
+  // ── Infinite scroll observer ──
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) observerRef.current.disconnect()
+    if (!node) return
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    }, { threshold: 0.1 })
+    observerRef.current.observe(node)
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  // ── Fetch purchase UOMs (batch) ──
   const { data: purchaseUoms } = useQuery({
     queryKey: ['product-uoms', 'purchase-batch', productIds],
     queryFn: async () => {
@@ -152,7 +183,7 @@ export function ProductPickerModal({
     staleTime: 60_000,
   })
 
-  // ── Helper: get UOM buy for a product ──
+  // ── Helper ──
   const getUomBuy = useCallback((p: ProductRow) => {
     return purchaseUoms?.[p.id] ?? p.base_unit_name ?? 'pcs'
   }, [purchaseUoms])
@@ -208,10 +239,10 @@ export function ProductPickerModal({
         </div>
 
         {/* Table / list */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" ref={scrollRef}>
           {!productsEnabled ? (
             <EmptyPrompt text="Ketik minimal 2 huruf atau pilih kategori untuk mencari produk." />
-          ) : isFetching ? (
+          ) : isFetching && products.length === 0 ? (
             <LoadingRows />
           ) : products.length === 0 ? (
             <EmptyPrompt text="Produk tidak ditemukan." />
@@ -340,16 +371,25 @@ export function ProductPickerModal({
                   )
                 })}
               </ul>
+
+              {/* Load more trigger */}
+              <div ref={loadMoreRef} className="py-4 flex justify-center">
+                {isFetchingNextPage && (
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Memuat lebih banyak...
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs text-gray-400 shrink-0">
-          <span>{products.length > 0 ? `${products.length} produk ditemukan` : ''}</span>
+          <span>{products.length > 0 ? `${products.length} produk ditampilkan` : ''}</span>
           <button onClick={onClose}
             className="px-4 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm">
-            Batal
+            Selesai
           </button>
         </div>
       </div>
