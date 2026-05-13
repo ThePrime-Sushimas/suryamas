@@ -88,6 +88,16 @@ export class ProductUomsController {
       await handleError(res, error, req, { action: 'get_purchase_units_batch' })
     }
   }
+
+  getConversionsBatch = async (req: Request, res: Response) => {
+    try {
+      const { product_ids } = (req as BatchReq).validated.body
+      const result = await productUomsService.getConversionsBatch(product_ids)
+      sendSuccess(res, result, 'Conversions retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_conversions_batch' })
+    }
+  }
 }
 
 export const productUomsController = new ProductUomsController()

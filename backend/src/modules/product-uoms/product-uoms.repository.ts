@@ -122,6 +122,19 @@ export class ProductUomsRepository {
     )
     return rows
   }
+
+  async findAllUomsBatch(productIds: string[]): Promise<Array<{ product_id: string; unit_name: string; conversion_factor: number; is_base_unit: boolean }>> {
+    const { rows } = await pool.query(
+      `SELECT pu.product_id, mu.unit_name, pu.conversion_factor, pu.is_base_unit
+       FROM product_uoms pu
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pu.product_id = ANY($1::uuid[])
+         AND pu.is_deleted = false
+       ORDER BY pu.product_id, pu.conversion_factor`,
+      [productIds]
+    )
+    return rows
+  }
 }
 
 export const productUomsRepository = new ProductUomsRepository()

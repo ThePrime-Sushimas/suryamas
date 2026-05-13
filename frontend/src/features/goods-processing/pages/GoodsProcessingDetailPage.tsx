@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Package, Play, Send, CheckCircle2, XCircle, Plus, Trash2, Save } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
@@ -6,6 +6,8 @@ import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { ProductPickerModal } from '@/components/shared/ProductPickerModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { useQuery } from '@tanstack/react-query'
+import api from '@/lib/axios'
 import {
   useGoodsProcessingDetail,
   useStartProcessing,
@@ -62,8 +64,26 @@ export default function GoodsProcessingDetailPage() {
   const [editOutputs, setEditOutputs] = useState<Record<string, EditableOutput[]>>({})
   const [dirty, setDirty] = useState(false)
 
+  // Fetch UOM conversions for products in this GP
+  const gpProductIds = useMemo(() => {
+    if (!gp?.inputs) return []
+    return gp.inputs.map(inp => inp.product_id)
+  }, [gp?.inputs])
+
+  const { data: uomData } = useQuery({
+    queryKey: ['product-uoms', 'gp-conversions', gpProductIds],
+    queryFn: async () => {
+      if (gpProductIds.length === 0) return {}
+      const { data } = await api.post('/product-uoms/conversions-batch', { product_ids: gpProductIds })
+      return data.data as Record<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>
+    },
+    enabled: gpProductIds.length > 0,
+    staleTime: 60_000,
+  })
+
   // Product picker state
   const [showProductPicker, setShowProductPicker] = useState(false)
+
   const [pickerInputId, setPickerInputId] = useState<string | null>(null)
   const [pickerOutputKey, setPickerOutputKey] = useState<string | null>(null)
 
@@ -355,11 +375,27 @@ export default function GoodsProcessingDetailPage() {
                 </div>
               </div>
 
-              {/* Pass-through: simple read-only */}
+              {/* Pass-through: show conversion suggestion */}
               {isPassThrough && (
-                <div className="px-4 py-3 flex items-center justify-between bg-green-50/50 dark:bg-green-900/5">
-                  <p className="text-sm text-green-700 dark:text-green-400">Output = Input (langsung masuk gudang)</p>
-                  <span className="text-sm font-mono text-gray-700 dark:text-gray-300">{fmt(inp.qty_input)} {inp.uom}</span>
+                <div className="px-4 py-3 bg-green-50/50 dark:bg-green-900/5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-green-700 dark:text-green-400">Output = Input (langsung masuk gudang)</p>
+                    <span className="text-sm font-mono text-gray-700 dark:text-gray-300">{fmt(inp.qty_input)} {inp.uom}</span>
+                  </div>
+                  {(() => {
+                    const uoms = uomData?.[inp.product_id]
+                    if (!uoms || uoms.length <= 1) return null
+                    const inputUom = uoms.find(u => u.unit_name === inp.uom)
+                    const baseUom = uoms.find(u => u.is_base_unit)
+                    if (!inputUom || !baseUom || inputUom.is_base_unit) return null
+                    const converted = Number(inp.qty_input) * inputUom.conversion_factor
+                    return (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        → Konversi: {fmt(converted)} {baseUom.unit_name}
+                        <span className="text-gray-400 ml-1">(1 {inp.uom} = {fmt(inputUom.conversion_factor)} {baseUom.unit_name})</span>
+                      </p>
+                    )
+                  })()}
                 </div>
               )}
 

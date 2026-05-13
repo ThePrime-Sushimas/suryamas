@@ -263,6 +263,16 @@ export class ProductUomsService {
 
     return map
   }
+
+  async getConversionsBatch(productIds: string[]): Promise<Record<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>> {
+    const rows = await productUomsRepository.findAllUomsBatch(productIds)
+    const map: Record<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>> = {}
+    for (const r of rows) {
+      if (!map[r.product_id]) map[r.product_id] = []
+      map[r.product_id].push({ unit_name: r.unit_name, conversion_factor: r.conversion_factor, is_base_unit: r.is_base_unit })
+    }
+    return map
+  }
 }
 
 export const productUomsService = new ProductUomsService()
