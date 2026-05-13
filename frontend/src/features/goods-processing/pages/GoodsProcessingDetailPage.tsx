@@ -15,7 +15,7 @@ import {
   useConfirmProcessing,
   useRejectProcessing,
 } from '../api/goodsProcessing.api'
-import type { GoodsProcessingInput, GoodsProcessingOutput } from '../api/goodsProcessing.api'
+import type { GoodsProcessingInput } from '../api/goodsProcessing.api'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -450,19 +450,20 @@ export default function GoodsProcessingDetailPage() {
           'Konfirmasi barang masuk? Stock akan tercatat di gudang.'
         }
         confirmText={confirmAction === 'confirm' ? 'Konfirmasi' : 'Lanjut'}
-        variant={confirmAction === 'confirm' ? 'success' : 'default'}
+        variant={confirmAction === 'confirm' ? 'success' : 'info'}
         isLoading={startMutation.isPending || submitQcMutation.isPending || confirmMutation.isPending} />
 
       {/* Reject Modal */}
       <ConfirmModal isOpen={showReject} onClose={() => { setShowReject(false); setRejectReason('') }}
         onConfirm={handleReject}
-        title="Tolak Barang Masuk" message="" confirmText="Tolak" variant="danger"
-        isLoading={rejectMutation.isPending}>
-        <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-          placeholder="Alasan penolakan (wajib)"
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mt-2"
-          rows={3} />
-      </ConfirmModal>
+        title="Tolak Barang Masuk" confirmText="Tolak" variant="danger"
+        isLoading={rejectMutation.isPending}
+        message={
+          <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+            placeholder="Alasan penolakan (wajib)"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mt-2"
+            rows={3} />
+        } />
     </div>
   )
 }
