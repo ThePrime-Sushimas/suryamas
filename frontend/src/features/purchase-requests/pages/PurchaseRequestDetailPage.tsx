@@ -271,43 +271,66 @@ export default function PurchaseRequestDetailPage() {
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
                     Approved
                   </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
+                    Ordered
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
+                    Diterima
+                  </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">
                     UOM
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                {group.lines.map((line) => (
-                  <tr
-                    key={line.id ?? line._origIdx}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                  >
-                    <td className="px-4 py-3 text-gray-500">{line._origIdx}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900 dark:text-white">
-                        {line.product_name}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {line.product_code}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-500 dark:text-gray-400">
-                      {fmt(line.qty)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">
-                      {line.qty_approved != null ? (
-                        <span className={line.qty_approved !== line.qty ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-900 dark:text-gray-200'}>
-                          {fmt(line.qty_approved)}
+                {group.lines.map((line) => {
+                  const qtyOrdered = Number(line.qty_ordered ?? 0)
+                  const qtyReceived = Number(line.qty_received ?? 0)
+                  const qtyTarget = line.qty_approved ?? line.qty
+                  const isFullyOrdered = qtyOrdered >= qtyTarget
+                  const isFullyReceived = qtyReceived >= qtyTarget
+                  return (
+                    <tr
+                      key={line.id ?? line._origIdx}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                    >
+                      <td className="px-4 py-3 text-gray-500">{line._origIdx}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900 dark:text-white">
+                          {line.product_name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {line.product_code}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-gray-500 dark:text-gray-400">
+                        {fmt(line.qty)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {line.qty_approved != null ? (
+                          <span className={line.qty_approved !== line.qty ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-900 dark:text-gray-200'}>
+                            {fmt(line.qty_approved)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        <span className={isFullyOrdered ? 'text-green-600 dark:text-green-400' : qtyOrdered > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}>
+                          {qtyOrdered > 0 ? fmt(qtyOrdered) : '—'}
                         </span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                      {line.uom}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        <span className={isFullyReceived ? 'text-green-600 dark:text-green-400' : qtyReceived > 0 ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400'}>
+                          {qtyReceived > 0 ? fmt(qtyReceived) : '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {line.uom}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

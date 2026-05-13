@@ -19,6 +19,7 @@ interface ApprovalItem {
   uom: string
   estimated_price: number | null
   latest_price: number | null
+  latest_price_uom: string | null
   stock_balance: number
   stock_warehouse_name: string
   selected: boolean
@@ -260,7 +261,10 @@ export default function PurchaseRequestApprovalPage() {
                               {item.stock_balance} {item.uom}
                             </span>
                           </td>
-                          <td className="px-4 py-2.5 text-right font-mono text-gray-600 dark:text-gray-400">Rp {fmt(price)}</td>
+                          <td className="px-4 py-2.5 text-right font-mono text-gray-600 dark:text-gray-400">
+                            <span>Rp {fmt(price)}</span>
+                            {item.latest_price_uom && <span className="text-xs text-gray-400 dark:text-gray-500"> /{item.latest_price_uom}</span>}
+                          </td>
                           <td className="px-4 py-2.5 text-right font-mono font-medium text-gray-900 dark:text-gray-200">Rp {fmt(price * item.qty_approved)}</td>
                         </tr>
                       )

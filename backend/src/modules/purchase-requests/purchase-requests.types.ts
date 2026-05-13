@@ -50,6 +50,8 @@ export interface PurchaseRequestLineWithRelations extends PurchaseRequestLine {
   product_code: string
   product_name: string
   supplier_name: string | null
+  qty_ordered: number
+  qty_received: number
 }
 
 export interface PurchaseRequestWithLines extends PurchaseRequestWithRelations {

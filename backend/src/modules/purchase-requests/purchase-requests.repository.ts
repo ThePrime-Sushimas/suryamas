@@ -39,12 +39,20 @@ const HEADER_FROM = `
 const LINE_SELECT = `
   prl.*,
   p.product_code, p.product_name,
-  s.supplier_name
+  s.supplier_name,
+  COALESCE(po_agg.qty_ordered, 0)::numeric AS qty_ordered,
+  COALESCE(po_agg.qty_received, 0)::numeric AS qty_received
 `
 const LINE_FROM = `
   FROM purchase_request_lines prl
   JOIN products p ON p.id = prl.product_id
   LEFT JOIN suppliers s ON s.id = prl.supplier_id
+  LEFT JOIN LATERAL (
+    SELECT SUM(pol.qty) AS qty_ordered, SUM(pol.qty_received) AS qty_received
+    FROM purchase_order_lines pol
+    JOIN purchase_orders po ON po.id = pol.po_id AND po.deleted_at IS NULL
+    WHERE pol.pr_line_id = prl.id
+  ) po_agg ON true
 `
 
 export class PurchaseRequestsRepository {
@@ -214,18 +222,20 @@ export class PurchaseRequestsRepository {
     return rows.map(r => ({ product_id: r.product_id, qty: parseFloat(r.qty) }))
   }
 
-  async findLatestPricesBatch(productIds: string[], supplierIds: string[]): Promise<Array<{ product_id: string; supplier_id: string; price: number }>> {
+  async findLatestPricesBatch(productIds: string[], supplierIds: string[]): Promise<Array<{ product_id: string; supplier_id: string; price: number; price_uom: string | null }>> {
     const { rows } = await pool.query(
       `SELECT DISTINCT ON (pl.product_id, pl.supplier_id)
-         pl.product_id, pl.supplier_id, pl.price
+         pl.product_id, pl.supplier_id, pl.price, mu.unit_name AS price_uom
        FROM pricelists pl
+       LEFT JOIN product_uoms pu ON pu.id = pl.uom_id
+       LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
        WHERE pl.product_id = ANY($1::uuid[]) AND pl.supplier_id = ANY($2::uuid[])
          AND pl.status = 'APPROVED' AND pl.is_active = true AND pl.deleted_at IS NULL
          AND pl.valid_from <= CURRENT_DATE AND (pl.valid_to IS NULL OR pl.valid_to >= CURRENT_DATE)
        ORDER BY pl.product_id, pl.supplier_id, pl.valid_from DESC, pl.created_at DESC`,
       [productIds, supplierIds]
     )
-    return rows.map(r => ({ product_id: r.product_id, supplier_id: r.supplier_id, price: parseFloat(r.price) }))
+    return rows.map(r => ({ product_id: r.product_id, supplier_id: r.supplier_id, price: parseFloat(r.price), price_uom: r.price_uom ?? null }))
   }
 
   async findSupplierWithPaymentTerms(supplierId: string): Promise<{ supplier_name: string; phone: string | null; payment_term_days: number | null; payment_term_name: string | null } | null> {

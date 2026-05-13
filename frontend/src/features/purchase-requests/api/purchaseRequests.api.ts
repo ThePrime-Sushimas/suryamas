@@ -8,6 +8,8 @@ export interface PurchaseRequestLine {
   product_name?: string
   qty: number
   qty_approved?: number | null
+  qty_ordered?: number
+  qty_received?: number
   uom: string
   estimated_price: number | null
   supplier_id: string | null

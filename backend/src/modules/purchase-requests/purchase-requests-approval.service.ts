@@ -17,6 +17,7 @@ interface ApprovalItem {
   uom: string
   estimated_price: number | null
   latest_price: number | null
+  latest_price_uom: string | null
   stock_balance: number
   stock_warehouse_name: string
 }
@@ -81,10 +82,10 @@ export class PurchaseRequestApprovalService {
 
     // Batch latest prices
     const supplierIds = [...new Set(pr.lines.map(l => l.supplier_id).filter(Boolean))] as string[]
-    const priceMap = new Map<string, number>()
+    const priceMap = new Map<string, { price: number; uom: string | null }>()
     if (supplierIds.length > 0 && productIds.length > 0) {
       const priceRows = await purchaseRequestsRepository.findLatestPricesBatch(productIds, supplierIds)
-      for (const r of priceRows) priceMap.set(`${r.product_id}:${r.supplier_id}`, r.price)
+      for (const r of priceRows) priceMap.set(`${r.product_id}:${r.supplier_id}`, { price: r.price, uom: r.price_uom })
     }
 
     // Group lines by supplier
@@ -100,18 +101,22 @@ export class PurchaseRequestApprovalService {
     for (const [key, lines] of grouped) {
       const noSupplier = key === '__none__'
 
-      const items: ApprovalItem[] = lines.map(line => ({
-        pr_line_id: line.id,
-        product_id: line.product_id,
-        product_code: line.product_code,
-        product_name: line.product_name,
-        qty: line.qty,
-        uom: line.uom,
-        estimated_price: line.estimated_price,
-        latest_price: noSupplier ? null : (priceMap.get(`${line.product_id}:${key}`) ?? null),
-        stock_balance: stockMap.get(line.product_id) ?? 0,
-        stock_warehouse_name: warehouseName,
-      }))
+      const items: ApprovalItem[] = lines.map(line => {
+        const priceData = noSupplier ? null : (priceMap.get(`${line.product_id}:${key}`) ?? null)
+        return {
+          pr_line_id: line.id,
+          product_id: line.product_id,
+          product_code: line.product_code,
+          product_name: line.product_name,
+          qty: line.qty,
+          uom: line.uom,
+          estimated_price: line.estimated_price,
+          latest_price: priceData?.price ?? null,
+          latest_price_uom: priceData?.uom ?? null,
+          stock_balance: stockMap.get(line.product_id) ?? 0,
+          stock_warehouse_name: warehouseName,
+        }
+      })
 
       const totalEstimated = items.reduce((sum, i) => sum + (i.latest_price ?? i.estimated_price ?? 0) * i.qty, 0)
 
