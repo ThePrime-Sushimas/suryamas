@@ -85,7 +85,7 @@ export default function GoodsReceiptsPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cabang</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tanggal</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total Invoice</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Diterima Oleh</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
               </tr>
@@ -105,7 +105,12 @@ export default function GoodsReceiptsPage() {
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{gr.supplier_name}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{gr.branch_name}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{fmtDate(gr.received_date)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">Rp {fmt(gr.total_invoice_amount)}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-sm text-gray-700 dark:text-gray-300">{gr.created_by_name ?? '—'}</div>
+                    {gr.status === 'CONFIRMED' && gr.confirmed_by_name && (
+                      <div className="text-xs text-green-600 dark:text-green-400">✓ {gr.confirmed_by_name}</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${gr.status === 'CONFIRMED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
                       {gr.status === 'CONFIRMED' ? 'Confirmed' : 'Draft'}

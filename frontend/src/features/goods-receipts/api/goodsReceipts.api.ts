@@ -39,6 +39,8 @@ export interface GoodsReceipt {
   supplier_name: string
   warehouse_name: string
   created_by_name: string | null
+  confirmed_by_name: string | null
+  updated_at: string
   line_count: number
   total_invoice_amount: number
   created_at: string

@@ -11,6 +11,7 @@ const HEADER_SELECT = `
   po.po_number, s.supplier_name,
   w.warehouse_name,
   emp.full_name AS created_by_name,
+  emp_confirm.full_name AS confirmed_by_name,
   COALESCE(lines_agg.line_count, 0)::int AS line_count,
   COALESCE(lines_agg.total_invoice_amount, 0)::numeric AS total_invoice_amount
 `
@@ -21,6 +22,7 @@ const HEADER_FROM = `
   JOIN suppliers s ON s.id = po.supplier_id
   JOIN warehouses w ON w.id = gr.warehouse_id
   LEFT JOIN employees emp ON emp.user_id = gr.created_by
+  LEFT JOIN employees emp_confirm ON emp_confirm.user_id = gr.updated_by
   LEFT JOIN LATERAL (
     SELECT COUNT(*)::int AS line_count, SUM(grl.total_price_invoice) AS total_invoice_amount
     FROM goods_receipt_lines grl WHERE grl.gr_id = gr.id
