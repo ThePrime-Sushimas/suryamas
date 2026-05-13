@@ -5,7 +5,7 @@ import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permi
 import { validateSchema } from '../../middleware/validation.middleware'
 import { upload } from '../../middleware/upload.middleware'
 import { goodsReceiptsController } from './goods-receipts.controller'
-import { createGoodsReceiptSchema, updateGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema, goodsReceiptListSchema, attachmentParamsSchema, createAttachmentSchema, deleteAttachmentSchema } from './goods-receipts.schema'
+import { createGoodsReceiptSchema, updateGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema, goodsReceiptListSchema, pendingQtySchema, attachmentParamsSchema, createAttachmentSchema, deleteAttachmentSchema } from './goods-receipts.schema'
 import { PermissionService } from '../../services/permission.service'
 
 PermissionService.registerModule('goods_receipts', 'Goods Receipt / Penerimaan Barang').catch((err) => {
@@ -17,6 +17,7 @@ const router = Router()
 router.use(authenticate, resolveBranchContext)
 
 router.get('/', canView('goods_receipts'), validateSchema(goodsReceiptListSchema), (req, res) => goodsReceiptsController.list(req, res))
+router.get('/pending-qty', canView('goods_receipts'), validateSchema(pendingQtySchema), (req, res) => goodsReceiptsController.pendingQty(req, res))
 router.post('/', canInsert('goods_receipts'), validateSchema(createGoodsReceiptSchema), (req, res) => goodsReceiptsController.create(req, res))
 router.get('/:id', canView('goods_receipts'), validateSchema(goodsReceiptIdSchema), (req, res) => goodsReceiptsController.getById(req, res))
 router.put('/:id', canUpdate('goods_receipts'), validateSchema(updateGoodsReceiptSchema), (req, res) => goodsReceiptsController.update(req, res))

@@ -183,6 +183,149 @@ export class GoodsReceiptsRepository {
     )
     return (rowCount ?? 0) > 0
   }
+
+  // ── PO Validation Helpers ──
+
+  async findPoForGr(poId: string, companyId: string): Promise<{ id: string; status: string; branch_id: string; branch_code: string } | null> {
+    const { rows } = await pool.query(
+      `SELECT po.id, po.status, po.branch_id, b.branch_code
+       FROM purchase_orders po
+       JOIN branches b ON b.id = po.branch_id
+       WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL`,
+      [poId, companyId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findWarehouse(warehouseId: string, companyId: string): Promise<{ id: string } | null> {
+    const { rows } = await pool.query(
+      'SELECT id FROM warehouses WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+      [warehouseId, companyId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findPoLines(poId: string): Promise<Array<{ id: string; product_id: string; qty: number; qty_received: number; unit_price: number; uom: string; product_name: string }>> {
+    const { rows } = await pool.query(
+      `SELECT pol.id, pol.product_id, pol.qty::numeric AS qty, pol.qty_received::numeric AS qty_received, pol.unit_price::numeric AS unit_price, pol.uom, p.product_name
+       FROM purchase_order_lines pol
+       JOIN products p ON p.id = pol.product_id
+       WHERE pol.po_id = $1`,
+      [poId]
+    )
+    return rows.map(r => ({ ...r, qty: Number(r.qty), qty_received: Number(r.qty_received), unit_price: Number(r.unit_price) }))
+  }
+
+  async findPoLinesBasic(poId: string): Promise<Array<{ id: string; qty: number; qty_received: number }>> {
+    const { rows } = await pool.query(
+      'SELECT id, qty::numeric AS qty, qty_received::numeric AS qty_received FROM purchase_order_lines WHERE po_id = $1',
+      [poId]
+    )
+    return rows.map(r => ({ ...r, qty: Number(r.qty), qty_received: Number(r.qty_received) }))
+  }
+
+  async findPoLinesForUpdate(client: PoolClient, poId: string): Promise<Array<{ id: string; qty: number; qty_received: number }>> {
+    const { rows } = await client.query(
+      'SELECT id, qty::numeric AS qty, qty_received::numeric AS qty_received FROM purchase_order_lines WHERE po_id = $1 FOR UPDATE',
+      [poId]
+    )
+    return rows.map(r => ({ ...r, qty: Number(r.qty), qty_received: Number(r.qty_received) }))
+  }
+
+  async findPendingQtyByPo(poId: string, excludeGrId?: string): Promise<Map<string, number>> {
+    const params: unknown[] = [poId]
+    let excludeClause = ''
+    if (excludeGrId) {
+      excludeClause = ' AND gr.id != $2'
+      params.push(excludeGrId)
+    }
+    const { rows } = await pool.query(
+      `SELECT grl.po_line_id, SUM(grl.qty_received)::numeric AS pending_qty
+       FROM goods_receipt_lines grl
+       JOIN goods_receipts gr ON gr.id = grl.gr_id
+       WHERE gr.po_id = $1 AND gr.status = 'DRAFT' AND gr.deleted_at IS NULL${excludeClause}
+       GROUP BY grl.po_line_id`,
+      params
+    )
+    return new Map(rows.map(r => [r.po_line_id, Number(r.pending_qty)]))
+  }
+
+  async incrementPoLineQtyReceived(client: PoolClient, poLineId: string, qty: number): Promise<void> {
+    await client.query(
+      'UPDATE purchase_order_lines SET qty_received = qty_received + $1 WHERE id = $2',
+      [qty, poLineId]
+    )
+  }
+
+  async resolvePoStatus(client: PoolClient, poId: string): Promise<'FULLY_RECEIVED' | 'PARTIAL_RECEIVED'> {
+    const { rows } = await client.query(
+      'SELECT qty, qty_received FROM purchase_order_lines WHERE po_id = $1',
+      [poId]
+    )
+    const allReceived = rows.every(l => Number(l.qty_received) >= Number(l.qty))
+    return allReceived ? 'FULLY_RECEIVED' : 'PARTIAL_RECEIVED'
+  }
+
+  async updatePoStatus(client: PoolClient, poId: string, status: string, userId: string): Promise<void> {
+    await client.query(
+      'UPDATE purchase_orders SET status = $1, updated_at = now(), updated_by = $2 WHERE id = $3',
+      [status, userId, poId]
+    )
+  }
+
+  async updateHeader(client: PoolClient, id: string, companyId: string, data: {
+    warehouse_id?: string | null; received_date?: string | null;
+    invoice_number?: string | null; invoice_date?: string | null;
+    notes?: string | null; updated_by: string
+  }): Promise<void> {
+    await client.query(
+      `UPDATE goods_receipts SET
+        warehouse_id = COALESCE($1, warehouse_id),
+        received_date = COALESCE($2::date, received_date),
+        invoice_number = $3,
+        invoice_date = $4::date,
+        notes = $5,
+        updated_by = $6, updated_at = now()
+      WHERE id = $7 AND company_id = $8 AND status = 'DRAFT'`,
+      [data.warehouse_id ?? null, data.received_date ?? null, data.invoice_number ?? null, data.invoice_date ?? null, data.notes ?? null, data.updated_by, id, companyId]
+    )
+  }
+
+  async findPoLinePrices(client: PoolClient, poLineIds: string[]): Promise<Map<string, number>> {
+    const { rows } = await client.query(
+      'SELECT id, unit_price::numeric FROM purchase_order_lines WHERE id = ANY($1::uuid[])',
+      [poLineIds]
+    )
+    return new Map(rows.map(r => [r.id, Number(r.unit_price)]))
+  }
+
+  async replaceLines(client: PoolClient, grId: string, lines: Array<{
+    po_line_id: string; product_id: string; qty_received: number; unit_price_invoice: number;
+    unit_price_po: number; variance: number; variance_pct: number; variance_status: string;
+    qty_rejected?: number; reject_reason?: string | null
+  }>): Promise<void> {
+    await client.query('DELETE FROM goods_receipt_lines WHERE gr_id = $1', [grId])
+
+    if (lines.length === 0) return
+    const valueRows: string[] = []
+    const params: unknown[] = []
+    let idx = 1
+    for (const l of lines) {
+      valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8}, $${idx+9}, $${idx+10}, $${idx+11})`)
+      params.push(
+        grId, l.po_line_id, l.product_id, l.qty_received, l.unit_price_invoice,
+        l.unit_price_po, l.qty_received * l.unit_price_invoice,
+        l.variance, Math.round(l.variance_pct * 100) / 100, l.variance_status,
+        l.qty_rejected ?? 0, l.reject_reason ?? null
+      )
+      idx += 12
+    }
+    await client.query(
+      `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_received, unit_price_invoice, unit_price_po, total_price_invoice, price_variance, price_variance_pct, variance_status, qty_rejected, reject_reason)
+       VALUES ${valueRows.join(', ')}`,
+      params
+    )
+  }
 }
 
 export const goodsReceiptsRepository = new GoodsReceiptsRepository()

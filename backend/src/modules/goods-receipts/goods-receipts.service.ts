@@ -1,10 +1,9 @@
 import { pool } from '../../config/db'
 import { goodsReceiptsRepository } from './goods-receipts.repository'
-import { stockRepository } from '../stock/stock.repository'
 import { BusinessRuleError } from '../../utils/errors.base'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
-  GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError, GoodsReceiptInvoiceRequiredError
+  GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError
 } from './goods-receipts.errors'
 import { InvalidReferenceError } from '../stock/stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
@@ -26,42 +25,30 @@ export class GoodsReceiptsService {
   }
 
   async create(companyId: string, dto: CreateGoodsReceiptDto, userId: string) {
-    const { rows: poRows } = await pool.query(
-      `SELECT po.id, po.status, po.branch_id, b.branch_code
-       FROM purchase_orders po
-       JOIN branches b ON b.id = po.branch_id
-       WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL`,
-      [dto.po_id, companyId]
-    )
-    const po = poRows[0]
+    const po = await goodsReceiptsRepository.findPoForGr(dto.po_id, companyId)
     if (!po) throw new InvalidReferenceError('purchase order not found')
     if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)) {
       throw new GoodsReceiptInvalidPOStatusError(po.status)
     }
 
-    const { rows: whRows } = await pool.query(
-      'SELECT id FROM warehouses WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
-      [dto.warehouse_id, companyId]
-    )
-    if (!whRows[0]) throw new InvalidReferenceError('warehouse not found or does not belong to your company')
+    const wh = await goodsReceiptsRepository.findWarehouse(dto.warehouse_id, companyId)
+    if (!wh) throw new InvalidReferenceError('warehouse not found or does not belong to your company')
 
-    const { rows: poLines } = await pool.query(
-      `SELECT pol.id, pol.product_id, pol.qty, pol.qty_received, pol.unit_price, pol.uom, p.product_name
-       FROM purchase_order_lines pol
-       JOIN products p ON p.id = pol.product_id
-       WHERE pol.po_id = $1`,
-      [dto.po_id]
-    )
+    const poLines = await goodsReceiptsRepository.findPoLines(dto.po_id)
     const poLineMap = new Map(poLines.map(l => [l.id, l]))
+
+    // Guard: hitung pending qty dari GR DRAFT yang belum confirm
+    const pendingMap = await goodsReceiptsRepository.findPendingQtyByPo(dto.po_id)
 
     const processedLines = dto.lines.map(line => {
       const poLine = poLineMap.get(line.po_line_id)
       if (!poLine) throw new InvalidReferenceError(`PO line ${line.po_line_id} not found`)
 
-      const remaining = Number(poLine.qty) - Number(poLine.qty_received)
+      const pendingQty = pendingMap.get(line.po_line_id) ?? 0
+      const remaining = Number(poLine.qty) - Number(poLine.qty_received) - pendingQty
       if (line.qty_received > remaining) {
         throw new GoodsReceiptExceedsOrderedError(
-          poLine.product_name, Number(poLine.qty), Number(poLine.qty_received), line.qty_received
+          poLine.product_name, Number(poLine.qty), Number(poLine.qty_received) + pendingQty, line.qty_received
         )
       }
 
@@ -124,106 +111,43 @@ export class GoodsReceiptsService {
     if (!gr) throw new GoodsReceiptNotFoundError(id)
     if (gr.status === 'CONFIRMED') throw new GoodsReceiptAlreadyConfirmedError()
 
-    // Check invoice attachment exists
+    // Check at least one attachment exists (surat jalan / foto)
     const attachments = await goodsReceiptsRepository.findAttachments(id)
-    const hasInvoice = attachments.some(a => a.file_type === 'INVOICE')
-    if (!hasInvoice) throw new GoodsReceiptInvoiceRequiredError()
-
-    const { rows: poRows } = await pool.query('SELECT payment_type FROM purchase_orders WHERE id = $1', [gr.po_id])
-    const paymentType = poRows[0]?.payment_type ?? 'CREDIT'
+    if (attachments.length === 0) {
+      throw new BusinessRuleError('Upload minimal 1 dokumen (surat jalan / foto barang) sebelum konfirmasi')
+    }
 
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
 
-      // 1. Create stock movements
+      // 1. Lock PO lines FOR UPDATE to prevent concurrent confirm race condition
+      const poLines = await goodsReceiptsRepository.findPoLinesForUpdate(client, gr.po_id)
+      const poLineMap = new Map(poLines.map(l => [l.id, l]))
+
+      // 2. Re-validate qty inside transaction (after lock)
       for (const line of gr.lines) {
-        const { rows: lockRows } = await client.query(
-          'SELECT * FROM stock_balances WHERE warehouse_id = $1 AND product_id = $2 FOR UPDATE',
-          [gr.warehouse_id, line.product_id]
-        )
-        const currentQty = lockRows[0] ? Number(lockRows[0].qty) : 0
-        const currentAvgCost = lockRows[0] ? Number(lockRows[0].avg_cost) : 0
-        const newQty = currentQty + line.qty_received
-
-        const totalExisting = currentQty * currentAvgCost
-        const incoming = line.qty_received * line.unit_price_invoice
-        const newAvgCost = newQty > 0 ? (totalExisting + incoming) / newQty : line.unit_price_invoice
-
-        await stockRepository.createMovement(client, {
-          warehouse_id: gr.warehouse_id,
-          product_id: line.product_id,
-          movement_type: 'IN_PURCHASE',
-          qty: line.qty_received,
-          cost_per_unit: line.unit_price_invoice,
-          reference_type: 'purchase_order',
-          reference_id: gr.po_id,
-          notes: `GR ${gr.gr_number}`,
-          created_by: userId,
-        }, newQty)
-
-        await stockRepository.upsertBalance(client, gr.warehouse_id, line.product_id, newQty, newAvgCost)
+        const poLine = poLineMap.get(line.po_line_id)
+        if (!poLine) continue
+        const remaining = poLine.qty - poLine.qty_received
+        if (line.qty_received > remaining) {
+          throw new GoodsReceiptExceedsOrderedError(
+            line.product_name ?? 'Unknown', poLine.qty, poLine.qty_received, line.qty_received
+          )
+        }
       }
 
-      // 2. Update PO lines qty_received
+      // 3. Update PO lines qty_received
       for (const line of gr.lines) {
-        await client.query(
-          'UPDATE purchase_order_lines SET qty_received = qty_received + $1 WHERE id = $2',
-          [line.qty_received, line.po_line_id]
-        )
+        await goodsReceiptsRepository.incrementPoLineQtyReceived(client, line.po_line_id, line.qty_received)
       }
 
-      // 3. Update PO status
-      const { rows: updatedPoLines } = await client.query(
-        'SELECT qty, qty_received FROM purchase_order_lines WHERE po_id = $1',
-        [gr.po_id]
-      )
-      const allReceived = updatedPoLines.every(l => Number(l.qty_received) >= Number(l.qty))
-      const newPoStatus = allReceived ? 'FULLY_RECEIVED' : 'PARTIAL_RECEIVED'
-      await client.query(
-        'UPDATE purchase_orders SET status = $1, updated_at = now(), updated_by = $2 WHERE id = $3',
-        [newPoStatus, userId, gr.po_id]
-      )
+      // 4. Update PO status
+      const newPoStatus = await goodsReceiptsRepository.resolvePoStatus(client, gr.po_id)
+      await goodsReceiptsRepository.updatePoStatus(client, gr.po_id, newPoStatus, userId)
 
-      // 4. Generate journal entry
-      const totalInvoice = gr.lines.reduce((s, l) => s + l.qty_received * l.unit_price_invoice, 0)
-
-      const { rows: coaRows } = await client.query(
-        `SELECT account_code, id FROM chart_of_accounts
-         WHERE company_id = $1 AND account_code IN ('110501', '210101')`,
-        [companyId]
-      )
-      const coaMap = new Map(coaRows.map(r => [r.account_code, r.id]))
-      const persediaanCoaId = coaMap.get('110501')
-      const hutangCoaId = coaMap.get('210101')
-
-      let journalId: string | null = null
-
-      if (persediaanCoaId && hutangCoaId) {
-        const { rows: journalRows } = await client.query(
-          `INSERT INTO journal_headers (company_id, branch_id, journal_date, journal_type, source_module, reference_type, reference_id, reference_number, description, status, is_auto, created_by, updated_by)
-           VALUES ($1, $2, $3, 'GENERAL', 'purchase', 'goods_receipt', $4, $5, $6, 'POSTED', true, $7, $7) RETURNING id`,
-          [companyId, gr.branch_id, gr.received_date, gr.id, gr.gr_number,
-           `Penerimaan Barang ${gr.gr_number} - ${gr.supplier_name ?? ''}`, userId]
-        )
-        journalId = journalRows[0].id
-
-        await client.query(
-          `INSERT INTO journal_lines (journal_id, account_id, description, debit, credit, sort_order)
-           VALUES ($1, $2, 'Persediaan Bahan Baku', $3, 0, 1)`,
-          [journalId, persediaanCoaId, totalInvoice]
-        )
-
-        await client.query(
-          `INSERT INTO journal_lines (journal_id, account_id, description, debit, credit, sort_order)
-           VALUES ($1, $2, $3, 0, $4, 2)`,
-          [journalId, hutangCoaId, paymentType === 'CASH' ? 'Kas / Petty Cash' : 'Hutang Dagang', totalInvoice]
-        )
-      }
-
-      // 5. Update GR status
+      // 5. Update GR status (no journal — journal created by Purchase Invoice module)
       await goodsReceiptsRepository.updateStatus(client, id, 'CONFIRMED', {
-        journal_id: journalId ?? undefined,
         updated_by: userId,
       })
 
@@ -248,45 +172,39 @@ export class GoodsReceiptsService {
     try {
       await client.query('BEGIN')
 
-      await client.query(
-        `UPDATE goods_receipts SET
-          warehouse_id = COALESCE($1, warehouse_id),
-          received_date = COALESCE($2::date, received_date),
-          invoice_number = $3,
-          invoice_date = $4::date,
-          notes = $5,
-          updated_by = $6, updated_at = now()
-        WHERE id = $7 AND company_id = $8 AND status = 'DRAFT'`,
-        [dto.warehouse_id ?? null, dto.received_date ?? null, dto.invoice_number ?? null, dto.invoice_date ?? null, dto.notes ?? null, userId, id, companyId]
-      )
+      await goodsReceiptsRepository.updateHeader(client, id, companyId, {
+        warehouse_id: dto.warehouse_id,
+        received_date: dto.received_date,
+        invoice_number: dto.invoice_number,
+        invoice_date: dto.invoice_date,
+        notes: dto.notes,
+        updated_by: userId,
+      })
 
       if (dto.lines && dto.lines.length > 0) {
         const poLineIds = dto.lines.map(l => l.po_line_id).filter(Boolean)
-        const { rows: poLines } = await client.query(
-          `SELECT id, unit_price FROM purchase_order_lines WHERE id = ANY($1::uuid[])`,
-          [poLineIds]
-        )
-        const poLineMap = new Map(poLines.map((r: { id: string; unit_price: string }) => [r.id, parseFloat(r.unit_price)]))
+        const poLinePriceMap = await goodsReceiptsRepository.findPoLinePrices(client, poLineIds)
 
-        await client.query('DELETE FROM goods_receipt_lines WHERE gr_id = $1', [id])
-        for (const line of dto.lines) {
-          const unitPricePo = poLineMap.get(line.po_line_id) ?? line.unit_price_invoice
+        const processedLines = dto.lines.map(line => {
+          const unitPricePo = poLinePriceMap.get(line.po_line_id) ?? line.unit_price_invoice
           const variance = line.unit_price_invoice - unitPricePo
           const variancePct = unitPricePo > 0 ? Math.abs(variance / unitPricePo) * 100 : 0
           const varianceStatus = variancePct > 15 ? 'DISPUTED' : variancePct > 5 ? 'NOTICE' : 'OK'
+          return {
+            po_line_id: line.po_line_id,
+            product_id: line.product_id,
+            qty_received: line.qty_received,
+            unit_price_invoice: line.unit_price_invoice,
+            unit_price_po: unitPricePo,
+            variance,
+            variance_pct: variancePct,
+            variance_status: varianceStatus,
+            qty_rejected: line.qty_rejected,
+            reject_reason: line.reject_reason,
+          }
+        })
 
-          await client.query(
-            `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_received, unit_price_invoice, unit_price_po, total_price_invoice, price_variance, price_variance_pct, variance_status, qty_rejected, reject_reason)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-            [
-              id, line.po_line_id, line.product_id, line.qty_received, line.unit_price_invoice,
-              unitPricePo,
-              line.qty_received * line.unit_price_invoice,
-              variance, Math.round(variancePct * 100) / 100, varianceStatus,
-              line.qty_rejected ?? 0, line.reject_reason ?? null
-            ]
-          )
-        }
+        await goodsReceiptsRepository.replaceLines(client, id, processedLines)
       }
 
       await client.query('COMMIT')

@@ -7,7 +7,7 @@ import { handleError } from '../../utils/error-handler.util'
 import { GoodsReceiptNotFoundError, GoodsReceiptAttachmentNotFoundError } from './goods-receipts.errors'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import type { createGoodsReceiptSchema, updateGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema, createAttachmentSchema, deleteAttachmentSchema } from './goods-receipts.schema'
+import type { createGoodsReceiptSchema, updateGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema, createAttachmentSchema, deleteAttachmentSchema, pendingQtySchema } from './goods-receipts.schema'
 
 type CreateReq = ValidatedAuthRequest<typeof createGoodsReceiptSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updateGoodsReceiptSchema>
@@ -15,6 +15,7 @@ type ConfirmReq = ValidatedAuthRequest<typeof confirmGoodsReceiptSchema>
 type IdReq = ValidatedAuthRequest<typeof goodsReceiptIdSchema>
 type CreateAttachmentReq = ValidatedAuthRequest<typeof createAttachmentSchema>
 type DeleteAttachmentReq = ValidatedAuthRequest<typeof deleteAttachmentSchema>
+type PendingQtyReq = ValidatedAuthRequest<typeof pendingQtySchema>
 
 export class GoodsReceiptsController {
   list = async (req: Request, res: Response) => {
@@ -99,6 +100,17 @@ export class GoodsReceiptsController {
       sendSuccess(res, null, 'Goods receipt deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_goods_receipt', id: req.params.id })
+    }
+  }
+
+  pendingQty = async (req: Request, res: Response) => {
+    try {
+      const { query } = (req as PendingQtyReq).validated
+      const pendingMap = await goodsReceiptsRepository.findPendingQtyByPo(query.po_id, query.exclude_gr_id)
+      const result: Record<string, number> = Object.fromEntries(pendingMap)
+      sendSuccess(res, result, 'Pending qty retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_pending_qty' })
     }
   }
 

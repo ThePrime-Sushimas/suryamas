@@ -17,10 +17,10 @@ process.on('uncaughtException', (error: Error) => {
   process.exit(1)
 })
 
-app.listen(PORT, () => {
-  logInfo('Server started', { port: PORT, env: process.env.NODE_ENV })
+app.listen(Number(PORT), '0.0.0.0', () => {
+  logInfo('Server started', { port: PORT, env: process.env.NODE_ENV, host: '0.0.0.0' })
   console.log(`
-🚀 Server running on http://localhost:${PORT}
+🚀 Server running on http://0.0.0.0:${PORT}
 📝 Environment: ${process.env.NODE_ENV || 'development'}
   `)
   

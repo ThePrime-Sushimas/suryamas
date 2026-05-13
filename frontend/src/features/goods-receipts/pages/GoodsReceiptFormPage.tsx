@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PackageCheck, Save, Trash2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
@@ -34,6 +34,8 @@ interface LineItem {
   unit_price_invoice: number
   unit_price_po: number
 }
+
+const emptyPendingQty: Record<string, number> = {}
 
 export default function GoodsReceiptFormPage() {
   const navigate = useNavigate()
@@ -94,6 +96,19 @@ export default function GoodsReceiptFormPage() {
     enabled: !!selectedPoId,
   })
 
+  // Fetch pending qty from existing DRAFT GRs for this PO (exclude current GR if editing)
+  const { data: pendingData } = useQuery({
+    queryKey: ['goods-receipts', 'pending-qty', selectedPoId, id],
+    queryFn: async () => {
+      const params: Record<string, string> = { po_id: selectedPoId }
+      if (isEdit && id) params.exclude_gr_id = id
+      const { data } = await api.get('/goods-receipts/pending-qty', { params })
+      return data.data as Record<string, number>
+    },
+    enabled: !!selectedPoId,
+  })
+  const pendingQty = pendingData ?? emptyPendingQty
+
   // Fetch warehouses
   const { data: warehousesData } = useWarehouses({ limit: 50, warehouse_type: 'MAIN' })
   const warehouses = warehousesData?.data ?? []
@@ -141,13 +156,15 @@ export default function GoodsReceiptFormPage() {
   }, [isEdit, initialized, enriched, selectedPO])
 
   // Create mode: auto-populate lines and warehouse when PO selected
-  useEffect(() => {
-    if (isEdit) return
-    if (!selectedPO?.lines) return
-    setLines(selectedPO.lines
-      .filter(l => Number(l.qty) - Number(l.qty_received) > 0)
+  // Track which PO was last used to populate lines to avoid overwriting user edits
+  const lastPopulatedPoRef = useRef<string>('')
+
+  const computedLines = useMemo(() => {
+    if (isEdit || !selectedPO?.lines) return null
+    return selectedPO.lines
       .map(l => {
-        const remaining = Number(l.qty) - Number(l.qty_received)
+        const pendingAmt = pendingQty[l.id] ?? 0
+        const remaining = Math.max(0, Number(l.qty) - Number(l.qty_received) - pendingAmt)
         return {
           key: crypto.randomUUID(),
           po_line_id: l.id,
@@ -164,8 +181,17 @@ export default function GoodsReceiptFormPage() {
           unit_price_invoice: Number(l.unit_price),
           unit_price_po: Number(l.unit_price),
         }
-      }))
-  }, [isEdit, selectedPO])
+      })
+      .filter(l => l.qty_remaining > 0)
+  }, [isEdit, selectedPO, pendingQty])
+
+  useEffect(() => {
+    if (!computedLines) return
+    // Only auto-populate when PO changes, not when pendingQty refetches
+    if (lastPopulatedPoRef.current === selectedPoId) return
+    lastPopulatedPoRef.current = selectedPoId
+    setLines(computedLines)
+  }, [computedLines, selectedPoId])
 
   // Set warehouse when PO branch matches a warehouse
   useEffect(() => {
@@ -235,29 +261,29 @@ export default function GoodsReceiptFormPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/inventory/goods-receipts')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => navigate('/inventory/goods-receipts')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <PackageCheck className="w-6 h-6 text-teal-600" />
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">{isEdit ? 'Edit Penerimaan' : 'Terima Barang'}</h1>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{isEdit ? 'Perbarui data penerimaan barang' : 'Input penerimaan dari Purchase Order'}</p>
+            <PackageCheck className="w-6 h-6 text-teal-600 shrink-0 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">{isEdit ? 'Edit Penerimaan' : 'Terima Barang'}</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{isEdit ? 'Perbarui data penerimaan barang' : 'Input penerimaan dari Purchase Order'}</p>
             </div>
           </div>
           <button onClick={handleSubmit} disabled={(createGR.isPending || updateGR.isPending) || lines.length === 0}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm">
-            <Save className="w-4 h-4" /> {(createGR.isPending || updateGR.isPending) ? 'Menyimpan...' : 'Simpan'}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm shrink-0">
+            <Save className="w-4 h-4" /> <span className="hidden sm:inline">{(createGR.isPending || updateGR.isPending) ? 'Menyimpan...' : 'Simpan'}</span>
           </button>
         </div>
       </div>
 
       {/* Form */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purchase Order *</label>
             <select value={selectedPoId} onChange={e => setSelectedPoId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
@@ -279,10 +305,10 @@ export default function GoodsReceiptFormPage() {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No. Invoice</label>
-            <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Nomor invoice supplier"
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No. Invoice Supplier</label>
+            <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Contoh: INV-2026-001"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
           </div>
           <div>
@@ -290,72 +316,83 @@ export default function GoodsReceiptFormPage() {
             <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
           </div>
-        </div>
-        <div className="mt-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catatan</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Catatan penerimaan (opsional)"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+          <div className="sm:col-span-2 lg:col-span-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catatan</label>
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Opsional"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+          </div>
         </div>
       </div>
 
       {/* Lines */}
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-auto p-4 lg:p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           {/* Desktop Table */}
-          <div className="hidden sm:block">
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ordered</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sisa</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Diterima</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">Ditolak</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-36">Harga Invoice</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Harga PO</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
-                  <th className="px-4 py-3 w-12"></th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">Qty PO</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">Belum Terima</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty Diterima</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-32">Qty Ditolak</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-36">Harga Invoice</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Harga Kontrak</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-32">Subtotal</th>
+                  <th className="px-3 py-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {lines.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">Pilih PO untuk mengisi item</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">
+                    {selectedPoId && selectedPO?.lines && selectedPO.lines.length > 0
+                      ? 'Semua item PO ini sudah tercakup oleh penerimaan (DRAFT) sebelumnya. Konfirmasi atau hapus GR DRAFT yang ada terlebih dahulu.'
+                      : 'Pilih PO di atas untuk mengisi daftar barang'}
+                  </td></tr>
                 ) : lines.map(l => {
                   const variance = l.unit_price_invoice !== l.unit_price_po
                   return (
                     <tr key={l.key} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <div className="font-medium text-gray-900 dark:text-white">{l.product_name}</div>
                         <div className="text-xs text-gray-500">{l.product_code} · {l.uom}</div>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{fmt(l.qty_ordered)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{fmt(l.qty_remaining)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <input type="number" min="0.01" max={l.qty_remaining} step="0.01" value={l.qty_received || ''} onChange={e => updateLine(l.key, 'qty_received', parseFloat(e.target.value) || 0)}
-                          className={`w-24 px-2 py-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm ${l.qty_received > l.qty_remaining ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} />
+                      <td className="px-3 py-3 text-right font-mono text-gray-500 dark:text-gray-400">{fmt(l.qty_ordered)}</td>
+                      <td className="px-3 py-3 text-right font-mono text-gray-600 dark:text-gray-300 font-medium">{fmt(l.qty_remaining)}</td>
+                      <td className="px-3 py-3 text-center">
+                        <input type="number" min="0.01" max={l.qty_remaining} step="0.01" value={l.qty_received || ''}
+                          onChange={e => updateLine(l.key, 'qty_received', parseFloat(e.target.value) || 0)}
+                          className={`w-24 px-2 py-1.5 border rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${l.qty_received > l.qty_remaining ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600'}`} />
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <input type="number" min="0" step="0.01" value={l.qty_rejected || ''} onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
-                          className={`w-20 px-2 py-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm ${l.qty_rejected > 0 ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} />
-                        {l.qty_rejected > 0 && (
-                          <select value={l.reject_reason} onChange={e => updateLine(l.key, 'reject_reason', e.target.value)}
-                            className="mt-1 w-20 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <option value="">Alasan</option>
-                            <option value="DAMAGED">Rusak</option>
-                            <option value="EXPIRED">Expired</option>
-                            <option value="WRONG_ITEM">Salah</option>
-                            <option value="OTHER">Lain</option>
-                          </select>
-                        )}
+                      <td className="px-3 py-3 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <input type="number" min="0" step="0.01" value={l.qty_rejected || ''}
+                            onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
+                            className={`w-20 px-2 py-1.5 border rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${l.qty_rejected > 0 ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}`} />
+                          {l.qty_rejected > 0 && (
+                            <select value={l.reject_reason} onChange={e => updateLine(l.key, 'reject_reason', e.target.value)}
+                              className="w-28 px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                              <option value="">Pilih alasan...</option>
+                              <option value="DAMAGED">Rusak</option>
+                              <option value="EXPIRED">Kadaluarsa</option>
+                              <option value="WRONG_ITEM">Salah Barang</option>
+                              <option value="OTHER">Lainnya</option>
+                            </select>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <input type="number" min="0" step="1" value={l.unit_price_invoice || ''} onChange={e => updateLine(l.key, 'unit_price_invoice', parseFloat(e.target.value) || 0)}
-                          className={`w-32 px-2 py-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm ${variance ? 'border-yellow-500' : 'border-gray-300 dark:border-gray-600'}`} />
+                      <td className="px-3 py-3 text-center">
+                        <input type="number" min="0" step="1" value={l.unit_price_invoice || ''}
+                          onChange={e => updateLine(l.key, 'unit_price_invoice', parseFloat(e.target.value) || 0)}
+                          className={`w-32 px-2 py-1.5 border rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${variance ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'border-gray-300 dark:border-gray-600'}`} />
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-500">{fmt(l.unit_price_po)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">Rp {fmt(l.qty_received * l.unit_price_invoice)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <button onClick={() => removeLine(l.key)} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
+                      <td className="px-3 py-3 text-right font-mono text-xs text-gray-500">{fmt(l.unit_price_po)}</td>
+                      <td className="px-3 py-3 text-right font-mono font-medium text-gray-900 dark:text-gray-200">
+                        Rp {fmt(l.qty_received * l.unit_price_invoice)}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <button onClick={() => removeLine(l.key)} className="p-1 text-gray-400 hover:text-red-500 rounded"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   )
@@ -364,8 +401,8 @@ export default function GoodsReceiptFormPage() {
               {lines.length > 0 && (
                 <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
                   <tr>
-                    <td colSpan={7} className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">Total Invoice:</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">Rp {fmt(totalInvoice)}</td>
+                    <td colSpan={7} className="px-3 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">Total Invoice:</td>
+                    <td className="px-3 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">Rp {fmt(totalInvoice)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -373,68 +410,96 @@ export default function GoodsReceiptFormPage() {
             </table>
           </div>
 
-          {/* Mobile Cards */}
-          <div className="sm:hidden">
+          {/* Mobile & Tablet Cards */}
+          <div className="lg:hidden">
             {lines.length === 0 ? (
-              <div className="px-4 py-12 text-center text-gray-400">Pilih PO untuk mengisi item</div>
+              <div className="px-4 py-12 text-center text-gray-400 text-sm">
+                {selectedPoId && selectedPO?.lines && selectedPO.lines.length > 0
+                  ? 'Semua item PO ini sudah tercakup oleh penerimaan (DRAFT) sebelumnya.'
+                  : 'Pilih PO di atas untuk mengisi daftar barang'}
+              </div>
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
                 {lines.map(l => {
                   const variance = l.unit_price_invoice !== l.unit_price_po
                   return (
-                    <div key={l.key} className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white text-sm">{l.product_name}</p>
+                    <div key={l.key} className="p-4 space-y-3">
+                      {/* Product header */}
+                      <div className="flex justify-between items-start">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{l.product_name}</p>
                           <p className="text-xs text-gray-500">{l.product_code} · {l.uom}</p>
                         </div>
-                        <button onClick={() => removeLine(l.key)} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => removeLine(l.key)} className="p-1.5 text-gray-400 hover:text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs text-gray-500 mb-2">
-                        <span>Order: {fmt(l.qty_ordered)}</span>
-                        <span>Sisa: {fmt(l.qty_remaining)}</span>
-                        <span>PO: Rp {fmt(l.unit_price_po)}</span>
+
+                      {/* Info row */}
+                      <div className="flex gap-4 text-xs">
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Qty PO</span>
+                          <span className="font-mono font-medium text-gray-700 dark:text-gray-300">{fmt(l.qty_ordered)}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Belum Terima</span>
+                          <span className="font-mono font-medium text-gray-900 dark:text-white">{fmt(l.qty_remaining)}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Harga Kontrak</span>
+                          <span className="font-mono text-gray-500">Rp {fmt(l.unit_price_po)}</span>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
+
+                      {/* Input row */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div>
-                          <label className="text-xs text-gray-500">Diterima</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Qty Diterima</label>
                           <input type="number" min="0.01" max={l.qty_remaining} step="0.01" value={l.qty_received || ''}
                             onChange={e => updateLine(l.key, 'qty_received', parseFloat(e.target.value) || 0)}
-                            className={`w-full px-2 py-1.5 border rounded text-sm text-right ${l.qty_received > l.qty_remaining ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
+                            className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${l.qty_received > l.qty_remaining ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-500">Ditolak</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Qty Ditolak</label>
                           <input type="number" min="0" step="0.01" value={l.qty_rejected || ''}
                             onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
-                            className={`w-full px-2 py-1.5 border rounded text-sm text-right ${l.qty_rejected > 0 ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
+                            className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${l.qty_rejected > 0 ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Harga Invoice</label>
+                        <div className="col-span-2 sm:col-span-1">
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Harga Invoice</label>
                           <input type="number" min="0" step="1" value={l.unit_price_invoice || ''}
                             onChange={e => updateLine(l.key, 'unit_price_invoice', parseFloat(e.target.value) || 0)}
-                            className={`w-full px-2 py-1.5 border rounded text-sm text-right ${variance ? 'border-yellow-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
+                            className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${variance ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
                         </div>
                       </div>
+
+                      {/* Reject reason */}
                       {l.qty_rejected > 0 && (
-                        <div className="mt-2">
+                        <div>
+                          <label className="block text-xs font-medium text-red-600 dark:text-red-400 mb-1">Alasan Penolakan</label>
                           <select value={l.reject_reason} onChange={e => updateLine(l.key, 'reject_reason', e.target.value)}
-                            className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <option value="">Alasan tolak...</option>
+                            className="w-full px-2.5 py-2 border border-red-300 dark:border-red-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="">Pilih alasan...</option>
                             <option value="DAMAGED">Rusak</option>
-                            <option value="EXPIRED">Expired</option>
-                            <option value="WRONG_ITEM">Tidak Sesuai</option>
+                            <option value="EXPIRED">Kadaluarsa</option>
+                            <option value="WRONG_ITEM">Salah Barang</option>
                             <option value="OTHER">Lainnya</option>
                           </select>
                         </div>
                       )}
-                      <p className="text-right text-sm font-mono font-medium text-gray-900 dark:text-white mt-2">Rp {fmt(l.qty_received * l.unit_price_invoice)}</p>
+
+                      {/* Subtotal */}
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700/50">
+                        <span className="text-xs text-gray-500">Subtotal</span>
+                        <span className="font-mono font-semibold text-gray-900 dark:text-white">Rp {fmt(l.qty_received * l.unit_price_invoice)}</span>
+                      </div>
                     </div>
                   )
                 })}
+
+                {/* Total */}
                 <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50">
-                  <div className="flex justify-between font-medium text-gray-900 dark:text-white">
-                    <span>Total Invoice:</span>
-                    <span className="font-mono font-bold">Rp {fmt(totalInvoice)}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Invoice</span>
+                    <span className="font-mono font-bold text-gray-900 dark:text-white">Rp {fmt(totalInvoice)}</span>
                   </div>
                 </div>
               </div>

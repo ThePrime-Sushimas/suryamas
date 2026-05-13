@@ -42,6 +42,13 @@ export const goodsReceiptListSchema = z.object({
   }),
 })
 
+export const pendingQtySchema = z.object({
+  query: z.object({
+    po_id: z.string().uuid(),
+    exclude_gr_id: z.string().uuid().optional(),
+  }),
+})
+
 export const updateGoodsReceiptSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({

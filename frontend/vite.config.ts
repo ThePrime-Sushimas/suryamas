@@ -35,4 +35,7 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', 'zustand'],
   },
+  server: {
+    host: '0.0.0.0',
+  },
 })
