@@ -56,6 +56,13 @@ DRAFT → SUBMITTED → APPROVED → POSTED
 - GR yang bisa dipilih: status `CONFIRMED` + supplier sama + branch sama + belum fully invoiced
 - **Constraint:** Semua GR dalam 1 invoice harus dari branch yang sama (untuk jurnal)
 
+### Harga Default (Pre-fill dari Pricelist)
+- Saat Finance pilih GR, harga per item **otomatis terisi dari pricelist** (latest price per supplier + product)
+- Finance **koreksi** jika harga di invoice fisik berbeda dari pricelist
+- Jika pricelist tidak ada untuk produk tersebut → harga default 0, Finance wajib isi manual
+- Sistem highlight **variance** antara harga invoice vs harga pricelist (kuning jika beda)
+- Lookup: `pricelists` WHERE `supplier_product_id` match + status APPROVED + latest `effective_date`
+
 ### PPN
 - **Per line item** — bisa ada item kena pajak & tidak
 - Default tax rate configurable (11% PPN Indonesia)

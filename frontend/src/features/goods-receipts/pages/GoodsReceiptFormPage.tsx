@@ -202,7 +202,7 @@ export default function GoodsReceiptFormPage() {
 
   const createGR = useCreateGoodsReceipt()
 
-  const updateLine = (key: string, field: 'qty_received' | 'unit_price_invoice' | 'qty_rejected' | 'reject_reason', value: number | string) => {
+  const updateLine = (key: string, field: 'qty_received' | 'qty_rejected' | 'reject_reason', value: number | string) => {
     setLines(prev => prev.map(l => {
       if (l.key !== key) return l
       const updated = { ...l, [field]: value }
@@ -256,7 +256,6 @@ export default function GoodsReceiptFormPage() {
   }
 
   const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
-  const totalInvoice = lines.reduce((s, l) => s + l.qty_received * l.unit_price_invoice, 0)
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -333,13 +332,11 @@ export default function GoodsReceiptFormPage() {
               <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
                 <tr>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">UOM</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">Qty PO</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">Belum Terima</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty Diterima</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-32">Qty Ditolak</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-36">Harga Invoice</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Harga Kontrak</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-32">Subtotal</th>
                   <th className="px-3 py-3 w-10"></th>
                 </tr>
               </thead>
@@ -350,14 +347,13 @@ export default function GoodsReceiptFormPage() {
                       ? 'Semua item PO ini sudah tercakup oleh penerimaan (DRAFT) sebelumnya. Konfirmasi atau hapus GR DRAFT yang ada terlebih dahulu.'
                       : 'Pilih PO di atas untuk mengisi daftar barang'}
                   </td></tr>
-                ) : lines.map(l => {
-                  const variance = l.unit_price_invoice !== l.unit_price_po
-                  return (
+                ) : lines.map(l => (
                     <tr key={l.key} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="px-3 py-3">
                         <div className="font-medium text-gray-900 dark:text-white">{l.product_name}</div>
-                        <div className="text-xs text-gray-500">{l.product_code} · {l.uom}</div>
+                        <div className="text-xs text-gray-500">{l.product_code}</div>
                       </td>
+                      <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{l.uom}</td>
                       <td className="px-3 py-3 text-right font-mono text-gray-500 dark:text-gray-400">{fmt(l.qty_ordered)}</td>
                       <td className="px-3 py-3 text-right font-mono text-gray-600 dark:text-gray-300 font-medium">{fmt(l.qty_remaining)}</td>
                       <td className="px-3 py-3 text-center">
@@ -383,26 +379,15 @@ export default function GoodsReceiptFormPage() {
                         </div>
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <input type="number" min="0" step="1" value={l.unit_price_invoice || ''}
-                          onChange={e => updateLine(l.key, 'unit_price_invoice', parseFloat(e.target.value) || 0)}
-                          className={`w-32 px-2 py-1.5 border rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${variance ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'border-gray-300 dark:border-gray-600'}`} />
-                      </td>
-                      <td className="px-3 py-3 text-right font-mono text-xs text-gray-500">{fmt(l.unit_price_po)}</td>
-                      <td className="px-3 py-3 text-right font-mono font-medium text-gray-900 dark:text-gray-200">
-                        Rp {fmt(l.qty_received * l.unit_price_invoice)}
-                      </td>
-                      <td className="px-3 py-3 text-center">
                         <button onClick={() => removeLine(l.key)} className="p-1 text-gray-400 hover:text-red-500 rounded"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
-                  )
-                })}
+                  ))}
               </tbody>
               {lines.length > 0 && (
                 <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
                   <tr>
-                    <td colSpan={7} className="px-3 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">Total Invoice:</td>
-                    <td className="px-3 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">Rp {fmt(totalInvoice)}</td>
+                    <td colSpan={6} className="px-3 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">{lines.length} item</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -420,9 +405,7 @@ export default function GoodsReceiptFormPage() {
               </div>
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {lines.map(l => {
-                  const variance = l.unit_price_invoice !== l.unit_price_po
-                  return (
+                {lines.map(l => (
                     <div key={l.key} className="p-4 space-y-3">
                       {/* Product header */}
                       <div className="flex justify-between items-start">
@@ -444,13 +427,13 @@ export default function GoodsReceiptFormPage() {
                           <span className="font-mono font-medium text-gray-900 dark:text-white">{fmt(l.qty_remaining)}</span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-gray-500">Harga Kontrak</span>
-                          <span className="font-mono text-gray-500">Rp {fmt(l.unit_price_po)}</span>
+                          <span className="text-gray-500">UOM</span>
+                          <span className="text-gray-700 dark:text-gray-300">{l.uom}</span>
                         </div>
                       </div>
 
                       {/* Input row */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Qty Diterima</label>
                           <input type="number" min="0.01" max={l.qty_remaining} step="0.01" value={l.qty_received || ''}
@@ -462,12 +445,6 @@ export default function GoodsReceiptFormPage() {
                           <input type="number" min="0" step="0.01" value={l.qty_rejected || ''}
                             onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
                             className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${l.qty_rejected > 0 ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Harga Invoice</label>
-                          <input type="number" min="0" step="1" value={l.unit_price_invoice || ''}
-                            onChange={e => updateLine(l.key, 'unit_price_invoice', parseFloat(e.target.value) || 0)}
-                            className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${variance ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
                         </div>
                       </div>
 
@@ -485,22 +462,12 @@ export default function GoodsReceiptFormPage() {
                           </select>
                         </div>
                       )}
-
-                      {/* Subtotal */}
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700/50">
-                        <span className="text-xs text-gray-500">Subtotal</span>
-                        <span className="font-mono font-semibold text-gray-900 dark:text-white">Rp {fmt(l.qty_received * l.unit_price_invoice)}</span>
-                      </div>
                     </div>
-                  )
-                })}
+                  ))}
 
-                {/* Total */}
+                {/* Footer */}
                 <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Invoice</span>
-                    <span className="font-mono font-bold text-gray-900 dark:text-white">Rp {fmt(totalInvoice)}</span>
-                  </div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{lines.length} item</span>
                 </div>
               </div>
             )}
