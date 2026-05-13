@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Trash2, Save, ClipboardList, Plus, Search, X } from 'lucide-react'
+import { ArrowLeft, Trash2, Save, ClipboardList, Plus } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useCreatePurchaseRequest, useUpdatePurchaseRequest, usePurchaseRequest } from '../api/purchaseRequests.api'
+import { ProductPickerModal } from '@/components/shared/ProductPickerModal'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
 
@@ -33,11 +33,7 @@ export default function PurchaseRequestFormPage() {
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineItem[]>([])
   const [showProductModal, setShowProductModal] = useState(false)
-  const [productSearch, setProductSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
   const [initialized, setInitialized] = useState(false)
-
-  const debouncedProductSearch = useDebounce(productSearch, 400)
 
   // Fetch existing PR for edit mode
   const { data: existingPR, isLoading: isLoadingPR } = usePurchaseRequest(id ?? '')
@@ -79,17 +75,6 @@ export default function PurchaseRequestFormPage() {
   })
   const branches = branchesData ?? []
 
-  // Fetch categories for product filter
-  const { data: categoriesData } = useQuery({
-    queryKey: ['categories', 'active'],
-    queryFn: async () => {
-      const { data } = await api.get('/categories', { params: { limit: 50 } })
-      return data.data as { id: string; category_name: string }[]
-    },
-    staleTime: 120_000,
-  })
-  const categories = categoriesData ?? []
-
   // Fetch stock balances for items in lines (based on selected branch — MAIN + READY separate)
   const lineProductIds = lines.map(l => l.product_id)
   const { data: stockData } = useQuery({
@@ -111,66 +96,25 @@ export default function PurchaseRequestFormPage() {
   const stockMain = stockData?.main ?? {}
   const stockReady = stockData?.ready ?? {}
 
-  // Search products (filtered by category if selected)
-  const { data: productsData } = useQuery({
-    queryKey: ['products', 'search-pr', debouncedProductSearch, categoryFilter],
-    queryFn: async () => {
-      const params: Record<string, string> = { limit: '200' }
-      if (categoryFilter) params.category_id = categoryFilter
-      if (debouncedProductSearch) params.q = debouncedProductSearch
-      const { data } = await api.get('/products/search', { params })
-      return data.data as { id: string; product_code: string; product_name: string; base_unit_name: string | null }[]
-    },
-    enabled: showProductModal && (!!categoryFilter || debouncedProductSearch.length >= 2),
-    staleTime: 30_000,
-  })
-  const products = productsData ?? []
-
-  // Batch fetch purchase UOM for search results
-  const productIdsForUom = products.map(p => p.id)
-  const { data: purchaseUomsByProduct, isLoading: isLoadingUoms } = useQuery({
-    queryKey: ['product-uoms', 'purchase-units-batch', productIdsForUom],
-    queryFn: async () => {
-      if (productIdsForUom.length === 0) return {}
-      const { data } = await api.post('/product-uoms/purchase-units-batch', { product_ids: productIdsForUom })
-      return data.data as Record<string, string>
-    },
-    enabled: productIdsForUom.length > 0,
-    staleTime: 60_000,
-  })
-
-  // Batch fetch suppliers for search results
-  const productIds = products.map(p => p.id)
-  const { data: suppliersByProduct } = useQuery({
-    queryKey: ['supplier-products', 'by-products', productIds],
-    queryFn: async () => {
-      const { data } = await api.post('/supplier-products/by-products', { product_ids: productIds })
-      return data.data as Record<string, { supplier_id: string; supplier_name: string }[]>
-    },
-    enabled: productIds.length > 0,
-    staleTime: 60_000,
-  })
-
   const createPR = useCreatePurchaseRequest()
   const updatePR = useUpdatePurchaseRequest()
   const isPending = createPR.isPending || updatePR.isPending
 
-  const addLine = (product: { id: string; product_name: string; base_unit_name: string | null }, supplier?: { supplier_id: string; supplier_name: string }) => {
-    if (lines.some(l => l.product_id === product.id && l.supplier_id === (supplier?.supplier_id ?? null))) {
+  const addLine = (product: { id: string; name: string; uom_buy: string }, supplier?: { id: string; name: string }) => {
+    if (lines.some(l => l.product_id === product.id && l.supplier_id === (supplier?.id ?? null))) {
       toast.error('Produk + supplier sudah ada di daftar')
       return
     }
-    const purchaseUom = purchaseUomsByProduct?.[product.id] ?? product.base_unit_name ?? 'pcs'
     setLines(prev => [...prev, {
       id: crypto.randomUUID(),
       product_id: product.id,
-      product_name: product.product_name,
+      product_name: product.name,
       product_code: '',
       qty: 1,
-      uom: purchaseUom,
+      uom: product.uom_buy,
       estimated_price: null,
-      supplier_id: supplier?.supplier_id ?? null,
-      supplier_name: supplier?.supplier_name ?? null,
+      supplier_id: supplier?.id ?? null,
+      supplier_name: supplier?.name ?? null,
     }])
   }
 
@@ -475,116 +419,16 @@ export default function PurchaseRequestFormPage() {
         </div>
       </div>
 
-      {/* Product Search Modal */}
-      {showProductModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowProductModal(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Pilih Produk</h3>
-              <button onClick={() => setShowProductModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Search & Filter */}
-            <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex gap-3">
-                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
-                  className="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                  <option value="">Semua Kategori</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.category_name}</option>)}
-                </select>
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                  <input type="text" value={productSearch} onChange={e => setProductSearch(e.target.value)}
-                    placeholder="Cari produk..." autoFocus
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
-                </div>
-              </div>
-            </div>
-
-            {/* Product List */}
-            <div className="flex-1 overflow-auto">
-              {!categoryFilter && debouncedProductSearch.length < 2 ? (
-                <div className="px-6 py-12 text-center text-gray-400 text-sm">Pilih kategori atau ketik minimal 2 karakter untuk mencari</div>
-              ) : products.length === 0 ? (
-                <div className="px-6 py-12 text-center text-gray-400 text-sm">Produk tidak ditemukan</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">UOM Beli</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gudang</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ready</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                    {products.map(p => {
-                      const suppliers = suppliersByProduct?.[p.id] ?? []
-                      const uom = purchaseUomsByProduct?.[p.id] ?? p.base_unit_name ?? 'pcs'
-                      const mainStock = stockMain[p.id]
-                      const readyStock = stockReady[p.id]
-                      const alreadyAdded = lines.some(l => l.product_id === p.id)
-
-                      return (
-                        <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${alreadyAdded ? 'opacity-50' : ''}`}>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900 dark:text-white">{p.product_name}</div>
-                            <div className="text-xs text-gray-500">{p.product_code}</div>
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{uom}</td>
-                          <td className="px-4 py-3 text-right">
-                            <span className={`font-mono text-sm ${(mainStock?.qty ?? 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
-                              {mainStock?.qty ?? 0}
-                            </span>
-                            {mainStock?.uom && <span className="text-xs text-gray-400 ml-1">{mainStock.uom}</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className={`font-mono text-sm ${(readyStock?.qty ?? 0) > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
-                              {readyStock?.qty ?? 0}
-                            </span>
-                            {readyStock?.uom && <span className="text-xs text-gray-400 ml-1">{readyStock.uom}</span>}
-                          </td>
-                          <td className="px-4 py-3">
-                            {suppliers.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {suppliers.map(s => (
-                                  <button key={s.supplier_id} onClick={() => { addLine(p, s) }}
-                                    disabled={isLoadingUoms || lines.some(l => l.product_id === p.id && l.supplier_id === s.supplier_id)}
-                                    className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded text-xs hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-40 disabled:cursor-not-allowed">
-                                    + {s.supplier_name}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : (
-                              <button onClick={() => addLine(p)} disabled={isLoadingUoms || alreadyAdded}
-                                className="px-2 py-0.5 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded text-xs hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed">
-                                + Tambah
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <p className="text-xs text-gray-500">{lines.length} item dipilih</p>
-              <button onClick={() => setShowProductModal(false)}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-sm">
-                Selesai
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Product Picker Modal */}
+      <ProductPickerModal
+        open={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        onSelect={(product, supplier) => addLine(product, supplier)}
+        branchId={branchId}
+        showStock={!!branchId}
+        showSupplier
+        excludeProductIds={lines.map(l => l.product_id)}
+      />
     </div>
   )
 }

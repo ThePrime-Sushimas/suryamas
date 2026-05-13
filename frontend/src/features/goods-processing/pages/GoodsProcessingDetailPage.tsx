@@ -4,9 +4,8 @@ import { ArrowLeft, Package, Play, Send, CheckCircle2, XCircle, Plus, Trash2, Sa
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { ProductPickerModal } from '@/components/shared/ProductPickerModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { useQuery } from '@tanstack/react-query'
-import api from '@/lib/axios'
 import {
   useGoodsProcessingDetail,
   useStartProcessing,
@@ -63,16 +62,10 @@ export default function GoodsProcessingDetailPage() {
   const [editOutputs, setEditOutputs] = useState<Record<string, EditableOutput[]>>({})
   const [dirty, setDirty] = useState(false)
 
-  // Products for dropdown
-  const { data: productsData } = useQuery({
-    queryKey: ['products', 'active-list'],
-    queryFn: async () => {
-      const { data } = await api.get('/products', { params: { limit: 500, is_active: true } })
-      return data.data as Array<{ id: string; product_code: string; product_name: string }>
-    },
-    staleTime: 60_000,
-  })
-  const products = productsData ?? []
+  // Product picker state
+  const [showProductPicker, setShowProductPicker] = useState(false)
+  const [pickerInputId, setPickerInputId] = useState<string | null>(null)
+  const [pickerOutputKey, setPickerOutputKey] = useState<string | null>(null)
 
   // Initialize editable outputs from server data
   const initOutputs = useCallback((inputs: GoodsProcessingInput[]) => {
@@ -378,15 +371,11 @@ export default function GoodsProcessingDetailPage() {
                       {isEditable ? (
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <select value={out.product_id} onChange={e => {
-                              const p = products.find(pr => pr.id === e.target.value)
-                              updateOutput(inp.id, out.key, 'product_id', e.target.value)
-                              if (p) updateOutput(inp.id, out.key, 'product_name', p.product_name)
-                            }}
-                              className="flex-1 min-w-[150px] px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                              <option value="">Pilih produk...</option>
-                              {products.map(p => <option key={p.id} value={p.id}>{p.product_name} ({p.product_code})</option>)}
-                            </select>
+                            {/* Product picker button */}
+                            <button onClick={() => { setPickerInputId(inp.id); setPickerOutputKey(out.key); setShowProductPicker(true) }}
+                              className="flex-1 min-w-[150px] px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-left bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:border-blue-400 truncate">
+                              {out.product_id ? out.product_name || 'Produk dipilih' : <span className="text-gray-400">Pilih produk...</span>}
+                            </button>
                             <input type="number" min="0" step="0.01" value={out.qty_output || ''}
                               onChange={e => updateOutput(inp.id, out.key, 'qty_output', parseFloat(e.target.value) || 0)}
                               className="w-24 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -464,6 +453,24 @@ export default function GoodsProcessingDetailPage() {
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mt-2"
             rows={3} />
         } />
+
+      {/* Product Picker for disassembly outputs */}
+      <ProductPickerModal
+        open={showProductPicker}
+        onClose={() => { setShowProductPicker(false); setPickerInputId(null); setPickerOutputKey(null) }}
+        onSelect={(product) => {
+          if (pickerInputId && pickerOutputKey) {
+            updateOutput(pickerInputId, pickerOutputKey, 'product_id', product.id)
+            updateOutput(pickerInputId, pickerOutputKey, 'product_name', product.name)
+            updateOutput(pickerInputId, pickerOutputKey, 'uom', product.uom_base)
+          }
+          setShowProductPicker(false)
+          setPickerInputId(null)
+          setPickerOutputKey(null)
+        }}
+        branchId={gp?.branch_id}
+        showStock
+      />
     </div>
   )
 }

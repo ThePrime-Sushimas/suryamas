@@ -3,10 +3,8 @@ import { PackagePlus, Plus, Trash2, Save, ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useWarehouses, useBulkOpeningBalance } from '../api/inventory.api'
-import { useQuery } from '@tanstack/react-query'
-import api from '@/lib/axios'
+import { ProductPickerModal } from '@/components/shared/ProductPickerModal'
 
 interface LineItem {
   id: string
@@ -23,29 +21,18 @@ export default function OpeningBalancePage() {
   const [warehouseId, setWarehouseId] = useState('')
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineItem[]>([])
-  const [productSearch, setProductSearch] = useState('')
-  const debouncedProductSearch = useDebounce(productSearch, 400)
+  const [showProductPicker, setShowProductPicker] = useState(false)
 
   const { data: warehousesData } = useWarehouses({ limit: 50 })
   const warehouses = warehousesData?.data ?? []
 
-  const { data: productsData } = useQuery({
-    queryKey: ['products', 'all', debouncedProductSearch],
-    queryFn: async () => {
-      const params: Record<string, unknown> = { limit: 50, status: 'ACTIVE' }
-      if (debouncedProductSearch) params.q = debouncedProductSearch
-      const endpoint = debouncedProductSearch ? '/products/search' : '/products'
-      const { data } = await api.get(endpoint, { params })
-      return data.data as { id: string; product_code: string; product_name: string; average_cost: number }[]
-    },
-    enabled: debouncedProductSearch.length >= 2,
-    staleTime: 30_000,
-  })
-  const products = productsData ?? []
+  // Get branch_id from selected warehouse for stock display
+  const selectedWarehouse = warehouses.find(w => w.id === warehouseId)
+  const branchId = selectedWarehouse?.branch_id ?? ''
 
   const bulkOpening = useBulkOpeningBalance()
 
-  const addLine = (product: { id: string; product_name: string; average_cost: number }) => {
+  const addLine = (product: { id: string; name: string; average_cost: number }) => {
     if (lines.some(l => l.product_id === product.id)) {
       toast.error('Produk sudah ada di daftar')
       return
@@ -53,11 +40,10 @@ export default function OpeningBalancePage() {
     setLines(prev => [...prev, {
       id: crypto.randomUUID(),
       product_id: product.id,
-      product_name: product.product_name,
+      product_name: product.name,
       qty: 0,
       cost_per_unit: product.average_cost,
     }])
-    setProductSearch('')
   }
 
   const updateLine = (id: string, field: 'qty' | 'cost_per_unit', value: number) => {
@@ -130,26 +116,12 @@ export default function OpeningBalancePage() {
         </div>
       </div>
 
-      {/* Add Product */}
+      {/* Add Product Button */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
-        <div className="flex gap-2 items-end">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tambah Produk</label>
-            <input type="text" value={productSearch} onChange={e => setProductSearch(e.target.value)} placeholder="Ketik min. 2 karakter untuk cari produk..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
-          </div>
-        </div>
-        {debouncedProductSearch.length >= 2 && products.length > 0 && (
-          <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg max-h-40 overflow-auto bg-white dark:bg-gray-800">
-            {products.map(p => (
-              <button key={p.id} onClick={() => addLine(p)}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex justify-between items-center border-b border-gray-100 dark:border-gray-700 last:border-0">
-                <span className="text-gray-900 dark:text-white">{p.product_name} <span className="text-gray-400">({p.product_code})</span></span>
-                <Plus className="w-4 h-4 text-emerald-600" />
-              </button>
-            ))}
-          </div>
-        )}
+        <button onClick={() => setShowProductPicker(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm">
+          <Plus className="w-4 h-4" /> Tambah Produk
+        </button>
       </div>
 
       {/* Lines Table */}
@@ -167,7 +139,7 @@ export default function OpeningBalancePage() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
               {lines.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">Belum ada produk. Cari dan tambahkan produk di atas.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">Belum ada produk. Klik "Tambah Produk" di atas.</td></tr>
               ) : lines.map(l => (
                 <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{l.product_name}</td>
@@ -200,6 +172,16 @@ export default function OpeningBalancePage() {
           </table>
         </div>
       </div>
+
+      {/* Product Picker Modal */}
+      <ProductPickerModal
+        open={showProductPicker}
+        onClose={() => setShowProductPicker(false)}
+        onSelect={(product) => { addLine(product); setShowProductPicker(false) }}
+        branchId={branchId}
+        showStock={!!branchId}
+        excludeProductIds={lines.map(l => l.product_id)}
+      />
     </div>
   )
 }
