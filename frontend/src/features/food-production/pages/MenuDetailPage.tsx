@@ -7,6 +7,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useMenu, useRecipe, useSaveRecipe, useUpdateMenu, useCreateMenu, useMenuCategories, useMenuGroups, useWipItems, useProductList, useMenuBranchPrices, useActiveBranches, useUpsertMenuBranchPrice, useUpdateMenuBranchPrice, useDeleteMenuBranchPrice, useSyncMenuBranchPrices } from '../api/food-production.api'
 import type { ProductUomOption, MenuBranchPrice } from '../api/food-production.api'
 import type { Menu, MenuCategory, MenuGroup } from '../types/food-production.types'
+import { IngredientPickerModal } from '../components/IngredientPickerModal'
 import api from '@/lib/axios'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
@@ -361,6 +362,7 @@ export default function MenuDetailPage() {
 
   const [lines, setLines] = useState<EditableLine[]>([])
   const [dirty, setDirty] = useState(false)
+  const [pickerIdx, setPickerIdx] = useState<number | null>(null)
   
   // Pricing Calculator State
   const [targetFoodCost, setTargetFoodCost] = useState(30)
@@ -706,6 +708,16 @@ export default function MenuDetailPage() {
         <BranchPricesSection menuId={id} defaultPrice={m.selling_price} />
       )}
 
+      {/* Ingredient Picker Modal */}
+      <IngredientPickerModal
+        open={pickerIdx !== null}
+        onClose={() => setPickerIdx(null)}
+        onSelect={value => { if (pickerIdx !== null) handleIngredientChange(pickerIdx, value) }}
+        products={products.data || []}
+        wipItems={wipItems.data?.data || []}
+        currentValue={pickerIdx !== null ? (lines[pickerIdx]?.product_id ? `product:${lines[pickerIdx].product_id}` : lines[pickerIdx]?.wip_id ? `wip:${lines[pickerIdx].wip_id}` : undefined) : undefined}
+      />
+
       {/* Recipe Editor */}
       {!isNew && (
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
@@ -747,20 +759,14 @@ export default function MenuDetailPage() {
                 return (
                   <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-3 py-2">
-                      <select value={ingredientValue} onChange={e => handleIngredientChange(idx, e.target.value)}
-                        className="w-full h-8 px-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        <option value="">Pilih bahan...</option>
-                        <optgroup label="Bahan Baku">
-                          {(products.data || []).map(p => (
-                            <option key={p.id} value={`product:${p.id}`}>{p.product_code} — {p.product_name}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="WIP (Setengah Jadi)">
-                          {(wipItems.data?.data || []).map(w => (
-                            <option key={w.id} value={`wip:${w.id}`}>{w.wip_code} — {w.wip_name}</option>
-                          ))}
-                        </optgroup>
-                      </select>
+                      <button onClick={() => setPickerIdx(idx)}
+                        className="w-full h-8 px-2 text-sm text-left border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:border-blue-400 truncate">
+                        {line.product_id
+                          ? (products.data || []).find(p => p.id === line.product_id)?.product_name || 'Produk'
+                          : line.wip_id
+                            ? (wipItems.data?.data || []).find(w => w.id === line.wip_id)?.wip_name || 'WIP'
+                            : <span className="text-gray-400">Pilih bahan...</span>}
+                      </button>
                     </td>
                     <td className="px-3 py-2">
                       <input type="number" value={line.qty || ''} onChange={e => handleQtyChange(idx, Number(e.target.value))} min={0} step="0.01"
