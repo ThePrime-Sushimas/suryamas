@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Printer as PrinterIcon, Plus, Trash2, Wifi, Star } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePrinters, useCreatePrinter, useUpdatePrinter, useDeletePrinter, useTestPrinter } from '../api'
 import type { CreatePrinterDto, Printer } from '../types'
 
@@ -13,15 +14,16 @@ export default function PrintersPage() {
   const deletePrinter = useDeletePrinter()
   const testPrinter = useTestPrinter()
 
+  const { branches } = useBranchContextStore()
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [testingId, setTestingId] = useState<string | null>(null)
-  const [form, setForm] = useState<CreatePrinterDto>({ printer_name: '', ip_address: '', port: 9100, paper_width: 80, is_default: false })
+  const [form, setForm] = useState<CreatePrinterDto>({ printer_name: '', ip_address: '', port: 9100, paper_width: 80, is_default: false, branch_id: null })
 
-  const resetForm = () => { setForm({ printer_name: '', ip_address: '', port: 9100, paper_width: 80, is_default: false }); setEditId(null); setShowForm(false) }
+  const resetForm = () => { setForm({ printer_name: '', ip_address: '', port: 9100, paper_width: 80, is_default: false, branch_id: null }); setEditId(null); setShowForm(false) }
 
   const handleEdit = (p: Printer) => {
-    setForm({ printer_name: p.printer_name, ip_address: p.ip_address, port: p.port, paper_width: p.paper_width, is_default: p.is_default, is_active: p.is_active })
+    setForm({ printer_name: p.printer_name, ip_address: p.ip_address, port: p.port, paper_width: p.paper_width, is_default: p.is_default, is_active: p.is_active, branch_id: p.branch_id })
     setEditId(p.id)
     setShowForm(true)
   }
@@ -73,17 +75,25 @@ export default function PrintersPage() {
         {/* Form */}
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nama Printer *</label>
                 <input type="text" value={form.printer_name} onChange={e => setForm(f => ({ ...f, printer_name: e.target.value }))} required
                   placeholder="misal: Printer Gudang" className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Cabang</label>
+                <select value={form.branch_id ?? ''} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value || null }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                  <option value="">— Semua Cabang —</option>
+                  {branches.map(b => <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">IP Address *</label>
                   <input type="text" value={form.ip_address} onChange={e => setForm(f => ({ ...f, ip_address: e.target.value }))} required
-                    placeholder="192.168.1.100" className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                    placeholder="100.x.x.x" className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Port *</label>
