@@ -267,7 +267,7 @@ export default function PurchaseOrderFormPage() {
                     <div className="text-xs text-gray-500">{l.product_code}</div>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <input type="number" min="0.01" step="0.01" value={l.qty || ''} onChange={e => updateLine(l.key, 'qty', parseFloat(e.target.value) || 0)}
+                    <input type="number" min="0.01" value={l.qty || ''} onChange={e => updateLine(l.key, 'qty', parseFloat(e.target.value) || 0)}
                       className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm" />
                   </td>
                   <td className="px-4 py-3">

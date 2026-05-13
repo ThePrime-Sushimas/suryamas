@@ -376,7 +376,7 @@ export default function GoodsProcessingDetailPage() {
                               className="flex-1 min-w-[150px] px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-left bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:border-blue-400 truncate">
                               {out.product_id ? out.product_name || 'Produk dipilih' : <span className="text-gray-400">Pilih produk...</span>}
                             </button>
-                            <input type="number" min="0" step="0.01" value={out.qty_output || ''}
+                            <input type="number" min="0" value={out.qty_output || ''}
                               onChange={e => updateOutput(inp.id, out.key, 'qty_output', parseFloat(e.target.value) || 0)}
                               className="w-24 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                               placeholder="Qty" />

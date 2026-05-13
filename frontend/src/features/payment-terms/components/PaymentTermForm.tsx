@@ -444,7 +444,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               id="early_payment_discount"
               name="early_payment_discount" 
               type="number"
-              step="0.01"
+             
               value={formData.early_payment_discount} 
               onChange={handleChange}
               onBlur={handleBlur}
@@ -480,7 +480,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               id="late_payment_penalty"
               name="late_payment_penalty" 
               type="number"
-              step="0.01"
+             
               value={formData.late_payment_penalty} 
               onChange={handleChange}
               onBlur={handleBlur}
@@ -521,7 +521,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               id="minimum_order_amount"
               name="minimum_order_amount" 
               type="number"
-              step="0.01"
+             
               value={formData.minimum_order_amount} 
               onChange={handleChange}
               onBlur={handleBlur}
@@ -539,7 +539,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
               id="maximum_order_amount"
               name="maximum_order_amount" 
               type="number"
-              step="0.01"
+             
               value={formData.maximum_order_amount ?? ''} 
               onChange={handleChange}
               onBlur={handleBlur}

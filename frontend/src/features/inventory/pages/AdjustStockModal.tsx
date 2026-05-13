@@ -71,7 +71,7 @@ export default function AdjustStockModal({ balance, onClose }: Props) {
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Qty Baru (Hasil SO) *</label>
-            <input type="number" min="0" step="0.01" value={newQty} onChange={e => setNewQty(parseFloat(e.target.value) || 0)}
+            <input type="number" min="0" value={newQty} onChange={e => setNewQty(parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             {diff !== 0 && (
               <p className={`mt-1 text-sm font-medium ${diff > 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -82,7 +82,7 @@ export default function AdjustStockModal({ balance, onClose }: Props) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost per Unit (Rp)</label>
-            <input type="number" min="0" step="0.01" value={costPerUnit} onChange={e => setCostPerUnit(parseFloat(e.target.value) || 0)}
+            <input type="number" min="0" value={costPerUnit} onChange={e => setCostPerUnit(parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Default: avg cost saat ini. Ubah jika perlu.</p>
           </div>

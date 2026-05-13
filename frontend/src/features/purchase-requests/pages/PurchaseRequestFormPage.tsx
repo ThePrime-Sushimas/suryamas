@@ -360,7 +360,7 @@ export default function PurchaseRequestFormPage() {
                                 <input
                                   type="number"
                                   min="0.01"
-                                  step="0.01"
+                                 
                                   value={l.qty || ''}
                                   onChange={e => updateLine(l.id, 'qty', parseFloat(e.target.value) || 0)}
                                   className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm"

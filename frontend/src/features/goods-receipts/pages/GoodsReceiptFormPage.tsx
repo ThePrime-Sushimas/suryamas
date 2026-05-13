@@ -357,13 +357,13 @@ export default function GoodsReceiptFormPage() {
                       <td className="px-3 py-3 text-right font-mono text-gray-500 dark:text-gray-400">{fmt(l.qty_ordered)}</td>
                       <td className="px-3 py-3 text-right font-mono text-gray-600 dark:text-gray-300 font-medium">{fmt(l.qty_remaining)}</td>
                       <td className="px-3 py-3 text-center">
-                        <input type="number" min="0.01" max={l.qty_remaining} step="0.01" value={l.qty_received || ''}
+                        <input type="number" min="0.01" max={l.qty_remaining} value={l.qty_received || ''}
                           onChange={e => updateLine(l.key, 'qty_received', parseFloat(e.target.value) || 0)}
                           className={`w-24 px-2 py-1.5 border rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${l.qty_received > l.qty_remaining ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600'}`} />
                       </td>
                       <td className="px-3 py-3 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <input type="number" min="0" step="0.01" value={l.qty_rejected || ''}
+                          <input type="number" min="0" value={l.qty_rejected || ''}
                             onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
                             className={`w-20 px-2 py-1.5 border rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${l.qty_rejected > 0 ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}`} />
                           {l.qty_rejected > 0 && (
@@ -436,13 +436,13 @@ export default function GoodsReceiptFormPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Qty Diterima</label>
-                          <input type="number" min="0.01" max={l.qty_remaining} step="0.01" value={l.qty_received || ''}
+                          <input type="number" min="0.01" max={l.qty_remaining} value={l.qty_received || ''}
                             onChange={e => updateLine(l.key, 'qty_received', parseFloat(e.target.value) || 0)}
                             className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${l.qty_received > l.qty_remaining ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Qty Ditolak</label>
-                          <input type="number" min="0" step="0.01" value={l.qty_rejected || ''}
+                          <input type="number" min="0" value={l.qty_rejected || ''}
                             onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
                             className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${l.qty_rejected > 0 ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
                         </div>

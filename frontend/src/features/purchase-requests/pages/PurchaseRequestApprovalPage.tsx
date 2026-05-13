@@ -249,7 +249,7 @@ export default function PurchaseRequestApprovalPage() {
                           </td>
                           <td className="px-4 py-2.5 text-right font-mono text-gray-500 dark:text-gray-400 text-xs">{item.qty} {item.uom}</td>
                           <td className="px-4 py-2.5 text-right">
-                            <input type="number" min="0.01" step="0.01"
+                            <input type="number" min="0.01"
                               value={item.qty_approved || ''}
                               onChange={e => updateItemQty(gIdx, iIdx, parseFloat(e.target.value) || 0)}
                               disabled={!item.selected || !group.selected}
@@ -297,7 +297,7 @@ export default function PurchaseRequestApprovalPage() {
                           </div>
                           <div className="mt-2 flex items-center gap-2">
                             <span className="text-xs text-gray-500">Approve:</span>
-                            <input type="number" min="0.01" step="0.01"
+                            <input type="number" min="0.01"
                               value={item.qty_approved || ''}
                               onChange={e => updateItemQty(gIdx, iIdx, parseFloat(e.target.value) || 0)}
                               disabled={!item.selected || !group.selected}

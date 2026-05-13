@@ -104,7 +104,7 @@ export function ProductUomForm({ uom, existingUoms = [], onSubmit, onCancel, loa
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Harga Dasar (per base unit)</label>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">Rp</span>
-          <input type="number" step="0.01" min="0" value={formData.base_price || ''}
+          <input type="number" min="0" value={formData.base_price || ''}
             onChange={e => setFormData({ ...formData, base_price: parseFloat(e.target.value) || 0 })}
             disabled={loading}
             className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />

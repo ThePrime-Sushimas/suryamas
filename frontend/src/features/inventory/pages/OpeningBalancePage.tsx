@@ -144,11 +144,11 @@ export default function OpeningBalancePage() {
                 <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{l.product_name}</td>
                   <td className="px-4 py-3 text-right">
-                    <input type="number" min="0" step="0.01" value={l.qty || ''} onChange={e => updateLine(l.id, 'qty', parseFloat(e.target.value) || 0)}
+                    <input type="number" min="0" value={l.qty || ''} onChange={e => updateLine(l.id, 'qty', parseFloat(e.target.value) || 0)}
                       className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm" />
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <input type="number" min="0" step="0.01" value={l.cost_per_unit || ''} onChange={e => updateLine(l.id, 'cost_per_unit', parseFloat(e.target.value) || 0)}
+                    <input type="number" min="0" value={l.cost_per_unit || ''} onChange={e => updateLine(l.id, 'cost_per_unit', parseFloat(e.target.value) || 0)}
                       className="w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm" />
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">Rp {fmt(l.qty * l.cost_per_unit)}</td>

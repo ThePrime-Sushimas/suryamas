@@ -184,7 +184,7 @@ export default function WipDetailPage() {
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-sm">
           <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Hasil / Batch</p>
           <div className="flex items-end gap-1">
-            <input type="number" value={yieldQty} onChange={e => { setYieldQty(Number(e.target.value)); setDirty(true) }} min={0.01} step="0.01"
+            <input type="number" value={yieldQty} onChange={e => { setYieldQty(Number(e.target.value)); setDirty(true) }} min={0.01}
               className="text-xl font-bold text-gray-900 dark:text-white bg-transparent w-full outline-none border-b border-gray-100 dark:border-gray-700 focus:border-purple-500 font-mono" />
           </div>
           <p className="text-[10px] text-gray-500 mt-1">Target produksi</p>
@@ -316,7 +316,7 @@ export default function WipDetailPage() {
                       </select>
                     </td>
                     <td className="px-3 py-2">
-                      <input type="number" value={ing.qty || ''} onChange={e => updateIngredient(idx, 'qty', Number(e.target.value))} min={0} step="0.01"
+                      <input type="number" value={ing.qty || ''} onChange={e => updateIngredient(idx, 'qty', Number(e.target.value))} min={0}
                         className="w-full h-8 px-2 text-sm text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                     </td>
                     <td className="px-3 py-2">
