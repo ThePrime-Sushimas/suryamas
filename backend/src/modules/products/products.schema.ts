@@ -29,6 +29,7 @@ export const updateProductSchema = z.object({
     product_type: z.enum(VALID_PRODUCT_TYPES as [string, ...string[]]).optional(),
     is_requestable: z.boolean().optional(),
     is_purchasable: z.boolean().optional(),
+    requires_processing: z.boolean().optional(),
     notes: z.string().max(PRODUCT_LIMITS.NOTES_MAX_LENGTH).optional(),
     status: z.enum(VALID_PRODUCT_STATUSES as [string, ...string[]]).optional(),
   }).refine((data) => !('product_code' in data), {

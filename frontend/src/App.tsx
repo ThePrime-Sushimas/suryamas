@@ -494,6 +494,8 @@ const PurchaseOrderDetailPage = lazy(() => import('./features/purchase-orders/pa
 const GoodsReceiptsPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptsPage'))
 const GoodsReceiptFormPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptFormPage'))
 const GoodsReceiptDetailPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptDetailPage'))
+const GoodsProcessingPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingPage'))
+const GoodsProcessingDetailPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingDetailPage'))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1802,6 +1804,26 @@ function App() {
                       <RequirePermission module="goods_receipts">
                         <Suspense fallback={<LoadingFallback />}>
                           <GoodsReceiptFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/goods-processing"
+                    element={
+                      <RequirePermission module="goods_processing">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GoodsProcessingPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/goods-processing/:id"
+                    element={
+                      <RequirePermission module="goods_processing">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GoodsProcessingDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }

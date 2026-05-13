@@ -15,6 +15,7 @@ export interface Product {
   station: string | null
   is_requestable: boolean
   is_purchasable: boolean
+  requires_processing: boolean
   notes: string | null
   status: ProductStatus
   is_deleted: boolean
@@ -68,6 +69,7 @@ export interface UpdateProductDto {
   station?: string | null
   is_requestable?: boolean
   is_purchasable?: boolean
+  requires_processing?: boolean
   notes?: string
   status?: ProductStatus
 }

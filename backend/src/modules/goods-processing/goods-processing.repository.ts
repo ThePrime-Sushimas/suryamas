@@ -37,7 +37,17 @@ export class GoodsProcessingRepository {
     const params: unknown[] = [companyId]
     let idx = 2
 
-    if (filter?.status) { params.push(filter.status); conditions.push(`gp.status = $${idx++}`) }
+    if (filter?.status) {
+      const trimmed = filter.status.trim()
+      if (trimmed.includes(',')) {
+        const statuses = trimmed.split(',').map(s => s.trim())
+        params.push(statuses)
+        conditions.push(`gp.status = ANY($${idx++}::text[])`)
+      } else {
+        params.push(trimmed)
+        conditions.push(`gp.status = $${idx++}`)
+      }
+    }
     if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`gp.branch_id = $${idx++}`) }
     else if (filter?.branch_ids && filter.branch_ids.length > 0) { params.push(filter.branch_ids); conditions.push(`gp.branch_id = ANY($${idx++}::uuid[])`) }
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`gp.processing_date >= $${idx++}::date`) }

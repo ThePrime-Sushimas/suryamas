@@ -363,6 +363,13 @@ export const menuItems: MenuItem[] = [
         icon: <PackageCheck size={16} />,
         module: "goods_receipts",
       },
+      {
+        id: "inv-goods-processing",
+        name: "Barang Masuk",
+        href: "/inventory/goods-processing",
+        icon: <Package size={16} />,
+        module: "goods_processing",
+      },
     ],
   },
 

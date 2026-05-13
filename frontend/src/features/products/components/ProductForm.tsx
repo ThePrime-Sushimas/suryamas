@@ -36,6 +36,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     average_cost: initialData?.average_cost || 0,
     is_requestable: initialData?.is_requestable ?? true,
     is_purchasable: initialData?.is_purchasable ?? true,
+    requires_processing: initialData?.requires_processing ?? false,
     notes: initialData?.notes || '',
     status: (initialData?.status || 'ACTIVE') as ProductStatus,
     base_unit_id: '',
@@ -121,6 +122,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       station: formData.station || null,
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
+      requires_processing: formData.requires_processing,
       notes: formData.notes || undefined,
       status: formData.status
     } : {
@@ -303,7 +305,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
         )}
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex gap-6 flex-wrap">
         <label className="flex items-center cursor-pointer">
           <input
             type="checkbox"
@@ -323,6 +325,16 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
             className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 mr-2 bg-white dark:bg-gray-700"
           />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Purchasable</span>
+        </label>
+        <label className="flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            name="requires_processing"
+            checked={formData.requires_processing}
+            onChange={handleChange}
+            className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500 mr-2 bg-white dark:bg-gray-700"
+          />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Perlu Proses (Potong/Trim)</span>
         </label>
       </div>
 

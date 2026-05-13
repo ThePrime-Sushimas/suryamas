@@ -46,7 +46,11 @@ export const ListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(25),
-    status: z.enum(['DRAFT', 'PROCESSING', 'QC_REVIEW', 'CONFIRMED', 'REJECTED']).optional(),
+    status: z.string()
+  .refine(val => val.split(',').every(s =>
+    ['DRAFT','PROCESSING','QC_REVIEW','CONFIRMED','REJECTED'].includes(s.trim())
+  ), { message: 'Invalid status value' })
+  .optional(),
     branch_id: z.string().uuid().optional(),
     date_from: z.string().optional(),
     date_to: z.string().optional(),

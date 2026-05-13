@@ -97,7 +97,7 @@ export default function GoodsReceiptDetailPage() {
     if (!id) return
     try {
       await confirmGR.mutateAsync({ id })
-      toast.success('Barang dikonfirmasi — stok & jurnal tercatat')
+      toast.success('Penerimaan barang dikonfirmasi')
       setShowConfirm(false)
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal mengkonfirmasi')) }
   }
@@ -145,9 +145,8 @@ export default function GoodsReceiptDetailPage() {
                   className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
                   Edit
                 </button>
-                <button onClick={() => setShowConfirm(true)} disabled={!hasInvoiceAttachment}
-                  className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm"
-                  title={!hasInvoiceAttachment ? 'Upload foto invoice terlebih dahulu' : ''}>
+                <button onClick={() => setShowConfirm(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm">
                   <CheckCircle className="w-4 h-4" /> Konfirmasi
                 </button>
               </>
@@ -331,7 +330,7 @@ export default function GoodsReceiptDetailPage() {
 
       <ConfirmModal isOpen={showConfirm} onClose={() => setShowConfirm(false)} onConfirm={handleConfirm}
         title="Konfirmasi Penerimaan Barang"
-        message={`Konfirmasi akan:\n• Menambah stok ke gudang\n• Membuat jurnal (Persediaan / Hutang)\n• Update status PO\n\nLanjutkan?`}
+        message={`Konfirmasi penerimaan barang ini?\n\n• Update status PO\n• Buat Goods Processing (Barang Masuk) otomatis\n\nLanjutkan?`}
         confirmText="Konfirmasi" variant="success" isLoading={confirmGR.isPending} />
     </div>
   )
