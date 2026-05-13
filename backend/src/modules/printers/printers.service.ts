@@ -85,14 +85,17 @@ export class PrintersService {
       ]
       if (pr.needed_by_date) header.push({ key: 'Dibutuhkan', value: fmtDate(pr.needed_by_date) })
       if (supplierName !== '__none__') header.push({ key: 'Supplier', value: supplierName })
+      if (pr.requested_by_name) header.push({ key: 'Dibuat', value: pr.requested_by_name })
+      if (pr.approved_by_name) header.push({ key: 'Disetujui', value: pr.approved_by_name })
       header.push({ key: 'Status', value: pr.status })
 
-      let total = 0
       const items = lines.map((l, idx) => {
-        const price = l.estimated_price ?? 0
-        const subtotal = price * l.qty
-        total += subtotal
-        return { label: `${idx + 1}. ${l.product_name}`, detail: `${l.qty} ${l.uom} @ Rp ${fmt(price)}`, amount: `Rp ${fmt(subtotal)}` }
+        const ordered = Number(l.qty_ordered ?? 0)
+        return {
+          label: `${idx + 1}. ${l.product_name}`,
+          detail: `Req: ${l.qty} ${l.uom}`,
+          amount: ordered > 0 ? `Ord: ${ordered} ${l.uom}` : '',
+        }
       })
 
       const receipt = buildDocReceipt({
@@ -100,8 +103,8 @@ export class PrintersService {
         doc_title: 'Purchase Request',
         header,
         items,
-        total_label: 'Total Estimasi',
-        total_amount: `Rp ${fmt(total)}`,
+        total_label: 'Total Item',
+        total_amount: `${lines.length} item`,
       })
 
       await sendToPrinter(printer.ip_address, printer.port, receipt)
