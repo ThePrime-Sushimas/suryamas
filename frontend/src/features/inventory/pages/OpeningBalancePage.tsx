@@ -177,7 +177,7 @@ export default function OpeningBalancePage() {
       <ProductPickerModal
         open={showProductPicker}
         onClose={() => setShowProductPicker(false)}
-        onSelect={(product) => { addLine(product); setShowProductPicker(false) }}
+        onSelect={(product) => { addLine(product) }}
         branchId={branchId}
         showStock={!!branchId}
         excludeProductIds={lines.map(l => l.product_id)}
