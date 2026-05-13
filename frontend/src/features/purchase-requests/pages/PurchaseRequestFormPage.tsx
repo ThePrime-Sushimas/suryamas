@@ -90,20 +90,26 @@ export default function PurchaseRequestFormPage() {
   })
   const categories = categoriesData ?? []
 
-  // Fetch stock balances for items in lines (based on selected branch)
+  // Fetch stock balances for items in lines (based on selected branch — MAIN + READY separate)
   const lineProductIds = lines.map(l => l.product_id)
-  const { data: stockByProduct } = useQuery({
+  const { data: stockData } = useQuery({
     queryKey: ['stock-balances', 'pr-form', branchId, lineProductIds],
     queryFn: async () => {
-      // Fetch all stock for this branch's MAIN warehouse, filter client-side
-      const { data } = await api.get('/stock/balances', { params: { branch_id: branchId, warehouse_type: 'MAIN', limit: 100 } })
-      const map: Record<string, number> = {}
-      for (const row of (data.data ?? [])) map[row.product_id] = parseFloat(row.qty)
-      return map
+      const [mainRes, readyRes] = await Promise.all([
+        api.get('/stock/balances', { params: { branch_id: branchId, warehouse_type: 'MAIN', limit: 100 } }),
+        api.get('/stock/balances', { params: { branch_id: branchId, warehouse_type: 'READY', limit: 100 } }),
+      ])
+      const main: Record<string, { qty: number; uom: string }> = {}
+      const ready: Record<string, { qty: number; uom: string }> = {}
+      for (const row of (mainRes.data.data ?? [])) main[row.product_id] = { qty: parseFloat(row.qty), uom: row.base_unit_name ?? '' }
+      for (const row of (readyRes.data.data ?? [])) ready[row.product_id] = { qty: parseFloat(row.qty), uom: row.base_unit_name ?? '' }
+      return { main, ready }
     },
     enabled: !!branchId && lineProductIds.length > 0,
     staleTime: 30_000,
   })
+  const stockMain = stockData?.main ?? {}
+  const stockReady = stockData?.ready ?? {}
 
   // Search products (filtered by category if selected)
   const { data: productsData } = useQuery({
@@ -391,12 +397,16 @@ export default function PurchaseRequestFormPage() {
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">UOM</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Stock</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Gudang</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Ready</th>
                             <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-16">Hapus</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                          {supplierLines.map(l => (
+                          {supplierLines.map(l => {
+                            const mainStock = stockMain[l.product_id]
+                            const readyStock = stockReady[l.product_id]
+                            return (
                             <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                               <td className="px-4 py-3">
                                 <div className="font-medium text-gray-900 dark:text-white">{l.product_name}</div>
@@ -416,12 +426,27 @@ export default function PurchaseRequestFormPage() {
                                 <span className="text-gray-600 dark:text-gray-400 text-sm">{l.uom}</span>
                               </td>
                               <td className="px-4 py-3 text-right">
-                                {branchId && stockByProduct ? (
-                                  <span className={`text-sm font-mono ${(stockByProduct[l.product_id] ?? 0) < l.qty ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                                    {stockByProduct[l.product_id] ?? 0}
-                                  </span>
+                                {branchId && mainStock ? (
+                                  <div>
+                                    <span className={`text-sm font-mono ${mainStock.qty > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                      {mainStock.qty}
+                                    </span>
+                                    {mainStock.uom && <span className="text-xs text-gray-400 ml-1">{mainStock.uom}</span>}
+                                  </div>
                                 ) : (
-                                  <span className="text-xs text-gray-400">—</span>
+                                  <span className="text-xs text-gray-400">0</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {branchId && readyStock ? (
+                                  <div>
+                                    <span className={`text-sm font-mono ${readyStock.qty > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                                      {readyStock.qty}
+                                    </span>
+                                    {readyStock.uom && <span className="text-xs text-gray-400 ml-1">{readyStock.uom}</span>}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-gray-400">0</span>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-center">
@@ -430,7 +455,8 @@ export default function PurchaseRequestFormPage() {
                                 </button>
                               </td>
                             </tr>
-                          ))}
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -490,7 +516,8 @@ export default function PurchaseRequestFormPage() {
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">UOM Beli</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Stock</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gudang</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ready</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</th>
                     </tr>
                   </thead>
@@ -498,7 +525,8 @@ export default function PurchaseRequestFormPage() {
                     {products.map(p => {
                       const suppliers = suppliersByProduct?.[p.id] ?? []
                       const uom = purchaseUomsByProduct?.[p.id] ?? p.base_unit_name ?? 'pcs'
-                      const stock = stockByProduct?.[p.id] ?? 0
+                      const mainStock = stockMain[p.id]
+                      const readyStock = stockReady[p.id]
                       const alreadyAdded = lines.some(l => l.product_id === p.id)
 
                       return (
@@ -509,9 +537,16 @@ export default function PurchaseRequestFormPage() {
                           </td>
                           <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{uom}</td>
                           <td className="px-4 py-3 text-right">
-                            <span className={`font-mono ${stock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {stock}
+                            <span className={`font-mono text-sm ${(mainStock?.qty ?? 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                              {mainStock?.qty ?? 0}
                             </span>
+                            {mainStock?.uom && <span className="text-xs text-gray-400 ml-1">{mainStock.uom}</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={`font-mono text-sm ${(readyStock?.qty ?? 0) > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                              {readyStock?.qty ?? 0}
+                            </span>
+                            {readyStock?.uom && <span className="text-xs text-gray-400 ml-1">{readyStock.uom}</span>}
                           </td>
                           <td className="px-4 py-3">
                             {suppliers.length > 0 ? (
