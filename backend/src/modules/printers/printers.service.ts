@@ -3,10 +3,9 @@ import { purchaseRequestsRepository } from '../purchase-requests/purchase-reques
 import { PrinterNotFoundError, PrinterConnectionError } from './printers.errors'
 import { PurchaseRequestNotFoundError } from '../purchase-requests/purchase-requests.errors'
 import { AuditService } from '../monitoring/monitoring.service'
-import { buildPRReceipt, sendToPrinter, testPrinterConnection } from './printers.print'
-import { logInfo, logError } from '../../config/logger'
+import { buildDocReceipt, sendToPrinter, testPrinterConnection, fmt } from './printers.print'
+import { logInfo } from '../../config/logger'
 import type { CreatePrinterDto, UpdatePrinterDto, PrinterWithRelations } from './printers.types'
-import type { PrintPRData } from './printers.print'
 
 export class PrintersService {
   async list(companyId: string): Promise<PrinterWithRelations[]> {
@@ -75,24 +74,36 @@ export class PrintersService {
     }
 
     // Print one receipt per supplier group
-    for (const [supplierName, lines] of grouped) {
-      const printData: PrintPRData = {
-        request_number: pr.request_number,
-        request_date: new Date(pr.request_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-        branch_name: pr.branch_name,
-        needed_by_date: pr.needed_by_date ? new Date(pr.needed_by_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
-        status: pr.status,
-        supplier_name: supplierName === '__none__' ? null : supplierName,
-        paper_width: printer.paper_width,
-        lines: lines.map(l => ({
-          product_name: l.product_name,
-          qty: l.qty,
-          uom: l.uom,
-          estimated_price: l.estimated_price,
-        })),
-      }
+    const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
-      const receipt = buildPRReceipt(printData)
+    for (const [supplierName, lines] of grouped) {
+
+      const header = [
+        { key: 'No', value: pr.request_number },
+        { key: 'Tgl', value: fmtDate(pr.request_date) },
+        { key: 'Branch', value: pr.branch_name },
+      ]
+      if (pr.needed_by_date) header.push({ key: 'Dibutuhkan', value: fmtDate(pr.needed_by_date) })
+      if (supplierName !== '__none__') header.push({ key: 'Supplier', value: supplierName })
+      header.push({ key: 'Status', value: pr.status })
+
+      let total = 0
+      const items = lines.map((l, idx) => {
+        const price = l.estimated_price ?? 0
+        const subtotal = price * l.qty
+        total += subtotal
+        return { label: `${idx + 1}. ${l.product_name}`, detail: `${l.qty} ${l.uom} @ Rp ${fmt(price)}`, amount: `Rp ${fmt(subtotal)}` }
+      })
+
+      const receipt = buildDocReceipt({
+        paper_width: printer.paper_width,
+        doc_title: 'Purchase Request',
+        header,
+        items,
+        total_label: 'Total Estimasi',
+        total_amount: `Rp ${fmt(total)}`,
+      })
+
       await sendToPrinter(printer.ip_address, printer.port, receipt)
     }
 

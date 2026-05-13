@@ -1,10 +1,13 @@
 import * as net from 'net'
 import { PrinterConnectionError } from './printers.errors'
 
-// ESC/POS command constants
+// ─── ESC/POS Commands ────────────────────────────────────────────────────────
+
 const ESC = '\x1B'
 const GS = '\x1D'
-const COMMANDS = {
+const LF = '\x0A'
+
+const CMD = {
   INIT: `${ESC}@`,
   ALIGN_LEFT: `${ESC}a\x00`,
   ALIGN_CENTER: `${ESC}a\x01`,
@@ -12,128 +15,172 @@ const COMMANDS = {
   BOLD_ON: `${ESC}E\x01`,
   BOLD_OFF: `${ESC}E\x00`,
   DOUBLE_WIDTH: `${GS}!\x10`,
-  DOUBLE_HEIGHT: `${GS}!\x01`,
   NORMAL_SIZE: `${GS}!\x00`,
-  CUT: `${GS}V\x00`,
-  PARTIAL_CUT: `${GS}V\x01`,
   FEED_LINES: (n: number) => `${ESC}d${String.fromCharCode(n)}`,
+  PARTIAL_CUT: `${GS}V\x01`,
 }
+
+// ─── Buffer Builder ──────────────────────────────────────────────────────────
+
+class ReceiptBuilder {
+  private buffers: Buffer[] = []
+
+  /** Push raw command bytes (no line feed) */
+  cmd(s: string): this { this.buffers.push(Buffer.from(s, 'binary')); return this }
+
+  /** Push text line with LF */
+  line(s: string): this { this.buffers.push(Buffer.from(s + LF, 'binary')); return this }
+
+  /** Push empty line */
+  lf(): this { this.buffers.push(Buffer.from(LF, 'binary')); return this }
+
+  build(): Buffer { return Buffer.concat(this.buffers) }
+}
+
+// ─── Layout Helpers ──────────────────────────────────────────────────────────
 
 const LINE_WIDTH = { 80: 48, 58: 32 } as const
-type PaperWidth = keyof typeof LINE_WIDTH
 
-function getLineWidth(paperWidth: number): number {
-  return LINE_WIDTH[paperWidth as PaperWidth] ?? 48
+function lw(paperWidth: number): number {
+  return LINE_WIDTH[paperWidth as keyof typeof LINE_WIDTH] ?? 48
 }
 
-function padRight(str: string, len: number): string {
+function pad(str: string, len: number): string {
   return str.length >= len ? str.slice(0, len) : str + ' '.repeat(len - str.length)
 }
 
-function separator(lineWidth: number, char = '-'): string {
-  return char.repeat(lineWidth)
+function sep(w: number, char = '-'): string { return char.repeat(w) }
+function dsep(w: number): string { return '='.repeat(w) }
+function cols(left: string, right: string, w: number): string {
+  const rightLen = Math.min(right.length, w - 1)
+  const leftLen = Math.max(0, w - rightLen - 1)
+  return pad(left, leftLen) + ' ' + right.slice(0, rightLen)
 }
 
-function doubleSeparator(lineWidth: number): string {
-  return '='.repeat(lineWidth)
-}
-
-function twoColumn(left: string, right: string, lineWidth: number): string {
-  const rightLen = right.length
-  const leftLen = lineWidth - rightLen - 1
-  return padRight(left, leftLen) + ' ' + right
-}
-
-export function formatNumber(n: number): string {
+export function fmt(n: number): string {
   return new Intl.NumberFormat('id-ID').format(n)
 }
 
-export interface PrintPRData {
-  request_number: string
-  request_date: string
-  branch_name: string
-  needed_by_date: string | null
-  status: string
-  supplier_name: string | null
+// ─── Generic Receipt Template System ─────────────────────────────────────────
+
+export type ReceiptRow =
+  | { type: 'title'; text: string }
+  | { type: 'subtitle'; text: string }
+  | { type: 'separator' }
+  | { type: 'double-separator' }
+  | { type: 'kv'; key: string; value: string }
+  | { type: 'section-header'; text: string }
+  | { type: 'item'; label: string; detail: string; amount: string }
+  | { type: 'total'; label: string; amount: string }
+  | { type: 'center'; text: string }
+  | { type: 'text'; text: string }
+
+export interface ReceiptTemplate {
   paper_width: number
-  lines: Array<{
-    product_name: string
-    qty: number
-    uom: string
-    estimated_price: number | null
-  }>
+  rows: ReceiptRow[]
 }
 
-export function buildPRReceipt(data: PrintPRData): string {
-  const lw = getLineWidth(data.paper_width)
-  const lines: string[] = []
+/**
+ * Build ESC/POS receipt Buffer from a generic template.
+ */
+export function buildReceipt(template: ReceiptTemplate): Buffer {
+  const w = lw(template.paper_width)
+  const b = new ReceiptBuilder()
 
-  lines.push(COMMANDS.INIT)
-  lines.push(COMMANDS.ALIGN_CENTER)
-  lines.push(COMMANDS.BOLD_ON)
-  lines.push(COMMANDS.DOUBLE_WIDTH)
-  lines.push('SURYAMAS')
-  lines.push(COMMANDS.NORMAL_SIZE)
-  lines.push(COMMANDS.BOLD_OFF)
-  lines.push('Purchase Request')
-  lines.push(doubleSeparator(lw))
+  b.cmd(CMD.INIT)
 
-  lines.push(COMMANDS.ALIGN_LEFT)
-  lines.push(twoColumn('No', `: ${data.request_number}`, lw))
-  lines.push(twoColumn('Tgl', `: ${data.request_date}`, lw))
-  lines.push(twoColumn('Branch', `: ${data.branch_name}`, lw))
-  if (data.needed_by_date) {
-    lines.push(twoColumn('Dibutuhkan', `: ${data.needed_by_date}`, lw))
+  for (const row of template.rows) {
+    switch (row.type) {
+      case 'title':
+        b.cmd(CMD.ALIGN_CENTER).cmd(CMD.BOLD_ON).cmd(CMD.DOUBLE_WIDTH)
+        b.line(row.text)
+        b.cmd(CMD.NORMAL_SIZE).cmd(CMD.BOLD_OFF)
+        break
+      case 'subtitle':
+        b.cmd(CMD.ALIGN_CENTER).line(row.text)
+        break
+      case 'separator':
+        b.cmd(CMD.ALIGN_LEFT).line(sep(w))
+        break
+      case 'double-separator':
+        b.cmd(CMD.ALIGN_LEFT).line(dsep(w))
+        break
+      case 'kv':
+        b.cmd(CMD.ALIGN_LEFT).line(cols(row.key, `: ${row.value}`, w))
+        break
+      case 'section-header':
+        b.cmd(CMD.ALIGN_LEFT).cmd(CMD.BOLD_ON).line(row.text).cmd(CMD.BOLD_OFF)
+        break
+      case 'item':
+        b.cmd(CMD.ALIGN_LEFT).line(row.label).line(cols(`   ${row.detail}`, row.amount, w))
+        break
+      case 'total':
+        b.cmd(CMD.ALIGN_LEFT).cmd(CMD.BOLD_ON).line(cols(row.label, row.amount, w)).cmd(CMD.BOLD_OFF)
+        break
+      case 'center':
+        b.cmd(CMD.ALIGN_CENTER).line(row.text)
+        break
+      case 'text':
+        b.cmd(CMD.ALIGN_LEFT).line(row.text)
+        break
+    }
   }
-  if (data.supplier_name) {
-    lines.push(twoColumn('Supplier', `: ${data.supplier_name}`, lw))
+
+  b.lf().cmd(CMD.FEED_LINES(4)).cmd(CMD.PARTIAL_CUT)
+  return b.build()
+}
+
+// ─── Pre-built Document Template ─────────────────────────────────────────────
+
+export interface PrintDocData {
+  paper_width: number
+  doc_title: string
+  header: Array<{ key: string; value: string }>
+  items: Array<{ label: string; detail: string; amount: string }>
+  total_label: string
+  total_amount: string
+  footer?: string
+}
+
+/**
+ * Generic document receipt — works for PR, PO, Goods Receipt, etc.
+ */
+export function buildDocReceipt(data: PrintDocData): Buffer {
+  const rows: ReceiptRow[] = [
+    { type: 'title', text: 'SURYAMAS' },
+    { type: 'subtitle', text: data.doc_title },
+    { type: 'double-separator' },
+    ...data.header.map(h => ({ type: 'kv' as const, key: h.key, value: h.value })),
+    { type: 'separator' },
+    { type: 'section-header', text: 'ITEMS:' },
+    ...data.items.map(i => ({ type: 'item' as const, label: i.label, detail: i.detail, amount: i.amount })),
+    { type: 'separator' },
+    { type: 'total', label: data.total_label, amount: data.total_amount },
+    { type: 'double-separator' },
+  ]
+
+  if (data.footer) {
+    rows.push({ type: 'center', text: data.footer })
   }
-  lines.push(twoColumn('Status', `: ${data.status}`, lw))
 
-  lines.push(separator(lw))
-  lines.push(COMMANDS.BOLD_ON)
-  lines.push('ITEMS:')
-  lines.push(COMMANDS.BOLD_OFF)
-
-  let totalEstimated = 0
-  data.lines.forEach((item, idx) => {
-    const price = item.estimated_price ?? 0
-    const subtotal = price * item.qty
-    totalEstimated += subtotal
-
-    lines.push(`${idx + 1}. ${item.product_name}`)
-    const detail = `   ${item.qty} ${item.uom} @ Rp ${formatNumber(price)}`
-    const sub = `Rp ${formatNumber(subtotal)}`
-    lines.push(twoColumn(detail, sub, lw))
-  })
-
-  lines.push(separator(lw))
-  lines.push(COMMANDS.BOLD_ON)
-  lines.push(twoColumn('Total Estimasi', `Rp ${formatNumber(totalEstimated)}`, lw))
-  lines.push(COMMANDS.BOLD_OFF)
-  lines.push(doubleSeparator(lw))
-
-  lines.push(COMMANDS.ALIGN_CENTER)
   const now = new Date()
-  lines.push(`Printed: ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`)
-  lines.push('')
-  lines.push(COMMANDS.FEED_LINES(4))
-  lines.push(COMMANDS.PARTIAL_CUT)
+  rows.push({ type: 'center', text: `Printed: ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` })
 
-  return lines.join('\n')
+  return buildReceipt({ paper_width: data.paper_width, rows })
 }
 
-export async function sendToPrinter(ip: string, port: number, data: string, timeoutMs = 5000): Promise<void> {
+// ─── Network ─────────────────────────────────────────────────────────────────
+
+export async function sendToPrinter(ip: string, port: number, data: Buffer, timeoutMs = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
     const socket = new net.Socket()
-    const buf = Buffer.from(data, 'binary')
     const timer = setTimeout(() => {
       socket.destroy()
       reject(new PrinterConnectionError(ip, port, 'Connection timeout'))
     }, timeoutMs)
 
     socket.connect(port, ip, () => {
-      socket.write(buf, (err) => {
+      socket.write(data, (err) => {
         clearTimeout(timer)
         socket.end()
         if (err) reject(new PrinterConnectionError(ip, port, err.message))

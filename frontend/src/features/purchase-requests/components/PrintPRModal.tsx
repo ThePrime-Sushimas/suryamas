@@ -28,12 +28,12 @@ export function PrintPRModal({ prId, supplierGroups, onClose }: PrintPRModalProp
   const [selectedPrinter, setSelectedPrinter] = useState(defaultPrinter?.id ?? '')
   const [selectedLines, setSelectedLines] = useState<Set<string>>(() => {
     const all = new Set<string>()
-    supplierGroups.forEach(g => g.lines.forEach(l => all.add(l.id)))
+    supplierGroups.forEach(g => g.lines.forEach(l => { if (l.id) all.add(l.id) }))
     return all
   })
 
   const toggleGroup = (group: SupplierGroup) => {
-    const groupIds = group.lines.map(l => l.id)
+    const groupIds = group.lines.map(l => l.id).filter((id): id is string => !!id)
     const allSelected = groupIds.every(id => selectedLines.has(id))
     setSelectedLines(prev => {
       const next = new Set(prev)
@@ -95,7 +95,7 @@ export function PrintPRModal({ prId, supplierGroups, onClose }: PrintPRModalProp
           <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Pilih item yang akan dicetak:</p>
           <div className="space-y-3">
             {supplierGroups.map((group, gIdx) => {
-              const groupIds = group.lines.map(l => l.id)
+              const groupIds = group.lines.map(l => l.id).filter((id): id is string => !!id)
               const allSelected = groupIds.every(id => selectedLines.has(id))
               const someSelected = groupIds.some(id => selectedLines.has(id))
 
@@ -108,9 +108,9 @@ export function PrintPRModal({ prId, supplierGroups, onClose }: PrintPRModalProp
                     <span className="text-xs text-gray-400">({groupIds.filter(id => selectedLines.has(id)).length}/{groupIds.length})</span>
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                    {group.lines.map(line => (
+                    {group.lines.filter(l => l.id).map(line => (
                       <label key={line.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer">
-                        <input type="checkbox" checked={selectedLines.has(line.id)} onChange={() => toggleLine(line.id)}
+                        <input type="checkbox" checked={selectedLines.has(line.id!)} onChange={() => toggleLine(line.id!)}
                           className="rounded border-gray-300 text-indigo-600" />
                         <span className="text-xs text-gray-700 dark:text-gray-300 flex-1">{line.product_name}</span>
                         <span className="text-xs text-gray-400">{line.qty} {line.uom}</span>
