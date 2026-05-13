@@ -74,6 +74,14 @@ export class StockRepository {
     return rows[0] ?? null
   }
 
+  async getBalanceForUpdate(client: PoolClient, warehouseId: string, productId: string): Promise<StockBalance | null> {
+    const { rows } = await client.query(
+      'SELECT * FROM stock_balances WHERE warehouse_id = $1 AND product_id = $2 FOR UPDATE',
+      [warehouseId, productId]
+    )
+    return rows[0] ?? null
+  }
+
   async upsertBalance(client: PoolClient, warehouseId: string, productId: string, qty: number, avgCost: number): Promise<StockBalance> {
     const { rows } = await client.query(
       `INSERT INTO stock_balances (warehouse_id, product_id, qty, avg_cost, last_movement_at, updated_at)

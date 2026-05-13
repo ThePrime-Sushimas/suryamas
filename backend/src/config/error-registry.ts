@@ -595,6 +595,38 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 404,
     category: 'inventory',
   },
+
+  // ============ GOODS PROCESSING MODULE ============
+  GoodsProcessingNotFoundError: {
+    name: 'GoodsProcessingNotFoundError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 404,
+    category: 'inventory',
+  },
+  GoodsProcessingInvalidStatusError: {
+    name: 'GoodsProcessingInvalidStatusError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsProcessingOutputExceedsInputError: {
+    name: 'GoodsProcessingOutputExceedsInputError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsProcessingPhotoRequiredError: {
+    name: 'GoodsProcessingPhotoRequiredError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsProcessingAlreadyExistsError: {
+    name: 'GoodsProcessingAlreadyExistsError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 409,
+    category: 'inventory',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

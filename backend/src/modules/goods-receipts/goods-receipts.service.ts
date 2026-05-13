@@ -1,5 +1,6 @@
 import { pool } from '../../config/db'
 import { goodsReceiptsRepository } from './goods-receipts.repository'
+import { goodsProcessingRepository } from '../goods-processing/goods-processing.repository'
 import { BusinessRuleError } from '../../utils/errors.base'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
@@ -117,6 +118,11 @@ export class GoodsReceiptsService {
       throw new BusinessRuleError('Upload minimal 1 dokumen (surat jalan / foto barang) sebelum konfirmasi')
     }
 
+    // Guard: warehouse must exist
+    if (!gr.warehouse_id) {
+      throw new BusinessRuleError('GR tidak memiliki warehouse yang terdaftar')
+    }
+
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
@@ -150,6 +156,41 @@ export class GoodsReceiptsService {
       await goodsReceiptsRepository.updateStatus(client, id, 'CONFIRMED', {
         updated_by: userId,
       })
+
+      // 6. Auto-create Goods Processing
+      const branchCode = gr.branch_code ?? 'XXX'
+      const gpNumber = await goodsProcessingRepository.generateGpNumber(client, companyId, branchCode)
+
+      // Detect processing type: DISASSEMBLY if any product requires_processing
+      const { rows: productFlags } = await client.query(
+        `SELECT DISTINCT p.requires_processing FROM goods_receipt_lines grl JOIN products p ON p.id = grl.product_id WHERE grl.gr_id = $1`,
+        [id]
+      )
+      const hasDisassembly = productFlags.some((r: { requires_processing: boolean }) => r.requires_processing)
+      const processingType = hasDisassembly ? 'DISASSEMBLY' : 'PASS_THROUGH'
+
+      const { rows: gpRows } = await client.query(
+        `INSERT INTO goods_processing (company_id, branch_id, warehouse_id, goods_receipt_id, processing_number, processing_date, processing_type, status, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'DRAFT', $8) RETURNING id`,
+        [companyId, gr.branch_id, gr.warehouse_id, id, gpNumber, gr.received_date, processingType, userId]
+      )
+      const gpId = gpRows[0].id
+
+      // Auto-create inputs + default outputs (pass-through: output = input)
+      for (const line of gr.lines) {
+        const { rows: inputRows } = await client.query(
+          `INSERT INTO goods_processing_inputs (goods_processing_id, gr_line_id, product_id, qty_input, uom, sort_order)
+           VALUES ($1, $2, $3, $4, $5, 0) RETURNING id`,
+          [gpId, line.id, line.product_id, line.qty_received, line.uom ?? 'kg']
+        )
+        const inputId = inputRows[0].id
+
+        await client.query(
+          `INSERT INTO goods_processing_outputs (goods_processing_id, input_id, product_id, qty_output, uom, is_waste, sort_order)
+           VALUES ($1, $2, $3, $4, $5, false, 0)`,
+          [gpId, inputId, line.product_id, line.qty_received, line.uom ?? 'kg']
+        )
+      }
 
       await client.query('COMMIT')
 
