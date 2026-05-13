@@ -450,6 +450,7 @@ const AlertSettingsPage = lazy(() =>
 )
 const DepartmentsPage = lazy(() => import('./features/settings/pages/DepartmentsPage'))
 const PositionsPage = lazy(() => import('./features/settings/pages/PositionsPage'))
+const PrintersPage = lazy(() => import('./features/printers/pages/PrintersPage'))
 const AlertHistoryPage = lazy(() =>
   import('./features/payment-method-alerts').then(m => ({ default: m.AlertHistoryPage }))
 )
@@ -1851,6 +1852,16 @@ function App() {
                       <RequirePermission module="payment_method_alerts">
                         <Suspense fallback={<LoadingFallback />}>
                           <AlertHistoryDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="settings/printers"
+                    element={
+                      <RequirePermission module="printers">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PrintersPage />
                         </Suspense>
                       </RequirePermission>
                     }

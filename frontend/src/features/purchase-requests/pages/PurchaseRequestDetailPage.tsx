@@ -7,6 +7,7 @@ import {
   CheckCircle,
   Ban,
   Package,
+  Printer,
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
@@ -19,6 +20,7 @@ import {
   type PurchaseRequestLine,
 } from "../api/purchaseRequests.api";
 import { PR_STATUS_CONFIG } from "../constants";
+import { PrintPRModal } from "../components/PrintPRModal";
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 const fmtDate = (d: string) =>
@@ -50,6 +52,7 @@ export default function PurchaseRequestDetailPage() {
   const [confirmAction, setConfirmAction] = useState<
     "submit" | "cancel" | null
   >(null);
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Group lines by supplier
   const supplierGroups = useMemo<SupplierGroup[]>(() => {
@@ -189,6 +192,13 @@ export default function PurchaseRequestDetailPage() {
                 <Ban className="w-4 h-4" /> Batalkan
               </button>
             )}
+
+            <button
+              onClick={() => setShowPrintModal(true)}
+              className="flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <Printer className="w-4 h-4" /> Print
+            </button>
           </div>
         </div>
       </div>
@@ -352,6 +362,11 @@ export default function PurchaseRequestDetailPage() {
         variant={confirmAction === "cancel" ? "danger" : "success"}
         isLoading={submitPR.isPending || cancelPR.isPending}
       />
+
+      {/* Print Modal */}
+      {showPrintModal && (
+        <PrintPRModal prId={id!} supplierGroups={supplierGroups} onClose={() => setShowPrintModal(false)} />
+      )}
     </div>
   );
 }
