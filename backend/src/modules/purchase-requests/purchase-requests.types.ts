@@ -56,6 +56,7 @@ export interface PurchaseRequestLineWithRelations extends PurchaseRequestLine {
 
 export interface PurchaseRequestWithLines extends PurchaseRequestWithRelations {
   lines: PurchaseRequestLineWithRelations[]
+  purchase_orders?: Array<{ id: string; po_number: string; status: string; supplier_name: string }>
 }
 
 // DTOs

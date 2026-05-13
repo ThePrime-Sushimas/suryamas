@@ -88,6 +88,8 @@ export class PrintersService {
       if (pr.requested_by_name) header.push({ key: 'Dibuat', value: pr.requested_by_name })
       if (pr.approved_by_name) header.push({ key: 'Disetujui', value: pr.approved_by_name })
       header.push({ key: 'Status', value: pr.status })
+      const relatedPo = pr.purchase_orders?.find(po => po.supplier_name === supplierName)
+      if (relatedPo) header.push({ key: 'PO', value: relatedPo.po_number })
 
       const items = lines.map((l, idx) => {
         const ordered = Number(l.qty_ordered ?? 0)

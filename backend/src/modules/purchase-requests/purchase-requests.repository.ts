@@ -97,12 +97,19 @@ export class PurchaseRequestsRepository {
     const header = await this.findById(id, companyId)
     if (!header) return null
 
-    const { rows: lines } = await pool.query(
-      `SELECT ${LINE_SELECT} ${LINE_FROM} WHERE prl.request_id = $1 ORDER BY prl.sort_order ASC`,
-      [id]
-    )
+    const [{ rows: lines }, { rows: pos }] = await Promise.all([
+      pool.query(`SELECT ${LINE_SELECT} ${LINE_FROM} WHERE prl.request_id = $1 ORDER BY prl.sort_order ASC`, [id]),
+      pool.query(
+        `SELECT po.id, po.po_number, po.status, s.supplier_name
+         FROM purchase_orders po
+         JOIN suppliers s ON s.id = po.supplier_id
+         WHERE po.purchase_request_id = $1 AND po.deleted_at IS NULL
+         ORDER BY po.created_at ASC`,
+        [id]
+      ),
+    ])
 
-    return { ...header, lines }
+    return { ...header, lines, purchase_orders: pos }
   }
 
   async create(client: PoolClient, companyId: string, data: {

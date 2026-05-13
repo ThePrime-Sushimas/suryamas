@@ -262,6 +262,16 @@ export default function PurchaseRequestDetailPage() {
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   ({group.lines.length} item)
                 </span>
+                {(() => {
+                  const po = pr.purchase_orders?.find(p => p.supplier_name === group.supplierName)
+                  if (!po) return null
+                  return (
+                    <button onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
+                      className="px-2 py-0.5 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50">
+                      {po.po_number}
+                    </button>
+                  )
+                })()}
               </div>
             </div>
 
