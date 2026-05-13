@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PackageCheck, Save, Trash2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -42,7 +42,8 @@ export default function GoodsReceiptFormPage() {
   const toast = useToast()
   const queryClient = useQueryClient()
 
-  const [selectedPoId, setSelectedPoId] = useState('')
+  const [searchParams] = useSearchParams()
+  const [selectedPoId, setSelectedPoId] = useState(searchParams.get('po_id') || '')
   const [warehouseId, setWarehouseId] = useState('')
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10))
   const [invoiceNumber, setInvoiceNumber] = useState('')

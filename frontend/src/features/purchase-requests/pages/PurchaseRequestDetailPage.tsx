@@ -8,6 +8,7 @@ import {
   Ban,
   Package,
   Printer,
+  PackageCheck,
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
@@ -266,10 +267,18 @@ export default function PurchaseRequestDetailPage() {
                   const po = pr.purchase_orders?.find(p => p.supplier_name === group.supplierName)
                   if (!po) return null
                   return (
-                    <button onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
-                      className="px-2 py-0.5 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50">
-                      {po.po_number}
-                    </button>
+                    <>
+                      <button onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
+                        className="px-2 py-0.5 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50">
+                        {po.po_number}
+                      </button>
+                      {['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status) && (
+                        <button onClick={() => navigate(`/inventory/goods-receipts/new?po_id=${po.id}`)}
+                          className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-700 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50">
+                          <PackageCheck className="w-3 h-3" /> Terima Barang
+                        </button>
+                      )}
+                    </>
                   )
                 })()}
               </div>
