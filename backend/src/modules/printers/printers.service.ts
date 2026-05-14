@@ -90,7 +90,6 @@ export class PrintersService {
       if (supplierName !== '__none__') header.push({ key: 'Supplier', value: supplierName })
       if (pr.requested_by_name) header.push({ key: 'Dibuat', value: pr.requested_by_name })
       if (pr.approved_by_name) header.push({ key: 'Disetujui', value: pr.approved_by_name })
-      if (printedByName) header.push({ key: 'Dicetak', value: printedByName })
       header.push({ key: 'Status', value: pr.status })
       const relatedPo = pr.purchase_orders?.find(po => po.supplier_name === supplierName)
       if (relatedPo) header.push({ key: 'PO', value: relatedPo.po_number })
