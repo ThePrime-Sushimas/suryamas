@@ -7,6 +7,7 @@ import { useCreatePurchaseRequest, useUpdatePurchaseRequest, usePurchaseRequest 
 import { ProductPickerModal } from '@/components/shared/ProductPickerModal'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 
 interface LineItem {
   id: string
@@ -64,16 +65,8 @@ export default function PurchaseRequestFormPage() {
     setInitialized(true)
   }, [existingPR, isEdit, initialized])
 
-  // Fetch branches
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches', 'active'],
-    queryFn: async () => {
-      const { data } = await api.get('/branches', { params: { status: 'active', limit: 50 } })
-      return data.data as { id: string; branch_name: string; branch_code: string }[]
-    },
-    staleTime: 120_000,
-  })
-  const branches = branchesData ?? []
+  // User's accessible branches
+  const branches = useUserBranches()
 
   // Fetch stock balances for items in lines (based on selected branch — MAIN + READY separate)
   const lineProductIds = lines.map(l => l.product_id)

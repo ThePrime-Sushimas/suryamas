@@ -5,7 +5,7 @@ import {
   useTheoreticalConsumption, useVariance, useCoverage,
   useMenuProfitability, useCostTrend, useWasteSummary,
 } from '../api/theoretical-consumption.api'
-import { useActiveBranches } from '../api/food-production.api'
+import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 import { usePositions } from '@/features/settings/api/settings.api'
 import { escapeCsv } from '@/utils/csv.utils'
 
@@ -66,7 +66,7 @@ export default function TheoreticalConsumptionPage() {
   const [station, setStation] = useState('')
   const [activeTab, setActiveTab] = useState<Tab>('theoretical')
 
-  const branches = useActiveBranches()
+  const branchOptions = useUserBranches()
   const positions = usePositions()
   const params = useMemo(() => ({
     period_start: periodStart,
@@ -109,7 +109,7 @@ export default function TheoreticalConsumptionPage() {
             <select value={branchId} onChange={e => setBranchId(e.target.value)}
               className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
               <option value="">Semua Cabang</option>
-              {(branches.data || []).map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+              {branchOptions.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
             </select>
           </div>
           <div>

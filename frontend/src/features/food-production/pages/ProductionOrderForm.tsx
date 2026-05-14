@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useActiveBranches, useWipItems, useCreateProductionOrder } from '../api/food-production.api'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
+import { useWipItems, useCreateProductionOrder } from '../api/food-production.api'
+import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
 const today = () => new Date().toISOString().slice(0, 10)
@@ -18,15 +18,9 @@ export default function ProductionOrderForm() {
   const navigate = useNavigate()
   const toast = useToast()
 
-  const branches = useActiveBranches()
-  const userBranches = useBranchContextStore(s => s.branches)
+  const availableBranches = useUserBranches()
   const wipItems = useWipItems({ limit: 500, filter_by_position: true })
   const createOrder = useCreateProductionOrder()
-
-  // Filter branches to only those the user has access to
-  const availableBranches = (branches.data || []).filter(b =>
-    userBranches.some(ub => ub.branch_id === b.id)
-  )
 
   const [branchId, setBranchId] = useState('')
   const [productionDate, setProductionDate] = useState(today())

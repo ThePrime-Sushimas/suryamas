@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Factory, Plus, Package } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
-import { useProductionOrders, useProductionOrderSummary, useProductionOrderMaterials, useActiveBranches } from '../api/food-production.api'
+import { useProductionOrders, useProductionOrderSummary, useProductionOrderMaterials } from '../api/food-production.api'
+import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 
 import { PRODUCTION_STATUS_COLORS } from '../components/production-order.constants'
 
@@ -11,7 +12,7 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 export default function ProductionOrdersPage() {
   const navigate = useNavigate()
-  const branches = useActiveBranches()
+  const branchOptions = useUserBranches()
 
   const [tab, setTab] = useState<'orders' | 'materials'>('orders')
   const [page, setPage] = useState(1)
@@ -69,7 +70,7 @@ export default function ProductionOrdersPage() {
         <select value={branchFilter} onChange={e => { setBranchFilter(e.target.value); setPage(1) }}
           className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
           <option value="">Semua Cabang</option>
-          {(branches.data || []).map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+          {branchOptions.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
         </select>
         {tab === 'orders' && (
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}

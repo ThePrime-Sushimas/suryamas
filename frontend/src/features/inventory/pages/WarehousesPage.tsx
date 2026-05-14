@@ -45,7 +45,7 @@ export default function WarehousesPage() {
     queryKey: ['branches', 'active'],
     queryFn: async () => {
       const { data } = await api.get('/branches', { params: { status: 'active', limit: 50 } })
-      return data.data as { id: string; branch_name: string; branch_code: string }[]
+      return data.data as { id: string; branch_name: string }[]
     },
     staleTime: 120_000,
   })

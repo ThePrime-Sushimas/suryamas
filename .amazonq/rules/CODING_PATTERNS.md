@@ -418,3 +418,46 @@ if (blocked.length > 0) throw new BusinessRuleError('...')
 ### Frontend Integration
 - WIP dropdown di Production Order form: `GET /wip-items?filter_by_position=true`
 - Backend double-check di service layer saat create (prevent bypass)
+
+---
+
+## Branch Dropdown — User Access Filter
+
+### Rule
+
+Setiap halaman yang punya **dropdown pilih cabang**, WAJIB tentukan dulu:
+
+| Tipe Halaman | Hook yang Dipakai | Alasan |
+|---|---|---|
+| **Form transaksi** (PR, PO, GR, Production Order) | `useUserBranches()` | User hanya boleh buat transaksi di cabang yang dia akses |
+| **List/filter operasional** (Production Orders list, Theoretical Consumption) | `useUserBranches()` | User hanya lihat data cabang sendiri |
+| **Admin/setting page** (Warehouses, Menu Prices, COA, Employee Branches) | Fetch semua: `GET /branches?status=active` | Admin perlu manage semua cabang |
+| **Reporting/accounting** (POS Aggregates, Journal Filters, Trial Balance) | Fetch semua atau pakai `branchContext` | Reporting perlu lihat semua cabang |
+
+### Shared Hook
+
+```typescript
+// frontend/src/hooks/_shared/useUserBranches.ts
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
+
+export function useUserBranches() {
+  const branches = useBranchContextStore(s => s.branches)
+  return branches
+    .filter(b => b.branch_status === 'active')
+    .map(b => ({ id: b.branch_id, branch_name: b.branch_name }))
+}
+```
+
+### Catatan Penting
+- `useUserBranches()` synchronous (dari Zustand store, sudah populated saat login)
+- Tidak ada loading state — store dijamin sudah terisi sebelum user bisa akses halaman (via `BranchSelectionGuard`)
+- Return type: `{ id: string; branch_name: string }[]`
+- Untuk admin page yang butuh semua cabang, tetap pakai `useQuery` + `GET /branches?status=active`
+
+### Checklist Sebelum Coding
+
+Setiap kali buat halaman baru yang ada dropdown cabang:
+1. Tentukan: ini form transaksi / list operasional / admin page / reporting?
+2. Jika form transaksi atau list operasional → pakai `useUserBranches()`
+3. Jika admin/reporting → fetch semua cabang dari API
+4. JANGAN pernah hardcode branch list
