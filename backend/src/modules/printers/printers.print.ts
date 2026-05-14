@@ -161,10 +161,10 @@ export function buildDocReceipt(data: PrintDocData): Buffer {
 
   if (data.footer) {
     rows.push({ type: 'center', text: data.footer })
+  } else {
+    const now = new Date()
+    rows.push({ type: 'center', text: `Printed: ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}` })
   }
-
-  const now = new Date()
-  rows.push({ type: 'center', text: `Printed: ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` })
 
   return buildReceipt({ paper_width: data.paper_width, rows })
 }

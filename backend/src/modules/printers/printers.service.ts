@@ -111,7 +111,7 @@ export class PrintersService {
         items,
         total_label: 'Total Item',
         total_amount: `${lines.length} item`,
-        footer: `Dicetak oleh: ${printedByName ?? '-'} \u00b7 ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
+        footer: `Dicetak oleh: ${printedByName ?? '-'} \u00b7 ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
       })
 
       await sendToPrinter(printer.ip_address, printer.port, receipt)
