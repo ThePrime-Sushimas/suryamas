@@ -83,6 +83,12 @@ export class PrintersRepository {
     )
     return (rowCount ?? 0) > 0
   }
+  async getEmployeeName(userId: string): Promise<string | null> {
+    const { rows } = await pool.query(
+      'SELECT full_name FROM employees WHERE user_id = $1 LIMIT 1', [userId]
+    )
+    return rows[0]?.full_name ?? null
+  }
 }
 
 export const printersRepository = new PrintersRepository()

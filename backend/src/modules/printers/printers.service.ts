@@ -73,6 +73,9 @@ export class PrintersService {
       grouped.get(key)!.push(line)
     }
 
+    // Resolve printer user name
+    const printedByName = await printersRepository.getEmployeeName(userId)
+
     // Print one receipt per supplier group
     const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
@@ -87,6 +90,7 @@ export class PrintersService {
       if (supplierName !== '__none__') header.push({ key: 'Supplier', value: supplierName })
       if (pr.requested_by_name) header.push({ key: 'Dibuat', value: pr.requested_by_name })
       if (pr.approved_by_name) header.push({ key: 'Disetujui', value: pr.approved_by_name })
+      if (printedByName) header.push({ key: 'Dicetak', value: printedByName })
       header.push({ key: 'Status', value: pr.status })
       const relatedPo = pr.purchase_orders?.find(po => po.supplier_name === supplierName)
       if (relatedPo) header.push({ key: 'PO', value: relatedPo.po_number })
@@ -107,6 +111,7 @@ export class PrintersService {
         items,
         total_label: 'Total Item',
         total_amount: `${lines.length} item`,
+        footer: `Dicetak oleh: ${printedByName ?? '-'} \u00b7 ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
       })
 
       await sendToPrinter(printer.ip_address, printer.port, receipt)
