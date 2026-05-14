@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ClipboardCheck, Package, Phone, AlertTriangle, CheckCircle, XCircle, Send } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Package, Phone, AlertTriangle, CheckCircle, XCircle, Send, X, RotateCcw } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -63,11 +63,24 @@ export default function PurchaseRequestApprovalPage() {
 
   useEffect(() => {
     if (!approvalData) return
+    const pr = approvalData.pr as Record<string, unknown>
+    const prLines = (pr.lines as Array<Record<string, unknown>>) ?? []
+    // Build map of qty_approved from PR lines (null = not approved / excluded)
+    const approvedMap = new Map(prLines.map((l) => [l.id as string, l.qty_approved as number | null]))
+    const isConverted = pr.status === 'CONVERTED'
+
     setGroups(approvalData.supplier_groups.map((g: Record<string, unknown>) => {
       const termDays = g.supplier_payment_term_days as number | null
       return {
         ...(g as object),
-        items: (g.items as Array<Record<string, unknown>>).map((i) => ({ ...i, selected: true, qty_approved: i.qty as number })),
+        items: (g.items as Array<Record<string, unknown>>).map((i) => {
+          const lineApproved = approvedMap.get(i.pr_line_id as string)
+          // For CONVERTED PR: item is selected only if it was approved (qty_approved != null)
+          // For PENDING: all items start selected
+          const selected = isConverted ? lineApproved != null : true
+          const qtyApproved = lineApproved ?? (i.qty as number)
+          return { ...i, selected, qty_approved: qtyApproved }
+        }),
         selected: g.supplier_id !== null,
         payment_type: (termDays === 0 ? 'CASH' : 'CREDIT') as 'CASH' | 'CREDIT',
         payment_terms_days: termDays ?? 30,
@@ -118,7 +131,6 @@ export default function PurchaseRequestApprovalPage() {
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menolak')) }
   }
 
-  const toggleSupplier = (idx: number) => setGroups(prev => prev.map((g, i) => i === idx ? { ...g, selected: !g.selected } : g))
   const toggleItem = (sIdx: number, iIdx: number) => setGroups(prev => prev.map((g, i) => {
     if (i !== sIdx) return g
     return { ...g, items: g.items.map((item, j) => j === iIdx ? { ...item, selected: !item.selected } : item) }
@@ -173,7 +185,7 @@ export default function PurchaseRequestApprovalPage() {
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <button onClick={() => setShowRejectModal(true)}
                 className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs sm:text-sm">
-                <XCircle className="w-4 h-4" /> Reject
+                <XCircle className="w-4 h-4" /> Tolak PR
               </button>
               <button onClick={handleApproveAndGenerate} disabled={approveAndGenerate.isPending}
                 className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-xs sm:text-sm">
@@ -217,8 +229,6 @@ export default function PurchaseRequestApprovalPage() {
               <div className="bg-linear-to-r from-slate-700 to-slate-800 dark:from-slate-600 dark:to-slate-700 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <input type="checkbox" checked={group.selected} onChange={() => toggleSupplier(gIdx)}
-                      disabled={!group.supplier_id || !isPending} className="rounded border-white/30 text-indigo-500 focus:ring-indigo-400" />
                     <Package className="w-5 h-5 text-white hidden sm:block" />
                     <div>
                       <h3 className="font-semibold text-white text-sm sm:text-base">{group.supplier_name}</h3>
@@ -239,13 +249,13 @@ export default function PurchaseRequestApprovalPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
                     <tr>
-                      <th className="px-4 py-2 text-left w-8"></th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Request</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Approve</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Stock</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Harga</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
+                      {isPending && <th className="px-4 py-2 w-10"></th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -254,11 +264,7 @@ export default function PurchaseRequestApprovalPage() {
                       const sameUnit = !item.stock_unit || item.stock_unit === item.uom
                       const stockOk = sameUnit && item.stock_balance >= item.qty_approved
                       return (
-                        <tr key={iIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                          <td className="px-4 py-2.5">
-                            <input type="checkbox" checked={item.selected} onChange={() => toggleItem(gIdx, iIdx)}
-                              disabled={!group.selected || !isPending} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                          </td>
+                        <tr key={iIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${!item.selected ? 'opacity-40 line-through' : ''}`}>
                           <td className="px-4 py-2.5">
                             <p className="font-medium text-gray-900 dark:text-white">{item.product_name}</p>
                             <p className="text-xs text-gray-500">{item.product_code}</p>
@@ -282,6 +288,21 @@ export default function PurchaseRequestApprovalPage() {
                             {item.latest_price_uom && <span className="text-xs text-gray-400 dark:text-gray-500"> /{item.latest_price_uom}</span>}
                           </td>
                           <td className="px-4 py-2.5 text-right font-mono font-medium text-gray-900 dark:text-gray-200">Rp {fmt(price * item.qty_approved)}</td>
+                          {isPending && (
+                            <td className="px-2 py-2.5 text-center">
+                              {item.selected ? (
+                                <button onClick={() => toggleItem(gIdx, iIdx)} title="Hapus dari order"
+                                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button onClick={() => toggleItem(gIdx, iIdx)} title="Kembalikan ke order"
+                                  className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors">
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
@@ -296,14 +317,27 @@ export default function PurchaseRequestApprovalPage() {
                   const sameUnit = !item.stock_unit || item.stock_unit === item.uom
                   const stockOk = sameUnit && item.stock_balance >= item.qty_approved
                   return (
-                    <div key={iIdx} className="px-4 py-3">
+                    <div key={iIdx} className={`px-4 py-3 ${!item.selected ? 'opacity-40' : ''}`}>
                       <div className="flex items-start gap-3">
-                        <input type="checkbox" checked={item.selected} onChange={() => toggleItem(gIdx, iIdx)}
-                          disabled={!group.selected || !isPending} className="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                         <div className="flex-1 min-w-0">
-                          <div className="flex justify-between">
-                            <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{item.product_name}</p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white ml-2">Rp {fmt(price * item.qty_approved)}</p>
+                          <div className="flex justify-between items-start">
+                            <p className={`font-medium text-gray-900 dark:text-white text-sm truncate ${!item.selected ? 'line-through' : ''}`}>{item.product_name}</p>
+                            <div className="flex items-center gap-2 ml-2 shrink-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">Rp {fmt(price * item.qty_approved)}</p>
+                              {isPending && (
+                                item.selected ? (
+                                  <button onClick={() => toggleItem(gIdx, iIdx)} title="Hapus dari order"
+                                    className="p-1 text-gray-400 hover:text-red-500 rounded">
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                ) : (
+                                  <button onClick={() => toggleItem(gIdx, iIdx)} title="Kembalikan ke order"
+                                    className="p-1 text-gray-400 hover:text-green-600 rounded">
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </button>
+                                )
+                              )}
+                            </div>
                           </div>
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
                             <span>Request: {item.qty} {item.uom}</span>
