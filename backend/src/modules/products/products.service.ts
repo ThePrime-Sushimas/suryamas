@@ -246,6 +246,9 @@ export class ProductsService {
 
     logInfo('Bulk restore products', { count: ids.length, userId })
   }
+  async batchFlags(ids: string[]): Promise<Record<string, { requires_processing: boolean }>> {
+    return productsRepository.batchFlags(ids)
+  }
 }
 
 export const productsService = new ProductsService()

@@ -114,41 +114,43 @@ export default function PurchaseOrderDetailPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/inventory/purchase-orders')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => navigate('/inventory/purchase-orders')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <ShoppingCart className="w-6 h-6 text-blue-600" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{po.po_number}</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{po.supplier_name} — {po.branch_name}</p>
+            <ShoppingCart className="w-6 h-6 text-blue-600 shrink-0 hidden sm:block" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">{po.po_number}</h1>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${statusCfg.color}`}>{statusCfg.label}</span>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">{po.supplier_name} — {po.branch_name}</p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusCfg.color}`}>{statusCfg.label}</span>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0 overflow-x-auto">
             {po.status === 'DRAFT' && canUpdate && (
               <button onClick={() => navigate(`/inventory/purchase-orders/${id}/edit`)}
-                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap">
                 Edit
               </button>
             )}
             {po.status === 'DRAFT' && canUpdate && (
-              <button onClick={handleSendToPurchasing} className="flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                <MessageCircle className="w-4 h-4" /> Kirim ke Purchasing
+              <button onClick={handleSendToPurchasing} className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm whitespace-nowrap">
+                <MessageCircle className="w-4 h-4" /> <span className="hidden sm:inline">Kirim ke</span> Purchasing
               </button>
             )}
             {po.status === 'SENT' && canUpdate && (
               <button onClick={handleMarkOrdered} disabled={markOrdered.isPending}
-                className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm">
-                <CheckCircle className="w-4 h-4" /> {markOrdered.isPending ? 'Memproses...' : 'Konfirmasi Sudah Order'}
+                className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm whitespace-nowrap">
+                <CheckCircle className="w-4 h-4" /> {markOrdered.isPending ? '...' : 'Konfirmasi Order'}
               </button>
             )}
             {['DRAFT', 'SENT'].includes(po.status) && canUpdate && (
-              <button onClick={() => setShowCancelModal(true)} className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20">
-                <XCircle className="w-4 h-4" /> Batalkan
+              <button onClick={() => setShowCancelModal(true)} className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20 whitespace-nowrap">
+                <XCircle className="w-4 h-4" /> Batal
               </button>
             )}
           </div>
@@ -156,8 +158,8 @@ export default function PurchaseOrderDetailPage() {
       </div>
 
       {/* Info Cards */}
-      <div className="px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+      <div className="px-4 sm:px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 text-sm">
           <div>
             <span className="text-gray-500 dark:text-gray-400">Tanggal Order</span>
             <p className="font-medium text-gray-900 dark:text-white">{fmtDate(po.order_date)}</p>
@@ -186,10 +188,12 @@ export default function PurchaseOrderDetailPage() {
         )}
       </div>
 
-      {/* Lines Table */}
-      <div className="flex-1 overflow-auto p-6">
+      {/* Lines */}
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">#</th>
@@ -228,6 +232,46 @@ export default function PurchaseOrderDetailPage() {
               </tr>
             </tfoot>
           </table>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden">
+            {(po.lines ?? []).length === 0 ? (
+              <div className="px-4 py-12 text-center text-gray-400 text-sm">Tidak ada item</div>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {(po.lines ?? []).map((line, idx) => (
+                  <div key={line.id ?? idx} className="p-4 space-y-1.5">
+                    <div className="flex justify-between items-start">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{line.product_name}</p>
+                        <p className="text-xs text-gray-500">{line.product_code} · {line.uom}</p>
+                      </div>
+                      <p className="font-mono text-sm font-semibold text-gray-900 dark:text-white shrink-0 ml-2">Rp {fmt(line.total_price ?? line.qty * line.unit_price)}</p>
+                    </div>
+                    <div className="flex gap-4 text-xs">
+                      <div>
+                        <span className="text-gray-500">Qty</span>
+                        <p className="font-mono font-medium text-gray-900 dark:text-white">{fmt(line.qty)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Diterima</span>
+                        <p className={`font-mono font-medium ${line.qty_received && line.qty_received >= line.qty ? 'text-green-600' : 'text-gray-500'}`}>{fmt(line.qty_received ?? 0)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Harga</span>
+                        <p className="font-mono text-gray-600 dark:text-gray-400">Rp {fmt(line.unit_price)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 flex justify-between">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total</span>
+                  <span className="font-mono font-bold text-gray-900 dark:text-white">Rp {fmt(po.total_amount)}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

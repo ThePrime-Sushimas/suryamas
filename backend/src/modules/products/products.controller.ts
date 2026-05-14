@@ -276,6 +276,19 @@ export class ProductsController {
       await handleError(res, error, req, { action: 'createImportJob' })
     }
   }
+
+  batchFlags = async (req: Request, res: Response) => {
+    try {
+      const idsParam = req.query.ids as string
+      if (!idsParam) { sendSuccess(res, {}, 'No IDs provided'); return }
+      const ids = idsParam.split(',').filter(Boolean)
+      if (ids.length === 0) { sendSuccess(res, {}, 'No IDs provided'); return }
+      const result = await productsService.batchFlags(ids)
+      sendSuccess(res, result, 'Product flags')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'batch_flags' })
+    }
+  }
 }
 
 export const productsController = new ProductsController()

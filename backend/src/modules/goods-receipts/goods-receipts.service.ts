@@ -68,10 +68,11 @@ export class GoodsReceiptsService {
       // Calculate conversion factor
       const conversionFactor = qtyPoUom > 0 ? line.qty_received / qtyPoUom : 1
 
-      // Variance: compare total method
+      // Variance: compare total method (both in PO UOM, only accepted qty)
       const unitPricePo = Number(poLine.unit_price)
-      const poTotal = qtyPoUom * unitPricePo
-      const invoiceTotal = line.qty_received * line.unit_price_invoice
+      const qtyAccepted = qtyPoUom - (line.qty_rejected ?? 0)
+      const poTotal = qtyAccepted * unitPricePo
+      const invoiceTotal = qtyAccepted * line.unit_price_invoice
       const variance = invoiceTotal - poTotal
       const variancePct = poTotal > 0 ? Math.abs(variance / poTotal) * 100 : 0
       const varianceStatus: VarianceStatus = variancePct <= 0.01 ? 'OK' : variancePct <= 15 ? 'NOTICE' : 'DISPUTED'
@@ -256,9 +257,10 @@ export class GoodsReceiptsService {
           const conversionFactor = qtyPoUom > 0 ? line.qty_received / qtyPoUom : 1
 
           const unitPricePo = poLinePriceMap.get(line.po_line_id) ?? line.unit_price_invoice
-          // Compare total method for variance
-          const poTotal = qtyPoUom * unitPricePo
-          const invoiceTotal = line.qty_received * line.unit_price_invoice
+          // Compare total method (both in PO UOM, only accepted qty)
+          const qtyAccepted = qtyPoUom - (line.qty_rejected ?? 0)
+          const poTotal = qtyAccepted * unitPricePo
+          const invoiceTotal = qtyAccepted * line.unit_price_invoice
           const variance = invoiceTotal - poTotal
           const variancePct = poTotal > 0 ? Math.abs(variance / poTotal) * 100 : 0
           const varianceStatus = variancePct > 15 ? 'DISPUTED' : variancePct > 5 ? 'NOTICE' : 'OK'

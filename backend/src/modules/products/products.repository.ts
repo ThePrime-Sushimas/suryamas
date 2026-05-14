@@ -172,6 +172,18 @@ export class ProductsRepository {
     )
     return rows
   }
+  async batchFlags(ids: string[]): Promise<Record<string, { requires_processing: boolean }>> {
+    if (ids.length === 0) return {}
+    const { rows } = await pool.query(
+      'SELECT id, requires_processing FROM products WHERE id = ANY($1::uuid[])',
+      [ids]
+    )
+    const result: Record<string, { requires_processing: boolean }> = {}
+    for (const r of rows) {
+      result[r.id] = { requires_processing: r.requires_processing ?? false }
+    }
+    return result
+  }
 }
 
 export const productsRepository = new ProductsRepository()

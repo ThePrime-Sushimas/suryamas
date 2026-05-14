@@ -234,7 +234,7 @@ export default function GoodsProcessingDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 p-6">
+      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
         <div className="space-y-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />

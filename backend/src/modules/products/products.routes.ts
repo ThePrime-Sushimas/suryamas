@@ -43,6 +43,7 @@ router.get('/search', canView('products'), queryMiddleware({
 }), (req, res) => productsController.search(req, res))
 
 router.get('/filter-options', canView('products'), (req, res) => productsController.getFilterOptions(req, res))
+router.get('/batch-flags', canView('products'), (req, res) => productsController.batchFlags(req, res))
 router.get('/minimal/active', authenticate, canView('products'), (req, res) => productsController.minimalActive(req, res))
 router.get('/check/name', canView('products'), validateSchema(checkProductNameSchema), (req, res) =>
   productsController.checkProductName(req, res))

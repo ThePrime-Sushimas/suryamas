@@ -193,21 +193,21 @@ export default function PurchaseRequestFormPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => navigate(isEdit ? `/inventory/purchase-requests/${id}` : '/inventory/purchase-requests')}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <ClipboardList className="w-6 h-6 text-orange-600" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {isEdit ? `Edit ${existingPR?.request_number ?? 'Purchase Request'}` : 'Buat Purchase Request'}
+            <ClipboardList className="w-6 h-6 text-orange-600 shrink-0 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">
+                {isEdit ? `Edit ${existingPR?.request_number ?? 'PR'}` : 'Buat Purchase Request'}
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
                 {isEdit ? 'Perbarui permintaan pembelian bahan baku' : 'Permintaan pembelian bahan baku'}
               </p>
             </div>
@@ -215,17 +215,17 @@ export default function PurchaseRequestFormPage() {
           <button
             onClick={handleSubmit}
             disabled={isPending || lines.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm shrink-0"
           >
             <Save className="w-4 h-4" />
-            {isPending ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Simpan Draft'}
+            <span className="hidden sm:inline">{isPending ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan Draft'}</span>
           </button>
         </div>
       </div>
 
       {/* Form Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Cabang *
@@ -290,7 +290,7 @@ export default function PurchaseRequestFormPage() {
       </div>
 
       {/* Add Product Button */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3">
         <button onClick={() => setShowProductModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
           <Plus className="w-4 h-4" /> Tambah Produk
@@ -298,7 +298,7 @@ export default function PurchaseRequestFormPage() {
       </div>
 
       {/* Lines Table - Grouped by Supplier */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           {lines.length === 0 ? (
             <div className="px-4 py-12 text-center text-gray-400">

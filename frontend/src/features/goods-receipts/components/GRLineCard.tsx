@@ -19,6 +19,7 @@ export interface GRLineData {
   reject_reason: string
   unit_price_invoice: number
   unit_price_po: number
+  requires_processing: boolean
 }
 
 interface GRLineCardProps {
@@ -42,15 +43,16 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
   // Determine if dual UOM is needed — simply compare PO UOM vs received UOM
   const needsConversion = line.uom_po !== line.uom_received
 
-  // Auto-detect: if product has a different stock unit than PO UOM, switch uom_received
+  // Auto-detect: only for products that require processing (salmon, ayam)
   const autoDetectedUom = useMemo(() => {
+    if (!line.requires_processing) return null
     if (!productUoms || productUoms.length <= 1) return null
     const poUom = productUoms.find(u => u.metric_units?.unit_name === line.uom_po)
     const stockUom = productUoms.find(u => u.is_default_stock_unit || u.is_base_unit)
     if (!poUom || !stockUom) return null
     if (poUom.metric_unit_id === stockUom.metric_unit_id) return null
     return stockUom.metric_units?.unit_name ?? null
-  }, [productUoms, line.uom_po])
+  }, [productUoms, line.uom_po, line.requires_processing])
 
   // Effect: auto-switch uom_received to stock unit on first load
   const hasAutoSwitched = useRef(false)
@@ -58,12 +60,12 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     if (hasAutoSwitched.current || !autoDetectedUom) return
     if (line.uom_received === line.uom_po && autoDetectedUom !== line.uom_po) {
       hasAutoSwitched.current = true
-      // Calculate estimated CF for the new UOM
       const poUomData = productUoms?.find(u => u.metric_units?.unit_name === line.uom_po)
       const recUomData = productUoms?.find(u => u.metric_units?.unit_name === autoDetectedUom)
       if (poUomData && recUomData && recUomData.conversion_factor > 0) {
         const estCF = poUomData.conversion_factor / recUomData.conversion_factor
         const suggestedReceived = line.qty_po_uom * estCF
+        // Price stays in uom_po — no conversion needed
         onChange(line.key, {
           uom_received: autoDetectedUom,
           qty_received: suggestedReceived,
@@ -236,11 +238,11 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         </select>
       )}
 
-      {/* Harga invoice */}
+      {/* Harga invoice — selalu dalam satuan beli (uom_po) */}
       <div className="flex items-center gap-3 pt-1 border-t border-gray-50 dark:border-gray-700/50">
         <div className="flex-1 sm:max-w-xs">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            Harga Invoice (/{needsConversion ? line.uom_received : line.uom_po})
+            Harga Invoice (/{line.uom_po})
           </label>
           <input
             type="number" min="0" step="any"
@@ -252,7 +254,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         <div className="text-right pt-4">
           <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
           <p className="text-sm font-semibold text-gray-900 dark:text-white font-mono">
-            Rp {fmt(Math.round(line.qty_received * line.unit_price_invoice))}
+            Rp {fmt(Math.round((line.qty_po_uom - line.qty_rejected) * line.unit_price_invoice))}
           </p>
         </div>
       </div>

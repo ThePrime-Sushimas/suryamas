@@ -175,6 +175,13 @@ Invoice line:
 
 **`unit_price_invoice` adalah USER-ENTERED** — diketik dari invoice fisik supplier, bukan derived/calculated. Ini menghindari masalah rounding dari pembagian harga PO.
 
+> **Catatan GR vs Invoice:**
+> - Di **GR**, `unit_price_invoice` = harga per **satuan beli** (`uom_po`). Contoh: Rp 200.000/Ekor.
+>   - `total_price_invoice` di GR = `qty_po_uom × unit_price_invoice` = 2 × 200.000 = 400.000
+> - Di **Purchase Invoice** (module terpisah), finance input harga per **satuan operasional** (`uom_received`). Contoh: Rp 55.000/KG.
+>   - Ini karena invoice supplier bisa berbeda format dari GR.
+> - Variance di GR dihitung: `(qty_po_uom × invoice_price) - (qty_po_uom × po_price)` — keduanya dalam satuan PO, tidak ada rounding.
+
 ---
 
 ## Price Variance Calculation — Canonical Method

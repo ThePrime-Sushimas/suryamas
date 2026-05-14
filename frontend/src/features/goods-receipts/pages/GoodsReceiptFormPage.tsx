@@ -12,6 +12,7 @@ import { GRLineCard, type GRLineData } from '../components/GRLineCard'
 interface POOption {
   id: string
   po_number: string
+  supplier_id: string
   supplier_name: string
   branch_id: string
   branch_name: string
@@ -80,6 +81,34 @@ export default function GoodsReceiptFormPage() {
     enabled: !!selectedPoId,
   })
 
+  // Fetch pricelist prices for supplier + products in PO
+  const supplierId = selectedPO?.supplier_id
+  const productIdsInPO = useMemo(() => selectedPO?.lines?.map(l => l.product_id) ?? [], [selectedPO])
+
+  const { data: pricelistData } = useQuery({
+    queryKey: ['pricelists', 'batch-lookup', supplierId, productIdsInPO],
+    queryFn: async () => {
+      const { data } = await api.post('/pricelists/batch-lookup', { supplier_id: supplierId, product_ids: productIdsInPO })
+      return data.data as Record<string, { price: number; uom_name: string }>
+    },
+    enabled: !!supplierId && productIdsInPO.length > 0,
+    staleTime: 60_000,
+  })
+  const priceMap = pricelistData ?? {}
+
+  // Fetch requires_processing flag for products
+  const { data: productFlagsData } = useQuery({
+    queryKey: ['products', 'flags', productIdsInPO],
+    queryFn: async () => {
+      if (productIdsInPO.length === 0) return {}
+      const { data } = await api.get('/products/batch-flags', { params: { ids: productIdsInPO.join(',') } })
+      return data.data as Record<string, { requires_processing: boolean }>
+    },
+    enabled: productIdsInPO.length > 0,
+    staleTime: 60_000,
+  })
+  const productFlags = productFlagsData ?? {}
+
   // Fetch pending qty from existing DRAFT GRs
   const { data: pendingData } = useQuery({
     queryKey: ['goods-receipts', 'pending-qty', selectedPoId, id],
@@ -124,6 +153,7 @@ export default function GoodsReceiptFormPage() {
         reject_reason: l.reject_reason ?? '',
         unit_price_invoice: Number(l.unit_price_invoice),
         unit_price_po: Number(l.unit_price_po ?? l.unit_price_invoice),
+        requires_processing: (l.uom_po ?? l.uom ?? '') !== (l.uom_received ?? l.uom ?? ''),
       })))
     }
     setInitialized(true)
@@ -150,6 +180,10 @@ export default function GoodsReceiptFormPage() {
       .map(l => {
         const pendingAmt = pendingQty[l.id] ?? 0
         const remaining = Math.max(0, Number(l.qty) - Number(l.qty_received) - pendingAmt)
+        // Price priority: pricelist > PO unit_price > 0
+        const plPrice = priceMap[l.product_id]?.price
+        const defaultPrice = plPrice ?? (Number(l.unit_price) || 0)
+        const reqProcessing = productFlags[l.product_id]?.requires_processing ?? false
         return {
           key: crypto.randomUUID(),
           po_line_id: l.id,
@@ -160,17 +194,18 @@ export default function GoodsReceiptFormPage() {
           qty_ordered: Number(l.qty),
           qty_remaining: remaining,
           qty_po_uom: remaining,
-          qty_received: remaining, // default: same as qty_po_uom (conversion=1)
-          uom_received: l.uom, // default: same as PO UOM, card will auto-detect if needs conversion
+          qty_received: remaining,
+          uom_received: l.uom,
           conversion_factor: 1,
           qty_rejected: 0,
           reject_reason: '',
-          unit_price_invoice: Number(l.unit_price),
+          unit_price_invoice: defaultPrice,
           unit_price_po: Number(l.unit_price),
+          requires_processing: reqProcessing,
         } satisfies GRLineData
       })
       .filter(l => l.qty_remaining > 0)
-  }, [isEdit, selectedPO, pendingQty])
+  }, [isEdit, selectedPO, pendingQty, priceMap, productFlags])
 
   useEffect(() => {
     if (!computedLines) return
@@ -178,6 +213,17 @@ export default function GoodsReceiptFormPage() {
     lastPopulatedPoRef.current = selectedPoId
     setLines(computedLines)
   }, [computedLines, selectedPoId])
+
+  // Update prices when priceMap loads (after lines already populated)
+  useEffect(() => {
+    if (!priceMap || Object.keys(priceMap).length === 0) return
+    setLines(prev => prev.map(l => {
+      const pl = priceMap[l.product_id]
+      if (!pl || l.unit_price_invoice > 0) return l
+      // Pricelist price is always in purchase UOM — set directly
+      return { ...l, unit_price_invoice: pl.price }
+    }))
+  }, [priceMap])
 
   // Auto-set warehouse
   useEffect(() => {
@@ -236,7 +282,7 @@ export default function GoodsReceiptFormPage() {
     }
   }
 
-  const totalInvoice = lines.reduce((sum, l) => sum + l.qty_received * l.unit_price_invoice, 0)
+  const totalInvoice = lines.reduce((sum, l) => sum + (l.qty_po_uom - l.qty_rejected) * l.unit_price_invoice, 0)
   const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 
   return (

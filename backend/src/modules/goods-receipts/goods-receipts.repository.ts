@@ -109,11 +109,13 @@ export class GoodsReceiptsRepository {
     let idx = 1
 
     for (const l of lines) {
-      const totalInvoice = l.qty_received * l.unit_price_invoice
+      const qtyPoUom = l.qty_po_uom ?? l.qty_received
+      const qtyAccepted = qtyPoUom - (l.qty_rejected ?? 0)
+      const totalInvoice = qtyAccepted * l.unit_price_invoice
       valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8}, $${idx+9}, $${idx+10}, $${idx+11}, $${idx+12}, $${idx+13}, $${idx+14}, $${idx+15})`)
       params.push(
         grId, l.po_line_id, l.product_id,
-        l.qty_po_uom, l.uom_po, l.qty_received, l.uom_received, l.conversion_factor,
+        qtyPoUom, l.uom_po, l.qty_received, l.uom_received ?? l.uom_po, l.conversion_factor,
         l.unit_price_invoice, totalInvoice, l.unit_price_po,
         l.price_variance, l.price_variance_pct, l.variance_status,
         l.notes ?? null, l.qty_rejected ?? 0
@@ -321,7 +323,8 @@ export class GoodsReceiptsRepository {
     const params: unknown[] = []
     let idx = 1
     for (const l of lines) {
-      const totalInvoice = l.qty_received * l.unit_price_invoice
+      const qtyAccepted = l.qty_po_uom - (l.qty_rejected ?? 0)
+      const totalInvoice = qtyAccepted * l.unit_price_invoice
       valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8}, $${idx+9}, $${idx+10}, $${idx+11}, $${idx+12}, $${idx+13}, $${idx+14}, $${idx+15})`)
       params.push(
         grId, l.po_line_id, l.product_id,

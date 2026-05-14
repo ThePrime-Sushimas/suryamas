@@ -121,38 +121,40 @@ export default function GoodsReceiptDetailPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/inventory/goods-receipts')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => navigate('/inventory/goods-receipts')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <PackageCheck className="w-6 h-6 text-teal-600" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{gr.gr_number}</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{gr.supplier_name} — {gr.branch_name}</p>
+            <PackageCheck className="w-6 h-6 text-teal-600 shrink-0 hidden sm:block" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">{gr.gr_number}</h1>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${gr.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                  {gr.status === 'CONFIRMED' ? 'Confirmed' : 'Draft'}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">{gr.supplier_name} — {gr.branch_name}</p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium ${gr.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-              {gr.status === 'CONFIRMED' ? 'Confirmed' : 'Draft'}
-            </span>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             {gr.status === 'CONFIRMED' && (
               <button onClick={handlePrint}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
-                <Printer className="w-4 h-4" /> Cetak
+                className="flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+                <Printer className="w-4 h-4" /> <span className="hidden sm:inline">Cetak</span>
               </button>
             )}
             {gr.status === 'DRAFT' && canUpdate && (
               <>
                 <button onClick={() => navigate(`/inventory/goods-receipts/${id}/edit`)}
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+                  className="flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
                   Edit
                 </button>
                 <button onClick={() => setShowConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm">
-                  <CheckCircle className="w-4 h-4" /> Konfirmasi
+                  className="flex items-center gap-2 px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm">
+                  <CheckCircle className="w-4 h-4" /> <span className="hidden sm:inline">Konfirmasi</span>
                 </button>
               </>
             )}
@@ -161,8 +163,8 @@ export default function GoodsReceiptDetailPage() {
       </div>
 
       {/* Info Cards */}
-      <div className="px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+      <div className="px-4 sm:px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 text-sm">
           <div>
             <span className="text-gray-500 dark:text-gray-400">PO</span>
             <p className="font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:underline" onClick={() => navigate(`/inventory/purchase-orders/${gr.po_id}`)}>{gr.po_number}</p>
@@ -201,7 +203,7 @@ export default function GoodsReceiptDetailPage() {
       </div>
 
       {/* Lines Table + Attachments */}
-      <div className="flex-1 overflow-auto p-6 space-y-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
@@ -249,7 +251,7 @@ export default function GoodsReceiptDetailPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span className="font-mono text-gray-900 dark:text-gray-200">Rp {fmt(line.unit_price_invoice)}</span>
-                    {hasDualUom && <div className="text-xs text-gray-500">/{line.uom_received}</div>}
+                    <div className="text-xs text-gray-500">/{line.uom_po ?? line.uom}</div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span className="font-mono text-gray-500">Rp {fmt(line.unit_price_po ?? 0)}</span>

@@ -17,6 +17,7 @@ PermissionService.registerModule('pricelists', 'Pricelist Management').catch(() 
 router.use(authenticate, resolveBranchContext)
 
 router.get('/lookup', canView('pricelists'), validateSchema(lookupPriceSchema), (req, res) => pricelistsController.lookupPrice(req, res))
+router.post('/batch-lookup', canView('pricelists'), (req, res) => pricelistsController.batchLookup(req, res))
 router.get('/', canView('pricelists'), validateSchema(pricelistListQuerySchema), (req, res) => pricelistsController.list(req, res))
 router.get('/:id', canView('pricelists'), validateSchema(pricelistIdSchema), (req, res) => pricelistsController.findById(req, res))
 router.post('/', canInsert('pricelists'), validateSchema(createPricelistSchema), (req, res) => pricelistsController.create(req, res))

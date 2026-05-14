@@ -149,6 +149,28 @@ export class PricelistsRepository {
     return rows[0] ?? null
   }
 
+  /**
+   * Batch lookup latest prices for multiple products from a supplier.
+   * Returns Map<product_id, { price, uom_name }>
+   */
+  async batchLookupBySupplier(supplierId: string, productIds: string[]): Promise<Map<string, { price: number; uom_name: string }>> {
+    if (productIds.length === 0) return new Map()
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ON (pl.product_id)
+        pl.product_id, pl.price, mu.unit_name AS uom_name
+       FROM pricelists pl
+       JOIN product_uoms pu ON pu.id = pl.uom_id
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pl.supplier_id = $1
+         AND pl.product_id = ANY($2::uuid[])
+         AND pl.status = 'APPROVED' AND pl.is_active = true AND pl.deleted_at IS NULL
+         AND pl.valid_from <= CURRENT_DATE
+       ORDER BY pl.product_id, pl.valid_from DESC, pl.updated_at DESC`,
+      [supplierId, productIds]
+    )
+    return new Map(rows.map(r => [r.product_id, { price: Number(r.price), uom_name: r.uom_name }]))
+  }
+
   async expireOldPricelists(): Promise<number> {
     const today = new Date().toISOString().split('T')[0]
     const { rows } = await pool.query(

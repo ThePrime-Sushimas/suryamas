@@ -155,9 +155,9 @@ export default function PurchaseOrderFormPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => navigate('/inventory/purchase-orders')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -175,8 +175,8 @@ export default function PurchaseOrderFormPage() {
       </div>
 
       {/* Form */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purchase Request *</label>
             <select value={selectedPrId} onChange={e => setSelectedPrId(e.target.value)}
@@ -199,7 +199,7 @@ export default function PurchaseOrderFormPage() {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pembayaran *</label>
             <select value={paymentType} onChange={e => setPaymentType(e.target.value as 'CASH' | 'CREDIT')}
@@ -244,7 +244,7 @@ export default function PurchaseOrderFormPage() {
       )}
 
       {/* Lines Table */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">

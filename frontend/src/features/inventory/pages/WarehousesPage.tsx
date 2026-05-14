@@ -41,7 +41,6 @@ export default function WarehousesPage() {
 
   const debouncedSearch = useDebounce(search, 400)
 
-  // Fetch branches for dropdown
   const { data: branchesData } = useQuery({
     queryKey: ['branches', 'active'],
     queryFn: async () => {
@@ -106,32 +105,32 @@ export default function WarehousesPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <WarehouseIcon className="w-6 h-6 text-purple-600" />
+            <WarehouseIcon className="w-6 h-6 text-purple-600 shrink-0" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Gudang</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} gudang</p>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Gudang</h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} gudang</p>
             </div>
           </div>
-          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-            <Plus className="w-4 h-4" /> Tambah Gudang
+          <button onClick={openCreate} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Tambah Gudang</span>
           </button>
         </div>
       </div>
 
       {/* Search & Filter */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
-        <div className="flex gap-2">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3">
+        <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input type="text" placeholder="Cari gudang..." value={search} onChange={e => handleSearchChange(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none" />
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
             {search && <button onClick={() => handleSearchChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>}
           </div>
           <select value={typeFilter} onChange={e => handleTypeChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
             <option value="">Semua Tipe</option>
             {Object.entries(WAREHOUSE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
@@ -140,8 +139,8 @@ export default function WarehousesPage() {
 
       {/* Inline Form */}
       {showForm && (
-        <div className="bg-purple-50 dark:bg-purple-900/10 border-b border-purple-200 dark:border-purple-800 px-6 py-4">
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="bg-purple-50 dark:bg-purple-900/10 border-b border-purple-200 dark:border-purple-800 px-4 sm:px-6 py-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {!editTarget && (
               <select value={formBranchId} onChange={e => setFormBranchId(e.target.value)} required
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
@@ -159,7 +158,7 @@ export default function WarehousesPage() {
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
               {Object.entries(WAREHOUSE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            <div className="flex gap-2">
+            <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
               <button type="submit" disabled={createWarehouse.isPending || updateWarehouse.isPending}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50">
                 {editTarget ? 'Simpan' : 'Buat'}
@@ -172,52 +171,89 @@ export default function WarehousesPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kode</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nama Gudang</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cabang</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tipe</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}><td colSpan={6} className="px-4 py-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
-                ))
-              ) : warehouses.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">Tidak ada gudang ditemukan</td></tr>
-              ) : warehouses.map(w => (
-                <tr key={w.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-4 py-3 font-mono text-gray-900 dark:text-gray-200">{w.warehouse_code}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{w.warehouse_name}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{w.branch_name}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${WAREHOUSE_TYPE_COLORS[w.warehouse_type]}`}>
-                      {WAREHOUSE_TYPE_LABELS[w.warehouse_type]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${w.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
-                      {w.is_active ? 'Aktif' : 'Nonaktif'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex gap-2 justify-end">
-                      <button onClick={() => openEdit(w)} className="text-blue-600 hover:text-blue-800 dark:text-blue-400"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => setDeleteTarget(w)} className="text-red-500 hover:text-red-700 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </td>
+          {/* Desktop Table */}
+          <div className="hidden md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kode</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nama Gudang</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cabang</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tipe</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}><td colSpan={6} className="px-4 py-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
+                  ))
+                ) : warehouses.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">Tidak ada gudang ditemukan</td></tr>
+                ) : warehouses.map(w => (
+                  <tr key={w.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-4 py-3 font-mono text-gray-900 dark:text-gray-200">{w.warehouse_code}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{w.warehouse_name}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{w.branch_name}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${WAREHOUSE_TYPE_COLORS[w.warehouse_type]}`}>
+                        {WAREHOUSE_TYPE_LABELS[w.warehouse_type]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${w.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                        {w.is_active ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => openEdit(w)} className="text-blue-600 hover:text-blue-800 dark:text-blue-400"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setDeleteTarget(w)} className="text-red-500 hover:text-red-700 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden">
+            {isLoading ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />)}
+              </div>
+            ) : warehouses.length === 0 ? (
+              <div className="px-4 py-12 text-center text-gray-400 text-sm">Tidak ada gudang ditemukan</div>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {warehouses.map(w => (
+                  <div key={w.id} className="p-4 flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{w.warehouse_name}</p>
+                      <p className="text-xs text-gray-500">{w.warehouse_code} · {w.branch_name}</p>
+                      <div className="flex gap-2 mt-1">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${WAREHOUSE_TYPE_COLORS[w.warehouse_type]}`}>
+                          {WAREHOUSE_TYPE_LABELS[w.warehouse_type]}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${w.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-600'}`}>
+                          {w.is_active ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={() => openEdit(w)} className="p-1.5 text-blue-600 dark:text-blue-400"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => setDeleteTarget(w)} className="p-1.5 text-red-500 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {pagination && pagination.total > 0 && (

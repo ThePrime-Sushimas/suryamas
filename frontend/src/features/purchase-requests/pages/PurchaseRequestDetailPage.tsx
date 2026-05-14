@@ -126,39 +126,41 @@ export default function PurchaseRequestDetailPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => navigate("/inventory/purchase-requests")}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <ClipboardList className="w-6 h-6 text-orange-600" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {pr.request_number}
-              </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+            <ClipboardList className="w-6 h-6 text-orange-600 shrink-0 hidden sm:block" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">
+                  {pr.request_number}
+                </h1>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${statusCfg.color}`}
+                >
+                  {statusCfg.label}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                 {pr.branch_name} — {fmtDate(pr.request_date)}
               </p>
             </div>
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-medium ${statusCfg.color}`}
-            >
-              {statusCfg.label}
-            </span>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0 overflow-x-auto">
             {["DRAFT", "PENDING_APPROVAL"].includes(pr.status) && canUpdate && (
               <button
                 onClick={() =>
                   navigate(`/inventory/purchase-requests/${id}/edit`)
                 }
-                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap"
               >
                 Edit
               </button>
@@ -167,11 +169,9 @@ export default function PurchaseRequestDetailPage() {
             {pr.status === "DRAFT" && canUpdate && (
               <button
                 onClick={() => setConfirmAction("submit")}
-                className="flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm whitespace-nowrap"
               >
-                <span className="flex items-center gap-1">
-                  <Send className="w-4 h-4" /> Ajukan Approval
-                </span>
+                <Send className="w-4 h-4" /> <span className="hidden sm:inline">Ajukan</span> Approval
               </button>
             )}
             {pr.status === "PENDING_APPROVAL" && canApprove && (
@@ -179,24 +179,24 @@ export default function PurchaseRequestDetailPage() {
                 onClick={() =>
                   navigate(`/inventory/purchase-requests/${id}/approve`)
                 }
-                className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm whitespace-nowrap"
               >
-                <CheckCircle className="w-4 h-4" /> Review & Approve
+                <CheckCircle className="w-4 h-4" /> Approve
               </button>
             )}
 
             {["DRAFT", "PENDING_APPROVAL"].includes(pr.status) && canUpdate && (
               <button
                 onClick={() => setConfirmAction("cancel")}
-                className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap"
               >
-                <Ban className="w-4 h-4" /> Batalkan
+                <Ban className="w-4 h-4" /> Batal
               </button>
             )}
 
             <button
               onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap"
             >
               <Printer className="w-4 h-4" /> Print
             </button>
@@ -205,8 +205,8 @@ export default function PurchaseRequestDetailPage() {
       </div>
 
       {/* Info Cards */}
-      <div className="px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+      <div className="px-4 sm:px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-sm">
           <div>
             <span className="text-gray-500 dark:text-gray-400">Dibutuhkan</span>
             <p className="font-medium text-gray-900 dark:text-white">
@@ -247,7 +247,7 @@ export default function PurchaseRequestDetailPage() {
       </div>
 
       {/* Lines Grouped by Supplier */}
-      <div className="flex-1 overflow-auto p-6 space-y-4">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4">
         {supplierGroups.map((group) => (
           <div
             key={group.supplierId ?? "__none__"}

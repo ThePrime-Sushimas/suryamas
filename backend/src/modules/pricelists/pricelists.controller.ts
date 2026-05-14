@@ -99,6 +99,16 @@ export class PricelistsController {
       await handleError(res, error, req, { action: 'lookup_price' })
     }
   }
+
+  batchLookup = async (req: Request, res: Response) => {
+    try {
+      const { supplier_id, product_ids } = req.body as { supplier_id: string; product_ids: string[] }
+      const result = await pricelistsService.batchLookupBySupplier(supplier_id, product_ids)
+      sendSuccess(res, result, 'Batch price lookup')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'batch_lookup' })
+    }
+  }
 }
 
 export const pricelistsController = new PricelistsController()
