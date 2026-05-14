@@ -143,7 +143,7 @@ export default function PurchaseRequestApprovalPage() {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <p className="text-gray-500 dark:text-gray-400 mb-4">Data tidak ditemukan atau PR bukan status Pending Approval</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Data tidak ditemukan</p>
           <button onClick={() => navigate('/inventory/pr-approval')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Kembali</button>
         </div>
       </div>
@@ -151,6 +151,7 @@ export default function PurchaseRequestApprovalPage() {
   }
 
   const pr = approvalData.pr as Record<string, unknown>
+  const isPending = pr.status === 'PENDING_APPROVAL'
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -169,17 +170,26 @@ export default function PurchaseRequestApprovalPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <button onClick={() => setShowRejectModal(true)}
-              className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs sm:text-sm">
-              <XCircle className="w-4 h-4" /> Reject
-            </button>
-            <button onClick={handleApproveAndGenerate} disabled={approveAndGenerate.isPending}
-              className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-xs sm:text-sm">
-              <Send className="w-4 h-4" />
-              {approveAndGenerate.isPending ? 'Processing...' : 'Approve & Generate PO'}
-            </button>
-          </div>
+          {isPending && (
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <button onClick={() => setShowRejectModal(true)}
+                className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs sm:text-sm">
+                <XCircle className="w-4 h-4" /> Reject
+              </button>
+              <button onClick={handleApproveAndGenerate} disabled={approveAndGenerate.isPending}
+                className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-xs sm:text-sm">
+                <Send className="w-4 h-4" />
+                {approveAndGenerate.isPending ? 'Processing...' : 'Approve & Generate PO'}
+              </button>
+            </div>
+          )}
+          {!isPending && (
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+              pr.status === 'CONVERTED' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+              pr.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+            }`}>{pr.status as string}</span>
+          )}
         </div>
       </div>
 
@@ -189,6 +199,11 @@ export default function PurchaseRequestApprovalPage() {
           <span className="font-medium">Warehouse:</span> {approvalData.warehouse_name}
           {pr.needed_by_date && <span className="ml-3 sm:ml-4"><span className="font-medium">Dibutuhkan:</span> {new Date(pr.needed_by_date as string).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
         </p>
+        {pr.rejected_reason ? (
+          <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
+            <strong>Alasan Penolakan:</strong> {String(pr.rejected_reason)}
+          </div>
+        ) : null}
       </div>
 
       {/* Supplier Groups */}
@@ -204,7 +219,7 @@ export default function PurchaseRequestApprovalPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" checked={group.selected} onChange={() => toggleSupplier(gIdx)}
-                      disabled={!group.supplier_id} className="rounded border-white/30 text-indigo-500 focus:ring-indigo-400" />
+                      disabled={!group.supplier_id || !isPending} className="rounded border-white/30 text-indigo-500 focus:ring-indigo-400" />
                     <Package className="w-5 h-5 text-white hidden sm:block" />
                     <div>
                       <h3 className="font-semibold text-white text-sm sm:text-base">{group.supplier_name}</h3>
@@ -243,7 +258,7 @@ export default function PurchaseRequestApprovalPage() {
                         <tr key={iIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                           <td className="px-4 py-2.5">
                             <input type="checkbox" checked={item.selected} onChange={() => toggleItem(gIdx, iIdx)}
-                              disabled={!group.selected} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                              disabled={!group.selected || !isPending} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                           </td>
                           <td className="px-4 py-2.5">
                             <p className="font-medium text-gray-900 dark:text-white">{item.product_name}</p>
@@ -254,7 +269,7 @@ export default function PurchaseRequestApprovalPage() {
                             <input type="number" min="0.01"
                               value={item.qty_approved || ''}
                               onChange={e => updateItemQty(gIdx, iIdx, parseFloat(e.target.value) || 0)}
-                              disabled={!item.selected || !group.selected}
+                              disabled={!item.selected || !group.selected || !isPending}
                               className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm disabled:opacity-50" />
                           </td>
                           <td className="px-4 py-2.5 text-right">
@@ -285,7 +300,7 @@ export default function PurchaseRequestApprovalPage() {
                     <div key={iIdx} className="px-4 py-3">
                       <div className="flex items-start gap-3">
                         <input type="checkbox" checked={item.selected} onChange={() => toggleItem(gIdx, iIdx)}
-                          disabled={!group.selected} className="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                          disabled={!group.selected || !isPending} className="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between">
                             <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{item.product_name}</p>
@@ -303,7 +318,7 @@ export default function PurchaseRequestApprovalPage() {
                             <input type="number" min="0.01"
                               value={item.qty_approved || ''}
                               onChange={e => updateItemQty(gIdx, iIdx, parseFloat(e.target.value) || 0)}
-                              disabled={!item.selected || !group.selected}
+                              disabled={!item.selected || !group.selected || !isPending}
                               className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-xs disabled:opacity-50" />
                             <span className="text-xs text-gray-500">{item.uom}</span>
                           </div>

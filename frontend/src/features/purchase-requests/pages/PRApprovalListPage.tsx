@@ -27,11 +27,7 @@ export default function PRApprovalListPage() {
   })
 
   const handleRowClick = (pr: Record<string, unknown>) => {
-    if (activeTab === 'PENDING_APPROVAL') {
-      navigate(`/inventory/purchase-requests/${pr.id}/approve`)
-    } else {
-      navigate(`/inventory/purchase-requests/${pr.id}`)
-    }
+    navigate(`/inventory/purchase-requests/${pr.id}/approve`)
   }
 
   return (

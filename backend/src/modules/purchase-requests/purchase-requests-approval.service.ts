@@ -65,9 +65,6 @@ export class PurchaseRequestApprovalService {
   async getApprovalData(prId: string, companyId: string): Promise<ApprovalData> {
     const pr = await purchaseRequestsRepository.findWithLines(prId, companyId)
     if (!pr) throw new PurchaseRequestNotFoundError(prId)
-    if (pr.status !== 'PENDING_APPROVAL') {
-      throw new PurchaseRequestInvalidStatusError(pr.status, 'PENDING_APPROVAL')
-    }
 
     const warehouse = await purchaseRequestsRepository.findMainWarehouseByBranch(pr.branch_id)
     const warehouseId = warehouse?.id ?? null
