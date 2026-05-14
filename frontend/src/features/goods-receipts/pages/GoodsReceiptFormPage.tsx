@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, PackageCheck, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, PackageCheck, Save } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useCreateGoodsReceipt, useGoodsReceipt } from '../api/goodsReceipts.api'
 import { useWarehouses } from '@/features/inventory/api/inventory.api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import { GRLineCard, type GRLineData } from '../components/GRLineCard'
 
 interface POOption {
   id: string
@@ -16,23 +17,6 @@ interface POOption {
   branch_name: string
   warehouse_id?: string
   lines?: { id: string; product_id: string; product_code: string; product_name: string; qty: number; qty_received: number; uom: string; unit_price: number }[]
-}
-
-interface LineItem {
-  key: string
-  po_line_id: string
-  product_id: string
-  product_name: string
-  product_code: string
-  uom: string
-  qty_ordered: number
-  qty_already_received: number
-  qty_remaining: number
-  qty_received: number
-  qty_rejected: number
-  reject_reason: string
-  unit_price_invoice: number
-  unit_price_po: number
 }
 
 const emptyPendingQty: Record<string, number> = {}
@@ -51,7 +35,7 @@ export default function GoodsReceiptFormPage() {
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [invoiceDate, setInvoiceDate] = useState('')
   const [notes, setNotes] = useState('')
-  const [lines, setLines] = useState<LineItem[]>([])
+  const [lines, setLines] = useState<GRLineData[]>([])
 
   // Fetch existing GR for edit mode
   const { data: existingGR } = useGoodsReceipt(isEdit ? id : '')
@@ -72,7 +56,7 @@ export default function GoodsReceiptFormPage() {
     onError: (err: unknown) => toast.error(parseApiError(err, 'Gagal memperbarui')),
   })
 
-  // Fetch POs that can receive goods (ORDERED or PARTIAL_RECEIVED)
+  // Fetch POs that can receive goods
   const { data: posData } = useQuery({
     queryKey: ['purchase-orders', 'receivable'],
     queryFn: async () => {
@@ -96,7 +80,7 @@ export default function GoodsReceiptFormPage() {
     enabled: !!selectedPoId,
   })
 
-  // Fetch pending qty from existing DRAFT GRs for this PO (exclude current GR if editing)
+  // Fetch pending qty from existing DRAFT GRs
   const { data: pendingData } = useQuery({
     queryKey: ['goods-receipts', 'pending-qty', selectedPoId, id],
     queryFn: async () => {
@@ -113,7 +97,7 @@ export default function GoodsReceiptFormPage() {
   const { data: warehousesData } = useWarehouses({ limit: 50, warehouse_type: 'MAIN' })
   const warehouses = warehousesData?.data ?? []
 
-  // Edit mode: populate form from existing GR
+  // Edit mode: populate form
   useEffect(() => {
     if (!isEdit || initialized || !existingGR) return
     setSelectedPoId(existingGR.po_id)
@@ -129,11 +113,13 @@ export default function GoodsReceiptFormPage() {
         product_id: l.product_id,
         product_name: l.product_name ?? '',
         product_code: l.product_code ?? '',
-        uom: l.uom ?? '',
-        qty_ordered: Number(l.qty_received),
-        qty_already_received: 0,
-        qty_remaining: Number(l.qty_received),
+        uom_po: l.uom_po ?? l.uom ?? '',
+        qty_ordered: Number(l.qty_po_uom ?? l.qty_received),
+        qty_remaining: Number(l.qty_po_uom ?? l.qty_received),
+        qty_po_uom: Number(l.qty_po_uom ?? l.qty_received),
         qty_received: Number(l.qty_received),
+        uom_received: l.uom_received ?? l.uom ?? '',
+        conversion_factor: Number(l.conversion_factor ?? 1),
         qty_rejected: Number(l.qty_rejected ?? 0),
         reject_reason: l.reject_reason ?? '',
         unit_price_invoice: Number(l.unit_price_invoice),
@@ -143,7 +129,7 @@ export default function GoodsReceiptFormPage() {
     setInitialized(true)
   }, [existingGR, isEdit, initialized])
 
-  // Edit mode: enrich lines with correct qty_ordered/qty_remaining from PO once PO loads
+  // Edit mode: enrich lines with PO data
   useEffect(() => {
     if (!isEdit || !initialized || enriched || !selectedPO?.lines) return
     setLines(prev => prev.map(l => {
@@ -155,8 +141,7 @@ export default function GoodsReceiptFormPage() {
     setEnriched(true)
   }, [isEdit, initialized, enriched, selectedPO])
 
-  // Create mode: auto-populate lines and warehouse when PO selected
-  // Track which PO was last used to populate lines to avoid overwriting user edits
+  // Create mode: auto-populate lines
   const lastPopulatedPoRef = useRef<string>('')
 
   const computedLines = useMemo(() => {
@@ -171,29 +156,30 @@ export default function GoodsReceiptFormPage() {
           product_id: l.product_id,
           product_name: l.product_name ?? '',
           product_code: l.product_code ?? '',
-          uom: l.uom,
+          uom_po: l.uom,
           qty_ordered: Number(l.qty),
-          qty_already_received: Number(l.qty_received),
           qty_remaining: remaining,
-          qty_received: remaining,
+          qty_po_uom: remaining,
+          qty_received: remaining, // default: same as qty_po_uom (conversion=1)
+          uom_received: l.uom, // default: same as PO UOM, card will auto-detect if needs conversion
+          conversion_factor: 1,
           qty_rejected: 0,
           reject_reason: '',
           unit_price_invoice: Number(l.unit_price),
           unit_price_po: Number(l.unit_price),
-        }
+        } satisfies GRLineData
       })
       .filter(l => l.qty_remaining > 0)
   }, [isEdit, selectedPO, pendingQty])
 
   useEffect(() => {
     if (!computedLines) return
-    // Only auto-populate when PO changes, not when pendingQty refetches
     if (lastPopulatedPoRef.current === selectedPoId) return
     lastPopulatedPoRef.current = selectedPoId
     setLines(computedLines)
   }, [computedLines, selectedPoId])
 
-  // Set warehouse when PO branch matches a warehouse
+  // Auto-set warehouse
   useEffect(() => {
     if (isEdit || !selectedPO || warehouseId) return
     const poWarehouse = warehouses.find(w => w.branch_id === selectedPO.branch_id)
@@ -202,32 +188,25 @@ export default function GoodsReceiptFormPage() {
 
   const createGR = useCreateGoodsReceipt()
 
-  const updateLine = (key: string, field: 'qty_received' | 'qty_rejected' | 'reject_reason', value: number | string) => {
-    setLines(prev => prev.map(l => {
-      if (l.key !== key) return l
-      const updated = { ...l, [field]: value }
-      if (field === 'qty_rejected' && (value as number) === 0) updated.reject_reason = ''
-      return updated
-    }))
+  const handleLineChange = (key: string, updates: Partial<GRLineData>) => {
+    setLines(prev => prev.map(l => l.key === key ? { ...l, ...updates } : l))
   }
 
-  const removeLine = (key: string) => setLines(prev => prev.filter(l => l.key !== key))
+  const handleLineRemove = (key: string) => setLines(prev => prev.filter(l => l.key !== key))
 
   const handleSubmit = async () => {
     if (!isEdit && !selectedPoId) { toast.error('Pilih Purchase Order'); return }
     if (!warehouseId) { toast.error('Pilih Gudang'); return }
     if (lines.length === 0) { toast.error('Minimal 1 item'); return }
 
-    if (!isEdit) {
-      const invalidLines = lines.filter(l => l.qty_received > l.qty_remaining)
-      if (invalidLines.length > 0) { toast.error('Qty diterima tidak boleh melebihi sisa qty PO'); return }
+    const invalidLines = lines.filter(l => l.qty_po_uom > l.qty_remaining)
+    if (invalidLines.length > 0) { toast.error('Qty diterima tidak boleh melebihi sisa qty PO'); return }
 
-      const invalidReject = lines.filter(l => l.qty_rejected > l.qty_received)
-      if (invalidReject.length > 0) { toast.error('Qty ditolak tidak boleh melebihi qty diterima'); return }
+    const invalidReject = lines.filter(l => l.qty_rejected > l.qty_po_uom)
+    if (invalidReject.length > 0) { toast.error('Qty ditolak tidak boleh melebihi qty diterima'); return }
 
-      const missingReason = lines.filter(l => l.qty_rejected > 0 && !l.reject_reason)
-      if (missingReason.length > 0) { toast.error('Pilih alasan penolakan untuk item yang ditolak'); return }
-    }
+    const missingReason = lines.filter(l => l.qty_rejected > 0 && !l.reject_reason)
+    if (missingReason.length > 0) { toast.error('Pilih alasan penolakan untuk item yang ditolak'); return }
 
     const payload = {
       po_id: selectedPoId,
@@ -239,7 +218,9 @@ export default function GoodsReceiptFormPage() {
       lines: lines.map(l => ({
         po_line_id: l.po_line_id,
         product_id: l.product_id,
+        qty_po_uom: l.qty_po_uom,
         qty_received: l.qty_received,
+        uom_received: l.uom_received,
         qty_rejected: l.qty_rejected || 0,
         reject_reason: l.reject_reason || null,
         unit_price_invoice: l.unit_price_invoice,
@@ -255,6 +236,7 @@ export default function GoodsReceiptFormPage() {
     }
   }
 
+  const totalInvoice = lines.reduce((sum, l) => sum + l.qty_received * l.unit_price_invoice, 0)
   const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 
   return (
@@ -279,13 +261,13 @@ export default function GoodsReceiptFormPage() {
         </div>
       </div>
 
-      {/* Form */}
+      {/* Form Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purchase Order *</label>
-            <select value={selectedPoId} onChange={e => setSelectedPoId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            <select value={selectedPoId} onChange={e => setSelectedPoId(e.target.value)} disabled={isEdit}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:opacity-60">
               <option value="">Pilih PO</option>
               {receivablePOs.map(po => <option key={po.id} value={po.id}>{po.po_number} — {po.supplier_name}</option>)}
             </select>
@@ -323,155 +305,32 @@ export default function GoodsReceiptFormPage() {
         </div>
       </div>
 
-      {/* Lines */}
+      {/* Line Items */}
       <div className="flex-1 overflow-auto p-4 lg:p-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          {/* Desktop Table */}
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-                <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">UOM</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">Qty PO</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">Belum Terima</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty Diterima</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-32">Qty Ditolak</th>
-                  <th className="px-3 py-3 w-10"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                {lines.length === 0 ? (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">
-                    {selectedPoId && selectedPO?.lines && selectedPO.lines.length > 0
-                      ? 'Semua item PO ini sudah tercakup oleh penerimaan (DRAFT) sebelumnya. Konfirmasi atau hapus GR DRAFT yang ada terlebih dahulu.'
-                      : 'Pilih PO di atas untuk mengisi daftar barang'}
-                  </td></tr>
-                ) : lines.map(l => (
-                    <tr key={l.key} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <td className="px-3 py-3">
-                        <div className="font-medium text-gray-900 dark:text-white">{l.product_name}</div>
-                        <div className="text-xs text-gray-500">{l.product_code}</div>
-                      </td>
-                      <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{l.uom}</td>
-                      <td className="px-3 py-3 text-right font-mono text-gray-500 dark:text-gray-400">{fmt(l.qty_ordered)}</td>
-                      <td className="px-3 py-3 text-right font-mono text-gray-600 dark:text-gray-300 font-medium">{fmt(l.qty_remaining)}</td>
-                      <td className="px-3 py-3 text-center">
-                        <input type="number" min="0.01" max={l.qty_remaining} value={l.qty_received || ''}
-                          onChange={e => updateLine(l.key, 'qty_received', parseFloat(e.target.value) || 0)}
-                          className={`w-24 px-2 py-1.5 border rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${l.qty_received > l.qty_remaining ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600'}`} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          <input type="number" min="0" value={l.qty_rejected || ''}
-                            onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
-                            className={`w-20 px-2 py-1.5 border rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${l.qty_rejected > 0 ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}`} />
-                          {l.qty_rejected > 0 && (
-                            <select value={l.reject_reason} onChange={e => updateLine(l.key, 'reject_reason', e.target.value)}
-                              className="w-28 px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                              <option value="">Pilih alasan...</option>
-                              <option value="DAMAGED">Rusak</option>
-                              <option value="EXPIRED">Kadaluarsa</option>
-                              <option value="WRONG_ITEM">Salah Barang</option>
-                              <option value="OTHER">Lainnya</option>
-                            </select>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <button onClick={() => removeLine(l.key)} className="p-1 text-gray-400 hover:text-red-500 rounded"><Trash2 className="w-4 h-4" /></button>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-              {lines.length > 0 && (
-                <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
-                  <tr>
-                    <td colSpan={6} className="px-3 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">{lines.length} item</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-
-          {/* Mobile & Tablet Cards */}
-          <div className="lg:hidden">
-            {lines.length === 0 ? (
-              <div className="px-4 py-12 text-center text-gray-400 text-sm">
-                {selectedPoId && selectedPO?.lines && selectedPO.lines.length > 0
-                  ? 'Semua item PO ini sudah tercakup oleh penerimaan (DRAFT) sebelumnya.'
-                  : 'Pilih PO di atas untuk mengisi daftar barang'}
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {lines.map(l => (
-                    <div key={l.key} className="p-4 space-y-3">
-                      {/* Product header */}
-                      <div className="flex justify-between items-start">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{l.product_name}</p>
-                          <p className="text-xs text-gray-500">{l.product_code} · {l.uom}</p>
-                        </div>
-                        <button onClick={() => removeLine(l.key)} className="p-1.5 text-gray-400 hover:text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-
-                      {/* Info row */}
-                      <div className="flex gap-4 text-xs">
-                        <div className="flex flex-col">
-                          <span className="text-gray-500">Qty PO</span>
-                          <span className="font-mono font-medium text-gray-700 dark:text-gray-300">{fmt(l.qty_ordered)}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-gray-500">Belum Terima</span>
-                          <span className="font-mono font-medium text-gray-900 dark:text-white">{fmt(l.qty_remaining)}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-gray-500">UOM</span>
-                          <span className="text-gray-700 dark:text-gray-300">{l.uom}</span>
-                        </div>
-                      </div>
-
-                      {/* Input row */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Qty Diterima</label>
-                          <input type="number" min="0.01" max={l.qty_remaining} value={l.qty_received || ''}
-                            onChange={e => updateLine(l.key, 'qty_received', parseFloat(e.target.value) || 0)}
-                            className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${l.qty_received > l.qty_remaining ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Qty Ditolak</label>
-                          <input type="number" min="0" value={l.qty_rejected || ''}
-                            onChange={e => updateLine(l.key, 'qty_rejected', parseFloat(e.target.value) || 0)}
-                            className={`w-full px-2.5 py-2 border rounded-lg text-sm text-right ${l.qty_rejected > 0 ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white`} />
-                        </div>
-                      </div>
-
-                      {/* Reject reason */}
-                      {l.qty_rejected > 0 && (
-                        <div>
-                          <label className="block text-xs font-medium text-red-600 dark:text-red-400 mb-1">Alasan Penolakan</label>
-                          <select value={l.reject_reason} onChange={e => updateLine(l.key, 'reject_reason', e.target.value)}
-                            className="w-full px-2.5 py-2 border border-red-300 dark:border-red-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <option value="">Pilih alasan...</option>
-                            <option value="DAMAGED">Rusak</option>
-                            <option value="EXPIRED">Kadaluarsa</option>
-                            <option value="WRONG_ITEM">Salah Barang</option>
-                            <option value="OTHER">Lainnya</option>
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                {/* Footer */}
-                <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{lines.length} item</span>
-                </div>
-              </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {/* Section header */}
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Daftar Barang ({lines.length} item)</h2>
+            {lines.length > 0 && (
+              <span className="text-sm font-mono font-semibold text-gray-900 dark:text-white">Total: Rp {fmt(Math.round(totalInvoice))}</span>
             )}
           </div>
+
+          {/* Cards */}
+          {lines.length === 0 ? (
+            <div className="px-4 py-16 text-center">
+              <PackageCheck className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+              <p className="text-sm text-gray-400 dark:text-gray-500">
+                {selectedPoId && selectedPO?.lines && selectedPO.lines.length > 0
+                  ? 'Semua item PO ini sudah tercakup oleh penerimaan sebelumnya.'
+                  : 'Pilih Purchase Order di atas untuk mengisi daftar barang'}
+              </p>
+            </div>
+          ) : (
+            lines.map(l => (
+              <GRLineCard key={l.key} line={l} onChange={handleLineChange} onRemove={handleLineRemove} />
+            ))
+          )}
         </div>
       </div>
     </div>

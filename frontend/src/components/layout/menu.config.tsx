@@ -365,7 +365,7 @@ export const menuItems: MenuItem[] = [
       },
       {
         id: "inv-goods-processing",
-        name: "Barang Masuk",
+        name: "Barang diproses",
         href: "/inventory/goods-processing",
         icon: <Package size={16} />,
         module: "goods_processing",

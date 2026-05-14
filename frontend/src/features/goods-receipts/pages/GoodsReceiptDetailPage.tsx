@@ -78,7 +78,12 @@ export default function GoodsReceiptDetailPage() {
       <table>
         <thead><tr><th class="text-center">No</th><th>Produk</th><th class="text-right">Diterima</th><th class="text-right">Ditolak</th><th>UOM</th><th class="text-right">Harga</th><th class="text-right">Subtotal</th></tr></thead>
         <tbody>
-          ${lines.map((l, i) => `<tr><td class="text-center">${i + 1}</td><td>${esc(l.product_name ?? '')}</td><td class="text-right">${fmt(l.qty_received)}</td><td class="text-right">${(l.qty_rejected ?? 0) > 0 ? fmt(l.qty_rejected ?? 0) : '-'}</td><td>${esc(l.uom ?? '')}</td><td class="text-right">Rp ${fmt(l.unit_price_invoice)}</td><td class="text-right">Rp ${fmt(l.total_price_invoice ?? l.qty_received * l.unit_price_invoice)}</td></tr>`).join('')}
+          ${lines.map((l, i) => {
+            const hasDual = l.uom_po && l.uom_received && l.uom_po !== l.uom_received
+            const qtyDisplay = hasDual ? `${fmt(l.qty_po_uom ?? l.qty_received)} ${esc(l.uom_po ?? '')} (${fmt(l.qty_received)} ${esc(l.uom_received ?? '')})` : `${fmt(l.qty_received)}`
+            const uomDisplay = hasDual ? esc(l.uom_received ?? l.uom ?? '') : esc(l.uom ?? '')
+            return `<tr><td class="text-center">${i + 1}</td><td>${esc(l.product_name ?? '')}</td><td class="text-right">${qtyDisplay}</td><td class="text-right">${(l.qty_rejected ?? 0) > 0 ? fmt(l.qty_rejected ?? 0) : '-'}</td><td>${uomDisplay}</td><td class="text-right">Rp ${fmt(l.unit_price_invoice)}</td><td class="text-right">Rp ${fmt(l.total_price_invoice ?? l.qty_received * l.unit_price_invoice)}</td></tr>`
+          }).join('')}
         </tbody>
         <tfoot><tr><td colspan="6" class="text-right"><strong>Total:</strong></td><td class="text-right"><strong>Rp ${fmt(gr.total_invoice_amount)}</strong></td></tr></tfoot>
       </table>
@@ -213,23 +218,43 @@ export default function GoodsReceiptDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {(gr.lines ?? []).map((line, idx) => (
+              {(gr.lines ?? []).map((line, idx) => {
+                const hasDualUom = line.uom_po && line.uom_received && line.uom_po !== line.uom_received
+                return (
                 <tr key={line.id ?? idx}>
                   <td className="px-4 py-3 text-gray-500">{idx + 1}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900 dark:text-white">{line.product_name}</div>
-                    <div className="text-xs text-gray-500">{line.product_code} · {line.uom}</div>
+                    <div className="text-xs text-gray-500">{line.product_code}</div>
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">{fmt(line.qty_received)}</td>
+                  <td className="px-4 py-3 text-right">
+                    {hasDualUom ? (
+                      <div>
+                        <span className="font-mono text-gray-900 dark:text-gray-200">{fmt(line.qty_po_uom ?? line.qty_received)} {line.uom_po}</span>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          = {fmt(line.qty_received)} {line.uom_received}
+                          <span className="ml-1 text-gray-400">(1:{(line.conversion_factor ?? 1).toFixed(2)})</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="font-mono text-gray-900 dark:text-gray-200">{fmt(line.qty_received)} {line.uom_received ?? line.uom}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right font-mono">
                     {(line.qty_rejected ?? 0) > 0 ? (
-                      <span className="text-red-600 dark:text-red-400">{fmt(line.qty_rejected ?? 0)}
+                      <span className="text-red-600 dark:text-red-400">{fmt(line.qty_rejected ?? 0)} {line.uom_po ?? line.uom}
                         {line.reject_reason && <span className="text-xs ml-1">({line.reject_reason === 'DAMAGED' ? 'Rusak' : line.reject_reason === 'EXPIRED' ? 'Expired' : line.reject_reason === 'WRONG_ITEM' ? 'Salah' : 'Lain'})</span>}
                       </span>
                     ) : <span className="text-gray-400">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">Rp {fmt(line.unit_price_invoice)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-500">Rp {fmt(line.unit_price_po ?? 0)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="font-mono text-gray-900 dark:text-gray-200">Rp {fmt(line.unit_price_invoice)}</span>
+                    {hasDualUom && <div className="text-xs text-gray-500">/{line.uom_received}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="font-mono text-gray-500">Rp {fmt(line.unit_price_po ?? 0)}</span>
+                    <div className="text-xs text-gray-400">/{line.uom_po ?? line.uom}</div>
+                  </td>
                   <td className="px-4 py-3 text-right font-mono">
                     <span className={VARIANCE_COLORS[line.variance_status ?? 'OK']}>
                       {(line.price_variance ?? 0) > 0 ? '+' : ''}{fmt(line.price_variance ?? 0)}
@@ -243,7 +268,7 @@ export default function GoodsReceiptDetailPage() {
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">Rp {fmt(line.total_price_invoice ?? line.qty_received * line.unit_price_invoice)}</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
             <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
               <tr>

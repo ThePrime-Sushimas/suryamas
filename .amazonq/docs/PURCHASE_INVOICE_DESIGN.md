@@ -56,6 +56,17 @@ DRAFT → SUBMITTED → APPROVED → POSTED
 - GR yang bisa dipilih: status `CONFIRMED` + supplier sama + branch sama + belum fully invoiced
 - **Constraint:** Semua GR dalam 1 invoice harus dari branch yang sama (untuk jurnal)
 
+### Satuan di Invoice — Selalu `uom_received` (Satuan Operasional)
+
+> **Ref:** `.amazonq/docs/GR_UOM_CONVERSION_DESIGN.md`
+
+Sejak GR mendukung dual UOM (Ekor → KG), invoice **selalu** menggunakan satuan operasional (`uom_received`):
+- GR line: `qty_po_uom = 2 Ekor`, `qty_received = 7.2 KG`, `uom_received = KG`
+- Invoice line: `qty_invoiced = 7.2`, satuan = KG, `unit_price = Rp 55.000/KG`
+- Finance input harga dari invoice fisik supplier (user-entered, bukan derived)
+
+**Alasan:** Supplier menagih per satuan timbang (KG), bukan per satuan kontrak (Ekor).
+
 ### Harga Default (Pre-fill dari Pricelist)
 - Saat Finance pilih GR, harga per item **otomatis terisi dari pricelist** (latest price per supplier + product)
 - Finance **koreksi** jika harga di invoice fisik berbeda dari pricelist
@@ -69,9 +80,14 @@ DRAFT → SUBMITTED → APPROVED → POSTED
 - Tax amount = `unit_price × qty_invoiced × tax_rate / 100`
 
 ### 3-Way Match (per line)
+
+Semua qty di-compare dalam **satuan operasional** (`uom_received`):
 ```
-PO qty (kontrak)  ←→  GR qty (fisik diterima)  ←→  Invoice qty (tagihan supplier)
+PO qty (converted)  ←→  GR qty_received  ←→  Invoice qty_invoiced
 ```
+
+- `qty_po` di invoice line = `gr_line.qty_received` (bukan `po_line.qty` dalam satuan PO)
+- Ini karena invoice dan GR sudah dalam satuan yang sama (`uom_received`)
 
 | Match Status | Kondisi | Artinya |
 |---|---|---|
@@ -247,6 +263,7 @@ async function allocateCostOnPost(invoiceId: string, client: PoolClient) {
       FROM goods_processing_outputs gpo
       JOIN goods_processing_inputs gpi ON gpi.id = gpo.input_id
       WHERE gpi.gr_line_id = $1 AND gpo.is_waste = false
+      ORDER BY gpo.sort_order
     `, [line.gr_line_id])
 
     if (outputs.length === 0) {
@@ -259,10 +276,21 @@ async function allocateCostOnPost(invoiceId: string, client: PoolClient) {
     const totalAllocableQty = outputs.reduce((sum, o) => sum + Number(o.qty_output), 0)
     if (totalAllocableQty === 0) continue
 
-    // Allocate proportionally
-    for (const output of outputs) {
-      const ratio = Number(output.qty_output) / totalAllocableQty
-      const allocatedCost = totalCost * ratio
+    // Allocate proportionally — LAST ITEM ABSORBS REMAINDER (rounding rule)
+    let allocated = 0
+    for (let i = 0; i < outputs.length; i++) {
+      const output = outputs[i]
+      let allocatedCost: number
+
+      if (i === outputs.length - 1) {
+        // Last non-waste item gets remainder → ensures SUM = totalCost exactly
+        allocatedCost = totalCost - allocated
+      } else {
+        const ratio = Number(output.qty_output) / totalAllocableQty
+        allocatedCost = Math.round(totalCost * ratio)
+        allocated += allocatedCost
+      }
+
       const unitCost = allocatedCost / Number(output.qty_output)
 
       // Update GP output + link ke invoice line
@@ -286,6 +314,7 @@ async function allocateCostOnPost(invoiceId: string, client: PoolClient) {
     }
 
     // Update qty_invoiced di GR line (untuk partial invoice tracking)
+    // qty_invoiced dalam uom_received (satuan operasional, misal KG)
     await client.query(`
       UPDATE goods_receipt_lines
       SET qty_invoiced = COALESCE(qty_invoiced, 0) + $1
@@ -632,13 +661,15 @@ Inventory
 ## Catatan Penting
 
 1. **Jurnal HANYA dibuat saat Invoice POSTED** — bukan saat GR confirm, bukan saat GP confirm
-2. **Cost allocation proporsional by weight** — waste excluded dari alokasi
-3. **1 Invoice bisa cover multiple GR** — tapi harus supplier yang sama
+2. **Cost allocation proporsional by weight** — waste excluded, **last item absorbs rounding remainder**
+3. **1 Invoice bisa cover multiple GR** — tapi harus supplier yang sama DAN branch yang sama
 4. **PPN per line** — fleksibel, bisa ada item kena pajak & tidak
 5. **3-way match informatif** — tidak blocking, tapi OVER wajib manual approval
 6. **Invoice number dari supplier** — bukan auto-generate
 7. **POST = final** — setelah posted, tidak bisa edit (harus void + buat ulang)
 8. **GP harus CONFIRMED sebelum invoice bisa di-POST** — karena cost allocation butuh output data
+9. **Satuan invoice = `uom_received`** — selalu satuan operasional (KG), bukan satuan PO (Ekor). Ref: `GR_UOM_CONVERSION_DESIGN.md`
+10. **`unit_price` di invoice line = user-entered** — dari invoice fisik supplier, bukan derived dari harga PO
 
 ---
 
@@ -669,6 +700,7 @@ purchase_orders
 ## Related Docs
 
 - Part 1: `.amazonq/docs/GOODS_PROCESSING_DESIGN.md`
+- GR UOM Conversion: `.amazonq/docs/GR_UOM_CONVERSION_DESIGN.md`
 - Inventory System: `.amazonq/docs/INVENTORY_SYSTEM_V2_PLAN.md`
 - GR Module: `.amazonq/docs/GOODS_RECEIPT_PLAN.md`
 - PO Flow: `.amazonq/docs/PO_FLOW_DECISION.md`

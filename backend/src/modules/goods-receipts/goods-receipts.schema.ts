@@ -3,7 +3,9 @@ import { z } from '@/lib/openapi'
 const lineSchema = z.object({
   po_line_id: z.string().uuid(),
   product_id: z.string().uuid(),
+  qty_po_uom: z.number().positive().optional(),
   qty_received: z.number().positive(),
+  uom_received: z.string().max(30).optional(),
   qty_rejected: z.number().min(0).optional().default(0),
   reject_reason: z.string().max(50).nullable().optional(),
   unit_price_invoice: z.number().min(0),

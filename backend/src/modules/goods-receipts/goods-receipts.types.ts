@@ -38,7 +38,11 @@ export interface GoodsReceiptLine {
   gr_id: string
   po_line_id: string
   product_id: string
+  qty_po_uom: number
+  uom_po: string
   qty_received: number
+  uom_received: string
+  conversion_factor: number
   unit_price_invoice: number
   total_price_invoice: number
   unit_price_po: number
@@ -51,7 +55,7 @@ export interface GoodsReceiptLine {
 export interface GoodsReceiptLineWithRelations extends GoodsReceiptLine {
   product_code: string
   product_name: string
-  uom: string
+  uom: string // PO line uom (legacy, kept for compat)
 }
 
 export interface GoodsReceiptWithLines extends GoodsReceiptWithRelations {
@@ -62,7 +66,9 @@ export interface GoodsReceiptWithLines extends GoodsReceiptWithRelations {
 export interface CreateGoodsReceiptLineDto {
   po_line_id: string
   product_id: string
+  qty_po_uom?: number
   qty_received: number
+  uom_received?: string
   qty_rejected?: number
   reject_reason?: string | null
   unit_price_invoice: number

@@ -8,7 +8,11 @@ export interface GoodsReceiptLine {
   product_code?: string
   product_name?: string
   uom?: string
+  qty_po_uom?: number
+  uom_po?: string
   qty_received: number
+  uom_received?: string
+  conversion_factor?: number
   qty_rejected?: number
   reject_reason?: string | null
   unit_price_invoice: number
@@ -87,7 +91,7 @@ export const useCreateGoodsReceipt = () => {
       po_id: string; warehouse_id: string; received_date?: string;
       invoice_number?: string | null; invoice_date?: string | null;
       notes?: string | null;
-      lines: { po_line_id: string; product_id: string; qty_received: number; unit_price_invoice: number; notes?: string | null }[]
+      lines: { po_line_id: string; product_id: string; qty_po_uom: number; qty_received: number; uom_received: string; unit_price_invoice: number; qty_rejected?: number; reject_reason?: string | null; notes?: string | null }[]
     }) => {
       const { data } = await api.post('/goods-receipts', body)
       return data.data as GoodsReceipt

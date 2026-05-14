@@ -29,7 +29,7 @@ const HEADER_FROM = `
   ) lines_agg ON true
 `
 
-const LINE_SELECT = `grl.*, p.product_code, p.product_name, pol.uom`
+const LINE_SELECT = `grl.*, grl.qty_po_uom, grl.uom_po, grl.uom_received, grl.conversion_factor, p.product_code, p.product_name, pol.uom`
 const LINE_FROM = `
   FROM goods_receipt_lines grl
   JOIN products p ON p.id = grl.product_id
@@ -102,7 +102,7 @@ export class GoodsReceiptsRepository {
     return rows[0]
   }
 
-  async insertLines(client: PoolClient, grId: string, lines: (CreateGoodsReceiptLineDto & { unit_price_po: number; price_variance: number; price_variance_pct: number; variance_status: string })[]): Promise<void> {
+  async insertLines(client: PoolClient, grId: string, lines: (CreateGoodsReceiptLineDto & { uom_po: string; conversion_factor: number; unit_price_po: number; price_variance: number; price_variance_pct: number; variance_status: string })[]): Promise<void> {
     if (lines.length === 0) return
     const valueRows: string[] = []
     const params: unknown[] = []
@@ -110,13 +110,19 @@ export class GoodsReceiptsRepository {
 
     for (const l of lines) {
       const totalInvoice = l.qty_received * l.unit_price_invoice
-      valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8}, $${idx+9}, $${idx+10})`)
-      params.push(grId, l.po_line_id, l.product_id, l.qty_received, l.unit_price_invoice, totalInvoice, l.unit_price_po, l.price_variance, l.price_variance_pct, l.variance_status, l.notes ?? null)
-      idx += 11
+      valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8}, $${idx+9}, $${idx+10}, $${idx+11}, $${idx+12}, $${idx+13}, $${idx+14}, $${idx+15})`)
+      params.push(
+        grId, l.po_line_id, l.product_id,
+        l.qty_po_uom, l.uom_po, l.qty_received, l.uom_received, l.conversion_factor,
+        l.unit_price_invoice, totalInvoice, l.unit_price_po,
+        l.price_variance, l.price_variance_pct, l.variance_status,
+        l.notes ?? null, l.qty_rejected ?? 0
+      )
+      idx += 16
     }
 
     await client.query(
-      `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_received, unit_price_invoice, total_price_invoice, unit_price_po, price_variance, price_variance_pct, variance_status, notes)
+      `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_po_uom, uom_po, qty_received, uom_received, conversion_factor, unit_price_invoice, total_price_invoice, unit_price_po, price_variance, price_variance_pct, variance_status, notes, qty_rejected)
        VALUES ${valueRows.join(', ')}`,
       params
     )
@@ -242,7 +248,7 @@ export class GoodsReceiptsRepository {
       params.push(excludeGrId)
     }
     const { rows } = await pool.query(
-      `SELECT grl.po_line_id, SUM(grl.qty_received)::numeric AS pending_qty
+      `SELECT grl.po_line_id, SUM(grl.qty_po_uom)::numeric AS pending_qty
        FROM goods_receipt_lines grl
        JOIN goods_receipts gr ON gr.id = grl.gr_id
        WHERE gr.po_id = $1 AND gr.status = 'DRAFT' AND gr.deleted_at IS NULL${excludeClause}
@@ -302,8 +308,10 @@ export class GoodsReceiptsRepository {
   }
 
   async replaceLines(client: PoolClient, grId: string, lines: Array<{
-    po_line_id: string; product_id: string; qty_received: number; unit_price_invoice: number;
-    unit_price_po: number; variance: number; variance_pct: number; variance_status: string;
+    po_line_id: string; product_id: string; qty_po_uom: number; uom_po: string;
+    qty_received: number; uom_received: string; conversion_factor: number;
+    unit_price_invoice: number; unit_price_po: number; variance: number;
+    variance_pct: number; variance_status: string;
     qty_rejected?: number; reject_reason?: string | null
   }>): Promise<void> {
     await client.query('DELETE FROM goods_receipt_lines WHERE gr_id = $1', [grId])
@@ -313,17 +321,19 @@ export class GoodsReceiptsRepository {
     const params: unknown[] = []
     let idx = 1
     for (const l of lines) {
-      valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8}, $${idx+9}, $${idx+10}, $${idx+11})`)
+      const totalInvoice = l.qty_received * l.unit_price_invoice
+      valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6}, $${idx+7}, $${idx+8}, $${idx+9}, $${idx+10}, $${idx+11}, $${idx+12}, $${idx+13}, $${idx+14}, $${idx+15})`)
       params.push(
-        grId, l.po_line_id, l.product_id, l.qty_received, l.unit_price_invoice,
-        l.unit_price_po, l.qty_received * l.unit_price_invoice,
+        grId, l.po_line_id, l.product_id,
+        l.qty_po_uom, l.uom_po, l.qty_received, l.uom_received, l.conversion_factor,
+        l.unit_price_invoice, totalInvoice, l.unit_price_po,
         l.variance, Math.round(l.variance_pct * 100) / 100, l.variance_status,
         l.qty_rejected ?? 0, l.reject_reason ?? null
       )
-      idx += 12
+      idx += 16
     }
     await client.query(
-      `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_received, unit_price_invoice, unit_price_po, total_price_invoice, price_variance, price_variance_pct, variance_status, qty_rejected, reject_reason)
+      `INSERT INTO goods_receipt_lines (gr_id, po_line_id, product_id, qty_po_uom, uom_po, qty_received, uom_received, conversion_factor, unit_price_invoice, total_price_invoice, unit_price_po, price_variance, price_variance_pct, variance_status, qty_rejected, reject_reason)
        VALUES ${valueRows.join(', ')}`,
       params
     )
