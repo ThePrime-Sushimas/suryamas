@@ -16,6 +16,8 @@ export const mapSupplierResponse = (row: Record<string, unknown>): Supplier => {
     tax_id: row.tax_id as string | null,
     business_license: row.business_license as string | null,
     payment_term_id: row.payment_term_id as number | null,
+    payment_term_days: row.payment_term_days != null ? Number(row.payment_term_days) : null,
+    payment_term_name: row.payment_term_name as string | null,
     lead_time_days: row.lead_time_days as number,
     minimum_order: row.minimum_order as number,
     rating: row.rating as number | null,

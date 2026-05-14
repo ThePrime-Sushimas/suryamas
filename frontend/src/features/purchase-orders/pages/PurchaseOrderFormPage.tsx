@@ -60,16 +60,31 @@ export default function PurchaseOrderFormPage() {
     enabled: !!selectedPrId,
   })
 
-  // Fetch suppliers
+  // Fetch suppliers (with payment terms)
   const { data: suppliersData } = useQuery({
-    queryKey: ['suppliers', 'active'],
+    queryKey: ['suppliers', 'active-with-terms'],
     queryFn: async () => {
       const { data } = await api.get('/suppliers', { params: { is_active: true, limit: 100 } })
-      return data.data as { id: string; supplier_name: string; supplier_code: string }[]
+      return data.data as { id: string; supplier_name: string; supplier_code: string; payment_term_days?: number | null; payment_term_name?: string | null }[]
     },
     staleTime: 120_000,
   })
   const suppliers = suppliersData ?? []
+
+  // Auto-fill payment terms when supplier changes
+  useEffect(() => {
+    if (!supplierId) return
+    const supplier = suppliers.find(s => s.id === supplierId)
+    if (!supplier) return
+    const days = supplier.payment_term_days
+    if (days === 0) {
+      setPaymentType('CASH')
+      setPaymentTermsDays('')
+    } else if (days && days > 0) {
+      setPaymentType('CREDIT')
+      setPaymentTermsDays(days)
+    }
+  }, [supplierId, suppliers])
 
   // Auto-populate lines when PR is selected
   // Auto-populate lines when PR selected, fetch latest prices
@@ -202,6 +217,12 @@ export default function PurchaseOrderFormPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pembayaran *</label>
+            {(() => {
+              const supplier = suppliers.find(s => s.id === supplierId)
+              return supplier?.payment_term_name ? (
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-1">Auto-fill dari supplier: {supplier.payment_term_name}</p>
+              ) : null
+            })()}
             <select value={paymentType} onChange={e => setPaymentType(e.target.value as 'CASH' | 'CREDIT')}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
               <option value="CREDIT">Tempo (Credit)</option>

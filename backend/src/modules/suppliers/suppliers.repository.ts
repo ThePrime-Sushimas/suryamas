@@ -11,10 +11,10 @@ export class SuppliersRepository {
     const params: (string | boolean)[] = []
     let idx = 1
 
-    if (!query?.include_deleted) conditions.push('deleted_at IS NULL')
-    if (query?.search) { params.push(`%${query.search}%`); conditions.push(`(supplier_code ILIKE $${idx} OR supplier_name ILIKE $${idx})`); idx++ }
-    if (query?.supplier_type) { params.push(query.supplier_type); conditions.push(`supplier_type = $${idx}`); idx++ }
-    if (query?.is_active !== undefined) { params.push(query.is_active); conditions.push(`is_active = $${idx}`); idx++ }
+    if (!query?.include_deleted) conditions.push('s.deleted_at IS NULL')
+    if (query?.search) { params.push(`%${query.search}%`); conditions.push(`(s.supplier_code ILIKE $${idx} OR s.supplier_name ILIKE $${idx})`); idx++ }
+    if (query?.supplier_type) { params.push(query.supplier_type); conditions.push(`s.supplier_type = $${idx}`); idx++ }
+    if (query?.is_active !== undefined) { params.push(query.is_active); conditions.push(`s.is_active = $${idx}`); idx++ }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
     const VALID_SORT_FIELDS = ['supplier_name', 'supplier_code', 'supplier_type', 'created_at', 'is_active']
@@ -22,8 +22,8 @@ export class SuppliersRepository {
     const sortOrder = query?.sort_order === 'desc' ? 'DESC' : 'ASC'
 
     const [dataRes, countRes] = await Promise.all([
-      pool.query(`SELECT * FROM suppliers ${where} ORDER BY ${sortBy} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
-      pool.query(`SELECT COUNT(*)::int AS total FROM suppliers ${where}`, params)
+      pool.query(`SELECT s.*, pt.days AS payment_term_days, pt.term_name AS payment_term_name FROM suppliers s LEFT JOIN payment_terms pt ON pt.id_payment_term = s.payment_term_id ${where} ORDER BY ${sortBy} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(`SELECT COUNT(*)::int AS total FROM suppliers s LEFT JOIN payment_terms pt ON pt.id_payment_term = s.payment_term_id ${where}`, params)
     ])
 
     return { data: dataRes.rows.map(mapSupplierResponse), total: countRes.rows[0].total }

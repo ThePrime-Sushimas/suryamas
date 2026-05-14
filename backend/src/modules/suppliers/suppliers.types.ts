@@ -15,6 +15,8 @@ export interface Supplier {
   tax_id: string | null
   business_license: string | null
   payment_term_id: number | null
+  payment_term_days: number | null
+  payment_term_name: string | null
   lead_time_days: number
   minimum_order: number
   rating: number | null
