@@ -11,7 +11,6 @@ export interface PurchaseRequestLine {
   qty_ordered?: number
   qty_received?: number
   uom: string
-  estimated_price: number | null
   supplier_id: string | null
   supplier_name?: string | null
   notes: string | null
@@ -75,7 +74,7 @@ export const usePurchaseRequest = (id: string) =>
 export const useCreatePurchaseRequest = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { branch_id: string; needed_by_date?: string | null; notes?: string | null; lines: { product_id: string; qty: number; uom: string; estimated_price?: number | null; supplier_id?: string | null }[] }) => {
+    mutationFn: async (body: { branch_id: string; needed_by_date?: string | null; notes?: string | null; lines: { product_id: string; qty: number; uom: string; supplier_id?: string | null }[] }) => {
       const { data } = await api.post('/purchase-requests', body)
       return data.data as PurchaseRequest
     },
@@ -86,7 +85,7 @@ export const useCreatePurchaseRequest = () => {
 export const useUpdatePurchaseRequest = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; needed_by_date?: string | null; notes?: string | null; lines?: { product_id: string; qty: number; uom: string; estimated_price?: number | null; supplier_id?: string | null }[] }) => {
+    mutationFn: async ({ id, ...body }: { id: string; needed_by_date?: string | null; notes?: string | null; lines?: { product_id: string; qty: number; uom: string; supplier_id?: string | null }[] }) => {
       const { data } = await api.put(`/purchase-requests/${id}`, body)
       return data.data as PurchaseRequest
     },

@@ -15,7 +15,6 @@ interface ApprovalItem {
   product_name: string
   qty: number
   uom: string
-  estimated_price: number | null
   latest_price: number | null
   latest_price_uom: string | null
   stock_balance: number
@@ -114,7 +113,6 @@ export class PurchaseRequestApprovalService {
           product_name: line.product_name,
           qty: line.qty,
           uom: line.uom,
-          estimated_price: line.estimated_price,
           latest_price: priceData?.price ?? null,
           latest_price_uom: priceData?.uom ?? null,
           stock_balance: stockMap.get(line.product_id)?.qty ?? 0,
@@ -123,7 +121,7 @@ export class PurchaseRequestApprovalService {
         }
       })
 
-      const totalEstimated = items.reduce((sum, i) => sum + (i.latest_price ?? i.estimated_price ?? 0) * i.qty, 0)
+      const totalEstimated = items.reduce((sum, i) => sum + (i.latest_price ?? 0) * i.qty, 0)
 
       let supplierName = 'Tanpa Supplier'
       let supplierPhone: string | null = null
@@ -167,6 +165,15 @@ export class PurchaseRequestApprovalService {
       // Fetch lines
       const prLines = await purchaseRequestsRepository.findLinesWithProducts(client, prId)
 
+      // Batch lookup latest prices from pricelist
+      const productIds = prLines.map(l => l.product_id)
+      const supplierIds = [...new Set(dto.supplier_selections.map(s => s.supplier_id))]
+      const priceMap = new Map<string, number>()
+      if (supplierIds.length > 0 && productIds.length > 0) {
+        const priceRows = await purchaseRequestsRepository.findLatestPricesBatch(productIds, supplierIds)
+        for (const r of priceRows) priceMap.set(`${r.product_id}:${r.supplier_id}`, r.price)
+      }
+
       const poIds: string[] = []
 
       for (const sel of dto.supplier_selections) {
@@ -180,7 +187,8 @@ export class PurchaseRequestApprovalService {
         const poNumber = await purchaseOrdersRepository.generatePoNumber(client, companyId, pr.branch_code)
         const totalAmount = lines.reduce((s, l) => {
           const qty = qtyMap.get(l.id) ?? parseFloat(l.qty)
-          return s + (parseFloat(l.estimated_price ?? '0')) * qty
+          const price = priceMap.get(`${l.product_id}:${sel.supplier_id}`) ?? 0
+          return s + price * qty
         }, 0)
 
         const po = await purchaseOrdersRepository.create(client, companyId, {
@@ -201,7 +209,7 @@ export class PurchaseRequestApprovalService {
           product_id: l.product_id,
           qty: qtyMap.get(l.id) ?? parseFloat(l.qty),
           uom: l.uom,
-          unit_price: parseFloat(l.estimated_price ?? '0'),
+          unit_price: priceMap.get(`${l.product_id}:${sel.supplier_id}`) ?? 0,
           notes: l.notes,
         })))
 

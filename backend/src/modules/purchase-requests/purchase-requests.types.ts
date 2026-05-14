@@ -29,7 +29,6 @@ export interface PurchaseRequestWithRelations extends PurchaseRequest {
   requested_by_name: string | null
   approved_by_name: string | null
   line_count: number
-  total_estimated: number
   total_pricelist: number
 }
 
@@ -40,7 +39,6 @@ export interface PurchaseRequestLine {
   qty: number
   qty_approved: number | null
   uom: string
-  estimated_price: number | null
   supplier_id: string | null
   notes: string | null
   sort_order: number
@@ -64,7 +62,6 @@ export interface CreatePurchaseRequestLineDto {
   product_id: string
   qty: number
   uom: string
-  estimated_price?: number | null
   supplier_id?: string | null
   notes?: string | null
 }

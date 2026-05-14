@@ -17,7 +17,6 @@ interface ApprovalItem {
   qty: number
   qty_approved: number
   uom: string
-  estimated_price: number | null
   latest_price: number | null
   latest_price_uom: string | null
   stock_balance: number
@@ -210,7 +209,7 @@ export default function PurchaseRequestApprovalPage() {
       <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4">
         {groups.map((group, gIdx) => {
           const selectedItems = group.items.filter(i => i.selected)
-          const total = selectedItems.reduce((sum, i) => sum + (i.latest_price ?? i.estimated_price ?? 0) * i.qty_approved, 0)
+          const total = selectedItems.reduce((sum, i) => sum + (i.latest_price ?? 0) * i.qty_approved, 0)
 
           return (
             <div key={gIdx} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -251,7 +250,7 @@ export default function PurchaseRequestApprovalPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                     {group.items.map((item, iIdx) => {
-                      const price = item.latest_price ?? item.estimated_price ?? 0
+                      const price = item.latest_price ?? 0
                       const sameUnit = !item.stock_unit || item.stock_unit === item.uom
                       const stockOk = sameUnit && item.stock_balance >= item.qty_approved
                       return (
@@ -293,7 +292,7 @@ export default function PurchaseRequestApprovalPage() {
               {/* Items - Mobile cards */}
               <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
                 {group.items.map((item, iIdx) => {
-                  const price = item.latest_price ?? item.estimated_price ?? 0
+                  const price = item.latest_price ?? 0
                   const sameUnit = !item.stock_unit || item.stock_unit === item.uom
                   const stockOk = sameUnit && item.stock_balance >= item.qty_approved
                   return (

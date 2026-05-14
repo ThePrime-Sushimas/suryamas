@@ -106,7 +106,7 @@ export default function PRApprovalListPage() {
                       <div>
                         <span className="text-gray-500">Estimasi</span>
                         <p className="font-mono text-gray-900 dark:text-gray-200">
-                          {(pr.total_pricelist as number) > 0 ? `Rp ${fmt(pr.total_pricelist as number)}` : (pr.total_estimated as number) > 0 ? `Rp ${fmt(pr.total_estimated as number)}` : '—'}
+                          {(pr.total_pricelist as number) > 0 ? `Rp ${fmt(pr.total_pricelist as number)}` : '—'}
                         </p>
                       </div>
                       <div>
@@ -151,7 +151,7 @@ export default function PRApprovalListPage() {
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${status.color}`}>{status.label}</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
-                            {(pr.total_pricelist as number) > 0 ? `Rp ${fmt(pr.total_pricelist as number)}` : (pr.total_estimated as number) > 0 ? `Rp ${fmt(pr.total_estimated as number)}` : '—'}
+                            {(pr.total_pricelist as number) > 0 ? `Rp ${fmt(pr.total_pricelist as number)}` : '—'}
                           </td>
                           <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{(pr.requested_by_name as string) || '—'}</td>
                         </tr>

@@ -12,7 +12,6 @@ const HEADER_SELECT = `
   req_emp.full_name AS requested_by_name,
   app_emp.full_name AS approved_by_name,
   COALESCE(lines_agg.line_count, 0)::int AS line_count,
-  COALESCE(lines_agg.total_estimated, 0)::numeric AS total_estimated,
   COALESCE(lines_agg.total_pricelist, 0)::numeric AS total_pricelist
 `
 const HEADER_FROM = `
@@ -23,7 +22,6 @@ const HEADER_FROM = `
   LEFT JOIN LATERAL (
     SELECT
       COUNT(*)::int AS line_count,
-      SUM(COALESCE(prl.estimated_price, 0) * prl.qty) AS total_estimated,
       SUM(COALESCE((
         SELECT pl.price FROM pricelists pl
         WHERE pl.product_id = prl.product_id
@@ -31,7 +29,7 @@ const HEADER_FROM = `
           AND pl.status = 'APPROVED' AND pl.is_active = true AND pl.deleted_at IS NULL
           AND pl.valid_from <= CURRENT_DATE AND (pl.valid_to IS NULL OR pl.valid_to >= CURRENT_DATE)
         ORDER BY pl.valid_from DESC LIMIT 1
-      ), prl.estimated_price, 0) * prl.qty) AS total_pricelist
+      ), 0) * prl.qty) AS total_pricelist
     FROM purchase_request_lines prl WHERE prl.request_id = pr.id
   ) lines_agg ON true
 `
@@ -134,13 +132,13 @@ export class PurchaseRequestsRepository {
 
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i]
-      valueRows.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`)
-      params.push(requestId, l.product_id, l.qty, l.uom, l.estimated_price ?? null, l.supplier_id ?? null, l.notes ?? null, i)
-      idx += 8
+      valueRows.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6})`)
+      params.push(requestId, l.product_id, l.qty, l.uom, l.supplier_id ?? null, l.notes ?? null, i)
+      idx += 7
     }
 
     const { rows } = await client.query(
-      `INSERT INTO purchase_request_lines (request_id, product_id, qty, uom, estimated_price, supplier_id, notes, sort_order)
+      `INSERT INTO purchase_request_lines (request_id, product_id, qty, uom, supplier_id, notes, sort_order)
        VALUES ${valueRows.join(', ')} RETURNING *`,
       params
     )
@@ -282,7 +280,7 @@ export class PurchaseRequestsRepository {
     return rows[0] ?? null
   }
 
-  async findLinesWithProducts(client: PoolClient, requestId: string): Promise<Array<{ id: string; product_id: string; product_name: string; product_code: string; qty: string; uom: string; estimated_price: string | null; supplier_id: string | null; notes: string | null }>> {
+  async findLinesWithProducts(client: PoolClient, requestId: string): Promise<Array<{ id: string; product_id: string; product_name: string; product_code: string; qty: string; uom: string; supplier_id: string | null; notes: string | null }>> {
     const { rows } = await client.query(
       `SELECT prl.*, p.product_name, p.product_code FROM purchase_request_lines prl
        JOIN products p ON p.id = prl.product_id WHERE prl.request_id = $1`,

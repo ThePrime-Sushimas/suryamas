@@ -16,7 +16,6 @@ interface LineItem {
   product_code: string
   qty: number
   uom: string
-  estimated_price: number | null
   supplier_id: string | null
   supplier_name: string | null
 }
@@ -56,7 +55,6 @@ export default function PurchaseRequestFormPage() {
         product_code: l.product_code ?? '',
         qty: l.qty,
         uom: l.uom,
-        estimated_price: l.estimated_price,
         supplier_id: l.supplier_id,
         supplier_name: l.supplier_name ?? null,
       })))
@@ -105,7 +103,6 @@ export default function PurchaseRequestFormPage() {
       product_code: '',
       qty: 1,
       uom: product.uom_buy,
-      estimated_price: null,
       supplier_id: supplier?.id ?? null,
       supplier_name: supplier?.name ?? null,
     }])
@@ -132,7 +129,6 @@ export default function PurchaseRequestFormPage() {
         product_id: l.product_id,
         qty: l.qty,
         uom: l.uom,
-        estimated_price: l.estimated_price,
         supplier_id: l.supplier_id,
       })),
     }
