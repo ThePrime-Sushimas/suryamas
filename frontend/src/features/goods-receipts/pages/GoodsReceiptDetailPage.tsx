@@ -6,7 +6,6 @@ import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useGoodsReceipt, useConfirmGoodsReceipt, useGRAttachments, useUploadGRAttachment, useDeleteGRAttachment } from '../api/goodsReceipts.api'
-import { useAuthStore } from '@/features/auth'
 import api from '@/lib/axios'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
@@ -34,7 +33,6 @@ export default function GoodsReceiptDetailPage() {
   const canUpdate = hasPermission('goods_receipts', 'update')
 
   const { data: gr, isLoading } = useGoodsReceipt(id ?? '')
-  const { user } = useAuthStore()
   const confirmGR = useConfirmGoodsReceipt()
   const { data: attachments } = useGRAttachments(id ?? '')
   const uploadAttachment = useUploadGRAttachment()
@@ -94,7 +92,7 @@ export default function GoodsReceiptDetailPage() {
         <div><p><strong>Diterima oleh:</strong></p><div class="sig-line"></div><p>(________________)</p></div>
         <div><p><strong>Diketahui oleh:</strong></p><div class="sig-line"></div><p>(________________)</p></div>
       </div>
-      <p style="text-align:center;font-size:9pt;color:#666;margin-top:30px">Dicetak oleh: ${esc(user?.full_name ?? '—')} · ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+      <p style="text-align:center;font-size:9pt;color:#666;margin-top:30px">Dicetak oleh: ${esc(gr.confirmed_by_name || gr.created_by_name || '—')} · ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
     </body></html>`)
     printWindow.document.close()
     printWindow.print()
