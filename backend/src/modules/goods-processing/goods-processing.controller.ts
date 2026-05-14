@@ -111,6 +111,68 @@ export class GoodsProcessingController {
       await handleError(res, error, req, { action: 'reject_goods_processing', id: req.params.id })
     }
   }
+
+  // ── Per-Line Actions ──
+
+  startLine = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const lineId = req.params.lineId as string
+      await goodsProcessingService.startLine(lineId, companyId, userId)
+      sendSuccess(res, null, 'Line processing started')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'start_line', id: req.params.lineId })
+    }
+  }
+
+  submitLineQc = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const lineId = req.params.lineId as string
+      await goodsProcessingService.submitLineQc(lineId, companyId, userId)
+      sendSuccess(res, null, 'Line submitted to QC')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'submit_line_qc', id: req.params.lineId })
+    }
+  }
+
+  confirmLine = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const lineId = req.params.lineId as string
+      await goodsProcessingService.confirmLine(lineId, companyId, userId)
+      sendSuccess(res, null, 'Line confirmed, stock updated')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'confirm_line', id: req.params.lineId })
+    }
+  }
+
+  rejectLine = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const lineId = req.params.lineId as string
+      await goodsProcessingService.rejectLine(lineId, companyId, req.body, userId)
+      sendSuccess(res, null, 'Line rejected')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reject_line', id: req.params.lineId })
+    }
+  }
+
+  bulkConfirmLines = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const { line_ids } = req.body
+      const result = await goodsProcessingService.bulkConfirmLines(line_ids, companyId, userId)
+      sendSuccess(res, result, `${result.success.length} confirmed, ${result.failed.length} failed`)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'bulk_confirm_lines' })
+    }
+  }
 }
 
 export const goodsProcessingController = new GoodsProcessingController()

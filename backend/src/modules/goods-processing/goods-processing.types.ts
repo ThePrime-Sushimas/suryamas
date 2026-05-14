@@ -48,12 +48,22 @@ export interface GoodsProcessingInput {
   qty_input: number
   uom: string
   sort_order: number
+  status: 'PENDING' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
+  processed_by: string | null
+  processed_at: string | null
+  qc_confirmed_by: string | null
+  qc_confirmed_at: string | null
+  rejected_by: string | null
+  rejected_at: string | null
+  rejection_reason: string | null
 }
 
 export interface GoodsProcessingInputWithProduct extends GoodsProcessingInput {
   product_code: string
   product_name: string
   requires_processing: boolean
+  processed_by_name?: string | null
+  qc_confirmed_by_name?: string | null
 }
 
 export interface GoodsProcessingOutput {

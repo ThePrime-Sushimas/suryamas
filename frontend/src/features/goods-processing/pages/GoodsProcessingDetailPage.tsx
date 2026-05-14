@@ -15,6 +15,10 @@ import {
   useSubmitQc,
   useConfirmProcessing,
   useRejectProcessing,
+  useStartLine,
+  useSubmitLineQc,
+  useConfirmLine,
+  useRejectLine,
 } from '../api/goodsProcessing.api'
 import type { GoodsProcessingInput } from '../api/goodsProcessing.api'
 
@@ -55,6 +59,10 @@ export default function GoodsProcessingDetailPage() {
   const submitQcMutation = useSubmitQc()
   const confirmMutation = useConfirmProcessing()
   const rejectMutation = useRejectProcessing()
+  const startLineMutation = useStartLine()
+  const submitLineQcMutation = useSubmitLineQc()
+  const confirmLineMutation = useConfirmLine()
+  const rejectLineMutation = useRejectLine()
 
   const [confirmAction, setConfirmAction] = useState<'start' | 'submit_qc' | 'confirm' | null>(null)
   const [showReject, setShowReject] = useState(false)
@@ -355,24 +363,53 @@ export default function GoodsProcessingDetailPage() {
           const totalAll = totalNonWaste + totalWaste
           const overInput = totalAll > Number(inp.qty_input)
           const isPassThrough = !inp.requires_processing
+          const lineEditable = ['PENDING', 'PROCESSING', 'REJECTED'].includes(inp.status ?? 'PENDING') && canUpdate
 
           return (
             <div key={inp.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              {/* Input Header */}
+              {/* Input Header with per-line status + actions */}
               <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{inp.product_name}</span>
-                    <span className="text-sm text-gray-500">{inp.product_code}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{inp.product_name}</span>
+                    <span className="text-xs text-gray-500 hidden sm:inline">{inp.product_code}</span>
                     {isPassThrough
-                      ? <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded">Pass-through</span>
-                      : <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded">Perlu Proses</span>
+                      ? <span className="px-1.5 py-0.5 text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded shrink-0">Pass</span>
+                      : <span className="px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded shrink-0">Proses</span>
                     }
+                    {inp.status && (
+                      <span className={`px-1.5 py-0.5 text-[10px] rounded shrink-0 ${
+                        inp.status === 'CONFIRMED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                        inp.status === 'QC_REVIEW' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                        inp.status === 'PROCESSING' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                        inp.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
+                        'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                      }`}>{inp.status}</span>
+                    )}
                   </div>
-                  <div className="text-sm font-mono font-medium text-gray-700 dark:text-gray-300">
-                    {fmt(inp.qty_input)} {inp.uom}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-mono text-gray-700 dark:text-gray-300">{fmt(inp.qty_input)} {inp.uom}</span>
+                    {/* Per-line action buttons */}
+                    {inp.status === 'PENDING' && canUpdate && (
+                      <button onClick={() => { startLineMutation.mutateAsync(inp.id).then(() => toast.success('Proses dimulai')).catch((e: unknown) => toast.error(parseApiError(e, 'Gagal'))) }}
+                        className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded hover:bg-blue-700">Mulai</button>
+                    )}
+                    {['PROCESSING', 'REJECTED'].includes(inp.status ?? '') && canUpdate && (
+                      <button onClick={() => { submitLineQcMutation.mutateAsync(inp.id).then(() => toast.success('Dikirim ke QC')).catch((e: unknown) => toast.error(parseApiError(e, 'Gagal'))) }}
+                        className="px-2 py-1 text-[10px] bg-yellow-600 text-white rounded hover:bg-yellow-700">Submit QC</button>
+                    )}
+                    {inp.status === 'QC_REVIEW' && canApprove && (
+                      <button onClick={() => { confirmLineMutation.mutateAsync(inp.id).then(() => toast.success('Dikonfirmasi')).catch((e: unknown) => toast.error(parseApiError(e, 'Gagal'))) }}
+                        className="px-2 py-1 text-[10px] bg-green-600 text-white rounded hover:bg-green-700">Confirm</button>
+                    )}
                   </div>
                 </div>
+                {inp.status === 'CONFIRMED' && inp.qc_confirmed_by_name && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ Dikonfirmasi oleh {inp.qc_confirmed_by_name}{inp.qc_confirmed_at ? ` · ${fmtDate(inp.qc_confirmed_at)}` : ''}</p>
+                )}
+                {inp.status === 'REJECTED' && inp.rejection_reason && (
+                  <p className="text-xs text-red-500 mt-1">✗ Ditolak: {inp.rejection_reason}</p>
+                )}
               </div>
 
               {/* Pass-through: show conversion suggestion */}
@@ -404,7 +441,7 @@ export default function GoodsProcessingDetailPage() {
                 <div className="p-4 space-y-3">
                   {outputs.map(out => (
                     <div key={out.key} className={`p-3 rounded-lg border ${out.is_waste ? 'border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
-                      {isEditable ? (
+                      {lineEditable ? (
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             {/* Product picker button */}
@@ -450,7 +487,7 @@ export default function GoodsProcessingDetailPage() {
                     </div>
                   ))}
 
-                  {isEditable && (
+                  {lineEditable && (
                     <button onClick={() => addOutput(inp.id, inp)}
                       className="flex items-center gap-1 px-3 py-2 text-xs text-gray-600 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-400 hover:text-orange-600 w-full justify-center">
                       <Plus className="w-3.5 h-3.5" /> Tambah Output

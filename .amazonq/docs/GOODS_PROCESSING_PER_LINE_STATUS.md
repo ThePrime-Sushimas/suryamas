@@ -29,9 +29,10 @@ PENDING → PROCESSING → QC_REVIEW → CONFIRMED
 | Kondisi | Header Status |
 |---------|---------------|
 | Semua line PENDING | DRAFT |
-| Ada line PROCESSING/QC_REVIEW | PROCESSING |
 | Semua line CONFIRMED | CONFIRMED |
-| Ada campuran (sebagian confirmed, sebagian belum) | PARTIAL |
+| Semua line REJECTED | REJECTED |
+| Ada line CONFIRMED + ada yang belum | PARTIAL |
+| Sisanya (PROCESSING/QC_REVIEW tanpa CONFIRMED) | PROCESSING |
 
 ---
 
@@ -216,10 +217,11 @@ async recalculateHeaderStatus(client: PoolClient, gpId: string) {
   const statuses = rows.map(r => r.status)
 
   let headerStatus: string
-  if (statuses.every(s => s === 'CONFIRMED')) headerStatus = 'CONFIRMED'
-  else if (statuses.every(s => s === 'PENDING')) headerStatus = 'DRAFT'
-  else if (statuses.some(s => ['PROCESSING', 'QC_REVIEW', 'CONFIRMED'].includes(s))) headerStatus = 'PARTIAL'
-  else headerStatus = 'PROCESSING'
+  if (statuses.every(s => s === 'CONFIRMED'))       headerStatus = 'CONFIRMED'
+  else if (statuses.every(s => s === 'PENDING'))     headerStatus = 'DRAFT'
+  else if (statuses.every(s => s === 'REJECTED'))    headerStatus = 'REJECTED'
+  else if (statuses.some(s => s === 'CONFIRMED'))    headerStatus = 'PARTIAL'
+  else                                              headerStatus = 'PROCESSING'
 
   await client.query('UPDATE goods_processing SET status = $1, updated_at = now() WHERE id = $2', [headerStatus, gpId])
 }
@@ -271,10 +273,13 @@ WHERE id = $1
 | 1 line confirmed, 2 pending → header? | PARTIAL |
 | Semua line rejected → header? | REJECTED |
 | Mix: 1 confirmed + 1 rejected + 1 pending | PARTIAL |
+| All PROCESSING (no confirmed yet) | PROCESSING |
+| Mix: PROCESSING + QC_REVIEW (no confirmed) | PROCESSING |
 | User confirm pass-through tanpa edit | OK — output = input, langsung confirm |
 | User edit output setelah line confirmed | Block — confirmed line read-only |
 | GP header di-reject (legacy flow) | Deprecated — reject per line saja |
-| Purchase Invoice cek GP confirmed | Cek per-line: semua lines untuk GR itu harus CONFIRMED |
+| Purchase Invoice cek GP confirmed | Cek per-line: semua `goods_processing_inputs` yang terkait GR lines di invoice harus `CONFIRMED`. Boundary: per GR line → per GP input (1:1 via `gr_line_id`). |
+| Confirmed line reversal | Out of scope — confirmed line tidak bisa di-reverse. Jika ada dispute, buat stock adjustment terpisah. |
 
 ---
 

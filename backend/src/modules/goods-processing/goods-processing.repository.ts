@@ -75,9 +75,13 @@ export class GoodsProcessingRepository {
     if (!header) return null
 
     const { rows: inputs } = await pool.query<GoodsProcessingInputWithProduct>(
-      `SELECT gpi.*, p.product_code, p.product_name, p.requires_processing
+      `SELECT gpi.*, p.product_code, p.product_name, p.requires_processing,
+              emp_proc.full_name AS processed_by_name,
+              emp_qc.full_name AS qc_confirmed_by_name
        FROM goods_processing_inputs gpi
        JOIN products p ON p.id = gpi.product_id
+       LEFT JOIN employees emp_proc ON emp_proc.user_id = gpi.processed_by
+       LEFT JOIN employees emp_qc ON emp_qc.user_id = gpi.qc_confirmed_by
        WHERE gpi.goods_processing_id = $1
        ORDER BY gpi.sort_order`,
       [id]
@@ -174,6 +178,45 @@ export class GoodsProcessingRepository {
        VALUES ${valueRows.join(', ')}`,
       params
     )
+  }
+
+  async updateLineStatus(client: PoolClient, lineId: string, status: string, extra: Record<string, unknown> = {}): Promise<void> {
+    const fields = ['status = $1']
+    const params: unknown[] = [status]
+    let idx = 2
+
+    for (const [key, val] of Object.entries(extra)) {
+      params.push(val)
+      fields.push(`${key} = $${idx++}`)
+    }
+
+    params.push(lineId)
+    await client.query(`UPDATE goods_processing_inputs SET ${fields.join(', ')} WHERE id = $${idx}`, params)
+  }
+
+  async recalculateHeaderStatus(client: PoolClient, gpId: string): Promise<void> {
+    const { rows } = await client.query(
+      'SELECT status FROM goods_processing_inputs WHERE goods_processing_id = $1',
+      [gpId]
+    )
+    const statuses = rows.map((r: { status: string }) => r.status)
+
+    let headerStatus: string
+    if (statuses.every((s: string) => s === 'CONFIRMED')) headerStatus = 'CONFIRMED'
+    else if (statuses.every((s: string) => s === 'PENDING')) headerStatus = 'DRAFT'
+    else if (statuses.every((s: string) => s === 'REJECTED')) headerStatus = 'REJECTED'
+    else if (statuses.some((s: string) => s === 'CONFIRMED')) headerStatus = 'PARTIAL'
+    else headerStatus = 'PROCESSING'
+
+    await client.query('UPDATE goods_processing SET status = $1, updated_at = now() WHERE id = $2', [headerStatus, gpId])
+  }
+
+  async findLineById(lineId: string): Promise<{ id: string; goods_processing_id: string; product_id: string; status: string; qty_input: number; uom: string } | null> {
+    const { rows } = await pool.query(
+      'SELECT id, goods_processing_id, product_id, status, qty_input, uom FROM goods_processing_inputs WHERE id = $1',
+      [lineId]
+    )
+    return rows[0] ?? null
   }
 }
 

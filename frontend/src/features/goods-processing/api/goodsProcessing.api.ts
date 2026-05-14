@@ -29,6 +29,11 @@ export interface GoodsProcessingInput {
   qty_input: number
   uom: string
   sort_order: number
+  status: 'PENDING' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
+  processed_by_name: string | null
+  qc_confirmed_by_name: string | null
+  qc_confirmed_at: string | null
+  rejection_reason: string | null
   outputs: GoodsProcessingOutput[]
 }
 
@@ -165,5 +170,58 @@ export const useRejectProcessing = () => {
       return data.data as GoodsProcessingDetail
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
+  })
+}
+
+// ── Per-Line Actions ──
+
+export const useStartLine = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (lineId: string) => { await api.post(`/goods-processing/lines/${lineId}/start`) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
+  })
+}
+
+export const useSubmitLineQc = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (lineId: string) => { await api.post(`/goods-processing/lines/${lineId}/submit-qc`) },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
+  })
+}
+
+export const useConfirmLine = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (lineId: string) => { await api.post(`/goods-processing/lines/${lineId}/confirm`) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['goods-processing'] })
+      qc.invalidateQueries({ queryKey: ['stock'] })
+    },
+  })
+}
+
+export const useRejectLine = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ lineId, rejection_reason }: { lineId: string; rejection_reason: string }) => {
+      await api.post(`/goods-processing/lines/${lineId}/reject`, { rejection_reason })
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
+  })
+}
+
+export const useBulkConfirmLines = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (lineIds: string[]) => {
+      const { data } = await api.post('/goods-processing/bulk-confirm-lines', { line_ids: lineIds })
+      return data.data as { success: string[]; failed: { id: string; reason: string }[] }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['goods-processing'] })
+      qc.invalidateQueries({ queryKey: ['stock'] })
+    },
   })
 }
