@@ -21,6 +21,7 @@ interface ApprovalItem {
   latest_price: number | null
   latest_price_uom: string | null
   stock_balance: number
+  stock_unit: string | null
   stock_warehouse_name: string
   selected: boolean
 }
@@ -236,7 +237,8 @@ export default function PurchaseRequestApprovalPage() {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                     {group.items.map((item, iIdx) => {
                       const price = item.latest_price ?? item.estimated_price ?? 0
-                      const stockOk = item.stock_balance >= item.qty_approved
+                      const sameUnit = !item.stock_unit || item.stock_unit === item.uom
+                      const stockOk = sameUnit && item.stock_balance >= item.qty_approved
                       return (
                         <tr key={iIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                           <td className="px-4 py-2.5">
@@ -258,7 +260,7 @@ export default function PurchaseRequestApprovalPage() {
                           <td className="px-4 py-2.5 text-right">
                             <span className={`font-mono text-xs flex items-center justify-end gap-1 ${stockOk ? 'text-green-600 dark:text-green-400' : item.stock_balance > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
                               {stockOk ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                              {item.stock_balance} {item.uom}
+                              {item.stock_balance} {item.stock_unit ?? item.uom}
                             </span>
                           </td>
                           <td className="px-4 py-2.5 text-right font-mono text-gray-600 dark:text-gray-400">
@@ -277,7 +279,8 @@ export default function PurchaseRequestApprovalPage() {
               <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
                 {group.items.map((item, iIdx) => {
                   const price = item.latest_price ?? item.estimated_price ?? 0
-                  const stockOk = item.stock_balance >= item.qty_approved
+                  const sameUnit = !item.stock_unit || item.stock_unit === item.uom
+                  const stockOk = sameUnit && item.stock_balance >= item.qty_approved
                   return (
                     <div key={iIdx} className="px-4 py-3">
                       <div className="flex items-start gap-3">
@@ -292,7 +295,7 @@ export default function PurchaseRequestApprovalPage() {
                             <span>Request: {item.qty} {item.uom}</span>
                             <span className={`flex items-center gap-0.5 ${stockOk ? 'text-green-600' : item.stock_balance > 0 ? 'text-yellow-600' : 'text-red-600'}`}>
                               {stockOk ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                              Stock: {item.stock_balance}
+                              Stock: {item.stock_balance} {item.stock_unit ?? item.uom}
                             </span>
                           </div>
                           <div className="mt-2 flex items-center gap-2">

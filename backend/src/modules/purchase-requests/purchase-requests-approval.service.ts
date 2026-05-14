@@ -19,6 +19,7 @@ interface ApprovalItem {
   latest_price: number | null
   latest_price_uom: string | null
   stock_balance: number
+  stock_unit: string | null
   stock_warehouse_name: string
 }
 
@@ -74,11 +75,17 @@ export class PurchaseRequestApprovalService {
 
     // Batch stock balances
     const productIds = pr.lines.map(l => l.product_id)
-    const stockMap = new Map<string, number>()
+    const stockMap = new Map<string, { qty: number; base_unit_name: string | null }>()
     if (warehouseId && productIds.length > 0) {
       const stockRows = await purchaseRequestsRepository.findStockBalancesBatch(warehouseId, productIds)
-      for (const r of stockRows) stockMap.set(r.product_id, r.qty)
+      for (const r of stockRows) stockMap.set(r.product_id, { qty: r.qty, base_unit_name: r.base_unit_name })
     }
+
+    // Batch base unit names for products without stock records
+    const missingIds = productIds.filter(id => !stockMap.has(id))
+    const baseUnitMap = missingIds.length > 0
+      ? await purchaseRequestsRepository.findBaseUnitNamesBatch(missingIds)
+      : new Map<string, string>()
 
     // Batch latest prices
     const supplierIds = [...new Set(pr.lines.map(l => l.supplier_id).filter(Boolean))] as string[]
@@ -113,7 +120,8 @@ export class PurchaseRequestApprovalService {
           estimated_price: line.estimated_price,
           latest_price: priceData?.price ?? null,
           latest_price_uom: priceData?.uom ?? null,
-          stock_balance: stockMap.get(line.product_id) ?? 0,
+          stock_balance: stockMap.get(line.product_id)?.qty ?? 0,
+          stock_unit: stockMap.get(line.product_id)?.base_unit_name ?? baseUnitMap.get(line.product_id) ?? null,
           stock_warehouse_name: warehouseName,
         }
       })

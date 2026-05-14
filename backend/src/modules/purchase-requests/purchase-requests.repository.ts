@@ -221,12 +221,28 @@ export class PurchaseRequestsRepository {
     return rows[0] ?? null
   }
 
-  async findStockBalancesBatch(warehouseId: string, productIds: string[]): Promise<Array<{ product_id: string; qty: number }>> {
+  async findStockBalancesBatch(warehouseId: string, productIds: string[]): Promise<Array<{ product_id: string; qty: number; base_unit_name: string | null }>> {
     const { rows } = await pool.query(
-      `SELECT product_id, qty::numeric FROM stock_balances WHERE warehouse_id = $1 AND product_id = ANY($2::uuid[])`,
+      `SELECT sb.product_id, sb.qty::numeric, mu.unit_name AS base_unit_name
+       FROM stock_balances sb
+       LEFT JOIN product_uoms pu ON pu.product_id = sb.product_id AND pu.is_base_unit = true AND pu.is_deleted = false
+       LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE sb.warehouse_id = $1 AND sb.product_id = ANY($2::uuid[])`,
       [warehouseId, productIds]
     )
-    return rows.map(r => ({ product_id: r.product_id, qty: parseFloat(r.qty) }))
+    return rows.map(r => ({ product_id: r.product_id, qty: parseFloat(r.qty), base_unit_name: r.base_unit_name ?? null }))
+  }
+
+  async findBaseUnitNamesBatch(productIds: string[]): Promise<Map<string, string>> {
+    if (productIds.length === 0) return new Map()
+    const { rows } = await pool.query(
+      `SELECT pu.product_id, mu.unit_name
+       FROM product_uoms pu
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pu.product_id = ANY($1::uuid[]) AND pu.is_base_unit = true AND pu.is_deleted = false`,
+      [productIds]
+    )
+    return new Map(rows.map(r => [r.product_id, r.unit_name]))
   }
 
   async findLatestPricesBatch(productIds: string[], supplierIds: string[]): Promise<Array<{ product_id: string; supplier_id: string; price: number; price_uom: string | null }>> {
