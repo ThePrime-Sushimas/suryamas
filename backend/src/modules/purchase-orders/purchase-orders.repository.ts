@@ -74,14 +74,16 @@ export class PurchaseOrdersRepository {
   async create(client: PoolClient, companyId: string, data: {
     branch_id: string; supplier_id: string; purchase_request_id: string; po_number: string;
     order_date?: string; expected_delivery_date?: string | null; payment_type: string;
-    payment_terms_days?: number | null; notes?: string | null; total_amount: number; created_by?: string
+    payment_term_id?: number | null; payment_terms_days?: number | null;
+    payment_due_date?: string | null; notes?: string | null; total_amount: number; created_by?: string
   }): Promise<PurchaseOrder> {
     const { rows } = await client.query(
-      `INSERT INTO purchase_orders (company_id, branch_id, supplier_id, purchase_request_id, po_number, order_date, expected_delivery_date, payment_type, payment_terms_days, notes, total_amount, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8, $9, $10, $11, $12, $12) RETURNING *`,
+      `INSERT INTO purchase_orders (company_id, branch_id, supplier_id, purchase_request_id, po_number, order_date, expected_delivery_date, payment_type, payment_term_id, payment_terms_days, payment_due_date, notes, total_amount, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8, $9, $10, $11, $12, $13, $14, $14) RETURNING *`,
       [companyId, data.branch_id, data.supplier_id, data.purchase_request_id, data.po_number,
        data.order_date ?? null, data.expected_delivery_date ?? null, data.payment_type,
-       data.payment_terms_days ?? null, data.notes ?? null, data.total_amount, data.created_by ?? null]
+       data.payment_term_id ?? null, data.payment_terms_days ?? null, data.payment_due_date ?? null,
+       data.notes ?? null, data.total_amount, data.created_by ?? null]
     )
     return rows[0]
   }
@@ -161,6 +163,34 @@ export class PurchaseOrdersRepository {
 
     const lastSeq = rows.length > 0 ? parseInt(rows[0].po_number.split('-').pop() || '0') : 0
     return `${prefix}-${String(lastSeq + 1).padStart(3, '0')}`
+  }
+
+  async findSupplierPaymentTerm(supplierId: string, client?: PoolClient): Promise<{
+    payment_term_id: number | null
+    calculation_type: string
+    days: number
+    grace_period_days: number
+    payment_dates: number[] | null
+    payment_day_of_week: number | null
+  } | null> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+      `SELECT s.payment_term_id, pt.calculation_type, pt.days, pt.grace_period_days,
+              pt.payment_dates, pt.payment_day_of_week
+       FROM suppliers s
+       LEFT JOIN payment_terms pt ON pt.id_payment_term = s.payment_term_id
+       WHERE s.id = $1 AND s.deleted_at IS NULL`,
+      [supplierId]
+    )
+    if (!rows[0] || !rows[0].payment_term_id) return null
+    return rows[0]
+  }
+
+  async updatePaymentDueDate(client: PoolClient, poId: string, dueDate: string): Promise<void> {
+    await client.query(
+      `UPDATE purchase_orders SET payment_due_date = $1, updated_at = now() WHERE id = $2`,
+      [dueDate, poId]
+    )
   }
 }
 

@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import { goodsReceiptsRepository } from './goods-receipts.repository'
 import { goodsProcessingRepository } from '../goods-processing/goods-processing.repository'
+import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.repository'
 import { BusinessRuleError } from '../../utils/errors.base'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
@@ -9,6 +10,7 @@ import {
 import { InvalidReferenceError } from '../stock/stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
+import { calculateDueDate } from '../../utils/due-date.util'
 import type { CreateGoodsReceiptDto, UpdateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
 
 export class GoodsReceiptsService {
@@ -170,6 +172,30 @@ export class GoodsReceiptsService {
       // 4. Update PO status
       const newPoStatus = await goodsReceiptsRepository.resolvePoStatus(client, gr.po_id)
       await goodsReceiptsRepository.updatePoStatus(client, gr.po_id, newPoStatus, userId)
+
+      // 4b. Calculate payment due date for from_delivery-based terms.
+      // NOTE: from_invoice is intentionally excluded here — its due_date is calculated
+      // when Purchase Invoice is posted (baseDate = invoice_date), not at GR confirm.
+      const { rows: poRows } = await client.query(
+        'SELECT supplier_id FROM purchase_orders WHERE id = $1',
+        [gr.po_id]
+      )
+      const supplierId = poRows[0]?.supplier_id
+      if (supplierId) {
+        const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client)
+        const deliveryTypes = ['from_delivery', 'weekly', 'fixed_date', 'fixed_date_immediate', 'monthly']
+        if (supplierTerm && deliveryTypes.includes(supplierTerm.calculation_type)) {
+          const receivedDate = gr.received_date ?? new Date().toISOString().slice(0, 10)
+          const dueDate = calculateDueDate({
+            calculation_type: supplierTerm.calculation_type as import('../../utils/due-date.util').PaymentTermForDueDate['calculation_type'],
+            days: supplierTerm.days,
+            grace_period_days: supplierTerm.grace_period_days,
+            payment_dates: supplierTerm.payment_dates,
+            payment_day_of_week: supplierTerm.payment_day_of_week,
+          }, receivedDate)
+          await purchaseOrdersRepository.updatePaymentDueDate(client, gr.po_id, dueDate)
+        }
+      }
 
       // 5. Update GR status (no journal — journal created by Purchase Invoice module)
       await goodsReceiptsRepository.updateStatus(client, id, 'CONFIRMED', {

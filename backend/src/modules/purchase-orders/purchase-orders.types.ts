@@ -12,7 +12,9 @@ export interface PurchaseOrder {
   order_date: string
   expected_delivery_date: string | null
   payment_type: PaymentType
+  payment_term_id: number | null
   payment_terms_days: number | null
+  payment_due_date: string | null
   notes: string | null
   approved_by: string | null
   approved_at: string | null
@@ -78,6 +80,7 @@ export interface CreatePurchaseOrderDto {
   order_date?: string
   expected_delivery_date?: string | null
   payment_type: PaymentType
+  payment_term_id?: number | null
   payment_terms_days?: number | null
   notes?: string | null
   lines: CreatePurchaseOrderLineDto[]

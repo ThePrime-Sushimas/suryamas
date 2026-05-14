@@ -4,6 +4,7 @@ import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.rep
 import { PurchaseRequestNotFoundError, PurchaseRequestInvalidStatusError } from './purchase-requests.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo } from '../../config/logger'
+import { calculateDueDate } from '../../utils/due-date.util'
 import type { PurchaseRequestWithLines, PurchaseRequestLineWithRelations } from './purchase-requests.types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -191,13 +192,21 @@ export class PurchaseRequestApprovalService {
           return s + price * qty
         }, 0)
 
+        // Lookup payment term from supplier (inside transaction for consistency)
+        const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(sel.supplier_id, client)
+        const paymentType = supplierTerm
+          ? (supplierTerm.days === 0 ? 'CASH' : 'CREDIT')
+          : sel.payment_type
+        const paymentTermsDays = supplierTerm?.days ?? sel.payment_terms_days ?? null
+
         const po = await purchaseOrdersRepository.create(client, companyId, {
           branch_id: pr.branch_id,
           supplier_id: sel.supplier_id,
           purchase_request_id: prId,
           po_number: poNumber,
-          payment_type: sel.payment_type,
-          payment_terms_days: sel.payment_terms_days ?? null,
+          payment_type: paymentType,
+          payment_term_id: supplierTerm?.payment_term_id ?? null,
+          payment_terms_days: paymentTermsDays,
           expected_delivery_date: sel.expected_delivery_date ?? null,
           notes: sel.notes ?? null,
           total_amount: totalAmount,
