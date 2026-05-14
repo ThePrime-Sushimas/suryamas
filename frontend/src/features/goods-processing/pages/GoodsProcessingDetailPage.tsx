@@ -18,7 +18,6 @@ import {
   useStartLine,
   useSubmitLineQc,
   useConfirmLine,
-  useRejectLine,
 } from '../api/goodsProcessing.api'
 import type { GoodsProcessingInput } from '../api/goodsProcessing.api'
 
@@ -62,7 +61,6 @@ export default function GoodsProcessingDetailPage() {
   const startLineMutation = useStartLine()
   const submitLineQcMutation = useSubmitLineQc()
   const confirmLineMutation = useConfirmLine()
-  const rejectLineMutation = useRejectLine()
 
   const [confirmAction, setConfirmAction] = useState<'start' | 'submit_qc' | 'confirm' | null>(null)
   const [showReject, setShowReject] = useState(false)
