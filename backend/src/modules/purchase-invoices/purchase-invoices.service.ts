@@ -43,7 +43,7 @@ export class PurchaseInvoicesService {
     }
   }
 
-  async getAvailableGrs(companyId: string, supplierId: string, branchId: string) {
+  async getAvailableGrs(companyId: string, supplierId: string, branchId: string | null) {
     return purchaseInvoicesRepository.findAvailableGrs(companyId, supplierId, branchId)
   }
 
@@ -141,6 +141,18 @@ export class PurchaseInvoicesService {
       await purchaseInvoicesRepository.replaceLines(client, invoice.id, enrichedLines)
       await purchaseInvoicesRepository.insertGrLinks(client, invoice.id, grIds)
 
+      // Copy attachments from GRs
+      await client.query(`
+        INSERT INTO purchase_invoice_attachments (purchase_invoice_id, file_path, file_name, file_type, file_size, uploaded_by)
+        SELECT $1, file_path, file_name, file_type, file_size, uploaded_by
+        FROM goods_receipt_attachments
+        WHERE gr_id = ANY($2::uuid[])
+        AND NOT EXISTS (
+          SELECT 1 FROM purchase_invoice_attachments 
+          WHERE purchase_invoice_id = $1 AND file_path = goods_receipt_attachments.file_path
+        )
+      `, [invoice.id, grIds])
+
       await client.query('COMMIT')
       await AuditService.log('CREATE', 'purchase_invoices', invoice.id, userId)
       return purchaseInvoicesRepository.findById(invoice.id, companyId)
@@ -223,6 +235,18 @@ export class PurchaseInvoicesService {
 
       await purchaseInvoicesRepository.replaceLines(client, id, enrichedLines)
       await purchaseInvoicesRepository.replaceGrLinks(client, id, grIds)
+
+      // Copy attachments from GRs if any new ones added
+      await client.query(`
+        INSERT INTO purchase_invoice_attachments (purchase_invoice_id, file_path, file_name, file_type, file_size, uploaded_by)
+        SELECT $1, file_path, file_name, file_type, file_size, uploaded_by
+        FROM goods_receipt_attachments
+        WHERE gr_id = ANY($2::uuid[])
+        AND NOT EXISTS (
+          SELECT 1 FROM purchase_invoice_attachments 
+          WHERE purchase_invoice_id = $1 AND file_path = goods_receipt_attachments.file_path
+        )
+      `, [id, grIds])
 
       // Update header totals and notes in one go
       await purchaseInvoicesRepository.updateStatus(client, id, existing.status, {

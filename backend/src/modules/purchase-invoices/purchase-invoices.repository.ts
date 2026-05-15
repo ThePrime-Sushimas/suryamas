@@ -585,7 +585,15 @@ export class PurchaseInvoicesRepository {
     await this.insertGrLinks(client, invoiceId, grIds)
   }
 
-  async findAvailableGrs(companyId: string, supplierId: string, branchId: string) {
+  async findAvailableGrs(companyId: string, supplierId: string, branchId: string | null) {
+    const params: any[] = [companyId, supplierId]
+    let branchFilter = ''
+    
+    if (branchId) {
+      params.push(branchId)
+      branchFilter = `AND gr.branch_id = $${params.length}`
+    }
+
     const { rows } = await pool.query(
       `SELECT gr.id, gr.gr_number, gr.received_date, gr.branch_id,
               s.supplier_name,
@@ -598,11 +606,11 @@ export class PurchaseInvoicesRepository {
          AND gr.status = 'CONFIRMED'
          AND gr.deleted_at IS NULL
          AND po.supplier_id = $2
-         AND gr.branch_id = $3
+         ${branchFilter}
          AND grl.qty_invoiced < grl.qty_received
        GROUP BY gr.id, gr.gr_number, gr.received_date, gr.branch_id, s.supplier_name
        ORDER BY gr.received_date DESC`,
-      [companyId, supplierId, branchId],
+      params,
     )
     return rows
   }
