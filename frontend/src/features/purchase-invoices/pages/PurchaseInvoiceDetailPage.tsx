@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Image,
   Plus,
+  Loader2,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { useToast } from "@/contexts/ToastContext";
@@ -172,15 +173,34 @@ export default function PurchaseInvoiceDetailPage() {
 
   const hasOverQty = inv.lines.some((l: any) => l.match_status === "OVER");
 
+  const isStatusBusy =
+    submitPI.isPending ||
+    approvePI.isPending ||
+    postPI.isPending ||
+    rejectPI.isPending;
+
   const handleStatusAction = async (
     action: () => Promise<any>,
     successMsg: string,
+    onSuccess?: () => void,
   ) => {
     try {
       await action();
       toast.success(successMsg);
+      onSuccess?.();
     } catch (err: unknown) {
       toast.error(parseApiError(err, "Gagal memproses status"));
+    }
+  };
+
+  const handlePostJournal = async () => {
+    if (!id || postPI.isPending) return;
+    try {
+      await postPI.mutateAsync(id);
+      toast.success("Invoice berhasil di-post ke jurnal");
+      navigate("/inventory/purchase-invoices");
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, "Gagal post jurnal"));
     }
   };
 
@@ -244,6 +264,7 @@ export default function PurchaseInvoiceDetailPage() {
                 </button>
                 <button
                   onClick={() => {
+                    if (isStatusBusy) return;
                     if (!attachments || attachments.length === 0) {
                       toast.error("Upload minimal 1 foto invoice sebelum mengajukan.");
                       return;
@@ -257,9 +278,15 @@ export default function PurchaseInvoiceDetailPage() {
                       inv.status === "REJECTED" ? "Invoice diajukan ulang" : "Invoice diajukan",
                     );
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium shadow-sm transition-all"
+                  disabled={isStatusBusy}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
                 >
-                  <Send className="w-4 h-4" /> Ajukan
+                  {submitPI.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  {submitPI.isPending ? "Mengajukan..." : "Ajukan"}
                 </button>
               </>
             )}
@@ -268,35 +295,44 @@ export default function PurchaseInvoiceDetailPage() {
               <>
                 <button
                   onClick={() => setShowRejectModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium shadow-sm transition-all"
+                  disabled={isStatusBusy}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
                 >
                   <XCircle className="w-4 h-4" /> Tolak
                 </button>
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    if (isStatusBusy) return;
                     handleStatusAction(
                       () => approvePI.mutateAsync(id!),
                       "Invoice disetujui",
-                    )
-                  }
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium shadow-sm transition-all"
+                    );
+                  }}
+                  disabled={isStatusBusy}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
                 >
-                  <CheckCircle2 className="w-4 h-4" /> Setujui
+                  {approvePI.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  {approvePI.isPending ? "Menyetujui..." : "Setujui"}
                 </button>
               </>
             )}
 
             {inv.status === "APPROVED" && canApprove && (
               <button
-                onClick={() =>
-                  handleStatusAction(
-                    () => postPI.mutateAsync(id!),
-                    "Invoice berhasil di-post",
-                  )
-                }
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium shadow-sm transition-all animate-pulse hover:animate-none"
+                onClick={handlePostJournal}
+                disabled={isStatusBusy}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
               >
-                <ClipboardCheck className="w-4 h-4" /> Post Jurnal
+                {postPI.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ClipboardCheck className="w-4 h-4" />
+                )}
+                {postPI.isPending ? "Memposting jurnal..." : "Post Jurnal"}
               </button>
             )}
 

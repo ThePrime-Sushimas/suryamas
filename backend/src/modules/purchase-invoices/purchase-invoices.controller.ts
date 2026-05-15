@@ -113,8 +113,9 @@ export class PurchaseInvoicesController {
     try {
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
+      const employeeId = req.context?.employee_id
       const id = req.params.id as string
-      const result = await purchaseInvoicesService.post(companyId, id, userId)
+      const result = await purchaseInvoicesService.post(companyId, id, userId, employeeId)
       sendSuccess(res, result, 'Purchase invoice posted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post_purchase_invoice', id: req.params.id })

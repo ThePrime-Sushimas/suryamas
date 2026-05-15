@@ -341,7 +341,7 @@ export class PurchaseInvoicesService {
     }
   }
 
-  async post(companyId: string, id: string, userId: string) {
+  async post(companyId: string, id: string, userId: string, employeeId?: string) {
     const detail = await purchaseInvoicesRepository.findById(id, companyId)
     if (!detail) throw new PurchaseInvoiceNotFoundError(id)
     if (detail.status !== 'APPROVED') throw new PurchaseInvoiceInvalidStatusError(detail.status, 'APPROVED')
@@ -512,7 +512,7 @@ export class PurchaseInvoicesService {
         description: journalDescription,
         totalDebit: subtotal + totalTax,
         totalCredit: totalAmount,
-        createdBy: userId,
+        createdBy: employeeId ?? null,
       })
 
       await purchaseInvoicesRepository.createJournalLines(client, {

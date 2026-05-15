@@ -168,7 +168,7 @@ export class PurchaseInvoicesRepository {
       description: string
       totalDebit: number
       totalCredit: number
-      createdBy: string
+      createdBy: string | null
     },
   ): Promise<{ id: string }> {
     const { rows } = await client.query(
