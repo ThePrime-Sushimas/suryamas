@@ -15,6 +15,7 @@ import {
   Image,
   Plus,
   Loader2,
+  Package,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { useToast } from "@/contexts/ToastContext";
@@ -75,6 +76,19 @@ const STATUS_CONFIG: Record<
   },
   POSTED: { label: "Posted", color: "bg-green-100 text-green-700", icon: ClipboardCheck },
 };
+
+const GP_LINE_STATUS_CONFIG: Record<
+  string,
+  { label: string; color: string }
+> = {
+  PENDING: { label: "Menunggu", color: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300" },
+  PROCESSING: { label: "Diproses", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+  QC_REVIEW: { label: "Review QC", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  CONFIRMED: { label: "Selesai", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
+  REJECTED: { label: "Ditolak", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
+};
+
+const fmtQty = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 
 const FILE_TYPE_LABELS: Record<string, string> = {
   INVOICE: "Invoice",
@@ -172,6 +186,21 @@ export default function PurchaseInvoiceDetailPage() {
     );
 
   const hasOverQty = inv.lines.some((l: any) => l.match_status === "OVER");
+
+  const gpLineAudits = inv.gp_line_audits;
+  const gpAuditsByDoc = new Map<string, typeof gpLineAudits>();
+  for (const row of gpLineAudits) {
+    const arr = gpAuditsByDoc.get(row.processing_number) ?? [];
+    arr.push(row);
+    gpAuditsByDoc.set(row.processing_number, arr);
+  }
+
+  const allGpLinesConfirmed =
+    gpLineAudits.length > 0 &&
+    gpLineAudits.every((a) => a.gp_line_status === "CONFIRMED");
+  const hasUnconfirmedGp =
+    gpLineAudits.length > 0 &&
+    gpLineAudits.some((a) => a.gp_line_status !== "CONFIRMED");
 
   const isStatusBusy =
     submitPI.isPending ||
@@ -322,18 +351,26 @@ export default function PurchaseInvoiceDetailPage() {
             )}
 
             {inv.status === "APPROVED" && canApprove && (
-              <button
-                onClick={handlePostJournal}
-                disabled={isStatusBusy}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
-              >
+              <div className="flex flex-col">
+                <button
+                  onClick={handlePostJournal}
+                  disabled={isStatusBusy || hasUnconfirmedGp}
+                  title={hasUnconfirmedGp ? "Ada item GP yang belum dikonfirmasi (QC). Selesaikan QC dulu sebelum Post Jurnal." : undefined}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
+                >
                 {postPI.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <ClipboardCheck className="w-4 h-4" />
                 )}
                 {postPI.isPending ? "Memposting jurnal..." : "Post Jurnal"}
-              </button>
+                </button>
+                {hasUnconfirmedGp && (
+                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                    Tidak bisa post jurnal karena masih ada GP dengan status selain CONFIRMED.
+                  </p>
+                )}
+              </div>
             )}
 
             {inv.status === "POSTED" && (
@@ -601,13 +638,153 @@ export default function PurchaseInvoiceDetailPage() {
           )}
         </div>
 
-        {/* Audit Timeline */}
+        {/* Goods Processing (Barang Masuk) audit */}
+        {gpLineAudits.length > 0 && (
+          <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Package className="w-4 h-4 text-orange-500" />
+                  Riwayat Barang Masuk (QC)
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Prasyarat post jurnal: semua item harus status{" "}
+                  <span className="font-semibold text-green-600">Selesai</span>
+                </p>
+              </div>
+              {inv.status === "APPROVED" && hasUnconfirmedGp && (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 max-w-md">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Masih ada item yang belum dikonfirmasi di Barang Masuk. Selesaikan QC
+                    sebelum Post Jurnal.
+                  </span>
+                </div>
+              )}
+              {allGpLinesConfirmed && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                  <CheckCircle2 className="w-3 h-3" /> Siap Post Jurnal
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {[...gpAuditsByDoc.entries()].map(([gpNumber, rows]) => (
+                <div
+                  key={gpNumber}
+                  className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
+                >
+                  <div className="px-4 py-2.5 bg-orange-50/80 dark:bg-orange-900/10 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-semibold text-gray-800 dark:text-gray-200">
+                      {gpNumber}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/inventory/goods-processing/${rows[0].goods_processing_id}`)
+                      }
+                      className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
+                    >
+                      Buka di Barang Masuk
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                    {rows.map((row) => {
+                      const st =
+                        GP_LINE_STATUS_CONFIG[row.gp_line_status] ??
+                        GP_LINE_STATUS_CONFIG.PENDING;
+                      const goodOutputs = row.outputs.filter((o) => !o.is_waste);
+                      return (
+                        <div
+                          key={row.gp_input_id}
+                          className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {row.product_name}
+                              </span>
+                              <span className="text-[10px] font-mono text-gray-400">
+                                {row.product_code}
+                              </span>
+                              {row.requires_processing ? (
+                                <span className="px-1.5 py-0.5 text-[10px] rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                  Proses
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 text-[10px] rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                  Pass
+                                </span>
+                              )}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${st.color}`}
+                              >
+                                {st.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                              {fmtQty(row.qty_input)} {row.uom}
+                            </p>
+                            {goodOutputs.length > 0 &&
+                              goodOutputs.some((o) => o.product_name !== row.product_name) && (
+                                <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                                  →{" "}
+                                  {goodOutputs
+                                    .map(
+                                      (o) =>
+                                        `${o.product_name} ${fmtQty(o.qty_output)} ${o.uom}`,
+                                    )
+                                    .join(" + ")}
+                                </p>
+                              )}
+                            {row.gp_line_status === "CONFIRMED" && row.qc_confirmed_at && (
+                              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                                ✓ Dikonfirmasi oleh {row.qc_confirmed_by_name ?? "QC"} ·{" "}
+                                {fmtDate(row.qc_confirmed_at)}
+                              </p>
+                            )}
+                            {row.gp_line_status === "REJECTED" && row.rejection_reason && (
+                              <p className="text-xs text-red-500 mt-1 italic">
+                                {row.rejection_reason}
+                              </p>
+                            )}
+                            {row.processed_at && row.gp_line_status !== "CONFIRMED" && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                Diproses{" "}
+                                {row.processed_by_name ? `oleh ${row.processed_by_name}` : ""} ·{" "}
+                                {fmtDate(row.processed_at)}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(
+                                `/inventory/goods-processing/${row.goods_processing_id}?line=${row.gp_input_id}`,
+                              )
+                            }
+                            className="shrink-0 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                          >
+                            Detail item
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Audit Timeline — Verifikasi Invoice */}
         <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
           <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-            <ClipboardCheck className="w-4 h-4 text-indigo-500" /> Riwayat & Audit Dokumen
+            <ClipboardCheck className="w-4 h-4 text-indigo-500" /> Riwayat Verifikasi Invoice
           </h3>
-          
-          <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-indigo-500 before:via-gray-200 dark:before:via-gray-700 before:to-transparent">
+
+          <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-linear-to-b before:from-indigo-500 before:via-gray-200 dark:before:via-gray-700 before:to-transparent">
             {/* Created */}
             <div className="relative flex items-center justify-between md:justify-start">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shadow shrink-0 md:order-1 border-4 border-white dark:border-gray-800">
@@ -651,7 +828,7 @@ export default function PurchaseInvoiceDetailPage() {
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Oleh: <span className="font-medium text-gray-700 dark:text-gray-200">{inv.rejector_name || "Approver"}</span></div>
                   <div className="p-3 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-lg text-xs text-red-700 dark:text-red-300 italic">
-                    "{inv.rejection_reason}"
+                    {inv.rejection_reason}
                   </div>
                 </div>
               </div>
@@ -737,7 +914,7 @@ export default function PurchaseInvoiceDetailPage() {
       {/* Image Preview Modal */}
       {previewUrl && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200"
           onClick={() => setPreviewUrl(null)}
         >
           <button

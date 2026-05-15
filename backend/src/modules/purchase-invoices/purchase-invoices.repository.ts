@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg'
 import type {
   PurchaseInvoice,
   PurchaseInvoiceDetail,
+  PurchaseInvoiceGpLineAudit,
   PurchaseInvoiceLine,
   PurchaseInvoiceWithRelations,
 } from './purchase-invoices.types'
@@ -398,22 +399,96 @@ export class PurchaseInvoicesRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async findById(id: string, companyId: string): Promise<PurchaseInvoiceDetail | null> {
-    const { rows } = await pool.query(
+  async findGpLineAuditsForInvoice(invoiceId: string, client?: PoolClient): Promise<PurchaseInvoiceGpLineAudit[]> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+
+      `
+      SELECT
+        pil.id AS purchase_invoice_line_id,
+        pil.gr_line_id,
+        gpi.id AS gp_input_id,
+        gp.id AS goods_processing_id,
+        gp.processing_number,
+        gp.processing_type,
+        gp.status AS gp_header_status,
+        p.product_code,
+        p.product_name,
+        p.requires_processing,
+        gpi.status AS gp_line_status,
+        gpi.qty_input,
+        gpi.uom,
+        gpi.processed_at,
+        gpi.qc_confirmed_at,
+        gpi.rejected_at,
+        gpi.rejection_reason,
+        emp_proc.full_name AS processed_by_name,
+        emp_qc.full_name AS qc_confirmed_by_name,
+        emp_rej.full_name AS rejected_by_name,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'product_name', op.product_name,
+                'qty_output', gpo.qty_output,
+                'uom', gpo.uom,
+                'is_waste', gpo.is_waste
+              )
+              ORDER BY gpo.sort_order, gpo.id
+            )
+            FROM goods_processing_outputs gpo
+            JOIN products op ON op.id = gpo.product_id
+            WHERE gpo.input_id = gpi.id
+          ),
+          '[]'::json
+        ) AS outputs
+      FROM purchase_invoice_lines pil
+      JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
+      JOIN goods_processing gp ON gp.id = gpi.goods_processing_id AND gp.deleted_at IS NULL
+      JOIN products p ON p.id = gpi.product_id
+      LEFT JOIN employees emp_proc ON emp_proc.user_id = gpi.processed_by
+      LEFT JOIN employees emp_qc ON emp_qc.user_id = gpi.qc_confirmed_by
+      LEFT JOIN employees emp_rej ON emp_rej.user_id = gpi.rejected_by
+      WHERE pil.purchase_invoice_id = $1
+        AND pil.deleted_at IS NULL
+      ORDER BY gp.processing_number, gpi.sort_order, p.product_name
+      `,
+      [invoiceId],
+    )
+
+    return rows.map((row: Record<string, unknown>) => ({
+      ...row,
+      qty_input: Number(row.qty_input),
+      requires_processing: Boolean(row.requires_processing),
+      outputs: Array.isArray(row.outputs)
+        ? row.outputs.map((o: Record<string, unknown>) => ({
+            ...o,
+            qty_output: Number(o.qty_output),
+            is_waste: Boolean(o.is_waste),
+          }))
+        : [],
+    })) as PurchaseInvoiceGpLineAudit[]
+  }
+
+  async findById(id: string, companyId: string, client?: PoolClient): Promise<PurchaseInvoiceDetail | null> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+
       `SELECT ${HEADER_SELECT} ${HEADER_FROM} WHERE pi.id = $1 AND pi.company_id = $2 AND pi.deleted_at IS NULL`,
       [id, companyId],
     )
     const header = rows[0]
     if (!header) return null
 
-    const [linesRes, linksRes, attachmentsRes] = await Promise.all([
-      pool.query<PurchaseInvoiceLine>(
+    const [linesRes, linksRes, attachmentsRes, gpLineAudits] = await Promise.all([
+      db.query<PurchaseInvoiceLine>(
+
         `SELECT ${LINE_SELECT} ${LINE_FROM}
          WHERE pil.purchase_invoice_id = $1 AND pil.deleted_at IS NULL
          ORDER BY pil.sort_order, pil.created_at ASC`,
         [id],
       ),
-      pool.query(
+      db.query(
         `SELECT pilg.*,
                 gr.received_date,
                 gr.gr_number AS goods_receipt_number,
@@ -427,12 +502,13 @@ export class PurchaseInvoicesRepository {
          ORDER BY gr.received_date DESC`,
         [id],
       ),
-      pool.query(
+      db.query(
         `SELECT * FROM purchase_invoice_attachments 
          WHERE purchase_invoice_id = $1 
          ORDER BY uploaded_at DESC`,
         [id],
       ),
+      this.findGpLineAuditsForInvoice(id, client),
     ])
 
     return {
@@ -440,6 +516,7 @@ export class PurchaseInvoicesRepository {
       gr_links: linksRes.rows,
       lines: linesRes.rows,
       attachments: attachmentsRes.rows,
+      gp_line_audits: gpLineAudits,
     }
   }
 

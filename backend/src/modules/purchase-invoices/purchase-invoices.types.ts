@@ -70,9 +70,40 @@ export interface PurchaseInvoiceLine {
   product_name: string
 }
 
+/** QC / barang masuk audit per invoice line (linked via gr_line_id) */
+export interface PurchaseInvoiceGpLineAudit {
+  purchase_invoice_line_id: string
+  gr_line_id: string
+  gp_input_id: string
+  goods_processing_id: string
+  processing_number: string
+  processing_type: 'PASS_THROUGH' | 'DISASSEMBLY'
+  gp_header_status: string
+  product_code: string
+  product_name: string
+  requires_processing: boolean
+  gp_line_status: 'PENDING' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
+  qty_input: number
+  uom: string
+  processed_at: string | null
+  processed_by_name: string | null
+  qc_confirmed_at: string | null
+  qc_confirmed_by_name: string | null
+  rejected_at: string | null
+  rejected_by_name: string | null
+  rejection_reason: string | null
+  outputs: Array<{
+    product_name: string
+    qty_output: number
+    uom: string
+    is_waste: boolean
+  }>
+}
+
 export interface PurchaseInvoiceDetail extends PurchaseInvoiceWithRelations {
   gr_links: PurchaseInvoiceGrLink[]
   lines: PurchaseInvoiceLine[]
+  gp_line_audits: PurchaseInvoiceGpLineAudit[]
 }
 
 export interface CreatePurchaseInvoiceLineDto {

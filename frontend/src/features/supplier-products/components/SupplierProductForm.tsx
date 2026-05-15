@@ -221,7 +221,7 @@ export function SupplierProductForm({
               onChange={handleChange}
               required
               min="0"
-             
+              step="any"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
@@ -317,8 +317,7 @@ export function SupplierProductForm({
               name="min_order_qty"
               value={formData.min_order_qty ?? ''}
               onChange={handleChange}
-              min="0.01"
-             
+              step="any"
               placeholder="e.g., 10"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />

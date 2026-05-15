@@ -13,18 +13,18 @@ export interface PurchaseInvoice {
   due_date: string | null
   status: PurchaseInvoiceStatus
   notes: string | null
-  rejection_reason?: string | null
+  rejection_reason: string | null
   subtotal: number
   total_tax: number
   total_amount: number
-  submitted_by?: string | null
-  submitted_at?: string | null
-  approved_by?: string | null
-  approved_at?: string | null
-  rejected_by?: string | null
-  rejected_at?: string | null
-  posted_by?: string | null
-  posted_at?: string | null
+  submitted_by: string | null
+  submitted_at: string | null
+  approved_by: string | null
+  approved_at: string | null
+  rejected_by: string | null
+  rejected_at: string | null
+  posted_by: string | null
+  posted_at: string | null
   journal_id: string | null
   is_deleted: boolean
   deleted_at: string | null
@@ -32,16 +32,19 @@ export interface PurchaseInvoice {
   updated_at: string
   created_by: string | null
   updated_by: string | null
+
   supplier_name: string
   branch_name: string
   branch_code: string
   goods_receipt_count: number
-  creator_name?: string
-  submitter_name?: string
-  approver_name?: string
-  rejector_name?: string
-  poster_name?: string
+
+  creator_name: string | null
+  submitter_name: string | null
+  approver_name: string | null
+  rejector_name: string | null
+  poster_name: string | null
 }
+
 
 export interface PurchaseInvoiceGrLink {
   id: string
@@ -51,8 +54,8 @@ export interface PurchaseInvoiceGrLink {
   received_date: string
   supplier_id: string
   supplier_name: string
-  branch_name: string
 }
+
 
 export interface PurchaseInvoiceLine {
   id: string
@@ -76,10 +79,41 @@ export interface PurchaseInvoiceLine {
   product_name: string
 }
 
+export interface PurchaseInvoiceGpLineAudit {
+  purchase_invoice_line_id: string
+  gr_line_id: string
+  gp_input_id: string
+  goods_processing_id: string
+  processing_number: string
+  processing_type: 'PASS_THROUGH' | 'DISASSEMBLY'
+  gp_header_status: string
+  product_code: string
+  product_name: string
+  requires_processing: boolean
+  gp_line_status: 'PENDING' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
+  qty_input: number
+  uom: string
+  processed_at: string | null
+  processed_by_name: string | null
+  qc_confirmed_at: string | null
+  qc_confirmed_by_name: string | null
+  rejected_at: string | null
+  rejected_by_name: string | null
+  rejection_reason: string | null
+  outputs: Array<{
+    product_name: string
+    qty_output: number
+    uom: string
+    is_waste: boolean
+  }>
+}
+
 export interface PurchaseInvoiceDetail extends PurchaseInvoice {
   gr_links: PurchaseInvoiceGrLink[]
   lines: PurchaseInvoiceLine[]
+  gp_line_audits: PurchaseInvoiceGpLineAudit[]
 }
+
 
 interface Pagination {
   page: number
