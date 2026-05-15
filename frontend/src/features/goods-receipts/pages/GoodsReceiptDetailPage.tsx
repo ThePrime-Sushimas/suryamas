@@ -11,6 +11,7 @@ import {
   Upload,
   Trash2,
   FileText,
+  XCircle,
   Image,
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
@@ -51,9 +52,11 @@ const FILE_TYPE_LABELS: Record<string, string> = {
 function AttachmentThumbnail({
   filePath,
   isImage,
+  onClick,
 }: {
   filePath: string;
   isImage: boolean;
+  onClick?: (url: string) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
 
@@ -85,7 +88,10 @@ function AttachmentThumbnail({
   }
 
   return (
-    <div className="group relative">
+    <div
+      className="group relative cursor-zoom-in"
+      onClick={() => url && onClick?.(url)}
+    >
       <img
         src={url}
         alt="thumbnail"
@@ -114,6 +120,7 @@ export default function GoodsReceiptDetailPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [uploadType, setUploadType] = useState<string>("INVOICE");
   const attachFileRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const esc = (s: string) =>
     s?.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") ?? "";
@@ -664,6 +671,27 @@ export default function GoodsReceiptDetailPage() {
         variant="success"
         isLoading={confirmGR.isPending}
       />
+
+      {/* Image Preview Modal */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <button
+            className="absolute top-6 right-6 text-white/70 hover:text-white p-2 transition-colors"
+            onClick={() => setPreviewUrl(null)}
+          >
+            <XCircle className="w-8 h-8" />
+          </button>
+          <img
+            src={previewUrl}
+            alt="Full Preview"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
