@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, PackageCheck, Save } from 'lucide-react'
+import { ArrowLeft, PackageCheck, Save, ClipboardList, Info, Store, FileText } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useCreateGoodsReceipt, useGoodsReceipt } from '../api/goodsReceipts.api'
@@ -286,97 +286,128 @@ export default function GoodsReceiptFormPage() {
   const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-screen flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => navigate('/inventory/goods-receipts')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6 py-4 sticky top-0 z-20">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/inventory/goods-receipts')} className="p-2 -ml-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <PackageCheck className="w-6 h-6 text-teal-600 shrink-0 hidden sm:block" />
-            <div className="min-w-0">
-              <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">{isEdit ? 'Edit Penerimaan' : 'Terima Barang'}</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{isEdit ? 'Perbarui data penerimaan barang' : 'Input penerimaan dari Purchase Order'}</p>
+            <div className="p-2.5 bg-teal-50 dark:bg-teal-900/20 rounded-xl hidden sm:block">
+              <PackageCheck className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">{isEdit ? 'Edit Penerimaan Barang' : 'Terima Barang'}</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">{isEdit ? 'Perbarui data penerimaan barang' : 'Pilih PO dan catat penerimaan barang ke gudang'}</p>
             </div>
           </div>
           <button onClick={handleSubmit} disabled={(createGR.isPending || updateGR.isPending) || lines.length === 0}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm shrink-0">
-            <Save className="w-4 h-4" /> <span className="hidden sm:inline">{(createGR.isPending || updateGR.isPending) ? 'Menyimpan...' : 'Simpan'}</span>
+            className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-700 disabled:opacity-50 transition-all shadow-sm shadow-teal-600/20 shrink-0">
+            <Save className="w-4 h-4" /> <span className="hidden sm:inline">{(createGR.isPending || updateGR.isPending) ? 'Menyimpan...' : 'Simpan Penerimaan'}</span>
           </button>
         </div>
       </div>
 
-      {/* Form Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          <div className="sm:col-span-2 lg:col-span-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purchase Order *</label>
-            <select value={selectedPoId} onChange={e => setSelectedPoId(e.target.value)} disabled={isEdit}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:opacity-60">
-              <option value="">Pilih PO</option>
-              {receivablePOs.map(po => <option key={po.id} value={po.id}>{po.po_number} — {po.supplier_name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gudang Tujuan *</label>
-            <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-              <option value="">Pilih Gudang</option>
-              {warehouses.map(w => <option key={w.id} value={w.id}>{w.warehouse_name} ({w.branch_name})</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tanggal Terima</label>
-            <input type="date" value={receivedDate} onChange={e => setReceivedDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No. Invoice Supplier</label>
-            <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Contoh: INV-2026-001"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tanggal Invoice</label>
-            <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catatan</label>
-            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Opsional"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
-          </div>
-        </div>
-      </div>
+      <div className="flex-1 overflow-auto p-4 lg:p-6 pb-24">
+        <div className="max-w-6xl mx-auto space-y-6">
+          
+          {/* General Information Card */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/80 flex items-center gap-2">
+              <Info className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">Informasi Dasar</h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Purchase Order <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <ClipboardList className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <select value={selectedPoId} onChange={e => setSelectedPoId(e.target.value)} disabled={isEdit}
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm disabled:opacity-60 disabled:bg-gray-50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all appearance-none shadow-sm">
+                      <option value="">Pilih Purchase Order...</option>
+                      {receivablePOs.map(po => <option key={po.id} value={po.id}>{po.po_number} — {po.supplier_name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Gudang Tujuan <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all appearance-none shadow-sm">
+                      <option value="">Pilih Gudang Penerima...</option>
+                      {warehouses.map(w => <option key={w.id} value={w.id}>{w.warehouse_name} ({w.branch_name})</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tanggal Terima</label>
+                  <input type="date" value={receivedDate} onChange={e => setReceivedDate(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all shadow-sm" />
+                </div>
+              </div>
 
-      {/* Line Items */}
-      <div className="flex-1 overflow-auto p-4 lg:p-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          {/* Section header */}
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Daftar Barang ({lines.length} item)</h2>
-            {lines.length > 0 && (
-              <span className="text-sm font-mono font-semibold text-gray-900 dark:text-white">Total: Rp {fmt(Math.round(totalInvoice))}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">No. Invoice Supplier</label>
+                  <div className="relative">
+                    <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Contoh: INV-2026-001"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all shadow-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tanggal Invoice</label>
+                  <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all shadow-sm" />
+                </div>
+                <div className="md:col-span-2 lg:col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Catatan Tambahan</label>
+                  <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Opsional"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all shadow-sm" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Line Items Card */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PackageCheck className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">Daftar Barang ({lines.length})</h2>
+              </div>
+              {lines.length > 0 && (
+                <div className="bg-teal-50 dark:bg-teal-900/30 px-3 py-1.5 rounded-lg border border-teal-100 dark:border-teal-800">
+                  <span className="text-xs text-teal-700 dark:text-teal-400 font-medium mr-2">Estimasi Tagihan:</span>
+                  <span className="text-sm font-mono font-bold text-teal-800 dark:text-teal-300">Rp {fmt(Math.round(totalInvoice))}</span>
+                </div>
+              )}
+            </div>
+
+            {lines.length === 0 ? (
+              <div className="px-6 py-20 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 border border-gray-100 dark:border-gray-700">
+                  <PackageCheck className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                </div>
+                <h3 className="text-base font-medium text-gray-900 dark:text-white mb-2">Belum Ada Barang</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+                  {selectedPoId && selectedPO?.lines && selectedPO.lines.length > 0
+                    ? 'Semua item pada PO ini sudah diterima sepenuhnya.'
+                    : 'Pilih Purchase Order di atas untuk memuat daftar barang yang akan diterima.'}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {lines.map(l => (
+                  <GRLineCard key={l.key} line={l} onChange={handleLineChange} onRemove={handleLineRemove} />
+                ))}
+              </div>
             )}
           </div>
-
-          {/* Cards */}
-          {lines.length === 0 ? (
-            <div className="px-4 py-16 text-center">
-              <PackageCheck className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-sm text-gray-400 dark:text-gray-500">
-                {selectedPoId && selectedPO?.lines && selectedPO.lines.length > 0
-                  ? 'Semua item PO ini sudah tercakup oleh penerimaan sebelumnya.'
-                  : 'Pilih Purchase Order di atas untuk mengisi daftar barang'}
-              </p>
-            </div>
-          ) : (
-            lines.map(l => (
-              <GRLineCard key={l.key} line={l} onChange={handleLineChange} onRemove={handleLineRemove} />
-            ))
-          )}
+          
         </div>
       </div>
     </div>
