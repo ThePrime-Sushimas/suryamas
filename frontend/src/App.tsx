@@ -498,9 +498,9 @@ const GoodsProcessingPage = lazy(() => import('./features/goods-processing/pages
 const GoodsProcessingDetailPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingDetailPage'))
 
 // Purchase Invoices
-const PurchaseInvoicesPage = lazy(() => import('./features/purchase-invoices/pages/PurchaseInvoicesPage'))
-const PurchaseInvoiceFormPage = lazy(() => import('./features/purchase-invoices/pages/PurchaseInvoiceFormPage'))
-const PurchaseInvoiceDetailPage = lazy(() => import('./features/purchase-invoices/pages/PurchaseInvoiceDetailPage'))
+const PurchaseInvoicesPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoicesPage"))
+const PurchaseInvoiceFormPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceFormPage"))
+const PurchaseInvoiceDetailPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceDetailPage"))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1630,6 +1630,48 @@ function App() {
                     }
                   />
                   {/* Inventory */}
+                  {/* Purchase Invoices */}
+                  <Route
+                    path="inventory/purchase-invoices"
+                    element={
+                      <RequirePermission module="purchase_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseInvoicesPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-invoices/new"
+                    element={
+                      <RequirePermission module="purchase_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseInvoiceFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-invoices/:id"
+                    element={
+                      <RequirePermission module="purchase_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseInvoiceDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-invoices/:id/edit"
+                    element={
+                      <RequirePermission module="purchase_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseInvoiceFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+
                   <Route
                     path="inventory/warehouses"
                     element={
@@ -1829,47 +1871,6 @@ function App() {
                       <RequirePermission module="goods_processing">
                         <Suspense fallback={<LoadingFallback />}>
                           <GoodsProcessingDetailPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  {/* Purchase Invoices */}
-                  <Route
-                    path="inventory/purchase-invoices"
-                    element={
-                      <RequirePermission module="purchase_invoices">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <PurchaseInvoicesPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="inventory/purchase-invoices/new"
-                    element={
-                      <RequirePermission module="purchase_invoices">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <PurchaseInvoiceFormPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="inventory/purchase-invoices/:id"
-                    element={
-                      <RequirePermission module="purchase_invoices">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <PurchaseInvoiceDetailPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="inventory/purchase-invoices/:id/edit"
-                    element={
-                      <RequirePermission module="purchase_invoices">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <PurchaseInvoiceFormPage />
                         </Suspense>
                       </RequirePermission>
                     }
