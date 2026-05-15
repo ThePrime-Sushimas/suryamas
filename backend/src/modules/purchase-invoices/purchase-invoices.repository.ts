@@ -368,7 +368,7 @@ export class PurchaseInvoicesRepository {
     const header = rows[0]
     if (!header) return null
 
-    const [linesRes, linksRes] = await Promise.all([
+    const [linesRes, linksRes, attachmentsRes] = await Promise.all([
       pool.query<PurchaseInvoiceLine>(
         `SELECT ${LINE_SELECT} ${LINE_FROM}
          WHERE pil.purchase_invoice_id = $1 AND pil.deleted_at IS NULL
@@ -389,12 +389,19 @@ export class PurchaseInvoicesRepository {
          ORDER BY gr.received_date DESC`,
         [id],
       ),
+      pool.query(
+        `SELECT * FROM purchase_invoice_attachments 
+         WHERE purchase_invoice_id = $1 
+         ORDER BY uploaded_at DESC`,
+        [id],
+      ),
     ])
 
     return {
       ...header,
       gr_links: linksRes.rows,
       lines: linesRes.rows,
+      attachments: attachmentsRes.rows,
     }
   }
 

@@ -572,7 +572,7 @@ export class PurchaseInvoicesService {
     const invoice = await purchaseInvoicesRepository.create(client, companyId, {
       supplier_id: gr.supplier_id,
       branch_id: gr.branch_id,
-      invoice_number: `AUTO-${gr.gr_number}`,
+      invoice_number: `[DRAFT-AUTO] ${gr.gr_number}`,
       invoice_date: new Date().toISOString().split('T')[0],
       notes: `Auto-generated from GR ${gr.gr_number}`,
       subtotal,
