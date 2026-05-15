@@ -42,6 +42,7 @@ import {
   UtensilsCrossed,
   Beaker,
   ChefHat,
+  FileText,
   FlaskConical,
 } from "lucide-react";
 import type { MenuItem } from "./types";
@@ -369,6 +370,13 @@ export const menuItems: MenuItem[] = [
         href: "/inventory/goods-processing",
         icon: <Package size={16} />,
         module: "goods_processing",
+      },
+      {
+        id: "inv-purchase-invoices",
+        name: "Verifikasi Invoice",
+        href: "/inventory/purchase-invoices",
+        icon: <FileText size={16} />,
+        module: "purchase_invoices",
       },
     ],
   },

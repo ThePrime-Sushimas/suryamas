@@ -276,7 +276,6 @@ export class PurchaseInvoicesRepository {
         GROUP BY pil.gr_line_id
       ) sub
       WHERE grl.id = sub.gr_line_id
-        AND grl.deleted_at IS NULL
       `,
       [invoiceId],
     )
@@ -587,7 +586,7 @@ export class PurchaseInvoicesRepository {
        FROM goods_receipts gr
        JOIN purchase_orders po ON po.id = gr.po_id
        JOIN suppliers s ON s.id = po.supplier_id
-       JOIN goods_receipt_lines grl ON grl.gr_id = gr.id AND grl.deleted_at IS NULL
+       JOIN goods_receipt_lines grl ON grl.gr_id = gr.id
        WHERE gr.company_id = $1
          AND gr.status = 'CONFIRMED'
          AND gr.deleted_at IS NULL

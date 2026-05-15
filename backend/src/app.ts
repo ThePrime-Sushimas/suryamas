@@ -71,6 +71,7 @@ import purchaseRequestsRoutes from "./modules/purchase-requests/purchase-request
 import purchaseOrdersRoutes from "./modules/purchase-orders/purchase-orders.routes";
 import goodsReceiptsRoutes from "./modules/goods-receipts/goods-receipts.routes";
 import goodsProcessingRoutes from "./modules/goods-processing/goods-processing.routes";
+import purchaseInvoicesRoutes from "./modules/purchase-invoices/purchase-invoices.routes";
 import printersRoutes from "./modules/printers/printers.routes";
 import storageRoutes from "./routes/storage.routes";
 import { pool } from "./config/db";
@@ -179,7 +180,6 @@ app.use("/api/v1/purchase-requests", purchaseRequestsRoutes);
 app.use("/api/v1/purchase-orders", purchaseOrdersRoutes);
 app.use("/api/v1/goods-receipts", goodsReceiptsRoutes);
 app.use("/api/v1/goods-processing", goodsProcessingRoutes);
-import purchaseInvoicesRoutes from "./modules/purchase-invoices/purchase-invoices.routes";
 app.use("/api/v1/purchase-invoices", purchaseInvoicesRoutes);
 
 app.use("/api/v1/printers", printersRoutes);
@@ -311,6 +311,13 @@ const registerModules = async () => {
       "permissions",
       "Permission Management System",
     );
+
+    // Register inventory modules
+    await PermissionService.registerModule("purchase_requests", "Purchase Requests Management");
+    await PermissionService.registerModule("purchase_orders", "Purchase Orders Management");
+    await PermissionService.registerModule("goods_receipts", "Goods Receipts Management");
+    await PermissionService.registerModule("goods_processing", "Goods Processing Management");
+    await PermissionService.registerModule("purchase_invoices", "Purchase Invoices Verification");
 
     // Register dashboard modules
     await PermissionService.registerModule("dashboard_sales", "Dashboard Sales");
