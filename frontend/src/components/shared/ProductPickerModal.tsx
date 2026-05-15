@@ -31,6 +31,7 @@ export interface ProductPickerModalProps {
   showStock?: boolean
   showSupplier?: boolean
   excludeProductIds?: string[]
+  filterRequestable?: boolean
   title?: string
 }
 
@@ -68,6 +69,7 @@ export function ProductPickerModal({
   showStock = false,
   showSupplier = false,
   excludeProductIds = [],
+  filterRequestable = false,
   title = 'Pilih Produk',
 }: ProductPickerModalProps) {
   const [search, setSearch] = useState('')
@@ -118,6 +120,7 @@ export function ProductPickerModal({
       const params: Record<string, string> = { limit: String(PAGE_SIZE), page: String(pageParam) }
       if (debouncedSearch) params.q = debouncedSearch
       if (categoryFilter) params.category_id = categoryFilter
+      if (filterRequestable) params.is_requestable = 'true'
       const { data } = await api.get('/products/search', { params })
       return { data: data.data as ProductRow[], pagination: data.pagination } as ProductPage
     },

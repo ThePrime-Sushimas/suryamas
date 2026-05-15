@@ -417,6 +417,7 @@ export default function PurchaseRequestFormPage() {
         showStock={!!branchId}
         showSupplier
         excludeProductIds={lines.map(l => l.product_id)}
+        filterRequestable
       />
     </div>
   )

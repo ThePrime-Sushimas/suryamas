@@ -5,7 +5,7 @@ import { PRODUCT_SORT_FIELDS, PRODUCT_LIMITS } from './products.constants'
 import { BulkOperationLimitError, EmptyIdsError } from './products.errors'
 
 export class ProductsRepository {
-  private buildFilter(filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string; station?: string }, search?: string, includeDeleted = false) {
+  private buildFilter(filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string; station?: string; is_requestable?: boolean }, search?: string, includeDeleted = false) {
     const conditions: string[] = []
     const params: (string | boolean)[] = []
     let idx = 1
@@ -17,6 +17,7 @@ export class ProductsRepository {
     if (filter?.category_id) { params.push(filter.category_id); conditions.push(`p.category_id = $${idx}`); idx++ }
     if (filter?.sub_category_id) { params.push(filter.sub_category_id); conditions.push(`p.sub_category_id = $${idx}`); idx++ }
     if (filter?.station) { params.push(filter.station); conditions.push(`p.station = $${idx}`); idx++ }
+    if (filter?.is_requestable !== undefined) { params.push(filter.is_requestable); conditions.push(`p.is_requestable = $${idx}`); idx++ }
 
     return { where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params, idx }
   }
@@ -24,7 +25,7 @@ export class ProductsRepository {
   async findAll(
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string; station?: string },
+    filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string; station?: string; is_requestable?: boolean },
     includeDeleted = false
   ): Promise<{ data: Product[]; total: number }> {
     const { where, params, idx } = this.buildFilter(filter, undefined, includeDeleted)
@@ -58,7 +59,7 @@ export class ProductsRepository {
     searchTerm: string,
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
-    filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string; station?: string },
+    filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string; station?: string; is_requestable?: boolean; is_purchasable?: boolean },
     includeDeleted = false
   ): Promise<{ data: Product[]; total: number }> {
     const { where, params, idx } = this.buildFilter(filter, searchTerm, includeDeleted)
