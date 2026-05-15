@@ -348,7 +348,7 @@ export class PurchaseInvoicesRepository {
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(
-        `SELECT ${HEADER_SELECT} ${HEADER_FROM} ${where} ORDER BY pi.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+        `SELECT ${HEADER_SELECT} ${HEADER_FROM} ${where} ORDER BY pi.created_at ASC LIMIT $${idx} OFFSET $${idx + 1}`,
         [...params, pagination.limit, pagination.offset],
       ),
       pool.query(

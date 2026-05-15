@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus } from "lucide-react";
+import { FileText, Plus, Search, CheckSquare, Square } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -12,6 +12,8 @@ import {
   usePurchaseInvoiceCounts,
   useMergePurchaseInvoices,
 } from "../api/purchaseInvoices.api";
+import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
+import { useBranches } from "@/features/branches/api/branches.api";
 import type { PurchaseInvoice } from "../api/purchaseInvoices.api";
 
 const fmtDate = (d: string) =>
@@ -67,8 +69,13 @@ export default function PurchaseInvoicesPage() {
     null,
   );
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [supplierId, setSupplierId] = useState("");
+  const [branchId, setBranchId] = useState("");
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   const { data: counts } = usePurchaseInvoiceCounts();
+  const { data: suppliersData } = useSuppliers();
+  const { data: branchesData } = useBranches({ limit: 100 });
   const mergeInvoices = useMergePurchaseInvoices();
 
   const queryParams = useMemo(() => {
@@ -81,8 +88,10 @@ export default function PurchaseInvoicesPage() {
       page,
       limit: 25,
       status,
+      supplier_id: supplierId || undefined,
+      branch_id: branchId || undefined,
     };
-  }, [page, activeTab]);
+  }, [page, activeTab, supplierId, branchId]);
 
   const { data, isLoading } = usePurchaseInvoices(queryParams);
   const deleteInvoice = useDeletePurchaseInvoice();
@@ -139,6 +148,17 @@ export default function PurchaseInvoicesPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {activeTab === "VERIFY" && (
+              <button
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  setSelectedIds([]);
+                }}
+                className={`p-2 rounded-lg transition-colors sm:hidden ${isSelectionMode ? 'bg-indigo-100 text-indigo-600' : 'text-gray-500 hover:bg-gray-100'}`}
+              >
+                <CheckSquare className="w-5 h-5" />
+              </button>
+            )}
             {activeTab === "VERIFY" && selectedIds.length >= 2 && (
               <button
                 onClick={handleMerge}
@@ -158,6 +178,47 @@ export default function PurchaseInvoicesPage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Filters Row */}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input 
+              type="text"
+              placeholder="Cari nomor invoice..."
+              className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+          </div>
+          
+          <select
+            value={supplierId}
+            onChange={e => { setSupplierId(e.target.value); setPage(1) }}
+            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-gray-700 dark:text-gray-300 min-w-[150px]"
+          >
+            <option value="">Semua Supplier</option>
+            {suppliersData?.data?.map((s: any) => (
+              <option key={s.id} value={s.id}>
+                {s.supplier_name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={branchId}
+            onChange={(e) => {
+              setBranchId(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-gray-700 dark:text-gray-300 min-w-[150px]"
+          >
+            <option value="">Semua Cabang</option>
+            {branchesData?.data?.map((b: any) => (
+              <option key={b.id} value={b.id}>
+                {b.branch_name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -363,25 +424,40 @@ export default function PurchaseInvoicesPage() {
                 {invoices.map((inv) => (
                   <div
                     key={inv.id}
-                    onClick={() =>
-                      navigate(`/inventory/purchase-invoices/${inv.id}`)
-                    }
-                    className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/50 transition-colors"
+                    onClick={() => {
+                      if (isSelectionMode) {
+                        toggleSelect(inv.id);
+                      } else {
+                        navigate(`/inventory/purchase-invoices/${inv.id}`);
+                      }
+                    }}
+                    className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/50 transition-colors relative ${selectedIds.includes(inv.id) ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}
                   >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="min-w-0">
-                        <p className="font-bold text-gray-900 dark:text-white truncate">
-                          {inv.invoice_number}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {inv.supplier_name}
-                        </p>
+                    {isSelectionMode && (
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                        {selectedIds.includes(inv.id) ? (
+                          <CheckSquare className="w-5 h-5 text-indigo-600" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-300" />
+                        )}
                       </div>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider shrink-0 ${STATUS_CONFIG[inv.status].color}`}
-                      >
-                        {STATUS_CONFIG[inv.status].label}
-                      </span>
+                    )}
+                    <div className={`flex flex-col ${isSelectionMode ? 'pl-8' : ''}`}>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-gray-900 dark:text-white truncate">
+                            {inv.invoice_number}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {inv.supplier_name}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider shrink-0 ${STATUS_CONFIG[inv.status].color}`}
+                        >
+                          {STATUS_CONFIG[inv.status].label}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
                       <div className="flex items-center gap-2">

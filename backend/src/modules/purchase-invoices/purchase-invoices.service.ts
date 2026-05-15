@@ -529,7 +529,7 @@ export class PurchaseInvoicesService {
     `, [grId]);
 
     const { rows: attachments } = await client.query(`
-      SELECT * FROM goods_receipt_attachments WHERE goods_receipt_id = $1
+      SELECT * FROM goods_receipt_attachments WHERE gr_id = $1
     `, [grId]);
 
     // 2. Prepare PI Lines
@@ -589,9 +589,9 @@ export class PurchaseInvoicesService {
     for (const att of attachments) {
       await client.query(`
         INSERT INTO purchase_invoice_attachments (
-          purchase_invoice_id, file_path, file_name, file_type, file_size, uploaded_by
-        ) VALUES ($1, $2, $3, $4, $5, $6)
-      `, [invoice.id, att.file_path, att.file_name, att.file_type, att.file_size, userId]);
+          purchase_invoice_id, file_path, file_name, file_type, uploaded_by
+        ) VALUES ($1, $2, $3, $4, $5)
+      `, [invoice.id, att.file_path, att.file_name, att.file_type, userId]);
     }
 
     return invoice;
@@ -650,7 +650,7 @@ export class PurchaseInvoicesService {
       }
 
       // 3. Create Master Invoice
-      const masterInvoiceNumber = `MERGE-${Date.now()}`
+      const masterInvoiceNumber = `[DRAFT-MERGED]`
       const master = await purchaseInvoicesRepository.create(client, companyId, {
         supplier_id: supplierId,
         branch_id: branchId,
@@ -722,7 +722,7 @@ export class PurchaseInvoicesService {
       SELECT 
         COUNT(*) FILTER (WHERE status IN ('DRAFT', 'REJECTED')) as verify_count,
         COUNT(*) FILTER (WHERE status = 'SUBMITTED') as approval_count,
-        COUNT(*) FILTER (WHERE status IN ('APPROVED', 'POSTED')) as final_count
+        COUNT(*) FILTER (WHERE status = 'APPROVED') as final_count
       FROM purchase_invoices
       WHERE company_id = $1 AND deleted_at IS NULL
     `, [companyId])

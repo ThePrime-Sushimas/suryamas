@@ -235,6 +235,10 @@ export default function PurchaseInvoiceDetailPage() {
                 </button>
                 <button
                   onClick={() => {
+                    if (!attachments || attachments.length === 0) {
+                      toast.error("Upload minimal 1 foto invoice sebelum mengajukan.");
+                      return;
+                    }
                     if (hasOverQty && !confirmOverQty) {
                       toast.error("Mohon centang konfirmasi selisih Qty (OVER) sebelum mengajukan.");
                       return;
