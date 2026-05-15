@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS purchase_invoice_attachments (
   file_type TEXT, -- INVOICE, PHOTO_BARANG, etc
   file_size INTEGER,
   uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  uploaded_by UUID REFERENCES users(id)
+  uploaded_by UUID -- Removed explicit reference to users table
 );
 
 CREATE INDEX idx_pi_attachments_invoice ON purchase_invoice_attachments(purchase_invoice_id);
