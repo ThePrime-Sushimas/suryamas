@@ -68,7 +68,7 @@ export class PurchaseInvoicesService {
       // Enrich lines with GR data
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
       const { rows: grLineDetails } = await client.query(
-        `SELECT grl.id, grl.gr_id, grl.product_id, grl.qty_received, grl.unit_price_po, pol.qty_ordered AS qty_po
+        `SELECT grl.id, grl.gr_id, grl.product_id, grl.qty_received, grl.unit_price_po, pol.qty AS qty_po
          FROM goods_receipt_lines grl
          JOIN purchase_order_lines pol ON pol.id = grl.po_line_id
          WHERE grl.id = ANY($1::uuid[])`,
@@ -165,7 +165,7 @@ export class PurchaseInvoicesService {
       // Enrich lines with GR data
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
       const { rows: grLineDetails } = await client.query(
-        `SELECT grl.id, grl.gr_id, grl.product_id, grl.qty_received, grl.unit_price_po, pol.qty_ordered AS qty_po
+        `SELECT grl.id, grl.gr_id, grl.product_id, grl.qty_received, grl.unit_price_po, pol.qty AS qty_po
          FROM goods_receipt_lines grl
          JOIN purchase_order_lines pol ON pol.id = grl.po_line_id
          WHERE grl.id = ANY($1::uuid[])`,
