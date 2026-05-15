@@ -13,18 +13,18 @@ export interface PurchaseInvoice {
   due_date: string | null
   status: PurchaseInvoiceStatus
   notes: string | null
-  rejection_reason: string | null
+  rejection_reason?: string | null
   subtotal: number
   total_tax: number
   total_amount: number
-  submitted_by: string | null
-  submitted_at: string | null
-  approved_by: string | null
-  approved_at: string | null
-  rejected_by: string | null
-  rejected_at: string | null
-  posted_by: string | null
-  posted_at: string | null
+  submitted_by?: string | null
+  submitted_at?: string | null
+  approved_by?: string | null
+  approved_at?: string | null
+  rejected_by?: string | null
+  rejected_at?: string | null
+  posted_by?: string | null
+  posted_at?: string | null
   journal_id: string | null
   is_deleted: boolean
   deleted_at: string | null

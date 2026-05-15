@@ -571,7 +571,7 @@ export default function PurchaseInvoiceDetailPage() {
             <ClipboardCheck className="w-4 h-4 text-indigo-500" /> Riwayat & Audit Dokumen
           </h3>
           
-          <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-indigo-500 before:via-gray-200 before:to-transparent dark:before:via-gray-700">
+          <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-indigo-500 before:via-gray-200 dark:before:via-gray-700 before:to-transparent">
             {/* Created */}
             <div className="relative flex items-center justify-between md:justify-start">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shadow shrink-0 md:order-1 border-4 border-white dark:border-gray-800">
