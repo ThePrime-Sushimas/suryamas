@@ -105,17 +105,15 @@ export class PurchaseInvoicesRepository {
 
         pil.subtotal AS line_subtotal
       FROM purchase_invoice_lines pil
-      JOIN goods_processing_inputs gpi
-        ON gpi.gr_line_id = pil.gr_line_id
-       AND gpi.deleted_at IS NULL
+      JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
       JOIN goods_processing_outputs gpo
         ON gpo.goods_processing_id = gpi.goods_processing_id
        AND gpo.input_id = gpi.id
        AND gpo.is_waste = FALSE
-       AND gpo.deleted_at IS NULL
       WHERE pil.purchase_invoice_id = $1
         AND pil.deleted_at IS NULL
-      ORDER BY pil.sort_order, gpo.sort_order, gpo.created_at
+        AND gpi.status = 'CONFIRMED'
+      ORDER BY pil.sort_order, gpo.sort_order, gpo.created_at, gpo.id
       `,
       [invoiceId],
     )
@@ -158,7 +156,10 @@ export class PurchaseInvoicesRepository {
     input: {
       companyId: string
       branchId: string
+      journalNumber: string
+      sequenceNumber: number
       journalDate: string
+      period: string
       currency: string
       journalType: string
       referenceType: string
@@ -175,33 +176,49 @@ export class PurchaseInvoicesRepository {
       INSERT INTO journal_headers (
         company_id,
         branch_id,
-        journal_date,
-        currency,
+        journal_number,
+        sequence_number,
         journal_type,
-        reference_type,
-        reference_id,
-        reference_number,
+        journal_date,
+        period,
         description,
         total_debit,
         total_credit,
+        currency,
+        exchange_rate,
+        status,
+        source_module,
+        reference_type,
+        reference_id,
+        reference_number,
+        is_auto,
+        posted_at,
         created_by,
-        updated_by
+        created_at,
+        updated_at
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1,
+        'POSTED', 'purchase_invoice', $12, $13, $14,
+        true, NOW(), $15, NOW(), NOW()
+      )
       RETURNING id
       `,
       [
         input.companyId,
         input.branchId,
-        input.journalDate,
-        input.currency,
+        input.journalNumber,
+        input.sequenceNumber,
         input.journalType,
-        input.referenceType,
-        input.referenceId,
-        input.referenceNumber,
+        input.journalDate,
+        input.period,
         input.description,
         input.totalDebit,
         input.totalCredit,
+        input.currency,
+        input.referenceType,
+        input.referenceId,
+        input.referenceNumber,
         input.createdBy,
       ],
     )
@@ -219,35 +236,46 @@ export class PurchaseInvoicesRepository {
       taxAmount: number
       creditAccountId: string
       creditAmount: number
-      createdBy: string
+      description: string
     },
   ): Promise<void> {
+    let lineNum = 1
+
+    if (input.debitAmount > 0) {
+      await client.query(
+        `
+        INSERT INTO journal_lines (
+          journal_header_id, line_number, account_id, description,
+          debit_amount, credit_amount, base_debit_amount, base_credit_amount
+        )
+        VALUES ($1, $2, $3, $4, $5, 0, $5, 0)
+        `,
+        [input.journalHeaderId, lineNum++, input.debitAccountId, input.description, input.debitAmount],
+      )
+    }
+
+    if (input.taxAmount > 0) {
+      await client.query(
+        `
+        INSERT INTO journal_lines (
+          journal_header_id, line_number, account_id, description,
+          debit_amount, credit_amount, base_debit_amount, base_credit_amount
+        )
+        VALUES ($1, $2, $3, $4, $5, 0, $5, 0)
+        `,
+        [input.journalHeaderId, lineNum++, input.taxAccountId, 'PPN Masukan', input.taxAmount],
+      )
+    }
+
     await client.query(
       `
       INSERT INTO journal_lines (
-        journal_header_id,
-        line_type,
-        account_id,
-        amount,
-        debit_credit,
-        created_by,
-        updated_by
+        journal_header_id, line_number, account_id, description,
+        debit_amount, credit_amount, base_debit_amount, base_credit_amount
       )
-      VALUES
-        ($1,'DEBIT',$2,$3,'DEBIT',$7,$7),
-        ($1,'DEBIT_TAX',$4,$5,'DEBIT',$7,$7),
-        ($1,'CREDIT',$6,$8,'CREDIT',$7,$7)
+      VALUES ($1, $2, $3, $4, 0, $5, 0, $5)
       `,
-      [
-        input.journalHeaderId,
-        input.debitAccountId,
-        input.debitAmount,
-        input.taxAccountId,
-        input.taxAmount,
-        input.creditAccountId,
-        input.createdBy,
-        input.creditAmount,
-      ],
+      [input.journalHeaderId, lineNum, input.creditAccountId, 'Hutang Dagang', input.creditAmount],
     )
   }
 

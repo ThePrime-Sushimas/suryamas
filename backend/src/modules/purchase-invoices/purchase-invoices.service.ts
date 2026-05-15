@@ -347,13 +347,15 @@ export class PurchaseInvoicesService {
     if (detail.status !== 'APPROVED') throw new PurchaseInvoiceInvalidStatusError(detail.status, 'APPROVED')
     if (detail.journal_id) throw new PurchaseInvoiceJournalAlreadyExistsError()
 
-    // Validate that all linked Goods Processing are CONFIRMED
+    // Validate that all GP input lines linked to this invoice are CONFIRMED (per-line, not header)
     const unconfirmedGp = await pool.query(`
       SELECT gp.processing_number
       FROM purchase_invoice_lines pil
       JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
       JOIN goods_processing gp ON gp.id = gpi.goods_processing_id
-      WHERE pil.purchase_invoice_id = $1 AND gp.status != 'CONFIRMED'
+      WHERE pil.purchase_invoice_id = $1
+        AND pil.deleted_at IS NULL
+        AND gpi.status != 'CONFIRMED'
       LIMIT 1
     `, [id])
 
@@ -473,16 +475,41 @@ export class PurchaseInvoicesService {
       const totalTax = Number(detail.total_tax ?? 0)
       const totalAmount = Number(detail.total_amount ?? 0)
 
+      const fpRes = await client.query(
+        `SELECT period FROM fiscal_periods
+         WHERE company_id = $1 AND period_start <= $2::date AND period_end >= $2::date
+         LIMIT 1`,
+        [companyId, detail.invoice_date],
+      )
+      if (!fpRes.rows[0]) {
+        throw new Error(`Fiscal period not found for invoice date ${detail.invoice_date}`)
+      }
+      const period = fpRes.rows[0].period as string
+
+      const seqRes = await client.query(
+        `SELECT get_next_journal_sequence($1, $2, 'GENERAL'::journal_type_enum) AS seq`,
+        [companyId, period],
+      )
+      const sequence = Number(seqRes.rows[0].seq)
+      const year = detail.invoice_date.substring(0, 4)
+      const month = detail.invoice_date.substring(5, 7)
+      const journalNumber = `JG/${year}${month}/${String(sequence).padStart(5, '0')}`
+
+      const journalDescription = `Faktur Pembelian ${detail.invoice_number}${detail.supplier_name ? ` - ${detail.supplier_name}` : ''}`
+
       const journalHeader = await purchaseInvoicesRepository.createJournalHeader(client, {
         companyId,
         branchId: detail.branch_id,
+        journalNumber,
+        sequenceNumber: sequence,
         journalDate: detail.invoice_date,
+        period,
         currency: 'IDR',
-        journalType: 'PURCHASE_INVOICE',
+        journalType: 'GENERAL',
         referenceType: 'purchase_invoice',
         referenceId: id,
         referenceNumber: detail.invoice_number,
-        description: `Purchase Invoice ${detail.invoice_number}`,
+        description: journalDescription,
         totalDebit: subtotal + totalTax,
         totalCredit: totalAmount,
         createdBy: userId,
@@ -496,7 +523,7 @@ export class PurchaseInvoicesService {
         taxAmount: totalTax,
         creditAccountId: coaPayable,
         creditAmount: totalAmount,
-        createdBy: userId,
+        description: journalDescription,
       })
 
       const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(detail.supplier_id, client)
