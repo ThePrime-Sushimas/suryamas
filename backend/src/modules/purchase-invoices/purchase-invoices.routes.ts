@@ -46,6 +46,11 @@ router.get(
   (req, res) => purchaseInvoicesController.availableGrs(req, res),
 );
 router.get(
+  "/counts",
+  canView("purchase_invoices"),
+  (req, res) => purchaseInvoicesController.getCounts(req, res),
+);
+router.get(
   "/:id",
   canView("purchase_invoices"),
   validateSchema(purchaseInvoiceIdParamSchema),
@@ -63,6 +68,11 @@ router.post(
   canInsert("purchase_invoices"),
   validateSchema(createPurchaseInvoiceSchema),
   (req, res) => purchaseInvoicesController.create(req, res),
+);
+router.post(
+  "/merge",
+  canInsert("purchase_invoices"),
+  (req, res) => purchaseInvoicesController.merge(req, res),
 );
 router.put(
   "/:id",

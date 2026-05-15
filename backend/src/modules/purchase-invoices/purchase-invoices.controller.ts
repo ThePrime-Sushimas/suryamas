@@ -142,6 +142,28 @@ export class PurchaseInvoicesController {
       await handleError(res, error, req, { action: 'get_purchase_invoice_attachments', id: req.params.id })
     }
   }
+
+  merge = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const { invoice_ids } = req.body
+      const result = await purchaseInvoicesService.mergeInvoices(companyId, invoice_ids, userId)
+      sendSuccess(res, result, 'Invoices merged successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'merge_purchase_invoices' })
+    }
+  }
+
+  getCounts = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const result = await purchaseInvoicesService.getCounts(companyId)
+      sendSuccess(res, result, 'Invoices counts retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_purchase_invoices_counts' })
+    }
+  }
 }
 
 export const purchaseInvoicesController = new PurchaseInvoicesController()

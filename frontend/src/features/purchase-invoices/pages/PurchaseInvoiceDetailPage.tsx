@@ -150,6 +150,7 @@ export default function PurchaseInvoiceDetailPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [confirmOverQty, setConfirmOverQty] = useState(false);
 
   if (isLoading)
     return <div className="p-8 text-center">Loading detail...</div>;
@@ -159,6 +160,8 @@ export default function PurchaseInvoiceDetailPage() {
         Invoice tidak ditemukan
       </div>
     );
+
+  const hasOverQty = inv.lines.some((l: any) => l.match_status === "OVER");
 
   const handleStatusAction = async (
     action: () => Promise<any>,
@@ -231,12 +234,16 @@ export default function PurchaseInvoiceDetailPage() {
                   <Edit className="w-4 h-4" /> Edit
                 </button>
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    if (hasOverQty && !confirmOverQty) {
+                      toast.error("Mohon centang konfirmasi selisih Qty (OVER) sebelum mengajukan.");
+                      return;
+                    }
                     handleStatusAction(
                       () => submitPI.mutateAsync(id!),
                       "Invoice diajukan",
-                    )
-                  }
+                    );
+                  }}
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium shadow-sm transition-all"
                 >
                   <Send className="w-4 h-4" /> Ajukan
@@ -333,6 +340,31 @@ export default function PurchaseInvoiceDetailPage() {
             </div>
           </div>
         </div>
+
+        {inv.status === "DRAFT" && hasOverQty && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-400 mb-1">
+                Peringatan: Selisih Qty (OVER)
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
+                Terdapat item dengan jumlah tagihan melebihi jumlah yang diterima (Qty Invoice &gt; Qty GR). Mohon pastikan hal ini sudah sesuai dengan kebijakan perusahaan.
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input 
+                  type="checkbox" 
+                  checked={confirmOverQty}
+                  onChange={e => setConfirmOverQty(e.target.checked)}
+                  className="w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500" 
+                />
+                <span className="text-sm font-medium text-amber-900 dark:text-amber-200 group-hover:text-amber-700 transition-colors">
+                  Saya mengonfirmasi selisih Qty ini benar
+                </span>
+              </label>
+            </div>
+          </div>
+        )}
 
         {inv.status === "REJECTED" && inv.rejection_reason && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl flex items-start gap-3">

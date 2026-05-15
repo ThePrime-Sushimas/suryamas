@@ -248,3 +248,32 @@ export const usePurchaseInvoiceAttachments = (id: string) =>
     },
     enabled: !!id,
   })
+
+export const usePurchaseInvoiceCounts = () =>
+  useQuery({
+    queryKey: ['purchase-invoices', 'counts'],
+    queryFn: async () => {
+      const { data } = await api.get('/purchase-invoices/counts')
+      return data.data as {
+        verify_count: number
+        approval_count: number
+        final_count: number
+      }
+    },
+    staleTime: 30_000,
+  })
+
+export const useMergePurchaseInvoices = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (invoiceIds: string[]) => {
+      const { data } = await api.post('/purchase-invoices/merge', {
+        invoice_ids: invoiceIds,
+      })
+      return data.data as PurchaseInvoice
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['purchase-invoices'] })
+    },
+  })
+}

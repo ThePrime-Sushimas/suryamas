@@ -623,6 +623,111 @@ export class PurchaseInvoicesService {
       client.release()
     }
   }
+
+  async mergeInvoices(companyId: string, invoiceIds: string[], userId: string) {
+    if (invoiceIds.length < 2) throw new Error('At least two invoices are required to merge')
+    
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // 1. Fetch all source invoices
+      const { rows: invoices } = await client.query(`
+        SELECT * FROM purchase_invoices 
+        WHERE id = ANY($1::uuid[]) AND company_id = $2 AND status = 'DRAFT' AND deleted_at IS NULL
+      `, [invoiceIds, companyId])
+
+      if (invoices.length !== invoiceIds.length) {
+        throw new Error('Some invoices were not found or are not in DRAFT status')
+      }
+
+      // 2. Validate same supplier and branch
+      const supplierId = invoices[0].supplier_id
+      const branchId = invoices[0].branch_id
+      const allSame = invoices.every(inv => inv.supplier_id === supplierId && inv.branch_id === branchId)
+      if (!allSame) {
+        throw new Error('All invoices must belong to the same supplier and branch to be merged')
+      }
+
+      // 3. Create Master Invoice
+      const masterInvoiceNumber = `MERGE-${Date.now()}`
+      const master = await purchaseInvoicesRepository.create(client, companyId, {
+        supplier_id: supplierId,
+        branch_id: branchId,
+        invoice_number: masterInvoiceNumber,
+        invoice_date: new Date().toISOString().split('T')[0],
+        notes: `Merged from ${invoices.length} drafts: ${invoices.map(i => i.invoice_number).join(', ')}`,
+        subtotal: 0,
+        total_tax: 0,
+        total_amount: 0,
+        created_by: userId
+      })
+
+      // 4. Move Lines
+      await client.query(`
+        UPDATE purchase_invoice_lines 
+        SET purchase_invoice_id = $1, updated_by = $2, updated_at = NOW()
+        WHERE purchase_invoice_id = ANY($3::uuid[]) AND deleted_at IS NULL
+      `, [master.id, userId, invoiceIds])
+
+      // 5. Move GR Links
+      await client.query(`
+        UPDATE purchase_invoice_gr_links 
+        SET purchase_invoice_id = $1
+        WHERE purchase_invoice_id = ANY($2::uuid[])
+      `, [master.id, invoiceIds])
+
+      // 6. Move Attachments
+      await client.query(`
+        UPDATE purchase_invoice_attachments 
+        SET purchase_invoice_id = $1
+        WHERE purchase_invoice_id = ANY($2::uuid[])
+      `, [master.id, invoiceIds])
+
+      // 7. Recompute Totals for Master
+      const { rows: totals } = await client.query(`
+        SELECT SUM(subtotal) as subtotal, SUM(tax_amount) as total_tax, SUM(total) as total_amount
+        FROM purchase_invoice_lines
+        WHERE purchase_invoice_id = $1 AND deleted_at IS NULL
+      `, [master.id])
+
+      await client.query(`
+        UPDATE purchase_invoices 
+        SET subtotal = $1, total_tax = $2, total_amount = $3, 
+            merged_from_invoice_ids = $4, updated_by = $5, updated_at = NOW()
+        WHERE id = $6
+      `, [totals[0].subtotal || 0, totals[0].total_tax || 0, totals[0].total_amount || 0, invoiceIds, userId, master.id])
+
+      // 8. Soft delete sources
+      await client.query(`
+        UPDATE purchase_invoices 
+        SET deleted_at = NOW(), updated_by = $1, updated_at = NOW()
+        WHERE id = ANY($2::uuid[])
+      `, [userId, invoiceIds])
+
+      await client.query('COMMIT')
+      await AuditService.log('CREATE', 'purchase_invoices', master.id, userId, { merged_from: invoiceIds })
+      
+      return master
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+  }
+
+  async getCounts(companyId: string) {
+    const { rows } = await pool.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE status IN ('DRAFT', 'REJECTED')) as verify_count,
+        COUNT(*) FILTER (WHERE status = 'SUBMITTED') as approval_count,
+        COUNT(*) FILTER (WHERE status IN ('APPROVED', 'POSTED')) as final_count
+      FROM purchase_invoices
+      WHERE company_id = $1 AND deleted_at IS NULL
+    `, [companyId])
+    return rows[0]
+  }
 }
 
 export const purchaseInvoicesService = new PurchaseInvoicesService()
