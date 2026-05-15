@@ -239,88 +239,55 @@ For each invoice line:
 
 ```typescript
 async function allocateCostOnPost(invoiceId: string, client: PoolClient) {
-  const invoice = await getInvoiceWithLines(invoiceId)
-
-  // HARD VALIDATION: semua GR harus punya GP CONFIRMED
+  // 1. Validasi GP CONFIRMED (Hard Validation)
   const { rows: unconfirmedGPs } = await client.query(`
-    SELECT gp.id, gp.processing_number, gp.status
-    FROM purchase_invoice_gr_links pigl
-    JOIN goods_processing gp ON gp.goods_receipt_id = pigl.goods_receipt_id
-    WHERE pigl.purchase_invoice_id = $1 AND gp.status != 'CONFIRMED'
+    SELECT gp.processing_number
+    FROM purchase_invoice_lines pil
+    JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
+    JOIN goods_processing gp ON gp.id = gpi.goods_processing_id
+    WHERE pil.purchase_invoice_id = $1 AND gp.status != 'CONFIRMED'
   `, [invoiceId])
+
   if (unconfirmedGPs.length > 0) {
     throw new BusinessRuleError(
-      `Tidak bisa post: ${unconfirmedGPs.length} Goods Processing belum CONFIRMED (${unconfirmedGPs.map(g => g.processing_number).join(', ')})`
+      `Tidak bisa post: Goods Processing ${unconfirmedGPs[0].processing_number} belum CONFIRMED`
     )
   }
 
-  for (const line of invoice.lines) {
-    const totalCost = line.subtotal  // harga × qty (belum termasuk PPN)
-
-    // Find GP outputs for this GR line
-    const { rows: outputs } = await client.query(`
-      SELECT gpo.*
-      FROM goods_processing_outputs gpo
-      JOIN goods_processing_inputs gpi ON gpi.id = gpo.input_id
-      WHERE gpi.gr_line_id = $1 AND gpo.is_waste = false
-      ORDER BY gpo.sort_order
-    `, [line.gr_line_id])
-
-    if (outputs.length === 0) {
-      throw new BusinessRuleError(
-        `Tidak ada output Goods Processing untuk GR line ${line.gr_line_id}. Pastikan GP sudah CONFIRMED.`
-      )
-    }
-
-    // Calculate total allocable qty
-    const totalAllocableQty = outputs.reduce((sum, o) => sum + Number(o.qty_output), 0)
-    if (totalAllocableQty === 0) continue
-
-    // Allocate proportionally — LAST ITEM ABSORBS REMAINDER (rounding rule)
+  // 2. Ambil baris posting (JOIN ke GP outputs)
+  const postingRows = await repository.findPostingRowsForInvoice(client, invoiceId)
+  
+  // 3. Alokasi proporsional per baris invoice
+  for (const line of invoiceLines) {
+    const lineOutputs = postingRows.filter(r => r.purchase_invoice_line_id === line.id)
+    const totalAllocableQty = lineOutputs.reduce((s, r) => s + Number(r.qty_output), 0)
+    
     let allocated = 0
-    for (let i = 0; i < outputs.length; i++) {
-      const output = outputs[i]
+    for (let i = 0; i < lineOutputs.length; i++) {
+      const out = lineOutputs[i]
       let allocatedCost: number
 
-      if (i === outputs.length - 1) {
-        // Last non-waste item gets remainder → ensures SUM = totalCost exactly
-        allocatedCost = totalCost - allocated
+      if (i === lineOutputs.length - 1) {
+        allocatedCost = line.subtotal - allocated
       } else {
-        const ratio = Number(output.qty_output) / totalAllocableQty
-        allocatedCost = Math.round(totalCost * ratio)
+        const ratio = Number(out.qty_output) / totalAllocableQty
+        allocatedCost = Math.round(line.subtotal * ratio)
         allocated += allocatedCost
       }
 
-      const unitCost = allocatedCost / Number(output.qty_output)
+      const unitCost = allocatedCost / Number(out.qty_output)
 
-      // Update GP output + link ke invoice line
-      await client.query(`
-        UPDATE goods_processing_outputs
-        SET unit_cost = $1, allocated_cost = $2, purchase_invoice_line_id = $3
-        WHERE id = $4
-      `, [unitCost, allocatedCost, line.id, output.id])
-
-      // Update stock movement cost
-      if (output.stock_movement_id) {
-        await client.query(`
-          UPDATE stock_movements
-          SET cost_per_unit = $1, total_cost = $2
-          WHERE id = $3
-        `, [unitCost, allocatedCost, output.stock_movement_id])
+      // Update cost di GP output & stock movement
+      await repository.updateGpOutputCostAndLinkToInvoiceLine(client, { ... })
+      if (out.stock_movement_id) {
+        await repository.updateStockMovementCost(client, { ... })
       }
-
-      // Recalculate avg_cost for this product in warehouse
-      await recalculateAvgCost(client, output.product_id, invoice.warehouse_id)
     }
-
-    // Update qty_invoiced di GR line (untuk partial invoice tracking)
-    // qty_invoiced dalam uom_received (satuan operasional, misal KG)
-    await client.query(`
-      UPDATE goods_receipt_lines
-      SET qty_invoiced = COALESCE(qty_invoiced, 0) + $1
-      WHERE id = $2
-    `, [line.qty_invoiced, line.gr_line_id])
   }
+
+  // 4. Recalculate Average Cost & Update GR qty_invoiced
+  await repository.recalculateAvgCost(...)
+  await repository.updateGoodsReceiptQtyInvoiced(client, invoiceId)
 }
 ```
 

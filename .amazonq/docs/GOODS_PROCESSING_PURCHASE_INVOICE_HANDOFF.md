@@ -8,39 +8,31 @@
 
 ## 1. Status Saat Ini
 
-### ✅ Goods Processing — Backend (DONE)
+### ✅ Purchase Invoice — Backend (DONE)
 
 | File | Status |
 |------|--------|
-| `goods-processing.types.ts` | ✅ Lengkap |
-| `goods-processing.errors.ts` | ✅ Lengkap |
-| `goods-processing.schema.ts` | ✅ Lengkap |
-| `goods-processing.repository.ts` | ✅ Lengkap |
-| `goods-processing.service.ts` | ✅ Lengkap |
-| `goods-processing.controller.ts` | ✅ Lengkap |
-| `goods-processing.routes.ts` | ✅ Lengkap |
+| `purchase-invoices.types.ts` | ✅ Lengkap |
+| `purchase-invoices.errors.ts` | ✅ Lengkap (incl. GP confirm validation) |
+| `purchase-invoices.schema.ts` | ✅ Lengkap |
+| `purchase-invoices.repository.ts` | ✅ Lengkap (incl. available-grs query) |
+| `purchase-invoices.service.ts` | ✅ Lengkap (incl. cost allocation & journals) |
+| `purchase-invoices.controller.ts` | ✅ Lengkap |
+| `purchase-invoices.routes.ts` | ✅ Lengkap |
 
-### ✅ Goods Processing — Database (DONE)
+### ✅ Goods Processing & Cost Allocation — Backend (DONE)
 
-Tables yang sudah ada:
-- `goods_processing` — header, status: DRAFT/PROCESSING/PARTIAL/QC_REVIEW/CONFIRMED/REJECTED
-- `goods_processing_inputs` — per-line status: PENDING/PROCESSING/QC_REVIEW/CONFIRMED/REJECTED
-- `goods_processing_outputs` — hasil proses, field: `unit_cost`, `allocated_cost`, `stock_movement_id`, `purchase_invoice_line_id`, `warehouse_id`
+- **Cost Allocation Logic**: Proporsional berdasarkan berat/qty (non-waste), dengan pembulatan diserap item terakhir.
+- **Stock Avg Cost**: Otomatis dihitung ulang saat invoice di-POST.
+- **Journal Generation**: Dr Persediaan, Dr PPN Masukan, Cr Hutang Dagang otomatis saat POST.
+- **Payment Due Date**: Menghitung `due_date` untuk term `from_invoice` saat POST.
 
-### ✅ Goods Processing — Frontend (DONE)
+### ❌ Yang BELUM Ada (Tugas Frontend)
 
-| File | Status |
-|------|--------|
-| `GoodsProcessingPage.tsx` | ✅ Ada (345 lines) |
-| `GoodsProcessingDetailPage.tsx` | ✅ Ada (547 lines) |
-| Route di `App.tsx` | ✅ Registered |
-
-### ❌ Yang BELUM Ada
-
-1. **Purchase Invoice module** — belum ada sama sekali (backend + frontend)
-2. **Journal di GP confirm** — saat GP confirmed, belum ada jurnal (cost masih 0, jurnal dibuat saat Purchase Invoice posted)
-3. **Cost allocation** — logic ada di design doc, belum diimplementasi
-4. **`payment_due_date` untuk `from_invoice`** — perlu dihitung saat Purchase Invoice posted
+1. **Purchase Invoice Pages** — List, Form (Create/Edit), dan Detail.
+2. **Integration with Available GRs** — Memanggil endpoint `/available-grs` untuk memilih GR.
+3. **3-Way Match UI** — Menampilkan indikator MATCH/OVER/UNDER di form/detail.
+4. **Approval & Post Actions** — Tombol Submit, Approve, Reject, dan Post Jurnal di halaman Detail.
 
 ---
 
@@ -355,19 +347,19 @@ frontend/src/features/purchase-invoices/
 
 ## 6. Urutan Build
 
-| Step | Apa | File |
-|------|-----|------|
-| 1 | DB Migration (3 tables + kolom qty_invoiced) | Run SQL di section 4.1 |
-| 2 | Types + Errors + Schema | `purchase-invoices.types.ts`, `.errors.ts`, `.schema.ts` |
-| 3 | Repository (CRUD + available-grs + cost allocation helpers) | `purchase-invoices.repository.ts` |
-| 4 | Service (create, update, submit, approve, reject, post) | `purchase-invoices.service.ts` |
-| 5 | Controller + Routes | `purchase-invoices.controller.ts`, `.routes.ts` |
-| 6 | Register di `app.ts` | `app.use('/api/v1/purchase-invoices', ...)` |
-| 7 | Frontend: List page | `PurchaseInvoicesPage.tsx` |
-| 8 | Frontend: Form page (create/edit) | `PurchaseInvoiceFormPage.tsx` |
-| 9 | Frontend: Detail page (approval + post) | `PurchaseInvoiceDetailPage.tsx` |
-| 10 | Register routes di `App.tsx` | lazy import + route |
-| 11 | Tambah menu di `menu.config.tsx` | "Verifikasi Invoice" |
+| Step | Apa | File | Status |
+|------|-----|------|--------|
+| 1 | DB Migration (3 tables + kolom qty_invoiced) | Run SQL di section 4.1 | ✅ DONE |
+| 2 | Types + Errors + Schema | `purchase-invoices.types.ts`, ... | ✅ DONE |
+| 3 | Repository (CRUD + available-grs + cost allocation helpers) | `purchase-invoices.repository.ts` | ✅ DONE |
+| 4 | Service (create, update, submit, approve, reject, post) | `purchase-invoices.service.ts` | ✅ DONE |
+| 5 | Controller + Routes | `purchase-invoices.controller.ts`, ... | ✅ DONE |
+| 6 | Register di `app.ts` | `app.use('/api/v1/purchase-invoices', ...)` | ✅ DONE |
+| 7 | Frontend: List page | `PurchaseInvoicesPage.tsx` | 🏗️ TODO |
+| 8 | Frontend: Form page (create/edit) | `PurchaseInvoiceFormPage.tsx` | 🏗️ TODO |
+| 9 | Frontend: Detail page (approval + post) | `PurchaseInvoiceDetailPage.tsx` | 🏗️ TODO |
+| 10 | Register routes di `App.tsx` | lazy import + route | 🏗️ TODO |
+| 11 | Tambah menu di `menu.config.tsx` | "Verifikasi Invoice" | 🏗️ TODO |
 
 ---
 

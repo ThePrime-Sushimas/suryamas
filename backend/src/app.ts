@@ -179,6 +179,9 @@ app.use("/api/v1/purchase-requests", purchaseRequestsRoutes);
 app.use("/api/v1/purchase-orders", purchaseOrdersRoutes);
 app.use("/api/v1/goods-receipts", goodsReceiptsRoutes);
 app.use("/api/v1/goods-processing", goodsProcessingRoutes);
+import purchaseInvoicesRoutes from "./modules/purchase-invoices/purchase-invoices.routes";
+app.use("/api/v1/purchase-invoices", purchaseInvoicesRoutes);
+
 app.use("/api/v1/printers", printersRoutes);
 app.use("/api/v1/storage", storageRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
