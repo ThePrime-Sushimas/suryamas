@@ -36,6 +36,11 @@ export interface PurchaseInvoice {
   branch_name: string
   branch_code: string
   goods_receipt_count: number
+  creator_name?: string
+  submitter_name?: string
+  approver_name?: string
+  rejector_name?: string
+  poster_name?: string
 }
 
 export interface PurchaseInvoiceGrLink {
@@ -46,6 +51,7 @@ export interface PurchaseInvoiceGrLink {
   received_date: string
   supplier_id: string
   supplier_name: string
+  branch_name: string
 }
 
 export interface PurchaseInvoiceLine {
@@ -202,7 +208,7 @@ export const useRejectPurchaseInvoice = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { data } = await api.post(`/purchase-invoices/${id}/reject`, { reason })
+      const { data } = await api.post(`/purchase-invoices/${id}/reject`, { rejection_reason: reason })
       return data.data as PurchaseInvoice
     },
     onSuccess: (_data, vars) => {

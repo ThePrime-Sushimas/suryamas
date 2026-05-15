@@ -40,13 +40,23 @@ const HEADER_SELECT = `
   s.supplier_name,
   b.branch_name,
   b.branch_code,
-  COALESCE(gr_agg.goods_receipt_count, 0)::int AS goods_receipt_count
+  COALESCE(gr_agg.goods_receipt_count, 0)::int AS goods_receipt_count,
+  u_created.full_name AS creator_name,
+  u_submitted.full_name AS submitter_name,
+  u_approved.full_name AS approver_name,
+  u_rejected.full_name AS rejector_name,
+  u_posted.full_name AS poster_name
 `
 
 const HEADER_FROM = `
   FROM purchase_invoices pi
   JOIN suppliers s ON s.id = pi.supplier_id
   JOIN branches b ON b.id = pi.branch_id
+  LEFT JOIN employees u_created ON u_created.user_id = pi.created_by
+  LEFT JOIN employees u_submitted ON u_submitted.user_id = pi.submitted_by
+  LEFT JOIN employees u_approved ON u_approved.user_id = pi.approved_by
+  LEFT JOIN employees u_rejected ON u_rejected.user_id = pi.rejected_by
+  LEFT JOIN employees u_posted ON u_posted.user_id = pi.posted_by
   LEFT JOIN LATERAL (
     SELECT COUNT(DISTINCT pilg.goods_receipt_id)::int AS goods_receipt_count
     FROM purchase_invoice_gr_links pilg
