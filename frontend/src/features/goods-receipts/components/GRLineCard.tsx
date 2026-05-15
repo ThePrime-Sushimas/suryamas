@@ -65,7 +65,6 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
       if (poUomData && recUomData && recUomData.conversion_factor > 0) {
         const estCF = poUomData.conversion_factor / recUomData.conversion_factor
         const suggestedReceived = line.qty_po_uom * estCF
-        // Price stays in uom_po — no conversion needed
         onChange(line.key, {
           uom_received: autoDetectedUom,
           qty_received: suggestedReceived,
@@ -101,9 +100,26 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     return Math.abs(line.conversion_factor - estimatedCF) / estimatedCF * 100
   }, [estimatedCF, line.conversion_factor])
 
+  // Estimasi berat ke base unit
+  const estimasiBerat = useMemo(() => {
+    if (!productUoms || productUoms.length === 0) return null
+    const baseUom = productUoms.find(u => u.is_base_unit) ?? productUoms.find(u => u.is_default_stock_unit)
+    if (!baseUom?.metric_units?.unit_name) return null
+
+    const receivedUomEntry = productUoms.find(u => u.metric_units?.unit_name === line.uom_received)
+    const baseUomEntry = baseUom
+
+    // conversion_factor di tabel = berapa base unit per 1 unit ini
+    // Contoh: 1 ekor = 2000 gram → cf ekor = 2000, cf gram = 1
+    // qty_base = qty_received * (cf_received / cf_base)
+    if (!receivedUomEntry || !baseUomEntry || baseUomEntry.conversion_factor === 0) return null
+
+    const qtyBase = (line.qty_received || 0) * (receivedUomEntry.conversion_factor / baseUomEntry.conversion_factor)
+    return { qty: Math.round(qtyBase), uom: baseUom.metric_units.unit_name }
+  }, [productUoms, line.qty_received, line.uom_received])
+
   const handleQtyPoUomChange = (val: number) => {
     const updates: Partial<GRLineData> = { qty_po_uom: val }
-    // Only auto-suggest qty_received if it hasn't been manually set (still at default)
     const isDefaultReceived = line.conversion_factor === 1 && line.qty_received === line.qty_po_uom
     if (isDefaultReceived && estimatedCF) {
       const suggested = val * estimatedCF
@@ -121,7 +137,6 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
   }
 
   const handleUomReceivedChange = (uom: string) => {
-    // Recalculate estimated CF for new UOM
     if (!productUoms) { onChange(line.key, { uom_received: uom }); return }
     const poUomData = productUoms.find(u => u.metric_units?.unit_name === line.uom_po)
     const recUomData = productUoms.find(u => u.metric_units?.unit_name === uom)
@@ -175,7 +190,8 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         {/* Hasil timbang (satuan operasional) — only if dual UOM */}
         {needsConversion && (
           <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-1">
+            {/* FIX: restored flex class on label so Scale icon renders inline */}
+            <label className="flex text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 items-center gap-1">
               <Scale className="w-3 h-3" /> Hasil Timbang
             </label>
             <div className="flex gap-1">
@@ -238,23 +254,20 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         </select>
       )}
 
-      {/* Harga invoice — selalu dalam satuan beli (uom_po) */}
-      <div className="flex items-center gap-3 pt-1 border-t border-gray-50 dark:border-gray-700/50">
+      {/* Estimasi berat — read-only, dihitung dari qty_received × conversion_factor ke base unit */}
+      <div className="pt-1 border-t border-gray-50 dark:border-gray-700/50">
         <div className="flex-1 sm:max-w-xs">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            Harga Invoice (/{line.uom_po})
+            Estimasi berat (base unit)
           </label>
-          <input
-            type="number" min="0" step="any"
-            value={line.unit_price_invoice || ''}
-            onChange={e => onChange(line.key, { unit_price_invoice: parseFloat(e.target.value) || 0 })}
-            className="w-full px-2.5 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-right font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          />
-        </div>
-        <div className="text-right pt-4">
-          <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
-          <p className="text-sm font-semibold text-gray-900 dark:text-white font-mono">
-            Rp {fmt(Math.round((line.qty_po_uom - line.qty_rejected) * line.unit_price_invoice))}
+          <div className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-right font-mono bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white select-none">
+            {estimasiBerat
+              ? `${fmt(estimasiBerat.qty)} ${estimasiBerat.uom}`
+              : <span className="text-gray-400 dark:text-gray-500">—</span>
+            }
+          </div>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            Qty diterima dikonversi otomatis ke base unit
           </p>
         </div>
       </div>

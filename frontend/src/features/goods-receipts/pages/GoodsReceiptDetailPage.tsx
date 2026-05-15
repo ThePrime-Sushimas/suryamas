@@ -26,6 +26,7 @@ import {
   useDeleteGRAttachment,
 } from "../api/goodsReceipts.api";
 import api from "@/lib/axios";
+import { useProductUoms } from '@/features/product-uoms/api/productUoms.api'
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 const fmtDate = (d: string) =>
@@ -103,7 +104,30 @@ function AttachmentThumbnail({
     </div>
   );
 }
-
+// ADD before: export default function GoodsReceiptDetailPage() {
+  function EstimasiBeratCell({ productId, qtyReceived, uomReceived }: {
+    productId: string
+    qtyReceived: number
+    uomReceived: string
+  }) {
+    const { data: productUoms } = useProductUoms(productId)
+    if (!productUoms || productUoms.length === 0) return <span className="text-gray-400">—</span>
+  
+    const baseUom = productUoms.find(u => u.is_base_unit) ?? productUoms.find(u => u.is_default_stock_unit)
+    if (!baseUom?.metric_units?.unit_name) return <span className="text-gray-400">—</span>
+  
+    const receivedUomEntry = productUoms.find(u => u.metric_units?.unit_name === uomReceived)
+    if (!receivedUomEntry || baseUom.conversion_factor === 0) return <span className="text-gray-400">—</span>
+  
+    const qtyBase = qtyReceived * (receivedUomEntry.conversion_factor / baseUom.conversion_factor)
+    const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
+  
+    return (
+      <span className="font-mono text-gray-700 dark:text-gray-300">
+        {fmt(Math.round(qtyBase))} {baseUom.metric_units.unit_name}
+      </span>
+    )
+  }
 export default function GoodsReceiptDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -357,35 +381,17 @@ export default function GoodsReceiptDetailPage() {
       <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  #
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Produk
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Diterima
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Ditolak
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Harga Invoice
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Harga PO
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Selisih
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Subtotal
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">#</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Diterima</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ditolak</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Est. Berat</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Harga PO</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Selisih</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -450,14 +456,6 @@ export default function GoodsReceiptDetailPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className="font-mono text-gray-900 dark:text-gray-200">
-                        Rp {fmt(line.unit_price_invoice)}
-                      </span>
-                      <div className="text-xs text-gray-500">
-                        /{line.uom_po ?? line.uom}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">
                       <span className="font-mono text-gray-500">
                         Rp {fmt(line.unit_price_po ?? 0)}
                       </span>
@@ -466,6 +464,7 @@ export default function GoodsReceiptDetailPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
+
                       <span
                         className={
                           VARIANCE_COLORS[line.variance_status ?? "OK"]
@@ -498,6 +497,13 @@ export default function GoodsReceiptDetailPage() {
                           line.qty_received * line.unit_price_invoice,
                       )}
                     </td>
+                    <td className="px-4 py-3 text-right">
+  <EstimasiBeratCell
+    productId={line.product_id}
+    qtyReceived={line.qty_received}
+    uomReceived={line.uom_received ?? line.uom ?? ''}
+  />
+</td>
                   </tr>
                 );
               })}
@@ -506,6 +512,7 @@ export default function GoodsReceiptDetailPage() {
               <tr>
                 <td
                   colSpan={8}
+
                   className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white"
                 >
                   Total:
