@@ -77,12 +77,22 @@ export class PurchaseOrdersRepository {
     payment_term_id?: number | null; payment_terms_days?: number | null;
     payment_due_date?: string | null; notes?: string | null; total_amount: number; created_by?: string
   }): Promise<PurchaseOrder> {
+    let safePaymentTermId: number | null = data.payment_term_id ?? null
+    if (safePaymentTermId != null) {
+      const { rows: termRows } = await client.query(
+        'SELECT id_payment_term FROM payment_terms WHERE id_payment_term = $1 AND deleted_at IS NULL LIMIT 1',
+        [safePaymentTermId]
+      )
+      if (termRows.length === 0) safePaymentTermId = null
+    }
+
+
     const { rows } = await client.query(
       `INSERT INTO purchase_orders (company_id, branch_id, supplier_id, purchase_request_id, po_number, order_date, expected_delivery_date, payment_type, payment_term_id, payment_terms_days, payment_due_date, notes, total_amount, created_by, updated_by)
        VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8, $9, $10, $11, $12, $13, $14, $14) RETURNING *`,
       [companyId, data.branch_id, data.supplier_id, data.purchase_request_id, data.po_number,
        data.order_date ?? null, data.expected_delivery_date ?? null, data.payment_type,
-       data.payment_term_id ?? null, data.payment_terms_days ?? null, data.payment_due_date ?? null,
+       safePaymentTermId, data.payment_terms_days ?? null, data.payment_due_date ?? null,
        data.notes ?? null, data.total_amount, data.created_by ?? null]
     )
     return rows[0]
