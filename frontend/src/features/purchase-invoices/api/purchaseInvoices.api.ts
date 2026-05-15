@@ -238,3 +238,13 @@ export const useDeletePurchaseInvoice = () => {
     },
   })
 }
+
+export const usePurchaseInvoiceAttachments = (id: string) =>
+  useQuery({
+    queryKey: ['purchase-invoices', id, 'attachments'],
+    queryFn: async () => {
+      const { data } = await api.get(`/purchase-invoices/${id}/attachments`)
+      return data.data as any[]
+    },
+    enabled: !!id,
+  })

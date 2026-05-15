@@ -132,6 +132,16 @@ export class PurchaseInvoicesController {
       await handleError(res, error, req, { action: 'delete_purchase_invoice', id: req.params.id })
     }
   }
+
+  getAttachments = async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string
+      const result = await purchaseInvoicesService.getAttachments(id)
+      sendSuccess(res, result, 'Purchase invoice attachments retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_purchase_invoice_attachments', id: req.params.id })
+    }
+  }
 }
 
 export const purchaseInvoicesController = new PurchaseInvoicesController()

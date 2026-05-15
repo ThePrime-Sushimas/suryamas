@@ -11,6 +11,7 @@ import { InvalidReferenceError } from '../stock/stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { calculateDueDate } from '../../utils/due-date.util'
+import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service'
 import type { CreateGoodsReceiptDto, UpdateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
 
 export class GoodsReceiptsService {
@@ -236,6 +237,9 @@ export class GoodsReceiptsService {
           [gpId, inputId, line.product_id, line.qty_received, line.uom_received ?? line.uom ?? 'kg']
         )
       }
+
+      // 6b. Auto-create Purchase Invoice Draft
+      await purchaseInvoicesService.createDraftFromGr(client, companyId, id, userId)
 
       await client.query('COMMIT')
 

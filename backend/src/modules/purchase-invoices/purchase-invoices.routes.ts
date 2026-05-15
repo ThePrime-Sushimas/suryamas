@@ -51,6 +51,12 @@ router.get(
   validateSchema(purchaseInvoiceIdParamSchema),
   (req, res) => purchaseInvoicesController.getById(req, res),
 );
+router.get(
+  "/:id/attachments",
+  canView("purchase_invoices"),
+  validateSchema(purchaseInvoiceIdParamSchema),
+  (req, res) => purchaseInvoicesController.getAttachments(req, res),
+);
 
 router.post(
   "/",

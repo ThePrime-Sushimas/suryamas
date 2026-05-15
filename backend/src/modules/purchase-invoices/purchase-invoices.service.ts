@@ -509,9 +509,105 @@ export class PurchaseInvoicesService {
     }
   }
 
+  async createDraftFromGr(client: any, companyId: string, grId: string, userId: string) {
+    // 1. Fetch GR + PO info + Lines + Attachments
+    const { rows: grRows } = await client.query(`
+      SELECT gr.*, po.supplier_id, po.branch_id
+      FROM goods_receipts gr
+      JOIN purchase_orders po ON po.id = gr.po_id
+      WHERE gr.id = $1 AND gr.company_id = $2
+    `, [grId, companyId]);
+    
+    const gr = grRows[0];
+    if (!gr) return;
+
+    const { rows: lines } = await client.query(`
+      SELECT grl.*, pol.unit_price AS unit_price_po, pol.qty AS qty_po
+      FROM goods_receipt_lines grl
+      JOIN purchase_order_lines pol ON pol.id = grl.po_line_id
+      WHERE grl.gr_id = $1
+    `, [grId]);
+
+    const { rows: attachments } = await client.query(`
+      SELECT * FROM goods_receipt_attachments WHERE goods_receipt_id = $1
+    `, [grId]);
+
+    // 2. Prepare PI Lines
+    let subtotal = 0;
+    let totalTax = 0;
+    let totalAmount = 0;
+    
+    const piLines = lines.map((l: any, i: number) => {
+      const qtyInvoiced = Number(l.qty_received);
+      const unitPrice = Number(l.unit_price_invoice ?? l.unit_price_po);
+      const taxRate = 11; // Default tax 11%
+      const totals = computeLineTotals(qtyInvoiced, unitPrice, taxRate);
+      
+      subtotal += totals.subtotal;
+      totalTax += totals.taxAmount;
+      totalAmount += totals.total;
+
+      return {
+        gr_line_id: l.id,
+        product_id: l.product_id,
+        qty_received: Number(l.qty_received),
+        qty_invoiced: qtyInvoiced,
+        unit_price: unitPrice,
+        tax_rate: taxRate,
+        subtotal: totals.subtotal,
+        tax_amount: totals.taxAmount,
+        total: totals.total,
+        qty_po: Number(l.qty_po),
+        unit_price_po: Number(l.unit_price_po),
+        variance_qty: 0,
+        variance_price: unitPrice - Number(l.unit_price_po),
+        match_status: 'MATCH',
+        sort_order: i,
+        created_by: userId,
+        updated_by: userId
+      };
+    });
+
+    // 3. Create PI Header
+    const invoice = await purchaseInvoicesRepository.create(client, companyId, {
+      supplier_id: gr.supplier_id,
+      branch_id: gr.branch_id,
+      invoice_number: `AUTO-${gr.gr_number}`,
+      invoice_date: new Date().toISOString().split('T')[0],
+      notes: `Auto-generated from GR ${gr.gr_number}`,
+      subtotal,
+      total_tax: totalTax,
+      total_amount: totalAmount,
+      created_by: userId
+    });
+
+    // 4. Insert Lines & GR Links
+    await purchaseInvoicesRepository.replaceLines(client, invoice.id, piLines);
+    await purchaseInvoicesRepository.insertGrLinks(client, invoice.id, [grId]);
+
+    // 5. Copy Attachments to PI
+    for (const att of attachments) {
+      await client.query(`
+        INSERT INTO purchase_invoice_attachments (
+          purchase_invoice_id, file_path, file_name, file_type, file_size, uploaded_by
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+      `, [invoice.id, att.file_path, att.file_name, att.file_type, att.file_size, userId]);
+    }
+
+    return invoice;
+  }
+
+  async getAttachments(invoiceId: string) {
+    const { rows } = await pool.query(
+      `SELECT * FROM purchase_invoice_attachments WHERE purchase_invoice_id = $1 ORDER BY uploaded_at DESC`,
+      [invoiceId],
+    )
+    return rows
+  }
+
   async delete(companyId: string, id: string, userId: string) {
     const existing = await purchaseInvoicesRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseInvoiceNotFoundError(id)
+    if (!existing) throw new Error('Purchase invoice not found')
 
     const client = await pool.connect()
     try {

@@ -28,13 +28,21 @@ export default function PurchaseInvoicesPage() {
   const canDelete = hasPermission('purchase_invoices', 'delete')
 
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState('')
+  const [activeTab, setActiveTab] = useState<'VERIFY' | 'APPROVAL' | 'FINAL'>('VERIFY')
   const [deleteTarget, setDeleteTarget] = useState<PurchaseInvoice | null>(null)
 
-  const queryParams = useMemo(() => ({
-    page, limit: 25,
-    status: statusFilter || undefined,
-  }), [page, statusFilter])
+  const queryParams = useMemo(() => {
+    let status = undefined
+    if (activeTab === 'VERIFY') status = 'DRAFT,REJECTED'
+    if (activeTab === 'APPROVAL') status = 'SUBMITTED'
+    if (activeTab === 'FINAL') status = 'APPROVED,POSTED'
+    
+    return {
+      page, 
+      limit: 25,
+      status,
+    }
+  }, [page, activeTab])
 
   const { data, isLoading } = usePurchaseInvoices(queryParams)
   const deleteInvoice = useDeletePurchaseInvoice()
@@ -77,21 +85,27 @@ export default function PurchaseInvoicesPage() {
         </div>
       </div>
 
-      {/* Filter */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-3 flex items-center gap-4 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">
-          <Filter className="w-4 h-4" />
-          <span>Status:</span>
+      {/* Tabs */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6">
+        <div className="flex items-center gap-6 lg:gap-8 overflow-x-auto no-scrollbar">
+          {[
+            { id: 'VERIFY', label: 'Antrean Verifikasi', color: 'indigo' },
+            { id: 'APPROVAL', label: 'Menunggu Persetujuan', color: 'amber' },
+            { id: 'FINAL', label: 'Selesai & Posting', color: 'green' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id as any); setPage(1) }}
+              className={`py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? `border-${tab.color}-600 text-${tab.color}-600 dark:border-${tab.color}-400 dark:text-${tab.color}-400`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
-          className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-          <option value="">Semua Status</option>
-          <option value="DRAFT">Draft</option>
-          <option value="SUBMITTED">Submitted</option>
-          <option value="APPROVED">Approved</option>
-          <option value="REJECTED">Rejected</option>
-          <option value="POSTED">Posted</option>
-        </select>
       </div>
 
       {/* Content */}

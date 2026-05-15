@@ -10,7 +10,11 @@ import {
   Edit,
   AlertCircle,
   ClipboardCheck,
+  Paperclip,
+  ExternalLink,
+  Image,
 } from "lucide-react";
+import api from "@/lib/axios";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -22,7 +26,9 @@ import {
   useRejectPurchaseInvoice,
   usePostPurchaseInvoice,
   useDeletePurchaseInvoice,
+  usePurchaseInvoiceAttachments,
 } from "../api/purchaseInvoices.api";
+import { useEffect } from "react";
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString("id-ID", {
@@ -57,12 +63,71 @@ const STATUS_CONFIG: Record<
     color: "bg-red-100 text-red-700",
     icon: XCircle,
   },
-  POSTED: {
-    label: "Posted",
-    color: "bg-green-100 text-green-700",
-    icon: ClipboardCheck,
-  },
+  POSTED: { label: "Posted", color: "bg-green-100 text-green-700", icon: ClipboardCheck },
 };
+
+const FILE_TYPE_LABELS: Record<string, string> = {
+  INVOICE: "Invoice",
+  DELIVERY_NOTE: "Delivery Note",
+  SURAT_JALAN: "Surat Jalan",
+  PHOTO_BARANG: "Foto Barang",
+  OTHER: "Lainnya",
+};
+
+function AttachmentThumbnail({
+  filePath,
+  isImage,
+  onClick,
+}: {
+  filePath: string;
+  isImage: boolean;
+  onClick?: (url: string) => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isImage) {
+      api
+        .get("/storage/signed-url", {
+          params: { path: filePath, bucket: "invoices" },
+        })
+        .then((res) => setUrl(res.data.data.url))
+        .catch(() => {});
+    }
+  }, [filePath, isImage]);
+
+  if (!isImage) {
+    return (
+      <div className="w-12 h-12 flex items-center justify-center bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30">
+        <FileText className="w-6 h-6 text-red-500" />
+      </div>
+    );
+  }
+
+  if (!url) {
+    return (
+      <div className="w-12 h-12 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse">
+        <Image className="w-5 h-5 text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="group relative cursor-zoom-in"
+      onClick={() => url && onClick?.(url)}
+    >
+      <img
+        src={url}
+        alt="thumbnail"
+        className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-transform group-hover:scale-105"
+      />
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+        <ExternalLink className="w-3 h-3 text-white" />
+      </div>
+    </div>
+  );
+}
 
 export default function PurchaseInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -74,6 +139,7 @@ export default function PurchaseInvoiceDetailPage() {
   const canDelete = hasPermission("purchase_invoices", "delete");
 
   const { data: inv, isLoading } = usePurchaseInvoice(id ?? "");
+  const { data: attachments } = usePurchaseInvoiceAttachments(id ?? "");
   const submitPI = useSubmitPurchaseInvoice();
   const approvePI = useApprovePurchaseInvoice();
   const rejectPI = useRejectPurchaseInvoice();
@@ -83,6 +149,7 @@ export default function PurchaseInvoiceDetailPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   if (isLoading)
     return <div className="p-8 text-center">Loading detail...</div>;
@@ -389,6 +456,69 @@ export default function PurchaseInvoiceDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Attachments Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-700/30 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Paperclip className="w-4 h-4 text-gray-500" />
+              <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+                Lampiran ({attachments?.length ?? 0})
+              </h2>
+            </div>
+            <p className="text-[10px] text-gray-400 font-medium">Disalin otomatis dari GR</p>
+          </div>
+          {!attachments || attachments.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-gray-400">
+              Tidak ada lampiran
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+              {attachments.map((att) => {
+                const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(
+                  att.file_path,
+                );
+                return (
+                  <div
+                    key={att.id}
+                    className="px-5 py-3 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <AttachmentThumbnail
+                        filePath={att.file_path}
+                        isImage={isImage}
+                        onClick={(url) => setPreviewUrl(url)}
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white leading-none mb-1">
+                          {att.file_name ?? att.file_path.split("/").pop()}
+                        </p>
+                        <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">
+                          {FILE_TYPE_LABELS[att.file_type] ?? att.file_type}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const { data } = await api.get("/storage/signed-url", {
+                            params: { path: att.file_path, bucket: "invoices" },
+                          });
+                          window.open(data.data.url, "_blank");
+                        } catch (err: unknown) {
+                          toast.error(parseApiError(err, "Gagal membuka file"));
+                        }
+                      }}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modals */}
@@ -432,6 +562,27 @@ export default function PurchaseInvoiceDetailPage() {
         variant="danger"
         isLoading={rejectPI.isPending}
       />
+
+      {/* Image Preview Modal */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <button
+            className="absolute top-6 right-6 text-white/70 hover:text-white p-2 transition-colors"
+            onClick={() => setPreviewUrl(null)}
+          >
+            <XCircle className="w-8 h-8" />
+          </button>
+          <img
+            src={previewUrl}
+            alt="Full Preview"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
