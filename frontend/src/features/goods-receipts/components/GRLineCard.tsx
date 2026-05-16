@@ -42,18 +42,18 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
 
   // qty_not_delivered = local state, tidak disimpan ke DB
   const [qtyNotDelivered, setQtyNotDelivered] = useState<number>(
-    () => Math.max(0, line.qty_ordered - line.qty_po_uom)
+    () => Math.max(0, line.qty_remaining - line.qty_po_uom)
   )
 
-  const prevOrderedRef = useRef(line.qty_ordered)
+  const prevRemainingRef = useRef(line.qty_remaining)
   useEffect(() => {
-    if (prevOrderedRef.current !== line.qty_ordered) {
-      prevOrderedRef.current = line.qty_ordered
-      setQtyNotDelivered(Math.max(0, line.qty_ordered - line.qty_po_uom))
+    if (prevRemainingRef.current !== line.qty_remaining) {
+      prevRemainingRef.current = line.qty_remaining
+      setQtyNotDelivered(Math.max(0, line.qty_remaining - line.qty_po_uom))
     }
-  }, [line.qty_ordered, line.qty_po_uom])
+  }, [line.qty_remaining, line.qty_po_uom])
 
-  const qtyDatang    = Math.max(0, line.qty_ordered - qtyNotDelivered)
+  const qtyDatang    = Math.max(0, line.qty_remaining - qtyNotDelivered)
   const qtyDiterima  = Math.max(0, qtyDatang - line.qty_rejected)
   const sisaSetelahGR = Math.max(0, line.qty_remaining - qtyDiterima)
   const isPOLunas    = sisaSetelahGR === 0 && line.qty_remaining > 0
@@ -115,9 +115,9 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
 
   // ── Handlers ──
   const handleNotDeliveredChange = (val: number) => {
-    const notDel = Math.min(Math.max(0, val), line.qty_ordered)
+    const notDel = Math.min(Math.max(0, val), line.qty_remaining)
     setQtyNotDelivered(notDel)
-    const newQtyDatang = Math.max(0, line.qty_ordered - notDel)
+    const newQtyDatang = Math.max(0, line.qty_remaining - notDel)
     const newDiterima = Math.max(0, newQtyDatang - line.qty_rejected)
 
     if (needsConversion) {
@@ -170,7 +170,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     }
   }
 
-  const isOverQty            = qtyNotDelivered > line.qty_ordered
+  const isOverQty            = qtyNotDelivered > line.qty_remaining
   const isRejectedOverDatang = line.qty_rejected > qtyDatang
 
   return (
@@ -187,8 +187,12 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
               {line.product_name}
             </p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-              <span className="text-l text-gray-500 dark:text-gray-400">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                 Total PO: <span className="font-bold text-gray-800 dark:text-gray-200">{fmt(line.qty_ordered)} {line.uom_po}</span>
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">•</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Sisa PO: <span className="font-bold text-amber-600 dark:text-amber-500">{fmt(line.qty_remaining)} {line.uom_po}</span>
               </span>
             </div>
           </div>
@@ -227,7 +231,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
           />
           {isOverQty && (
             <p className="flex items-center gap-1.5 text-sm text-red-500 font-medium">
-              <AlertTriangle className="w-4 h-4" /> Melebihi total PO
+              <AlertTriangle className="w-4 h-4" /> Melebihi sisa PO ({fmt(line.qty_remaining)} {line.uom_po})
             </p>
           )}
         </div>
@@ -278,7 +282,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
             <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0" />
             <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">Jumlah Barang Datang</span>
             <span className="text-xs text-gray-400 hidden sm:inline">
-              ({fmt(line.qty_ordered)} − {fmt(qtyNotDelivered)})
+              ({fmt(line.qty_remaining)} − {fmt(qtyNotDelivered)})
             </span>
           </div>
           <span className="text-lg font-mono font-bold text-gray-800 dark:text-gray-200">
