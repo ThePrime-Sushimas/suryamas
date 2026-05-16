@@ -145,7 +145,8 @@ export class MarketplacePoController {
       const body = (req as OrderSessionReq).validated.body ?? {}
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.orderSession(companyId, userId, id, body)
+      const employeeId = req.context?.employee_id ?? ''
+      const detail = await marketplacePoService.orderSession(companyId, userId, employeeId, id, body)
       sendSuccess(res, detail, 'Marketplace session ordered')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'order_marketplace_session', id: req.params.id })
@@ -171,7 +172,8 @@ export class MarketplacePoController {
       const body = (req as ReceiveSessionReq).validated.body ?? {}
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.receiveSession(companyId, userId, id, body)
+      const employeeId = req.context?.employee_id ?? ''
+      const detail = await marketplacePoService.receiveSession(companyId, userId, employeeId, id, body)
       sendSuccess(res, detail, 'Marketplace session received')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'receive_marketplace_session', id: req.params.id })
@@ -184,7 +186,8 @@ export class MarketplacePoController {
       const body = (req as SettleSessionReq).validated.body
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.settleSession(companyId, userId, id, body)
+      const employeeId = req.context?.employee_id ?? ''
+      const detail = await marketplacePoService.settleSession(companyId, userId, employeeId, id, body)
       sendSuccess(res, detail, 'Marketplace session settled')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'settle_marketplace_session', id: req.params.id })
@@ -277,4 +280,3 @@ export class MarketplacePoController {
 }
 
 export const marketplacePoController = new MarketplacePoController()
-

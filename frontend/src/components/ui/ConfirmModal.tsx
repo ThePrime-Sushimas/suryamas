@@ -49,9 +49,11 @@ export const ConfirmModal = ({
   if (!isOpen) return null
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70"
-      onClick={!isLoading ? onClose : undefined}
+      onMouseDown={(e) => {
+        if (!isLoading && e.target === e.currentTarget) onClose()
+      }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
@@ -77,7 +79,7 @@ export const ConfirmModal = ({
           </button>
         </div>
 
-        <p className="text-gray-600 dark:text-gray-300 mb-6">{message}</p>
+        <div className="text-gray-600 dark:text-gray-300 mb-6">{message}</div>
 
         <div className="flex gap-3 justify-end">
           <button

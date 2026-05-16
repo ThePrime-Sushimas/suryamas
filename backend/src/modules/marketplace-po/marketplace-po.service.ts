@@ -185,10 +185,11 @@ export class MarketplacePoService {
     }
   }
 
-  async orderSession(companyId: string, userId: string, id: string, dto: any) {
+  async orderSession(companyId: string, userId: string, employeeId: string, id: string, dto: any) {
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+      if (!employeeId) throw new BusinessRuleError('Employee context not found')
 
       const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
       if (!session) throw new BusinessRuleError('Marketplace session not found')
@@ -244,10 +245,10 @@ export class MarketplacePoService {
         ],
       }
 
-      const journalHeader = await (journalHeadersService as any).create(journalCreateDto, userId)
-      await (journalHeadersService as any).submit(journalHeader.id, userId, companyId)
-      await (journalHeadersService as any).approve(journalHeader.id, userId, companyId)
-      await (journalHeadersService as any).post(journalHeader.id, userId, companyId)
+      const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
+      await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
+      await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
+      await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
 
       await marketplacePoRepository.updateOrderData(client, id, companyId, userId, {
         platform_order_ids: dto?.platform_order_ids ?? null,
@@ -293,10 +294,11 @@ export class MarketplacePoService {
     }
   }
 
-  async receiveSession(companyId: string, userId: string, id: string, dto: any) {
+  async receiveSession(companyId: string, userId: string, employeeId: string, id: string, dto: any) {
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+      if (!employeeId) throw new BusinessRuleError('Employee context not found')
       const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
       if (!session) throw new BusinessRuleError('Marketplace session not found')
       if (session.status !== 'SHIPPED') throw new BusinessRuleError('Session must be SHIPPED to RECEIVED')
@@ -341,10 +343,10 @@ export class MarketplacePoService {
         ],
       }
 
-      const journalHeader = await (journalHeadersService as any).create(journalCreateDto, userId)
-      await (journalHeadersService as any).submit(journalHeader.id, userId, companyId)
-      await (journalHeadersService as any).approve(journalHeader.id, userId, companyId)
-      await (journalHeadersService as any).post(journalHeader.id, userId, companyId)
+      const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
+      await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
+      await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
+      await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
 
       const lines = await marketplacePoRepository.findSessionLinesForReceive(client, id)
       if (lines.length === 0) throw new BusinessRuleError('Session has no lines')
@@ -578,10 +580,11 @@ export class MarketplacePoService {
     if (!deleted) throw new BusinessRuleError('Attachment not found')
   }
 
-  async settleSession(companyId: string, userId: string, id: string, dto: any) {
+  async settleSession(companyId: string, userId: string, employeeId: string, id: string, dto: any) {
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+      if (!employeeId) throw new BusinessRuleError('Employee context not found')
       const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
       if (!session) throw new BusinessRuleError('Marketplace session not found')
       if (session.status !== 'RECEIVED') throw new BusinessRuleError('Session must be RECEIVED to SETTLED')
@@ -640,10 +643,10 @@ export class MarketplacePoService {
         ],
       }
 
-      const journalHeader = await (journalHeadersService as any).create(journalCreateDto, userId)
-      await (journalHeadersService as any).submit(journalHeader.id, userId, companyId)
-      await (journalHeadersService as any).approve(journalHeader.id, userId, companyId)
-      await (journalHeadersService as any).post(journalHeader.id, userId, companyId)
+      const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
+      await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
+      await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
+      await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
 
       await client.query(
         `UPDATE marketplace_checkout_sessions SET status='SETTLED', journal_settled_id=$1, updated_by=$2, updated_at=now() WHERE id=$3 AND company_id=$4`,
@@ -677,4 +680,3 @@ export class MarketplacePoService {
 }
 
 export const marketplacePoService = new MarketplacePoService()
-

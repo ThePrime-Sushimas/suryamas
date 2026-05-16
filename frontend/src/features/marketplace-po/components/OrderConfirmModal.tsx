@@ -41,38 +41,40 @@ export function OrderConfirmModal({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <p className="text-xs text-gray-500">Platform</p>
-              <PlatformBadge platform={session.platform} />
+              <div>
+                <PlatformBadge platform={session.platform} />
+              </div>
             </div>
             <div>
               <p className="text-xs text-gray-500">CC</p>
-              <p className="font-medium">{ccLabel}</p>
+              <div className="font-medium">{ccLabel}</div>
             </div>
             <div>
               <p className="text-xs text-gray-500">Total</p>
-              <p className="font-semibold">{fmtCurrency(session.total_amount)}</p>
+              <div className="font-semibold">{fmtCurrency(session.total_amount)}</div>
             </div>
             <div>
               <p className="text-xs text-gray-500">Items</p>
-              <p>
+              <div>
                 {lineCount} item · {branchCount} cabang
-              </p>
+              </div>
             </div>
           </div>
           <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 font-mono text-xs space-y-1">
-            <p className="font-semibold text-gray-600 dark:text-gray-300 mb-2">Journal yang akan di-post:</p>
-            <p>Dr 110598 Persediaan Dalam Perjalanan {fmtCurrency(session.total_amount)}</p>
-            <p>Cr {coaCode} Hutang CC Owner {fmtCurrency(session.total_amount)}</p>
+            <div className="font-semibold text-gray-600 dark:text-gray-300 mb-2">Journal yang akan di-post:</div>
+            <div>Dr 110598 Persediaan Dalam Perjalanan {fmtCurrency(session.total_amount)}</div>
+            <div>Cr {coaCode} Hutang CC Owner {fmtCurrency(session.total_amount)}</div>
           </div>
           {!hasBukti ? (
-            <p className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+            <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               Upload bukti bayar (BUKTI_BAYAR) di tab Lampiran terlebih dahulu.
-            </p>
+            </div>
           ) : (
-            <p className="flex items-start gap-2 text-amber-700 text-xs">
+            <div className="flex items-start gap-2 text-amber-700 text-xs">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               Pastikan bukti bayar sudah benar sebelum konfirmasi.
-            </p>
+            </div>
           )}
         </div>
       }
