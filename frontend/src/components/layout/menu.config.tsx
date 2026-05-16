@@ -312,7 +312,7 @@ export const menuItems: MenuItem[] = [
   // ─────────────────────────────────────────────
   {
     id: "inventory",
-    name: "Inventory",
+    name: "Inventory Management",
     icon: <Warehouse size={18} />,
     submenu: [
       {
@@ -337,17 +337,35 @@ export const menuItems: MenuItem[] = [
         module: "stock",
       },
       {
+        id: "inv-goods-receipts",
+        name: "Penerimaan Barang",
+        href: "/inventory/goods-receipts",
+        icon: <PackageCheck size={16} />,
+        module: "goods_receipts",
+      },
+      {
+        id: "inv-goods-processing",
+        name: "Barang diproses",
+        href: "/inventory/goods-processing",
+        icon: <Package size={16} />,
+        module: "goods_processing",
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // 5c. PURCHASING — Alur Pengadaan Barang
+  // ─────────────────────────────────────────────
+  {
+    id: "purchasing",
+    name: "Purchasing",
+    icon: <ShoppingCart size={18} />,
+    submenu: [
+      {
         id: "inv-purchase-requests",
         name: "Purchase Request",
         href: "/inventory/purchase-requests",
         icon: <ClipboardList size={16} />,
-        module: "purchase_requests",
-      },
-      {
-        id: "inv-pr-approval",
-        name: "PR Approval",
-        href: "/inventory/pr-approval",
-        icon: <ShieldCheck size={16} />,
         module: "purchase_requests",
       },
       {
@@ -358,25 +376,29 @@ export const menuItems: MenuItem[] = [
         module: "purchase_orders",
       },
       {
-        id: "inv-goods-receipts",
-        name: "Penerimaan Barang",
-        href: "/inventory/goods-receipts",
-        icon: <PackageCheck size={16} />,
-        module: "goods_receipts",
-      },
-      {
         id: "inv-marketplace-po",
         name: "Marketplace PO",
         href: "/inventory/marketplace-po",
         icon: <ShoppingCart size={16} />,
         module: "marketplace_po",
-      },
+      },      
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // 5d. APPROVALS — Persetujuan
+  // ─────────────────────────────────────────────
+  {
+    id: "approvals",
+    name: "Approvals",
+    icon: <ShieldCheck size={18} />,
+    submenu: [
       {
-        id: "inv-goods-processing",
-        name: "Barang diproses",
-        href: "/inventory/goods-processing",
-        icon: <Package size={16} />,
-        module: "goods_processing",
+        id: "inv-pr-approval",
+        name: "PR Approval",
+        href: "/inventory/pr-approval",
+        icon: <ShieldCheck size={16} />,
+        module: "purchase_requests",
       },
       {
         id: "inv-purchase-invoices",
