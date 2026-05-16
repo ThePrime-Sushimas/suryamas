@@ -61,13 +61,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
   // ── UOM ──
   const needsConversion = line.uom_po !== line.uom_received
 
-  const receivedUomOptions = useMemo(() => {
-    if (!productUoms) return []
-    return productUoms
-      .filter(u => u.status_uom === 'ACTIVE' && !u.is_deleted)
-      .map(u => ({ value: u.metric_units?.unit_name ?? '', label: u.metric_units?.unit_name ?? '' }))
-      .filter(u => u.value)
-  }, [productUoms])
+
 
   const estimatedCF = useMemo(() => {
     if (!productUoms || !needsConversion) return null
@@ -121,7 +115,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     const newDiterima = Math.max(0, newQtyDatang - line.qty_rejected)
 
     if (needsConversion) {
-      const cf = line.conversion_factor || estimatedCF || 1
+      const cf = estimatedCF || 1
       onChange(line.key, {
         qty_po_uom: newQtyDatang,
         qty_received: newDiterima * cf,
@@ -137,7 +131,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     const newDiterima = Math.max(0, qtyDatang - rejected)
 
     if (needsConversion) {
-      const cf = line.conversion_factor || estimatedCF || 1
+      const cf = estimatedCF || 1
       onChange(line.key, {
         qty_rejected: rejected,
         reject_reason: rejected === 0 ? '' : line.reject_reason,
@@ -158,17 +152,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     onChange(line.key, { qty_received: val, conversion_factor: cf })
   }
 
-  const handleUomReceivedChange = (uom: string) => {
-    if (!productUoms) { onChange(line.key, { uom_received: uom }); return }
-    const poUomData  = productUoms.find(u => u.metric_units?.unit_name === line.uom_po)
-    const recUomData = productUoms.find(u => u.metric_units?.unit_name === uom)
-    if (poUomData && recUomData && recUomData.conversion_factor > 0) {
-      const newCF = poUomData.conversion_factor / recUomData.conversion_factor
-      onChange(line.key, { uom_received: uom, qty_received: qtyDiterima * newCF, conversion_factor: newCF })
-    } else {
-      onChange(line.key, { uom_received: uom })
-    }
-  }
+
 
   const isOverQty            = qtyNotDelivered > line.qty_remaining
   const isRejectedOverDatang = line.qty_rejected > qtyDatang
@@ -338,7 +322,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
               onChange={e => handleQtyReceivedChange(parseFloat(e.target.value) || 0)}
               className="flex-1 px-4 py-3 border-2 border-teal-300 dark:border-teal-700 rounded-xl text-xl font-mono font-bold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             />
-            {receivedUomOptions.length > 1 ? (
+            {/* {receivedUomOptions.length > 1 ? (
               <select
                 value={line.uom_received}
                 onChange={e => handleUomReceivedChange(e.target.value)}
@@ -350,7 +334,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
               <div className="flex items-center justify-center w-24 px-3 py-3 bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl text-base font-bold text-gray-700 dark:text-gray-300">
                 {line.uom_received}
               </div>
-            )}
+            )} */}
           </div>
           {qtyDiterima > 0 && line.conversion_factor > 0 && (
             <p className="text-sm text-gray-500 dark:text-gray-400 ml-1">
