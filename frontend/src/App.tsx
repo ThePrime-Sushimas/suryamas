@@ -1935,7 +1935,7 @@ function App() {
                   <Route
                     path="settings/owner-credit-cards"
                     element={
-                      <RequirePermission module="marketplace_po">
+                      <RequirePermission module="owner_credit_cards">
                         <Suspense fallback={<LoadingFallback />}>
                           <OwnerCreditCardSettingsPage />
                         </Suspense>

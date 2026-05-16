@@ -614,7 +614,7 @@ export const menuItems: MenuItem[] = [
         name: "Kartu Kredit Owner",
         href: "/settings/owner-credit-cards",
         icon: <CreditCard size={16} />,
-        module: "marketplace_po",
+        module: "owner_credit_cards",
       },
       {
         id: "positions",

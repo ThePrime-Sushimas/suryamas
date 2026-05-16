@@ -29,13 +29,18 @@ PermissionService.registerModule('marketplace_po', 'Marketplace PO / Checkout (S
   console.error('Failed to register marketplace_po module:', err instanceof Error ? err.message : err)
 })
 
+PermissionService.registerModule('owner_credit_cards', 'Owner Credit Cards').catch((err) => {
+  console.error('Failed to register owner_credit_cards module:', err instanceof Error ? err.message : err)
+})
+
+
 const router = Router()
 router.use(authenticate, resolveBranchContext)
 
-router.get('/owner-credit-cards', canView('marketplace_po'), validateSchema(ownerCreditCardListSchema), (req, res) => marketplacePoController.listOwnerCreditCards(req, res))
-router.post('/owner-credit-cards', canInsert('marketplace_po'), validateSchema(createOwnerCreditCardSchema), (req, res) => marketplacePoController.createOwnerCreditCard(req, res))
-router.put('/owner-credit-cards/:id', canUpdate('marketplace_po'), validateSchema(updateOwnerCreditCardSchema), (req, res) => marketplacePoController.updateOwnerCreditCard(req, res))
-router.delete('/owner-credit-cards/:id', canDelete('marketplace_po'), validateSchema(ownerCreditCardIdSchema), (req, res) => marketplacePoController.deleteOwnerCreditCard(req, res))
+router.get('/owner-credit-cards', canView('owner_credit_cards'), validateSchema(ownerCreditCardListSchema), (req, res) => marketplacePoController.listOwnerCreditCards(req, res))
+router.post('/owner-credit-cards', canInsert('owner_credit_cards'), validateSchema(createOwnerCreditCardSchema), (req, res) => marketplacePoController.createOwnerCreditCard(req, res))
+router.put('/owner-credit-cards/:id', canUpdate('owner_credit_cards'), validateSchema(updateOwnerCreditCardSchema), (req, res) => marketplacePoController.updateOwnerCreditCard(req, res))
+router.delete('/owner-credit-cards/:id', canDelete('owner_credit_cards'), validateSchema(ownerCreditCardIdSchema), (req, res) => marketplacePoController.deleteOwnerCreditCard(req, res))
 
 router.get('/marketplace-sessions', canView('marketplace_po'), validateSchema(listMarketplaceSessionsSchema), (req, res) => marketplacePoController.listSessions(req, res))
 router.get('/marketplace-sessions/pending-po-lines', canView('marketplace_po'), validateSchema(pendingPoLinesSchema), (req, res) => marketplacePoController.listPendingPoLines(req, res))

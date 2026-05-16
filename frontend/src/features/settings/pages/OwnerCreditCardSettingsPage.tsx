@@ -16,9 +16,9 @@ import type { OwnerCreditCard } from '@/features/marketplace-po/types/marketplac
 export default function OwnerCreditCardSettingsPage() {
   const toast = useToast()
   const hasPermission = usePermissionStore((s) => s.hasPermission)
-  const canInsert = hasPermission('marketplace_po', 'insert')
-  const canUpdate = hasPermission('marketplace_po', 'update')
-  const canDelete = hasPermission('marketplace_po', 'delete')
+  const canInsert = hasPermission('owner_credit_cards', 'insert')
+  const canUpdate = hasPermission('owner_credit_cards', 'update')
+  const canDelete = hasPermission('owner_credit_cards', 'delete')
 
   const { data: cards = [], isLoading } = useOwnerCreditCards()
   const createCard = useCreateOwnerCreditCard()
