@@ -111,10 +111,11 @@ function AttachmentThumbnail({
   );
 }
 
-function EstimasiBeratCell({ productId, qtyReceived, uomReceived }: {
+function EstimasiBeratCell({ productId, qtyPoUom, qtyRejected, uomPo }: {
   productId: string
-  qtyReceived: number
-  uomReceived: string
+  qtyPoUom: number
+  qtyRejected: number
+  uomPo: string
 }) {
   const { data: productUoms } = useProductUoms(productId)
   if (!productUoms || productUoms.length === 0) return <span className="text-gray-400">—</span>
@@ -122,10 +123,11 @@ function EstimasiBeratCell({ productId, qtyReceived, uomReceived }: {
   const baseUom = productUoms.find(u => u.is_base_unit) ?? productUoms.find(u => u.is_default_stock_unit)
   if (!baseUom?.metric_units?.unit_name) return <span className="text-gray-400">—</span>
 
-  const receivedUomEntry = productUoms.find(u => u.metric_units?.unit_name === uomReceived)
-  if (!receivedUomEntry || baseUom.conversion_factor === 0) return <span className="text-gray-400">—</span>
+  const poUomEntry = productUoms.find(u => u.metric_units?.unit_name === uomPo)
+  if (!poUomEntry || baseUom.conversion_factor === 0) return <span className="text-gray-400">—</span>
 
-  const qtyBase = qtyReceived * (receivedUomEntry.conversion_factor / baseUom.conversion_factor)
+  const netAccepted = Math.max(0, qtyPoUom - qtyRejected)
+  const qtyBase = netAccepted * (poUomEntry.conversion_factor / baseUom.conversion_factor)
   
   return (
     <span className="font-mono text-gray-700 dark:text-gray-300 font-medium">
@@ -483,8 +485,9 @@ export default function GoodsReceiptDetailPage() {
                           <td className="px-4 py-4 text-right">
                             <EstimasiBeratCell
                               productId={line.product_id}
-                              qtyReceived={line.qty_received}
-                              uomReceived={line.uom_received ?? line.uom ?? ''}
+                              qtyPoUom={line.qty_po_uom ?? line.qty_received}
+                              qtyRejected={line.qty_rejected ?? 0}
+                              uomPo={line.uom_po ?? line.uom ?? ''}
                             />
                           </td>
                           <td className="px-4 py-4 text-right">
@@ -492,7 +495,7 @@ export default function GoodsReceiptDetailPage() {
                               Rp{" "}
                               {fmt(
                                 line.total_price_invoice ??
-                                  line.qty_received * line.unit_price_invoice,
+                                  ((line.qty_po_uom ?? line.qty_received) - (line.qty_rejected ?? 0)) * line.unit_price_invoice,
                               )}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">

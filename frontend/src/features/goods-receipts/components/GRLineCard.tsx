@@ -99,14 +99,14 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     const baseUom = productUoms.find(u => u.is_base_unit) ?? productUoms.find(u => u.is_default_stock_unit)
     if (!baseUom?.metric_units?.unit_name) return null
 
-    const receivedUomEntry = productUoms.find(u => u.metric_units?.unit_name === line.uom_received)
-    const baseUomEntry = baseUom
+    const poUomEntry = productUoms.find(u => u.metric_units?.unit_name === line.uom_po)
+    if (!poUomEntry || baseUom.conversion_factor === 0) return null
 
-    if (!receivedUomEntry || !baseUomEntry || baseUomEntry.conversion_factor === 0) return null
-
-    const qtyBase = (line.qty_received || 0) * (receivedUomEntry.conversion_factor / baseUomEntry.conversion_factor)
+    const netAccepted = Math.max(0, (line.qty_po_uom || 0) - (line.qty_rejected || 0))
+    const qtyBase = netAccepted * (poUomEntry.conversion_factor / baseUom.conversion_factor)
+    
     return { qty: Math.round(qtyBase), uom: baseUom.metric_units.unit_name }
-  }, [productUoms, line.qty_received, line.uom_received])
+  }, [productUoms, line.qty_po_uom, line.qty_rejected, line.uom_po])
 
   const handleQtyPoUomChange = (val: number) => {
     const updates: Partial<GRLineData> = { qty_po_uom: val }
@@ -176,7 +176,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
       {/* Main inputs */}
       <div className={`grid gap-4 mt-2 ${needsConversion ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-3'}`}>
         {/* Qty diterima (satuan PO) */}
-        <div>
+        <div className="flex flex-col h-full">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5 ml-1">
             Diterima ({line.uom_po})
           </label>
@@ -199,6 +199,23 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
             <p className="flex items-center gap-1 text-xs text-red-500 font-medium mt-1.5 ml-1">
               <AlertTriangle className="w-3 h-3" /> Melebihi sisa PO
             </p>
+          )}
+          {!needsConversion && receivedUomOptions.length > 1 && (
+            <button
+              onClick={() => {
+                const base = productUoms?.find(u => u.is_base_unit || u.is_default_stock_unit)
+                if (base?.metric_units?.unit_name) {
+                  handleUomReceivedChange(base.metric_units.unit_name)
+                } else if (receivedUomOptions[0].value !== line.uom_po) {
+                  handleUomReceivedChange(receivedUomOptions[0].value)
+                } else if (receivedUomOptions[1]) {
+                  handleUomReceivedChange(receivedUomOptions[1].value)
+                }
+              }}
+              className="mt-2.5 text-xs font-semibold text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 flex items-center gap-1.5 transition-colors self-start ml-1"
+            >
+              <Scale className="w-3 h-3" /> Catat Berat Aktual (Timbang)
+            </button>
           )}
         </div>
 
