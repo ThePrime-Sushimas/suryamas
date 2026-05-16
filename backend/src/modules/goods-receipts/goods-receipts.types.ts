@@ -50,6 +50,8 @@ export interface GoodsReceiptLine {
   price_variance_pct: number
   variance_status: VarianceStatus
   notes: string | null
+  qty_rejected: number
+  reject_reason: string | null
 }
 
 export interface GoodsReceiptLineWithRelations extends GoodsReceiptLine {

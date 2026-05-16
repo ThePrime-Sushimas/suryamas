@@ -195,9 +195,10 @@ export default function GoodsReceiptDetailPage() {
             .map((l, i) => {
               const hasDual =
                 l.uom_po && l.uom_received && l.uom_po !== l.uom_received;
+              const netQty = (l.qty_po_uom ?? l.qty_received) - (l.qty_rejected ?? 0)
               const qtyDisplay = hasDual
-                ? `${fmt(l.qty_po_uom ?? l.qty_received)} ${esc(l.uom_po ?? "")} (${fmt(l.qty_received)} ${esc(l.uom_received ?? "")})`
-                : `${fmt(l.qty_received)}`;
+                ? `${fmt(netQty)} ${esc(l.uom_po ?? "")} (${fmt(l.qty_received)} ${esc(l.uom_received ?? "")})`
+                : `${fmt(netQty)}`;
               const uomDisplay = hasDual
                 ? esc(l.uom_received ?? l.uom ?? "")
                 : esc(l.uom ?? "");
@@ -459,9 +460,12 @@ export default function GoodsReceiptDetailPage() {
                               {hasDualUom ? (
                                 <div>
                                   <span className="font-mono text-gray-900 dark:text-gray-200 font-medium">
-                                    {fmt(line.qty_po_uom ?? line.qty_received)}{" "}
+                                    {fmt((line.qty_po_uom ?? line.qty_received) - (line.qty_rejected ?? 0))}{" "}
                                     {line.uom_po}
                                   </span>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    Total Fisik Diterima: {fmt(line.qty_po_uom ?? line.qty_received)} {line.uom_po}
+                                  </div>
                                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                     = {fmt(line.qty_received)} {line.uom_received}
                                     <span className="ml-1 opacity-60">
@@ -470,10 +474,17 @@ export default function GoodsReceiptDetailPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <span className="font-mono text-gray-900 dark:text-gray-200 font-medium">
-                                  {fmt(line.qty_received)}{" "}
-                                  {line.uom_received ?? line.uom}
-                                </span>
+                                <div>
+                                  <span className="font-mono text-gray-900 dark:text-gray-200 font-medium">
+                                    {fmt((line.qty_po_uom ?? line.qty_received) - (line.qty_rejected ?? 0))}{" "}
+                                    {line.uom_received ?? line.uom}
+                                  </span>
+                                  {(line.qty_rejected ?? 0) > 0 && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                      Total Fisik Diterima: {fmt(line.qty_po_uom ?? line.qty_received)} {line.uom_received ?? line.uom}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                               {(line.qty_rejected ?? 0) > 0 && (
                                 <span className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-800">
@@ -699,7 +710,7 @@ export default function GoodsReceiptDetailPage() {
       {/* Image Preview Modal */}
       {previewUrl && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200"
           onClick={() => setPreviewUrl(null)}
         >
           <button

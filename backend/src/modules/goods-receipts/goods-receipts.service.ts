@@ -55,9 +55,10 @@ export class GoodsReceiptsService {
       // Pending qty check uses qty_po_uom (PO unit)
       const pendingQty = pendingMap.get(line.po_line_id) ?? 0
       const remaining = Number(poLine.qty) - Number(poLine.qty_received) - pendingQty
-      if (qtyPoUom > remaining) {
+      const qtyAccepted = qtyPoUom - (line.qty_rejected ?? 0)
+      if (qtyAccepted > remaining) {
         throw new GoodsReceiptExceedsOrderedError(
-          poLine.product_name, Number(poLine.qty), Number(poLine.qty_received) + pendingQty, qtyPoUom
+          poLine.product_name, Number(poLine.qty), Number(poLine.qty_received) + pendingQty, qtyAccepted
         )
       }
 
@@ -73,7 +74,6 @@ export class GoodsReceiptsService {
 
       // Variance: compare total method (both in PO UOM, only accepted qty)
       const unitPricePo = Number(poLine.unit_price)
-      const qtyAccepted = qtyPoUom - (line.qty_rejected ?? 0)
       const poTotal = qtyAccepted * unitPricePo
       const invoiceTotal = qtyAccepted * line.unit_price_invoice
       const variance = invoiceTotal - poTotal
@@ -153,21 +153,23 @@ export class GoodsReceiptsService {
       const poLines = await goodsReceiptsRepository.findPoLinesForUpdate(client, gr.po_id)
       const poLineMap = new Map(poLines.map(l => [l.id, l]))
 
-      // 2. Re-validate qty inside transaction (after lock) — using qty_po_uom
+      // 2. Re-validate qty inside transaction (after lock) — using net accepted qty
       for (const line of gr.lines) {
         const poLine = poLineMap.get(line.po_line_id)
         if (!poLine) continue
         const remaining = poLine.qty - poLine.qty_received
-        if (line.qty_po_uom > remaining) {
+        const qtyAccepted = line.qty_po_uom - (line.qty_rejected ?? 0)
+        if (qtyAccepted > remaining) {
           throw new GoodsReceiptExceedsOrderedError(
-            line.product_name ?? 'Unknown', poLine.qty, poLine.qty_received, line.qty_po_uom
+            line.product_name ?? 'Unknown', poLine.qty, poLine.qty_received, qtyAccepted
           )
         }
       }
 
-      // 3. Update PO lines qty_received (using qty_po_uom — PO unit)
+      // 3. Update PO lines qty_received (using net accepted qty)
       for (const line of gr.lines) {
-        await goodsReceiptsRepository.incrementPoLineQtyReceived(client, line.po_line_id, line.qty_po_uom)
+        const qtyAccepted = line.qty_po_uom - (line.qty_rejected ?? 0)
+        await goodsReceiptsRepository.incrementPoLineQtyReceived(client, line.po_line_id, qtyAccepted)
       }
 
       // 4. Update PO status
@@ -304,11 +306,12 @@ export class GoodsReceiptsService {
             conversion_factor: conversionFactor,
             unit_price_invoice: line.unit_price_invoice,
             unit_price_po: unitPricePo,
-            variance,
-            variance_pct: variancePct,
+            price_variance: variance,
+            price_variance_pct: variancePct,
             variance_status: varianceStatus,
             qty_rejected: line.qty_rejected,
             reject_reason: line.reject_reason,
+            notes: line.notes ?? null,
           }
         })
 
