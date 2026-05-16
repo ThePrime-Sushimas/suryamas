@@ -19,6 +19,8 @@ import {
   FileDigit,
   Receipt,
   ListChecks,
+  Package,
+  Scale,
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
@@ -32,7 +34,6 @@ import {
   useDeleteGRAttachment,
 } from "../api/goodsReceipts.api";
 import api from "@/lib/axios";
-import { useProductUoms } from '@/features/product-uoms/api/productUoms.api'
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 const fmtDate = (d: string) =>
@@ -111,30 +112,7 @@ function AttachmentThumbnail({
   );
 }
 
-function EstimasiBeratCell({ productId, qtyPoUom, qtyRejected, uomPo }: {
-  productId: string
-  qtyPoUom: number
-  qtyRejected: number
-  uomPo: string
-}) {
-  const { data: productUoms } = useProductUoms(productId)
-  if (!productUoms || productUoms.length === 0) return <span className="text-gray-400">—</span>
 
-  const baseUom = productUoms.find(u => u.is_base_unit) ?? productUoms.find(u => u.is_default_stock_unit)
-  if (!baseUom?.metric_units?.unit_name) return <span className="text-gray-400">—</span>
-
-  const poUomEntry = productUoms.find(u => u.metric_units?.unit_name === uomPo)
-  if (!poUomEntry || baseUom.conversion_factor === 0) return <span className="text-gray-400">—</span>
-
-  const netAccepted = Math.max(0, qtyPoUom - qtyRejected)
-  const qtyBase = netAccepted * (poUomEntry.conversion_factor / baseUom.conversion_factor)
-  
-  return (
-    <span className="font-mono text-gray-700 dark:text-gray-300 font-medium">
-      {fmt(Math.round(qtyBase))} {baseUom.metric_units.unit_name}
-    </span>
-  )
-}
 
 export default function GoodsReceiptDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -428,116 +406,125 @@ export default function GoodsReceiptDetailPage() {
                   </h2>
                 </div>
               </div>
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-sm">
-                  <thead className="bg-white dark:bg-gray-800 border-b dark:border-gray-700">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Produk</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Diterima / Ditolak</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Est. Berat</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Harga & Subtotal</th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                    {(gr.lines ?? []).map((line, idx) => {
-                      const hasDualUom =
-                        line.uom_po &&
-                        line.uom_received &&
-                        line.uom_po !== line.uom_received;
-                      return (
-                        <tr key={line.id ?? idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-gray-900 dark:text-white">
+              <div className="overflow-y-auto flex-1 divide-y divide-gray-100 dark:divide-gray-700/50">
+                {(gr.lines ?? []).map((line, idx) => {
+                  const hasDualUom = line.uom_po && line.uom_received && line.uom_po !== line.uom_received;
+                  const qtyDatang = line.qty_po_uom ?? line.qty_received;
+                  const qtyDitolak = line.qty_rejected ?? 0;
+                  const qtyDiterima = qtyDatang - qtyDitolak;
+                  const uomPo = line.uom_po ?? line.uom ?? "";
+                  const uomRec = line.uom_received ?? line.uom ?? "";
+                  
+                  return (
+                    <div key={line.id ?? idx} className="p-5 sm:p-6 space-y-5 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                      {/* Header */}
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className="p-2 bg-teal-50 dark:bg-teal-900/20 rounded-lg shrink-0 mt-0.5">
+                            <Package className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-900 dark:text-white text-lg leading-tight truncate">
                               {line.product_name}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                              <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                                {line.product_code}
+                              </span>
+                              <span
+                                className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-semibold border ${VARIANCE_COLORS[line.variance_status ?? "OK"]}`}
+                              >
+                                {line.variance_status === "DISPUTED"
+                                  ? "Disputed"
+                                  : line.variance_status === "NOTICE"
+                                    ? "Notice"
+                                    : "Sesuai"}
+                              </span>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                              {line.product_code}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <div className="flex flex-col items-end gap-1">
-                              {hasDualUom ? (
-                                <div>
-                                  <span className="font-mono text-gray-900 dark:text-gray-200 font-medium">
-                                    {fmt((line.qty_po_uom ?? line.qty_received) - (line.qty_rejected ?? 0))}{" "}
-                                    {line.uom_po}
-                                  </span>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    Total Fisik Diterima: {fmt(line.qty_po_uom ?? line.qty_received)} {line.uom_po}
-                                  </div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    = {fmt(line.qty_received)} {line.uom_received}
-                                    <span className="ml-1 opacity-60">
-                                      (1:{(line.conversion_factor ?? 1).toFixed(2)})
-                                    </span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <span className="font-mono text-gray-900 dark:text-gray-200 font-medium">
-                                    {fmt((line.qty_po_uom ?? line.qty_received) - (line.qty_rejected ?? 0))}{" "}
-                                    {line.uom_received ?? line.uom}
-                                  </span>
-                                  {(line.qty_rejected ?? 0) > 0 && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                      Total Fisik Diterima: {fmt(line.qty_po_uom ?? line.qty_received)} {line.uom_received ?? line.uom}
-                                    </div>
-                                  )}
-                                </div>
+                          </div>
+                        </div>
+                        {/* Harga & Subtotal */}
+                        <div className="text-right shrink-0">
+                          <div className="font-mono font-bold text-gray-900 dark:text-gray-200">
+                            Rp {fmt(line.total_price_invoice ?? qtyDiterima * line.unit_price_invoice)}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            Rp {fmt(line.unit_price_invoice)} /{uomPo}
+                          </div>
+                          {(line.price_variance ?? 0) !== 0 && (
+                            <div className={`text-xs font-medium mt-1 ${VARIANCE_COLORS[line.variance_status ?? "OK"].split(' ')[0]}`}>
+                              {(line.price_variance ?? 0) > 0 ? "+" : ""}
+                              Rp {fmt(line.price_variance ?? 0)} 
+                              {(line.price_variance_pct ?? 0) !== 0 && (
+                                <span> ({fmt(line.price_variance_pct ?? 0)}%)</span>
                               )}
-                              {(line.qty_rejected ?? 0) > 0 && (
-                                <span className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-800">
-                                  Tolak {fmt(line.qty_rejected ?? 0)} {line.uom_po ?? line.uom}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Summary auto-calculated style */}
+                      <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 overflow-hidden">
+                        {/* Datang */}
+                        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0" />
+                            <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">Barang Datang</span>
+                          </div>
+                          <span className="text-lg font-mono font-bold text-gray-800 dark:text-gray-200">
+                            {fmt(qtyDatang)} <span className="text-sm font-normal text-gray-500">{uomPo}</span>
+                          </span>
+                        </div>
+
+                        {/* Ditolak row */}
+                        {qtyDitolak > 0 && (
+                          <div className="flex items-center justify-between px-4 py-3 bg-red-50/50 dark:bg-red-900/10 border-b border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-2.5 h-2.5 rounded-full bg-red-400 shrink-0" />
+                              <span className="text-sm font-semibold text-red-600 dark:text-red-400">Ditolak</span>
+                              {line.reject_reason && (
+                                <span className="text-xs text-red-400 italic hidden sm:inline">
+                                  · {line.reject_reason}
                                 </span>
                               )}
                             </div>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <EstimasiBeratCell
-                              productId={line.product_id}
-                              qtyPoUom={line.qty_po_uom ?? line.qty_received}
-                              qtyRejected={line.qty_rejected ?? 0}
-                              uomPo={line.uom_po ?? line.uom ?? ''}
-                            />
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <div className="font-mono font-medium text-gray-900 dark:text-gray-200">
-                              Rp{" "}
-                              {fmt(
-                                line.total_price_invoice ??
-                                  ((line.qty_po_uom ?? line.qty_received) - (line.qty_rejected ?? 0)) * line.unit_price_invoice,
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                              Rp {fmt(line.unit_price_invoice)} /{line.uom_po ?? line.uom}
-                            </div>
-                            {(line.price_variance ?? 0) !== 0 && (
-                               <div className={`text-xs mt-0.5 ${VARIANCE_COLORS[line.variance_status ?? "OK"].split(' ')[0]}`}>
-                                {(line.price_variance ?? 0) > 0 ? "+" : ""}
-                                Rp {fmt(line.price_variance ?? 0)} 
-                                {(line.price_variance_pct ?? 0) !== 0 && (
-                                  <span> ({fmt(line.price_variance_pct ?? 0)}%)</span>
-                                )}
-                               </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <span
-                              className={`inline-flex items-center justify-center px-2 py-1 rounded text-xs font-semibold border ${VARIANCE_COLORS[line.variance_status ?? "OK"]}`}
-                            >
-                              {line.variance_status === "DISPUTED"
-                                ? "Disputed"
-                                : line.variance_status === "NOTICE"
-                                  ? "Notice"
-                                  : "Sesuai"}
+                            <span className="text-lg font-mono font-bold text-red-600 dark:text-red-400">
+                              −{fmt(qtyDitolak)} <span className="text-sm font-normal">{uomPo}</span>
                             </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        )}
+
+                        {/* Diterima */}
+                        <div className="flex items-center justify-between px-4 py-4 bg-teal-50/70 dark:bg-teal-900/20 border-b-2 border-teal-100 dark:border-teal-800/50">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" />
+                            <span className="text-base font-bold text-teal-700 dark:text-teal-400">Diterima (Masuk Stok)</span>
+                          </div>
+                          <span className="text-2xl font-mono font-extrabold text-teal-800 dark:text-teal-300">
+                            {fmt(qtyDiterima)} <span className="text-base font-semibold">{uomPo}</span>
+                          </span>
+                        </div>
+
+                        {/* Hasil Timbang / Konversi info in same box if dual UOM */}
+                        {hasDualUom && (
+                          <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800">
+                            <div className="flex items-center gap-2.5">
+                              <Scale className="w-4 h-4 text-teal-500 shrink-0" />
+                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Hasil Timbang</span>
+                              <span className="text-xs text-gray-500">
+                                1 {uomPo} = {(line.conversion_factor ?? 1).toFixed(2)} {uomRec}
+                              </span>
+                            </div>
+                            <span className="text-lg font-mono font-bold text-gray-800 dark:text-gray-200">
+                              {fmt(line.qty_received)} <span className="text-sm font-normal text-gray-500">{uomRec}</span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
