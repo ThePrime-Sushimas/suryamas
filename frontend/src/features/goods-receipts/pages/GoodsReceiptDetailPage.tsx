@@ -343,7 +343,7 @@ export default function GoodsReceiptDetailPage() {
               <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">Informasi Penerimaan</h2>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
                 <div>
                   <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 mb-1">
                     <FileDigit className="w-4 h-4" />
@@ -383,14 +383,14 @@ export default function GoodsReceiptDetailPage() {
                     {gr.invoice_number || "—"}
                   </p>
                 </div>
-                <div className="col-span-2 md:col-span-4 lg:col-span-1 lg:border-l lg:border-gray-200 dark:lg:border-gray-700 lg:pl-6 pt-4 lg:pt-0 border-t lg:border-t-0 mt-2 lg:mt-0">
+                {/* <div className="col-span-2 md:col-span-4 lg:col-span-1 lg:border-l lg:border-gray-200 dark:lg:border-gray-700 lg:pl-6 pt-4 lg:pt-0 border-t lg:border-t-0 mt-2 lg:mt-0">
                   <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">
                     Total Estimasi Tagihan
                   </span>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     Rp {fmt(gr.total_invoice_amount)}
                   </p>
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
@@ -444,7 +444,7 @@ export default function GoodsReceiptDetailPage() {
                           </div>
                         </div>
                         {/* Harga & Subtotal */}
-                        <div className="text-right shrink-0">
+                        {/* <div className="text-right shrink-0">
                           <div className="font-mono font-bold text-gray-900 dark:text-gray-200">
                             Rp {fmt(line.total_price_invoice ?? qtyDiterima * line.unit_price_invoice)}
                           </div>
@@ -460,7 +460,7 @@ export default function GoodsReceiptDetailPage() {
                               )}
                             </div>
                           )}
-                        </div>
+                        </div> */}
                       </div>
 
                       {/* Summary auto-calculated style */}

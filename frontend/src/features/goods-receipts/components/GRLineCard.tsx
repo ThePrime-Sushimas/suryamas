@@ -172,14 +172,8 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
               {line.product_name}
             </p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-              <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
-                {line.product_code}
-              </span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
+              <span className="text-l text-gray-500 dark:text-gray-400">
                 Total PO: <span className="font-bold text-gray-800 dark:text-gray-200">{fmt(line.qty_ordered)} {line.uom_po}</span>
-              </span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Sisa: <span className="font-bold text-teal-600 dark:text-teal-400">{fmt(line.qty_remaining)} {line.uom_po}</span>
               </span>
             </div>
           </div>
@@ -200,7 +194,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
             <TruckIcon className="w-4 h-4 text-gray-400" />
-            Tidak Terkirim
+            Barang Tidak Terkirim
             <span className="font-normal text-gray-400">({line.uom_po})</span>
           </label>
           <input
@@ -227,7 +221,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
             <XCircle className="w-4 h-4 text-red-400" />
-            Ditolak
+            Barang DI TOLAK
             <span className="font-normal text-gray-400">({line.uom_po})</span>
           </label>
           <input
@@ -267,7 +261,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2.5">
             <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0" />
-            <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">Barang Datang</span>
+            <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">Jumlah Barang Datang</span>
             <span className="text-xs text-gray-400 hidden sm:inline">
               ({fmt(line.qty_ordered)} − {fmt(qtyNotDelivered)})
             </span>
@@ -282,7 +276,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
           <div className="flex items-center justify-between px-4 py-3 bg-red-50/50 dark:bg-red-900/10 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2.5">
               <div className="w-2.5 h-2.5 rounded-full bg-red-400 shrink-0" />
-              <span className="text-sm font-semibold text-red-600 dark:text-red-400">Ditolak</span>
+              <span className="text-sm font-semibold text-red-600 dark:text-red-400">Jumlah Barang Ditolak</span>
               {line.reject_reason && (
                 <span className="text-xs text-red-400 italic hidden sm:inline">
                   · {REJECT_REASONS.find(r => r.value === line.reject_reason)?.label}
@@ -370,7 +364,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
               ? 'text-orange-700 dark:text-orange-400'
               : 'text-gray-600 dark:text-gray-400'
         }`}>
-          Sisa PO setelah GR ini:
+          Sisa yang Belum Diterima :          
         </span>
         <span className={`text-xl font-mono font-extrabold ${
           isPOLunas

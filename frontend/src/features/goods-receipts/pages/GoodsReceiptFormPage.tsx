@@ -384,13 +384,6 @@ export default function GoodsReceiptFormPage() {
         .catch((err: unknown) => toast.error(parseApiError(err, 'Gagal membuat penerimaan barang')))
     }
   }
-
-  const totalInvoice = lines.reduce((sum, l) => {
-    const qtyDiterima = Math.max(0, l.qty_po_uom - l.qty_rejected)
-    return sum + qtyDiterima * l.unit_price_invoice
-  }, 0)
-  const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
-
   return (
     <div className="h-screen flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
       {/* Header */}
@@ -552,7 +545,7 @@ export default function GoodsReceiptFormPage() {
                   Daftar Barang ({lines.length})
                 </h2>
               </div>
-              {lines.length > 0 && (
+              {/* {lines.length > 0 && (
                 <div className="bg-teal-50 dark:bg-teal-900/30 px-3 py-1.5 rounded-lg border border-teal-100 dark:border-teal-800">
                   <span className="text-xs text-teal-700 dark:text-teal-400 font-medium mr-2">
                     Estimasi Tagihan:
@@ -561,7 +554,7 @@ export default function GoodsReceiptFormPage() {
                     Rp {fmt(Math.round(totalInvoice))}
                   </span>
                 </div>
-              )}
+              )} */}
             </div>
 
             {lines.length === 0 ? (
