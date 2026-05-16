@@ -118,24 +118,39 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     const notDel = Math.min(Math.max(0, val), line.qty_ordered)
     setQtyNotDelivered(notDel)
     const newQtyDatang = Math.max(0, line.qty_ordered - notDel)
-    if (needsConversion && estimatedCF) {
-      const newDiterima = Math.max(0, newQtyDatang - line.qty_rejected)
+    const newDiterima = Math.max(0, newQtyDatang - line.qty_rejected)
+
+    if (needsConversion) {
+      const cf = line.conversion_factor || estimatedCF || 1
       onChange(line.key, {
         qty_po_uom: newQtyDatang,
-        qty_received: newDiterima * estimatedCF,
-        conversion_factor: estimatedCF,
+        qty_received: newDiterima * cf,
+        conversion_factor: cf,
       })
     } else {
-      onChange(line.key, { qty_po_uom: newQtyDatang, qty_received: newQtyDatang })
+      onChange(line.key, { qty_po_uom: newQtyDatang, qty_received: newDiterima })
     }
   }
 
   const handleRejectedChange = (val: number) => {
     const rejected = Math.min(Math.max(0, val), qtyDatang)
-    onChange(line.key, {
-      qty_rejected: rejected,
-      reject_reason: rejected === 0 ? '' : line.reject_reason,
-    })
+    const newDiterima = Math.max(0, qtyDatang - rejected)
+
+    if (needsConversion) {
+      const cf = line.conversion_factor || estimatedCF || 1
+      onChange(line.key, {
+        qty_rejected: rejected,
+        reject_reason: rejected === 0 ? '' : line.reject_reason,
+        qty_received: newDiterima * cf,
+        conversion_factor: cf,
+      })
+    } else {
+      onChange(line.key, {
+        qty_rejected: rejected,
+        reject_reason: rejected === 0 ? '' : line.reject_reason,
+        qty_received: newDiterima,
+      })
+    }
   }
 
   const handleQtyReceivedChange = (val: number) => {
