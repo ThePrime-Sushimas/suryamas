@@ -365,6 +365,13 @@ export const menuItems: MenuItem[] = [
         module: "goods_receipts",
       },
       {
+        id: "inv-marketplace-po",
+        name: "Marketplace PO",
+        href: "/inventory/marketplace-po",
+        icon: <ShoppingCart size={16} />,
+        module: "marketplace_po",
+      },
+      {
         id: "inv-goods-processing",
         name: "Barang diproses",
         href: "/inventory/goods-processing",
@@ -601,6 +608,13 @@ export const menuItems: MenuItem[] = [
         href: "/settings/departments",
         icon: <Building2 size={16} />,
         module: "departments",
+      },
+      {
+        id: "owner-credit-cards",
+        name: "Kartu Kredit Owner",
+        href: "/settings/owner-credit-cards",
+        icon: <CreditCard size={16} />,
+        module: "marketplace_po",
       },
       {
         id: "positions",

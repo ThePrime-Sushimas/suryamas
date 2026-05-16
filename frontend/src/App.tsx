@@ -494,6 +494,12 @@ const PurchaseOrderDetailPage = lazy(() => import('./features/purchase-orders/pa
 const GoodsReceiptsPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptsPage'))
 const GoodsReceiptFormPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptFormPage'))
 const GoodsReceiptDetailPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptDetailPage'))
+
+// Marketplace PO
+const MarketplacePoListPage = lazy(() => import('./features/marketplace-po/pages/MarketplacePoListPage'))
+const MarketplacePoNewPage = lazy(() => import('./features/marketplace-po/pages/MarketplacePoNewPage'))
+const MarketplacePoDetailPage = lazy(() => import('./features/marketplace-po/pages/MarketplacePoDetailPage'))
+const OwnerCreditCardSettingsPage = lazy(() => import('./features/settings/pages/OwnerCreditCardSettingsPage'))
 const GoodsProcessingPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingPage'))
 const GoodsProcessingDetailPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingDetailPage'))
 
@@ -1855,6 +1861,37 @@ function App() {
                       </RequirePermission>
                     }
                   />
+                  {/* Marketplace PO */}
+                  <Route
+                    path="inventory/marketplace-po"
+                    element={
+                      <RequirePermission module="marketplace_po">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MarketplacePoListPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/marketplace-po/new"
+                    element={
+                      <RequirePermission module="marketplace_po">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MarketplacePoNewPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/marketplace-po/:id"
+                    element={
+                      <RequirePermission module="marketplace_po">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MarketplacePoDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
                   <Route
                     path="inventory/goods-processing"
                     element={
@@ -1891,6 +1928,16 @@ function App() {
                       <RequirePermission module="departments">
                         <Suspense fallback={<LoadingFallback />}>
                           <DepartmentsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="settings/owner-credit-cards"
+                    element={
+                      <RequirePermission module="marketplace_po">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <OwnerCreditCardSettingsPage />
                         </Suspense>
                       </RequirePermission>
                     }

@@ -129,7 +129,7 @@ export const receiveMarketplaceSessionSchema = z.object({
 export const settleMarketplaceSessionSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
-    bank_account_id: z.string().uuid(),
+    bank_account_id: z.coerce.number().int().positive(),
     amount: z.number().min(0),
     reference_number: z.string().max(100),
     settled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

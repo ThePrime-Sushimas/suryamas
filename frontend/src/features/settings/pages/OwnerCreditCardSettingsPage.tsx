@@ -1,0 +1,291 @@
+import { useState } from 'react'
+import { CreditCard, Plus, Pencil, Trash2 } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import {
+  useOwnerCreditCards,
+  useCreateOwnerCreditCard,
+  useUpdateOwnerCreditCard,
+  useDeleteOwnerCreditCard,
+} from '@/features/marketplace-po/api/marketplacePo.api'
+import { CC_COA_OPTIONS } from '@/features/marketplace-po/utils/constants'
+import type { OwnerCreditCard } from '@/features/marketplace-po/types/marketplacePo.types'
+
+export default function OwnerCreditCardSettingsPage() {
+  const toast = useToast()
+  const hasPermission = usePermissionStore((s) => s.hasPermission)
+  const canInsert = hasPermission('marketplace_po', 'insert')
+  const canUpdate = hasPermission('marketplace_po', 'update')
+  const canDelete = hasPermission('marketplace_po', 'delete')
+
+  const { data: cards = [], isLoading } = useOwnerCreditCards()
+  const createCard = useCreateOwnerCreditCard()
+  const updateCard = useUpdateOwnerCreditCard()
+  const deleteCard = useDeleteOwnerCreditCard()
+
+  const [showForm, setShowForm] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [cardLabel, setCardLabel] = useState('')
+  const [bankName, setBankName] = useState('')
+  const [last4, setLast4] = useState('')
+  const [coaCode, setCoaCode] = useState(CC_COA_OPTIONS[0].code)
+  const [isActive, setIsActive] = useState(true)
+  const [sortOrder, setSortOrder] = useState(0)
+  const [deleteTarget, setDeleteTarget] = useState<OwnerCreditCard | null>(null)
+
+  const resetForm = () => {
+    setShowForm(false)
+    setEditId(null)
+    setCardLabel('')
+    setBankName('')
+    setLast4('')
+    setCoaCode(CC_COA_OPTIONS[0].code)
+    setIsActive(true)
+    setSortOrder(0)
+  }
+
+  const startEdit = (c: OwnerCreditCard) => {
+    setEditId(c.id)
+    setCardLabel(c.card_label)
+    setBankName(c.bank_name)
+    setLast4(c.last4 ?? '')
+    setCoaCode(c.coa_code)
+    setIsActive(c.is_active)
+    setSortOrder(c.sort_order)
+    setShowForm(true)
+  }
+
+  const handleSave = async () => {
+    if (!cardLabel.trim() || !bankName.trim() || !coaCode) {
+      toast.warning('Label, bank, dan COA wajib diisi')
+      return
+    }
+    const body = {
+      card_label: cardLabel.trim(),
+      bank_name: bankName.trim(),
+      last4: last4.trim() || null,
+      coa_code: coaCode,
+      is_active: isActive,
+      sort_order: sortOrder,
+    }
+    try {
+      if (editId) {
+        await updateCard.mutateAsync({ id: editId, ...body })
+        toast.success('Kartu diupdate')
+      } else {
+        await createCard.mutateAsync(body)
+        toast.success('Kartu ditambahkan')
+      }
+      resetForm()
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal menyimpan kartu'))
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteCard.mutateAsync(deleteTarget.id)
+      toast.success('Kartu dihapus')
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal menghapus kartu'))
+    } finally {
+      setDeleteTarget(null)
+    }
+  }
+
+  return (
+    <div className="p-4 lg:p-6 space-y-4 max-w-4xl mx-auto">
+      <div className="flex items-center gap-2.5">
+        <div className="p-2 bg-teal-600 rounded-xl">
+          <CreditCard className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-base font-semibold text-gray-900 dark:text-white">Kartu Kredit Owner</h1>
+          <p className="text-xs text-gray-400">Kelola CC yang dipakai untuk checkout marketplace</p>
+        </div>
+        {canInsert && (
+          <button
+            type="button"
+            onClick={() => {
+              resetForm()
+              setShowForm(true)
+            }}
+            className="ml-auto flex items-center gap-1.5 px-3 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+          >
+            <Plus className="w-3.5 h-3.5" /> Tambah Kartu
+          </button>
+        )}
+      </div>
+
+      {showForm && (canInsert || canUpdate) && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-medium text-gray-500 uppercase">
+            {editId ? 'Edit Kartu' : 'Tambah Kartu'}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Label *</label>
+              <input
+                value={cardLabel}
+                onChange={(e) => setCardLabel(e.target.value)}
+                placeholder="BCA Michael Mulyadi - 1234"
+                className="w-full h-9 px-3 text-sm border rounded-lg bg-white dark:bg-gray-700"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Bank *</label>
+              <input
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="BCA"
+                className="w-full h-9 px-3 text-sm border rounded-lg bg-white dark:bg-gray-700"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">4 Digit Terakhir</label>
+              <input
+                value={last4}
+                onChange={(e) => setLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                maxLength={4}
+                placeholder="1234"
+                className="w-full h-9 px-3 text-sm border rounded-lg bg-white dark:bg-gray-700"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">COA Hutang CC *</label>
+              <select
+                value={coaCode}
+                onChange={(e) => setCoaCode(e.target.value)}
+                className="w-full h-9 px-3 text-sm border rounded-lg bg-white dark:bg-gray-700"
+              >
+                {CC_COA_OPTIONS.map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Urutan</label>
+              <input
+                type="number"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(Number(e.target.value))}
+                className="w-full h-9 px-3 text-sm border rounded-lg bg-white dark:bg-gray-700"
+              />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                />
+                Aktif
+              </label>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={createCard.isPending || updateCard.isPending}
+              className="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
+            >
+              {editId ? 'Update' : 'Simpan'}
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-4 py-2 text-sm border rounded-lg text-gray-600"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
+            ))}
+          </div>
+        ) : cards.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-12">Belum ada kartu kredit owner</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-900/50">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium text-gray-500">Label</th>
+                <th className="text-left px-4 py-2 font-medium text-gray-500">Bank</th>
+                <th className="text-left px-4 py-2 font-medium text-gray-500">Last4</th>
+                <th className="text-left px-4 py-2 font-medium text-gray-500">COA</th>
+                <th className="text-left px-4 py-2 font-medium text-gray-500">Status</th>
+                <th className="text-right px-4 py-2 font-medium text-gray-500">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {cards.map((c) => (
+                <tr key={c.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-900/30">
+                  <td className="px-4 py-3 font-medium">{c.card_label}</td>
+                  <td className="px-4 py-3">{c.bank_name}</td>
+                  <td className="px-4 py-3 font-mono">{c.last4 ?? '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{c.coa_code}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        c.is_active
+                          ? 'bg-green-50 text-green-700 border border-green-200'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      {c.is_active ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {canUpdate && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(c)}
+                        className="p-1.5 text-gray-400 hover:text-teal-600"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(c)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 ml-1"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        isLoading={deleteCard.isPending}
+        title="Hapus Kartu Kredit"
+        message={`Hapus kartu "${deleteTarget?.card_label}"?`}
+        confirmText="Hapus"
+        variant="danger"
+      />
+    </div>
+  )
+}

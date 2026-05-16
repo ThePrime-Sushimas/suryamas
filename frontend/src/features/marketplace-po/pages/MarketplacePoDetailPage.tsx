@@ -1,0 +1,323 @@
+import { useMemo, useState, type ReactNode } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
+import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import {
+  useMarketplaceSession,
+  useOrderSession,
+  useReceiveSession,
+  useSettleSession,
+} from '../api/marketplacePo.api'
+import { SessionStatusBadge, PlatformBadge } from '../components/SessionStatusBadge'
+import { SessionTimeline } from '../components/SessionTimeline'
+import { SessionItemsTab } from '../components/SessionItemsTab'
+import { SessionShipmentsTab } from '../components/SessionShipmentsTab'
+import { SessionAttachmentsTab } from '../components/SessionAttachmentsTab'
+import { SessionJournalTab } from '../components/SessionJournalTab'
+import { OrderConfirmModal } from '../components/OrderConfirmModal'
+import { ReceiveConfirmModal } from '../components/ReceiveConfirmModal'
+import { SettleModal } from '../components/SettleModal'
+import { fmtCurrency, fmtDate } from '../utils/format'
+import { PLATFORM_CONFIG } from '../utils/constants'
+import type { MarketplaceSessionStatus } from '../types/marketplacePo.types'
+
+type TabId = 'items' | 'shipments' | 'attachments' | 'journal'
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'items', label: 'Item' },
+  { id: 'shipments', label: 'Resi' },
+  { id: 'attachments', label: 'Lampiran' },
+  { id: 'journal', label: 'Journal' },
+]
+
+export default function MarketplacePoDetailPage() {
+  const { id = '' } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const toast = useToast()
+  const hasPermission = usePermissionStore((s) => s.hasPermission)
+  const canUpdate = hasPermission('marketplace_po', 'update')
+
+  const [activeTab, setActiveTab] = useState<TabId>('items')
+  const [showOrderModal, setShowOrderModal] = useState(false)
+  const [showReceiveModal, setShowReceiveModal] = useState(false)
+  const [showSettleModal, setShowSettleModal] = useState(false)
+
+  const { data, isLoading } = useMarketplaceSession(id)
+  const orderSession = useOrderSession()
+  const receiveSession = useReceiveSession()
+  const settleSession = useSettleSession()
+
+  const header = data?.header
+  const lines = data?.lines ?? []
+  const shipments = data?.shipments ?? []
+  const attachments = data?.attachments ?? []
+
+  const branchCount = useMemo(
+    () => new Set(lines.map((l) => l.branch_id)).size,
+    [lines],
+  )
+
+  const ccDisplay = useMemo(() => {
+    if (!header) return '-'
+    const label = header.card_label ?? header.cc_label ?? ''
+    const last4 = header.last4
+    return last4 ? `${label} · ${last4}` : label || '-'
+  }, [header])
+
+  const handleOrder = async () => {
+    if (!header) return
+    const hasBukti = attachments.some((a) => a.file_type === 'BUKTI_BAYAR')
+    if (!hasBukti) {
+      toast.warning('Upload bukti bayar di tab Lampiran terlebih dahulu')
+      return
+    }
+    try {
+      await orderSession.mutateAsync({ id: header.id })
+      toast.success('Order berhasil dikonfirmasi')
+      setShowOrderModal(false)
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal konfirmasi order'))
+    }
+  }
+
+  const handleReceive = async () => {
+    if (!header) return
+    try {
+      await receiveSession.mutateAsync({ id: header.id })
+      toast.success('Barang diterima & GR dibuat')
+      setShowReceiveModal(false)
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal konfirmasi penerimaan'))
+    }
+  }
+
+  const handleSettle = async (payload: {
+    bank_account_id: number
+    amount: number
+    reference_number: string
+    settled_date: string
+    notes?: string | null
+  }) => {
+    if (!header) return
+    try {
+      await settleSession.mutateAsync({ id: header.id, ...payload })
+      toast.success('Pelunasan CC berhasil')
+      setShowSettleModal(false)
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal pelunasan'))
+    }
+  }
+
+  const actionButton = useMemo(() => {
+    if (!header || !canUpdate) return null
+    const map: Record<
+      MarketplaceSessionStatus,
+      { label: string; onClick: () => void; className: string } | null
+    > = {
+      DRAFT: {
+        label: 'Konfirmasi Order',
+        onClick: () => setShowOrderModal(true),
+        className: 'bg-teal-600 hover:bg-teal-700',
+      },
+      ORDERED: {
+        label: 'Input Resi & Kirim',
+        onClick: () => setActiveTab('shipments'),
+        className: 'bg-blue-600 hover:bg-blue-700',
+      },
+      SHIPPED: {
+        label: 'Konfirmasi Diterima',
+        onClick: () => setShowReceiveModal(true),
+        className: 'bg-teal-600 hover:bg-teal-700',
+      },
+      RECEIVED: {
+        label: 'Lunasi CC Owner',
+        onClick: () => setShowSettleModal(true),
+        className: 'bg-purple-600 hover:bg-purple-700',
+      },
+      SETTLED: null,
+      CANCELLED: null,
+    }
+    return map[header.status]
+  }, [header, canUpdate])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900/50 p-6 space-y-4">
+        <div className="h-10 w-64 bg-gray-200 rounded animate-pulse" />
+        <div className="h-24 bg-gray-200 rounded-2xl animate-pulse" />
+        <div className="h-96 bg-gray-200 rounded-2xl animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!header) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <p>Session tidak ditemukan</p>
+        <button
+          type="button"
+          onClick={() => navigate('/inventory/marketplace-po')}
+          className="mt-4 text-teal-600 text-sm"
+        >
+          Kembali ke daftar
+        </button>
+      </div>
+    )
+  }
+
+  const platformCfg = PLATFORM_CONFIG[header.platform]
+
+  return (
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900/50 pb-8">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200/60 dark:border-gray-700 px-4 lg:px-6 py-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/inventory/marketplace-po')}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg font-bold text-gray-900 dark:text-white font-mono">
+                  {header.session_number}
+                </h1>
+                <SessionStatusBadge status={header.status} />
+              </div>
+              <p className="text-sm text-gray-500 mt-1 flex flex-wrap items-center gap-1">
+                <span className={platformCfg.textColor}>{platformCfg.label}</span>
+                <span>·</span>
+                <span>{ccDisplay}</span>
+                <span>·</span>
+                <span>{fmtDate(header.checkout_date)}</span>
+              </p>
+            </div>
+          </div>
+          {actionButton && (
+            <button
+              type="button"
+              onClick={actionButton.onClick}
+              className={`px-4 py-2 text-sm text-white rounded-xl font-medium shrink-0 ${actionButton.className}`}
+            >
+              {actionButton.label}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-6">
+        <section className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700 shadow-sm p-4">
+          <SessionTimeline status={header.status} />
+        </section>
+
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <InfoCard label="Total" value={fmtCurrency(header.total_amount)} highlight />
+          <InfoCard label="Platform" value={<PlatformBadge platform={header.platform} />} />
+          <InfoCard label="Kartu Kredit" value={ccDisplay} />
+          <InfoCard label="Tanggal" value={fmtDate(header.checkout_date)} />
+          <InfoCard
+            label="Goods Receipt"
+            value={
+              header.goods_receipt_id ? (
+                <Link
+                  to={`/inventory/goods-receipts/${header.goods_receipt_id}`}
+                  className="inline-flex items-center gap-1 text-teal-600 hover:underline text-sm"
+                >
+                  Lihat GR <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+              ) : (
+                <span className="text-gray-400 text-sm">—</span>
+              )
+            }
+          />
+        </section>
+
+        <section className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-teal-600 text-teal-700 dark:text-teal-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="p-4 lg:p-6">
+            {activeTab === 'items' && <SessionItemsTab lines={lines} />}
+            {activeTab === 'shipments' && (
+              <SessionShipmentsTab
+                sessionId={header.id}
+                status={header.status}
+                lines={lines}
+                shipments={shipments}
+              />
+            )}
+            {activeTab === 'attachments' && (
+              <SessionAttachmentsTab
+                sessionId={header.id}
+                status={header.status}
+                attachments={attachments}
+              />
+            )}
+            {activeTab === 'journal' && <SessionJournalTab header={header} />}
+          </div>
+        </section>
+      </div>
+
+      <OrderConfirmModal
+        isOpen={showOrderModal}
+        onClose={() => setShowOrderModal(false)}
+        onConfirm={handleOrder}
+        isLoading={orderSession.isPending}
+        session={header}
+        attachments={attachments}
+        lineCount={lines.length}
+        branchCount={branchCount}
+      />
+      <ReceiveConfirmModal
+        isOpen={showReceiveModal}
+        onClose={() => setShowReceiveModal(false)}
+        onConfirm={handleReceive}
+        isLoading={receiveSession.isPending}
+        session={header}
+      />
+      <SettleModal
+        isOpen={showSettleModal}
+        onClose={() => setShowSettleModal(false)}
+        onConfirm={handleSettle}
+        isLoading={settleSession.isPending}
+        session={header}
+      />
+    </div>
+  )
+}
+
+function InfoCard({
+  label,
+  value,
+  highlight,
+}: {
+  label: string
+  value: ReactNode
+  highlight?: boolean
+}) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700 p-3 shadow-sm">
+      <p className="text-xs text-gray-500 mb-1">{label}</p>
+      <div className={`text-sm ${highlight ? 'font-bold text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
+        {value}
+      </div>
+    </div>
+  )
+}
