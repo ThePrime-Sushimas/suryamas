@@ -1,4 +1,5 @@
 export type GoodsReceiptStatus = 'DRAFT' | 'CONFIRMED'
+export type GoodsReceiptSource = 'SUPPLIER' | 'MARKETPLACE'
 export type VarianceStatus = 'OK' | 'NOTICE' | 'DISPUTED'
 
 export interface GoodsReceipt {
@@ -9,6 +10,7 @@ export interface GoodsReceipt {
   warehouse_id: string
   gr_number: string
   status: GoodsReceiptStatus
+  source: GoodsReceiptSource
   received_date: string
   invoice_number: string | null
   invoice_date: string | null

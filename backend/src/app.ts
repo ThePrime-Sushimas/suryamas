@@ -72,6 +72,7 @@ import purchaseOrdersRoutes from "./modules/purchase-orders/purchase-orders.rout
 import goodsReceiptsRoutes from "./modules/goods-receipts/goods-receipts.routes";
 import goodsProcessingRoutes from "./modules/goods-processing/goods-processing.routes";
 import purchaseInvoicesRoutes from "./modules/purchase-invoices/purchase-invoices.routes";
+import marketplacePoRoutes from "./modules/marketplace-po/marketplace-po.routes";
 import printersRoutes from "./modules/printers/printers.routes";
 import storageRoutes from "./routes/storage.routes";
 import { pool } from "./config/db";
@@ -181,6 +182,7 @@ app.use("/api/v1/purchase-orders", purchaseOrdersRoutes);
 app.use("/api/v1/goods-receipts", goodsReceiptsRoutes);
 app.use("/api/v1/goods-processing", goodsProcessingRoutes);
 app.use("/api/v1/purchase-invoices", purchaseInvoicesRoutes);
+app.use("/api/v1", marketplacePoRoutes);
 
 app.use("/api/v1/printers", printersRoutes);
 app.use("/api/v1/storage", storageRoutes);

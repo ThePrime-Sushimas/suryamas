@@ -1,0 +1,56 @@
+import { Router } from 'express'
+import { authenticate } from '../../middleware/auth.middleware'
+import { resolveBranchContext } from '../../middleware/branch-context.middleware'
+import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
+import { validateSchema } from '../../middleware/validation.middleware'
+import { upload } from '../../middleware/upload.middleware'
+import { PermissionService } from '../../services/permission.service'
+import { marketplacePoController } from './marketplace-po.controller'
+import {
+  ownerCreditCardIdSchema,
+  ownerCreditCardListSchema,
+  createOwnerCreditCardSchema,
+  updateOwnerCreditCardSchema,
+  listMarketplaceSessionsSchema,
+  marketplaceSessionIdSchema,
+  createMarketplaceSessionSchema,
+  updateMarketplaceSessionSchema,
+  cancelMarketplaceSessionSchema,
+  orderMarketplaceSessionSchema,
+  shipMarketplaceSessionSchema,
+  receiveMarketplaceSessionSchema,
+  settleMarketplaceSessionSchema,
+  uploadMarketplaceAttachmentSchema,
+  deleteMarketplaceAttachmentSchema,
+  pendingPoLinesSchema,
+} from './marketplace-po.schema'
+
+PermissionService.registerModule('marketplace_po', 'Marketplace PO / Checkout (Shopee & Tokopedia)').catch((err) => {
+  console.error('Failed to register marketplace_po module:', err instanceof Error ? err.message : err)
+})
+
+const router = Router()
+router.use(authenticate, resolveBranchContext)
+
+router.get('/owner-credit-cards', canView('marketplace_po'), validateSchema(ownerCreditCardListSchema), (req, res) => marketplacePoController.listOwnerCreditCards(req, res))
+router.post('/owner-credit-cards', canInsert('marketplace_po'), validateSchema(createOwnerCreditCardSchema), (req, res) => marketplacePoController.createOwnerCreditCard(req, res))
+router.put('/owner-credit-cards/:id', canUpdate('marketplace_po'), validateSchema(updateOwnerCreditCardSchema), (req, res) => marketplacePoController.updateOwnerCreditCard(req, res))
+router.delete('/owner-credit-cards/:id', canDelete('marketplace_po'), validateSchema(ownerCreditCardIdSchema), (req, res) => marketplacePoController.deleteOwnerCreditCard(req, res))
+
+router.get('/marketplace-sessions', canView('marketplace_po'), validateSchema(listMarketplaceSessionsSchema), (req, res) => marketplacePoController.listSessions(req, res))
+router.get('/marketplace-sessions/pending-po-lines', canView('marketplace_po'), validateSchema(pendingPoLinesSchema), (req, res) => marketplacePoController.listPendingPoLines(req, res))
+router.get('/marketplace-sessions/:id', canView('marketplace_po'), validateSchema(marketplaceSessionIdSchema), (req, res) => marketplacePoController.getSessionDetail(req, res))
+router.post('/marketplace-sessions', canInsert('marketplace_po'), validateSchema(createMarketplaceSessionSchema), (req, res) => marketplacePoController.createSession(req, res))
+router.put('/marketplace-sessions/:id', canUpdate('marketplace_po'), validateSchema(updateMarketplaceSessionSchema), (req, res) => marketplacePoController.updateSession(req, res))
+router.delete('/marketplace-sessions/:id', canDelete('marketplace_po'), validateSchema(cancelMarketplaceSessionSchema), (req, res) => marketplacePoController.cancelSession(req, res))
+
+router.post('/marketplace-sessions/:id/attachments', canUpdate('marketplace_po'), upload.single('file'), validateSchema(uploadMarketplaceAttachmentSchema), (req, res) => marketplacePoController.uploadAttachment(req, res))
+router.delete('/marketplace-sessions/:id/attachments/:attachmentId', canUpdate('marketplace_po'), validateSchema(deleteMarketplaceAttachmentSchema), (req, res) => marketplacePoController.deleteAttachment(req, res))
+
+router.post('/marketplace-sessions/:id/order', canUpdate('marketplace_po'), validateSchema(orderMarketplaceSessionSchema), (req, res) => marketplacePoController.orderSession(req, res))
+router.post('/marketplace-sessions/:id/shipments',canUpdate('marketplace_po'), validateSchema(shipMarketplaceSessionSchema), (req, res) => marketplacePoController.shipSession(req, res))
+router.post('/marketplace-sessions/:id/receive', canUpdate('marketplace_po'), validateSchema(receiveMarketplaceSessionSchema), (req, res) => marketplacePoController.receiveSession(req, res))
+router.post('/marketplace-sessions/:id/settle', canUpdate('marketplace_po'), validateSchema(settleMarketplaceSessionSchema), (req, res) => marketplacePoController.settleSession(req, res))
+
+export default router
+

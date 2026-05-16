@@ -1,0 +1,343 @@
+import { pool } from '../../config/db'
+import type { PoolClient } from 'pg'
+
+export class MarketplacePoRepository {
+  async findOwnerCreditCards(companyId: string) {
+    const { rows } = await pool.query(
+      `SELECT * FROM owner_credit_cards
+       WHERE company_id = $1 AND is_active = true
+       ORDER BY sort_order ASC, card_label ASC`,
+      [companyId],
+    )
+    return rows
+  }
+
+  async listOwnerCreditCards(companyId: string, filter?: { is_active?: boolean }) {
+    const params: unknown[] = [companyId]
+    let sql = `SELECT * FROM owner_credit_cards WHERE company_id = $1`
+    if (filter?.is_active !== undefined) {
+      params.push(filter.is_active)
+      sql += ` AND is_active = $2`
+    }
+    sql += ` ORDER BY sort_order ASC, card_label ASC`
+    const { rows } = await pool.query(sql, params)
+    return rows
+  }
+
+  async findActiveOwnerCreditCards(companyId: string) {
+    const { rows } = await pool.query(
+      `SELECT * FROM owner_credit_cards WHERE company_id = $1 AND is_active = true`,
+      [companyId],
+    )
+    return rows
+  }
+
+  async createOwnerCreditCard(client: PoolClient, companyId: string, userId: string, data: { card_label: string; bank_name: string; last4: string | null; coa_code: string; is_active: boolean; sort_order: number }) {
+    const { rows } = await client.query(
+      `INSERT INTO owner_credit_cards (company_id, card_label, bank_name, last4, coa_code, is_active, sort_order, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [companyId, data.card_label, data.bank_name, data.last4, data.coa_code, data.is_active, data.sort_order, userId],
+    )
+    return rows[0]
+  }
+
+  async updateOwnerCreditCard(client: PoolClient, id: string, companyId: string, userId: string, data: { card_label?: string; bank_name?: string; last4?: string | null; coa_code?: string; is_active?: boolean; sort_order?: number }) {
+    const { rows } = await client.query(
+      `UPDATE owner_credit_cards
+       SET card_label = COALESCE($2, card_label),
+           bank_name  = COALESCE($3, bank_name),
+           last4      = COALESCE($4, last4),
+           coa_code   = COALESCE($5, coa_code),
+           is_active  = COALESCE($6, is_active),
+           sort_order = COALESCE($7, sort_order),
+           updated_at = now(),
+           updated_by = $8
+       WHERE id = $1 AND company_id = $9
+       RETURNING *`,
+      [id, data.card_label ?? null, data.bank_name ?? null, data.last4 ?? null, data.coa_code ?? null, data.is_active ?? null, data.sort_order ?? null, userId, companyId],
+    )
+    return rows[0] ?? null
+  }
+
+  async softDeleteOwnerCreditCard(client: PoolClient, id: string, companyId: string, userId: string) {
+    const { rows } = await client.query(
+      `UPDATE owner_credit_cards SET is_active = false, updated_at = now(), updated_by = $3 WHERE id = $1 AND company_id = $2 RETURNING *`,
+      [id, companyId, userId],
+    )
+    return rows[0] ?? null
+  }
+
+  async listSessions(companyId: string, filter: { platform?: string; status?: string; branch_id?: string; cc_id?: string; date_from?: string; date_to?: string; search?: string }, pagination: { limit: number; offset: number }) {
+    const params: unknown[] = [companyId]
+    let idx = 2
+    const conditions: string[] = ['mcs.company_id = $1', 'mcs.deleted_at IS NULL']
+
+    if (filter.platform) { params.push(filter.platform); conditions.push(`mcs.platform = $${idx}`); idx++ }
+    if (filter.status) { params.push(filter.status); conditions.push(`mcs.status = $${idx}`); idx++ }
+    if (filter.branch_id) { params.push(filter.branch_id); conditions.push(`EXISTS (SELECT 1 FROM marketplace_checkout_lines l WHERE l.session_id = mcs.id AND l.branch_id = $${idx})`); idx++ }
+    if (filter.cc_id) { params.push(filter.cc_id); conditions.push(`mcs.cc_id = $${idx}`); idx++ }
+    if (filter.date_from) { params.push(filter.date_from); conditions.push(`mcs.checkout_date >= $${idx}::date`); idx++ }
+    if (filter.date_to) { params.push(filter.date_to); conditions.push(`mcs.checkout_date <= $${idx}::date`); idx++ }
+    if (filter.search) { params.push(`%${filter.search}%`); conditions.push(`(mcs.session_number ILIKE $${idx} OR mcs.platform_receipt_url ILIKE $${idx})`); idx++ }
+
+    const where = `WHERE ${conditions.join(' AND ')}`
+
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(
+        `SELECT mcs.*,
+                o.card_label AS cc_label
+         FROM marketplace_checkout_sessions mcs
+         JOIN owner_credit_cards o ON o.id = mcs.cc_id
+         ${where}
+         ORDER BY mcs.created_at DESC
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...params, pagination.limit, pagination.offset],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM marketplace_checkout_sessions mcs ${where}`,
+        params,
+      ),
+    ])
+
+    return { data: dataRes.rows, total: countRes.rows[0]?.total ?? 0 }
+  }
+
+  async findSessionDetail(id: string, companyId: string) {
+    const headerRes = await pool.query(
+      `SELECT mcs.*, o.card_label, o.coa_code, o.bank_name, o.last4
+       FROM marketplace_checkout_sessions mcs
+       JOIN owner_credit_cards o ON o.id = mcs.cc_id
+       WHERE mcs.id = $1 AND mcs.company_id = $2 AND mcs.deleted_at IS NULL`,
+      [id, companyId],
+    )
+    if (!headerRes.rows[0]) return null
+
+    const linesRes = await pool.query(
+      `SELECT l.*,
+              p.product_name, p.product_code,
+              b.branch_name
+       FROM marketplace_checkout_lines l
+       JOIN products p ON p.id = l.product_id
+       JOIN branches b ON b.id = l.branch_id
+       WHERE l.session_id = $1
+       ORDER BY l.created_at ASC`,
+      [id],
+    )
+
+    const shipmentsRes = await pool.query(
+      `SELECT ms.* , b.branch_name
+       FROM marketplace_shipments ms
+       JOIN branches b ON b.id = ms.branch_id
+       WHERE ms.session_id = $1
+       ORDER BY ms.created_at ASC`,
+      [id],
+    )
+
+    const attachmentsRes = await pool.query(
+      `SELECT * FROM marketplace_checkout_attachments WHERE session_id = $1 ORDER BY uploaded_at DESC`,
+      [id],
+    )
+
+    return {
+      header: headerRes.rows[0],
+      lines: linesRes.rows,
+      shipments: shipmentsRes.rows,
+      attachments: attachmentsRes.rows,
+    }
+  }
+
+  async getSessionForTransition(client: PoolClient, id: string, companyId: string) {
+    const { rows } = await client.query(
+      `SELECT * FROM marketplace_checkout_sessions WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL FOR UPDATE`,
+      [id, companyId],
+    )
+    return rows[0] ?? null
+  }
+
+  async createSessionAndLines(client: PoolClient, companyId: string, userId: string, data: { session_number: string; platform: string; cc_id: string; checkout_date: string; notes?: string | null; lines: any[]; total_amount: number }) {
+    const { rows } = await client.query(
+      `INSERT INTO marketplace_checkout_sessions (company_id, session_number, platform, cc_id, checkout_date, total_amount, notes, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,
+      [companyId, data.session_number, data.platform, data.cc_id, data.checkout_date, data.total_amount, data.notes ?? null, userId],
+    )
+    const session = rows[0]
+
+    for (const l of data.lines) {
+      await client.query(
+        `INSERT INTO marketplace_checkout_lines (session_id, po_id, po_line_id, branch_id, product_id, qty, unit_price_netto, total_netto, platform_order_id, platform_item_id, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [session.id, l.po_id, l.po_line_id, l.branch_id, l.product_id, l.qty, l.unit_price_netto, l.total_netto, l.platform_order_id ?? null, l.platform_item_id ?? null, l.notes ?? null],
+      )
+    }
+
+    return session
+  }
+
+  async updateSessionHeader(client: PoolClient, id: string, companyId: string, userId: string, data: { platform?: string; cc_id?: string; checkout_date?: string; notes?: string | null }) {
+    const { rows } = await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET platform = COALESCE($2, platform),
+           cc_id = COALESCE($3, cc_id),
+           checkout_date = COALESCE($4::date, checkout_date),
+           notes = COALESCE($5, notes),
+           updated_by = $6,
+           updated_at = now()
+       WHERE id = $1 AND company_id = $7 AND status = 'DRAFT' AND deleted_at IS NULL
+       RETURNING *`,
+      [id, data.platform ?? null, data.cc_id ?? null, data.checkout_date ?? null, data.notes ?? null, userId, companyId],
+    )
+    return rows[0] ?? null
+  }
+
+  async cancelSession(client: PoolClient, id: string, companyId: string, userId: string) {
+    const { rows } = await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = 'CANCELLED', updated_by = $3, updated_at = now()
+       WHERE id = $1 AND company_id = $2 AND status = 'DRAFT' AND deleted_at IS NULL
+       RETURNING *`,
+      [id, companyId, userId],
+    )
+    return rows[0] ?? null
+  }
+
+  async listSessionAttachments(client: PoolClient | typeof pool, sessionId: string) {
+    const { rows } = await (client as any).query(
+      `SELECT * FROM marketplace_checkout_attachments WHERE session_id = $1 ORDER BY uploaded_at DESC`,
+      [sessionId],
+    )
+    return rows
+  }
+
+  async hasBuktipBayarAttachment(client: PoolClient, sessionId: string) {
+    const { rows } = await client.query(
+      `SELECT 1
+       FROM marketplace_checkout_attachments
+       WHERE session_id = $1 AND file_type = 'BUKTI_BAYAR'
+       LIMIT 1`,
+      [sessionId],
+    )
+    return rows.length > 0
+  }
+
+  async updateOrderData(client: PoolClient, id: string, companyId: string, userId: string, data: { platform_order_ids?: string[] | null; platform_receipt_url?: string | null; journal_ordered_id: string; status: string }) {
+    const { rows } = await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = $2,
+           platform_order_ids = COALESCE($3, platform_order_ids),
+           platform_receipt_url = COALESCE($4, platform_receipt_url),
+           journal_ordered_id = $5,
+           updated_by = $6,
+           updated_at = now()
+       WHERE id = $1 AND company_id = $7 AND deleted_at IS NULL AND status = 'DRAFT'
+       RETURNING *`,
+      [id, data.status, data.platform_order_ids ?? null, data.platform_receipt_url ?? null, data.journal_ordered_id, userId, companyId],
+    )
+    return rows[0] ?? null
+  }
+
+  async insertAttachment(client: PoolClient, sessionId: string, data: { file_type: string; file_path: string; file_name?: string | null; file_size?: number | null; uploaded_by: string }) {
+    const { rows } = await client.query(
+      `INSERT INTO marketplace_checkout_attachments (session_id, file_type, file_path, file_name, file_size, uploaded_by)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [sessionId, data.file_type, data.file_path, data.file_name ?? null, data.file_size ?? null, data.uploaded_by],
+    )
+    return rows[0]
+  }
+
+  async updateOrInsertShipments(client: PoolClient, sessionId: string, userId: string, shipments: any[]) {
+    for (const s of shipments) {
+      await client.query(
+        `INSERT INTO marketplace_shipments (session_id, branch_id, tracking_number, courier, shipped_at, notes, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6, now(), now())`,
+        [sessionId, s.branch_id, s.tracking_number, s.courier ?? null, s.shipped_at ?? null, s.notes ?? null],
+      )
+    }
+  }
+
+  async findSessionLinesForReceive(client: PoolClient, sessionId: string) {
+    const { rows } = await client.query(
+      `SELECT l.*, p.requires_processing,
+              pol.uom, pol.unit_price::numeric AS unit_price_po
+       FROM marketplace_checkout_lines l
+       JOIN products p ON p.id = l.product_id
+       JOIN purchase_order_lines pol ON pol.id = l.po_line_id
+       WHERE l.session_id = $1`,
+      [sessionId],
+    )
+    return rows
+  }
+
+  async findPendingPoLines(companyId: string, filter: { platform?: string; branch_id?: string }) {
+    const params: unknown[] = [companyId]
+    let idx = 2
+    const conditions = [
+      'po.company_id = $1',
+      `po.status IN ('ORDERED', 'PARTIAL_RECEIVED')`,
+      `(s.supplier_name ILIKE '%shopee%' OR s.supplier_name ILIKE '%tokped%' OR s.supplier_name ILIKE '%tokopedia%')`,
+      'pol.qty_received < pol.qty',
+      `NOT EXISTS (
+        SELECT 1 FROM marketplace_checkout_lines mcl
+        JOIN marketplace_checkout_sessions mcs ON mcs.id = mcl.session_id
+        WHERE mcl.po_line_id = pol.id
+          AND mcs.status NOT IN ('CANCELLED')
+      )`,
+    ]
+
+    if (filter.platform === 'SHOPEE') {
+      conditions.push(`s.supplier_name ILIKE '%shopee%'`)
+    } else if (filter.platform === 'TOKOPEDIA') {
+      conditions.push(`(s.supplier_name ILIKE '%tokped%' OR s.supplier_name ILIKE '%tokopedia%')`)
+    }
+    if (filter.branch_id) {
+      conditions.push(`po.branch_id = $${idx}`)
+      params.push(filter.branch_id)
+      idx++
+    }
+
+    const { rows } = await pool.query(
+      `SELECT pol.id AS po_line_id, pol.po_id, pol.product_id, pol.qty::numeric AS qty,
+              pol.qty_received::numeric AS qty_received, pol.uom, pol.unit_price::numeric AS unit_price,
+              po.po_number, po.branch_id, b.branch_name,
+              s.supplier_name, p.product_name, p.product_code
+       FROM purchase_order_lines pol
+       JOIN purchase_orders po ON po.id = pol.po_id
+       JOIN suppliers s ON s.id = po.supplier_id
+       JOIN branches b ON b.id = po.branch_id
+       JOIN products p ON p.id = pol.product_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY po.po_number, b.branch_name`,
+      params,
+    )
+    return rows
+  }
+
+  async findAttachment(sessionId: string, attachmentId: string) {
+    const { rows } = await pool.query(
+      `SELECT a.*, mcs.company_id, mcs.status AS session_status
+       FROM marketplace_checkout_attachments a
+       JOIN marketplace_checkout_sessions mcs ON mcs.id = a.session_id
+       WHERE a.id = $1 AND a.session_id = $2`,
+      [attachmentId, sessionId],
+    )
+    return rows[0] ?? null
+  }
+
+  async deleteAttachment(attachmentId: string, sessionId: string) {
+    const { rowCount } = await pool.query(
+      `DELETE FROM marketplace_checkout_attachments WHERE id = $1 AND session_id = $2`,
+      [attachmentId, sessionId],
+    )
+    return (rowCount ?? 0) > 0
+  }
+
+  async getSessionStatus(db: PoolClient | typeof pool, sessionId: string, companyId: string) {
+    const { rows } = await (db as any).query(
+      `SELECT id, status FROM marketplace_checkout_sessions WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+      [sessionId, companyId],
+    )
+    return rows[0] ?? null
+  }
+}
+
+export const marketplacePoRepository = new MarketplacePoRepository()
+

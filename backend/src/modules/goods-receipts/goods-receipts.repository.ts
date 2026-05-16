@@ -142,11 +142,13 @@ export class GoodsReceiptsRepository {
       invoice_date?: string | null;
       notes?: string | null;
       created_by?: string;
+      source?: string;
+      status?: string;
     },
   ): Promise<GoodsReceipt> {
     const { rows } = await client.query(
-      `INSERT INTO goods_receipts (company_id, branch_id, po_id, warehouse_id, gr_number, received_date, invoice_number, invoice_date, notes, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8, $9, $10, $10) RETURNING *`,
+      `INSERT INTO goods_receipts (company_id, branch_id, po_id, warehouse_id, gr_number, received_date, invoice_number, invoice_date, notes, created_by, updated_by, source, status)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8, $9, $10, $10, COALESCE($11, 'SUPPLIER'), COALESCE($12, 'DRAFT')) RETURNING *`,
       [
         companyId,
         data.branch_id,
@@ -158,6 +160,8 @@ export class GoodsReceiptsRepository {
         data.invoice_date ?? null,
         data.notes ?? null,
         data.created_by ?? null,
+        data.source ?? null,
+        data.status ?? null,
       ],
     );
     return rows[0];

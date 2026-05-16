@@ -134,11 +134,11 @@ export class GoodsReceiptsService {
     if (!gr) throw new GoodsReceiptNotFoundError(id)
     if (gr.status === 'CONFIRMED') throw new GoodsReceiptAlreadyConfirmedError()
 
-    // Check at least one attachment exists (surat jalan / foto)
     const attachments = await goodsReceiptsRepository.findAttachments(id)
-    if (attachments.length === 0) {
+    if (gr.source !== 'MARKETPLACE' && attachments.length === 0) {
       throw new BusinessRuleError('Upload minimal 1 dokumen (surat jalan / foto barang) sebelum konfirmasi')
     }
+
 
     // Guard: warehouse must exist
     if (!gr.warehouse_id) {
