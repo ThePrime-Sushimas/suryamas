@@ -16,7 +16,7 @@ ALTER TABLE goods_processing_inputs
 -- Step 2: Add CHECK constraint for line status
 ALTER TABLE goods_processing_inputs DROP CONSTRAINT IF EXISTS goods_processing_inputs_status_check;
 ALTER TABLE goods_processing_inputs ADD CONSTRAINT goods_processing_inputs_status_check
-  CHECK (status IN ('PENDING', 'PROCESSING', 'QC_REVIEW', 'CONFIRMED', 'REJECTED'));
+  CHECK (status IN ('PENDING', 'PROCESSING', 'QC_REVIEW', 'CONFIRMED', 'REJECTED', 'DONE'));
 
 -- Step 3: Update header constraint to include PARTIAL
 ALTER TABLE goods_processing DROP CONSTRAINT IF EXISTS goods_processing_status_check;

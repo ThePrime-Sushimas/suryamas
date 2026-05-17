@@ -192,3 +192,34 @@ export function useResolveReturn(gpId: string) {
     },
   })
 }
+
+export interface OutputPayload {
+  id?: string
+  product_id: string
+  product_name?: string
+  product_code?: string
+  qty_output: number
+  uom: string
+  is_waste: boolean
+  waste_reason: string | null
+  condition_status: string | null
+  actual_qty: number | null
+  actual_uom: string | null
+  flagged_for_return: boolean
+  return_reason: string | null
+  sort_order: number
+  stock_movement_id?: string | null
+}
+
+export function useConfirmGoodsProcessingInput(gpId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { inputId: string; outputs: OutputPayload[] }) =>
+      api.patch(`/goods-processing/${gpId}/inputs/${payload.inputId}/confirm`, {
+        outputs: payload.outputs,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goods-processing', gpId] })
+    },
+  })
+}

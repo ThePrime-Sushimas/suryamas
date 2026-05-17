@@ -25,5 +25,6 @@ router.post('/:id/start',                      requireWriteAccess, canUpdate('go
 router.post('/:id/confirm',                    requireWriteAccess, canApprove('goods_processing'), validateSchema(IdParamSchema),               (req, res) => goodsProcessingController.confirm(req, res))
 router.post('/:id/reject',                     requireWriteAccess, canApprove('goods_processing'), validateSchema(RejectSchema),                (req, res) => goodsProcessingController.reject(req, res))
 router.post('/:id/outputs/:outputId/resolve-return', requireWriteAccess, canApprove('goods_processing'), validateSchema(ResolveReturnSchema),   (req, res) => goodsProcessingController.resolveReturn(req, res))
+router.patch('/:id/inputs/:inputId/confirm', requireWriteAccess, canUpdate('goods_processing'), (req, res) => goodsProcessingController.confirmInput(req, res))
 
 export default router

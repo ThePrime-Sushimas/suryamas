@@ -116,6 +116,20 @@ export class GoodsProcessingController {
       await handleError(res, error, req, { action: 'resolve_return_goods_processing' })
     }
   }
+
+  confirmInput = async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string
+      const inputId = req.params.inputId as string
+      const companyId = getCompanyId(req)
+      const userId    = getUserId(req)
+      const { outputs } = req.body as { outputs: any[] }
+      const result = await goodsProcessingService.confirmInput(id, inputId, companyId, outputs, userId)
+      sendSuccess(res, result, 'Input confirmed, status updated to DONE')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'confirm_input_goods_processing' })
+    }
+  }
 }
 
 export const goodsProcessingController = new GoodsProcessingController()

@@ -297,6 +297,68 @@ export class GoodsProcessingRepository {
     )
     return rows
   }
+
+  async updateInputStatus(client: PoolClient, inputId: string, status: string, userId: string): Promise<void> {
+    await client.query(
+      `UPDATE goods_processing_inputs 
+       SET status = $1, updated_by = $2, updated_at = now()
+       WHERE id = $3`,
+      [status, userId, inputId]
+    )
+  }
+
+  async updateInputOutputs(client: PoolClient, inputId: string, outputs: any[]): Promise<void> {
+    // Ambil goods_processing_id dari input
+    const { rows: [input] } = await client.query(
+      'SELECT goods_processing_id FROM goods_processing_inputs WHERE id = $1',
+      [inputId]
+    )
+    if (!input) throw new Error(`Input ${inputId} not found`)
+
+    // Hapus outputs lama
+    await client.query(
+      'DELETE FROM goods_processing_outputs WHERE input_id = $1',
+      [inputId]
+    )
+    if (outputs.length === 0) return
+
+    // Insert outputs baru
+    const valueRows: string[] = []
+    const params: unknown[] = []
+    let idx = 1
+    for (const o of outputs) {
+      valueRows.push(
+        `(${idx}, ${idx+1}, ${idx+2}, ${idx+3}, ${idx+4}, ${idx+5}, ${idx+6}, ${idx+7}, ${idx+8}, ${idx+9}, ${idx+10}, ${idx+11}, ${idx+12}, ${idx+13})`
+      )
+      params.push(
+        input.goods_processing_id,
+        inputId,
+        o.product_id,
+        o.qty_output,
+        o.uom,
+        o.is_waste,
+        o.waste_reason ?? null,
+        o.photo_urls ?? null,
+        o.condition_status ?? null,
+        o.actual_qty ?? null,
+        o.actual_uom ?? null,
+        o.flagged_for_return ?? false,
+        o.return_reason ?? null,
+        o.sort_order
+      )
+      idx += 14
+    }
+
+    await client.query(
+      `INSERT INTO goods_processing_outputs
+         (goods_processing_id, input_id, product_id, qty_output, uom,
+          is_waste, waste_reason, photo_urls,
+          condition_status, actual_qty, actual_uom, flagged_for_return, return_reason,
+          sort_order)
+       VALUES ${valueRows.join(', ')}`,
+      params
+    )
+  }
 }
 
 export const goodsProcessingRepository = new GoodsProcessingRepository()

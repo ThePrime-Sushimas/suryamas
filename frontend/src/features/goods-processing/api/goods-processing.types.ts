@@ -42,6 +42,7 @@ export interface GoodsProcessingOutputWithProduct {
 
 export interface GoodsProcessingInputWithTemplate {
   id: string
+  gr_line_id: string
   product_id: string
   product_name: string
   product_code: string
@@ -50,6 +51,7 @@ export interface GoodsProcessingInputWithTemplate {
   requires_processing: boolean
   output_template: OutputTemplateRow[]
   outputs: GoodsProcessingOutputWithProduct[]
+  status?: 'PENDING' | 'PROCESSING' | 'DONE'
 }
 
 export interface GoodsProcessingDetail {

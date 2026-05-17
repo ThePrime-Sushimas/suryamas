@@ -349,6 +349,34 @@ export class GoodsProcessingService {
     await AuditService.log('UPDATE', 'goods_processing', id, userId, { status: 'QC_REVIEW' }, { status: 'REJECTED' })
     return goodsProcessingRepository.findDetail(id, companyId)
   }
+
+  async confirmInput(id: string, inputId: string, companyId: string, outputs: any[], userId: string) {
+    // Guard: GP must exist and belong to this company
+    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+    if (!detail) throw new GoodsProcessingNotFoundError(id)
+
+    // Cari input yang mau di-confirm
+    const input = detail.inputs.find(i => i.id === inputId)
+    if (!input) throw new Error(`Input ${inputId} not found in GP ${id}`)
+    if (!['PENDING', 'PROCESSING'].includes(input.status)) throw new Error(`Input ${inputId} cannot be confirmed (current status: ${input.status})`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      // Update input outputs dan set status jadi DONE
+      await goodsProcessingRepository.updateInputOutputs(client, inputId, outputs)
+      await goodsProcessingRepository.updateInputStatus(client, inputId, 'DONE', userId)
+      await client.query('COMMIT')
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+
+    await AuditService.log('UPDATE', 'goods_processing_inputs', inputId, userId, { status: input.status }, { status: 'DONE' })
+    return goodsProcessingRepository.findDetail(id, companyId)
+  }
 }
 
 export const goodsProcessingService = new GoodsProcessingService()
