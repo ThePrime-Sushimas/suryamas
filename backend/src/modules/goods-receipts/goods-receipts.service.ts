@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import { goodsReceiptsRepository } from './goods-receipts.repository'
 import { goodsProcessingRepository } from '../goods-processing/goods-processing.repository'
+import { productOutputTemplateRepository } from '../products/product-output-template.repository'
 import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.repository'
 import { BusinessRuleError } from '../../utils/errors.base'
 import {
@@ -224,20 +225,54 @@ export class GoodsReceiptsService {
       )
       const gpId = gpRows[0].id
 
-      // Auto-create inputs + default outputs (pass-through: output = input)
+      // Auto-create inputs + outputs (pass-through = same product; disassembly = from output template)
+      const lineProductIds = [...new Set(gr.lines.map((l) => l.product_id))]
+      const { rows: productRows } = await client.query<{ id: string; requires_processing: boolean }>(
+        `SELECT id, requires_processing FROM products WHERE id = ANY($1::uuid[])`,
+        [lineProductIds]
+      )
+      const requiresProcessingByProduct = new Map(
+        productRows.map((r) => [r.id, r.requires_processing])
+      )
+      const disassemblyProductIds = lineProductIds.filter((id) => requiresProcessingByProduct.get(id))
+      const outputTemplatesByProduct =
+        disassemblyProductIds.length > 0
+          ? await productOutputTemplateRepository.findByProductIds(disassemblyProductIds)
+          : {}
+
       for (const line of gr.lines) {
+        const qtyInput = line.qty_received
+        const uomInput = line.uom_received ?? line.uom ?? 'kg'
+
         const { rows: inputRows } = await client.query(
           `INSERT INTO goods_processing_inputs (goods_processing_id, gr_line_id, product_id, qty_input, uom, sort_order)
            VALUES ($1, $2, $3, $4, $5, 0) RETURNING id`,
-          [gpId, line.id, line.product_id, line.qty_received, line.uom_received ?? line.uom ?? 'kg']
+          [gpId, line.id, line.product_id, qtyInput, uomInput]
         )
         const inputId = inputRows[0].id
 
-        await client.query(
-          `INSERT INTO goods_processing_outputs (goods_processing_id, input_id, product_id, qty_output, uom, is_waste, sort_order)
-           VALUES ($1, $2, $3, $4, $5, false, 0)`,
-          [gpId, inputId, line.product_id, line.qty_received, line.uom_received ?? line.uom ?? 'kg']
-        )
+        const needsProcessing = requiresProcessingByProduct.get(line.product_id) ?? false
+        if (needsProcessing) {
+          const templates = outputTemplatesByProduct[line.product_id] ?? []
+          for (let i = 0; i < templates.length; i++) {
+            const t = templates[i]
+            const qtyOutput =
+              t.suggested_pct != null
+                ? Math.round(qtyInput * (Number(t.suggested_pct) / 100) * 10000) / 10000
+                : 0
+            await client.query(
+              `INSERT INTO goods_processing_outputs (goods_processing_id, input_id, product_id, qty_output, uom, is_waste, sort_order)
+               VALUES ($1, $2, $3, $4, $5, false, $6)`,
+              [gpId, inputId, t.output_product_id, qtyOutput, t.output_uom, i]
+            )
+          }
+        } else {
+          await client.query(
+            `INSERT INTO goods_processing_outputs (goods_processing_id, input_id, product_id, qty_output, uom, is_waste, sort_order)
+             VALUES ($1, $2, $3, $4, $5, false, 0)`,
+            [gpId, inputId, line.product_id, qtyInput, uomInput]
+          )
+        }
       }
 
       // 6b. Auto-create Purchase Invoice Draft
