@@ -46,12 +46,14 @@ const LINE_FROM = `
   JOIN products p ON p.id = prl.product_id
   LEFT JOIN suppliers s ON s.id = prl.supplier_id
   LEFT JOIN LATERAL (
-    SELECT SUM(pol.qty) AS qty_ordered, SUM(pol.qty_received) AS qty_received
+    SELECT
+      COALESCE(SUM(pol.qty) FILTER (WHERE po.deleted_at IS NULL), 0) AS qty_ordered,
+      COALESCE(SUM(pol.qty_received) FILTER (WHERE po.deleted_at IS NULL), 0) AS qty_received
     FROM purchase_order_lines pol
-    JOIN purchase_orders po ON po.id = pol.po_id AND po.deleted_at IS NULL
+    JOIN purchase_orders po ON po.id = pol.po_id
     WHERE pol.pr_line_id = prl.id
   ) po_agg ON true
-`
+  `
 
 export class PurchaseRequestsRepository {
   async findAll(
@@ -98,10 +100,10 @@ export class PurchaseRequestsRepository {
     const [{ rows: lines }, { rows: pos }] = await Promise.all([
       pool.query(`SELECT ${LINE_SELECT} ${LINE_FROM} WHERE prl.request_id = $1 ORDER BY prl.sort_order ASC`, [id]),
       pool.query(
-        `SELECT po.id, po.po_number, po.status, s.supplier_name
+        `SELECT po.id, po.po_number, po.status, s.supplier_name, po.is_deleted
          FROM purchase_orders po
          JOIN suppliers s ON s.id = po.supplier_id
-         WHERE po.purchase_request_id = $1 AND po.deleted_at IS NULL
+         WHERE po.purchase_request_id = $1
          ORDER BY po.created_at ASC`,
         [id]
       ),

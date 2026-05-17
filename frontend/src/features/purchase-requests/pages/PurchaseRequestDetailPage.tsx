@@ -264,22 +264,45 @@ export default function PurchaseRequestDetailPage() {
                   ({group.lines.length} item)
                 </span>
                 {(() => {
-                  const po = pr.purchase_orders?.find(p => p.supplier_name === group.supplierName)
-                  if (!po) return null
+                  const supplierPos =
+                    pr.purchase_orders?.filter(
+                      (p) => p.supplier_name === group.supplierName,
+                    ) ?? [];
+                  const po =
+                    supplierPos.find((p) => !p.is_deleted) ?? supplierPos[0];
+                  if (!po) return null;
                   return (
                     <>
-                      <button onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
-                        className="px-2 py-0.5 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50">
-                        {po.po_number}
-                      </button>
-                      {['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status) && (
-                        <button onClick={() => navigate(`/inventory/goods-receipts/new?po_id=${po.id}`)}
-                          className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-700 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50">
-                          <PackageCheck className="w-3 h-3" /> Terima Barang
+                      {po.is_deleted ? (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600 rounded">
+                          {po.po_number} (Dihapus)
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            navigate(`/inventory/purchase-orders/${po.id}`)
+                          }
+                          className="px-2 py-0.5 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                        >
+                          {po.po_number}
                         </button>
                       )}
+                      {!po.is_deleted &&
+                        ["ORDERED", "PARTIAL_RECEIVED"].includes(po.status) && (
+                          <button
+                            onClick={() =>
+                              navigate(
+                                `/inventory/goods-receipts/new?po_id=${po.id}`,
+                              )
+                            }
+                            className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-700 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50"
+                          >
+                            <PackageCheck className="w-3 h-3" /> Terima
+                            Barang
+                          </button>
+                        )}
                     </>
-                  )
+                  );
                 })()}
               </div>
             </div>

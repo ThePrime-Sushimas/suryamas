@@ -35,7 +35,7 @@ export interface PurchaseRequest {
   total_estimated: number
   created_at: string
   lines?: PurchaseRequestLine[]
-  purchase_orders?: Array<{ id: string; po_number: string; status: string; supplier_name: string }>
+  purchase_orders?: Array<{ id: string; po_number: string; status: string; supplier_name: string; is_deleted: boolean }>
 }
 
 interface Pagination { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean }
