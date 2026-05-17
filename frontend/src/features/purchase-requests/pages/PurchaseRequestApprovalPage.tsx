@@ -181,7 +181,7 @@ export default function PurchaseRequestApprovalPage() {
               </p>
             </div>
           </div>
-          {isPending && (
+          {pr.status === 'PENDING_APPROVAL' && (
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <button onClick={() => setShowRejectModal(true)}
                 className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs sm:text-sm">
