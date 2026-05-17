@@ -16,7 +16,9 @@ const HEADER_SELECT = `
   gr.gr_number,
   s.supplier_name,
   COALESCE(inp_agg.input_count, 0)::int AS input_count,
-  COALESCE(inp_agg.item_names, '{}') AS item_names
+  COALESCE(inp_agg.item_names, '{}') AS item_names,
+  COALESCE(weighing_agg.weighing_line_count, 0)::int AS weighing_line_count,
+  weighing_agg.weighing_summary
 `
 const HEADER_FROM = `
   FROM goods_processing gp
@@ -33,6 +35,28 @@ const HEADER_FROM = `
     JOIN products p ON p.id = gpi.product_id
     WHERE gpi.goods_processing_id = gp.id
   ) inp_agg ON true
+  LEFT JOIN LATERAL (
+    SELECT
+      COUNT(*)::int AS weighing_line_count,
+      string_agg(
+        CASE
+          WHEN grl.uom_po IS DISTINCT FROM grl.uom_received
+            OR ABS(COALESCE(grl.conversion_factor, 1) - 1) > 0.0001
+            OR ABS(COALESCE(grl.qty_po_uom, gpi.qty_input) - gpi.qty_input) > 0.0001
+          THEN p.product_name || ' '
+            || TRIM(to_char(COALESCE(grl.qty_po_uom, gpi.qty_input), 'FM999999990.####')) || ' ' || grl.uom_po
+            || ' → '
+            || TRIM(to_char(gpi.qty_input, 'FM999999990.####')) || ' ' || gpi.uom
+          ELSE p.product_name || ' '
+            || TRIM(to_char(gpi.qty_input, 'FM999999990.####')) || ' ' || gpi.uom
+        END,
+        ' · ' ORDER BY gpi.sort_order, gpi.id
+      ) AS weighing_summary
+    FROM goods_processing_inputs gpi
+    JOIN goods_receipt_lines grl ON grl.id = gpi.gr_line_id
+    JOIN products p ON p.id = gpi.product_id
+    WHERE gpi.goods_processing_id = gp.id
+  ) weighing_agg ON true
 `
 
 export class GoodsProcessingRepository {

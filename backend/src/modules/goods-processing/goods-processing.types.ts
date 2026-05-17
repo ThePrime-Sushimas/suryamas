@@ -40,6 +40,8 @@ export interface GoodsProcessingWithRelations extends GoodsProcessing {
   supplier_name: string
   input_count: number
   item_names: string[]
+  weighing_line_count: number
+  weighing_summary: string | null
 }
 
 export interface GoodsProcessingInput {

@@ -92,6 +92,8 @@ export interface GoodsProcessingWithRelations {
   yield_percentage: number | null
   input_count: number | null
   item_names: string[]
+  weighing_line_count?: number
+  weighing_summary?: string | null
   created_at: string
 }
 

@@ -135,6 +135,78 @@ function initLocalInputs(detail: GoodsProcessingDetail): LocalInput[] {
   }));
 }
 
+// ── UOM helpers (pass-through qty split) ──────────────────────────────────────
+
+type ProductUomRow = { unit_name: string; conversion_factor: number; is_base_unit: boolean }
+
+function toBaseQty(qty: number, uomName: string, uoms: ProductUomRow[]): number {
+  if (!uoms.length) return qty
+  const match = uoms.find((u) => u.unit_name === uomName)
+  return qty * (match?.conversion_factor ?? 1)
+}
+
+function fromBaseQty(baseQty: number, uomName: string, uoms: ProductUomRow[]): number {
+  if (!uoms.length) return baseQty
+  const match = uoms.find((u) => u.unit_name === uomName)
+  const cf = match?.conversion_factor ?? 1
+  return cf > 0 ? baseQty / cf : baseQty
+}
+
+function resolveBaseUom(uoms: ProductUomRow[], fallbackUom: string): string {
+  return uoms.find((u) => u.is_base_unit)?.unit_name ?? fallbackUom
+}
+
+function fmtGpQty(n: number): string {
+  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(n)
+}
+
+function derivePassThroughSplit(
+  output: LocalOutput,
+  input: LocalInput,
+  uoms: ProductUomRow[],
+): { totalBase: number; goodBase: number; damagedBase: number; baseUom: string } {
+  const baseUom = resolveBaseUom(uoms, input.uom)
+  const totalBase = toBaseQty(input.qty_input, input.uom, uoms)
+
+  let goodBase: number
+  if (output.actual_qty != null && output.actual_uom) {
+    goodBase = toBaseQty(output.actual_qty, output.actual_uom, uoms)
+  } else if (output.condition_status === 'OK') {
+    goodBase = totalBase
+  } else {
+    goodBase = totalBase
+  }
+
+  const damagedBase = Math.max(0, totalBase - goodBase)
+  return { totalBase, goodBase, damagedBase, baseUom }
+}
+
+function buildPassThroughOutput(
+  output: LocalOutput,
+  input: LocalInput,
+  goodBase: number,
+  damagedBase: number,
+  baseUom: string,
+): LocalOutput {
+  const hasDamage = damagedBase > 0.0001
+  return {
+    ...output,
+    qty_output: input.qty_input,
+    uom: input.uom,
+    condition_status: hasDamage ? 'DAMAGED' : 'OK',
+    actual_qty: goodBase,
+    actual_uom: baseUom,
+    ...(hasDamage
+      ? {}
+      : {
+          is_waste: false,
+          flagged_for_return: false,
+          return_reason: null,
+          waste_reason: null,
+        }),
+  }
+}
+
 // ── Status config ─────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
@@ -148,29 +220,51 @@ const STATUS_CONFIG = {
 // ── PassThroughCard ───────────────────────────────────────────────────────────
 
 function PassThroughCard({
-  input, output, isEditable, onChange, baseUomName = '', grLine, onConfirmItem, isConfirming,
+  input, output, isEditable, onChange, productUoms, grLine, onConfirmItem, isConfirming,
 }: {
   input: LocalInput
   output: LocalOutput
   isEditable: boolean
   onChange: (updated: LocalOutput) => void
-  baseUomName?: string
+  productUoms: ProductUomRow[]
   grLine: { qty_received: number; uom_received: string } | null
   onConfirmItem: () => void
   isConfirming: boolean
 }) {
   const isDone = input.status === 'DONE'
-  const displayUom = baseUomName || input.uom
-  const actualQty = output.actual_qty ?? input.qty_input
-  const damagedQty = Math.max(0, Number(input.qty_input) - Number(actualQty))
-  const hasDamage = damagedQty > 0
-  const canConfirm = output.condition_status != null
+  const { totalBase, goodBase, damagedBase, baseUom } = derivePassThroughSplit(output, input, productUoms)
+  const inputUomHint =
+    input.uom !== baseUom
+      ? `≈ ${fmtGpQty(fromBaseQty(totalBase, input.uom, productUoms))} ${input.uom}`
+      : null
+
+  const overTotal = goodBase + damagedBase > totalBase + 0.0001
+  const hasDamage = damagedBase > 0.0001
+  const missingDisposition = hasDamage && !output.flagged_for_return && !output.is_waste
+  const missingReason =
+    hasDamage &&
+    ((output.flagged_for_return && !(output.return_reason?.trim())) ||
+      (output.is_waste && !(output.waste_reason?.trim())))
+  const canConfirm = !overTotal && !missingDisposition && !missingReason
+
+  const applyGood = (raw: string) => {
+    const parsed = raw === '' ? 0 : parseFloat(raw)
+    const good = Math.min(Math.max(0, Number.isFinite(parsed) ? parsed : 0), totalBase)
+    const damaged = Math.max(0, totalBase - good)
+    onChange(buildPassThroughOutput(output, input, good, damaged, baseUom))
+  }
+
+  const applyDamaged = (raw: string) => {
+    const parsed = raw === '' ? 0 : parseFloat(raw)
+    const damaged = Math.min(Math.max(0, Number.isFinite(parsed) ? parsed : 0), totalBase)
+    const good = Math.max(0, totalBase - damaged)
+    onChange(buildPassThroughOutput(output, input, good, damaged, baseUom))
+  }
 
   return (
     <div className={`rounded-xl border-2 transition-all p-4 space-y-3 ${
       isDone ? "border-green-300 bg-green-50/40"
-      : output.condition_status === "OK" ? "border-green-200 bg-green-50/20"
-      : output.condition_status === "DAMAGED" ? "border-red-200 bg-red-50/20"
+      : hasDamage ? "border-amber-200 bg-amber-50/10"
       : "border-gray-200 bg-white"
     }`}>
       {/* Header */}
@@ -183,11 +277,14 @@ function PassThroughCard({
           <p className="text-xs text-gray-500 font-mono mt-0.5">{input.product_code}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-lg font-bold text-gray-800">{input.qty_input}</p>
-          <p className="text-xs text-gray-500">{input.uom} masuk</p>
-          {grLine && (
-            <p className="text-xs text-blue-600 font-medium mt-0.5">
-              ≈ {grLine.qty_received} {grLine.uom_received}
+          <p className="text-lg font-bold text-gray-800">{fmtGpQty(totalBase)}</p>
+          <p className="text-xs text-gray-500">{baseUom} total</p>
+          {inputUomHint && (
+            <p className="text-xs text-blue-600 font-medium mt-0.5">{inputUomHint}</p>
+          )}
+          {grLine && grLine.uom_received !== baseUom && grLine.uom_received !== input.uom && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              timbang {fmtGpQty(grLine.qty_received)} {grLine.uom_received}
             </p>
           )}
         </div>
@@ -198,20 +295,20 @@ function PassThroughCard({
         <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
           <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
           <span className="text-xs text-green-700 font-medium">
-            Masuk: <span className="font-bold">{actualQty} {displayUom}</span>
+            Bagus: <span className="font-bold">{fmtGpQty(goodBase)} {baseUom}</span>
           </span>
         </div>
         {hasDamage ? (
           <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
             <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
             <span className="text-xs text-red-700 font-medium">
-              Rusak: <span className="font-bold">{damagedQty.toFixed(2)} {displayUom}</span>
+              Rusak: <span className="font-bold">{fmtGpQty(damagedBase)} {baseUom}</span>
             </span>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
             <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
-            <span className="text-xs text-gray-500 font-medium">Semua bagus</span>
+            <span className="text-xs text-gray-500 font-medium">Tidak ada rusak</span>
           </div>
         )}
         {output.flagged_for_return && (
@@ -231,115 +328,141 @@ function PassThroughCard({
         )}
       </div>
 
-      {/* Form — hanya kalau editable dan belum DONE */}
       {isEditable && !isDone && (
-        <>
-          <div>
-            <p className="text-xs font-medium text-gray-600 mb-1.5">Kondisi barang</p>
-            <div className="flex gap-2">
-              <button type="button"
-                onClick={() => onChange({ ...output, condition_status: "OK", is_waste: false, flagged_for_return: false, return_reason: null, waste_reason: null })}
-                className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                  output.condition_status === "OK"
-                    ? "bg-green-500 border-green-500 text-white"
-                    : "bg-white border-gray-200 text-gray-600 hover:border-green-300"
-                }`}
-              >✓ Bagus</button>
-              <button type="button"
-                onClick={() => onChange({ ...output, condition_status: "DAMAGED", actual_qty: null, actual_uom: null })}
-                className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                  output.condition_status === "DAMAGED"
-                    ? "bg-red-500 border-red-500 text-white"
-                    : "bg-white border-gray-200 text-gray-600 hover:border-red-300"
-                }`}
-              >✕ Rusak</button>
+        <div className="space-y-3 border-t border-gray-100 pt-3">
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Pembagian qty</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-green-50/80 rounded-xl p-3 border border-green-200">
+              <label className="text-xs font-medium text-green-800 mb-1.5 block">Bagus (masuk gudang)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={goodBase > 0 ? goodBase : ''}
+                  onChange={(e) => applyGood(e.target.value)}
+                  className="flex-1 border border-green-300 rounded-lg px-3 py-2.5 text-base font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+                />
+                <span className="text-sm font-bold text-green-800 shrink-0">{baseUom}</span>
+              </div>
+            </div>
+
+            <div className="bg-red-50/80 rounded-xl p-3 border border-red-200">
+              <label className="text-xs font-medium text-red-800 mb-1.5 block">Rusak / tidak layak</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={damagedBase > 0 ? damagedBase : ''}
+                  onChange={(e) => applyDamaged(e.target.value)}
+                  className="flex-1 border border-red-300 rounded-lg px-3 py-2.5 text-base font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
+                />
+                <span className="text-sm font-bold text-red-800 shrink-0">{baseUom}</span>
+              </div>
             </div>
           </div>
 
-          {output.condition_status === "OK" && (
-            <div className="bg-green-50 rounded-xl p-3">
-              <p className="text-sm font-medium text-green-800">
-                ✓ Semua barang bagus, {input.qty_input} {input.uom} masuk gudang
-              </p>
-            </div>
+          {overTotal && (
+            <p className="text-xs text-red-600 flex items-center gap-1">
+              <AlertTriangle size={14} />
+              Bagus + rusak melebihi total ({fmtGpQty(totalBase)} {baseUom})
+            </p>
           )}
 
-          {output.condition_status === "DAMAGED" && (
-            <div className="bg-red-50 rounded-xl p-3 space-y-3">
-              <div>
-                <p className="text-xs font-medium text-red-800 mb-1.5">Qty aktual yang masuk gudang</p>
-                <div className="flex items-center gap-2">
-                  <input type="number" min={0} max={input.qty_input} step="0.01"
-                    value={output.actual_qty ?? ""}
-                    onChange={(e) => onChange({ ...output, actual_qty: e.target.value ? parseFloat(e.target.value) : null, actual_uom: displayUom })}
-                    placeholder={`qty dalam ${displayUom}`}
-                    className="flex-1 border border-red-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
-                  />
-                  <span className="text-sm font-medium text-red-700 shrink-0">{displayUom}</span>
-                </div>
-                {output.actual_qty != null && output.actual_qty < input.qty_input && (
-                  <p className="text-xs text-red-600 mt-2 bg-red-100 px-2 py-1 rounded-full inline-block">
-                    Selisih: {(input.qty_input - output.actual_qty).toFixed(2)} {displayUom}
-                  </p>
-                )}
-              </div>
+          {hasDamage && (
+            <div className="bg-red-50/60 rounded-xl p-3 space-y-3 border border-red-100">
+              <p className="text-xs font-medium text-red-800">
+                Tindak lanjut barang rusak <span className="text-red-500">*</span>
+              </p>
               <div className="flex gap-2">
-                <button type="button"
-                  onClick={() => onChange({ ...output, flagged_for_return: true, is_waste: false })}
-                  className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-all ${
-                    output.flagged_for_return ? "bg-orange-100 border-orange-400 text-orange-700" : "bg-white border-gray-200 text-gray-600"
+                <button
+                  type="button"
+                  onClick={() => onChange({
+                    ...buildPassThroughOutput(output, input, goodBase, damagedBase, baseUom),
+                    flagged_for_return: true,
+                    is_waste: false,
+                    waste_reason: null,
+                  })}
+                  className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                    output.flagged_for_return
+                      ? 'bg-orange-500 border-orange-500 text-white'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'
                   }`}
-                >🔄 Flag Retur</button>
-                <button type="button"
-                  onClick={() => onChange({ ...output, is_waste: true, flagged_for_return: false })}
-                  className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-all ${
-                    output.is_waste ? "bg-red-100 border-red-400 text-red-700" : "bg-white border-gray-200 text-gray-600"
+                >
+                  Retur supplier
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange({
+                    ...buildPassThroughOutput(output, input, goodBase, damagedBase, baseUom),
+                    is_waste: true,
+                    flagged_for_return: false,
+                    return_reason: null,
+                  })}
+                  className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                    output.is_waste
+                      ? 'bg-red-500 border-red-500 text-white'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'
                   }`}
-                >🗑 Waste</button>
+                >
+                  Waste
+                </button>
               </div>
               {(output.flagged_for_return || output.is_waste) && (
-                <input type="text"
-                  value={output.flagged_for_return ? (output.return_reason ?? "") : (output.waste_reason ?? "")}
+                <input
+                  type="text"
+                  value={output.flagged_for_return ? (output.return_reason ?? '') : (output.waste_reason ?? '')}
                   onChange={(e) => onChange({
-                    ...output,
+                    ...buildPassThroughOutput(output, input, goodBase, damagedBase, baseUom),
                     return_reason: output.flagged_for_return ? e.target.value || null : null,
                     waste_reason: output.is_waste ? e.target.value || null : null,
                   })}
-                  placeholder={output.flagged_for_return ? "Alasan retur..." : "Alasan waste..."}
-                  className="w-full border border-red-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-300 bg-white"
+                  placeholder={output.flagged_for_return ? 'Alasan retur (wajib)...' : 'Alasan waste (wajib)...'}
+                  className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 bg-white"
                 />
+              )}
+              {missingDisposition && (
+                <p className="text-xs text-red-600">Pilih Retur atau Waste untuk qty rusak.</p>
+              )}
+              {missingReason && !missingDisposition && (
+                <p className="text-xs text-red-600">Isi alasan retur / waste.</p>
               )}
             </div>
           )}
 
-          {/* Confirm button per item */}
-          {canConfirm && (
-            <button type="button" onClick={onConfirmItem} disabled={isConfirming}
-              className="w-full py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
-            >
-              <CheckCheck size={15} />
-              {isConfirming ? "Menyimpan..." : "✓ Selesaikan item ini → masuk gudang"}
-            </button>
-          )}
-        </>
+          <button
+            type="button"
+            onClick={onConfirmItem}
+            disabled={isConfirming || !canConfirm}
+            className="w-full py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
+          >
+            <CheckCheck size={15} />
+            {isConfirming ? 'Menyimpan...' : 'Selesaikan item ini'}
+          </button>
+        </div>
       )}
 
-      {/* Read-only badges kalau DONE */}
       {isDone && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {output.condition_status === "OK" && (
-            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">✓ Bagus</span>
-          )}
-          {output.condition_status === "DAMAGED" && (
+        <div className="flex items-center gap-2 flex-wrap border-t border-gray-100 pt-2">
+          <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">
+            {fmtGpQty(goodBase)} {baseUom} masuk gudang
+          </span>
+          {hasDamage && (
             <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">
-              ✕ Rusak{output.actual_qty != null ? ` · ${output.actual_qty} ${output.actual_uom ?? input.uom}` : ''}
+              {fmtGpQty(damagedBase)} {baseUom} rusak
             </span>
           )}
           {output.flagged_for_return && (
-            <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 font-medium">🔄 Retur</span>
+            <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 font-medium">
+              Retur{output.return_reason ? `: ${output.return_reason}` : ''}
+            </span>
           )}
           {output.is_waste && (
-            <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">🗑 Waste</span>
+            <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">
+              Waste{output.waste_reason ? `: ${output.waste_reason}` : ''}
+            </span>
           )}
         </div>
       )}
@@ -739,9 +862,6 @@ export default function GoodsProcessingDetailPage() {
     staleTime: 60_000,
   })
 
-  const getBaseUomName = (productId: string) =>
-    (uomConversions?.[productId] ?? []).find(u => u.is_base_unit)?.unit_name ?? ''
-
   const getGrLine = (grLineId: string) =>
     grDetail?.lines.find(l => l.id === grLineId) ?? null
 
@@ -763,8 +883,6 @@ export default function GoodsProcessingDetailPage() {
   const totalCount = localInputs.length
   const allDone = doneCount === totalCount && totalCount > 0
   // Debug: log semua status input
-  console.log('Input statuses:', localInputs.map(i => ({ id: i.id, status: i.status })))
-
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleConfirmItem = useCallback(async (inp: LocalInput) => {
@@ -1089,7 +1207,7 @@ export default function GoodsProcessingDetailPage() {
                 output={inp.outputs[0] ?? { id: '', product_id: '', product_name: '', product_code: '', qty_output: 0, uom: '', is_waste: false, waste_reason: null, condition_status: null, actual_qty: null, actual_uom: null, flagged_for_return: false, return_reason: null, sort_order: 0 }}
                 isEditable={isEditable}
                 onChange={(updated) => updatePassThroughOutput(inputIndex, updated)}
-                baseUomName={getBaseUomName(inp.product_id)}
+                productUoms={uomConversions?.[inp.product_id] ?? []}
                 grLine={grLine}
                 onConfirmItem={() => handleConfirmItem(inp)}
                 isConfirming={confirmingInputId === inp.id}

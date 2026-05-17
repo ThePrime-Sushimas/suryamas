@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { Package, ChevronRight, Clock, CheckCircle2, XCircle, RotateCcw, Loader2 } from "lucide-react"
+import { Package, ChevronRight, Clock, CheckCircle2, XCircle, RotateCcw, Loader2, Scale } from "lucide-react"
 import { Pagination } from "@/components/ui/Pagination"
 import { useGoodsProcessingList } from "../api/goodsProcessing.api"
 
@@ -25,6 +25,18 @@ const STATUS_CONFIG: Record<string, {
   QC_REVIEW:  { label: "Review QC", dot: "bg-yellow-500", badge: "bg-yellow-50 text-yellow-700", icon: <RotateCcw size={12} /> },
   CONFIRMED:  { label: "Selesai",   dot: "bg-green-500",  badge: "bg-green-50 text-green-700",   icon: <CheckCircle2 size={12} /> },
   REJECTED:   { label: "Ditolak",   dot: "bg-red-500",    badge: "bg-red-50 text-red-700",       icon: <XCircle size={12} /> },
+}
+
+function WeighingSummary({ summary }: { summary?: string | null }) {
+  if (summary) {
+    return (
+      <div className="flex items-start gap-1.5 text-xs text-teal-800 dark:text-teal-300">
+        <Scale className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <span className="line-clamp-2" title={summary}>{summary}</span>
+      </div>
+    )
+  }
+  return <span className="text-xs text-gray-400">—</span>
 }
 
 const FILTER_OPTS = [
@@ -146,6 +158,12 @@ export default function GoodsProcessingPage() {
                       ))}
                       {names.length > 3 && <p className="text-xs text-gray-400 pl-3">+{names.length - 3} item lainnya</p>}
                     </div>
+                    {gp.weighing_summary && (
+                      <div className="flex items-start gap-1.5 text-xs text-teal-800 dark:text-teal-300 bg-teal-50/50 dark:bg-teal-900/20 p-2 rounded-lg mb-2">
+                        <Scale className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{gp.weighing_summary}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
                       <span className="text-xs text-gray-400 font-mono">{gp.gr_number}</span>
                       <div className="flex items-center gap-1.5">
@@ -169,6 +187,7 @@ export default function GoodsProcessingPage() {
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">No. GP / GR</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Supplier</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Hasil Timbang</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tanggal</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cabang</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
@@ -211,6 +230,11 @@ export default function GoodsProcessingPage() {
                             <p className="text-xs text-gray-400 mt-1">
                               {gp.input_count} item
                             </p>
+                          </td>
+
+                          {/* Hasil Timbang */}
+                          <td className="px-4 py-3.5 max-w-[220px]">
+                            <WeighingSummary summary={gp.weighing_summary} />
                           </td>
 
                           {/* Tanggal */}
