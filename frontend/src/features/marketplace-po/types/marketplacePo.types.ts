@@ -45,6 +45,9 @@ export interface MarketplaceCheckoutSession {
   journal_received_id: string | null
   journal_settled_id: string | null
   goods_receipt_id: string | null
+  gp_id: string | null        // ← tambah
+  gp_status: string | null    // ← tambah
+  gp_number: string | null    // ← tambah
   created_by_name?: string
   created_at: string
   updated_at: string

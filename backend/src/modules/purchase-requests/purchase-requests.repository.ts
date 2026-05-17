@@ -100,9 +100,21 @@ export class PurchaseRequestsRepository {
     const [{ rows: lines }, { rows: pos }] = await Promise.all([
       pool.query(`SELECT ${LINE_SELECT} ${LINE_FROM} WHERE prl.request_id = $1 ORDER BY prl.sort_order ASC`, [id]),
       pool.query(
-        `SELECT po.id, po.po_number, po.status, s.supplier_name, po.is_deleted
+        `SELECT
+           po.id, po.po_number, po.status, s.supplier_name, po.is_deleted,
+           gr.id          AS gr_id,
+           gp.id          AS gp_id,
+           gp.status      AS gp_status,
+           gp.processing_number AS gp_number
          FROM purchase_orders po
          JOIN suppliers s ON s.id = po.supplier_id
+         LEFT JOIN goods_receipts gr
+           ON gr.po_id = po.id
+           AND gr.deleted_at IS NULL
+           AND gr.status = 'CONFIRMED'
+         LEFT JOIN goods_processing gp
+           ON gp.goods_receipt_id = gr.id
+           AND gp.deleted_at IS NULL
          WHERE po.purchase_request_id = $1
          ORDER BY po.created_at ASC`,
         [id]

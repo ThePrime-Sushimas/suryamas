@@ -214,11 +214,11 @@ export default function MarketplacePoDetailPage() {
           <SessionTimeline status={header.status} />
         </section>
 
-        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <InfoCard label="Total" value={fmtCurrency(header.total_amount)} highlight />
           <InfoCard label="Platform" value={<PlatformBadge platform={header.platform} />} />
           <InfoCard label="Kartu Kredit" value={ccDisplay} />
-          <InfoCard label="Tanggal" value={fmtDate(header.checkout_date)} />
+          <InfoCard label="Tanggal" value={fmtDate(header.checkout_date)} />          
           <InfoCard
             label="Goods Receipt"
             value={
@@ -234,8 +234,23 @@ export default function MarketplacePoDetailPage() {
               )
             }
           />
+          <InfoCard
+            label="Goods Processing"
+            value={
+              header.gp_id ? (
+                <Link
+                  to={`/inventory/goods-processing/${header.gp_id}`}
+                  className="inline-flex items-center gap-1 hover:underline text-sm"
+                >
+                  <GpStatusBadge status={header.gp_status} />
+                  <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
+                </Link>
+              ) : (
+                <span className="text-gray-400 text-sm">—</span>
+              )
+            }
+          />
         </section>
-
         <section className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/60 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
             {TABS.map((tab) => (
@@ -319,5 +334,18 @@ function InfoCard({
         {value}
       </div>
     </div>
+  )
+}
+function GpStatusBadge({ status }: { status: string | null }) {
+  if (!status) return <span className="text-gray-400">—</span>
+  const map: Record<string, { label: string; className: string }> = {
+    PROCESSING: { label: 'Processing', className: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' },
+    CONFIRMED:  { label: 'Selesai',    className: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
+  }
+  const cfg = map[status] ?? { label: status, className: 'text-gray-500 bg-gray-100' }
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${cfg.className}`}>
+      {cfg.label}
+    </span>
   )
 }

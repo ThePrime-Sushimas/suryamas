@@ -137,13 +137,26 @@ export class MarketplacePoRepository {
       `SELECT * FROM marketplace_checkout_attachments WHERE session_id = $1 ORDER BY uploaded_at DESC`,
       [id],
     )
-
+    const gpRes = await pool.query(
+      `SELECT gp.id, gp.processing_number, gp.status, gp.processing_type
+       FROM goods_processing gp
+       JOIN goods_receipts gr ON gr.id = gp.goods_receipt_id
+       WHERE gr.id = $1
+       LIMIT 1`,
+      [headerRes.rows[0].goods_receipt_id ?? '00000000-0000-0000-0000-000000000000'],
+    )
+    
     return {
-      header: headerRes.rows[0],
+      header: {
+        ...headerRes.rows[0],
+        gp_status: gpRes.rows[0]?.status ?? null,
+        gp_id: gpRes.rows[0]?.id ?? null,
+        gp_number: gpRes.rows[0]?.processing_number ?? null,
+      },
       lines: linesRes.rows,
       shipments: shipmentsRes.rows,
       attachments: attachmentsRes.rows,
-    }
+    }    
   }
 
   async getSessionForTransition(client: PoolClient, id: string, companyId: string) {
@@ -337,7 +350,34 @@ export class MarketplacePoRepository {
     )
     return rows[0] ?? null
   }
-}
+  async findFullyReceivedPoLines(client: PoolClient, poLineIds: string[]): Promise<string[]> {
+    if (poLineIds.length === 0) return []
+    const { rows } = await client.query(
+      `SELECT id FROM purchase_order_lines
+      WHERE id = ANY($1::uuid[])
+        AND qty_received >= qty`,
+      [poLineIds],
+    )
+    return rows.map((r: any) => r.id)
+  }
 
+  async findExistingMarketplaceGr(
+    client: PoolClient,
+    poId: string,
+    companyId: string,
+  ): Promise<{ id: string; gr_number: string } | null> {
+    const { rows } = await client.query(
+      `SELECT id, gr_number FROM goods_receipts
+      WHERE po_id = $1
+        AND company_id = $2
+        AND source = 'MARKETPLACE'
+        AND status = 'CONFIRMED'
+        AND deleted_at IS NULL
+      LIMIT 1`,
+      [poId, companyId],
+    )
+    return rows[0] ?? null
+  }
+}
 export const marketplacePoRepository = new MarketplacePoRepository()
 

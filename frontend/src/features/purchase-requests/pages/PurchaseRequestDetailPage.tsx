@@ -287,20 +287,35 @@ export default function PurchaseRequestDetailPage() {
                           {po.po_number}
                         </button>
                       )}
-                      {!po.is_deleted &&
-                        ["ORDERED", "PARTIAL_RECEIVED"].includes(po.status) && (
-                          <button
-                            onClick={() =>
-                              navigate(
-                                `/inventory/goods-receipts/new?po_id=${po.id}`,
-                              )
-                            }
-                            className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-700 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50"
-                          >
-                            <PackageCheck className="w-3 h-3" /> Terima
-                            Barang
-                          </button>
-                        )}
+                      {!po.is_deleted && (() => {
+                        if ('gp_id' in po && po.gp_id) {
+                          const gpCfg: Record<string, { label: string; className: string }> = {
+                            PROCESSING: { label: 'GP Processing', className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700' },
+                            CONFIRMED:  { label: 'GP Selesai',    className: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700' },
+                          }
+                          const cfg = gpCfg[po.status ?? ''] ?? { label: po.status ?? 'GP', className: 'bg-gray-100 text-gray-500 border-gray-200' }
+                          return (
+                            <button
+                              onClick={() => navigate(`/inventory/goods-processing/${po.gp_id}`)}
+                              className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border ${cfg.className}`}
+                            >
+                              <PackageCheck className="w-3 h-3" />
+                              {cfg.label}
+                            </button>
+                          )
+                        }
+                        if (["ORDERED", "PARTIAL_RECEIVED"].includes(po.status)) {
+                          return (
+                            <button
+                              onClick={() => navigate(`/inventory/goods-receipts/new?po_id=${po.id}`)}
+                              className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-700 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50"
+                            >
+                              <PackageCheck className="w-3 h-3" /> Terima Barang
+                            </button>
+                          )
+                        }
+                        return null
+                      })()}
                     </>
                   );
                 })()}
