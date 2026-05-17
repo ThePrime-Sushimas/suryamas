@@ -7,7 +7,12 @@ import {
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { InvalidReferenceError } from '../stock/stock.errors'
-import type { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, PurchaseOrderWithLines } from './purchase-orders.types'
+import type { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, PurchaseOrderDetail, PaymentType } from './purchase-orders.types'
+import {
+  buildPoPaymentDueInfo,
+  type PoPaymentTermSnapshot,
+} from './purchase-order-payment.util'
+import type { CalculationType } from '../payment-terms/payment-terms.types'
 
 export class PurchaseOrdersService {
   /**
@@ -34,10 +39,74 @@ export class PurchaseOrdersService {
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }
 
-  async getById(id: string, companyId: string): Promise<PurchaseOrderWithLines> {
+  private toPaymentTermSnapshot(
+    row: {
+      payment_term_id: number | null
+      term_name: string | null
+      calculation_type: string
+      days: number
+      grace_period_days: number
+      payment_dates: number[] | null
+      payment_day_of_week: number | null
+    } | null
+  ): PoPaymentTermSnapshot | null {
+    if (!row?.payment_term_id) return null
+    return {
+      payment_term_id: row.payment_term_id,
+      term_name: row.term_name,
+      calculation_type: row.calculation_type as CalculationType,
+      days: row.days,
+      grace_period_days: row.grace_period_days ?? 0,
+      payment_dates: row.payment_dates,
+      payment_day_of_week: row.payment_day_of_week,
+    }
+  }
+
+  async resolvePaymentDueInfo(
+    po: {
+      payment_type: PaymentType
+      payment_due_date: string | null
+      order_date: string
+      expected_delivery_date: string | null
+      payment_term_id: number | null
+      supplier_id: string
+    },
+    baseDateOverride?: string | null
+  ) {
+    const termRow = await purchaseOrdersRepository.findPaymentTermForPo(
+      po.payment_term_id,
+      po.supplier_id
+    )
+    const term = this.toPaymentTermSnapshot(termRow)
+    const payment_due_info = buildPoPaymentDueInfo({
+      payment_type: po.payment_type,
+      payment_due_date: po.payment_due_date,
+      order_date: po.order_date,
+      expected_delivery_date: po.expected_delivery_date,
+      base_date_override: baseDateOverride,
+      term,
+    })
+    return {
+      payment_term_name: term?.term_name ?? null,
+      payment_due_info,
+    }
+  }
+
+  async getById(id: string, companyId: string): Promise<PurchaseOrderDetail> {
     const po = await purchaseOrdersRepository.findWithLines(id, companyId)
     if (!po) throw new PurchaseOrderNotFoundError(id)
-    return po
+    const { payment_term_name, payment_due_info } = await this.resolvePaymentDueInfo(po)
+    return { ...po, payment_term_name, payment_due_info }
+  }
+
+  /**
+   * Preview payment due for a PO. Pass expectedDeliveryDate only when overriding the
+   * saved date (e.g. live form edit); otherwise buildPoPaymentDueInfo uses po.expected_delivery_date.
+   */
+  async getPaymentDuePreview(id: string, companyId: string, expectedDeliveryDate?: string) {
+    const po = await purchaseOrdersRepository.findById(id, companyId)
+    if (!po) throw new PurchaseOrderNotFoundError(id)
+    return this.resolvePaymentDueInfo(po, expectedDeliveryDate)
   }
 
   async create(_companyId: string, _dto: CreatePurchaseOrderDto, _userId: string) {
@@ -68,8 +137,6 @@ export class PurchaseOrdersService {
       let idx = 1
 
       if (dto.expected_delivery_date !== undefined) { params.push(dto.expected_delivery_date); fields.push(`expected_delivery_date = $${idx++}`) }
-      if (dto.payment_type !== undefined) { params.push(dto.payment_type); fields.push(`payment_type = $${idx++}`) }
-      if (dto.payment_terms_days !== undefined) { params.push(dto.payment_terms_days); fields.push(`payment_terms_days = $${idx++}`) }
       if (dto.notes !== undefined) { params.push(dto.notes); fields.push(`notes = $${idx++}`) }
       params.push(userId); fields.push(`updated_by = $${idx++}`)
 
@@ -89,7 +156,7 @@ export class PurchaseOrdersService {
     }
 
     await AuditService.log('UPDATE', 'purchase_order', id, userId, existing)
-    return purchaseOrdersRepository.findWithLines(id, companyId)
+    return this.getById(id, companyId)
   }
 
   async submitForApproval(id: string, companyId: string, userId: string) {

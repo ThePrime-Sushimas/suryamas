@@ -16,6 +16,16 @@ export interface PurchaseOrderLine {
   notes?: string | null
 }
 
+export interface PoPaymentDueInfo {
+  label: string
+  date: string | null
+  text: string | null
+  confirmed: boolean
+  hint: string
+  term_name: string | null
+  calculation_type: string | null
+}
+
 export interface PurchaseOrder {
   id: string
   company_id: string
@@ -28,6 +38,9 @@ export interface PurchaseOrder {
   expected_delivery_date: string | null
   payment_type: 'CASH' | 'CREDIT'
   payment_terms_days: number | null
+  payment_due_date: string | null
+  payment_term_name: string | null
+  payment_due_info: PoPaymentDueInfo | null
   notes: string | null
   approved_by_name: string | null
   approved_at: string | null
@@ -48,6 +61,8 @@ interface Pagination { page: number; limit: number; total: number; totalPages: n
 const KEYS = {
   list: (params: Record<string, unknown>) => ['purchase-orders', params] as const,
   detail: (id: string) => ['purchase-orders', id] as const,
+  paymentDuePreview: (id: string, expectedDate?: string) =>
+    ['purchase-orders', id, 'payment-due-preview', expectedDate ?? ''] as const,
 }
 
 export const usePurchaseOrders = (params: { page?: number; limit?: number; status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string; search?: string }) =>
@@ -77,10 +92,28 @@ export const usePurchaseOrder = (id: string) =>
     enabled: !!id,
   })
 
+/** Pass debounced expectedDeliveryDate from the parent to limit refetches while typing. */
+export const usePaymentDuePreview = (
+  id: string,
+  expectedDeliveryDate: string,
+  enabled: boolean
+) =>
+  useQuery({
+    queryKey: KEYS.paymentDuePreview(id, expectedDeliveryDate || '__po_default__'),
+    queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (expectedDeliveryDate) params.expected_delivery_date = expectedDeliveryDate
+      const { data } = await api.get(`/purchase-orders/${id}/payment-due-preview`, { params })
+      return data.data as { payment_term_name: string | null; payment_due_info: PoPaymentDueInfo | null }
+    },
+    enabled: Boolean(id) && enabled,
+    staleTime: 10_000,
+  })
+
 export const useUpdatePurchaseOrder = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; expected_delivery_date?: string | null; payment_type?: 'CASH' | 'CREDIT'; payment_terms_days?: number | null; notes?: string | null; lines?: { product_id: string; qty: number; uom: string; unit_price: number; pr_line_id?: string | null }[] }) => {
+    mutationFn: async ({ id, ...body }: { id: string; expected_delivery_date?: string | null; notes?: string | null; lines?: { product_id: string; qty: number; uom: string; unit_price: number; pr_line_id?: string | null }[] }) => {
       const { data } = await api.put(`/purchase-orders/${id}`, body)
       return data.data as PurchaseOrder
     },

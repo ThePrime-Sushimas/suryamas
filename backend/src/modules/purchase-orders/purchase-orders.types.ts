@@ -1,5 +1,10 @@
+import type { CalculationType } from '../payment-terms/payment-terms.types'
+import type { PoPaymentDueInfo } from './purchase-order-payment.util'
+
 export type PurchaseOrderStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SENT' | 'ORDERED' | 'PARTIAL_RECEIVED' | 'FULLY_RECEIVED' | 'CLOSED' | 'CANCELLED'
 export type PaymentType = 'CASH' | 'CREDIT'
+
+export type { PoPaymentDueInfo }
 
 export interface PurchaseOrder {
   id: string
@@ -62,6 +67,11 @@ export interface PurchaseOrderWithLines extends PurchaseOrderWithRelations {
   lines: PurchaseOrderLineWithRelations[]
 }
 
+export interface PurchaseOrderDetail extends PurchaseOrderWithLines {
+  payment_term_name: string | null
+  payment_due_info: PoPaymentDueInfo | null
+}
+
 // DTOs
 export interface CreatePurchaseOrderLineDto {
   pr_line_id?: string | null
@@ -89,8 +99,6 @@ export interface CreatePurchaseOrderDto {
 
 export interface UpdatePurchaseOrderDto {
   expected_delivery_date?: string | null
-  payment_type?: PaymentType
-  payment_terms_days?: number | null
   notes?: string | null
   lines?: CreatePurchaseOrderLineDto[]
   updated_by?: string

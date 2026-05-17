@@ -4,12 +4,13 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import type { createPurchaseOrderSchema, updatePurchaseOrderSchema, purchaseOrderIdSchema, cancelSchema } from './purchase-orders.schema'
+import type { createPurchaseOrderSchema, updatePurchaseOrderSchema, purchaseOrderIdSchema, cancelSchema, paymentDuePreviewSchema } from './purchase-orders.schema'
 
 type CreateReq = ValidatedAuthRequest<typeof createPurchaseOrderSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updatePurchaseOrderSchema>
 type IdReq = ValidatedAuthRequest<typeof purchaseOrderIdSchema>
 type CancelReq = ValidatedAuthRequest<typeof cancelSchema>
+type PaymentDuePreviewReq = ValidatedAuthRequest<typeof paymentDuePreviewSchema>
 
 export class PurchaseOrdersController {
   list = async (req: Request, res: Response) => {
@@ -47,6 +48,21 @@ export class PurchaseOrdersController {
       sendSuccess(res, po, 'Purchase order retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_purchase_order', id: req.params.id })
+    }
+  }
+
+  getPaymentDuePreview = async (req: Request, res: Response) => {
+    try {
+      const { params, query } = (req as PaymentDuePreviewReq).validated
+      const companyId = req.context?.company_id ?? ''
+      const preview = await purchaseOrdersService.getPaymentDuePreview(
+        params.id,
+        companyId,
+        query.expected_delivery_date
+      )
+      sendSuccess(res, preview, 'Payment due preview retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_po_payment_due_preview', id: req.params.id })
     }
   }
 

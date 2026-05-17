@@ -30,10 +30,15 @@ export const updatePurchaseOrderSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
     expected_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-    payment_type: z.enum(paymentTypes).optional(),
-    payment_terms_days: z.number().int().min(1).nullable().optional(),
     notes: z.string().max(500).nullable().optional(),
     lines: z.array(lineSchema).min(1).optional(),
+  }),
+})
+
+export const paymentDuePreviewSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({
+    expected_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
 })
 

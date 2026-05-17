@@ -175,8 +175,9 @@ export class PurchaseOrdersRepository {
     return `${prefix}-${String(lastSeq + 1).padStart(3, '0')}`
   }
 
-  async findSupplierPaymentTerm(supplierId: string, client?: PoolClient): Promise<{
-    payment_term_id: number | null
+  async findPaymentTermById(paymentTermId: number, client?: PoolClient): Promise<{
+    payment_term_id: number
+    term_name: string
     calculation_type: string
     days: number
     grace_period_days: number
@@ -185,7 +186,27 @@ export class PurchaseOrdersRepository {
   } | null> {
     const db = client ?? pool
     const { rows } = await db.query(
-      `SELECT s.payment_term_id, pt.calculation_type, pt.days, pt.grace_period_days,
+      `SELECT pt.id_payment_term AS payment_term_id, pt.term_name, pt.calculation_type, pt.days,
+              pt.grace_period_days, pt.payment_dates, pt.payment_day_of_week
+       FROM payment_terms pt
+       WHERE pt.id_payment_term = $1 AND pt.deleted_at IS NULL`,
+      [paymentTermId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findSupplierPaymentTerm(supplierId: string, client?: PoolClient): Promise<{
+    payment_term_id: number | null
+    term_name: string | null
+    calculation_type: string
+    days: number
+    grace_period_days: number
+    payment_dates: number[] | null
+    payment_day_of_week: number | null
+  } | null> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+      `SELECT s.payment_term_id, pt.term_name, pt.calculation_type, pt.days, pt.grace_period_days,
               pt.payment_dates, pt.payment_day_of_week
        FROM suppliers s
        LEFT JOIN payment_terms pt ON pt.id_payment_term = s.payment_term_id
@@ -194,6 +215,27 @@ export class PurchaseOrdersRepository {
     )
     if (!rows[0] || !rows[0].payment_term_id) return null
     return rows[0]
+  }
+
+  /** PO-linked term first, then supplier default. */
+  async findPaymentTermForPo(
+    paymentTermId: number | null,
+    supplierId: string,
+    client?: PoolClient
+  ): Promise<{
+    payment_term_id: number | null
+    term_name: string | null
+    calculation_type: string
+    days: number
+    grace_period_days: number
+    payment_dates: number[] | null
+    payment_day_of_week: number | null
+  } | null> {
+    if (paymentTermId != null) {
+      const byPo = await this.findPaymentTermById(paymentTermId, client)
+      if (byPo) return byPo
+    }
+    return this.findSupplierPaymentTerm(supplierId, client)
   }
 
   async updatePaymentDueDate(client: PoolClient, poId: string, dueDate: string): Promise<void> {

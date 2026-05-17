@@ -6,7 +6,7 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { purchaseOrdersController } from './purchase-orders.controller'
 import {
   updatePurchaseOrderSchema, purchaseOrderIdSchema,
-  cancelSchema, purchaseOrderListSchema
+  cancelSchema, purchaseOrderListSchema, paymentDuePreviewSchema
 } from './purchase-orders.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -23,6 +23,7 @@ router.get('/check-duplicates', canView('purchase_orders'), (req, res) => purcha
 router.get('/latest-price', canView('purchase_orders'), (req, res) => purchaseOrdersController.getLatestPrice(req, res))
 router.get('/', canView('purchase_orders'), validateSchema(purchaseOrderListSchema), (req, res) => purchaseOrdersController.list(req, res))
 // PO creation only via PR Approval (approve-and-generate) — manual POST disabled
+router.get('/:id/payment-due-preview', canView('purchase_orders'), validateSchema(paymentDuePreviewSchema), (req, res) => purchaseOrdersController.getPaymentDuePreview(req, res))
 router.get('/:id', canView('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.getById(req, res))
 router.put('/:id', canUpdate('purchase_orders'), validateSchema(updatePurchaseOrderSchema), (req, res) => purchaseOrdersController.update(req, res))
 router.delete('/:id', canDelete('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.delete(req, res))
