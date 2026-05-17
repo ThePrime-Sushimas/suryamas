@@ -1,227 +1,194 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import type {
+  GoodsProcessingDetail,
+  GoodsProcessingWithRelations,
+  UpdateGoodsProcessingDto,
+  RejectDto,
+  OutputTemplateRow,
+} from '../api/goods-processing.types'
 
-export interface GoodsProcessingOutput {
-  id: string
-  input_id: string
-  product_id: string
-  product_code: string
-  product_name: string
-  qty_output: number
-  uom: string
-  is_waste: boolean
-  waste_reason: string | null
-  photo_urls: string[] | null
-  unit_cost: number | null
-  allocated_cost: number | null
-  stock_movement_id: string | null
-  sort_order: number
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+export interface GoodsProcessingListParams {
+  page?: number
+  limit?: number
+  status?: string
+  branch_id?: string
+  date_from?: string
+  date_to?: string
 }
 
-export interface GoodsProcessingInput {
-  id: string
-  goods_processing_id: string
-  gr_line_id: string
-  product_id: string
-  product_code: string
-  product_name: string
-  requires_processing: boolean
-  qty_input: number
-  uom: string
-  sort_order: number
-  status: 'PENDING' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
-  processed_by_name: string | null
-  qc_confirmed_by_name: string | null
-  qc_confirmed_at: string | null
-  rejection_reason: string | null
-  outputs: GoodsProcessingOutput[]
+export interface PaginationMeta {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
 }
 
-export interface GoodsProcessing {
-  id: string
-  company_id: string
-  branch_id: string
-  warehouse_id: string
-  goods_receipt_id: string
-  processing_number: string
-  processing_date: string
-  processing_type: 'PASS_THROUGH' | 'DISASSEMBLY'
-  status: 'DRAFT' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
-  notes: string | null
-  rejection_reason: string | null
-  total_input_qty: number | null
-  total_output_qty: number | null
-  total_waste_qty: number | null
-  yield_percentage: number | null
-  branch_name: string
-  branch_code: string
-  warehouse_name: string
-  gr_number: string
-  supplier_name: string
-  input_count: number
-  created_at: string
+export interface GoodsProcessingListResponse {
+  data: GoodsProcessingWithRelations[]
+  pagination: PaginationMeta
 }
 
-export interface GoodsProcessingDetail extends GoodsProcessing {
-  inputs: GoodsProcessingInput[]
+// Re-export types for convenience
+export type { GoodsProcessingDetail, GoodsProcessingWithRelations, OutputTemplateRow }
+export type { UpdateGoodsProcessingDto, RejectDto }
+
+// ── Query Keys ────────────────────────────────────────────────────────────────
+
+export const gpKeys = {
+  all:    () => ['goods-processing'] as const,
+  lists:  () => [...gpKeys.all(), 'list'] as const,
+  list:   (p: GoodsProcessingListParams) => [...gpKeys.lists(), p] as const,
+  detail: (id: string) => [...gpKeys.all(), 'detail', id] as const,
+  template: (productId: string) => ['product-output-template', productId] as const,
 }
 
-interface Pagination { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean }
+// ── List ──────────────────────────────────────────────────────────────────────
 
-const KEYS = {
-  list: (params: Record<string, unknown>) => ['goods-processing', params] as const,
-  detail: (id: string) => ['goods-processing', id] as const,
-}
-
-export const useGoodsProcessingList = (params: { page?: number; limit?: number; status?: string; branch_id?: string; date_from?: string; date_to?: string }) =>
-  useQuery({
-    queryKey: KEYS.list(params),
-    queryFn: async () => {
-      const queryParams: Record<string, unknown> = { page: params.page ?? 1, limit: params.limit ?? 25 }
-      if (params.status) queryParams.status = params.status
-      if (params.branch_id) queryParams.branch_id = params.branch_id
-      if (params.date_from) queryParams.date_from = params.date_from
-      if (params.date_to) queryParams.date_to = params.date_to
-      const { data } = await api.get('/goods-processing', { params: queryParams })
-      return { data: data.data as GoodsProcessing[], pagination: data.pagination as Pagination }
+export function useGoodsProcessingList(params: GoodsProcessingListParams = {}) {
+  return useQuery({
+    queryKey: gpKeys.list(params),
+    queryFn: async (): Promise<GoodsProcessingListResponse> => {
+      const { data } = await api.get('/goods-processing', { params })
+      return { data: data.data, pagination: data.pagination }
     },
-    staleTime: 30_000,
   })
+}
 
-export const useGoodsProcessingDetail = (id: string) =>
-  useQuery({
-    queryKey: KEYS.detail(id),
-    queryFn: async () => {
+// ── Detail ────────────────────────────────────────────────────────────────────
+
+export function useGoodsProcessingDetail(id: string) {
+  return useQuery({
+    queryKey: gpKeys.detail(id),
+    queryFn: async (): Promise<GoodsProcessingDetail> => {
       const { data } = await api.get(`/goods-processing/${id}`)
-      return data.data as GoodsProcessingDetail
+      return data.data
     },
-    enabled: !!id,
+    enabled: Boolean(id),
   })
+}
 
-export const useStartProcessing = () => {
+// ── Output Template ───────────────────────────────────────────────────────────
+
+export function useProductOutputTemplate(productId: string) {
+  return useQuery({
+    queryKey: gpKeys.template(productId),
+    queryFn: async (): Promise<OutputTemplateRow[]> => {
+      const { data } = await api.get(`/products/${productId}/output-template`)
+      return data.data
+    },
+    enabled: Boolean(productId),
+  })
+}
+
+export interface SaveTemplateDto {
+  items: {
+    output_product_id: string
+    output_uom: string
+    suggested_pct?: number | null
+    sort_order?: number
+    notes?: string | null
+  }[]
+}
+
+export function useSaveProductOutputTemplate(productId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (dto: SaveTemplateDto) => {
+      const { data } = await api.put(`/products/${productId}/output-template`, dto)
+      return data.data as OutputTemplateRow[]
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: gpKeys.template(productId) })
+    },
+  })
+}
+
+// ── Mutations ─────────────────────────────────────────────────────────────────
+
+export function useStartGoodsProcessing(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
       const { data } = await api.post(`/goods-processing/${id}/start`)
       return data.data as GoodsProcessingDetail
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
+    onSuccess: (data) => {
+      qc.setQueryData(gpKeys.detail(id), data)
+      qc.invalidateQueries({ queryKey: gpKeys.lists() })
+    },
   })
 }
 
-export const useUpdateProcessing = () => {
+export function useUpdateGoodsProcessing(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, body }: { id: string; body: unknown }) => {
-      const { data } = await api.put(`/goods-processing/${id}`, body)
+    mutationFn: async (dto: UpdateGoodsProcessingDto) => {
+      const { data } = await api.put(`/goods-processing/${id}`, dto)
       return data.data as GoodsProcessingDetail
     },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['goods-processing'] })
-      qc.invalidateQueries({ queryKey: KEYS.detail(vars.id) })
+    onSuccess: (data) => {
+      qc.setQueryData(gpKeys.detail(id), data)
+      qc.invalidateQueries({ queryKey: gpKeys.lists() })
     },
   })
 }
 
-export const useSubmitQc = () => {
+export function useConfirmGoodsProcessing(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await api.post(`/goods-processing/${id}/submit-qc`)
-      return data.data as GoodsProcessingDetail
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
-  })
-}
-
-export const useConfirmProcessing = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async () => {
       const { data } = await api.post(`/goods-processing/${id}/confirm`)
       return data.data as GoodsProcessingDetail
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['goods-processing'] })
-      qc.invalidateQueries({ queryKey: ['stock'] })
+    onSuccess: (data) => {
+      qc.setQueryData(gpKeys.detail(id), data)
+      qc.invalidateQueries({ queryKey: gpKeys.lists() })
     },
   })
 }
 
-export const useBulkConfirm = () => {
+export function useRejectGoodsProcessing(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (dto: RejectDto) => {
+      const { data } = await api.post(`/goods-processing/${id}/reject`, dto)
+      return data.data as GoodsProcessingDetail
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(gpKeys.detail(id), data)
+      qc.invalidateQueries({ queryKey: gpKeys.lists() })
+    },
+  })
+}
+
+export function useBulkConfirmGoodsProcessing() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (ids: string[]) => {
       const { data } = await api.post('/goods-processing/bulk-confirm', { ids })
-      return data.data as { success: string[]; failed: { id: string; reason: string }[] }
+      return data.data
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['goods-processing'] })
-      qc.invalidateQueries({ queryKey: ['stock'] })
+      qc.invalidateQueries({ queryKey: gpKeys.lists() })
     },
   })
 }
 
-export const useRejectProcessing = () => {
+export function useResolveReturn(gpId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, rejection_reason }: { id: string; rejection_reason: string }) => {
-      const { data } = await api.post(`/goods-processing/${id}/reject`, { rejection_reason })
+    mutationFn: async ({ outputId, resolution }: { outputId: string; resolution: 'STOCK' | 'DISCARD' }) => {
+      const { data } = await api.post(`/goods-processing/${gpId}/outputs/${outputId}/resolve-return`, { resolution })
       return data.data as GoodsProcessingDetail
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
-  })
-}
-
-// ── Per-Line Actions ──
-
-export const useStartLine = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (lineId: string) => { await api.post(`/goods-processing/lines/${lineId}/start`) },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
-  })
-}
-
-export const useSubmitLineQc = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (lineId: string) => { await api.post(`/goods-processing/lines/${lineId}/submit-qc`) },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
-  })
-}
-
-export const useConfirmLine = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (lineId: string) => { await api.post(`/goods-processing/lines/${lineId}/confirm`) },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['goods-processing'] })
-      qc.invalidateQueries({ queryKey: ['stock'] })
-    },
-  })
-}
-
-export const useRejectLine = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ lineId, rejection_reason }: { lineId: string; rejection_reason: string }) => {
-      await api.post(`/goods-processing/lines/${lineId}/reject`, { rejection_reason })
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-processing'] }),
-  })
-}
-
-export const useBulkConfirmLines = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (lineIds: string[]) => {
-      const { data } = await api.post('/goods-processing/bulk-confirm-lines', { line_ids: lineIds })
-      return data.data as { success: string[]; failed: { id: string; reason: string }[] }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['goods-processing'] })
-      qc.invalidateQueries({ queryKey: ['stock'] })
+    onSuccess: (data) => {
+      qc.setQueryData(gpKeys.detail(gpId), data)
+      qc.invalidateQueries({ queryKey: gpKeys.lists() })
     },
   })
 }

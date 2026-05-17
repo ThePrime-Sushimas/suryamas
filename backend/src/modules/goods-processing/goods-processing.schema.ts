@@ -64,3 +64,14 @@ export const BulkConfirmSchema = z.object({
     ids: z.array(z.string().uuid()).min(1).max(50),
   }),
 })
+
+export const ResolveReturnSchema = z.object({
+  body: z.object({
+    resolution: z.enum(['STOCK', 'DISCARD']),
+  }),
+  params: z.object({
+    id: z.string().uuid(),
+    outputId: z.string().uuid(),
+  }),
+})
+ 

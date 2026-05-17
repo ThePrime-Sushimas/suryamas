@@ -1,547 +1,1415 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Package, Play, Send, CheckCircle2, XCircle, Plus, Trash2, Save } from 'lucide-react'
-import { useToast } from '@/contexts/ToastContext'
-import { parseApiError } from '@/lib/errorParser'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import { ProductPickerModal } from '@/components/shared/ProductPickerModal'
-import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { useQuery } from '@tanstack/react-query'
-import api from '@/lib/axios'
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/axios';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Plus,
+  Trash2,
+  Save,
+  Play,
+  RotateCcw,
+  Info,
+  ClipboardCheck,
+} from "lucide-react";
+import { useToast } from "@/contexts/ToastContext";
+import { parseApiError } from "@/lib/errorParser";
+import { usePermissionStore } from "@/features/branch_context/store/permission.store";
 import {
   useGoodsProcessingDetail,
-  useStartProcessing,
-  useUpdateProcessing,
-  useSubmitQc,
-  useConfirmProcessing,
-  useRejectProcessing,
-  useStartLine,
-  useSubmitLineQc,
-  useConfirmLine,
-} from '../api/goodsProcessing.api'
-import type { GoodsProcessingInput } from '../api/goodsProcessing.api'
+  useStartGoodsProcessing,
+  useUpdateGoodsProcessing,
+  useConfirmGoodsProcessing,
+  useRejectGoodsProcessing,
+  useResolveReturn,
+} from "../api/goodsProcessing.api";
+import type {
+  GoodsProcessingDetail,
+  ConditionStatus,
+  OutputTemplateRow,
+} from "../api/goods-processing.types";
 
-const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
-const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+// ── Local state types ─────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  DRAFT: { label: 'Menunggu', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  PROCESSING: { label: 'Diproses', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  QC_REVIEW: { label: 'Menunggu QC', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' },
-  CONFIRMED: { label: 'Selesai', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
-  REJECTED: { label: 'Ditolak', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+interface LocalOutput {
+  id?: string;
+  product_id: string;
+  product_name: string;
+  product_code: string;
+  qty_output: number;
+  uom: string;
+  is_waste: boolean;
+  waste_reason: string | null;
+  condition_status: ConditionStatus | null;
+  actual_qty: number | null;
+  actual_uom: string | null;
+  flagged_for_return: boolean;
+  return_reason: string | null;
+  sort_order: number;
+  stock_movement_id?: string | null;
+  // For pass-through display
+  is_pass_through_output?: boolean;
 }
 
-interface EditableOutput {
-  key: string
-  id?: string
-  product_id: string
-  product_name: string
-  qty_output: number
-  uom: string
-  is_waste: boolean
-  waste_reason: string
-  photo_urls: string[]
+interface LocalInput {
+  id: string;
+  product_id: string;
+  product_name: string;
+  product_code: string;
+  qty_input: number;
+  uom: string;
+  requires_processing: boolean;
+  output_template: OutputTemplateRow[];
+  outputs: LocalOutput[];
+  expanded: boolean;
 }
 
-export default function GoodsProcessingDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const toast = useToast()
-  const hasPermission = usePermissionStore(state => state.hasPermission)
-  const canUpdate = hasPermission('goods_processing', 'update')
-  const canApprove = hasPermission('goods_processing', 'approve')
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-  const { data: gp, isLoading } = useGoodsProcessingDetail(id ?? '')
-  const startMutation = useStartProcessing()
-  const updateMutation = useUpdateProcessing()
-  const submitQcMutation = useSubmitQc()
-  const confirmMutation = useConfirmProcessing()
-  const rejectMutation = useRejectProcessing()
-  const startLineMutation = useStartLine()
-  const submitLineQcMutation = useSubmitLineQc()
-  const confirmLineMutation = useConfirmLine()
+function initLocalInputs(detail: GoodsProcessingDetail): LocalInput[] {
+  return detail.inputs.map((inp) => ({
+    id: inp.id,
+    product_id: inp.product_id,
+    product_name: inp.product_name,
+    product_code: inp.product_code,
+    qty_input: Number(inp.qty_input),
+    uom: inp.uom,
+    requires_processing: inp.requires_processing,
+    output_template: inp.output_template ?? [],
+    expanded: true,
+    outputs:
+      inp.outputs.length > 0
+        ? inp.outputs.map((o, i) => ({
+            id: o.id,
+            product_id: o.product_id,
+            product_name: o.product_name,
+            product_code: o.product_code,
+            qty_output: Number(o.qty_output),
+            uom: o.uom,
+            is_waste: o.is_waste,
+            waste_reason: o.waste_reason,
+            condition_status: o.condition_status,
+            actual_qty: o.actual_qty != null ? Number(o.actual_qty) : null,
+            actual_uom: o.actual_uom ?? null,
+            flagged_for_return: o.flagged_for_return ?? false,
+            return_reason: o.return_reason,
+            sort_order: i,
+            is_pass_through_output: !inp.requires_processing,
+          }))
+        : inp.requires_processing
+          ? inp.output_template.length > 0
+            ? inp.output_template.map((t, i) => ({
+                product_id: t.output_product_id,
+                product_name: t.output_product_name,
+                product_code: t.output_product_code,
+                qty_output:
+                  t.suggested_pct != null
+                    ? Math.round(
+                        Number(inp.qty_input) * (t.suggested_pct / 100) * 100,
+                      ) / 100
+                    : 0,
+                uom: t.output_uom,
+                is_waste: false,
+                waste_reason: null,
+                condition_status: null,
+                actual_qty: null,
+                actual_uom: null,
+                flagged_for_return: false,
+                return_reason: null,
+                sort_order: i,
+              }))
+            : []
+          : [
+              {
+                id: inp.outputs[0]?.id,
+                product_id: inp.product_id,
+                product_name: inp.product_name,
+                product_code: inp.product_code,
+                qty_output: Number(inp.qty_input),
+                uom: inp.uom,
+                is_waste: false,
+                waste_reason: null,
+                condition_status: "OK" as ConditionStatus,
+                actual_qty: null,
+                actual_uom: null,
+                flagged_for_return: false,
+                return_reason: null,
+                sort_order: 0,
+                is_pass_through_output: true,
+              },
+            ],
+  }));
+}
 
-  const [confirmAction, setConfirmAction] = useState<'start' | 'submit_qc' | 'confirm' | null>(null)
-  const [showReject, setShowReject] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
+// Removed unused function 'toUpdateDto'
 
-  // Editable outputs state per input
-  const [editOutputs, setEditOutputs] = useState<Record<string, EditableOutput[]>>({})
-  const [dirty, setDirty] = useState(false)
+// ── Status config ─────────────────────────────────────────────────────────────
 
-  // Fetch UOM conversions for products in this GP
-  const gpProductIds = useMemo(() => {
-    if (!gp?.inputs) return []
-    return gp.inputs.map(inp => inp.product_id)
-  }, [gp?.inputs])
+const STATUS_CONFIG = {
+  DRAFT: {
+    label: "Draft",
+    color: "bg-gray-100 text-gray-600",
+    dot: "bg-gray-400",
+  },
+  PROCESSING: {
+    label: "Diproses",
+    color: "bg-blue-50 text-blue-700",
+    dot: "bg-blue-500",
+  },
+  QC_REVIEW: {
+    label: "Review QC",
+    color: "bg-yellow-50 text-yellow-700",
+    dot: "bg-yellow-500",
+  },
+  CONFIRMED: {
+    label: "Selesai",
+    color: "bg-green-50 text-green-700",
+    dot: "bg-green-500",
+  },
+  REJECTED: {
+    label: "Ditolak",
+    color: "bg-red-50 text-red-700",
+    dot: "bg-red-500",
+  },
+};
 
-  const { data: uomData } = useQuery({
-    queryKey: ['product-uoms', 'gp-conversions', gpProductIds],
-    queryFn: async () => {
-      if (gpProductIds.length === 0) return {}
-      const { data } = await api.post('/product-uoms/conversions-batch', { product_ids: gpProductIds })
-      return data.data as Record<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>
-    },
-    enabled: gpProductIds.length > 0,
-    staleTime: 60_000,
-  })
+// ── Pass-through card ─────────────────────────────────────────────────────────
 
-  // Product picker state
-  const [showProductPicker, setShowProductPicker] = useState(false)
-
-  const [pickerInputId, setPickerInputId] = useState<string | null>(null)
-  const [pickerOutputKey, setPickerOutputKey] = useState<string | null>(null)
-
-  // Initialize editable outputs from server data
-  const initOutputs = useCallback((inputs: GoodsProcessingInput[]) => {
-    const map: Record<string, EditableOutput[]> = {}
-    for (const inp of inputs) {
-      map[inp.id] = inp.outputs.map(o => ({
-        key: o.id || crypto.randomUUID(),
-        id: o.id,
-        product_id: o.product_id,
-        product_name: o.product_name,
-        qty_output: o.qty_output,
-        uom: o.uom,
-        is_waste: o.is_waste,
-        waste_reason: o.waste_reason ?? '',
-        photo_urls: o.photo_urls ?? [],
-      }))
-    }
-    setEditOutputs(map)
-    setDirty(false)
-  }, [])
-
-  useEffect(() => {
-    if (gp?.inputs) initOutputs(gp.inputs)
-  }, [gp?.inputs, initOutputs])
-
-  const addOutput = (inputId: string, inp: GoodsProcessingInput) => {
-    setEditOutputs(prev => ({
-      ...prev,
-      [inputId]: [...(prev[inputId] ?? []), {
-        key: crypto.randomUUID(),
-        product_id: inp.product_id,
-        product_name: inp.product_name,
-        qty_output: 0,
-        uom: inp.uom,
-        is_waste: false,
-        waste_reason: '',
-        photo_urls: [],
-      }],
-    }))
-    setDirty(true)
-  }
-
-  const removeOutput = (inputId: string, key: string) => {
-    setEditOutputs(prev => ({
-      ...prev,
-      [inputId]: (prev[inputId] ?? []).filter(o => o.key !== key),
-    }))
-    setDirty(true)
-  }
-
-  const updateOutput = (inputId: string, key: string, field: keyof EditableOutput, value: unknown) => {
-    setEditOutputs(prev => ({
-      ...prev,
-      [inputId]: (prev[inputId] ?? []).map(o => o.key === key ? { ...o, [field]: value } : o),
-    }))
-    setDirty(true)
-  }
-
-  const handleSave = async () => {
-    if (!id || !gp) return
-
-    // Validate: no output with qty = 0 or missing product
-    for (const inp of gp.inputs) {
-      if (inp.requires_processing) {
-        const outs = editOutputs[inp.id] ?? []
-        if (outs.length === 0) { toast.error(`Input "${inp.product_name}" harus punya minimal 1 output`); return }
-        for (const o of outs) {
-          if (!o.product_id) { toast.error(`Pilih produk untuk semua output di "${inp.product_name}"`); return }
-          if (o.qty_output <= 0) { toast.error(`Qty output tidak boleh 0 untuk "${inp.product_name}"`); return }
-        }
-      }
-    }
-
-    const inputs = gp.inputs.map(inp => ({
-      id: inp.id,
-      outputs: (editOutputs[inp.id] ?? []).map((o, i) => ({
-        id: o.id,
-        product_id: o.product_id,
-        qty_output: o.qty_output,
-        uom: o.uom,
-        is_waste: o.is_waste,
-        waste_reason: o.is_waste ? o.waste_reason : null,
-        photo_urls: o.photo_urls.length > 0 ? o.photo_urls : null,
-        sort_order: i,
-      })),
-    }))
-
-    try {
-      await updateMutation.mutateAsync({
-        id,
-        body: {
-          processing_type: gp.processing_type,
-          inputs,
-        },
-      })
-      toast.success('Output disimpan')
-      setDirty(false)
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, 'Gagal menyimpan'))
-    }
-  }
-
-  const handleAction = async () => {
-    if (!id || !confirmAction) return
-
-    // Guard: save unsaved changes before submit QC
-    if (confirmAction === 'submit_qc' && dirty) {
-      toast.error('Simpan perubahan terlebih dahulu sebelum submit ke QC')
-      setConfirmAction(null)
-      return
-    }
-
-    try {
-      if (confirmAction === 'start') await startMutation.mutateAsync(id)
-      else if (confirmAction === 'submit_qc') await submitQcMutation.mutateAsync(id)
-      else if (confirmAction === 'confirm') await confirmMutation.mutateAsync(id)
-      toast.success(
-        confirmAction === 'start' ? 'Proses dimulai' :
-        confirmAction === 'submit_qc' ? 'Dikirim ke QC' :
-        'Dikonfirmasi, stock masuk gudang'
-      )
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, 'Gagal memproses'))
-    } finally {
-      setConfirmAction(null)
-    }
-  }
-
-  const handleReject = async () => {
-    if (!id || !rejectReason.trim()) return
-    try {
-      await rejectMutation.mutateAsync({ id, rejection_reason: rejectReason })
-      toast.success('Ditolak')
-      setShowReject(false)
-      setRejectReason('')
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, 'Gagal menolak'))
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
-        <div className="space-y-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (!gp) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <p className="text-gray-500">Data tidak ditemukan</p>
-      </div>
-    )
-  }
-
-  const statusCfg = STATUS_CONFIG[gp.status] ?? STATUS_CONFIG.DRAFT
-  const isEditable = ['DRAFT', 'PROCESSING', 'REJECTED'].includes(gp.status) && canUpdate
-  const canSubmitQc = ['PROCESSING', 'REJECTED'].includes(gp.status) && canUpdate
+function PassThroughCard({
+  input,
+  output,
+  isEditable,
+  onChange,
+  baseUomName = '',  // ← tambah prop, nama base unit (misal "g")
+}: {
+  input: LocalInput
+  output: LocalOutput
+  isEditable: boolean
+  onChange: (updated: LocalOutput) => void
+  baseUomName?: string
+}) {
+  const displayUom = baseUomName || input.uom
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className={`rounded-xl border-2 transition-all p-4 space-y-3 ${
+      output.condition_status === "OK" ? "border-green-200 bg-green-50/30"
+      : output.condition_status === "DAMAGED" ? "border-red-200 bg-red-50/30"
+      : "border-gray-200 bg-white"
+    }`}>
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => navigate('/inventory/goods-processing')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <Package className="w-6 h-6 text-orange-600 shrink-0 hidden sm:block" />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{gp.processing_number}</h1>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${statusCfg.color}`}>{statusCfg.label}</span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                GR: {gp.gr_number} · {gp.supplier_name} · {gp.branch_name}
-              </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-gray-900 text-base">{input.product_name}</p>
+          <p className="text-xs text-gray-500 font-mono mt-0.5">{input.product_code}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-lg font-bold text-gray-800">{input.qty_input}</p>
+          <p className="text-xs text-gray-500">{input.uom} masuk</p>
+        </div>
+      </div>
+
+      {isEditable && (
+        <>
+          {/* Kondisi toggle — hanya 2 pilihan */}
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-1.5">Kondisi barang</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onChange({
+                  ...output,
+                  condition_status: "OK",
+                  is_waste: false,
+                  flagged_for_return: false,
+                  return_reason: null,
+                  waste_reason: null,
+                })}
+                className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                  output.condition_status === "OK"
+                    ? "bg-green-500 border-green-500 text-white"
+                    : "bg-white border-gray-200 text-gray-600 hover:border-green-300"
+                }`}
+              >
+                ✓ Bagus
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange({
+                  ...output,
+                  condition_status: "DAMAGED",
+                  actual_qty: null,
+                  actual_uom: null,
+                })}
+                className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                  output.condition_status === "DAMAGED"
+                    ? "bg-red-500 border-red-500 text-white"
+                    : "bg-white border-gray-200 text-gray-600 hover:border-red-300"
+                }`}
+              >
+                ✕ Rusak
+              </button>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-2 shrink-0 flex-wrap justify-end">
-            {dirty && isEditable && (
-              <button onClick={handleSave} disabled={updateMutation.isPending}
-                className="flex items-center gap-1 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm">
-                <Save className="w-4 h-4" /> {updateMutation.isPending ? 'Menyimpan...' : 'Simpan'}
-              </button>
-            )}
-            {gp.status === 'DRAFT' && canUpdate && (
-              <button onClick={() => setConfirmAction('start')}
-                className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                <Play className="w-4 h-4" /> <span className="hidden sm:inline">Mulai Proses</span>
-              </button>
-            )}
-            {canSubmitQc && (
-              <button onClick={() => setConfirmAction('submit_qc')}
-                className="flex items-center gap-1 px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm">
-                <Send className="w-4 h-4" /> <span className="hidden sm:inline">Submit QC</span>
-              </button>
-            )}
-            {gp.status === 'QC_REVIEW' && canApprove && (
-              <>
-                <button onClick={() => setShowReject(true)}
-                  className="flex items-center gap-1 px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm">
-                  <XCircle className="w-4 h-4" />
-                </button>
-                <button onClick={() => setConfirmAction('confirm')}
-                  className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
-                  <CheckCircle2 className="w-4 h-4" /> <span className="hidden sm:inline">Konfirmasi</span>
-                </button>
-              </>
-            )}
+          {/* BAGUS → input qty masuk gudang */}
+          {output.condition_status === "OK" && (
+            <div className="bg-green-50 rounded-xl p-3 space-y-1.5">
+              <p className="text-xs font-medium text-green-800">Masuk gudang</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={output.actual_qty ?? ""}
+                  onChange={(e) => onChange({
+                    ...output,
+                    actual_qty: e.target.value ? parseFloat(e.target.value) : null,
+                    actual_uom: displayUom,
+                  })}
+                  placeholder={`qty dalam ${displayUom}`}
+                  className="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+                />
+                <span className="text-sm font-medium text-green-700 shrink-0">{displayUom}</span>
+              </div>
+              {output.actual_qty == null && (
+                <p className="text-xs text-green-600 opacity-70">
+                  Kosongkan jika sama dengan qty GR
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* RUSAK → qty rusak + retur atau waste */}
+          {output.condition_status === "DAMAGED" && (
+            <div className="bg-red-50 rounded-xl p-3 space-y-3">
+              <div>
+                <p className="text-xs font-medium text-red-800 mb-1.5">Qty rusak</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={output.actual_qty ?? ""}
+                    onChange={(e) => onChange({
+                      ...output,
+                      actual_qty: e.target.value ? parseFloat(e.target.value) : null,
+                      actual_uom: displayUom,
+                    })}
+                    placeholder={`qty dalam ${displayUom}`}
+                    className="flex-1 border border-red-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
+                  />
+                  <span className="text-sm font-medium text-red-700 shrink-0">{displayUom}</span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-red-800 mb-1.5">Penanganan</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...output, flagged_for_return: true, is_waste: false })}
+                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-all ${
+                      output.flagged_for_return
+                        ? "bg-orange-100 border-orange-400 text-orange-700"
+                        : "bg-white border-gray-200 text-gray-600"
+                    }`}
+                  >
+                    🔄 Flag Retur
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...output, is_waste: true, flagged_for_return: false })}
+                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-all ${
+                      output.is_waste
+                        ? "bg-red-100 border-red-400 text-red-700"
+                        : "bg-white border-gray-200 text-gray-600"
+                    }`}
+                  >
+                    🗑 Waste
+                  </button>
+                </div>
+              </div>
+
+              {(output.flagged_for_return || output.is_waste) && (
+                <input
+                  type="text"
+                  value={output.flagged_for_return ? (output.return_reason ?? "") : (output.waste_reason ?? "")}
+                  onChange={(e) => onChange({
+                    ...output,
+                    return_reason: output.flagged_for_return ? e.target.value || null : null,
+                    waste_reason: output.is_waste ? e.target.value || null : null,
+                  })}
+                  placeholder={output.flagged_for_return ? "Alasan retur..." : "Alasan waste..."}
+                  className="w-full border border-red-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-300 bg-white"
+                />
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Read-only view */}
+      {!isEditable && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {output.condition_status === "OK" && (
+            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">
+              ✓ Bagus{output.actual_qty != null ? ` · ${output.actual_qty} ${output.actual_uom ?? input.uom}` : ''}
+            </span>
+          )}
+          {output.condition_status === "DAMAGED" && (
+            <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">
+              ✕ Rusak{output.actual_qty != null ? ` · ${output.actual_qty} ${output.actual_uom ?? input.uom}` : ''}
+            </span>
+          )}
+          {output.flagged_for_return && (
+            <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 font-medium">🔄 Retur</span>
+          )}
+          {output.is_waste && (
+            <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">🗑 Waste</span>
+          )}
+          {output.stock_movement_id && (
+            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">✓ Masuk gudang</span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Disassembly output row ────────────────────────────────────────────────────
+
+function DisassemblyOutputRow({
+  inp: _inp,
+  output,
+  isEditable,
+  onChange,
+  onRemove,
+}: {
+  inp: LocalInput;
+  output: LocalOutput;
+  index: number;
+  isEditable: boolean;
+  onChange: (updated: LocalOutput) => void;
+  onRemove: () => void;
+}) {
+
+  return (
+    <div
+      className={`rounded-lg border p-3 space-y-2 ${
+        output.is_waste
+          ? "border-red-200 bg-red-50/30"
+          : "border-gray-200 bg-white"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-800 truncate">
+            {output.product_name}
+          </p>
+          <p className="text-xs text-gray-400 font-mono">
+            {output.product_code}
+          </p>
+        </div>
+        {isEditable && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+
+      {isEditable ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus-within:ring-2 focus-within:ring-blue-300 transition-all">
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={output.qty_output || ""}
+              onChange={(e) =>
+                onChange({
+                  ...output,
+                  qty_output: parseFloat(e.target.value) || 0,
+                })
+              }
+              placeholder="0"
+              className="w-20 text-sm outline-none text-right font-mono"
+            />
+            <span className="text-xs text-gray-500">{output.uom}</span>
           </div>
+          <label className="flex items-center gap-1.5 text-xs text-gray-600 select-none cursor-pointer">
+            <input
+              type="checkbox"
+              checked={output.is_waste}
+              onChange={(e) =>
+                onChange({ ...output, is_waste: e.target.checked })
+              }
+              className="rounded accent-red-500"
+            />
+            Waste
+          </label>
+          {output.is_waste && (
+            <input
+              type="text"
+              value={output.waste_reason ?? ""}
+              onChange={(e) =>
+                onChange({ ...output, waste_reason: e.target.value || null })
+              }
+              placeholder="Alasan waste..."
+              className="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-red-200"
+            />
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm font-semibold text-gray-800">
+            {output.qty_output}
+          </span>
+          <span className="text-xs text-gray-500">{output.uom}</span>
+          {output.is_waste && (
+            <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+              waste
+            </span>
+          )}
+          {output.stock_movement_id && (
+            <span className="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">
+              ✓ gudang
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Disassembly card ──────────────────────────────────────────────────────────
+
+function DisassemblyCard({
+  input,
+  isEditable,
+  onChange,
+  onAddOutput,
+}: {
+  input: LocalInput;
+  isEditable: boolean;
+  onChange: (outputIndex: number, updated: LocalOutput) => void;
+  onAddOutput: () => void;
+}) {
+  const totalNonWaste = input.outputs
+    .filter((o) => !o.is_waste)
+    .reduce((s, o) => s + (o.qty_output || 0), 0);
+  const pct =
+    input.qty_input > 0
+      ? Math.round((totalNonWaste / input.qty_input) * 100)
+      : 0;
+  const overLimit = totalNonWaste > input.qty_input;
+
+  return (
+    <div className="rounded-xl border-2 border-gray-200 bg-white p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-gray-900 text-base">
+            {input.product_name}
+          </p>
+          <p className="text-xs text-gray-500 font-mono mt-0.5">
+            {input.product_code}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-lg font-bold text-gray-800">{input.qty_input}</p>
+          <p className="text-xs text-gray-500">{input.uom} masuk</p>
         </div>
       </div>
 
-      {/* Info Cards */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-3">
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
-          <div>
-            <span className="text-gray-500 dark:text-gray-400 text-xs">Tanggal</span>
-            <p className="font-medium text-gray-900 dark:text-white">{fmtDate(gp.processing_date)}</p>
+      {/* Yield bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between items-center text-xs">
+          <span className="text-gray-500">Total output</span>
+          <span
+            className={`font-semibold ${overLimit ? "text-red-600" : pct >= 90 ? "text-green-600" : "text-gray-700"}`}
+          >
+            {totalNonWaste.toFixed(2)} / {input.qty_input} {input.uom}
+            {overLimit && (
+              <span className="ml-1 text-red-500">⚠ melebihi input!</span>
+            )}
+          </span>
+        </div>
+        <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${overLimit ? "bg-red-400" : pct >= 90 ? "bg-green-400" : "bg-blue-400"}`}
+            style={{ width: `${Math.min(pct, 100)}%` }}
+          />
+        </div>
+        <p className="text-xs text-gray-400 text-right">Yield {pct}%</p>
+      </div>
+
+      {/* Output list */}
+      <div className="space-y-2">
+        {input.outputs.map((o, i) => (
+          <DisassemblyOutputRow
+            key={i}
+            inp={input}
+            output={o}
+            index={i}
+            isEditable={isEditable}
+            onChange={(updated) => onChange(i, updated)}
+            onRemove={() => {
+              // handled by parent
+              onChange(i, { ...o, _delete: true } as LocalOutput & {
+                _delete?: boolean;
+              });
+            }}
+          />
+        ))}
+      </div>
+
+      {isEditable && (
+        <button
+          type="button"
+          onClick={onAddOutput}
+          className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-blue-300 hover:text-blue-600 transition-all flex items-center justify-center gap-1.5"
+        >
+          <Plus size={14} />
+          Tambah output
+        </button>
+      )}
+
+      {input.output_template.length > 0 &&
+        isEditable &&
+        input.outputs.length === 0 && (
+          <p className="text-xs text-gray-400 text-center">
+            💡 Template tersedia — klik "Tambah output" untuk mulai
+          </p>
+        )}
+    </div>
+  );
+}
+
+// ── Return items section ──────────────────────────────────────────────────────
+
+function ReturnItemsSection({
+  gp,
+  onResolve,
+  canApprove,
+}: {
+  gp: GoodsProcessingDetail;
+  onResolve: (outputId: string, resolution: "STOCK" | "DISCARD") => void;
+  canApprove: boolean;
+}) {
+  const returnItems = gp.inputs.flatMap((inp) =>
+    inp.outputs
+      .filter((o) => o.flagged_for_return && !o.return_resolved_at)
+      .map((o) => ({ ...o, input_product_name: inp.product_name })),
+  );
+
+  if (returnItems.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border-2 border-orange-200 bg-orange-50/30 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <RotateCcw size={16} className="text-orange-600" />
+        <h3 className="font-semibold text-orange-800 text-sm">
+          Menunggu Retur ({returnItems.length})
+        </h3>
+      </div>
+      {returnItems.map((item) => (
+        <div
+          key={item.id}
+          className="bg-white rounded-lg border border-orange-200 p-3 space-y-2"
+        >
+          <div className="flex justify-between items-start gap-2">
+            <div>
+              <p className="text-sm font-medium text-gray-800">
+                {item.product_name}
+              </p>
+              {item.return_reason && (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  "{item.return_reason}"
+                </p>
+              )}
+            </div>
+            <div className="text-right text-sm shrink-0">
+              <span className="font-mono font-semibold">
+                {item.actual_qty ?? item.qty_output}
+              </span>
+              <span className="text-gray-500 ml-1">{item.uom}</span>
+            </div>
           </div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400 text-xs">Tipe</span>
-            <p className="font-medium text-gray-900 dark:text-white">{gp.processing_type === 'DISASSEMBLY' ? 'Disassembly' : 'Pass-through'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400 text-xs">Gudang</span>
-            <p className="font-medium text-gray-900 dark:text-white truncate">{gp.warehouse_name}</p>
-          </div>
-          {gp.total_input_qty != null && (
-            <>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 text-xs">Input</span>
-                <p className="font-medium text-gray-900 dark:text-white">{fmt(gp.total_input_qty)}</p>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 text-xs">Output</span>
-                <p className="font-medium text-green-600 dark:text-green-400">{fmt(gp.total_output_qty ?? 0)}</p>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400 text-xs">Yield</span>
-                <p className="font-medium text-gray-900 dark:text-white">{gp.yield_percentage}%</p>
-              </div>
-            </>
+          {canApprove && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onResolve(item.id, "STOCK")}
+                className="flex-1 py-1.5 bg-green-50 border border-green-300 text-green-700 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors"
+              >
+                ✓ Masukkan Gudang
+              </button>
+              <button
+                type="button"
+                onClick={() => onResolve(item.id, "DISCARD")}
+                className="flex-1 py-1.5 bg-red-50 border border-red-300 text-red-700 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors"
+              >
+                🗑 Buang
+              </button>
+            </div>
           )}
         </div>
-        {gp.rejection_reason && (
-          <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-700 dark:text-red-300"><strong>Alasan Penolakan:</strong> {gp.rejection_reason}</p>
+      ))}
+    </div>
+  );
+}
+
+// ── Reject modal ──────────────────────────────────────────────────────────────
+
+function RejectModal({
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  onConfirm: (reason: string) => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+        <div className="flex items-center gap-2">
+          <XCircle size={20} className="text-red-500" />
+          <h3 className="font-semibold text-gray-900">Tolak Proses</h3>
+        </div>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Alasan penolakan..."
+          rows={3}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            onClick={() => reason.trim() && onConfirm(reason.trim())}
+            disabled={!reason.trim() || loading}
+            className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium disabled:opacity-50 hover:bg-red-600 transition-colors"
+          >
+            {loading ? "Menyimpan..." : "Tolak"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Add output modal ──────────────────────────────────────────────────────────
+
+function AddOutputModal({
+  template,
+  onAdd,
+  onCancel,
+}: {
+  template: OutputTemplateRow[];
+  onAdd: (output: Omit<LocalOutput, "sort_order">) => void;
+  onCancel: () => void;
+}) {
+  const [productName, setProductName] = useState("");
+  const [productId, setProductId] = useState("");
+  const [productCode, setProductCode] = useState("");
+  const [qty, setQty] = useState("");
+  const [uom, setUom] = useState("");
+
+  const handleTemplate = (t: OutputTemplateRow) => {
+    setProductId(t.output_product_id);
+    setProductName(t.output_product_name);
+    setProductCode(t.output_product_code);
+    setUom(t.output_uom);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="font-semibold text-gray-900">Tambah Output</h3>
+        {template.length > 0 && (
+          <div>
+            <p className="text-xs text-gray-500 mb-2">Dari template:</p>
+            <div className="space-y-1.5">
+              {template.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleTemplate(t)}
+                  className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-all ${
+                    productId === t.output_product_id
+                      ? "border-blue-400 bg-blue-50 text-blue-800"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <span className="font-medium">{t.output_product_name}</span>
+                  <span className="text-gray-400 ml-2 text-xs">
+                    {t.output_uom}
+                  </span>
+                  {t.suggested_pct && (
+                    <span className="text-xs text-gray-400 ml-1">
+                      ({t.suggested_pct}%)
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-2 mb-1">atau isi manual:</p>
+          </div>
+        )}
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={productName}
+            onChange={(e) => setProductName(e.target.value)}
+            placeholder="Nama produk output"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              placeholder="Qty"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            <input
+              type="text"
+              value={uom}
+              onChange={(e) => setUom(e.target.value)}
+              placeholder="UOM"
+              className="w-24 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            onClick={() => {
+              if (!productId && !productName) return;
+              onAdd({
+                id: undefined,
+                product_id: productId || "custom",
+                product_name: productName,
+                product_code: productCode,
+                qty_output: parseFloat(qty) || 0,
+                uom: uom,
+                is_waste: false,
+                waste_reason: null,
+                condition_status: null,
+                actual_qty: null,
+                actual_uom: null,
+                flagged_for_return: false,
+                return_reason: null,
+              });
+            }}
+            disabled={!productName || !qty || !uom}
+            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-50 hover:bg-blue-700 transition-colors"
+          >
+            Tambah
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function GoodsProcessingDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const hasPermission = usePermissionStore((s) => s.hasPermission);
+
+  const canUpdate = hasPermission("goods_processing", "update");
+  const canApprove = hasPermission("goods_processing", "approve");
+
+  const { data: gp, isLoading, error } = useGoodsProcessingDetail(id!);
+  const startMut = useStartGoodsProcessing(id!);
+  const updateMut = useUpdateGoodsProcessing(id!);
+  const confirmMut = useConfirmGoodsProcessing(id!);
+  const rejectMut = useRejectGoodsProcessing(id!);
+  const resolveMut = useResolveReturn(id!);
+
+  const { data: uomConversions } = useQuery({
+    queryKey: ['product-uoms', 'conversions-gp', gp?.id],
+    queryFn: async () => {
+      const productIds = gp!.inputs.map(inp => inp.product_id)
+      const { data } = await api.post('/product-uoms/conversions-batch', { product_ids: productIds })
+      return data.data as Record<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>
+    },
+    enabled: !!gp,
+    staleTime: 60_000,
+  })
+  const getBaseUomName = (productId: string): string => {
+    const uoms = uomConversions?.[productId] ?? []
+    return uoms.find(u => u.is_base_unit)?.unit_name ?? ''
+  }
+  const [localInputs, setLocalInputs] = useState<LocalInput[]>([]);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [addOutputFor, setAddOutputFor] = useState<string | null>(null); // inputId
+
+  // Sync from server data
+  useEffect(() => {
+    if (gp) setLocalInputs(initLocalInputs(gp));
+  }, [gp]);
+
+  const isEditable = useMemo(
+    () =>
+      canUpdate && (gp?.status === "PROCESSING" || gp?.status === "REJECTED"),
+    [canUpdate, gp?.status],
+  );
+
+  const allPassThroughConfirmed = useMemo(() => {
+    if (!gp) return false;
+    return localInputs
+      .filter((inp) => !inp.requires_processing)
+      .every((inp) => inp.outputs.every((o) => o.condition_status != null));
+  }, [gp, localInputs]);
+
+  const allDisassemblyHasOutput = useMemo(() => {
+    return localInputs
+      .filter((inp) => inp.requires_processing)
+      .every((inp) => inp.outputs.length > 0);
+  }, [localInputs]);
+
+  const noOutputExceedsInput = useMemo(() => {
+    return localInputs
+      .filter((inp) => inp.requires_processing)
+      .every((inp) => {
+        const totalNonWaste = inp.outputs
+          .filter((o) => !o.is_waste)
+          .reduce((s, o) => s + (o.qty_output || 0), 0);
+        return totalNonWaste <= inp.qty_input;
+      });
+  }, [localInputs]);
+
+  const canFinish =
+    allPassThroughConfirmed && allDisassemblyHasOutput && noOutputExceedsInput;
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  const handleSave = useCallback(async () => {
+    if (!gp) return;
+    try {
+      await updateMut.mutateAsync({
+        inputs: localInputs.map((inp) => ({
+          id: inp.id,
+          outputs: inp.outputs
+            .filter((o) => !(o as LocalOutput & { _delete?: boolean })._delete)
+            .map((o, i) => ({
+              id: o.id,
+              product_id: o.product_id,
+              qty_output: o.qty_output,
+              uom: o.uom,
+              is_waste: o.is_waste,
+              waste_reason: o.waste_reason,
+              condition_status: o.condition_status,
+              actual_qty: o.actual_qty,
+              actual_uom: o.actual_uom,
+              flagged_for_return: o.flagged_for_return,
+              return_reason: o.return_reason,
+              sort_order: i,
+            })),
+        })),
+      });
+      addToast("success", "Tersimpan");
+    } catch (e) {
+      addToast("error", parseApiError(e, "Terjadi kesalahan"));
+    }
+  }, [gp, localInputs, updateMut, addToast]);
+
+  const handleFinish = useCallback(async () => {
+    if (!gp) return;
+    try {
+      // Save first, then confirm
+      await updateMut.mutateAsync({
+        inputs: localInputs.map((inp) => ({
+          id: inp.id,
+          outputs: inp.outputs
+            .filter((o) => !(o as LocalOutput & { _delete?: boolean })._delete)
+            .map((o, i) => ({
+              id: o.id,
+              product_id: o.product_id,
+              qty_output: o.qty_output,
+              uom: o.uom,
+              is_waste: o.is_waste,
+              waste_reason: o.waste_reason,
+              condition_status: o.condition_status,
+              actual_qty: o.actual_qty,
+              actual_uom: o.actual_uom,
+              flagged_for_return: o.flagged_for_return,
+              return_reason: o.return_reason,
+              sort_order: i,
+            })),
+        })),
+      });
+      await confirmMut.mutateAsync();
+      addToast("success", "Proses selesai! Stok masuk gudang.");
+    } catch (e) {
+      addToast("error", parseApiError(e, "Terjadi kesalahan"));
+    }
+  }, [gp, localInputs, updateMut, confirmMut, addToast]);
+
+  const handleStart = useCallback(async () => {
+    try {
+      await startMut.mutateAsync();
+      addToast("success", "Proses dimulai");
+    } catch (e) {
+      addToast("error", parseApiError(e, "Terjadi kesalahan"));
+    }
+  }, [startMut, addToast]);
+
+  const handleReject = useCallback(
+    async (reason: string) => {
+      try {
+        await rejectMut.mutateAsync({ rejection_reason: reason });
+        setShowRejectModal(false);
+        addToast("info", "Proses ditolak");
+      } catch (e) {
+        addToast("error", parseApiError(e, "Terjadi kesalahan"));
+      }
+    },
+    [rejectMut, addToast],
+  );
+
+  const handleResolveReturn = useCallback(
+    async (outputId: string, resolution: "STOCK" | "DISCARD") => {
+      try {
+        await resolveMut.mutateAsync({ outputId, resolution });
+        addToast(
+          "success",
+          resolution === "STOCK" ? "Barang masuk gudang" : "Barang dibuang",
+        );
+      } catch (e) {
+        addToast("error", parseApiError(e, "Terjadi kesalahan"));
+      }
+    },
+    [resolveMut, addToast],
+  );
+
+  const updatePassThroughOutput = useCallback(
+    (inputIndex: number, updated: LocalOutput) => {
+      setLocalInputs((prev) =>
+        prev.map((inp, i) =>
+          i !== inputIndex ? inp : { ...inp, outputs: [updated] },
+        ),
+      );
+    },
+    [],
+  );
+
+  const updateDisassemblyOutput = useCallback(
+    (
+      inputIndex: number,
+      outputIndex: number,
+      updated: LocalOutput & { _delete?: boolean },
+    ) => {
+      setLocalInputs((prev) =>
+        prev.map((inp, i) => {
+          if (i !== inputIndex) return inp;
+          if (updated._delete) {
+            return {
+              ...inp,
+              outputs: inp.outputs.filter((_, oi) => oi !== outputIndex),
+            };
+          }
+          return {
+            ...inp,
+            outputs: inp.outputs.map((o, oi) =>
+              oi === outputIndex ? updated : o,
+            ),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const addDisassemblyOutput = useCallback(
+    (inputIndex: number, output: Omit<LocalOutput, "sort_order">) => {
+      setLocalInputs((prev) =>
+        prev.map((inp, i) => {
+          if (i !== inputIndex) return inp;
+          return {
+            ...inp,
+            outputs: [
+              ...inp.outputs,
+              { ...output, sort_order: inp.outputs.length },
+            ],
+          };
+        }),
+      );
+      setAddOutputFor(null);
+    },
+    [],
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (isLoading)
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-gray-500">Memuat data...</p>
+        </div>
+      </div>
+    );
+
+  if (error || !gp)
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <AlertTriangle size={40} className="mx-auto text-red-400" />
+          <p className="text-gray-600">Gagal memuat data</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="text-blue-600 text-sm"
+          >
+            ← Kembali
+          </button>
+        </div>
+      </div>
+    );
+
+  const status = gp.status;
+  const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
+  const isBusy =
+    startMut.isPending ||
+    updateMut.isPending ||
+    confirmMut.isPending ||
+    rejectMut.isPending;
+
+  const addOutputInput =
+    addOutputFor != null
+      ? localInputs.find((inp) => inp.id === addOutputFor)
+      : null;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* ── Header ── */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-20">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-1.5 -ml-1.5 text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 text-sm truncate">
+              {gp.processing_number}
+            </p>
+            <p className="text-xs text-gray-500 truncate">
+              {gp.supplier_name} · {gp.gr_number}
+            </p>
+          </div>
+          <span
+            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${cfg.color}`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+            {cfg.label}
+          </span>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex px-4 pb-3 gap-2">
+          {(["DRAFT", "PROCESSING", "CONFIRMED"] as const).map((step, i) => {
+            const isActive =
+              status === step ||
+              (step === "PROCESSING" &&
+                (status === "PROCESSING" || status === "REJECTED")) ||
+              (step === "CONFIRMED" && status === "CONFIRMED");
+            const isDone =
+              (step === "DRAFT" && status !== "DRAFT") ||
+              (step === "PROCESSING" && status === "CONFIRMED");
+            return (
+              <div
+                key={step}
+                className="flex items-center gap-2 flex-1 min-w-0"
+              >
+                <div
+                  className={`flex items-center gap-1.5 ${i > 0 ? "flex-1" : ""}`}
+                >
+                  {i > 0 && (
+                    <div
+                      className={`h-0.5 flex-1 rounded-full transition-colors ${isDone || status === "CONFIRMED" ? "bg-green-400" : "bg-gray-200"}`}
+                    />
+                  )}
+                  <div
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
+                      isDone
+                        ? "bg-green-500 text-white"
+                        : isActive
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-500"
+                    }`}
+                  >
+                    {isDone ? "✓" : i + 1}
+                  </div>
+                </div>
+                <span
+                  className={`text-xs hidden sm:block ${isActive ? "text-blue-700 font-medium" : isDone ? "text-green-700" : "text-gray-400"}`}
+                >
+                  {step === "DRAFT"
+                    ? "Draft"
+                    : step === "PROCESSING"
+                      ? "Pengerjaan"
+                      : "Selesai"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Info strip ── */}
+      {status === "REJECTED" && gp.rejection_reason && (
+        <div className="bg-red-50 border-b border-red-100 px-4 py-2.5 flex items-start gap-2">
+          <XCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+          <p className="text-xs text-red-700">
+            <span className="font-medium">Alasan ditolak:</span>{" "}
+            {gp.rejection_reason}
+          </p>
+        </div>
+      )}
+
+      {status === "PROCESSING" && (
+        <div className="bg-blue-50 border-b border-blue-100 px-4 py-2.5 flex items-start gap-2">
+          <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
+          <p className="text-xs text-blue-700">
+            {gp.processing_type === "PASS_THROUGH"
+              ? "Cek kondisi setiap barang, lalu tekan Selesai untuk memasukkan ke gudang."
+              : "Isi hasil proses setiap item, lalu tekan Selesai."}
+          </p>
+        </div>
+      )}
+
+      {/* ── Content ── */}
+      <div className="px-4 py-4 space-y-3 max-w-lg mx-auto pb-32">
+        {/* Info card */}
+        <div className="bg-white rounded-xl border border-gray-100 p-3.5 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <p className="text-xs text-gray-400">Gudang</p>
+            <p className="font-medium text-gray-800 text-xs mt-0.5">
+              {gp.warehouse_name}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Tanggal</p>
+            <p className="font-medium text-gray-800 text-xs mt-0.5">
+              {new Date(gp.processing_date).toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Tipe</p>
+            <p className="font-medium text-gray-800 text-xs mt-0.5">
+              {gp.processing_type === "PASS_THROUGH" ? "Langsung" : "Proses"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Cabang</p>
+            <p className="font-medium text-gray-800 text-xs mt-0.5">
+              {gp.branch_name}
+            </p>
+          </div>
+        </div>
+
+        {/* Items */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-0.5">
+            {localInputs.length} Item
+          </p>
+          {localInputs.map((inp, inputIndex) =>
+            inp.requires_processing ? (
+              <DisassemblyCard
+                key={inp.id}
+                input={inp}
+                isEditable={isEditable}
+                onChange={(oi, updated) =>
+                  updateDisassemblyOutput(
+                    inputIndex,
+                    oi,
+                    updated as LocalOutput & { _delete?: boolean },
+                  )
+                }
+                onAddOutput={() => setAddOutputFor(inp.id)}
+              />
+            ) : (
+              <PassThroughCard
+                key={inp.id}
+                input={inp}
+                output={inp.outputs[0] ?? { id: '', product_id: '', product_name: '', product_code: '', qty_output: 0, uom: '', is_waste: false, waste_reason: null, condition_status: null, actual_qty: null, actual_uom: null, flagged_for_return: false, return_reason: null, sort_order: 0 }}
+                isEditable={isEditable}
+                onChange={(updated) => updatePassThroughOutput(inputIndex, updated)}
+                baseUomName={getBaseUomName(inp.product_id)}
+              />
+            ),
+          )}
+        </div>
+
+        {/* Return items */}
+        {(status === "CONFIRMED" || status === "PROCESSING") && (
+          <ReturnItemsSection
+            gp={gp}
+            onResolve={handleResolveReturn}
+            canApprove={canApprove}
+          />
+        )}
+
+        {/* Summary (confirmed) */}
+        {status === "CONFIRMED" && gp.total_input_qty != null && (
+          <div className="bg-green-50 rounded-xl border border-green-200 p-4 space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle2 size={16} className="text-green-600" />
+              <p className="font-semibold text-green-800 text-sm">
+                Ringkasan Proses
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-lg font-bold text-gray-800">
+                  {gp.total_input_qty}
+                </p>
+                <p className="text-xs text-gray-500">Input</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-green-700">
+                  {gp.total_output_qty}
+                </p>
+                <p className="text-xs text-gray-500">Output</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-gray-600">
+                  {gp.yield_percentage}%
+                </p>
+                <p className="text-xs text-gray-500">Yield</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Inputs & Outputs */}
-      <div className="flex-1 overflow-auto p-4 lg:p-6 space-y-4">
-        {gp.inputs.map(inp => {
-          const outputs = editOutputs[inp.id] ?? []
-          const totalNonWaste = outputs.filter(o => !o.is_waste).reduce((s, o) => s + (o.qty_output || 0), 0)
-          const totalWaste = outputs.filter(o => o.is_waste).reduce((s, o) => s + (o.qty_output || 0), 0)
-          const totalAll = totalNonWaste + totalWaste
-          const overInput = totalAll > Number(inp.qty_input)
-          const isPassThrough = !inp.requires_processing
-          const lineEditable = ['PENDING', 'PROCESSING', 'REJECTED'].includes(inp.status ?? 'PENDING') && canUpdate
+      {/* ── Bottom action bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 safe-area-pb">
+        <div className="max-w-lg mx-auto">
+          {status === "DRAFT" && canUpdate && (
+            <button
+              onClick={handleStart}
+              disabled={isBusy}
+              className="w-full py-3.5 bg-blue-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-blue-700 active:scale-98 transition-all"
+            >
+              <Play size={16} />
+              {isBusy ? "Memulai..." : "Mulai Proses"}
+            </button>
+          )}
 
-          return (
-            <div key={inp.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              {/* Input Header with per-line status + actions */}
-              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{inp.product_name}</span>
-                    <span className="text-xs text-gray-500 hidden sm:inline">{inp.product_code}</span>
-                    {isPassThrough
-                      ? <span className="px-1.5 py-0.5 text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded shrink-0">Pass</span>
-                      : <span className="px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded shrink-0">Proses</span>
-                    }
-                    {inp.status && (
-                      <span className={`px-1.5 py-0.5 text-[10px] rounded shrink-0 ${
-                        inp.status === 'CONFIRMED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                        inp.status === 'QC_REVIEW' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                        inp.status === 'PROCESSING' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                        inp.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-                        'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                      }`}>{inp.status}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-mono text-gray-700 dark:text-gray-300">{fmt(inp.qty_input)} {inp.uom}</span>
-                    {/* Per-line action buttons */}
-                    {inp.status === 'PENDING' && canUpdate && (
-                      <button onClick={() => { startLineMutation.mutateAsync(inp.id).then(() => toast.success('Proses dimulai')).catch((e: unknown) => toast.error(parseApiError(e, 'Gagal'))) }}
-                        className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded hover:bg-blue-700">Mulai</button>
-                    )}
-                    {['PROCESSING', 'REJECTED'].includes(inp.status ?? '') && canUpdate && (
-                      <button onClick={() => { submitLineQcMutation.mutateAsync(inp.id).then(() => toast.success('Dikirim ke QC')).catch((e: unknown) => toast.error(parseApiError(e, 'Gagal'))) }}
-                        className="px-2 py-1 text-[10px] bg-yellow-600 text-white rounded hover:bg-yellow-700">Submit QC</button>
-                    )}
-                    {inp.status === 'QC_REVIEW' && canApprove && (
-                      <button onClick={() => { confirmLineMutation.mutateAsync(inp.id).then(() => toast.success('Dikonfirmasi')).catch((e: unknown) => toast.error(parseApiError(e, 'Gagal'))) }}
-                        className="px-2 py-1 text-[10px] bg-green-600 text-white rounded hover:bg-green-700">Confirm</button>
-                    )}
-                  </div>
-                </div>
-                {inp.status === 'CONFIRMED' && inp.qc_confirmed_by_name && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ Dikonfirmasi oleh {inp.qc_confirmed_by_name}{inp.qc_confirmed_at ? ` · ${fmtDate(inp.qc_confirmed_at)}` : ''}</p>
-                )}
-                {inp.status === 'REJECTED' && inp.rejection_reason && (
-                  <p className="text-xs text-red-500 mt-1">✗ Ditolak: {inp.rejection_reason}</p>
-                )}
-              </div>
-
-              {/* Pass-through: show conversion suggestion */}
-              {isPassThrough && (
-                <div className="px-4 py-3 bg-green-50/50 dark:bg-green-900/5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-green-700 dark:text-green-400">Output = Input (langsung masuk gudang)</p>
-                    <span className="text-sm font-mono text-gray-700 dark:text-gray-300">{fmt(inp.qty_input)} {inp.uom}</span>
-                  </div>
-                  {(() => {
-                    const uoms = uomData?.[inp.product_id]
-                    if (!uoms || uoms.length <= 1) return null
-                    const inputUom = uoms.find(u => u.unit_name === inp.uom)
-                    const baseUom = uoms.find(u => u.is_base_unit)
-                    if (!inputUom || !baseUom || inputUom.is_base_unit) return null
-                    const converted = Number(inp.qty_input) * inputUom.conversion_factor
-                    return (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        → Konversi: {fmt(converted)} {baseUom.unit_name}
-                        <span className="text-gray-400 ml-1">(1 {inp.uom} = {fmt(inputUom.conversion_factor)} {baseUom.unit_name})</span>
-                      </p>
-                    )
-                  })()}
-                </div>
-              )}
-
-              {/* Disassembly: editable outputs */}
-              {!isPassThrough && (
-                <div className="p-4 space-y-3">
-                  {outputs.map(out => (
-                    <div key={out.key} className={`p-3 rounded-lg border ${out.is_waste ? 'border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
-                      {lineEditable ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {/* Product picker button */}
-                            <button onClick={() => { setPickerInputId(inp.id); setPickerOutputKey(out.key); setShowProductPicker(true) }}
-                              className="flex-1 min-w-[150px] px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-left bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:border-blue-400 truncate">
-                              {out.product_id ? out.product_name || 'Produk dipilih' : <span className="text-gray-400">Pilih produk...</span>}
-                            </button>
-                            <input type="number" min="0" value={out.qty_output || ''}
-                              onChange={e => updateOutput(inp.id, out.key, 'qty_output', parseFloat(e.target.value) || 0)}
-                              className="w-24 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-right bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                              placeholder="Qty" />
-                            <input type="text" value={out.uom}
-                              onChange={e => updateOutput(inp.id, out.key, 'uom', e.target.value)}
-                              className="w-16 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                              placeholder="UOM" />
-                            <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 shrink-0 cursor-pointer">
-                              <input type="checkbox" checked={out.is_waste}
-                                onChange={e => updateOutput(inp.id, out.key, 'is_waste', e.target.checked)}
-                                className="w-3.5 h-3.5 rounded border-gray-300 text-red-600" />
-                              Waste
-                            </label>
-                            <button onClick={() => removeOutput(inp.id, out.key)} className="p-1 text-gray-400 hover:text-red-500 shrink-0">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          {out.is_waste && (
-                            <input type="text" value={out.waste_reason}
-                              onChange={e => updateOutput(inp.id, out.key, 'waste_reason', e.target.value)}
-                              placeholder="Alasan waste (tulang, kulit, dll)"
-                              className="w-full px-2 py-1.5 border border-red-300 dark:border-red-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0">
-                            {out.is_waste && <span className="px-1.5 py-0.5 text-xs bg-red-200 text-red-700 dark:bg-red-800 dark:text-red-300 rounded shrink-0">Waste</span>}
-                            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{out.product_name}</span>
-                            {out.waste_reason && <span className="text-xs text-red-500">({out.waste_reason})</span>}
-                          </div>
-                          <span className="text-sm font-mono text-gray-700 dark:text-gray-300 shrink-0">{fmt(out.qty_output)} {out.uom}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {lineEditable && (
-                    <button onClick={() => addOutput(inp.id, inp)}
-                      className="flex items-center gap-1 px-3 py-2 text-xs text-gray-600 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-400 hover:text-orange-600 w-full justify-center">
-                      <Plus className="w-3.5 h-3.5" /> Tambah Output
-                    </button>
-                  )}
-
-                  <div className={`flex justify-between text-xs pt-2 border-t border-gray-200 dark:border-gray-700 ${overInput ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                    <span>Output: {fmt(totalNonWaste)} + waste {fmt(totalWaste)} = {fmt(totalAll)}</span>
-                    <span>dari {fmt(inp.qty_input)} {inp.uom} {overInput && '⚠️ Melebihi input!'}</span>
-                  </div>
-                </div>
+          {(status === "PROCESSING" || status === "REJECTED") && isEditable && (
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={isBusy}
+                className="flex items-center gap-1.5 px-4 py-3.5 border-2 border-gray-200 text-gray-700 rounded-2xl font-medium text-sm disabled:opacity-50 hover:border-gray-300 transition-all shrink-0"
+              >
+                <Save size={15} />
+                Simpan
+              </button>
+              <button
+                onClick={handleFinish}
+                disabled={isBusy || !canFinish}
+                className="flex-1 py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 active:scale-98 transition-all"
+              >
+                <ClipboardCheck size={16} />
+                {isBusy ? "Menyimpan..." : "Selesaikan"}
+              </button>
+              {canApprove && (
+                <button
+                  onClick={() => setShowRejectModal(true)}
+                  disabled={isBusy}
+                  className="px-3 py-3.5 border-2 border-red-200 text-red-600 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-red-50 transition-all shrink-0"
+                >
+                  <XCircle size={15} />
+                </button>
               )}
             </div>
-          )
-        })}
+          )}
+
+          {status === "QC_REVIEW" && canApprove && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowRejectModal(true)}
+                disabled={isBusy}
+                className="flex-1 py-3.5 border-2 border-red-200 text-red-600 rounded-2xl font-semibold text-sm disabled:opacity-50 hover:bg-red-50 transition-all"
+              >
+                Tolak
+              </button>
+              <button
+                onClick={handleFinish}
+                disabled={isBusy}
+                className="flex-1 py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm disabled:opacity-50 hover:bg-green-700 transition-all"
+              >
+                Konfirmasi
+              </button>
+            </div>
+          )}
+
+          {status === "CONFIRMED" && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <CheckCircle2 size={16} className="text-green-600" />
+              <p className="text-sm text-green-700 font-medium">
+                Proses selesai · Stok sudah masuk gudang
+              </p>
+            </div>
+          )}
+        </div>
       </div>
-      <ConfirmModal isOpen={!!confirmAction} onClose={() => setConfirmAction(null)} onConfirm={handleAction}
-        title={confirmAction === 'start' ? 'Mulai Proses' : confirmAction === 'submit_qc' ? 'Submit ke QC' : 'Konfirmasi QC'}
-        message={
-          confirmAction === 'start' ? 'Mulai proses barang ini?' :
-          confirmAction === 'submit_qc' ? 'Kirim ke QC untuk review? Pastikan semua output sudah benar.' :
-          'Konfirmasi barang masuk? Stock akan tercatat di gudang.'
-        }
-        confirmText={confirmAction === 'confirm' ? 'Konfirmasi' : 'Lanjut'}
-        variant={confirmAction === 'confirm' ? 'success' : 'info'}
-        isLoading={startMutation.isPending || submitQcMutation.isPending || confirmMutation.isPending} />
 
-      {/* Reject Modal */}
-      <ConfirmModal isOpen={showReject} onClose={() => { setShowReject(false); setRejectReason('') }}
-        onConfirm={handleReject}
-        title="Tolak Barang Masuk" confirmText="Tolak" variant="danger"
-        isLoading={rejectMutation.isPending}
-        message={
-          <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-            placeholder="Alasan penolakan (wajib)"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mt-2"
-            rows={3} />
-        } />
+      {/* ── Modals ── */}
+      {showRejectModal && (
+        <RejectModal
+          onConfirm={handleReject}
+          onCancel={() => setShowRejectModal(false)}
+          loading={rejectMut.isPending}
+        />
+      )}
 
-      {/* Product Picker for disassembly outputs */}
-      <ProductPickerModal
-        open={showProductPicker}
-        onClose={() => { setShowProductPicker(false); setPickerInputId(null); setPickerOutputKey(null) }}
-        onSelect={(product) => {
-          if (pickerInputId && pickerOutputKey) {
-            updateOutput(pickerInputId, pickerOutputKey, 'product_id', product.id)
-            updateOutput(pickerInputId, pickerOutputKey, 'product_name', product.name)
-            updateOutput(pickerInputId, pickerOutputKey, 'uom', product.uom_base)
+      {addOutputFor != null && addOutputInput && (
+        <AddOutputModal
+          template={addOutputInput.output_template}
+          onAdd={(output) =>
+            addDisassemblyOutput(
+              localInputs.findIndex((inp) => inp.id === addOutputFor),
+              output,
+            )
           }
-          setShowProductPicker(false)
-          setPickerInputId(null)
-          setPickerOutputKey(null)
-        }}
-        branchId={gp?.branch_id}
-        showStock
-      />
+          onCancel={() => setAddOutputFor(null)}
+        />
+      )}
     </div>
-  )
+  );
 }

@@ -5,6 +5,7 @@ import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permi
 import { queryMiddleware } from '../../middleware/query.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { productsController } from './products.controller'
+import { productOutputTemplateController } from '../product-output-template/product-output-template.controller'
 import productUomsRoutes from '../product-uoms/product-uoms.routes'
 import { PermissionService } from '../../services/permission.service'
 import { createProductSchema, updateProductSchema, productIdSchema, bulkDeleteSchema, bulkUpdateStatusSchema, bulkRestoreSchema, checkProductNameSchema } from './products.schema'
@@ -72,6 +73,10 @@ router.post('/bulk/restore', canUpdate('products'), validateSchema(bulkRestoreSc
 
 router.post('/:id/restore', canUpdate('products'), validateSchema(productIdSchema), (req, res) =>
   productsController.restore(req, res))
+
+// OUTPUT TEMPLATE
+router.get('/:productId/output-template',  canView('products'),   (req, res) => productOutputTemplateController.getTemplate(req, res))
+router.put('/:productId/output-template',  canUpdate('products'), (req, res) => productOutputTemplateController.saveTemplate(req, res))
 
 // NESTED UOM ROUTES
 router.use('/:productId/uoms', productUomsRoutes)

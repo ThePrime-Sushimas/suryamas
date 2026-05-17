@@ -1,5 +1,6 @@
 export type GoodsProcessingType = 'PASS_THROUGH' | 'DISASSEMBLY'
 export type GoodsProcessingStatus = 'DRAFT' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
+export type ConditionStatus = 'OK' | 'DAMAGED' | 'SHORTAGE'
 
 export interface GoodsProcessing {
   id: string
@@ -38,6 +39,7 @@ export interface GoodsProcessingWithRelations extends GoodsProcessing {
   gr_number: string
   supplier_name: string
   input_count: number
+  item_names: string[]
 }
 
 export interface GoodsProcessingInput {
@@ -82,6 +84,13 @@ export interface GoodsProcessingOutput {
   purchase_invoice_line_id: string | null
   warehouse_id: string | null
   sort_order: number
+  // New fields from migration
+  condition_status: ConditionStatus | null
+  actual_qty: number | null
+  actual_uom: string | null
+  flagged_for_return: boolean
+  return_reason: string | null
+  return_resolved_at: string | null
 }
 
 export interface GoodsProcessingOutputWithProduct extends GoodsProcessingOutput {
@@ -89,8 +98,25 @@ export interface GoodsProcessingOutputWithProduct extends GoodsProcessingOutput 
   product_name: string
 }
 
+export interface OutputTemplateRow {
+  id: string
+  product_id: string
+  output_product_id: string
+  output_product_name: string
+  output_product_code: string
+  output_uom: string
+  suggested_pct: number | null
+  sort_order: number
+  notes: string | null
+}
+
+export interface GoodsProcessingInputWithTemplate extends GoodsProcessingInputWithProduct {
+  outputs: GoodsProcessingOutputWithProduct[]
+  output_template: OutputTemplateRow[]
+}
+
 export interface GoodsProcessingDetail extends GoodsProcessingWithRelations {
-  inputs: (GoodsProcessingInputWithProduct & { outputs: GoodsProcessingOutputWithProduct[] })[]
+  inputs: GoodsProcessingInputWithTemplate[]
 }
 
 // DTOs
@@ -103,6 +129,12 @@ export interface UpdateOutputDto {
   waste_reason?: string | null
   photo_urls?: string[] | null
   sort_order?: number
+  // New fields
+  condition_status?: ConditionStatus | null
+  actual_qty?: number | null
+  actual_uom?: string | null
+  flagged_for_return?: boolean
+  return_reason?: string | null
 }
 
 export interface UpdateGoodsProcessingDto {
@@ -116,4 +148,8 @@ export interface UpdateGoodsProcessingDto {
 
 export interface RejectDto {
   rejection_reason: string
+}
+
+export interface ResolveReturnDto {
+  resolution: 'STOCK' | 'DISCARD'
 }

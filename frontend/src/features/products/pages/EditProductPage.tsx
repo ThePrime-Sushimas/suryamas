@@ -8,6 +8,7 @@ import { FormSkeleton } from '@/components/ui/Skeleton'
 import { useProduct, useUpdateProduct } from '../api/products.api'
 import { ProductForm } from '../components/ProductForm'
 import type { UpdateProductDto } from '../types'
+import { OutputTemplateSection } from '../components/OutputTemplateSection'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
 
@@ -107,7 +108,9 @@ export default function EditProductPage() {
 
       {/* Form */}
       <ProductForm initialData={p} isEdit onSubmit={handleSubmit} onCancel={() => setCancelOpen(true)} isLoading={updateProduct.isPending} />
-
+       {p.requires_processing && (
+         <OutputTemplateSection productId={id!} productName={p.product_name} />
+       )}
       <ConfirmModal isOpen={cancelOpen} onClose={() => setCancelOpen(false)} onConfirm={() => navigate('/products')}
         title="Batalkan" message="Yakin ingin membatalkan? Perubahan akan hilang." confirmText="Ya, Batalkan" variant="danger" />
     </div>
