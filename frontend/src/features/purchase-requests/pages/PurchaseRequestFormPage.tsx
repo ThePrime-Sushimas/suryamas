@@ -170,7 +170,7 @@ export default function PurchaseRequestFormPage() {
           </p>
           <button
             onClick={() => navigate(`/inventory/purchase-requests/${id}`)}
-            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-red-700 text-sm"
           >
             Kembali ke Detail
           </button>
@@ -184,32 +184,32 @@ export default function PurchaseRequestFormPage() {
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={() => navigate(isEdit ? `/inventory/purchase-requests/${id}` : '/inventory/purchase-requests')}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <ClipboardList className="w-6 h-6 text-orange-600 shrink-0 hidden sm:block" />
-              <div className="min-w-0">
-                <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">
-                  {isEdit ? `Edit ${existingPR?.request_number ?? 'PR'}` : 'Buat Purchase Request'}
-                </h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
-                  {isEdit ? 'Perbarui permintaan pembelian bahan baku' : 'Permintaan pembelian bahan baku'}
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={handleSubmit}
-              disabled={isPending || lines.length === 0}
-              className="hidden sm:flex items-center gap-2 px-3 sm:px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm shrink-0"
+              onClick={() => navigate(isEdit ? `/inventory/purchase-requests/${id}` : '/inventory/purchase-requests')}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
             >
-              <Save className="w-4 h-4" />
-              <span>{isPending ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan Draft'}</span>
+              <ArrowLeft className="w-5 h-5" />
             </button>
+            <ClipboardList className="w-6 h-6 text-purple-600 shrink-0 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">
+                {isEdit ? `Edit ${existingPR?.request_number ?? 'PR'}` : 'Buat Purchase Request'}
+              </h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                {isEdit ? 'Perbarui permintaan pembelian bahan baku' : 'Permintaan pembelian bahan baku'}
+              </p>
+            </div>
           </div>
+          <button
+            onClick={handleSubmit}
+            disabled={isPending || lines.length === 0}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm shrink-0"
+          >
+            <Save className="w-4 h-4" />
+            <span className="hidden sm:inline">{isPending ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan Draft'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Form Header */}
@@ -287,7 +287,7 @@ export default function PurchaseRequestFormPage() {
       </div>
 
       {/* Lines Table - Grouped by Supplier */}
-      <div className="flex-1 overflow-auto p-4 sm:p-6 pb-24 sm:pb-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           {lines.length === 0 ? (
             <div className="px-4 py-12 text-center text-gray-400">
@@ -361,7 +361,7 @@ export default function PurchaseRequestFormPage() {
                               <td className="px-4 py-3 text-right">
                                 {branchId && mainStock ? (
                                   <div>
-                                    <span className={`text-sm font-mono ${mainStock.qty > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                    <span className={`text-sm font-mono ${mainStock.qty > 0 ? 'text-green-600 dark:text-green-400' : 'text-purple-600 dark:text-red-400'}`}>
                                       {mainStock.qty}
                                     </span>
                                     {mainStock.uom && <span className="text-xs text-gray-400 ml-1">{mainStock.uom}</span>}
@@ -406,18 +406,6 @@ export default function PurchaseRequestFormPage() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* Sticky Submit Button for Mobile */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
-        <button
-          onClick={handleSubmit}
-          disabled={isPending || lines.length === 0}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm"
-        >
-          <Save className="w-4 h-4" />
-          <span>{isPending ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan Draft'}</span>
-        </button>
       </div>
 
       {/* Product Picker Modal */}

@@ -71,7 +71,7 @@ export default function PurchaseRequestsPage() {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <ClipboardList className="w-6 h-6 text-orange-600" />
+            <ClipboardList className="w-6 h-6 text-purple-600" />
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Purchase Request</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} permintaan</p>
@@ -79,7 +79,7 @@ export default function PurchaseRequestsPage() {
           </div>
           {canInsert && (
             <button onClick={() => navigate('/inventory/purchase-requests/new')}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-red-700">
               <Plus className="w-4 h-4" /> Buat Permintaan
             </button>
           )}
@@ -92,7 +92,7 @@ export default function PurchaseRequestsPage() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input type="text" placeholder="Cari nomor PR atau cabang..." value={search} onChange={e => handleSearchChange(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 outline-none text-sm" />
             {search && <button onClick={() => handleSearchChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>}
           </div>
           <select value={branchFilter} onChange={e => { setBranchFilter(e.target.value); setPage(1) }}

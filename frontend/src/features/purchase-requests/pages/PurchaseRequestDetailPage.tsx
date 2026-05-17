@@ -135,7 +135,7 @@ export default function PurchaseRequestDetailPage() {
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <ClipboardList className="w-6 h-6 text-orange-600 shrink-0 hidden sm:block" />
+            <ClipboardList className="w-6 h-6 text-purple-600 shrink-0 hidden sm:block" />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">
@@ -239,7 +239,7 @@ export default function PurchaseRequestDetailPage() {
         </div>
         {pr.rejected_reason && (
           <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-700 dark:text-red-300">
+            <p className="text-sm text-red-700 dark:text-purple-600">
               <strong>Alasan Penolakan:</strong> {pr.rejected_reason}
             </p>
           </div>
@@ -256,7 +256,7 @@ export default function PurchaseRequestDetailPage() {
             {/* Supplier Header */}
             <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-orange-500" />
+                <Package className="w-4 h-4 text-purple-600" />
                 <span className="font-semibold text-gray-900 dark:text-white text-sm">
                   {group.supplierName}
                 </span>
@@ -360,7 +360,7 @@ export default function PurchaseRequestDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right font-mono">
                         {line.qty_approved != null ? (
-                          <span className={line.qty_approved !== line.qty ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-900 dark:text-gray-200'}>
+                          <span className={line.qty_approved !== line.qty ? 'text-purple-600 dark:text-purple-600 font-medium' : 'text-gray-900 dark:text-gray-200'}>
                             {fmt(line.qty_approved)}
                           </span>
                         ) : (
