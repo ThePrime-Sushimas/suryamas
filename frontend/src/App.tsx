@@ -488,6 +488,7 @@ const PurchaseRequestApprovalPage = lazy(() => import('./features/purchase-reque
 // Purchase Orders
 const PurchaseOrdersPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrdersPage'))
 const PurchaseOrderDetailPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrderDetailPage'))
+const PurchaseOrderPrintPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrderPrintPage'))
 
 // Goods Receipts
 const GoodsReceiptsPage = lazy(() => import('./features/goods-receipts/pages/GoodsReceiptsPage'))
@@ -1785,6 +1786,16 @@ function App() {
                       <RequirePermission module="purchase_orders">
                         <Suspense fallback={<LoadingFallback />}>
                           <PurchaseOrdersPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/purchase-orders/:id/print"
+                    element={
+                      <RequirePermission module="purchase_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PurchaseOrderPrintPage />
                         </Suspense>
                       </RequirePermission>
                     }

@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShoppingCart, CheckCircle, XCircle, MessageCircle, Save, Pencil, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  ShoppingCart,
+  CheckCircle,
+  XCircle,
+  MessageCircle,
+  Save,
+  Pencil,
+  X,
+  Printer,
+  FileDown,
+} from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
@@ -16,8 +27,11 @@ import {
   usePaymentDuePreview,
   type PoPaymentDueInfo,
 } from '../api/purchaseOrders.api'
-import { useQuery } from '@tanstack/react-query'
-import api from '@/lib/axios'
+import { PoWhatsAppModal } from '../components/PoWhatsAppModal'
+import {
+  exportPurchaseOrderPdf,
+  openPurchaseOrderWhatsApp,
+} from '../utils/purchase-order-document.util'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) =>
@@ -50,7 +64,7 @@ export default function PurchaseOrderDetailPage() {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
-  const [whatsappNumber, setWhatsappNumber] = useState('')
+  const [whatsAppMode, setWhatsAppMode] = useState<'send' | 'share'>('share')
 
   useEffect(() => {
     if (!po) return
@@ -58,20 +72,6 @@ export default function PurchaseOrderDetailPage() {
     setNotes(po.notes ?? '')
     setIsEditing(false)
   }, [po?.id, po?.status, po?.expected_delivery_date, po?.notes])
-
-  const { data: employeesData } = useQuery({
-    queryKey: ['employees', 'with-phone'],
-    queryFn: async () => {
-      const { data } = await api.get('/employees', { params: { limit: 100 } })
-      return (data.data ?? []).filter((e: Record<string, unknown>) => e.mobile_phone) as Array<{
-        id: string
-        full_name: string
-        mobile_phone: string
-      }>
-    },
-    staleTime: 120_000,
-  })
-  const employees = employeesData ?? []
 
   const { data: duplicateCheck } = useCheckDuplicatePO({
     supplier_id: po?.supplier_id,
@@ -98,39 +98,31 @@ export default function PurchaseOrderDetailPage() {
     }
   }
 
-  const handleSendToPurchasing = () => setShowWhatsAppModal(true)
+  const handleSendToPurchasing = () => {
+    setWhatsAppMode('send')
+    setShowWhatsAppModal(true)
+  }
 
-  const handleConfirmSend = async () => {
-    if (!id) return
-    try {
-      await markSent.mutateAsync(id)
-      toast.success('PO ditandai terkirim')
+  const handleOpenWhatsAppShare = () => {
+    setWhatsAppMode('share')
+    setShowWhatsAppModal(true)
+  }
 
-      if (whatsappNumber.trim() && po) {
-        const items = (po.lines ?? [])
-          .map((l, i) => `${i + 1}. ${l.product_name} - ${fmt(l.qty)} ${l.uom}`)
-          .join('\n')
-
-        const message =
-          `*ORDERAN ${po.branch_name}*\n\n` +
-          `• PO: ${po.po_number}\n` +
-          `• Tanggal: ${new Date(po.order_date).toLocaleDateString('id-ID')}\n` +
-          `• Cabang: ${po.branch_name}\n` +
-          `• Supplier: ${po.supplier_name}\n\n` +
-          `*DETAIL ITEM*\n${items}` +
-          (po.notes ? `\n\n📝 Catatan: ${po.notes}` : '') +
-          `\n\n_Dokumen ini digenerate otomatis_`
-
-        let cleanPhone = whatsappNumber.replace(/[^0-9]/g, '')
-        if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.substring(1)
-        if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone
-
-        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank')
+  const handleWhatsAppConfirm = async (phone: string) => {
+    if (!po) return
+    if (whatsAppMode === 'send') {
+      if (!id) return
+      try {
+        await markSent.mutateAsync(id)
+        toast.success('PO ditandai terkirim')
+        openPurchaseOrderWhatsApp(po, phone)
+        setShowWhatsAppModal(false)
+      } catch (err: unknown) {
+        toast.error(parseApiError(err, 'Gagal mengirim PO'))
       }
-
+    } else {
+      openPurchaseOrderWhatsApp(po, phone)
       setShowWhatsAppModal(false)
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, 'Gagal mengirim PO'))
     }
   }
 
@@ -215,6 +207,34 @@ export default function PurchaseOrderDetailPage() {
           </div>
 
           <div className="flex gap-2 shrink-0 overflow-x-auto">
+            {!isEditing && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => exportPurchaseOrderPdf(po)}
+                  className="flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap"
+                >
+                  <FileDown className="w-4 h-4" />
+                  <span className="hidden sm:inline">PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/inventory/purchase-orders/${po.id}/print`)}
+                  className="flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="hidden sm:inline">Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenWhatsAppShare}
+                  className="flex items-center gap-1 px-3 py-2 text-sm border border-green-300 dark:border-green-700 rounded-lg text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 whitespace-nowrap"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">WhatsApp</span>
+                </button>
+              </>
+            )}
             {canEdit && !isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
@@ -579,87 +599,19 @@ export default function PurchaseOrderDetailPage() {
         </div>
       </div>
 
-      {/* WhatsApp Modal */}
-      {showWhatsAppModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setShowWhatsAppModal(false)}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <MessageCircle className="w-6 h-6 text-green-600" />
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Kirim ke Purchasing</h3>
-            </div>
-
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-4">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                PO akan ditandai sebagai &quot;Dikirim&quot; dan pesan WhatsApp akan dibuka untuk dikirim ke tim
-                purchasing.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Pilih Penerima
-                </label>
-                <select
-                  onChange={(e) => {
-                    const emp = employees.find((x) => x.id === e.target.value)
-                    if (emp) setWhatsappNumber(emp.mobile_phone)
-                  }}
-                  className={inputCls}
-                >
-                  <option value="">Pilih employee...</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.full_name} - {emp.mobile_phone}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Nomor WhatsApp
-                </label>
-                <input
-                  type="tel"
-                  value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
-                  placeholder="08xxxxxxxxxx"
-                  className={inputCls}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Kosongkan jika tidak ingin kirim WA (status tetap berubah)
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-6">
-              <button
-                onClick={() => setShowWhatsAppModal(false)}
-                className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleConfirmSend}
-                disabled={markSent.isPending}
-                className="flex-1 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {markSent.isPending ? 'Mengirim...' : (
-                  <>
-                    <MessageCircle className="w-4 h-4" /> Kirim
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PoWhatsAppModal
+        open={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        onConfirm={handleWhatsAppConfirm}
+        isPending={whatsAppMode === 'send' && markSent.isPending}
+        title={whatsAppMode === 'send' ? 'Kirim ke Purchasing' : 'Kirim via WhatsApp'}
+        description={
+          whatsAppMode === 'send'
+            ? 'PO akan ditandai sebagai "Dikirim" dan pesan WhatsApp akan dibuka untuk dikirim ke tim purchasing. Kosongkan nomor jika tidak ingin kirim WA (status tetap berubah).'
+            : 'Kirim ringkasan PO ke purchasing atau pihak terkait.'
+        }
+        confirmLabel={whatsAppMode === 'send' ? 'Kirim' : 'Buka WhatsApp'}
+      />
 
       {/* Cancel Modal */}
       {showCancelModal && (
