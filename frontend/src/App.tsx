@@ -499,6 +499,7 @@ const GoodsReceiptDetailPage = lazy(() => import('./features/goods-receipts/page
 const MarketplacePoListPage = lazy(() => import('./features/marketplace-po/pages/MarketplacePoListPage'))
 const MarketplacePoNewPage = lazy(() => import('./features/marketplace-po/pages/MarketplacePoNewPage'))
 const MarketplacePoDetailPage = lazy(() => import('./features/marketplace-po/pages/MarketplacePoDetailPage'))
+const CCOwnerSettlementsPage = lazy(() => import('./features/marketplace-po/pages/CCOwnerSettlementsPage'))
 const OwnerCreditCardSettingsPage = lazy(() => import('./features/settings/pages/OwnerCreditCardSettingsPage'))
 const GoodsProcessingPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingPage'))
 const GoodsProcessingDetailPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingDetailPage'))
@@ -1878,6 +1879,16 @@ function App() {
                       <RequirePermission module="marketplace_po">
                         <Suspense fallback={<LoadingFallback />}>
                           <MarketplacePoDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/marketplace-po/cc-settlements"
+                    element={
+                      <RequirePermission module="marketplace_po">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CCOwnerSettlementsPage />
                         </Suspense>
                       </RequirePermission>
                     }

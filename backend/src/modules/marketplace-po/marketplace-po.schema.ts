@@ -145,8 +145,21 @@ export const uploadMarketplaceAttachmentSchema = z.object({
 })
 
 export const deleteMarketplaceAttachmentSchema = z.object({
-  params: z.object({ id: z.string().uuid(), attachmentId: z.string().uuid() }),
+  params: z.object({
+    id: z.string().uuid(),
+    attachmentId: z.string().uuid(),
+  }),
+})
+
+export const bulkSettleMarketplaceSessionSchema = z.object({
+  body: z.object({
+    session_ids: z.array(z.string().uuid()).min(1, "Pilih minimal 1 sesi"),
+    bank_account_id: z.coerce.number().int().positive("Bank account ID harus valid"),
+    amount: z.coerce.number().positive("Jumlah harus lebih dari 0"),
+    reference_number: z.string().min(1, "Nomor referensi wajib diisi"),
+    settled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal salah (YYYY-MM-DD)"),
+    notes: z.string().optional().nullable(),
+  }),
 })
 
 export const createMarketplaceShipmentSchema = shipMarketplaceSessionSchema
-

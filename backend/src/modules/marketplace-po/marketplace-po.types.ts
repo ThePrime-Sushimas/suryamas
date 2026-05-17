@@ -1,4 +1,18 @@
 import { z } from 'zod'
+import {
+  listMarketplaceSessionsSchema,
+  marketplaceSessionIdSchema,
+  createMarketplaceSessionSchema,
+  updateMarketplaceSessionSchema,
+  cancelMarketplaceSessionSchema,
+  orderMarketplaceSessionSchema,
+  shipMarketplaceSessionSchema,
+  receiveMarketplaceSessionSchema,
+  settleMarketplaceSessionSchema,
+  uploadMarketplaceAttachmentSchema,
+  deleteMarketplaceAttachmentSchema,
+  bulkSettleMarketplaceSessionSchema,
+} from './marketplace-po.schema'
 
 export type MarketplacePlatform = 'SHOPEE' | 'TOKOPEDIA'
 export type MarketplaceSessionStatus = 'DRAFT' | 'ORDERED' | 'SHIPPED' | 'RECEIVED' | 'SETTLED' | 'CANCELLED'
@@ -160,3 +174,8 @@ export type ListMarketplaceSessionsQuery = {
   limit: number
 }
 
+export type BulkSettleSessionReq = Request & {
+  validated: {
+    body: z.infer<typeof bulkSettleMarketplaceSessionSchema>['body']
+  }
+}

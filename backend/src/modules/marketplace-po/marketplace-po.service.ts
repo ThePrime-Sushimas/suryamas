@@ -700,6 +700,169 @@
         client.release()
       }
     }
+
+    // ── CC Owner Bulk Settlement ──
+    async getSettlementSummary(companyId: string) {
+      const { rows: pendingRows } = await pool.query(
+        `SELECT COALESCE(SUM(total_amount), 0)::numeric AS total
+         FROM marketplace_checkout_sessions
+         WHERE company_id = $1 AND status = 'RECEIVED' AND deleted_at IS NULL`,
+        [companyId],
+      )
+      const totalPending = Number(pendingRows[0]?.total ?? 0)
+
+      const firstDayOfMonth = new Date()
+      firstDayOfMonth.setDate(1)
+      firstDayOfMonth.setHours(0, 0, 0, 0)
+
+      const { rows: thisMonthRows } = await pool.query(
+        `SELECT COALESCE(SUM(ms.amount), 0)::numeric AS total
+         FROM marketplace_settlements ms
+         JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
+         WHERE mcs.company_id = $1
+           AND ms.settled_date >= $2::date`,
+        [companyId, firstDayOfMonth.toISOString().slice(0, 10)],
+      )
+      const totalThisMonth = Number(thisMonthRows[0]?.total ?? 0)
+
+      const { rows: historyRows } = await pool.query(
+        `SELECT ms.*, ba.account_name AS bank_name
+         FROM marketplace_settlements ms
+         JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
+         JOIN bank_accounts ba ON ba.id = ms.bank_account_id
+         WHERE mcs.company_id = $1
+         ORDER BY ms.settled_date DESC
+         LIMIT 100`,
+        [companyId],
+      )
+
+      return {
+        total_pending: totalPending,
+        total_this_month: totalThisMonth,
+        history: historyRows,
+      }
+    }
+
+    async createBulkSettlement(companyId: string, userId: string, employeeId: string, dto: any) {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        if (!employeeId) throw new BusinessRuleError('Employee context tidak ditemukan')
+
+        const { rows: sessions } = await client.query(
+          `SELECT mcs.*, occ.coa_code AS cc_coa_code
+           FROM marketplace_checkout_sessions mcs
+           JOIN owner_credit_cards occ ON occ.id = mcs.cc_id
+           WHERE mcs.id = ANY($1::uuid[])
+             AND mcs.company_id = $2
+             AND mcs.status = 'RECEIVED'
+             AND mcs.deleted_at IS NULL`,
+          [dto.session_ids, companyId],
+        )
+        if (sessions.length !== dto.session_ids.length) {
+          throw new BusinessRuleError('Beberapa sesi tidak ditemukan atau statusnya bukan RECEIVED')
+        }
+
+        const { rows: bankRows } = await client.query(
+          `SELECT coa_code FROM bank_accounts WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+          [dto.bank_account_id, companyId],
+        )
+        const bankCoaCode = bankRows[0]?.coa_code
+        if (!bankCoaCode) throw new BusinessRuleError('COA untuk bank account tidak ditemukan')
+
+        const coaCredit = await chartOfAccountsRepository.findByCode(companyId, bankCoaCode)
+        if (!coaCredit) throw new BusinessRuleError('COA bank tidak ditemukan di chart of accounts')
+
+        const byCc = sessions.reduce((acc: Record<string, typeof sessions>, s: (typeof sessions)[0]) => {
+          const key = s.cc_coa_code
+          if (!acc[key]) acc[key] = []
+          acc[key].push(s)
+          return acc
+        }, {})
+
+        const journalIds: string[] = []
+
+        for (const [ccCoaCode, ccSessions] of Object.entries(byCc)) {
+          const coaDebit = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
+          if (!coaDebit) throw new BusinessRuleError(`COA CC ${ccCoaCode} tidak ditemukan`)
+
+          const ccTotal = (ccSessions as typeof sessions).reduce(
+            (sum, s) => sum + Number(s.total_amount),
+            0,
+          )
+
+          const journalCreateDto: any = {
+            company_id: companyId,
+            journal_date: dto.settled_date,
+            journal_type: 'FINANCING',
+            description: `Pelunasan Bulk CC Owner - ${dto.reference_number}`,
+            currency: 'IDR',
+            exchange_rate: 1,
+            reference_type: 'marketplace_bulk_settlement',
+            reference_number: dto.reference_number,
+            source_module: 'marketplace_po',
+            lines: [
+              {
+                line_number: 1,
+                account_id: coaDebit.id,
+                description: `Pelunasan Bulk CC Owner - ${dto.reference_number}`,
+                debit_amount: ccTotal,
+                credit_amount: 0,
+              },
+              {
+                line_number: 2,
+                account_id: coaCredit.id,
+                description: `Pelunasan Bulk CC Owner - ${dto.reference_number}`,
+                debit_amount: 0,
+                credit_amount: ccTotal,
+              },
+            ],
+          }
+
+          const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
+          await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
+          await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
+          await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
+          journalIds.push(journalHeader.id)
+
+          for (const session of ccSessions as typeof sessions) {
+            await client.query(
+              `UPDATE marketplace_checkout_sessions
+               SET status = 'SETTLED',
+                   journal_settled_id = $1,
+                   updated_by = $2,
+                   updated_at = now()
+               WHERE id = $3 AND company_id = $4`,
+              [journalHeader.id, userId, session.id, companyId],
+            )
+
+            await client.query(
+              `INSERT INTO marketplace_settlements
+                 (session_id, settled_date, bank_account_id, amount, reference_number, notes, journal_id, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              [
+                session.id,
+                dto.settled_date,
+                dto.bank_account_id,
+                Number(session.total_amount),
+                dto.reference_number,
+                dto.notes ?? null,
+                journalHeader.id,
+                userId,
+              ],
+            )
+          }
+        }
+
+        await client.query('COMMIT')
+        return { settled_count: sessions.length, journal_ids: journalIds }
+      } catch (err) {
+        await client.query('ROLLBACK')
+        throw err
+      } finally {
+        client.release()
+      }
+    }
   }
 
   export const marketplacePoService = new MarketplacePoService()

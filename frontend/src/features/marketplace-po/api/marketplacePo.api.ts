@@ -232,6 +232,55 @@ export function useOrderSession() {
   })
 }
 
+// ── CC Owner Settlements ──
+export function usePendingMarketplaceSessions() {
+  return useQuery<MarketplaceCheckoutSession[]>({
+    queryKey: ['marketplace-sessions', 'pending-settlement'],
+    queryFn: async () => {
+      const { data } = await api.get('/marketplace-sessions', { params: { status: 'RECEIVED' } })
+      return data.data
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useCCOwnerSettlementSummary() {
+  return useQuery({
+    queryKey: ['marketplace-settlements', 'summary'],
+    queryFn: async () => {
+      const { data } = await api.get('/marketplace-settlements/summary')
+      return data.data as {
+        total_pending: number
+        total_this_month: number
+        history: any[]
+      }
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useCreateBulkCCOwnerSettlement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      session_ids: string[]
+      bank_account_id: number
+      amount: number
+      reference_number: string
+      settled_date: string
+      notes?: string | null
+    }) => {
+      const { data } = await api.post('/marketplace-settlements/bulk', payload)
+      return data.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
+      qc.invalidateQueries({ queryKey: ['marketplace-settlements', 'summary'] })
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions', 'pending-settlement'] })
+    },
+  })
+}
+
 export function useShipSession() {
   const qc = useQueryClient()
   return useMutation({

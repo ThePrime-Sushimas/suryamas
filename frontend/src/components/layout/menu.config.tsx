@@ -23,7 +23,6 @@ import {
   TrendingUp,
   Layers,
   BookOpen,
-  CreditCard,
   ArrowLeftRight,
   ClipboardList,
   GitMerge,
@@ -44,6 +43,7 @@ import {
   ChefHat,
   FileText,
   FlaskConical,
+  CreditCard,
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -381,6 +381,14 @@ export const menuItems: MenuItem[] = [
         href: "/inventory/marketplace-po",
         icon: <ShoppingCart size={16} />,
         module: "marketplace_po",
+      },
+      {
+        id: "cc-settlements",
+        name: "Pelunasan CC Owner",
+        href: "/inventory/marketplace-po/cc-settlements",
+        icon: <CreditCard size={16} />,
+        module: "cc_owner_settlements",
+        permissionAction: "view",
       },      
     ],
   },

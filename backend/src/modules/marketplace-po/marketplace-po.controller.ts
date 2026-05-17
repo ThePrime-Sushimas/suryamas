@@ -20,6 +20,7 @@ import type {
   uploadMarketplaceAttachmentSchema,
   deleteMarketplaceAttachmentSchema,
   pendingPoLinesSchema,
+  bulkSettleMarketplaceSessionSchema,
 } from './marketplace-po.schema'
 
 type ListSessionsReq = ValidatedAuthRequest<typeof listMarketplaceSessionsSchema>
@@ -31,6 +32,7 @@ type OrderSessionReq = ValidatedAuthRequest<typeof orderMarketplaceSessionSchema
 type ShipSessionReq = ValidatedAuthRequest<typeof shipMarketplaceSessionSchema>
 type ReceiveSessionReq = ValidatedAuthRequest<typeof receiveMarketplaceSessionSchema>
 type SettleSessionReq = ValidatedAuthRequest<typeof settleMarketplaceSessionSchema>
+type BulkSettleSessionReq = ValidatedAuthRequest<typeof bulkSettleMarketplaceSessionSchema>
 
 type ListCcReq = ValidatedAuthRequest<typeof ownerCreditCardListSchema>
 type CcIdReq = ValidatedAuthRequest<typeof ownerCreditCardIdSchema>
@@ -275,6 +277,29 @@ export class MarketplacePoController {
       sendSuccess(res, null, 'Attachment deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_marketplace_attachment', id: req.params.id })
+    }
+  }
+
+  getSettlementSummary = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const summary = await marketplacePoService.getSettlementSummary(companyId)
+      sendSuccess(res, summary, 'Settlement summary fetched')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_settlement_summary' })
+    }
+  }
+
+  createBulkSettlement = async (req: Request, res: Response) => {
+    try {
+      const { body } = (req as BulkSettleSessionReq).validated
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const employeeId = req.context?.employee_id ?? ''
+      const settlement = await marketplacePoService.createBulkSettlement(companyId, userId, employeeId, body)
+      sendSuccess(res, settlement, 'Bulk settlement created', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_bulk_settlement' })
     }
   }
 }

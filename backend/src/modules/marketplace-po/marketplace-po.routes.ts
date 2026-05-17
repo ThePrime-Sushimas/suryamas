@@ -23,6 +23,7 @@ import {
   uploadMarketplaceAttachmentSchema,
   deleteMarketplaceAttachmentSchema,
   pendingPoLinesSchema,
+  bulkSettleMarketplaceSessionSchema,
 } from './marketplace-po.schema'
 
 PermissionService.registerModule('marketplace_po', 'Marketplace PO / Checkout (Shopee & Tokopedia)').catch((err) => {
@@ -31,6 +32,10 @@ PermissionService.registerModule('marketplace_po', 'Marketplace PO / Checkout (S
 
 PermissionService.registerModule('owner_credit_cards', 'Owner Credit Cards').catch((err) => {
   console.error('Failed to register owner_credit_cards module:', err instanceof Error ? err.message : err)
+})
+
+PermissionService.registerModule('cc_owner_settlements', 'CC Owner Settlements / Pelunasan CC').catch((err) => {
+  console.error('Failed to register cc_owner_settlements module:', err instanceof Error ? err.message : err)
 })
 
 
@@ -57,5 +62,8 @@ router.post('/marketplace-sessions/:id/shipments',canUpdate('marketplace_po'), v
 router.post('/marketplace-sessions/:id/receive', canUpdate('marketplace_po'), validateSchema(receiveMarketplaceSessionSchema), (req, res) => marketplacePoController.receiveSession(req, res))
 router.post('/marketplace-sessions/:id/settle', canUpdate('marketplace_po'), validateSchema(settleMarketplaceSessionSchema), (req, res) => marketplacePoController.settleSession(req, res))
 
-export default router
+// CC Owner Settlements
+router.get('/marketplace-settlements/summary', canView('cc_owner_settlements'), (req, res) => marketplacePoController.getSettlementSummary(req, res))
+router.post('/marketplace-settlements/bulk', canUpdate('cc_owner_settlements'), validateSchema(bulkSettleMarketplaceSessionSchema), (req, res) => marketplacePoController.createBulkSettlement(req, res))
 
+export default router
