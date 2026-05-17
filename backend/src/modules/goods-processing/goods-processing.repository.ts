@@ -323,11 +323,27 @@ export class GoodsProcessingRepository {
   }
 
   async updateInputStatus(client: PoolClient, inputId: string, status: string, userId: string): Promise<void> {
+    if (status === 'DONE') {
+      await client.query(
+        `UPDATE goods_processing_inputs
+         SET status = $1, processed_by = $2, processed_at = COALESCE(processed_at, now()), updated_at = now()
+         WHERE id = $3`,
+        [status, userId, inputId]
+      )
+      return
+    }
+    if (status === 'REJECTED') {
+      await client.query(
+        `UPDATE goods_processing_inputs
+         SET status = $1, rejected_by = $2, rejected_at = now(), updated_at = now()
+         WHERE id = $3`,
+        [status, userId, inputId]
+      )
+      return
+    }
     await client.query(
-      `UPDATE goods_processing_inputs 
-       SET status = $1, updated_by = $2, updated_at = now()
-       WHERE id = $3`,
-      [status, userId, inputId]
+      `UPDATE goods_processing_inputs SET status = $1, updated_at = now() WHERE id = $2`,
+      [status, inputId]
     )
   }
 
