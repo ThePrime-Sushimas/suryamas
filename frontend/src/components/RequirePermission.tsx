@@ -2,12 +2,15 @@ import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth'
 import { usePermissionStore } from '@/features/branch_context'
 
+type PermissionAction = 'view' | 'insert' | 'update' | 'delete' | 'approve' | 'release'
+
 interface Props {
   module?: string
+  action?: PermissionAction
   children: React.ReactNode
 }
 
-export function RequirePermission({ module, children }: Props) {
+export function RequirePermission({ module, action = 'view', children }: Props) {
   const { token, isInitialized } = useAuthStore()
   const { permissions, isLoaded } = usePermissionStore()
 
@@ -25,7 +28,7 @@ export function RequirePermission({ module, children }: Props) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   }
 
-  if (!permissions[module]?.view) {
+  if (!permissions[module]?.[action]) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">

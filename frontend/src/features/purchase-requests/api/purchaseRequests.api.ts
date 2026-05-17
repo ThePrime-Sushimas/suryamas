@@ -104,14 +104,6 @@ export const useSubmitPurchaseRequest = () => {
   })
 }
 
-export const useApprovePurchaseRequest = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => { await api.post(`/purchase-requests/${id}/approve`) },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
-  })
-}
-
 export const useRejectPurchaseRequest = () => {
   const qc = useQueryClient()
   return useMutation({

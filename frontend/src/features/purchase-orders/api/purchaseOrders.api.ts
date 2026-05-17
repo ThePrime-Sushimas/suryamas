@@ -77,29 +77,10 @@ export const usePurchaseOrder = (id: string) =>
     enabled: !!id,
   })
 
-export const useCreatePurchaseOrder = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (body: {
-      branch_id: string; supplier_id: string; purchase_request_id: string;
-      payment_type: 'CASH' | 'CREDIT'; payment_terms_days?: number | null;
-      expected_delivery_date?: string | null; notes?: string | null;
-      lines: { product_id: string; qty: number; uom: string; unit_price: number; pr_line_id?: string | null; supplier_product_id?: string | null }[]
-    }) => {
-      const { data } = await api.post('/purchase-orders', body)
-      return data.data as PurchaseOrder
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['purchase-orders'] })
-      qc.invalidateQueries({ queryKey: ['purchase-requests'] })
-    },
-  })
-}
-
 export const useUpdatePurchaseOrder = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; expected_delivery_date?: string | null; payment_type?: 'CASH' | 'CREDIT'; payment_terms_days?: number | null; notes?: string | null; lines?: { product_id: string; qty: number; uom: string; unit_price: number }[] }) => {
+    mutationFn: async ({ id, ...body }: { id: string; expected_delivery_date?: string | null; payment_type?: 'CASH' | 'CREDIT'; payment_terms_days?: number | null; notes?: string | null; lines?: { product_id: string; qty: number; uom: string; unit_price: number; pr_line_id?: string | null }[] }) => {
       const { data } = await api.put(`/purchase-orders/${id}`, body)
       return data.data as PurchaseOrder
     },
@@ -115,7 +96,10 @@ export const useMarkSentPurchaseOrder = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-orders/${id}/send`) },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ['purchase-orders'] })
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+    },
   })
 }
 

@@ -9,6 +9,8 @@ export interface MenuItem {
   disabled?: boolean;
   badge?: number;
   module?: string;
+  /** When set, menu item requires this permission (default: view) */
+  permissionAction?: 'view' | 'insert' | 'update' | 'delete' | 'approve' | 'release';
 }
 
 export type PermissionMap = Record<
@@ -18,6 +20,8 @@ export type PermissionMap = Record<
     create?: boolean;
     update?: boolean;
     delete?: boolean;
+    approve?: boolean;
+    release?: boolean;
   }
 >;
 

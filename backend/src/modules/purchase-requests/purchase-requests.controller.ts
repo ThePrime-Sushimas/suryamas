@@ -6,7 +6,7 @@ import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type {
   createPurchaseRequestSchema, updatePurchaseRequestSchema, purchaseRequestIdSchema,
-  approveSchema, rejectSchema, approveAndGenerateSchema
+  rejectSchema, approveAndGenerateSchema
 } from './purchase-requests.schema'
 
 type CreateReq = ValidatedAuthRequest<typeof createPurchaseRequestSchema>
@@ -84,18 +84,6 @@ export class PurchaseRequestsController {
       sendSuccess(res, null, 'Purchase request submitted for approval')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'submit_purchase_request', id: req.params.id })
-    }
-  }
-
-  approve = async (req: Request, res: Response) => {
-    try {
-      const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      await purchaseRequestsService.approve(id, companyId, { approved_by: userId })
-      sendSuccess(res, null, 'Purchase request approved')
-    } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'approve_purchase_request', id: req.params.id })
     }
   }
 

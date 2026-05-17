@@ -399,6 +399,7 @@ export const menuItems: MenuItem[] = [
         href: "/inventory/pr-approval",
         icon: <ShieldCheck size={16} />,
         module: "purchase_requests",
+        permissionAction: "approve",
       },
       {
         id: "inv-purchase-invoices",

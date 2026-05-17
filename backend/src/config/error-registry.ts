@@ -546,6 +546,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  PurchaseOrderManualCreateDisabledError: {
+    name: 'PurchaseOrderManualCreateDisabledError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
   PurchaseOrderHasReceiptsError: {
     name: 'PurchaseOrderHasReceiptsError',
     importPath: '../modules/purchase-orders/purchase-orders.errors',

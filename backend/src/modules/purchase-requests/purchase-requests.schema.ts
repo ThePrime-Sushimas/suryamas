@@ -36,10 +36,6 @@ export const submitForApprovalSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
 })
 
-export const approveSchema = z.object({
-  params: z.object({ id: z.string().uuid() }),
-})
-
 export const rejectSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({

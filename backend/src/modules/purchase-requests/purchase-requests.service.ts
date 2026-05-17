@@ -9,12 +9,12 @@ import { isPostgresError } from '../../utils/postgres-error.util'
 import { purchaseRequestApprovalService } from './purchase-requests-approval.service'
 import type {
   CreatePurchaseRequestDto, UpdatePurchaseRequestDto,
-  ApprovePurchaseRequestDto, RejectPurchaseRequestDto,
+  RejectPurchaseRequestDto,
   PurchaseRequestWithRelations, PurchaseRequestWithLines
 } from './purchase-requests.types'
 
 export class PurchaseRequestsService {
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; branch_id?: string; date_from?: string; date_to?: string }, search?: string) {
+  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string }, search?: string) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await purchaseRequestsRepository.findAll(companyId, { limit: pagination.limit, offset }, filter, search)
     const totalPages = Math.ceil(total / pagination.limit)
@@ -120,19 +120,6 @@ export class PurchaseRequestsService {
 
     await purchaseRequestsRepository.updateStatus(id, companyId, 'PENDING_APPROVAL', { updated_by: userId })
     await AuditService.log('UPDATE', 'purchase_request', id, userId, { status: 'DRAFT' }, { status: 'PENDING_APPROVAL' })
-  }
-
-  async approve(id: string, companyId: string, dto: ApprovePurchaseRequestDto) {
-    const existing = await purchaseRequestsRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseRequestNotFoundError(id)
-    if (existing.status !== 'PENDING_APPROVAL') throw new PurchaseRequestInvalidStatusError(existing.status, 'PENDING_APPROVAL')
-
-    await purchaseRequestsRepository.updateStatus(id, companyId, 'APPROVED', {
-      approved_by: dto.approved_by,
-      approved_at: new Date().toISOString(),
-      updated_by: dto.approved_by,
-    })
-    await AuditService.log('UPDATE', 'purchase_request', id, dto.approved_by, { status: 'PENDING_APPROVAL' }, { status: 'APPROVED' })
   }
 
   async reject(id: string, companyId: string, dto: RejectPurchaseRequestDto) {

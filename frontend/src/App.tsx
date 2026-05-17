@@ -487,7 +487,6 @@ const PurchaseRequestApprovalPage = lazy(() => import('./features/purchase-reque
 
 // Purchase Orders
 const PurchaseOrdersPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrdersPage'))
-const PurchaseOrderFormPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrderFormPage'))
 const PurchaseOrderDetailPage = lazy(() => import('./features/purchase-orders/pages/PurchaseOrderDetailPage'))
 
 // Goods Receipts
@@ -1742,7 +1741,7 @@ function App() {
                   <Route
                     path="inventory/pr-approval"
                     element={
-                      <RequirePermission module="purchase_requests">
+                      <RequirePermission module="purchase_requests" action="approve">
                         <Suspense fallback={<LoadingFallback />}>
                           <PRApprovalListPage />
                         </Suspense>
@@ -1752,7 +1751,7 @@ function App() {
                   <Route
                     path="inventory/purchase-requests/:id/approve"
                     element={
-                      <RequirePermission module="purchase_requests">
+                      <RequirePermission module="purchase_requests" action="approve">
                         <Suspense fallback={<LoadingFallback />}>
                           <PurchaseRequestApprovalPage />
                         </Suspense>
@@ -1786,26 +1785,6 @@ function App() {
                       <RequirePermission module="purchase_orders">
                         <Suspense fallback={<LoadingFallback />}>
                           <PurchaseOrdersPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="inventory/purchase-orders/new"
-                    element={
-                      <RequirePermission module="purchase_orders">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <PurchaseOrderFormPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="inventory/purchase-orders/:id/edit"
-                    element={
-                      <RequirePermission module="purchase_orders">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <PurchaseOrderFormPage />
                         </Suspense>
                       </RequirePermission>
                     }

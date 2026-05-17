@@ -2,7 +2,7 @@ import { pool } from '../../config/db'
 import { purchaseOrdersRepository } from './purchase-orders.repository'
 import {
   PurchaseOrderNotFoundError, PurchaseOrderDuplicateError, PurchaseOrderInvalidStatusError,
-  PurchaseOrderEmptyLinesError, PurchaseRequestNotApprovedError, PurchaseOrderHasReceiptsError
+  PurchaseOrderEmptyLinesError, PurchaseOrderManualCreateDisabledError, PurchaseOrderHasReceiptsError
 } from './purchase-orders.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
@@ -40,83 +40,27 @@ export class PurchaseOrdersService {
     return po
   }
 
-  async create(companyId: string, dto: CreatePurchaseOrderDto, userId: string) {
-    if (!dto.lines || dto.lines.length === 0) throw new PurchaseOrderEmptyLinesError()
-
-    // Cross-tenant verification
-    await this.verifyOwnership(companyId, dto.branch_id, dto.supplier_id, dto.purchase_request_id)
-
-    // Verify PR is APPROVED
-    const { rows: prRows } = await pool.query(
-      'SELECT status FROM purchase_requests WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
-      [dto.purchase_request_id, companyId]
-    )
-    if (!prRows[0] || prRows[0].status !== 'APPROVED') throw new PurchaseRequestNotApprovedError(dto.purchase_request_id)
-
-    // Get branch code
-    const { rows: branchRows } = await pool.query('SELECT branch_code FROM branches WHERE id = $1', [dto.branch_id])
-    const branchCode = branchRows[0]?.branch_code ?? 'XXX'
-
-    const totalAmount = dto.lines.reduce((sum, l) => sum + l.qty * l.unit_price, 0)
-
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-
-      // Advisory lock using Postgres hashtext for proper distribution
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${companyId}-PO-${branchCode}`])
-
-      const poNumber = await purchaseOrdersRepository.generatePoNumber(client, companyId, branchCode)
-
-      const po = await purchaseOrdersRepository.create(client, companyId, {
-        branch_id: dto.branch_id,
-        supplier_id: dto.supplier_id,
-        purchase_request_id: dto.purchase_request_id,
-        po_number: poNumber,
-        order_date: dto.order_date,
-        expected_delivery_date: dto.expected_delivery_date,
-        payment_type: dto.payment_type,
-        payment_terms_days: dto.payment_terms_days,
-        notes: dto.notes,
-        total_amount: totalAmount,
-        created_by: userId,
-      })
-
-      await purchaseOrdersRepository.insertLines(client, po.id, dto.lines)
-
-      // Note: PR stays APPROVED — 1 PR can generate multiple POs (multi-supplier)
-
-      await client.query('COMMIT')
-
-      await AuditService.log('CREATE', 'purchase_order', po.id, userId, undefined, po)
-      return purchaseOrdersRepository.findWithLines(po.id, companyId)
-    } catch (e) {
-      await client.query('ROLLBACK')
-      if (isPostgresError(e, '23505')) throw new PurchaseOrderDuplicateError('auto-generated')
-      if (isPostgresError(e, '23503')) throw new InvalidReferenceError('One or more product_id or supplier_product_id does not exist')
-      throw e
-    } finally {
-      client.release()
-    }
+  async create(_companyId: string, _dto: CreatePurchaseOrderDto, _userId: string) {
+    throw new PurchaseOrderManualCreateDisabledError()
   }
 
   async update(id: string, companyId: string, dto: UpdatePurchaseOrderDto, userId: string) {
     const existing = await purchaseOrdersRepository.findById(id, companyId)
     if (!existing) throw new PurchaseOrderNotFoundError(id)
-    if (existing.status !== 'DRAFT') throw new PurchaseOrderInvalidStatusError(existing.status, 'DRAFT')
+    // Purchasing adjusts payment terms etc. after stock keeper sends PO (SENT)
+    if (existing.status !== 'SENT') throw new PurchaseOrderInvalidStatusError(existing.status, 'SENT')
 
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
 
-      // Lock row to prevent race condition with submit
       const { rows: lockRows } = await client.query(
         'SELECT status FROM purchase_orders WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL FOR UPDATE',
         [id, companyId]
       )
-      if (!lockRows[0] || lockRows[0].status !== 'DRAFT') {
+      if (!lockRows[0] || lockRows[0].status !== 'SENT') {
         await client.query('ROLLBACK')
-        throw new PurchaseOrderInvalidStatusError(lockRows[0]?.status ?? 'UNKNOWN', 'DRAFT')
+        throw new PurchaseOrderInvalidStatusError(lockRows[0]?.status ?? 'UNKNOWN', 'SENT')
       }
 
       const fields: string[] = ['updated_at = now()']
@@ -129,21 +73,11 @@ export class PurchaseOrdersService {
       if (dto.notes !== undefined) { params.push(dto.notes); fields.push(`notes = $${idx++}`) }
       params.push(userId); fields.push(`updated_by = $${idx++}`)
 
-      if (dto.lines && dto.lines.length > 0) {
-        const totalAmount = dto.lines.reduce((sum, l) => sum + l.qty * l.unit_price, 0)
-        params.push(totalAmount); fields.push(`total_amount = $${idx++}`)
-      }
-
       params.push(id, companyId)
       await client.query(
         `UPDATE purchase_orders SET ${fields.join(', ')} WHERE id = $${idx} AND company_id = $${idx + 1}`,
         params
       )
-
-      if (dto.lines && dto.lines.length > 0) {
-        await purchaseOrdersRepository.deleteLines(client, id)
-        await purchaseOrdersRepository.insertLines(client, id, dto.lines)
-      }
 
       await client.query('COMMIT')
     } catch (e) {

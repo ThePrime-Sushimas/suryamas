@@ -22,6 +22,12 @@ export class PurchaseRequestNotApprovedError extends BusinessRuleError {
   constructor(prId: string) { super(`Purchase request ${prId} is not in APPROVED status`) }
 }
 
+export class PurchaseOrderManualCreateDisabledError extends BusinessRuleError {
+  constructor() {
+    super('Purchase order must be created via PR Approval (Approve & Generate PO)')
+  }
+}
+
 export class PurchaseOrderHasReceiptsError extends BusinessRuleError {
   constructor() { super('Cannot cancel purchase order that already has goods receipts') }
 }

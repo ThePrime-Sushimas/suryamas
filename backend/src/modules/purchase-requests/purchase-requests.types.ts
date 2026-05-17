@@ -84,10 +84,6 @@ export interface UpdatePurchaseRequestDto {
   updated_by?: string
 }
 
-export interface ApprovePurchaseRequestDto {
-  approved_by: string
-}
-
 export interface RejectPurchaseRequestDto {
   rejected_reason: string
   rejected_by: string

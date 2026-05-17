@@ -5,7 +5,7 @@ import { canView, canInsert, canUpdate, canDelete, canApprove } from '../../midd
 import { validateSchema } from '../../middleware/validation.middleware'
 import { purchaseOrdersController } from './purchase-orders.controller'
 import {
-  createPurchaseOrderSchema, updatePurchaseOrderSchema, purchaseOrderIdSchema,
+  updatePurchaseOrderSchema, purchaseOrderIdSchema,
   cancelSchema, purchaseOrderListSchema
 } from './purchase-orders.schema'
 import { PermissionService } from '../../services/permission.service'
@@ -22,7 +22,7 @@ router.use(authenticate, resolveBranchContext)
 router.get('/check-duplicates', canView('purchase_orders'), (req, res) => purchaseOrdersController.checkDuplicates(req, res))
 router.get('/latest-price', canView('purchase_orders'), (req, res) => purchaseOrdersController.getLatestPrice(req, res))
 router.get('/', canView('purchase_orders'), validateSchema(purchaseOrderListSchema), (req, res) => purchaseOrdersController.list(req, res))
-router.post('/', canInsert('purchase_orders'), validateSchema(createPurchaseOrderSchema), (req, res) => purchaseOrdersController.create(req, res))
+// PO creation only via PR Approval (approve-and-generate) — manual POST disabled
 router.get('/:id', canView('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.getById(req, res))
 router.put('/:id', canUpdate('purchase_orders'), validateSchema(updatePurchaseOrderSchema), (req, res) => purchaseOrdersController.update(req, res))
 router.delete('/:id', canDelete('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.delete(req, res))

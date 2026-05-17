@@ -20,7 +20,10 @@ export const filterMenuByPermission = (
     })
     .filter((item) => {
       if (item.submenu) return item.submenu.length > 0;
-      if (item.module) return permissions[item.module]?.view;
+      if (item.module) {
+        const action = item.permissionAction ?? 'view'
+        return permissions[item.module]?.[action]
+      }
       return true;
     });
 };

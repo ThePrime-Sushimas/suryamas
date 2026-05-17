@@ -6,7 +6,7 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { purchaseRequestsController } from './purchase-requests.controller'
 import {
   createPurchaseRequestSchema, updatePurchaseRequestSchema, purchaseRequestIdSchema,
-  approveSchema, rejectSchema, purchaseRequestListSchema, submitForApprovalSchema, approveAndGenerateSchema
+  rejectSchema, purchaseRequestListSchema, submitForApprovalSchema, approveAndGenerateSchema
 } from './purchase-requests.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -30,8 +30,7 @@ router.delete('/:id', canDelete('purchase_requests'), validateSchema(purchaseReq
 
 // Status transitions
 router.post('/:id/submit', canUpdate('purchase_requests'), validateSchema(submitForApprovalSchema), (req, res) => purchaseRequestsController.submitForApproval(req, res))
-router.post('/:id/approve', canUpdate('purchase_requests'), validateSchema(approveSchema), (req, res) => purchaseRequestsController.approve(req, res))
-router.post('/:id/reject', canUpdate('purchase_requests'), validateSchema(rejectSchema), (req, res) => purchaseRequestsController.reject(req, res))
+router.post('/:id/reject', canApprove('purchase_requests'), validateSchema(rejectSchema), (req, res) => purchaseRequestsController.reject(req, res))
 router.post('/:id/cancel', canUpdate('purchase_requests'), validateSchema(purchaseRequestIdSchema), (req, res) => purchaseRequestsController.cancel(req, res))
 
 // Approval flow (halaman terpisah)
