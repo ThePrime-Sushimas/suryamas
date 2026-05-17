@@ -1,0 +1,75 @@
+---
+description: Suryamas ERP backend architecture, layers, middleware, and enforcement
+globs: backend/**/*.ts
+alwaysApply: false
+---
+
+# Backend Standards — Suryamas ERP
+
+Single source of truth for new backend code. All new modules **must** follow this.
+
+## Module structure (mandatory)
+
+Every module under `backend/src/modules/*`:
+
+- `*.routes.ts`, `*.controller.ts`, `*.service.ts`, `*.repository.ts`, `*.schema.ts`, `*.errors.ts`, `*.types.ts`
+- All layers required — no skipping
+- No cross-layer access (controller → repository ❌)
+
+## Middleware order (fixed)
+
+```
+authenticate → resolveBranchContext → requireWriteAccess (mutations) → permission → validateSchema
+```
+
+Use: `auth.middleware`, `branch-context.middleware`, `permission.middleware`, `validation.middleware`. Permissions: `canView`, `canInsert`, `canUpdate`, `canDelete`, `canApprove`, `canRelease`. Schema validation **only** in routes.
+
+```typescript
+router.get(
+  '/',
+  canView(MODULE),
+  validateSchema(schema),
+  (req, res) => controller.method(req, res)
+)
+```
+
+Static routes (`/search`, `/bulk/delete`, `/trash`) **before** `/:id`.
+
+## Layer contracts
+
+| Layer | Do | Don't |
+|-------|-----|-------|
+| **Controller** | `withValidated`, `sendSuccess`, `await handleError(res, error, req, context)` | Business logic, DB queries |
+| **Service** | Business logic, transactions, `AuditService.log` on CREATE/UPDATE/DELETE/RESTORE | Direct DB access |
+| **Repository** | DB only; filter `company_id` + `deleted_at IS NULL`; JOIN/batch, no N+1 | Business logic |
+| **Schema** | `import { z } from '@/lib/openapi'`; `.coerce` (query), `.refine` (business) | Raw `zod` import |
+
+## Errors
+
+- Custom errors from `*.errors.ts` — never `throw new Error()`
+- Register new classes in `src/config/error-registry.ts`
+- `await handleError(res, error, req, context)` with metadata `{ action, id?, query }`
+- `isPostgresError(err, '23505')` from `src/utils/postgres-error.util.ts`
+
+## Context & types
+
+- `company_id` from `req.context?.company_id` — **not** query param
+- `employee_id` from `req.context?.employee_id` for `employees` FK — **not** `req.user.id`
+- Express augmentation in `src/types/express.d.ts` — **no** `req as any`
+- DTOs include `created_by` / `updated_by`
+- After `.ts` changes: `cd backend && npx tsc`
+
+## Audit log (mutations)
+
+`user_id`, `action`, `entity`, `entity_id`, `before`, `after`, `timestamp` via `AuditService.log`.
+
+## Search + pagination (mandatory)
+
+Filter in SQL first, then `LIMIT/OFFSET`. `COUNT(*)` uses the same `WHERE`. Frontend resets to page 1 on search/filter change. Use `search` key (not `q`) for text filters unless reading `req.query.q` manually.
+
+## Performance & security
+
+- No N+1; pagination on all list APIs
+- All endpoints: authenticated, authorized, validated
+- S3/R2: lazy getter (`getS3()`), `forcePathStyle: true`
+- Dates: backend ISO / `YYYY-MM-DD`; frontend display `dd-MMM-yyyy`

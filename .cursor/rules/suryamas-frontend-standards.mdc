@@ -1,0 +1,59 @@
+---
+description: Suryamas ERP frontend — features structure, React Query, Zustand, UI patterns
+globs: frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend Standards — Suryamas ERP
+
+## Feature structure (`src/features/*`)
+
+Each feature: `api/`, `components/`, `store/`, `pages/`, `types/`, `index.ts` (public exports).
+
+## Data fetching (`api/*.ts`)
+
+- TanStack Query with defined `queryKeys`
+- Custom hooks wrapping `useQuery` / `useMutation`
+- `toast` on errors; `qc.invalidateQueries` on mutation success
+
+## State (`store/*.ts`)
+
+- Zustand — small focused stores (`useAuthStore`, filter stores)
+- `persist` middleware when data survives refresh
+- Errors: **`parseApiError()`** from `@/lib/errorParser` — no inline `error instanceof Error`
+
+## UI
+
+- Shadcn UI + Tailwind utilities (no ad-hoc colors/spacing)
+- Dark mode: `dark:` classes
+- Loading: skeleton (`animate-pulse`), not "Loading..." text
+- Confirm: `ConfirmModal` — no `alert()` / `confirm()`
+- Toast: `useToast` from `@/contexts/ToastContext`
+- Dates: display `dd-MMM-yyyy` via `formatDate`; backend sends ISO / `YYYY-MM-DD`
+- Tailwind JIT: **no** dynamic classes (`bg-${color}-500`) — use literal object maps
+- User-facing labels: Bahasa Indonesia; technical: English
+- Permissions: `usePermissionStore.hasPermission(module, action)`
+
+## Pagination & fetch
+
+- Combined `fetchPage(page, limit?, ...)` in stores
+- Search/filter change → reset page 1
+- **No** separate `setPage()` + `useEffect([pagination.page])` (double-fetch)
+- `total` from API drives `totalPages` — never stale cache
+
+## Branch dropdown
+
+| Page type | Hook / API |
+|-----------|------------|
+| Transaction forms, operational lists | `useUserBranches()` |
+| Admin/settings, reporting | `GET /branches?status=active` or `branchContext` |
+
+Never hardcode branch lists.
+
+## Accounting display
+
+- No hardcoded COA labels — use DB hierarchy
+- No `Math.abs` for balances — use debit/credit helpers per account type
+- `fmt(0)` in totals: `showZero = true`
+- CSV: `escapeCsv()` from `src/utils/csv.utils.ts`
+- 500 errors: generic message to user, not stack traces
