@@ -47,6 +47,8 @@ export interface GoodsReceipt {
   updated_at: string
   line_count: number
   total_invoice_amount: number
+  weighing_line_count?: number
+  weighing_summary?: string | null
   created_at: string
   lines?: GoodsReceiptLine[]
 }

@@ -58,8 +58,10 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
   const sisaSetelahGR = Math.max(0, line.qty_remaining - qtyDiterima)
   const isPOLunas    = sisaSetelahGR === 0 && line.qty_remaining > 0
 
-  // ── UOM ──
+  // ── UOM / timbang ──
   const needsConversion = line.uom_po !== line.uom_received
+  const hasMultipleUoms = (productUoms?.length ?? 0) > 1
+  const showWeighingInput = hasMultipleUoms || needsConversion || line.requires_processing
 
 
 
@@ -76,24 +78,25 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     return Math.abs(line.conversion_factor - estimatedCF) / estimatedCF * 100
   }, [estimatedCF, line.conversion_factor])
 
-  // Auto-detect UOM switch untuk requires_processing
+  /** Stock / operational UOM when product has multiple UOMs (not only requires_processing). */
   const autoDetectedUom = useMemo(() => {
-    if (!line.requires_processing) return null
     if (!productUoms || productUoms.length <= 1) return null
-    const poUom    = productUoms.find(u => u.metric_units?.unit_name === line.uom_po)
-    const stockUom = productUoms.find(u => u.is_default_stock_unit || u.is_base_unit)
+    const poUom = productUoms.find((u) => u.metric_units?.unit_name === line.uom_po)
+    const stockUom = productUoms.find((u) => u.is_default_stock_unit || u.is_base_unit)
     if (!poUom || !stockUom) return null
     if (poUom.metric_unit_id === stockUom.metric_unit_id) return null
-    return stockUom.metric_units?.unit_name ?? null
-  }, [productUoms, line.uom_po, line.requires_processing])
+    const stockName = stockUom.metric_units?.unit_name
+    if (!stockName || stockName === line.uom_po) return null
+    return stockName
+  }, [productUoms, line.uom_po])
 
   const hasAutoSwitched = useRef(false)
   useEffect(() => {
     if (hasAutoSwitched.current || !autoDetectedUom) return
     if (line.uom_received === line.uom_po && autoDetectedUom !== line.uom_po) {
       hasAutoSwitched.current = true
-      const poUomData  = productUoms?.find(u => u.metric_units?.unit_name === line.uom_po)
-      const recUomData = productUoms?.find(u => u.metric_units?.unit_name === autoDetectedUom)
+      const poUomData = productUoms?.find((u) => u.metric_units?.unit_name === line.uom_po)
+      const recUomData = productUoms?.find((u) => u.metric_units?.unit_name === autoDetectedUom)
       if (poUomData && recUomData && recUomData.conversion_factor > 0) {
         const estCF = poUomData.conversion_factor / recUomData.conversion_factor
         onChange(line.key, {
@@ -304,8 +307,8 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         </div>
       </div>
 
-      {/* ── Hasil Timbang — selalu tampil kalau dual UOM, tidak perlu klik ── */}
-      {needsConversion && (
+      {/* ── Hasil Timbang — qty editable; satuan dari master (read-only) ── */}
+      {showWeighingInput && (
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
             <Scale className="w-4 h-4 text-teal-500" />
@@ -314,6 +317,9 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
               — untuk {fmt(qtyDiterima)} {line.uom_po} yang diterima
             </span>
           </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
+            Satuan timbang mengikuti master produk. Tim hanya mengisi angka timbang.
+          </p>
           <div className="flex gap-2">
             <input
               type="number" min="0" step="any"
@@ -322,19 +328,12 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
               onChange={e => handleQtyReceivedChange(parseFloat(e.target.value) || 0)}
               className="flex-1 px-4 py-3 border-2 border-teal-300 dark:border-teal-700 rounded-xl text-xl font-mono font-bold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             />
-            {/* {receivedUomOptions.length > 1 ? (
-              <select
-                value={line.uom_received}
-                onChange={e => handleUomReceivedChange(e.target.value)}
-                className="w-28 px-3 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl text-base font-bold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white appearance-none text-center"
-              >
-                {receivedUomOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            ) : (
-              <div className="flex items-center justify-center w-24 px-3 py-3 bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl text-base font-bold text-gray-700 dark:text-gray-300">
-                {line.uom_received}
-              </div>
-            )} */}
+            <div
+              className="flex items-center justify-center min-w-22 px-3 py-3 bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl text-base font-bold text-gray-700 dark:text-gray-300 cursor-default select-none"
+              title="Satuan dari master produk — tidak dapat diubah saat penerimaan"
+            >
+              {line.uom_received}
+            </div>
           </div>
           {qtyDiterima > 0 && line.conversion_factor > 0 && (
             <p className="text-sm text-gray-500 dark:text-gray-400 ml-1">

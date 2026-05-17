@@ -31,8 +31,11 @@ export interface GoodsReceiptWithRelations extends GoodsReceipt {
   supplier_name: string
   warehouse_name: string
   created_by_name: string | null
+  confirmed_by_name?: string | null
   line_count: number
   total_invoice_amount: number
+  weighing_line_count: number
+  weighing_summary: string | null
 }
 
 export interface GoodsReceiptLine {

@@ -17,7 +17,7 @@ export type PermissionMap = Record<
   string,
   {
     view?: boolean;
-    create?: boolean;
+    insert?: boolean;
     update?: boolean;
     delete?: boolean;
     approve?: boolean;

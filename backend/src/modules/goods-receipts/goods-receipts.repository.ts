@@ -16,7 +16,9 @@ const HEADER_SELECT = `
   emp.full_name AS created_by_name,
   emp_confirm.full_name AS confirmed_by_name,
   COALESCE(lines_agg.line_count, 0)::int AS line_count,
-  COALESCE(lines_agg.total_invoice_amount, 0)::numeric AS total_invoice_amount
+  COALESCE(lines_agg.total_invoice_amount, 0)::numeric AS total_invoice_amount,
+  COALESCE(weighing_agg.weighing_line_count, 0)::int AS weighing_line_count,
+  weighing_agg.weighing_summary
 `;
 const HEADER_FROM = `
   FROM goods_receipts gr
@@ -30,6 +32,23 @@ const HEADER_FROM = `
     SELECT COUNT(*)::int AS line_count, SUM(grl.total_price_invoice) AS total_invoice_amount
     FROM goods_receipt_lines grl WHERE grl.gr_id = gr.id
   ) lines_agg ON true
+  LEFT JOIN LATERAL (
+    SELECT
+      COUNT(*) FILTER (
+        WHERE grl.uom_po IS DISTINCT FROM grl.uom_received
+           OR COALESCE(grl.conversion_factor, 1) <> 1
+      )::int AS weighing_line_count,
+      string_agg(
+        p.product_name || ' ' || TRIM(to_char(grl.qty_received, 'FM999999990.####')) || ' ' || grl.uom_received,
+        ' · ' ORDER BY grl.id
+      ) FILTER (
+        WHERE grl.uom_po IS DISTINCT FROM grl.uom_received
+           OR COALESCE(grl.conversion_factor, 1) <> 1
+      ) AS weighing_summary
+    FROM goods_receipt_lines grl
+    JOIN products p ON p.id = grl.product_id
+    WHERE grl.gr_id = gr.id
+  ) weighing_agg ON true
 `;
 
 const LINE_SELECT = `grl.*, grl.qty_po_uom, grl.uom_po, grl.uom_received, grl.conversion_factor, p.product_code, p.product_name, pol.uom`;

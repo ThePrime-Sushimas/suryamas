@@ -34,6 +34,7 @@ import {
   useDeleteGRAttachment,
 } from "../api/goodsReceipts.api";
 import api from "@/lib/axios";
+import { lineHasWeighing } from "../utils/weighing.util";
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 const fmtDate = (d: string) =>
@@ -408,7 +409,7 @@ export default function GoodsReceiptDetailPage() {
               </div>
               <div className="overflow-y-auto flex-1 divide-y divide-gray-100 dark:divide-gray-700/50">
                 {(gr.lines ?? []).map((line, idx) => {
-                  const hasDualUom = line.uom_po && line.uom_received && line.uom_po !== line.uom_received;
+                  const showWeighing = lineHasWeighing(line);
                   const qtyDatang = line.qty_po_uom ?? line.qty_received;
                   const qtyDitolak = line.qty_rejected ?? 0;
                   const qtyDiterima = qtyDatang - qtyDitolak;
@@ -506,7 +507,7 @@ export default function GoodsReceiptDetailPage() {
                         </div>
 
                         {/* Hasil Timbang / Konversi info in same box if dual UOM */}
-                        {hasDualUom && (
+                        {showWeighing && (
                           <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800">
                             <div className="flex items-center gap-2.5">
                               <Scale className="w-4 h-4 text-teal-500 shrink-0" />

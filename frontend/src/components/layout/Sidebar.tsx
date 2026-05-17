@@ -2,11 +2,12 @@ import { useMemo } from "react";
 import { usePermissionStore } from "@/features/branch_context";
 import { MenuItemComponent } from "./MenuItem";
 import { menuItems } from "./menu.config";
-import type { MenuItem, PermissionMap } from "./types";
+import type { PermissionMatrix } from "@/features/branch_context/types";
+import type { MenuItem } from "./types";
 
 export const filterMenuByPermission = (
   items: MenuItem[],
-  permissions: PermissionMap
+  permissions: PermissionMatrix
 ): MenuItem[] => {
   return items
     .map((item) => {

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PackageCheck, Plus, Search, Filter } from 'lucide-react'
+import { PackageCheck, Plus, Search, Filter, Scale } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -104,6 +104,7 @@ export default function GoodsReceiptsPage() {
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Referensi PO</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Supplier & Lokasi</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tanggal</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Hasil Timbang</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">PIC</th>
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aksi</th>
@@ -112,11 +113,11 @@ export default function GoodsReceiptsPage() {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}><td colSpan={7} className="px-6 py-5"><div className="h-5 bg-gray-100 dark:bg-gray-700/50 rounded-lg animate-pulse" /></td></tr>
+                    <tr key={i}><td colSpan={8} className="px-6 py-5"><div className="h-5 bg-gray-100 dark:bg-gray-700/50 rounded-lg animate-pulse" /></td></tr>
                   ))
                 ) : receipts.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center">
+                    <td colSpan={8} className="px-6 py-16 text-center">
                       <PackageCheck className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                       <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">Tidak Ada Data</h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada penerimaan barang yang sesuai dengan kriteria pencarian.</p>
@@ -137,6 +138,18 @@ export default function GoodsReceiptsPage() {
                     </td>
                     <td className="px-6 py-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                       {fmtDate(gr.received_date)}
+                    </td>
+                    <td className="px-6 py-4 max-w-[220px]">
+                      {(gr.weighing_line_count ?? 0) > 0 && gr.weighing_summary ? (
+                        <div className="flex items-start gap-1.5 text-xs text-teal-800 dark:text-teal-300">
+                          <Scale className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span className="line-clamp-2" title={gr.weighing_summary}>
+                            {gr.weighing_summary}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900 dark:text-white">{gr.created_by_name ?? '—'}</div>
@@ -190,11 +203,17 @@ export default function GoodsReceiptsPage() {
                         {gr.status === 'CONFIRMED' ? 'Confirmed' : 'Draft'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg mb-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg mb-2">
                       <span className="font-mono">{gr.po_number}</span>
                       <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></span>
                       <span>{fmtDate(gr.received_date)}</span>
                     </div>
+                    {(gr.weighing_line_count ?? 0) > 0 && gr.weighing_summary && (
+                      <div className="flex items-start gap-1.5 text-xs text-teal-800 dark:text-teal-300 bg-teal-50/50 dark:bg-teal-900/20 p-2 rounded-lg mb-3">
+                        <Scale className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>{gr.weighing_summary}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <div className="text-xs">
                         <span className="text-gray-500 dark:text-gray-400">PIC: </span>

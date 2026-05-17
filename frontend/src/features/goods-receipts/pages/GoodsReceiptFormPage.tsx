@@ -117,6 +117,13 @@ export default function GoodsReceiptFormPage() {
     [selectedPO],
   );
 
+  const productIdsForFlags = useMemo(() => {
+    if (isEdit && existingGR?.lines?.length) {
+      return existingGR.lines.map((l) => l.product_id);
+    }
+    return productIdsInPO;
+  }, [isEdit, existingGR?.lines, productIdsInPO]);
+
   const { data: pricelistData } = useQuery({
     queryKey: ["pricelists", "batch-lookup", supplierId, productIdsInPO],
     queryFn: async () => {
@@ -133,15 +140,15 @@ export default function GoodsReceiptFormPage() {
 
   // Fetch requires_processing flag for products
   const { data: productFlagsData } = useQuery({
-    queryKey: ["products", "flags", productIdsInPO],
+    queryKey: ["products", "flags", productIdsForFlags],
     queryFn: async () => {
-      if (productIdsInPO.length === 0) return {};
+      if (productIdsForFlags.length === 0) return {};
       const { data } = await api.get("/products/batch-flags", {
-        params: { ids: productIdsInPO.join(",") },
+        params: { ids: productIdsForFlags.join(",") },
       });
       return data.data as Record<string, { requires_processing: boolean }>;
     },
-    enabled: productIdsInPO.length > 0,
+    enabled: productIdsForFlags.length > 0,
     staleTime: 60_000,
   });
   const productFlags = productFlagsData ?? {};
@@ -204,6 +211,7 @@ export default function GoodsReceiptFormPage() {
             unit_price_invoice: Number(l.unit_price_invoice),
             unit_price_po: Number(l.unit_price_po ?? l.unit_price_invoice),
             requires_processing:
+              productFlags[l.product_id]?.requires_processing ??
               (l.uom_po ?? l.uom ?? "") !== (l.uom_received ?? l.uom ?? ""),
           };
         }),
