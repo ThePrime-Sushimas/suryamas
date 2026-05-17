@@ -352,7 +352,7 @@ export class GoodsProcessingRepository {
     let idx = 1
     for (const o of outputs) {
       valueRows.push(
-        `(${idx}, ${idx+1}, ${idx+2}, ${idx+3}, ${idx+4}, ${idx+5}, ${idx+6}, ${idx+7}, ${idx+8}, ${idx+9}, ${idx+10}, ${idx+11}, ${idx+12}, ${idx+13})`
+        `($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7}, $${idx + 8}, $${idx + 9}, $${idx + 10}, $${idx + 11}, $${idx + 12}, $${idx + 13})`
       )
       params.push(
         input.goods_processing_id,

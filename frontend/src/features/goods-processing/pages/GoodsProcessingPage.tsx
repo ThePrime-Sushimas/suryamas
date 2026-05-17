@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { Package, ChevronRight, Clock, CheckCircle2, XCircle, RotateCcw, Loader2, Scale } from "lucide-react"
+import { Package, ChevronRight, Clock, CheckCircle2, XCircle, RotateCcw, Scale, LoaderCircle } from "lucide-react"
 import { Pagination } from "@/components/ui/Pagination"
 import { useGoodsProcessingList } from "../api/goodsProcessing.api"
 
@@ -21,7 +21,7 @@ const STATUS_CONFIG: Record<string, {
   icon: React.ReactNode
 }> = {
   DRAFT:      { label: "Menunggu",  dot: "bg-gray-400",   badge: "bg-gray-100 text-gray-600",    icon: <Clock size={12} /> },
-  PROCESSING: { label: "Diproses",  dot: "bg-blue-500",   badge: "bg-blue-50 text-blue-700",     icon: <Loader2 size={12} className="animate-spin" /> },
+  PROCESSING: { label: "Diproses",  dot: "bg-blue-500",   badge: "bg-blue-50 text-blue-700",     icon: <LoaderCircle size={12} /> },
   QC_REVIEW:  { label: "Review QC", dot: "bg-yellow-500", badge: "bg-yellow-50 text-yellow-700", icon: <RotateCcw size={12} /> },
   CONFIRMED:  { label: "Selesai",   dot: "bg-green-500",  badge: "bg-green-50 text-green-700",   icon: <CheckCircle2 size={12} /> },
   REJECTED:   { label: "Ditolak",   dot: "bg-red-500",    badge: "bg-red-50 text-red-700",       icon: <XCircle size={12} /> },
