@@ -17,3 +17,9 @@ export class PurchaseRequestInvalidStatusError extends BusinessRuleError {
 export class PurchaseRequestEmptyLinesError extends BusinessRuleError {
   constructor() { super('Purchase request must have at least 1 line item') }
 }
+
+export class PurchaseRequestApprovalLineError extends BusinessRuleError {
+  constructor(prLineId: string) {
+    super(`Baris PR tidak valid atau sudah tidak ada (${prLineId}). Muat ulang halaman approval.`)
+  }
+}

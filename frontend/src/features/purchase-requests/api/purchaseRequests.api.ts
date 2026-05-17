@@ -92,6 +92,7 @@ export const useUpdatePurchaseRequest = () => {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['purchase-requests'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.id) })
+      qc.invalidateQueries({ queryKey: ['pr-approval-data', vars.id] })
     },
   })
 }

@@ -1,7 +1,8 @@
 import { pool } from '../../config/db'
 import { purchaseRequestsRepository } from './purchase-requests.repository'
 import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.repository'
-import { PurchaseRequestNotFoundError, PurchaseRequestInvalidStatusError } from './purchase-requests.errors'
+import { PurchaseRequestNotFoundError, PurchaseRequestInvalidStatusError, PurchaseRequestApprovalLineError } from './purchase-requests.errors'
+import type { PurchaseOrderWithLines } from '../purchase-orders/purchase-orders.types'
 import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo } from '../../config/logger'
 import { calculateDueDate } from '../../utils/due-date.util'
@@ -56,6 +57,8 @@ interface ApproveAndGenerateDto {
 interface ApproveAndGenerateResult {
   pr_id: string
   po_ids: string[]
+  pr: PurchaseRequestWithLines
+  purchase_orders: PurchaseOrderWithLines[]
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -165,6 +168,7 @@ export class PurchaseRequestApprovalService {
 
       // Fetch lines
       const prLines = await purchaseRequestsRepository.findLinesWithProducts(client, prId)
+      const prLineMap = new Map(prLines.map(l => [l.id, l]))
 
       // Batch lookup latest prices from pricelist
       const productIds = prLines.map(l => l.product_id)
@@ -178,16 +182,22 @@ export class PurchaseRequestApprovalService {
       const poIds: string[] = []
 
       for (const sel of dto.supplier_selections) {
+        for (const lineSel of sel.lines) {
+          if (!prLineMap.has(lineSel.pr_line_id)) {
+            throw new PurchaseRequestApprovalLineError(lineSel.pr_line_id)
+          }
+        }
+
         const selLineIds = sel.lines.map(l => l.pr_line_id)
         const lines = prLines.filter(l => selLineIds.includes(l.id))
         if (lines.length === 0) continue
 
-        // Build qty map from approval
+        // Build qty map from approval (must match payload — no fallback to request qty)
         const qtyMap = new Map(sel.lines.map(l => [l.pr_line_id, l.qty_approved]))
 
         const poNumber = await purchaseOrdersRepository.generatePoNumber(client, companyId, pr.branch_code)
         const totalAmount = lines.reduce((s, l) => {
-          const qty = qtyMap.get(l.id) ?? parseFloat(l.qty)
+          const qty = qtyMap.get(l.id)!
           const price = priceMap.get(`${l.product_id}:${sel.supplier_id}`) ?? 0
           return s + price * qty
         }, 0)
@@ -216,7 +226,7 @@ export class PurchaseRequestApprovalService {
         await purchaseOrdersRepository.insertLines(client, po.id, lines.map(l => ({
           pr_line_id: l.id,
           product_id: l.product_id,
-          qty: qtyMap.get(l.id) ?? parseFloat(l.qty),
+          qty: qtyMap.get(l.id)!,
           uom: l.uom,
           unit_price: priceMap.get(`${l.product_id}:${sel.supplier_id}`) ?? 0,
           notes: l.notes,
@@ -236,7 +246,16 @@ export class PurchaseRequestApprovalService {
         { status: 'PENDING_APPROVAL' }, { status: 'CONVERTED', po_ids: poIds })
       logInfo('PR approved and POs generated', { pr_id: prId, po_count: poIds.length })
 
-      return { pr_id: prId, po_ids: poIds }
+      const updatedPr = await purchaseRequestsRepository.findWithLines(prId, companyId)
+      if (!updatedPr) throw new PurchaseRequestNotFoundError(prId)
+
+      const purchase_orders: PurchaseOrderWithLines[] = []
+      for (const poId of poIds) {
+        const po = await purchaseOrdersRepository.findWithLines(poId, companyId)
+        if (po) purchase_orders.push(po)
+      }
+
+      return { pr_id: prId, po_ids: poIds, pr: updatedPr, purchase_orders }
     } catch (e) {
       await client.query('ROLLBACK')
       throw e

@@ -98,8 +98,17 @@ export default function PurchaseRequestApprovalPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
-      toast.success(data.message)
-      navigate('/inventory/pr-approval')
+      queryClient.invalidateQueries({ queryKey: ['pr-approval-data', id] })
+      const pos = (data.data?.purchase_orders ?? []) as Array<{ id: string; po_number?: string; lines?: Array<{ qty: number; uom: string; product_name?: string }> }>
+      const qtySummary = pos.flatMap(po =>
+        (po.lines ?? []).map(l => `${l.qty} ${l.uom}${l.product_name ? ` ${l.product_name}` : ''}`)
+      ).join(' · ')
+      toast.success(qtySummary ? `${data.message} — ${qtySummary}` : data.message)
+      if (pos.length === 1) {
+        navigate(`/inventory/purchase-orders/${pos[0].id}`)
+      } else {
+        navigate('/inventory/pr-approval')
+      }
     },
     onError: (err) => toast.error(parseApiError(err, 'Gagal approve & generate PO')),
   })
