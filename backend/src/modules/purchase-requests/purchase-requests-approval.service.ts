@@ -180,7 +180,21 @@ export class PurchaseRequestApprovalService {
       }
 
       const poIds: string[] = []
-
+      const supplierProductMap = new Map<string, string>() // key: "product_id:supplier_id" → supplier_product.id
+        if (productIds.length > 0 && supplierIds.length > 0) {
+          const { rows: spRows } = await client.query(
+            `SELECT id, product_id, supplier_id 
+            FROM supplier_products 
+            WHERE product_id = ANY($1::uuid[]) 
+              AND supplier_id = ANY($2::uuid[])
+              AND is_active = true 
+              AND deleted_at IS NULL`,
+            [productIds, supplierIds]
+          )
+          for (const r of spRows) {
+            supplierProductMap.set(`${r.product_id}:${r.supplier_id}`, r.id)
+          }
+        }
       for (const sel of dto.supplier_selections) {
         for (const lineSel of sel.lines) {
           if (!prLineMap.has(lineSel.pr_line_id)) {
@@ -226,6 +240,7 @@ export class PurchaseRequestApprovalService {
         await purchaseOrdersRepository.insertLines(client, po.id, lines.map(l => ({
           pr_line_id: l.id,
           product_id: l.product_id,
+          supplier_product_id: supplierProductMap.get(`${l.product_id}:${sel.supplier_id}`) ?? null, // ← tambah ini
           qty: qtyMap.get(l.id)!,
           uom: l.uom,
           unit_price: priceMap.get(`${l.product_id}:${sel.supplier_id}`) ?? 0,
