@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
-import api from '@/lib/axios'
+import { useSuppliers } from '@/features/suppliers/api/suppliers.api'
 import { PO_STATUS_CONFIG } from '../constants'
 import { parseApiError } from '@/lib/errorParser'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
@@ -24,11 +24,12 @@ export default function PurchaseOrdersPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
-  const [supplierFilter, setSupplierFilter] = useState('') // State baru untuk supplier
+  const [supplierFilter, setSupplierFilter] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null)
-  const [suppliers, setSuppliers] = useState<any[]>([]) // Untuk simpan daftar supplier
 
   const debouncedSearch = useDebounce(search, 400)
+  const { data: suppliersData } = useSuppliers({ limit: 100, is_active: true })
+  const suppliers = suppliersData?.data ?? []
 
   const queryParams = useMemo(() => ({
     page, limit: 25,
@@ -44,18 +45,7 @@ export default function PurchaseOrdersPage() {
   const pagination = data?.pagination
 
   const handleSearchChange = (v: string) => { setSearch(v); setPage(1) }
-// Tambah useEffect buat fetch daftar supplier
-  useEffect(() => {
-    const fetchSuppliers = async () => {
-      try {
-        const res = await api.get('/suppliers', { params: { limit: 100, is_active: true } })
-        setSuppliers(res.data.data || [])
-      } catch (err) {
-        console.error('Gagal ambil data supplier:', err)
-      }
-    }
-    fetchSuppliers()
-  }, [])
+
   const handleDelete = async () => {
     if (!deleteTarget) return
     try {
