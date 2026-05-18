@@ -933,6 +933,9 @@ export default function GoodsProcessingDetailPage() {
             sort_order: i,
           })),
       })
+      setLocalInputs(prev => prev.map(input => 
+        input.id === inp.id ? { ...input, status: 'DONE' } : input
+      ))
       addToast("success", `${inp.product_name} selesai ✓`)
     } catch (e) {
       addToast("error", parseApiError(e, "Terjadi kesalahan"))

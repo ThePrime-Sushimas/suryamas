@@ -227,6 +227,11 @@ export class JournalHeadersRepository {
       pool.query("UPDATE bank_statements SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
       pool.query("UPDATE aggregated_transactions SET journal_id = NULL, status = 'READY', updated_at = NOW() WHERE journal_id = $1", [journalId]),
       pool.query("UPDATE production_orders SET journal_id = NULL, status = 'COMPLETED', updated_at = NOW() WHERE journal_id = $1 AND status = 'JOURNALED'", [journalId]),
+      pool.query("UPDATE marketplace_checkout_sessions SET journal_settled_id = NULL, updated_at = NOW() WHERE journal_settled_id = $1", [journalId]),
+      pool.query("UPDATE marketplace_checkout_sessions SET journal_ordered_id = NULL, updated_at = NOW() WHERE journal_ordered_id = $1", [journalId]),
+      pool.query("UPDATE marketplace_checkout_sessions SET journal_received_id = NULL, updated_at = NOW() WHERE journal_received_id = $1", [journalId]),
+      // ← tambah ini
+      pool.query("DELETE FROM marketplace_settlements WHERE journal_id = $1", [journalId]),
     ])
   }
 

@@ -829,7 +829,10 @@
       try {
         await client.query('BEGIN')
         if (!employeeId) throw new BusinessRuleError('Employee context tidak ditemukan')
-
+          const { rows: uuidRows } = await client.query(
+            `SELECT gen_random_uuid()::text AS bulk_id`
+          )
+          const bulkId = uuidRows[0].bulk_id
         const { rows: sessions } = await client.query(
           `SELECT mcs.*, occ.coa_code AS cc_coa_code
            FROM marketplace_checkout_sessions mcs
@@ -882,7 +885,8 @@
             currency: 'IDR',
             exchange_rate: 1,
             reference_type: 'marketplace_bulk_settlement',
-            reference_number: dto.reference_number,
+            reference_id: bulkId,       // ← tambah ini
+            reference_number: bulkId,   // ← pakai bulkId, bukan dto.reference_number
             source_module: 'marketplace_po',
             lines: [
               {
@@ -923,12 +927,12 @@
               `INSERT INTO marketplace_settlements
                  (session_id, settled_date, bank_account_id, amount, reference_number, notes, journal_id, created_by)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-              [
+               [
                 session.id,
                 dto.settled_date,
                 dto.bank_account_id,
                 Number(session.total_amount),
-                dto.reference_number,
+                dto.reference_number ?? null,  // ← tetap simpan input user, boleh null
                 dto.notes ?? null,
                 journalHeader.id,
                 userId,

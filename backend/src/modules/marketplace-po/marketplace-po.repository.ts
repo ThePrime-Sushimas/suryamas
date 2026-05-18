@@ -203,7 +203,84 @@ export class MarketplacePoRepository {
 
     return { data: dataRes.rows, total: countRes.rows[0]?.total ?? 0 }
   }
-
+  async reverseSettledSession(
+    sessionId: string,
+    journalId: string,
+    userId: string,
+  ): Promise<void> {
+    // Cek session memang SETTLED karena journal ini
+    const { rows } = await pool.query(
+      `SELECT id FROM marketplace_checkout_sessions
+       WHERE id = $1 AND journal_settled_id = $2 AND status = 'SETTLED' AND deleted_at IS NULL`,
+      [sessionId, journalId],
+    )
+    if (!rows[0]) return
+  
+    await pool.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = 'RECEIVED',
+           journal_settled_id = NULL,
+           updated_by = $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [userId, sessionId],
+    )
+  
+    await pool.query(
+      `DELETE FROM marketplace_settlements WHERE session_id = $1 AND journal_id = $2`,
+      [sessionId, journalId],
+    )
+  }
+  
+  async reverseBulkSettledSessions(
+    bulkId: string,
+    companyId: string,
+    userId: string,
+  ): Promise<string[]> {
+    // Cari semua journal dalam grup bulk yang sama
+    const { rows: journalRows } = await pool.query(
+      `SELECT id FROM journal_headers
+       WHERE reference_id = $1
+         AND reference_type = 'marketplace_bulk_settlement'
+         AND company_id = $2
+         AND deleted_at IS NULL`,
+      [bulkId, companyId],
+    )
+    const allJournalIds = journalRows.map((r: any) => r.id as string)
+    if (allJournalIds.length === 0) return []
+  
+    // Cari semua session via marketplace_settlements
+    const { rows: settlementRows } = await pool.query(
+      `SELECT session_id FROM marketplace_settlements
+       WHERE journal_id = ANY($1::uuid[])`,
+      [allJournalIds],
+    )
+    const sessionIds = settlementRows.map((r: any) => r.session_id as string)
+    if (sessionIds.length === 0) return allJournalIds
+  
+    // Balik semua session ke RECEIVED
+    await pool.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = 'RECEIVED',
+           journal_settled_id = NULL,
+           updated_by = $1,
+           updated_at = NOW()
+       WHERE id = ANY($2::uuid[])
+         AND status = 'SETTLED'
+         AND deleted_at IS NULL`,
+      [userId, sessionIds],
+    )
+  
+    // Hapus semua marketplace_settlements
+    await pool.query(
+      `DELETE FROM marketplace_settlements
+       WHERE journal_id = ANY($1::uuid[])`,
+      [allJournalIds],
+    )
+  
+    // Return sibling journal ids (untuk di-delete oleh caller)
+    return allJournalIds
+  }
   async findSessionDetail(id: string, companyId: string) {
     const headerRes = await pool.query(
       `SELECT mcs.*, o.card_label, o.coa_code, o.bank_name, o.last4,

@@ -7,6 +7,7 @@ import { validateJournalLines, validateJournalBalance, calculateTotals, generate
 import { PaginatedResponse, createPaginatedResponse } from '../../../../utils/pagination.util'
 import { logInfo, logError, logWarn } from '../../../../config/logger'
 import { AuditService } from '../../../monitoring/monitoring.service'
+import { marketplacePoRepository } from '../../../marketplace-po/marketplace-po.repository'
 
 export class JournalHeadersService {
 
@@ -211,14 +212,50 @@ export class JournalHeadersService {
     if (journal.source_module === 'FISCAL_CLOSING') {
       throw JournalErrors.CANNOT_DELETE_POSTED()
     }
-    // Clear reversal cross-references before delete
+      // ── Reverse marketplace settlement jika ada ──
+    if (
+      journal.reference_type === 'marketplace_checkout_session' &&
+      journal.source_module === 'marketplace_po'
+    ) {
+      // Single settle — reference_id = session id
+      if (journal.reference_id) {
+        await marketplacePoRepository.reverseSettledSession(
+          journal.reference_id,
+          id,
+          userId,
+        )
+      }
+    } else if (journal.reference_type === 'marketplace_bulk_settlement') {
+      // Bulk settle — reverse semua session + hapus sibling journals
+      if (journal.reference_id) {
+        const allJournalIds = await marketplacePoRepository.reverseBulkSettledSessions(
+          journal.reference_id,
+          companyId,
+          userId,
+        )
+
+        // Hapus sibling journals (selain yang sedang di-delete)
+        const siblingIds = allJournalIds.filter(jid => jid !== id)
+        for (const siblingId of siblingIds) {
+          await journalHeadersRepository.clearReversalReferences(siblingId)
+          await journalHeadersRepository.clearJournalReferences(siblingId)
+          await journalHeadersRepository.delete(siblingId, userId)
+          await AuditService.log('FORCE_DELETE', 'journal_header', siblingId, userId, {
+            reason: `Sibling bulk settlement journal deleted with ${id}`,
+          })
+        }
+      }
+    }
+
     await journalHeadersRepository.clearReversalReferences(id)
     await journalHeadersRepository.clearJournalReferences(id)
     await journalHeadersRepository.delete(id, userId)
-    await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, { journal_number: journal.journal_number, status: journal.status })
+    await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+      journal_number: journal.journal_number,
+      status: journal.status,
+    })
     logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
   }
-
   async getCompleteness(id: string, companyId: string): Promise<{
     is_complete: boolean; total_channels: number; reconciled_channels: number;
     unreconciled: Array<{ payment_method_id: number; payment_method_name: string; nett_amount: number; status: string }>
