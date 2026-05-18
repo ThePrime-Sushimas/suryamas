@@ -3,7 +3,7 @@ import { useListNavigation } from '@/lib/urlFilters'
 import { ShoppingCart, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { useSuppliers } from '@/features/suppliers/api/suppliers.api'
-import { PO_STATUS_CONFIG } from '../constants'
+import { PO_LIST_TABS, PO_STATUS_CONFIG } from '../constants'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
@@ -11,17 +11,8 @@ import { usePermissionStore } from '@/features/branch_context/store/permission.s
 import { usePurchaseOrders, useDeletePurchaseOrder } from '../api/purchaseOrders.api'
 import type { PurchaseOrder } from '../api/purchaseOrders.api'
 import { usePurchaseOrderFilters } from '../hooks/usePurchaseOrderFilters'
-import type { PurchaseOrderListTab } from '../types/purchaseOrderFilters.types'
-
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-
-const LIST_TABS: { id: PurchaseOrderListTab; label: string }[] = [
-  { id: 'all', label: 'Semua' },
-  { id: 'active', label: 'Aktif' },
-  { id: 'receiving', label: 'Penerimaan' },
-  { id: 'done', label: 'Selesai' },
-]
 
 const PURCHASE_ORDERS_LIST_PATH = '/inventory/purchase-orders'
 
@@ -80,7 +71,7 @@ export default function PurchaseOrdersPage() {
 
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6">
         <div className="flex gap-1 overflow-x-auto py-2">
-          {LIST_TABS.map((tab) => (
+          {PO_LIST_TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"

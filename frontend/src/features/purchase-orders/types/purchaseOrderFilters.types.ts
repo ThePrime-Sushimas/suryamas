@@ -2,7 +2,7 @@ import type { PO_STATUS_CONFIG } from '../constants'
 
 export type PurchaseOrderStatus = keyof typeof PO_STATUS_CONFIG
 
-export type PurchaseOrderListTab = 'all' | 'active' | 'receiving' | 'done'
+export type PurchaseOrderListTab = 'all' | 'draft' | 'sent' | 'ordered'
 
 export type PurchaseOrderSortField = 'order_date' | 'po_number' | 'total_amount' | 'created_at'
 

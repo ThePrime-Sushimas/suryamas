@@ -1,3 +1,20 @@
+import type { PurchaseOrderListTab } from './types/purchaseOrderFilters.types'
+
+/** List page quick-filter tabs (one backend status each). */
+export const PO_LIST_TABS: { id: PurchaseOrderListTab; label: string }[] = [
+  { id: 'all', label: 'Semua' },
+  { id: 'draft', label: 'Menunggu Stock Keeper' },
+  { id: 'sent', label: 'Menunggu di pesan ke supplier' },
+  { id: 'ordered', label: 'Sudah order ke supplier' },
+]
+
+export const PO_LIST_TAB_STATUS: Record<PurchaseOrderListTab, string | undefined> = {
+  all: undefined,
+  draft: 'DRAFT',
+  sent: 'SENT',
+  ordered: 'ORDERED',
+}
+
 export const PO_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   DRAFT: { label: 'Draft', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
   SENT: { label: 'Dikirim ke Purchasing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },

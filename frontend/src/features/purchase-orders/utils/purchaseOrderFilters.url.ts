@@ -7,7 +7,7 @@ import {
   serializeNumber,
   serializeString,
 } from '@/lib/urlFilters'
-import { PO_STATUS_CONFIG } from '../constants'
+import { PO_LIST_TAB_STATUS, PO_STATUS_CONFIG } from '../constants'
 import type {
   PurchaseOrderFilters,
   PurchaseOrderFilterPatch,
@@ -31,7 +31,7 @@ export const DEFAULT_PURCHASE_ORDER_FILTERS: PurchaseOrderFilters = {
   dateTo: '',
 }
 
-const VALID_TABS = new Set<PurchaseOrderListTab>(['all', 'active', 'receiving', 'done'])
+const VALID_TABS = new Set<PurchaseOrderListTab>(Object.keys(PO_LIST_TAB_STATUS) as PurchaseOrderListTab[])
 const VALID_SORT_FIELDS = new Set<PurchaseOrderSortField>([
   'order_date',
   'po_number',
@@ -53,14 +53,6 @@ const FILTER_KEYS_RESET_PAGE: (keyof PurchaseOrderFilters)[] = [
   'dateTo',
   'limit',
 ]
-
-/** Tab presets — status filter on URL takes precedence when set explicitly */
-export const PO_LIST_TAB_STATUS: Record<PurchaseOrderListTab, string | undefined> = {
-  all: undefined,
-  active: 'DRAFT,SENT,ORDERED',
-  receiving: 'PARTIAL_RECEIVED',
-  done: 'FULLY_RECEIVED,CLOSED,CANCELLED',
-}
 
 export function parsePurchaseOrderFilters(searchParams: URLSearchParams): PurchaseOrderFilters {
   const statusRaw = searchParams.get('status') ?? ''
