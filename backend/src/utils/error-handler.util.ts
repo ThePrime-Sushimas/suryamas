@@ -5,6 +5,7 @@ import { logError } from '../config/logger'
 import { monitoringRepository } from '../modules/monitoring/monitoring.repository'
 import { notifyError } from '../services/webhook-notifier.service'
 import { pool } from '../config/db'
+import { resolveMonitoringModule, resolveMonitoringSubmodule } from './monitoring-module.util'
 
 // Import base error classes only (no module-specific imports to avoid circular dependencies)
 import {
@@ -76,15 +77,16 @@ async function isModuleError(error: unknown, errorName: string): Promise<boolean
 
 function persistHandledError(error: Error, statusCode: number, req?: Request, context?: Record<string, unknown>): void {
   const severity = statusCode >= 500 ? 'CRITICAL' : statusCode >= 400 ? 'MEDIUM' : 'LOW'
-  const pathParts = (req?.path || '').split('/').filter(Boolean)
+  const module = resolveMonitoringModule(req)
+  const submodule = resolveMonitoringSubmodule(req)
   monitoringRepository.createErrorReport({
     errorName: error.name || 'Error',
     errorMessage: error.message,
     errorStack: error.stack,
     errorType: (error as AppError).code || error.name || 'HANDLED_ERROR',
     severity,
-    module: pathParts[0] || 'api',
-    submodule: pathParts[1],
+    module,
+    submodule,
     userId: req?.user?.id,
     url: req?.originalUrl || '',
     route: req ? `${req.method} ${req.path}` : '',
@@ -101,7 +103,7 @@ function persistHandledError(error: Error, statusCode: number, req?: Request, co
         userName = rows[0]?.full_name
       } catch {}
     }
-    notifyError({ severity, module: pathParts[0] || 'api', route: req ? `${req.method} ${req.path}` : '', url: req?.originalUrl || '', message: error.message, timestamp: new Date().toISOString(), userId, userName, statusCode })
+    notifyError({ severity, module, route: req ? `${req.method} ${req.path}` : '', url: req?.originalUrl || '', message: error.message, timestamp: new Date().toISOString(), userId, userName, statusCode })
   }
   lookupAndNotify().catch(() => {})
 }

@@ -21,11 +21,13 @@ import { isRegisteredError } from '../utils/error-registry.util'
 import { monitoringRepository } from '../modules/monitoring/monitoring.repository'
 import { notifyError } from '../services/webhook-notifier.service'
 import type { AuthRequest } from '../types/common.types'
+import { resolveMonitoringModule, resolveMonitoringSubmodule } from '../utils/monitoring-module.util'
 
 function persistError(err: Error, req: Request, statusCode: number, severity: string): void {
   const authReq = req as AuthRequest
   const route = `${req.method} ${req.route?.path || req.path}`
-  const module = req.path.split('/').filter(Boolean)[0] || 'unknown'
+  const module = resolveMonitoringModule(req)
+  const submodule = resolveMonitoringSubmodule(req)
 
   monitoringRepository.createErrorReport({
     errorName: err.name || 'Error',
@@ -34,7 +36,7 @@ function persistError(err: Error, req: Request, statusCode: number, severity: st
     errorType: (err as AppError).code || (err as any).code || 'UNEXPECTED_ERROR',
     severity,
     module,
-    submodule: req.path.split('/').filter(Boolean)[1],
+    submodule,
     userId: authReq.user?.id,
     branchId: (req as any).branchContext?.branch_id,
     url: req.originalUrl,
