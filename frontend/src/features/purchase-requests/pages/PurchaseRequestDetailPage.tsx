@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   ClipboardList,
   Send,
-  CheckCircle,
   Ban,
   Package,
   Printer,
@@ -44,7 +43,6 @@ export default function PurchaseRequestDetailPage() {
   const toast = useToast();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
   const canUpdate = hasPermission("purchase_requests", "update");
-  const canApprove = hasPermission("purchase_requests", "approve");
 
   const { data: pr, isLoading } = usePurchaseRequest(id ?? "");
   const submitPR = useSubmitPurchaseRequest();
@@ -174,7 +172,7 @@ export default function PurchaseRequestDetailPage() {
                 <Send className="w-4 h-4" /> <span className="hidden sm:inline">Ajukan</span> Approval
               </button>
             )}
-            {pr.status === "PENDING_APPROVAL" && canApprove && (
+            {/* {pr.status === "PENDING_APPROVAL" && canApprove && (
               <button
                 onClick={() =>
                   navigate(`/inventory/purchase-requests/${id}/approve`)
@@ -183,7 +181,7 @@ export default function PurchaseRequestDetailPage() {
               >
                 <CheckCircle className="w-4 h-4" /> Approve
               </button>
-            )}
+            )} */}
 
             {["DRAFT", "PENDING_APPROVAL"].includes(pr.status) && canUpdate && (
               <button

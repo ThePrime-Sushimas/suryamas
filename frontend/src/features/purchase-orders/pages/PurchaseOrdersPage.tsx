@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ShoppingCart, ShieldCheck, Search, X } from 'lucide-react'
+import { ShoppingCart, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { PO_STATUS_CONFIG } from '../constants'
 import { parseApiError } from '@/lib/errorParser'
@@ -18,7 +18,6 @@ export default function PurchaseOrdersPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const hasPermission = usePermissionStore(state => state.hasPermission)
-  const canApprovePr = hasPermission('purchase_requests', 'approve')
   const canDelete = hasPermission('purchase_orders', 'delete')
 
   const [search, setSearch] = useState('')
@@ -63,12 +62,6 @@ export default function PurchaseOrdersPage() {
               <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} order</p>
             </div>
           </div>
-          {canApprovePr && (
-            <button onClick={() => navigate('/inventory/pr-approval')}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
-              <ShieldCheck className="w-4 h-4" /> <span className="hidden sm:inline">PR Approval</span>
-            </button>
-          )}
         </div>
       </div>
 
