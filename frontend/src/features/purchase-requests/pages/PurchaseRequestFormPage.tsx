@@ -201,20 +201,12 @@ export default function PurchaseRequestFormPage() {
               </p>
             </div>
           </div>
-          <button
-            onClick={handleSubmit}
-            disabled={isPending || lines.length === 0}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm shrink-0"
-          >
-            <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">{isPending ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan Draft'}</span>
-          </button>
         </div>
       </div>
 
       {/* Form Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Cabang *
@@ -324,10 +316,11 @@ export default function PurchaseRequestFormPage() {
                       </div>
 
                       {/* Items Table */}
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[680px] text-sm">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">UOM</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Gudang</th>
@@ -391,7 +384,8 @@ export default function PurchaseRequestFormPage() {
                             )
                           })}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </div>
                   )
                 })
@@ -405,6 +399,25 @@ export default function PurchaseRequestFormPage() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+            {/* Sticky Footer */}
+      <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 z-10">
+        <div className="flex justify-center gap-3">
+          <button
+            onClick={() => navigate(isEdit ? `/inventory/purchase-requests/${id}` : '/inventory/purchase-requests')}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+          >
+            Kembali
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isPending || lines.length === 0}
+            className="flex items-center gap-10 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm"
+          >
+            <Save className="w-4 h-4" />
+            <span>{isPending ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan Draft'}</span>
+          </button>
         </div>
       </div>
 

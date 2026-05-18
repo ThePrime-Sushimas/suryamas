@@ -321,7 +321,8 @@ export default function PurchaseRequestDetailPage() {
             </div>
 
             {/* Table */}
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-sm">
               <thead className="bg-gray-50/50 dark:bg-gray-700/30 border-b dark:border-gray-700">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-12">
@@ -397,7 +398,8 @@ export default function PurchaseRequestDetailPage() {
                   )
                 })}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         ))}
       </div>
