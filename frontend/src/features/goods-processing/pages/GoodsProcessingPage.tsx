@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { Package, ChevronRight, Clock, CheckCircle2, XCircle, RotateCcw, Scale, LoaderCircle } from "lucide-react"
 import { Pagination } from "@/components/ui/Pagination"
 import { useGoodsProcessingList } from "../api/goodsProcessing.api"
@@ -134,10 +134,10 @@ export default function GoodsProcessingPage() {
                 const cfg = STATUS_CONFIG[gp.status] ?? STATUS_CONFIG.DRAFT
                 const names = gp.item_names ?? []
                 return (
-                  <div
+                  <Link
                     key={gp.id}
-                    onClick={() => navigate(`/inventory/goods-processing/${gp.id}`)}
-                    className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 cursor-pointer hover:border-blue-300 active:scale-[0.99] transition-all"
+                    to={`/inventory/goods-processing/${gp.id}`}
+                    className="block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 cursor-pointer hover:border-blue-300 active:scale-[0.99] transition-all"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="min-w-0">
@@ -173,7 +173,7 @@ export default function GoodsProcessingPage() {
                         <ChevronRight size={14} className="text-gray-400" />
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 )
               })}
             </div>
@@ -207,7 +207,9 @@ export default function GoodsProcessingPage() {
                           {/* No. GP / GR */}
                           <td className="px-4 py-3.5">
                             <p className="font-mono text-xs font-semibold text-gray-800 dark:text-gray-200">
-                              {gp.processing_number}
+                              <Link to={`/inventory/goods-processing/${gp.id}`} className="text-blue-600 dark:text-blue-400 hover:underline" onClick={e => e.stopPropagation()}>
+                                {gp.processing_number}
+                              </Link>
                             </p>
                             <p className="font-mono text-xs text-gray-400 mt-0.5">{gp.gr_number}</p>
                           </td>

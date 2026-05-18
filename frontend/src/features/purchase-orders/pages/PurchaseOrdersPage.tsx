@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
 import { ShoppingCart, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
@@ -176,7 +177,11 @@ export default function PurchaseOrdersPage() {
                         onClick={() => openDetail(`${PURCHASE_ORDERS_LIST_PATH}/${po.id}`)}
                         className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
                       >
-                        <td className="px-4 py-3 font-mono font-medium text-gray-900 dark:text-white">{po.po_number}</td>
+                        <td className="px-4 py-3">
+                          <Link to={`${PURCHASE_ORDERS_LIST_PATH}/${po.id}`} className="font-mono font-semibold text-blue-600 dark:text-blue-400 hover:underline" onClick={e => e.stopPropagation()}>
+                            {po.po_number}
+                          </Link>
+                        </td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{po.supplier_name}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{po.branch_name}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{fmtDate(po.order_date)}</td>
@@ -232,10 +237,10 @@ export default function PurchaseOrdersPage() {
                 {orders.map((po) => {
                   const statusCfg = PO_STATUS_CONFIG[po.status] ?? PO_STATUS_CONFIG.DRAFT
                   return (
-                    <div
+                    <Link
                       key={po.id}
-                      onClick={() => openDetail(po.id)}
-                      className="p-4 space-y-2 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/50"
+                      to={`${PURCHASE_ORDERS_LIST_PATH}/${po.id}`}
+                      className="block p-4 space-y-2 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
                     >
                       <div className="flex justify-between items-start">
                         <div className="min-w-0 flex-1">
@@ -278,7 +283,7 @@ export default function PurchaseOrdersPage() {
                           </button>
                         </div>
                       )}
-                    </div>
+                    </Link>
                   )
                 })}
               </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ShieldCheck } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
@@ -25,10 +25,6 @@ export default function PRApprovalListPage() {
       return data.data
     },
   })
-
-  const handleRowClick = (pr: Record<string, unknown>) => {
-    navigate(`/inventory/purchase-requests/${pr.id}/approve`)
-  }
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -82,8 +78,7 @@ export default function PRApprovalListPage() {
                 const status = PR_STATUS_CONFIG[pr.status as string] ?? PR_STATUS_CONFIG.PENDING_APPROVAL
                 const priority = PR_PRIORITY_CONFIG[pr.priority as string] ?? PR_PRIORITY_CONFIG.normal
                 return (
-                  <div key={pr.id as string} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer"
-                    onClick={() => handleRowClick(pr)}>
+                  <Link key={pr.id as string} to={`/inventory/purchase-requests/${pr.id}/approve`} className="block bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 border border-transparent transition-all">
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white text-sm">{pr.request_number as string}</p>
@@ -114,7 +109,7 @@ export default function PRApprovalListPage() {
                         <p className="text-gray-900 dark:text-gray-200">{(pr.requested_by_name as string) || '—'}</p>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 )
               })}
             </div>
@@ -139,9 +134,13 @@ export default function PRApprovalListPage() {
                       const status = PR_STATUS_CONFIG[pr.status as string] ?? PR_STATUS_CONFIG.PENDING_APPROVAL
                       const priority = PR_PRIORITY_CONFIG[pr.priority as string] ?? PR_PRIORITY_CONFIG.normal
                       return (
-                        <tr key={pr.id as string} onClick={() => handleRowClick(pr)}
+                        <tr key={pr.id as string} onClick={() => navigate(`/inventory/purchase-requests/${pr.id}/approve`)}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer">
-                          <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{pr.request_number as string}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                            <Link to={`/inventory/purchase-requests/${pr.id}/approve`} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline" onClick={e => e.stopPropagation()}>
+                              {pr.request_number as string}
+                            </Link>
+                          </td>
                           <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{pr.branch_name as string}</td>
                           <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{fmtDate(pr.request_date as string)}</td>
                           <td className="px-4 py-3">

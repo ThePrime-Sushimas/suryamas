@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { PackageCheck, Plus, Search, Filter, Scale } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -129,7 +129,9 @@ export default function GoodsReceiptsPage() {
                     className="hover:bg-teal-50/30 dark:hover:bg-teal-900/10 cursor-pointer transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono font-semibold text-teal-700 dark:text-teal-400 group-hover:underline">{gr.gr_number}</span>
+                        <Link to={`/inventory/goods-receipts/${gr.id}`} className="font-mono font-bold text-teal-700 dark:text-teal-400 hover:underline" onClick={e => e.stopPropagation()}>
+                          {gr.gr_number}
+                        </Link>
                         <GrSourceBadge source={gr.source} supplierName={gr.supplier_name} status={gr.status} />
                       </div>
                     </td>
@@ -195,8 +197,8 @@ export default function GoodsReceiptsPage() {
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {receipts.map(gr => (
-                  <div key={gr.id} onClick={() => navigate(`/inventory/goods-receipts/${gr.id}`)}
-                    className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/50 transition-colors">
+                  <Link key={gr.id} to={`/inventory/goods-receipts/${gr.id}`}
+                    className="block p-4 hover:bg-teal-50/10 dark:hover:bg-teal-900/5 cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/50 transition-all border-b border-gray-100 dark:border-gray-700/50 last:border-b-0">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-0.5">
@@ -227,13 +229,13 @@ export default function GoodsReceiptsPage() {
                         <span className="font-medium text-gray-700 dark:text-gray-300">{gr.created_by_name ?? '—'}</span>
                       </div>
                       {gr.status === 'DRAFT' && canDelete && (
-                        <button onClick={e => { e.stopPropagation(); setDeleteTarget(gr) }}
+                        <button onClick={e => { e.stopPropagation(); e.preventDefault(); setDeleteTarget(gr) }}
                           className="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400 p-2 -mr-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                           Hapus
                         </button>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}

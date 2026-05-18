@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ClipboardList, Plus, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -137,7 +137,9 @@ export default function PurchaseRequestsPage() {
                     <tr key={pr.id} onClick={() => navigate(`/inventory/purchase-requests/${pr.id}`)}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
                       <td className="px-3 md:px-4 py-3">
-                        <div className="font-mono font-medium text-gray-900 dark:text-white text-xs md:text-sm">{pr.request_number}</div>
+                        <Link to={`/inventory/purchase-requests/${pr.id}`} className="font-mono font-semibold text-purple-600 dark:text-purple-400 hover:underline text-xs md:text-sm" onClick={e => e.stopPropagation()}>
+                          {pr.request_number}
+                        </Link>
                         <div className="text-xs text-gray-500 md:hidden">{fmtDate(pr.request_date)}</div>
                       </td>
                       <td className="px-3 md:px-4 py-3 text-gray-600 dark:text-gray-400 text-xs md:text-sm">{pr.branch_name}</td>
