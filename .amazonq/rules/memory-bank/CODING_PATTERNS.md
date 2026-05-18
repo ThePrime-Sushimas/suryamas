@@ -461,3 +461,245 @@ Setiap kali buat halaman baru yang ada dropdown cabang:
 2. Jika form transaksi atau list operasional → pakai `useUserBranches()`
 3. Jika admin/reporting → fetch semua cabang dari API
 4. JANGAN pernah hardcode branch list
+
+---
+
+## Frontend List Pages — URL-Synced Filters (WAJIB untuk halaman list baru)
+
+Halaman list dengan filter, pagination, search, tab, atau sort **WAJIB** menyimpan state di **URL query params** (React Router v6), bukan `useState` saja. Ini menjaga filter saat browser back/forward, refresh, dan share link.
+
+**Referensi implementasi:** `frontend/src/features/purchase-orders/`  
+**Shared library:** `frontend/src/lib/urlFilters/`
+
+### Arsitektur (production-grade)
+
+```
+URL (?page=2&search=abc&status=DRAFT&limit=25)
+        ↓
+useUrlFilters()  (+ modul-specific parse/stringify/merge)
+        ↓
+Parsed filter state
+        ↓
+toXxxListQuery()  →  bentuk params API backend
+        ↓
+useQuery({ queryKey: ['xxx', apiQuery], queryFn: ... })
+        ↓
+GET /api/v1/...
+```
+
+### Anti-pattern (JANGAN)
+
+| Anti-pattern | Akibat |
+|---|---|
+| `useState` untuk page/filter/search tanpa URL | Back dari detail → filter hilang |
+| `useEffect` dua arah mirror `useState` ↔ `useSearchParams` | Infinite loop / history berantakan |
+| `api.get()` langsung di page component | Tidak konsisten; pakai hook di `api/*.api.ts` |
+| `navigate('/list')` tanpa query di tombol back detail | UI back kehilangan filter (browser back OK) |
+| Debounce search → `setSearchParams` tiap keystroke tanpa `replace: true` | History penuh |
+| Default tidak di-normalize di parse/stringify | URL kotor (`?page=1` padahal default) |
+
+### File per feature (pattern)
+
+| File | Isi |
+|---|---|
+| `types/{feature}Filters.types.ts` | `XxxFilters`, `XxxListQuery`, patch type |
+| `utils/{feature}Filters.url.ts` | `DEFAULT_*`, `parse*`, `stringify*`, `merge*`, `to*ListQuery` |
+| `hooks/use{Feature}Filters.ts` | Thin wrapper: `useUrlFilters` + `apiQuery` |
+| `pages/{Feature}sPage.tsx` | UI; **tidak** import `api` langsung untuk list |
+| Detail page | `useListNavigation(LIST_BASE_PATH)` untuk tombol back |
+
+### Shared hooks & helpers
+
+```typescript
+// Hook generik — satu source of truth: URL
+import { useUrlFilters } from '@/lib/urlFilters'
+
+// Navigasi list ↔ detail (simpan ?query di location.state)
+import { useListNavigation } from '@/lib/urlFilters'
+
+// Parse/serialize helpers
+import {
+  parsePositiveInt,
+  parseEnum,
+  parseString,
+  serializeString,
+  serializeNumber,
+  mergeWithPageReset,
+  filtersEqualFromStringify,
+} from '@/lib/urlFilters'
+```
+
+### Template `hooks/useXxxFilters.ts`
+
+```typescript
+import { useMemo } from 'react'
+import { useUrlFilters } from '@/lib/urlFilters'
+import {
+  DEFAULT_FOO_FILTERS,
+  filtersAreEqual,
+  mergeFooFilters,
+  parseFooFilters,
+  stringifyFooFilters,
+  toFooListQuery,
+} from '../utils/fooFilters.url'
+
+const FOO_FILTER_UTILS = {
+  defaults: DEFAULT_FOO_FILTERS,
+  parse: parseFooFilters,
+  stringify: stringifyFooFilters,
+  merge: mergeFooFilters,
+  equals: filtersAreEqual,
+} as const
+
+export function useFooFilters() {
+  const base = useUrlFilters({
+    ...FOO_FILTER_UTILS,
+    searchField: 'search', // field untuk debounce; omit jika tidak ada search
+    debounceMs: 400,
+  })
+
+  const apiQuery = useMemo(
+    () => toFooListQuery(base.filters, base.debouncedSearch),
+    [base.filters, base.debouncedSearch],
+  )
+
+  return { ...base, apiQuery }
+}
+```
+
+### Template `utils/fooFilters.url.ts` (ringkas)
+
+```typescript
+import {
+  mergeWithPageReset,
+  parsePositiveInt,
+  parseString,
+  serializeNumber,
+  serializeString,
+} from '@/lib/urlFilters'
+
+export const DEFAULT_FOO_FILTERS = { page: 1, limit: 25, search: '', status: '' }
+
+export function parseFooFilters(params: URLSearchParams) {
+  return {
+    page: parsePositiveInt(params.get('page'), DEFAULT_FOO_FILTERS.page),
+    limit: parsePositiveInt(params.get('limit'), DEFAULT_FOO_FILTERS.limit, 100),
+    search: parseString(params.get('search') ?? params.get('q')), // q = legacy API alias
+    status: parseString(params.get('status')),
+  }
+}
+
+export function stringifyFooFilters(filters: FooFilters) {
+  const params = new URLSearchParams()
+  const d = DEFAULT_FOO_FILTERS
+  const page = serializeNumber(filters.page, d.page)
+  if (page) params.set('page', page)
+  const limit = serializeNumber(filters.limit, d.limit)
+  if (limit) params.set('limit', limit)
+  const search = serializeString(filters.search)
+  if (search) params.set('search', search)
+  if (filters.status) params.set('status', filters.status)
+  return params
+}
+
+export function mergeFooFilters(current: FooFilters, patch: Partial<FooFilters>) {
+  return mergeWithPageReset(current, patch, DEFAULT_FOO_FILTERS, [
+    'search', 'status', 'limit', /* keys yang reset page ke 1 */
+  ])
+}
+
+export function toFooListQuery(filters: FooFilters, debouncedSearch?: string) {
+  const search = (debouncedSearch ?? filters.search).trim()
+  return {
+    page: filters.page,
+    limit: filters.limit,
+    ...(search ? { search } : {}), // hook API map search → q jika perlu
+    ...(filters.status ? { status: filters.status } : {}),
+  }
+}
+```
+
+### Template list page
+
+```typescript
+const LIST_PATH = '/inventory/foo'
+
+export default function FooListPage() {
+  const { filters, searchInput, setSearchInput, apiQuery, setFilters, setPage, setLimit } =
+    useFooFilters()
+  const { openDetail } = useListNavigation(LIST_PATH)
+  const { data, isLoading } = useFooList(apiQuery)
+
+  // Filter berubah → page reset otomatis di mergeFooFilters
+  // Search: bind searchInput; URL update debounced (replace: true)
+
+  return (
+    <>
+      <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
+      <select value={filters.status} onChange={(e) => setFilters({ status: e.target.value })} />
+      <Pagination pagination={data.pagination} onPageChange={setPage} onLimitChange={setLimit} />
+      {rows.map((row) => (
+        <tr key={row.id} onClick={() => openDetail(`${LIST_PATH}/${row.id}`)} />
+      ))}
+    </>
+  )
+}
+```
+
+### Template detail page (tombol back)
+
+```typescript
+const LIST_PATH = '/inventory/foo'
+
+export default function FooDetailPage() {
+  const navigate = useNavigate() // tetap untuk link ke modul lain
+  const { backToList } = useListNavigation(LIST_PATH)
+
+  return (
+    <button type="button" onClick={backToList}>
+      <ArrowLeft />
+    </button>
+  )
+}
+```
+
+### Konvensi query param URL
+
+| Param URL | Contoh | Default (biasanya di-omit dari URL) |
+|---|---|---|
+| `page` | `2` | `1` |
+| `limit` | `50` | `25` |
+| `search` | `shopee` | kosong |
+| `status` | `DRAFT` | kosong |
+| `supplier_id` | uuid | kosong |
+| `branch_id` | uuid | kosong |
+| `tab` | `active` | `all` |
+| `sort_by` / `sort_order` | `order_date` / `desc` | default sort |
+| `date_from` / `date_to` | `2026-01-01` | kosong |
+
+- Nama param URL pakai **snake_case** (match API): `supplier_id`, bukan `supplierId` di URL.
+- Field TypeScript boleh camelCase di `XxxFilters`; mapping di parse/stringify.
+
+### Aturan penting
+
+1. **Single source of truth = URL** — jangan duplikasi `useState(page)` + URL.
+2. **Search:** `searchInput` lokal + debounce → patch URL dengan `{ replace: true }` (sudah di `useUrlFilters`).
+3. **Filter/tab/status berubah** → reset `page` ke 1 via `mergeWithPageReset` (atau custom merge).
+4. **API query:** `useMemo(() => toXxxListQuery(...), [filters, debouncedSearch])` — jangan object baru tiap render tanpa memo.
+5. **Dropdown data** (supplier, branch): pakai hook `useSuppliers()` / `useBranches()` — **JANGAN** `api.get()` di page.
+6. **Sort di URL** boleh disimpan meski backend belum support — siap sambung di `toXxxListQuery` nanti.
+7. **Backward compat:** parse boleh terima alias lama (`q` untuk `search`).
+
+### Checklist halaman list baru
+
+- [ ] `types/*Filters.types.ts` + `utils/*Filters.url.ts` + `hooks/use*Filters.ts`
+- [ ] Page pakai `use*Filters()` + TanStack Query dengan `apiQuery` sebagai query key
+- [ ] Tidak ada `useState` untuk page/filter yang seharusnya di URL
+- [ ] `useListNavigation` di list + detail
+- [ ] Pagination: `onPageChange={setPage}`, `onLimitChange={setLimit}`
+- [ ] Search reset page via merge, bukan manual di setiap handler
+- [ ] Supplier/branch fetch via feature hooks, bukan raw `axios` di page
+
+### Migrasi halaman lama
+
+Halaman yang masih `useState` untuk filter (products, categories, dll.) migrasi **bertahap** saat disentuh. Halaman **baru** WAJIB pakai pattern ini sejak hari pertama.

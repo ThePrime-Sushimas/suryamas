@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import type { PurchaseOrderListQuery } from '../types/purchaseOrderFilters.types'
 
 export interface PurchaseOrderLine {
   id?: string
@@ -33,7 +34,7 @@ export interface PurchaseOrder {
   supplier_id: string
   purchase_request_id: string
   po_number: string
-  status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SENT' | 'PARTIAL_RECEIVED' | 'FULLY_RECEIVED' | 'CLOSED' | 'CANCELLED'
+  status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SENT' | 'ORDERED' | 'PARTIAL_RECEIVED' | 'FULLY_RECEIVED' | 'CLOSED' | 'CANCELLED'
   order_date: string
   expected_delivery_date: string | null
   payment_type: 'CASH' | 'CREDIT'
@@ -59,13 +60,13 @@ export interface PurchaseOrder {
 interface Pagination { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean }
 
 const KEYS = {
-  list: (params: Record<string, unknown>) => ['purchase-orders', params] as const,
+  list: (params: PurchaseOrderListQuery) => ['purchase-orders', params] as const,
   detail: (id: string) => ['purchase-orders', id] as const,
   paymentDuePreview: (id: string, expectedDate?: string) =>
     ['purchase-orders', id, 'payment-due-preview', expectedDate ?? ''] as const,
 }
 
-export const usePurchaseOrders = (params: { page?: number; limit?: number; status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string; search?: string }) =>
+export const usePurchaseOrders = (params: PurchaseOrderListQuery = {}) =>
   useQuery({
     queryKey: KEYS.list(params),
     queryFn: async () => {

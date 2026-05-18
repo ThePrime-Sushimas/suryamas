@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useListNavigation } from '@/lib/urlFilters'
 import {
   ArrowLeft,
   ShoppingCart,
@@ -40,9 +41,12 @@ const fmtDate = (d: string) =>
 const inputCls =
   'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm'
 
+const PURCHASE_ORDERS_LIST_PATH = '/inventory/purchase-orders'
+
 export default function PurchaseOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { backToList } = useListNavigation(PURCHASE_ORDERS_LIST_PATH)
   const toast = useToast()
   const hasPermission = usePermissionStore((state) => state.hasPermission)
   const canUpdate = hasPermission('purchase_orders', 'update')
@@ -185,7 +189,8 @@ export default function PurchaseOrderDetailPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => navigate('/inventory/purchase-orders')}
+              type="button"
+              onClick={backToList}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
             >
               <ArrowLeft className="w-5 h-5" />

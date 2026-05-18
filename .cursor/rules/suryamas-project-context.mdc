@@ -10,7 +10,7 @@ alwaysApply: true
 Read when relevant:
 - `.amazonq/rules/memory-bank/INFRASTRUCTURE.md` — server, DB tunnel, deploy, storage
 - `.amazonq/rules/memory-bank/DEV_STATUS.md` — progress, backlog, conventions
-- `.amazonq/rules/memory-bank/CODING_PATTERNS.md` — backend contracts
+- `.amazonq/rules/memory-bank/CODING_PATTERNS.md` — backend + **frontend list URL filters**
 - `.amazonq/rules/memory-bank/MODULE_CHECKLIST.md` — new module checklist
 
 ## Current priority
@@ -34,7 +34,9 @@ Read when relevant:
 | `frontend/src/lib/errorParser.ts` | `parseApiError` |
 | `frontend/src/hooks/_shared/useUserBranches.ts` | Branch access filter |
 | `backend/src/modules/branches/branches.controller.ts` | Reference controller |
-| `frontend/src/features/products/pages/ProductsPage.tsx` | Reference pagination |
+| `frontend/src/lib/urlFilters/` | Shared `useUrlFilters`, `useListNavigation`, parse/serialize helpers |
+| `frontend/src/features/purchase-orders/` | Reference list page with URL-synced filters |
+| `frontend/src/features/products/pages/ProductsPage.tsx` | Legacy pagination (migrate when touched) |
 
 ## Local dev
 
