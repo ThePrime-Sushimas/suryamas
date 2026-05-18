@@ -36,6 +36,7 @@ export function OrderConfirmModal({
       title="Konfirmasi Order Marketplace"
       confirmText="Ya, Konfirmasi Order"
       variant="success"
+      confirmDisabled={!hasBukti}
       message={
         <div className="space-y-4 text-sm text-left">
           <div className="grid grid-cols-2 gap-2">

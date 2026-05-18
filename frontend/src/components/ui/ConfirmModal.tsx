@@ -12,6 +12,8 @@ interface ConfirmModalProps {
   cancelText?: string
   variant?: 'danger' | 'warning' | 'info' | 'success'
   isLoading?: boolean
+  /** When true, primary action is disabled (e.g. missing prerequisites) */
+  confirmDisabled?: boolean
 }
 
 const variantStyles = {
@@ -31,6 +33,7 @@ export const ConfirmModal = ({
   cancelText = 'Cancel',
   variant = 'danger',
   isLoading = false,
+  confirmDisabled = false,
 }: ConfirmModalProps) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -50,8 +53,10 @@ export const ConfirmModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70"
+      style={{ pointerEvents: isLoading ? 'none' : 'auto' }}
       onMouseDown={(e) => {
+
         if (!isLoading && e.target === e.currentTarget) onClose()
       }}
       role="dialog"
@@ -91,7 +96,7 @@ export const ConfirmModal = ({
           </button>
           <button
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={isLoading || confirmDisabled}
             className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 focus:outline-none focus:ring-2 ${variantStyles[variant]}`}
           >
             {isLoading ? 'Processing...' : confirmText}

@@ -68,11 +68,6 @@ export default function MarketplacePoDetailPage() {
 
   const handleOrder = async () => {
     if (!header) return
-    const hasBukti = attachments.some((a) => a.file_type === 'BUKTI_BAYAR')
-    if (!hasBukti) {
-      toast.warning('Upload bukti bayar di tab Lampiran terlebih dahulu')
-      return
-    }
     try {
       await orderSession.mutateAsync({ id: header.id })
       toast.success('Order berhasil dikonfirmasi')
