@@ -9,7 +9,7 @@ import {
   useCreateBulkCCOwnerSettlement,
   usePendingMarketplaceSessions,
 } from "../api/marketplacePo.api";
-import { SettleModal } from "../components/SettleModal";
+import { BulkSettleModal } from "../components/BulkSettleModal";
 import { fmtCurrency, fmtDate } from "../utils/format";
 import type { MarketplaceCheckoutSession } from "../types/marketplacePo.types";
 
@@ -80,31 +80,6 @@ export default function CCOwnerSettlementsPage() {
   const selectedTotal = (pendingSessions || [])
     .filter((s: MarketplaceCheckoutSession) => selectedSessions.includes(s.id))
     .reduce((sum: number, s: MarketplaceCheckoutSession) => sum + s.total_amount, 0);
-
-  const mockSessionForModal: MarketplaceCheckoutSession = {
-    id: "bulk",
-    company_id: "",
-    session_number: `BULK_${selectedSessions.length}_sessions`,
-    platform: "SHOPEE",
-    cc_id: "",
-    cc_label: "Multiple CC",
-    checkout_date: new Date().toISOString(),
-    total_amount: selectedTotal,
-    card_label: "Multiple CC",
-    notes: null,
-    status: "RECEIVED",
-    platform_order_ids: null,
-    platform_receipt_url: null,
-    journal_ordered_id: null,
-    journal_received_id: null,
-    journal_settled_id: null,
-    goods_receipt_id: null,
-    gp_id: null,
-    gp_status: null,
-    gp_number: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -256,25 +231,26 @@ export default function CCOwnerSettlementsPage() {
       </div>
 
       {/* Settle Modal */}
-      <SettleModal
+      <BulkSettleModal
         isOpen={showSettleModal}
         onClose={() => setShowSettleModal(false)}
         onConfirm={async (data) => {
-          try {
+            try {
             await createBulkSettlement.mutateAsync({
-              ...data,
-              session_ids: selectedSessions,
-            });
-            toast.success("Pelunasan berhasil dicatat");
-            setSelectedSessions([]);
-            setShowSettleModal(false);
-          } catch (err) {
-            toast.error(parseApiError(err, "Gagal mencatat pelunasan"));
-          }
+                ...data,
+                session_ids: selectedSessions,
+            })
+            toast.success('Pelunasan berhasil dicatat')
+            setSelectedSessions([])
+            setShowSettleModal(false)
+            } catch (err) {
+            toast.error(parseApiError(err, 'Gagal mencatat pelunasan'))
+            }
         }}
         isLoading={createBulkSettlement.isPending}
-        session={mockSessionForModal}
-      />
+        selectedCount={selectedSessions.length}
+        selectedTotal={selectedTotal}
+        />
     </div>
   );
 }

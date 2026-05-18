@@ -1,0 +1,149 @@
+// frontend/src/features/marketplace-po/components/BulkSettleModal.tsx
+import { useEffect, useState } from 'react'
+import { X } from 'lucide-react'
+import { useCompanyBankAccounts } from '../api/marketplacePo.api'
+import { fmtCurrency, todayIso } from '../utils/format'
+
+export function BulkSettleModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  isLoading,
+  selectedCount,
+  selectedTotal,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: (payload: {
+    bank_account_id: number
+    amount: number
+    reference_number: string
+    settled_date: string
+    notes?: string | null
+  }) => void
+  isLoading: boolean
+  selectedCount: number
+  selectedTotal: number
+}) {
+  const { data: banks = [] } = useCompanyBankAccounts()
+  const [bankAccountId, setBankAccountId] = useState<number | ''>('')
+  const [amount, setAmount] = useState(String(selectedTotal))
+  const [referenceNumber, setReferenceNumber] = useState('')
+  const [settledDate, setSettledDate] = useState(todayIso())
+  const [notes, setNotes] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      setAmount(String(selectedTotal))
+      setSettledDate(todayIso())
+    }
+  }, [isOpen, selectedTotal])
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Pelunasan Bulk CC Owner
+          </h2>
+          <button type="button" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4 text-sm">
+          {/* Summary */}
+          <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700">
+            <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">
+              {selectedCount} sesi dipilih
+            </p>
+            <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
+              {fmtCurrency(selectedTotal)}
+            </p>
+            <p className="text-xs text-purple-500 mt-1">
+              Jurnal akan dibuat per kartu kredit secara otomatis
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Rekening Bayar *</label>
+            <select
+              value={bankAccountId}
+              onChange={(e) => setBankAccountId(e.target.value ? Number(e.target.value) : '')}
+              className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm"
+            >
+              <option value="">Pilih rekening</option>
+              {banks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.account_name} — {b.account_number}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Jumlah Bayar *</label>
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">No. Referensi *</label>
+            <input
+              value={referenceNumber}
+              onChange={(e) => setReferenceNumber(e.target.value)}
+              placeholder="Nomor transfer"
+              className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Tanggal Bayar</label>
+            <input
+              type="date"
+              value={settledDate}
+              onChange={(e) => setSettledDate(e.target.value)}
+              className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Catatan</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-sm"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            disabled={isLoading || !bankAccountId || !referenceNumber.trim()}
+            onClick={() =>
+              onConfirm({
+                bank_account_id: Number(bankAccountId),
+                amount: Number(amount),
+                reference_number: referenceNumber.trim(),
+                settled_date: settledDate,
+                notes: notes.trim() || null,
+              })
+            }
+            className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+          >
+            {isLoading ? 'Memproses...' : `Lunasi ${selectedCount} Sesi`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
