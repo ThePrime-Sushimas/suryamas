@@ -786,7 +786,44 @@
         history: historyRows,
       }
     }
+      // ── Tambah method baru di class MarketplacePoService ──
 
+      async listUnreconciledStatements(
+        companyId: string,
+        bankAccountId: number,
+        filter: { date_from?: string; date_to?: string } = {},
+      ) {
+        const params: unknown[] = [companyId, bankAccountId]
+        let idx = 3
+        const conditions = [
+          'company_id = $1',
+          'bank_account_id = $2',
+          'is_reconciled = false',
+          'journal_id IS NULL',
+          'deleted_at IS NULL',
+        ]
+
+        if (filter.date_from) {
+          conditions.push(`transaction_date >= $${idx}::date`)
+          params.push(filter.date_from)
+          idx++
+        }
+        if (filter.date_to) {
+          conditions.push(`transaction_date <= $${idx}::date`)
+          params.push(filter.date_to)
+          idx++
+        }
+
+        const { rows } = await pool.query(
+          `SELECT id, transaction_date, description, debit_amount, credit_amount, reference_number
+          FROM bank_statements
+          WHERE ${conditions.join(' AND ')}
+          ORDER BY transaction_date DESC
+          LIMIT 100`,
+          params,
+        )
+        return rows
+      }
     async createBulkSettlement(companyId: string, userId: string, employeeId: string, dto: any) {
       const client = await pool.connect()
       try {
@@ -899,7 +936,37 @@
             )
           }
         }
+          // SESUDAH:
+          // ── Link ke bank statement jika dipilih user ──────────────────────
+          // ── di dalam createBulkSettlement, sebelum await client.query('COMMIT') ──
 
+        if (dto.bank_statement_id) {
+          const { rows: stmtCheck } = await client.query(
+            `SELECT id FROM bank_statements
+            WHERE id = $1
+              AND company_id = $2
+              AND bank_account_id = $3
+              AND deleted_at IS NULL
+              AND journal_id IS NULL
+              AND is_reconciled = false`,
+            [dto.bank_statement_id, companyId, dto.bank_account_id],
+          )
+
+          if (!stmtCheck[0]) {
+            throw new BusinessRuleError(
+              'Bank statement tidak ditemukan, tidak sesuai bank account, atau sudah ter-rekonsiliasi',
+            )
+          }
+
+          await client.query(
+            `UPDATE bank_statements
+            SET journal_id = $1,
+                is_reconciled = true,
+                updated_at = NOW()
+            WHERE id = $2`,
+            [journalIds[0], dto.bank_statement_id],
+          )
+        }
         await client.query('COMMIT')
         return { settled_count: sessions.length, journal_ids: journalIds }
       } catch (err) {

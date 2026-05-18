@@ -23,7 +23,9 @@ import type {
   pendingPoLinesSchema,
   bulkSettleMarketplaceSessionSchema,
 } from './marketplace-po.schema'
+import type { unreconciledStatementsSchema } from './marketplace-po.schema'
 
+type UnreconciledStatementsReq = ValidatedAuthRequest<typeof unreconciledStatementsSchema>
 type ListSessionsReq = ValidatedAuthRequest<typeof listMarketplaceSessionsSchema>
 type SessionIdReq = ValidatedAuthRequest<typeof marketplaceSessionIdSchema>
 type CreateSessionReq = ValidatedAuthRequest<typeof createMarketplaceSessionSchema>
@@ -55,6 +57,20 @@ export class MarketplacePoController {
       sendSuccess(res, rows, 'Pending PO lines retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_pending_po_lines' })
+    }
+  }
+  listUnreconciledStatements = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const { query } = (req as UnreconciledStatementsReq).validated
+      const rows = await marketplacePoService.listUnreconciledStatements(
+        companyId,
+        query.bank_account_id,
+        { date_from: query.date_from, date_to: query.date_to },
+      )
+      sendSuccess(res, rows, 'Unreconciled statements retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_unreconciled_statements' })
     }
   }
   listSessions = async (req: Request, res: Response) => {

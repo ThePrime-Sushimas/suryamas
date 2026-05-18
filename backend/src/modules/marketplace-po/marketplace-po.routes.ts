@@ -25,6 +25,7 @@ import {
   pendingPoLinesSchema,
   bulkSettleMarketplaceSessionSchema,
 } from './marketplace-po.schema'
+import { unreconciledStatementsSchema } from './marketplace-po.schema'
 
 PermissionService.registerModule('marketplace_po', 'Marketplace PO / Checkout (Shopee & Tokopedia)').catch((err) => {
   console.error('Failed to register marketplace_po module:', err instanceof Error ? err.message : err)
@@ -61,7 +62,12 @@ router.post('/marketplace-sessions/:id/order', canUpdate('marketplace_po'), vali
 router.post('/marketplace-sessions/:id/shipments',canUpdate('marketplace_po'), validateSchema(shipMarketplaceSessionSchema), (req, res) => marketplacePoController.shipSession(req, res))
 router.post('/marketplace-sessions/:id/receive', canUpdate('marketplace_po'), validateSchema(receiveMarketplaceSessionSchema), (req, res) => marketplacePoController.receiveSession(req, res))
 router.post('/marketplace-sessions/:id/settle', canUpdate('marketplace_po'), validateSchema(settleMarketplaceSessionSchema), (req, res) => marketplacePoController.settleSession(req, res))
-
+router.get(
+  '/marketplace-settlements/unreconciled-statements',
+  canView('cc_owner_settlements'),
+  validateSchema(unreconciledStatementsSchema),
+  (req, res) => marketplacePoController.listUnreconciledStatements(req, res),
+)
 // CC Owner Settlements
 router.get('/marketplace-settlements/summary', canView('cc_owner_settlements'), (req, res) => marketplacePoController.getSettlementSummary(req, res))
 router.post('/marketplace-settlements/bulk', canUpdate('cc_owner_settlements'), validateSchema(bulkSettleMarketplaceSessionSchema), (req, res) => marketplacePoController.createBulkSettlement(req, res))

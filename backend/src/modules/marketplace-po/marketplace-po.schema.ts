@@ -156,7 +156,16 @@ export const deleteMarketplaceAttachmentSchema = z.object({
     attachmentId: z.string().uuid(),
   }),
 })
+// tambah di bagian bawah, sebelum export terakhir
+export const unreconciledStatementsSchema = z.object({
+  query: z.object({
+    bank_account_id: z.coerce.number().int().positive(),
+    date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  }),
+})
 
+// update bulkSettleMarketplaceSessionSchema — tambah 1 field
 export const bulkSettleMarketplaceSessionSchema = z.object({
   body: z.object({
     session_ids: z.array(z.string().uuid()).min(1, "Pilih minimal 1 sesi"),
@@ -165,6 +174,7 @@ export const bulkSettleMarketplaceSessionSchema = z.object({
     reference_number: z.string().min(1, "Nomor referensi wajib diisi"),
     settled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal salah (YYYY-MM-DD)"),
     notes: z.string().optional().nullable(),
+    bank_statement_id: z.coerce.number().int().positive().optional().nullable(), // ← tambah ini
   }),
 })
 

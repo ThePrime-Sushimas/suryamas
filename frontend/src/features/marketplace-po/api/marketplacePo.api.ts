@@ -35,6 +35,33 @@ export function useOwnerCreditCards(params?: { is_active?: boolean }) {
   })
 }
 
+export interface UnreconciledStatement {
+  id: number
+  transaction_date: string
+  description: string
+  debit_amount: string
+  credit_amount: string
+  reference_number: string | null
+}
+
+export function useUnreconciledStatements(params: {
+  bank_account_id?: number
+  date_from?: string
+  date_to?: string
+}) {
+  return useQuery({
+    queryKey: ['marketplace-settlements', 'unreconciled-statements', params],
+    queryFn: async () => {
+      const { data } = await api.get('/marketplace-settlements/unreconciled-statements', {
+        params,
+      })
+      return data.data as UnreconciledStatement[]
+    },
+    enabled: !!params.bank_account_id,
+    staleTime: 30_000,
+  })
+}
+
 export function useCreateOwnerCreditCard() {
   const qc = useQueryClient()
   return useMutation({
@@ -257,13 +284,14 @@ export function useCreateBulkCCOwnerSettlement() {
       reference_number: string
       settled_date: string
       notes?: string | null
+      bank_statement_id?: number | null  // ← tambah ini
     }) => {
       const { data } = await api.post('/marketplace-settlements/bulk', payload)
       return data.data
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
-      qc.invalidateQueries({ queryKey: ['marketplace-settlements', 'summary'] })
+      qc.invalidateQueries({ queryKey: ['marketplace-settlements'] })
       qc.invalidateQueries({ queryKey: ['marketplace-sessions', 'pending-settlement'] })
     },
   })
