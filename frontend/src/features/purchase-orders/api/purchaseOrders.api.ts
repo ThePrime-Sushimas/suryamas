@@ -34,7 +34,7 @@ export interface PurchaseOrder {
   supplier_id: string
   purchase_request_id: string
   po_number: string
-  status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SENT' | 'ORDERED' | 'PARTIAL_RECEIVED' | 'FULLY_RECEIVED' | 'CLOSED' | 'CANCELLED'
+  status: 'DRAFT' | 'SENT' | 'ORDERED' | 'PARTIAL_RECEIVED' | 'FULLY_RECEIVED' | 'CLOSED' | 'CANCELLED'
   order_date: string
   expected_delivery_date: string | null
   payment_type: 'CASH' | 'CREDIT'

@@ -57,7 +57,7 @@ const FILTER_KEYS_RESET_PAGE: (keyof PurchaseOrderFilters)[] = [
 /** Tab presets — status filter on URL takes precedence when set explicitly */
 export const PO_LIST_TAB_STATUS: Record<PurchaseOrderListTab, string | undefined> = {
   all: undefined,
-  active: 'DRAFT,PENDING_APPROVAL,APPROVED,SENT,ORDERED',
+  active: 'DRAFT,SENT,ORDERED',
   receiving: 'PARTIAL_RECEIVED',
   done: 'FULLY_RECEIVED,CLOSED,CANCELLED',
 }
