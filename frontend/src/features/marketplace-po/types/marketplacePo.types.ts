@@ -75,6 +75,8 @@ export interface MarketplaceCheckoutSession {
   gp_id: string | null        // ← tambah
   gp_status: string | null    // ← tambah
   gp_number: string | null    // ← tambah
+  cancel_reason: string | null        // ← tambah
+  platform_cancel_ref: string | null  // ← tambah
   created_by_name?: string
   created_at: string
   updated_at: string

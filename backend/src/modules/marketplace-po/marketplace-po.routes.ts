@@ -24,6 +24,8 @@ import {
   deleteMarketplaceAttachmentSchema,
   pendingPoLinesSchema,
   bulkSettleMarketplaceSessionSchema,
+  cancelOrderedSessionSchema,
+  cancelShippedSessionSchema,
 } from './marketplace-po.schema'
 import { unreconciledStatementsSchema } from './marketplace-po.schema'
 
@@ -71,5 +73,20 @@ router.get(
 // CC Owner Settlements
 router.get('/marketplace-settlements/summary', canView('cc_owner_settlements'), (req, res) => marketplacePoController.getSettlementSummary(req, res))
 router.post('/marketplace-settlements/bulk', canUpdate('cc_owner_settlements'), validateSchema(bulkSettleMarketplaceSessionSchema), (req, res) => marketplacePoController.createBulkSettlement(req, res))
+
+// Cancel session with reason
+router.post(
+  '/marketplace-sessions/:id/cancel-ordered',
+  canUpdate('marketplace_po'),
+  validateSchema(cancelOrderedSessionSchema),
+  (req, res) => marketplacePoController.cancelOrderedSession(req, res),
+)
+
+router.post(
+  '/marketplace-sessions/:id/cancel-shipped',
+  canUpdate('marketplace_po'),
+  validateSchema(cancelShippedSessionSchema),
+  (req, res) => marketplacePoController.cancelShippedSession(req, res),
+)
 
 export default router

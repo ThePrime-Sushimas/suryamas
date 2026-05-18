@@ -22,6 +22,8 @@ import { SettleModal } from '../components/SettleModal'
 import { fmtCurrency, fmtDate } from '../utils/format'
 import { PLATFORM_CONFIG } from '../utils/constants'
 import type { MarketplaceSessionStatus } from '../types/marketplacePo.types'
+import { useCancelOrderedSession, useCancelShippedSession } from '../api/marketplacePo.api'
+import { CancelSessionModal } from '../components/CancelSessionModal'
 
 type TabId = 'items' | 'shipments' | 'attachments' | 'journal'
 
@@ -58,7 +60,26 @@ export default function MarketplacePoDetailPage() {
     () => new Set(lines.map((l) => l.branch_id)).size,
     [lines],
   )
-
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const cancelOrdered = useCancelOrderedSession()
+  const cancelShipped = useCancelShippedSession()
+  
+  const handleCancel = async (payload: { cancel_reason: string; platform_cancel_ref?: string }) => {
+    if (!header) return
+    try {
+      if (header.status === 'ORDERED') {
+        await cancelOrdered.mutateAsync({ id: header.id, ...payload })
+      } else {
+        await cancelShipped.mutateAsync({ id: header.id, ...payload })
+      }
+      toast.success('Pesanan berhasil dibatalkan')
+      setShowCancelModal(false)
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal membatalkan pesanan'))
+    }
+  }
+  
+  const isCancelPending = cancelOrdered.isPending || cancelShipped.isPending
   const ccDisplay = useMemo(() => {
     if (!header) return '-'
     const label = header.card_label ?? header.cc_label ?? ''
@@ -137,6 +158,8 @@ export default function MarketplacePoDetailPage() {
     return map[header.status]
   }, [header, canUpdate])
 
+  const showCancelButton = canUpdate && (header?.status === 'ORDERED' || header?.status === 'SHIPPED')
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900/50 p-6 space-y-4">
@@ -192,16 +215,34 @@ export default function MarketplacePoDetailPage() {
               </p>
             </div>
           </div>
-          {actionButton && (
-            <button
-              type="button"
-              onClick={actionButton.onClick}
-              className={`px-4 py-2 text-sm text-white rounded-xl font-medium shrink-0 ${actionButton.className}`}
-            >
-              {actionButton.label}
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {showCancelButton && (
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(true)}
+                className="px-4 py-2 text-sm text-red-600 border border-red-300 hover:bg-red-50 rounded-xl font-medium"
+              >
+                Batalkan Pesanan
+              </button>
+            )}
+            {actionButton && (
+              <button
+                type="button"
+                onClick={actionButton.onClick}
+                className={`px-4 py-2 text-sm text-white rounded-xl font-medium ${actionButton.className}`}
+              >
+                {actionButton.label}
+              </button>
+            )}
+          </div>
         </div>
+        <CancelSessionModal
+          isOpen={showCancelModal}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={handleCancel}
+          isLoading={isCancelPending}
+          status={header.status}
+        />
       </div>
 
       <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-6">

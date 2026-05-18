@@ -165,6 +165,19 @@ export const unreconciledStatementsSchema = z.object({
   }),
 })
 
+const cancelSessionBody = z.object({
+  cancel_reason: z.string().min(5, 'Alasan minimal 5 karakter'),
+  platform_cancel_ref: z.string().max(100).optional(),
+})
+
+export const cancelOrderedSessionSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: cancelSessionBody,
+})
+
+/** Same payload as cancel-ordered; separate route for SHIPPED sessions */
+export const cancelShippedSessionSchema = cancelOrderedSessionSchema
+
 // update bulkSettleMarketplaceSessionSchema — tambah 1 field
 export const bulkSettleMarketplaceSessionSchema = z.object({
   body: z.object({

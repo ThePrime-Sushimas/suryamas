@@ -145,7 +145,57 @@ export function useMarketplaceSession(id: string) {
     enabled: !!id,
   })
 }
+export function useCancelOrderedSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      cancel_reason,
+      platform_cancel_ref,
+    }: {
+      id: string
+      cancel_reason: string
+      platform_cancel_ref?: string | null
+    }) => {
+      const { data } = await api.post(`/marketplace-sessions/${id}/cancel-ordered`, {
+        cancel_reason,
+        platform_cancel_ref,
+      })
+      return data.data as MarketplaceSessionDetail
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
+      qc.invalidateQueries({ queryKey: KEYS.session(vars.id) })
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions', 'pending-po-lines'] })
+    },
+  })
+}
 
+export function useCancelShippedSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      cancel_reason,
+      platform_cancel_ref,
+    }: {
+      id: string
+      cancel_reason: string
+      platform_cancel_ref?: string | null
+    }) => {
+      const { data } = await api.post(`/marketplace-sessions/${id}/cancel-shipped`, {
+        cancel_reason,
+        platform_cancel_ref,
+      })
+      return data.data as MarketplaceSessionDetail
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
+      qc.invalidateQueries({ queryKey: KEYS.session(vars.id) })
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions', 'pending-po-lines'] })
+    },
+  })
+}
 export function usePendingPoLines(params: { platform?: MarketplacePlatform; branch_id?: string }) {
   return useQuery({
     queryKey: KEYS.pendingLines(params),

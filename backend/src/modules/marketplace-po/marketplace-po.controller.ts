@@ -24,7 +24,13 @@ import type {
   bulkSettleMarketplaceSessionSchema,
 } from './marketplace-po.schema'
 import type { unreconciledStatementsSchema } from './marketplace-po.schema'
+import type {
+  cancelOrderedSessionSchema,
+  cancelShippedSessionSchema,
+} from './marketplace-po.schema'
 
+type CancelOrderedReq = ValidatedAuthRequest<typeof cancelOrderedSessionSchema>
+type CancelShippedReq = ValidatedAuthRequest<typeof cancelShippedSessionSchema>
 type UnreconciledStatementsReq = ValidatedAuthRequest<typeof unreconciledStatementsSchema>
 type ListSessionsReq = ValidatedAuthRequest<typeof listMarketplaceSessionsSchema>
 type SessionIdReq = ValidatedAuthRequest<typeof marketplaceSessionIdSchema>
@@ -120,7 +126,33 @@ export class MarketplacePoController {
       await handleError(res, error, req, { action: 'get_marketplace_session', id: req.params.id })
     }
   }
-
+  cancelOrderedSession = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as CancelOrderedReq).validated.params
+      const { body } = (req as CancelOrderedReq).validated
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const employeeId = req.context?.employee_id ?? ''
+      const detail = await marketplacePoService.cancelOrderedSession(companyId, userId, employeeId, id, body)
+      sendSuccess(res, detail, 'Marketplace session cancelled (was ORDERED)')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'cancel_ordered_session', id: req.params.id })
+    }
+  }
+  
+  cancelShippedSession = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as CancelShippedReq).validated.params
+      const { body } = (req as CancelShippedReq).validated
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const employeeId = req.context?.employee_id ?? ''
+      const detail = await marketplacePoService.cancelShippedSession(companyId, userId, employeeId, id, body)
+      sendSuccess(res, detail, 'Marketplace session cancelled (was SHIPPED)')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'cancel_shipped_session', id: req.params.id })
+    }
+  }
   createSession = async (req: Request, res: Response) => {
     try {
       const { body } = (req as CreateSessionReq).validated

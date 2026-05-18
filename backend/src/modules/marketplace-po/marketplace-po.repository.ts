@@ -346,7 +346,35 @@ export class MarketplacePoRepository {
     )
     return rows[0] ?? null
   }
-
+  async cancelOrderedOrShippedSession(
+    client: PoolClient,
+    id: string,
+    companyId: string,
+    userId: string,
+    allowedStatuses: ('ORDERED' | 'SHIPPED')[],
+    data: {
+      cancel_reason: string
+      platform_cancel_ref?: string | null
+    },
+  ) {
+    const { rows } = await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = 'CANCELLED',
+           cancel_reason = $4,
+           platform_cancel_ref = $5,
+           journal_ordered_id = NULL,
+           updated_by = $3,
+           updated_at = now()
+       WHERE id = $1
+         AND company_id = $2
+         AND status = ANY($6::text[])
+         AND deleted_at IS NULL
+       RETURNING *`,
+      [id, companyId, userId, data.cancel_reason, data.platform_cancel_ref ?? null, allowedStatuses],
+    )
+    return rows[0] ?? null
+  }
+  
   async createSessionAndLines(client: PoolClient, companyId: string, userId: string, data: { session_number: string; platform: string; cc_id: string; checkout_date: string; notes?: string | null; lines: any[]; total_amount: number }) {
     const { rows } = await client.query(
       `INSERT INTO marketplace_checkout_sessions (company_id, session_number, platform, cc_id, checkout_date, total_amount, notes, created_by, updated_by)

@@ -1,4 +1,5 @@
   import { pool } from '../../config/db'
+  import { logError } from '../../config/logger'
   import type { PoolClient } from 'pg'
   import { BusinessRuleError } from '../../utils/errors.base'
   import { AuditService } from '../monitoring/monitoring.service'
@@ -11,12 +12,31 @@
   import { storageService } from '../../services/storage.service'
   import type { VarianceStatus } from '../goods-receipts/goods-receipts.types'
   import type {
+    CancelSessionDto,
     CreateOwnerCreditCardDto,
     OwnerCreditCardWithSettlement,
     UpdateOwnerCreditCardDto,
   } from './marketplace-po.types'
 
   export class MarketplacePoService {
+    /** After session cancel COMMIT — journal cleanup is best-effort (see log on failure). */
+    private async cleanupOrderedJournalAfterCancel(
+      sessionId: string,
+      journalOrderedId: string | null,
+      userId: string,
+      companyId: string,
+    ): Promise<void> {
+      if (!journalOrderedId) return
+      try {
+        await journalHeadersService.forceDelete(journalOrderedId, userId, companyId)
+      } catch (journalErr) {
+        logError('forceDelete journal gagal setelah cancel session', {
+          sessionId,
+          journalId: journalOrderedId,
+          error: journalErr instanceof Error ? journalErr.message : String(journalErr),
+        })
+      }
+    }
     async list(companyId: string, filter: any, pagination: { page: number; limit: number }) {
       const offset = (pagination.page - 1) * pagination.limit
       return marketplacePoRepository.listSessions(companyId, filter, { limit: pagination.limit, offset })
@@ -585,6 +605,86 @@
       await purchaseInvoicesService.createDraftFromGr(client, companyId, gr.id, userId)
 
       return { grId: gr.id, grNumber }
+    }
+
+    async cancelOrderedSession(
+      companyId: string,
+      userId: string,
+      employeeId: string,
+      id: string,
+      dto: CancelSessionDto,
+    ) {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        if (!employeeId) throw new BusinessRuleError('Employee context not found')
+    
+        const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
+        if (!session) throw new BusinessRuleError('Marketplace session not found')
+        if (session.status !== 'ORDERED') throw new BusinessRuleError('Session harus ORDERED untuk dibatalkan')
+    
+        const journalOrderedId = session.journal_ordered_id as string | null
+    
+        const cancelled = await marketplacePoRepository.cancelOrderedOrShippedSession(
+          client, id, companyId, userId, ['ORDERED'],
+          { cancel_reason: dto.cancel_reason, platform_cancel_ref: dto.platform_cancel_ref ?? null },
+        )
+        if (!cancelled) throw new BusinessRuleError('Gagal membatalkan session')
+
+        await client.query('COMMIT')
+        await this.cleanupOrderedJournalAfterCancel(id, journalOrderedId, userId, companyId)
+
+        await AuditService.log('CANCEL_ORDERED', 'marketplace_checkout_session', id, userId,
+          { status: 'ORDERED', journal_ordered_id: journalOrderedId },
+          { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
+        )
+        return await marketplacePoRepository.findSessionDetail(id, companyId)
+      } catch (e) {
+        await client.query('ROLLBACK')
+        throw e
+      } finally {
+        client.release()
+      }
+    }
+    
+    async cancelShippedSession(
+      companyId: string,
+      userId: string,
+      employeeId: string,
+      id: string,
+      dto: CancelSessionDto,
+    ) {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        if (!employeeId) throw new BusinessRuleError('Employee context not found')
+    
+        const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
+        if (!session) throw new BusinessRuleError('Marketplace session not found')
+        if (session.status !== 'SHIPPED') throw new BusinessRuleError('Session harus SHIPPED untuk dibatalkan')
+    
+        const journalOrderedId = session.journal_ordered_id as string | null
+    
+        const cancelled = await marketplacePoRepository.cancelOrderedOrShippedSession(
+          client, id, companyId, userId, ['SHIPPED'],
+          { cancel_reason: dto.cancel_reason, platform_cancel_ref: dto.platform_cancel_ref ?? null },
+        )
+        if (!cancelled) throw new BusinessRuleError('Gagal membatalkan session')
+
+        await client.query('COMMIT')
+        await this.cleanupOrderedJournalAfterCancel(id, journalOrderedId, userId, companyId)
+
+        await AuditService.log('CANCEL_SHIPPED', 'marketplace_checkout_session', id, userId,
+          { status: 'SHIPPED', journal_ordered_id: journalOrderedId },
+          { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
+        )
+        return await marketplacePoRepository.findSessionDetail(id, companyId)
+      } catch (e) {
+        await client.query('ROLLBACK')
+        throw e
+      } finally {
+        client.release()
+      }
     }
 
     async uploadAttachment(

@@ -59,6 +59,8 @@ export type MarketplaceCheckoutSession = {
   journal_received_id: string | null
   journal_settled_id: string | null
   goods_receipt_id: string | null
+  cancel_reason: string | null        // ← tambah
+  platform_cancel_ref: string | null  // ← tambah
   created_by: string | null
   updated_by: string | null
   created_at: string
@@ -182,7 +184,10 @@ export type ShipSessionDto = {
 export type ReceiveSessionDto = {
   journal_date?: string
 }
-
+export type CancelSessionDto = {
+  cancel_reason: string
+  platform_cancel_ref?: string | null
+}
 export type SettleSessionDto = {
   bank_account_id: string
   amount: number
