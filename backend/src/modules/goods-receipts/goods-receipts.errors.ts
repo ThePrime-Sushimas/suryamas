@@ -29,3 +29,11 @@ export class GoodsReceiptInvoiceRequiredError extends BusinessRuleError {
 export class GoodsReceiptAttachmentNotFoundError extends NotFoundError {
   constructor(id?: string) { super(id ? `Attachment ${id} not found` : 'Attachment not found') }
 }
+
+export class GoodsReceiptMarketplaceSupplierError extends BusinessRuleError {
+  constructor() {
+    super(
+      'PO supplier marketplace (Shopee/Tokopedia) hanya bisa diterima lewat modul Marketplace PO, bukan penerimaan manual.',
+    )
+  }
+}

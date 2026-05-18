@@ -140,11 +140,15 @@ export class GoodsReceiptsController {
 
       const file = req.file
       if (!file) {
-        res.status(400).json({ success: false, message: 'No file uploaded' })
+        res.status(400).json({
+          success: false,
+          message:
+            'File tidak diterima. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+        })
         return
       }
 
-      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf']
+      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
       const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
         res.status(400).json({ success: false, message: `File type .${ext} not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` })

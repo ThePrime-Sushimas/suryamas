@@ -6,8 +6,9 @@ import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.rep
 import { BusinessRuleError } from '../../utils/errors.base'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
-  GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError
+  GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError, GoodsReceiptMarketplaceSupplierError,
 } from './goods-receipts.errors'
+import { isMarketplaceSupplierName } from '../../utils/marketplace-supplier.util'
 import { InvalidReferenceError } from '../stock/stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
@@ -34,6 +35,9 @@ export class GoodsReceiptsService {
     if (!po) throw new InvalidReferenceError('purchase order not found')
     if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)) {
       throw new GoodsReceiptInvalidPOStatusError(po.status)
+    }
+    if (isMarketplaceSupplierName(po.supplier_name)) {
+      throw new GoodsReceiptMarketplaceSupplierError()
     }
 
     const wh = await goodsReceiptsRepository.findWarehouse(dto.warehouse_id, companyId)
@@ -140,6 +144,12 @@ export class GoodsReceiptsService {
       throw new BusinessRuleError('Upload minimal 1 dokumen (surat jalan / foto barang) sebelum konfirmasi')
     }
 
+    if (gr.source !== 'MARKETPLACE') {
+      const po = await goodsReceiptsRepository.findPoForGr(gr.po_id, companyId)
+      if (po && isMarketplaceSupplierName(po.supplier_name)) {
+        throw new GoodsReceiptMarketplaceSupplierError()
+      }
+    }
 
     // Guard: warehouse must exist
     if (!gr.warehouse_id) {

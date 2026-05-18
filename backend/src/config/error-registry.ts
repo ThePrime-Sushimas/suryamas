@@ -601,6 +601,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 404,
     category: 'inventory',
   },
+  GoodsReceiptMarketplaceSupplierError: {
+    name: 'GoodsReceiptMarketplaceSupplierError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
 
   // ============ GOODS PROCESSING MODULE ============
   GoodsProcessingNotFoundError: {

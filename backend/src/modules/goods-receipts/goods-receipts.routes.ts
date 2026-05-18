@@ -3,7 +3,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
-import { upload } from '../../middleware/upload.middleware'
+import { documentUploadSingle } from '../../middleware/upload-document.middleware'
 import { goodsReceiptsController } from './goods-receipts.controller'
 import { createGoodsReceiptSchema, updateGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema, goodsReceiptListSchema, pendingQtySchema, attachmentParamsSchema, createAttachmentSchema, deleteAttachmentSchema } from './goods-receipts.schema'
 import { PermissionService } from '../../services/permission.service'
@@ -26,7 +26,13 @@ router.delete('/:id', canDelete('goods_receipts'), validateSchema(goodsReceiptId
 
 // Attachment routes
 router.get('/:id/attachments', canView('goods_receipts'), validateSchema(attachmentParamsSchema), (req, res) => goodsReceiptsController.listAttachments(req, res))
-router.post('/:id/attachments', canInsert('goods_receipts'), upload.single('file'), validateSchema(createAttachmentSchema), (req, res) => goodsReceiptsController.uploadAttachment(req, res))
+router.post(
+  '/:id/attachments',
+  canInsert('goods_receipts'),
+  documentUploadSingle('file'),
+  validateSchema(createAttachmentSchema),
+  (req, res) => goodsReceiptsController.uploadAttachment(req, res),
+)
 router.delete('/:id/attachments/:attachmentId', canDelete('goods_receipts'), validateSchema(deleteAttachmentSchema), (req, res) => goodsReceiptsController.deleteAttachment(req, res))
 
 export default router

@@ -347,11 +347,13 @@ export class GoodsReceiptsRepository {
     status: string;
     branch_id: string;
     branch_code: string;
+    supplier_name: string;
   } | null> {
     const { rows } = await pool.query(
-      `SELECT po.id, po.status, po.branch_id, b.branch_code
+      `SELECT po.id, po.status, po.branch_id, b.branch_code, s.supplier_name
        FROM purchase_orders po
        JOIN branches b ON b.id = po.branch_id
+       JOIN suppliers s ON s.id = po.supplier_id
        WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL`,
       [poId, companyId],
     );
