@@ -763,8 +763,12 @@ function RejectModal({ onConfirm, onCancel, loading }: {
           <XCircle size={20} className="text-red-500" />
           <h3 className="font-semibold text-gray-900 dark:text-white">Tolak Proses</h3>
         </div>
-        <textarea value={reason} onChange={(e) => setReason(e.target.value)}
-          placeholder="Alasan penolakan..." rows={3} autoFocus
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Alasan penolakan..."
+          rows={3}
+          autoFocus
           className="w-full border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
         />
         <div className="flex gap-2">
@@ -968,18 +972,13 @@ export default function GoodsProcessingDetailPage() {
 
   const handleConfirmGp = useCallback(async () => {
     if (!gp) return
-    const done = localInputs.filter((inp) => inp.status === 'DONE').length
-    if (done < localInputs.length) {
-      addToast("error", "Selesaikan semua item terlebih dahulu")
-      return
-    }
     try {
       await confirmMut.mutateAsync()
       addToast("success", "Barang masuk gudang ✓")
     } catch (e) {
       addToast("error", parseApiError(e, "Gagal konfirmasi"))
     }
-  }, [gp, localInputs, confirmMut, addToast])
+  }, [gp, confirmMut, addToast])
 
   const handleStart = useCallback(async () => {
     try {
@@ -1079,7 +1078,7 @@ export default function GoodsProcessingDetailPage() {
           <div className="px-4 pb-3">
             <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="text-gray-500 dark:text-gray-400">Progress item</span>
-              <span className={`font-semibold ${allDone ? "text-green-600" : "text-blue-600"}`}>
+              <span className={`font-semibold ${doneCount > 0 ? "text-green-600" : "text-blue-600"}`}>
                 {doneCount} / {totalCount} item selesai
               </span>
             </div>
@@ -1187,17 +1186,18 @@ export default function GoodsProcessingDetailPage() {
 
               {(status === "PROCESSING" || status === "REJECTED") && isEditable && (
                 <div className="space-y-2">
-                  {allDone && status === "PROCESSING" && (
+                  {doneCount > 0 && status === "PROCESSING" && (
                     <p className="text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
-                      Semua item selesai.{canApprove ? " Konfirmasi untuk posting stok ke gudang." : " Menunggu konfirmasi final."}
+                      {allDone ? "Semua item selesai." : `${doneCount} dari ${totalCount} item selesai, stok sudah masuk gudang.`}
+                      {canApprove ? " Konfirmasi untuk finalisasi proses." : " Menunggu konfirmasi final."}
                     </p>
                   )}
-                  {allDone && canApprove && status === "PROCESSING" && (
+                  {doneCount > 0 && canApprove && status === "PROCESSING" && (
                     <button type="button" onClick={handleConfirmGp} disabled={isBusy}
                       className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
                     >
                       <CheckCircle2 size={16} />
-                      {isBusy ? "Memproses..." : "Konfirmasi masuk gudang"}
+                      {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
                     </button>
                   )}
                   {!allDone && (
@@ -1299,12 +1299,12 @@ export default function GoodsProcessingDetailPage() {
 
           {(status === "PROCESSING" || status === "REJECTED") && isEditable && (
             <div className="space-y-2">
-              {allDone && canApprove && status === "PROCESSING" ? (
+              {doneCount > 0 && canApprove && status === "PROCESSING" ? (
                 <button type="button" onClick={handleConfirmGp} disabled={isBusy}
                   className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
                 >
                   <CheckCircle2 size={16} />
-                  {isBusy ? "Memproses..." : "Konfirmasi masuk gudang"}
+                  {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
                 </button>
               ) : !allDone ? (
                 <div className="flex gap-2">
@@ -1323,12 +1323,17 @@ export default function GoodsProcessingDetailPage() {
                   )}
                 </div>
               ) : (
-                <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-1">
-                  Semua item selesai — menunggu konfirmasi final
-                </p>
+                <div className="flex">
+                  <button type="button" onClick={() => setShowRejectModal(true)} disabled={isBusy}
+                    className="w-full py-2.5 border-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-2xl text-sm font-medium disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                  >
+                    Tolak seluruh proses
+                  </button>
+                </div>
               )}
             </div>
           )}
+
 
           {status === "QC_REVIEW" && canApprove && (
             <div className="flex gap-2">

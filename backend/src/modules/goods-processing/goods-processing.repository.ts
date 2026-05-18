@@ -1,4 +1,4 @@
-import { pool } from '../../config/db'
+  import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
 import type {
   GoodsProcessingWithRelations,
@@ -8,6 +8,7 @@ import type {
   ConditionStatus,
 } from './goods-processing.types'
 import { productOutputTemplateRepository } from '../products/product-output-template.repository'
+import { stockRepository } from '../stock/stock.repository'
 
 const HEADER_SELECT = `
   gp.*,
@@ -109,7 +110,260 @@ export class GoodsProcessingRepository {
     )
     return rows[0] ?? null
   }
+// Tambah di class GoodsProcessingRepository
 
+async confirmInputWithStock(
+  gpId: string,
+  inputId: string,
+  outputs: any[],
+  warehouseId: string,
+  processingNumber: string,
+  userId: string,
+  uomsMap: Map<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>,
+  toBaseQty: (productId: string, uom: string, qty: number, map: typeof uomsMap) => number
+): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    await this.updateInputOutputs(client, inputId, outputs)
+    await this.updateInputStatus(client, inputId, 'DONE', userId)
+
+    // Fetch output IDs yang baru di-insert (karena updateInputOutputs delete+insert)
+    const { rows: freshOutputs } = await client.query(
+      'SELECT * FROM goods_processing_outputs WHERE input_id = $1',
+      [inputId]
+    )
+
+    for (const out of freshOutputs) {
+      if (out.is_waste || out.flagged_for_return) continue
+
+      const qty = out.actual_qty != null ? Number(out.actual_qty) : Number(out.qty_output)
+      const uom = out.actual_uom != null ? out.actual_uom : out.uom
+      const baseQty = toBaseQty(out.product_id, uom, qty, uomsMap)
+
+      const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
+      const currentQty = currentBalance ? Number(currentBalance.qty) : 0
+      const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
+      const newQty = currentQty + baseQty
+
+      const movement = await stockRepository.createMovement(client, {
+        warehouse_id: warehouseId,
+        product_id: out.product_id,
+        movement_type: 'IN_PURCHASE',
+        qty: baseQty,
+        cost_per_unit: 0,
+        reference_type: 'goods_processing',
+        reference_id: gpId,
+        notes: `GP ${processingNumber} - item selesai`,
+        created_by: userId,
+      }, newQty)
+
+      await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, currentAvgCost)
+      await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
+    }
+
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+async confirmGpWithStock(
+  id: string,
+  inputs: GoodsProcessingDetail['inputs'],
+  warehouseId: string,
+  processingNumber: string,
+  userId: string,
+  currentStatus: string,
+  uomsMap: Map<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>,
+  toBaseQty: (productId: string, uom: string, qty: number, map: typeof uomsMap) => number
+): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    let totalInputQty = 0
+    let totalOutputQty = 0
+    let totalWasteQty = 0
+
+    for (const inp of inputs) {
+      const baseInputQty = toBaseQty(inp.product_id, inp.uom, Number(inp.qty_input), uomsMap)
+      totalInputQty += baseInputQty
+
+      for (const out of inp.outputs) {
+        const qty = out.actual_qty !== null ? Number(out.actual_qty) : Number(out.qty_output)
+        const uom = out.actual_uom !== null ? out.actual_uom : out.uom
+
+        if (out.is_waste) { totalWasteQty += qty; continue }
+        if (out.flagged_for_return) continue
+
+        // Skip jika sudah ada stock_movement_id (sudah diproses di confirmInput)
+        if (out.stock_movement_id) {
+          const baseQty = toBaseQty(out.product_id, uom, qty, uomsMap)
+          totalOutputQty += baseQty
+          continue
+        }
+
+        const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
+        const currentQty = currentBalance ? Number(currentBalance.qty) : 0
+        const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
+        const baseQty = toBaseQty(out.product_id, uom, qty, uomsMap)
+        totalOutputQty += baseQty
+        const newQty = currentQty + baseQty
+
+        const movement = await stockRepository.createMovement(client, {
+          warehouse_id: warehouseId,
+          product_id: out.product_id,
+          movement_type: 'IN_PURCHASE',
+          qty: baseQty,
+          cost_per_unit: 0,
+          reference_type: 'goods_processing',
+          reference_id: id,
+          notes: `GP ${processingNumber}`,
+          created_by: userId,
+        }, newQty)
+
+        await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, currentAvgCost)
+        await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
+      }
+    }
+
+    const yieldPct = totalInputQty > 0 ? (totalOutputQty / totalInputQty) * 100 : 0
+
+    await this.updateStatus(client, id, 'CONFIRMED', {
+      qc_confirmed_by: userId,
+      qc_confirmed_at: new Date().toISOString(),
+      total_input_qty: totalInputQty,
+      total_output_qty: totalOutputQty,
+      total_waste_qty: totalWasteQty,
+      yield_percentage: Math.min(Math.round(yieldPct * 100) / 100, 999.99),
+      updated_by: userId,
+    })
+
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+async startProcessing(id: string, userId: string): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await this.updateStatus(client, id, 'PROCESSING', {
+      processed_by: userId,
+      processed_at: new Date().toISOString(),
+    })
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+async updateWithOutputs(
+  id: string,
+  data: { processing_type?: string; notes?: string | null; updated_by?: string },
+  inputs: Array<{ id: string; outputs: any[] }>
+): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await this.updateHeader(client, id, data)
+    for (const inp of inputs) {
+      const outputs = inp.outputs.map((o, i) => ({
+        product_id: o.product_id,
+        qty_output: o.qty_output,
+        uom: o.uom,
+        is_waste: o.is_waste,
+        waste_reason: o.waste_reason ?? null,
+        photo_urls: o.photo_urls ?? null,
+        sort_order: o.sort_order ?? i,
+      }))
+      await this.replaceOutputs(client, id, inp.id, outputs)
+    }
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+async rejectGp(id: string, rejection_reason: string, userId: string): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await this.updateStatus(client, id, 'REJECTED', {
+      rejection_reason,
+      rejected_by: userId,
+      rejected_at: new Date().toISOString(),
+      updated_by: userId,
+    })
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+  async resolveReturnWithStock(
+    outputId: string,
+    output: { product_id: string; actual_qty: number | null; qty_output: number; actual_uom: string | null; uom: string },
+    warehouseId: string,
+    gpId: string,
+    processingNumber: string,
+    resolution: 'STOCK' | 'DISCARD',
+    userId: string,
+    baseQty: number
+  ): Promise<void> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      if (resolution === 'STOCK') {
+        const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, output.product_id)
+        const currentQty = currentBalance ? Number(currentBalance.qty) : 0
+        const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
+        const newQty = currentQty + baseQty
+
+        const movement = await stockRepository.createMovement(client, {
+          warehouse_id: warehouseId,
+          product_id: output.product_id,
+          movement_type: 'IN_PURCHASE',
+          qty: baseQty,
+          cost_per_unit: 0,
+          reference_type: 'goods_processing',
+          reference_id: gpId,
+          notes: `GP ${processingNumber} — return resolved (STOCK)`,
+          created_by: userId,
+        }, newQty)
+
+        await stockRepository.upsertBalance(client, warehouseId, output.product_id, newQty, currentAvgCost)
+        await this.linkMovementToOutput(client, outputId, movement.id, warehouseId)
+      }
+
+      await this.resolveReturnOutput(client, outputId, userId)
+      await client.query('COMMIT')
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+  }
   async findDetail(id: string, companyId: string): Promise<GoodsProcessingDetail | null> {
     const header = await this.findById(id, companyId)
     if (!header) return null
