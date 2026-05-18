@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
+import api from '@/lib/axios'
 import { PO_STATUS_CONFIG } from '../constants'
 import { parseApiError } from '@/lib/errorParser'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
@@ -23,7 +24,9 @@ export default function PurchaseOrdersPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
+  const [supplierFilter, setSupplierFilter] = useState('') // State baru untuk supplier
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null)
+  const [suppliers, setSuppliers] = useState<any[]>([]) // Untuk simpan daftar supplier
 
   const debouncedSearch = useDebounce(search, 400)
 
@@ -31,7 +34,8 @@ export default function PurchaseOrdersPage() {
     page, limit: 25,
     search: debouncedSearch || undefined,
     status: statusFilter || undefined,
-  }), [page, debouncedSearch, statusFilter])
+    supplier_id: supplierFilter || undefined, // Tambahkan ini
+  }), [page, debouncedSearch, statusFilter, supplierFilter])
 
   const { data, isLoading } = usePurchaseOrders(queryParams)
   const deletePO = useDeletePurchaseOrder()
@@ -40,7 +44,18 @@ export default function PurchaseOrdersPage() {
   const pagination = data?.pagination
 
   const handleSearchChange = (v: string) => { setSearch(v); setPage(1) }
-
+// Tambah useEffect buat fetch daftar supplier
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const res = await api.get('/suppliers', { params: { limit: 100, is_active: true } })
+        setSuppliers(res.data.data || [])
+      } catch (err) {
+        console.error('Gagal ambil data supplier:', err)
+      }
+    }
+    fetchSuppliers()
+  }, [])
   const handleDelete = async () => {
     if (!deleteTarget) return
     try {
@@ -79,8 +94,17 @@ export default function PurchaseOrdersPage() {
             <option value="">Semua Status</option>
             {Object.entries(PO_STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-        </div>
-      </div>
+          <select 
+            value={supplierFilter} 
+            onChange={e => { setSupplierFilter(e.target.value); setPage(1) }}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm min-w-[180px]"
+          >
+            <option value="">Semua Supplier</option>
+            {suppliers.map(s => <option key={s.id} value={s.id}>{s.supplier_name}</option>)}
+            </select>
+            {/* Dropdown status yang sudah ada */}            
+          </div>
+        </div>      
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 sm:p-6">
