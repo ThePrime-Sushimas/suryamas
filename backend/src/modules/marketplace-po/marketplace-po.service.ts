@@ -808,10 +808,12 @@
         }
 
         const { rows: bankRows } = await client.query(
-          `SELECT coa_code FROM bank_accounts WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+          `SELECT coa.account_code FROM bank_accounts ba
+           JOIN chart_of_accounts coa ON coa.id = ba.coa_account_id
+           WHERE ba.id = $1 AND ba.owner_id = $2 AND ba.deleted_at IS NULL`,
           [dto.bank_account_id, companyId],
         )
-        const bankCoaCode = bankRows[0]?.coa_code
+        const bankCoaCode = bankRows[0]?.account_code
         if (!bankCoaCode) throw new BusinessRuleError('COA untuk bank account tidak ditemukan')
 
         const coaCredit = await chartOfAccountsRepository.findByCode(companyId, bankCoaCode)
