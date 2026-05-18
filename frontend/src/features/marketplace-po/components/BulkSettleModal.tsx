@@ -1,8 +1,10 @@
-// frontend/src/features/marketplace-po/components/BulkSettleModal.tsx
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { useCompanyBankAccounts } from '../api/marketplacePo.api'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
+import { useCompanyBankAccounts, useOwnerCreditCards } from '../api/marketplacePo.api'
 import { fmtCurrency, todayIso } from '../utils/format'
+import { formatBankAccountOption, resolveBulkSettlementBank } from '../utils/settlementBank'
+import type { MarketplaceCheckoutSession } from '../types/marketplacePo.types'
 
 export function BulkSettleModal({
   isOpen,
@@ -11,6 +13,7 @@ export function BulkSettleModal({
   isLoading,
   selectedCount,
   selectedTotal,
+  selectedSessions,
 }: {
   isOpen: boolean
   onClose: () => void
@@ -24,20 +27,40 @@ export function BulkSettleModal({
   isLoading: boolean
   selectedCount: number
   selectedTotal: number
+  selectedSessions: Pick<MarketplaceCheckoutSession, 'id' | 'cc_id'>[]
 }) {
-  const { data: banks = [] } = useCompanyBankAccounts()
+  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
+  const { data: banks = [], isLoading: banksLoading, isFetching: banksFetching } =
+    useCompanyBankAccounts(companyId)
+  const { data: ownerCards = [], isLoading: cardsLoading } = useOwnerCreditCards()
+
   const [bankAccountId, setBankAccountId] = useState<number | ''>('')
   const [amount, setAmount] = useState(String(selectedTotal))
   const [referenceNumber, setReferenceNumber] = useState('')
   const [settledDate, setSettledDate] = useState(todayIso())
   const [notes, setNotes] = useState('')
+  const [orphanBankLabel, setOrphanBankLabel] = useState<string | null>(null)
+
+  const banksReady = !banksLoading && !banksFetching && !cardsLoading
+  const banksSelectLoading = banksLoading || banksFetching || cardsLoading
+  const uniqueCcCount = new Set(selectedSessions.map((s) => s.cc_id)).size
 
   useEffect(() => {
-    if (isOpen) {
-      setAmount(String(selectedTotal))
-      setSettledDate(todayIso())
-    }
-  }, [isOpen, selectedTotal])
+    if (!isOpen) return
+    setAmount(String(selectedTotal))
+    setSettledDate(todayIso())
+    setReferenceNumber('')
+    setNotes('')
+    if (!banksReady) return
+
+    const resolved = resolveBulkSettlementBank(
+      selectedSessions.map((s) => s.cc_id),
+      ownerCards,
+      banks,
+    )
+    setBankAccountId(resolved.bankAccountId)
+    setOrphanBankLabel(resolved.orphanLabel)
+  }, [isOpen, selectedTotal, selectedSessions, banksReady, banks, ownerCards])
 
   if (!isOpen) return null
 
@@ -53,10 +76,10 @@ export function BulkSettleModal({
           </button>
         </div>
         <div className="p-5 space-y-4 text-sm">
-          {/* Summary */}
           <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700">
             <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">
               {selectedCount} sesi dipilih
+              {uniqueCcCount > 1 ? ` · ${uniqueCcCount} kartu berbeda` : ''}
             </p>
             <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
               {fmtCurrency(selectedTotal)}
@@ -66,17 +89,42 @@ export function BulkSettleModal({
             </p>
           </div>
 
+          {uniqueCcCount === 1 && (
+            <p className="text-[11px] text-teal-600 dark:text-teal-400">
+              Rekening default dari pengaturan kartu kredit
+              {banksSelectLoading ? ' (memuat…)' : bankAccountId !== '' ? ' — sudah dipilih' : ''}
+            </p>
+          )}
+          {uniqueCcCount > 1 && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              Beberapa kartu dipilih — pilih rekening bayar secara manual jika default tidak sama
+            </p>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Rekening Bayar *</label>
             <select
               value={bankAccountId}
-              onChange={(e) => setBankAccountId(e.target.value ? Number(e.target.value) : '')}
-              className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm"
+              onChange={(e) => {
+                setBankAccountId(e.target.value ? Number(e.target.value) : '')
+                setOrphanBankLabel(null)
+              }}
+              disabled={banksSelectLoading || !companyId}
+              className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm disabled:opacity-60"
             >
-              <option value="">Pilih rekening</option>
+              <option value="">
+                {banksSelectLoading
+                  ? 'Memuat rekening…'
+                  : !companyId
+                    ? 'Konteks perusahaan tidak tersedia'
+                    : 'Pilih rekening'}
+              </option>
+              {orphanBankLabel && bankAccountId !== '' && (
+                <option value={bankAccountId}>{orphanBankLabel}</option>
+              )}
               {banks.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.account_name} — {b.account_number}
+                  {formatBankAccountOption(b)}
                 </option>
               ))}
             </select>

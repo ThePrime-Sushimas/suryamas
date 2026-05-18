@@ -12,12 +12,17 @@ export const ownerCreditCardListSchema = z.object({
     .default({}),
 })
 
+const settlementBankAccountIdSchema = z
+  .union([z.coerce.number().int().positive(), z.null()])
+  .optional()
+
 export const createOwnerCreditCardSchema = z.object({
   body: z.object({
     card_label: z.string().min(1).max(100),
     bank_name: z.string().min(1).max(100),
     last4: z.string().length(4).nullable().optional(),
     coa_code: z.string().min(1).max(20),
+    settlement_bank_account_id: settlementBankAccountIdSchema,
     is_active: z.boolean().optional().default(true),
     sort_order: z.number().int().optional().default(0),
   }),
@@ -30,6 +35,7 @@ export const updateOwnerCreditCardSchema = z.object({
     bank_name: z.string().min(1).max(100).optional(),
     last4: z.string().length(4).nullable().optional(),
     coa_code: z.string().min(1).max(20).optional(),
+    settlement_bank_account_id: settlementBankAccountIdSchema,
     is_active: z.boolean().optional(),
     sort_order: z.number().int().optional(),
   }).refine(v => Object.keys(v).length > 0, 'No fields to update'),

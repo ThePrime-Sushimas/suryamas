@@ -20,13 +20,38 @@ export interface OwnerCreditCard {
   bank_name: string
   last4: string | null
   coa_code: string
+  /** null = belum dikonfigurasi; omitted on legacy responses */
+  settlement_bank_account_id?: number | null
   is_active: boolean
   sort_order: number
   created_by?: string | null
   updated_by?: string | null
   created_at?: string
   updated_at?: string
+  /** Populated on list/create/update when settlement bank is joined */
+  settlement_bank_account_name?: string | null
+  settlement_bank_account_number?: string | null
+  settlement_bank_name?: string | null
 }
+
+/** API list/detail/create/update response */
+export type OwnerCreditCardResponse = OwnerCreditCard & {
+  settlement_bank_account_name: string | null
+  settlement_bank_account_number: string | null
+  settlement_bank_name: string | null
+}
+
+export type CreateOwnerCreditCardPayload = {
+  card_label: string
+  bank_name: string
+  last4?: string | null
+  coa_code: string
+  settlement_bank_account_id?: number | null
+  is_active?: boolean
+  sort_order?: number
+}
+
+export type UpdateOwnerCreditCardPayload = Partial<CreateOwnerCreditCardPayload>
 
 export interface MarketplaceCheckoutSession {
   id: string
@@ -35,6 +60,8 @@ export interface MarketplaceCheckoutSession {
   platform: MarketplacePlatform
   cc_id: string
   cc_label?: string
+  /** Default settlement bank from owner credit card settings */
+  cc_settlement_bank_account_id?: number | null
   checkout_date: string
   total_amount: number
   notes: string | null

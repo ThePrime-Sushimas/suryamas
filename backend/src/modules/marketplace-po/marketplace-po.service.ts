@@ -10,6 +10,11 @@
   import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service'
   import { storageService } from '../../services/storage.service'
   import type { VarianceStatus } from '../goods-receipts/goods-receipts.types'
+  import type {
+    CreateOwnerCreditCardDto,
+    OwnerCreditCardWithSettlement,
+    UpdateOwnerCreditCardDto,
+  } from './marketplace-po.types'
 
   export class MarketplacePoService {
     async list(companyId: string, filter: any, pagination: { page: number; limit: number }) {
@@ -22,15 +27,41 @@
       return detail
     }
 
-    async listOwnerCreditCards(companyId: string, filter: { is_active?: boolean } = {}) {
+    async listOwnerCreditCards(
+      companyId: string,
+      filter: { is_active?: boolean } = {},
+    ): Promise<OwnerCreditCardWithSettlement[]> {
       return marketplacePoRepository.listOwnerCreditCards(companyId, filter)
+    }
+
+    private async assertSettlementBankAccount(
+      companyId: string,
+      bankAccountId: number | null | undefined,
+    ): Promise<void> {
+      if (bankAccountId == null) return
+      const { rows } = await pool.query(
+        `SELECT id FROM bank_accounts
+         WHERE id = $1
+           AND owner_type = 'company'
+           AND owner_id = $2
+           AND is_active = true
+           AND deleted_at IS NULL`,
+        [bankAccountId, companyId],
+      )
+      if (!rows[0]) {
+        throw new BusinessRuleError('Rekening bank pelunasan tidak ditemukan atau tidak aktif')
+      }
     }
 
     async listPendingPoLines(companyId: string, filter: { platform?: string; branch_id?: string }) {
       return marketplacePoRepository.findPendingPoLines(companyId, filter)
     }
 
-    async createOwnerCreditCard(companyId: string, userId: string, dto: any) {
+    async createOwnerCreditCard(
+      companyId: string,
+      userId: string,
+      dto: CreateOwnerCreditCardDto,
+    ): Promise<OwnerCreditCardWithSettlement> {
       const client = await pool.connect()
       try {
         await client.query('BEGIN')
@@ -38,6 +69,8 @@
           const coa = await chartOfAccountsRepository.findByCode(companyId, dto.coa_code)
           if (!coa) throw new BusinessRuleError('COA for owner credit card not found')
         }
+        const settlementBankAccountId = dto.settlement_bank_account_id ?? null
+        await this.assertSettlementBankAccount(companyId, settlementBankAccountId)
         const created = await marketplacePoRepository.createOwnerCreditCard(client, companyId, userId, {
           card_label: dto.card_label,
           bank_name: dto.bank_name,
@@ -45,7 +78,9 @@
           coa_code: dto.coa_code,
           is_active: dto.is_active ?? true,
           sort_order: dto.sort_order ?? 0,
+          settlement_bank_account_id: settlementBankAccountId,
         })
+        if (!created) throw new BusinessRuleError('Owner credit card not created')
         await client.query('COMMIT')
         return created
       } catch (e) {
@@ -56,13 +91,21 @@
       }
     }
 
-    async updateOwnerCreditCard(companyId: string, userId: string, id: string, dto: any) {
+    async updateOwnerCreditCard(
+      companyId: string,
+      userId: string,
+      id: string,
+      dto: UpdateOwnerCreditCardDto,
+    ): Promise<OwnerCreditCardWithSettlement> {
       const client = await pool.connect()
       try {
         await client.query('BEGIN')
         if (dto.coa_code) {
           const coa = await chartOfAccountsRepository.findByCode(companyId, dto.coa_code)
           if (!coa) throw new BusinessRuleError('COA for owner credit card not found')
+        }
+        if (dto.settlement_bank_account_id !== undefined) {
+          await this.assertSettlementBankAccount(companyId, dto.settlement_bank_account_id)
         }
         const updated = await marketplacePoRepository.updateOwnerCreditCard(client, id, companyId, userId, {
           card_label: dto.card_label,
@@ -71,6 +114,7 @@
           coa_code: dto.coa_code,
           is_active: dto.is_active,
           sort_order: dto.sort_order,
+          settlement_bank_account_id: dto.settlement_bank_account_id,
         })
         if (!updated) throw new BusinessRuleError('Owner credit card not found')
         await client.query('COMMIT')

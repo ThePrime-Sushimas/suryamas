@@ -1,26 +1,58 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { CreditCard, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import {
   useOwnerCreditCards,
   useCreateOwnerCreditCard,
   useUpdateOwnerCreditCard,
   useDeleteOwnerCreditCard,
+  useCompanyBankAccounts,
 } from '@/features/marketplace-po/api/marketplacePo.api'
 import { CC_COA_OPTIONS } from '@/features/marketplace-po/utils/constants'
 import type { OwnerCreditCard } from '@/features/marketplace-po/types/marketplacePo.types'
 
+function formatBankAccountLabel(b: {
+  bank_name?: string | null
+  account_name: string
+  account_number?: string | null
+}) {
+  const prefix = b.bank_name ? `${b.bank_name} — ` : ''
+  const number = b.account_number?.trim() ? b.account_number : '—'
+  return `${prefix}${b.account_name} · ${number}`
+}
+
+function formatCardSettlementDisplay(c: OwnerCreditCard): string {
+  if (c.settlement_bank_account_name) {
+    return formatBankAccountLabel({
+      bank_name: c.settlement_bank_name,
+      account_name: c.settlement_bank_account_name,
+      account_number: c.settlement_bank_account_number,
+    })
+  }
+  if (c.settlement_bank_account_id != null) {
+    return `Rekening #${c.settlement_bank_account_id} (tidak tersedia)`
+  }
+  return '—'
+}
+
 export default function OwnerCreditCardSettingsPage() {
   const toast = useToast()
+  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('owner_credit_cards', 'insert')
   const canUpdate = hasPermission('owner_credit_cards', 'update')
   const canDelete = hasPermission('owner_credit_cards', 'delete')
 
   const { data: cards = [], isLoading } = useOwnerCreditCards()
+  const {
+    data: bankAccounts = [],
+    isLoading: banksLoading,
+    isFetching: banksFetching,
+  } = useCompanyBankAccounts(companyId)
   const createCard = useCreateOwnerCreditCard()
   const updateCard = useUpdateOwnerCreditCard()
   const deleteCard = useDeleteOwnerCreditCard()
@@ -33,7 +65,32 @@ export default function OwnerCreditCardSettingsPage() {
   const [coaCode, setCoaCode] = useState(CC_COA_OPTIONS[0].code)
   const [isActive, setIsActive] = useState(true)
   const [sortOrder, setSortOrder] = useState(0)
+  const [settlementBankAccountId, setSettlementBankAccountId] = useState<number | ''>('')
   const [deleteTarget, setDeleteTarget] = useState<OwnerCreditCard | null>(null)
+
+  const editingCard = useMemo(
+    () => (editId ? cards.find((c) => c.id === editId) : undefined),
+    [cards, editId],
+  )
+
+  const orphanSettlementOption = useMemo(() => {
+    if (settlementBankAccountId === '' || typeof settlementBankAccountId !== 'number') return null
+    if (bankAccounts.some((b) => b.id === settlementBankAccountId)) return null
+    if (editingCard?.settlement_bank_account_name) {
+      return {
+        id: settlementBankAccountId,
+        label: `${formatBankAccountLabel({
+          bank_name: editingCard.settlement_bank_name,
+          account_name: editingCard.settlement_bank_account_name,
+          account_number: editingCard.settlement_bank_account_number,
+        })} (tidak tersedia)`,
+      }
+    }
+    return {
+      id: settlementBankAccountId,
+      label: `Rekening #${settlementBankAccountId} (tidak tersedia / dihapus)`,
+    }
+  }, [settlementBankAccountId, bankAccounts, editingCard])
 
   const resetForm = () => {
     setShowForm(false)
@@ -44,6 +101,7 @@ export default function OwnerCreditCardSettingsPage() {
     setCoaCode(CC_COA_OPTIONS[0].code)
     setIsActive(true)
     setSortOrder(0)
+    setSettlementBankAccountId('')
   }
 
   const startEdit = (c: OwnerCreditCard) => {
@@ -54,6 +112,7 @@ export default function OwnerCreditCardSettingsPage() {
     setCoaCode(c.coa_code)
     setIsActive(c.is_active)
     setSortOrder(c.sort_order)
+    setSettlementBankAccountId(c.settlement_bank_account_id ?? '')
     setShowForm(true)
   }
 
@@ -69,6 +128,7 @@ export default function OwnerCreditCardSettingsPage() {
       coa_code: coaCode,
       is_active: isActive,
       sort_order: sortOrder,
+      settlement_bank_account_id: settlementBankAccountId === '' ? null : settlementBankAccountId,
     }
     try {
       if (editId) {
@@ -95,6 +155,8 @@ export default function OwnerCreditCardSettingsPage() {
       setDeleteTarget(null)
     }
   }
+
+  const banksSelectLoading = banksLoading || banksFetching
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-4xl mx-auto">
@@ -168,6 +230,38 @@ export default function OwnerCreditCardSettingsPage() {
                 ))}
               </select>
             </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Rekening Pelunasan
+              </label>
+              <select
+                value={settlementBankAccountId}
+                onChange={(e) =>
+                  setSettlementBankAccountId(e.target.value ? Number(e.target.value) : '')
+                }
+                disabled={banksSelectLoading || !companyId}
+                className="w-full h-9 px-3 text-sm border rounded-lg bg-white dark:bg-gray-700 disabled:opacity-60"
+              >
+                <option value="">
+                  {banksSelectLoading
+                    ? 'Memuat rekening…'
+                    : !companyId
+                      ? 'Konteks perusahaan tidak tersedia'
+                      : '— Tidak dipilih —'}
+                </option>
+                {orphanSettlementOption && (
+                  <option value={orphanSettlementOption.id}>{orphanSettlementOption.label}</option>
+                )}
+                {bankAccounts.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {formatBankAccountLabel(b)}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-gray-400">
+                Rekening bank default untuk pelunasan kartu ini (opsional).
+              </p>
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Urutan</label>
               <input
@@ -225,6 +319,9 @@ export default function OwnerCreditCardSettingsPage() {
                 <th className="text-left px-4 py-2 font-medium text-gray-500">Bank</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-500">Last4</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-500">COA</th>
+                <th className="text-left px-4 py-2 font-medium text-gray-500 hidden md:table-cell">
+                  Rek. Pelunasan
+                </th>
                 <th className="text-left px-4 py-2 font-medium text-gray-500">Status</th>
                 <th className="text-right px-4 py-2 font-medium text-gray-500">Aksi</th>
               </tr>
@@ -236,6 +333,9 @@ export default function OwnerCreditCardSettingsPage() {
                   <td className="px-4 py-3">{c.bank_name}</td>
                   <td className="px-4 py-3 font-mono">{c.last4 ?? '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs">{c.coa_code}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 hidden md:table-cell max-w-[200px] truncate">
+                    {formatCardSettlementDisplay(c)}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${

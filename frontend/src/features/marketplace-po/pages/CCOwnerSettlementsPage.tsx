@@ -235,22 +235,25 @@ export default function CCOwnerSettlementsPage() {
         isOpen={showSettleModal}
         onClose={() => setShowSettleModal(false)}
         onConfirm={async (data) => {
-            try {
+          try {
             await createBulkSettlement.mutateAsync({
-                ...data,
-                session_ids: selectedSessions,
+              ...data,
+              session_ids: selectedSessions,
             })
             toast.success('Pelunasan berhasil dicatat')
             setSelectedSessions([])
             setShowSettleModal(false)
-            } catch (err) {
+          } catch (err) {
             toast.error(parseApiError(err, 'Gagal mencatat pelunasan'))
-            }
+          }
         }}
         isLoading={createBulkSettlement.isPending}
         selectedCount={selectedSessions.length}
         selectedTotal={selectedTotal}
-        />
+        selectedSessions={(pendingSessions ?? []).filter((s) =>
+          selectedSessions.includes(s.id),
+        )}
+      />
     </div>
   );
 }

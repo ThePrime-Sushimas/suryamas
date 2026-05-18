@@ -1,62 +1,163 @@
 import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
+import type {
+  OwnerCreditCardCreateRepoData,
+  OwnerCreditCardUpdateRepoData,
+  OwnerCreditCardWithSettlement,
+} from './marketplace-po.types'
+
+const OWNER_CC_SELECT = `
+  occ.*,
+  ba.account_name AS settlement_bank_account_name,
+  ba.account_number AS settlement_bank_account_number,
+  bk.bank_name AS settlement_bank_name
+`
+
+const OWNER_CC_FROM = `
+  FROM owner_credit_cards occ
+  LEFT JOIN bank_accounts ba ON ba.id = occ.settlement_bank_account_id AND ba.deleted_at IS NULL
+  LEFT JOIN banks bk ON bk.id = ba.bank_id
+`
 
 export class MarketplacePoRepository {
-  async findOwnerCreditCards(companyId: string) {
+  async findOwnerCreditCards(companyId: string): Promise<OwnerCreditCardWithSettlement[]> {
     const { rows } = await pool.query(
-      `SELECT * FROM owner_credit_cards
-       WHERE company_id = $1 AND is_active = true
-       ORDER BY sort_order ASC, card_label ASC`,
+      `SELECT ${OWNER_CC_SELECT}
+       ${OWNER_CC_FROM}
+       WHERE occ.company_id = $1 AND occ.is_active = true
+       ORDER BY occ.sort_order ASC, occ.card_label ASC`,
       [companyId],
     )
-    return rows
+    return rows as OwnerCreditCardWithSettlement[]
   }
 
-  async listOwnerCreditCards(companyId: string, filter?: { is_active?: boolean }) {
+  async listOwnerCreditCards(companyId: string, filter?: { is_active?: boolean }): Promise<OwnerCreditCardWithSettlement[]> {
     const params: unknown[] = [companyId]
-    let sql = `SELECT * FROM owner_credit_cards WHERE company_id = $1`
+    let sql = `SELECT ${OWNER_CC_SELECT} ${OWNER_CC_FROM} WHERE occ.company_id = $1`
     if (filter?.is_active !== undefined) {
       params.push(filter.is_active)
-      sql += ` AND is_active = $2`
+      sql += ` AND occ.is_active = $2`
     }
-    sql += ` ORDER BY sort_order ASC, card_label ASC`
+    sql += ` ORDER BY occ.sort_order ASC, occ.card_label ASC`
     const { rows } = await pool.query(sql, params)
-    return rows
+    return rows as OwnerCreditCardWithSettlement[]
   }
 
-  async findActiveOwnerCreditCards(companyId: string) {
+  async findActiveOwnerCreditCards(companyId: string): Promise<OwnerCreditCardWithSettlement[]> {
     const { rows } = await pool.query(
-      `SELECT * FROM owner_credit_cards WHERE company_id = $1 AND is_active = true`,
+      `SELECT ${OWNER_CC_SELECT}
+       ${OWNER_CC_FROM}
+       WHERE occ.company_id = $1 AND occ.is_active = true
+       ORDER BY occ.sort_order ASC, occ.card_label ASC`,
       [companyId],
     )
-    return rows
+    return rows as OwnerCreditCardWithSettlement[]
   }
 
-  async createOwnerCreditCard(client: PoolClient, companyId: string, userId: string, data: { card_label: string; bank_name: string; last4: string | null; coa_code: string; is_active: boolean; sort_order: number }) {
-    const { rows } = await client.query(
-      `INSERT INTO owner_credit_cards (company_id, card_label, bank_name, last4, coa_code, is_active, sort_order, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [companyId, data.card_label, data.bank_name, data.last4, data.coa_code, data.is_active, data.sort_order, userId],
+  async findOwnerCreditCardById(
+    companyId: string,
+    id: string,
+    client?: PoolClient,
+  ): Promise<OwnerCreditCardWithSettlement | null> {
+    const executor = client ?? pool
+    const { rows } = await executor.query(
+      `SELECT ${OWNER_CC_SELECT}
+       ${OWNER_CC_FROM}
+       WHERE occ.id = $1 AND occ.company_id = $2`,
+      [id, companyId],
     )
-    return rows[0]
+    return (rows[0] as OwnerCreditCardWithSettlement) ?? null
   }
 
-  async updateOwnerCreditCard(client: PoolClient, id: string, companyId: string, userId: string, data: { card_label?: string; bank_name?: string; last4?: string | null; coa_code?: string; is_active?: boolean; sort_order?: number }) {
+  async createOwnerCreditCard(
+    client: PoolClient,
+    companyId: string,
+    userId: string,
+    data: OwnerCreditCardCreateRepoData,
+  ): Promise<OwnerCreditCardWithSettlement | null> {
     const { rows } = await client.query(
-      `UPDATE owner_credit_cards
-       SET card_label = COALESCE($2, card_label),
-           bank_name  = COALESCE($3, bank_name),
-           last4      = COALESCE($4, last4),
-           coa_code   = COALESCE($5, coa_code),
-           is_active  = COALESCE($6, is_active),
-           sort_order = COALESCE($7, sort_order),
-           updated_at = now(),
-           updated_by = $8
-       WHERE id = $1 AND company_id = $9
-       RETURNING *`,
-      [id, data.card_label ?? null, data.bank_name ?? null, data.last4 ?? null, data.coa_code ?? null, data.is_active ?? null, data.sort_order ?? null, userId, companyId],
+      `INSERT INTO owner_credit_cards (
+         company_id, card_label, bank_name, last4, coa_code, is_active, sort_order,
+         settlement_bank_account_id, created_by
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING id`,
+      [
+        companyId,
+        data.card_label,
+        data.bank_name,
+        data.last4,
+        data.coa_code,
+        data.is_active,
+        data.sort_order,
+        data.settlement_bank_account_id,
+        userId,
+      ],
     )
-    return rows[0] ?? null
+    const id = rows[0]?.id as string | undefined
+    if (!id) return null
+    return this.findOwnerCreditCardById(companyId, id, client)
+  }
+
+  async updateOwnerCreditCard(
+    client: PoolClient,
+    id: string,
+    companyId: string,
+    userId: string,
+    data: OwnerCreditCardUpdateRepoData,
+  ): Promise<OwnerCreditCardWithSettlement | null> {
+    const sets: string[] = ['updated_at = now()']
+    const params: unknown[] = []
+    let idx = 1
+
+    if (data.card_label !== undefined) {
+      sets.push(`card_label = $${idx}`)
+      params.push(data.card_label)
+      idx++
+    }
+    if (data.bank_name !== undefined) {
+      sets.push(`bank_name = $${idx}`)
+      params.push(data.bank_name)
+      idx++
+    }
+    if (data.last4 !== undefined) {
+      sets.push(`last4 = $${idx}`)
+      params.push(data.last4)
+      idx++
+    }
+    if (data.coa_code !== undefined) {
+      sets.push(`coa_code = $${idx}`)
+      params.push(data.coa_code)
+      idx++
+    }
+    if (data.is_active !== undefined) {
+      sets.push(`is_active = $${idx}`)
+      params.push(data.is_active)
+      idx++
+    }
+    if (data.sort_order !== undefined) {
+      sets.push(`sort_order = $${idx}`)
+      params.push(data.sort_order)
+      idx++
+    }
+    if (data.settlement_bank_account_id !== undefined) {
+      sets.push(`settlement_bank_account_id = $${idx}`)
+      params.push(data.settlement_bank_account_id)
+      idx++
+    }
+
+    sets.push(`updated_by = $${idx}`)
+    params.push(userId)
+    idx++
+
+    params.push(id, companyId)
+    const { rowCount } = await client.query(
+      `UPDATE owner_credit_cards SET ${sets.join(', ')}
+       WHERE id = $${idx} AND company_id = $${idx + 1}`,
+      params,
+    )
+    if (!rowCount) return null
+    return this.findOwnerCreditCardById(companyId, id, client)
   }
 
   async softDeleteOwnerCreditCard(client: PoolClient, id: string, companyId: string, userId: string) {
@@ -85,7 +186,8 @@ export class MarketplacePoRepository {
     const [dataRes, countRes] = await Promise.all([
       pool.query(
         `SELECT mcs.*,
-                o.card_label AS cc_label
+                o.card_label AS cc_label,
+                o.settlement_bank_account_id AS cc_settlement_bank_account_id
          FROM marketplace_checkout_sessions mcs
          JOIN owner_credit_cards o ON o.id = mcs.cc_id
          ${where}
@@ -104,7 +206,8 @@ export class MarketplacePoRepository {
 
   async findSessionDetail(id: string, companyId: string) {
     const headerRes = await pool.query(
-      `SELECT mcs.*, o.card_label, o.coa_code, o.bank_name, o.last4
+      `SELECT mcs.*, o.card_label, o.coa_code, o.bank_name, o.last4,
+              o.settlement_bank_account_id AS cc_settlement_bank_account_id
        FROM marketplace_checkout_sessions mcs
        JOIN owner_credit_cards o ON o.id = mcs.cc_id
        WHERE mcs.id = $1 AND mcs.company_id = $2 AND mcs.deleted_at IS NULL`,

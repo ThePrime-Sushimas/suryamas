@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
-import { useCompanyBankAccounts } from '../api/marketplacePo.api'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
+import { useCompanyBankAccounts, useOwnerCreditCards } from '../api/marketplacePo.api'
 import { fmtCurrency, todayIso } from '../utils/format'
+import {
+  formatBankAccountOption,
+  findOwnerCard,
+  resolveSessionSettlementBank,
+} from '../utils/settlementBank'
 import type { MarketplaceCheckoutSession } from '../types/marketplacePo.types'
 
 export function SettleModal({
@@ -23,26 +29,64 @@ export function SettleModal({
   isLoading: boolean
   session: MarketplaceCheckoutSession
 }) {
-  const { data: banks = [] } = useCompanyBankAccounts()
+  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
+  const { data: banks = [], isLoading: banksLoading, isFetching: banksFetching } =
+    useCompanyBankAccounts(companyId)
+  const { data: ownerCards = [], isLoading: cardsLoading } = useOwnerCreditCards()
+
   const [bankAccountId, setBankAccountId] = useState<number | ''>('')
   const [amount, setAmount] = useState(String(session.total_amount))
   const [referenceNumber, setReferenceNumber] = useState('')
   const [settledDate, setSettledDate] = useState(todayIso())
   const [notes, setNotes] = useState('')
+  const [orphanBankLabel, setOrphanBankLabel] = useState<string | null>(null)
 
   const ccLabel = session.card_label ?? session.cc_label ?? '-'
   const coaCode = session.coa_code ?? '210602'
+  const banksReady = !banksLoading && !banksFetching && !cardsLoading
+
+  const configuredCc = useMemo(
+    () => findOwnerCard(ownerCards, session.cc_id),
+    [ownerCards, session.cc_id],
+  )
 
   useEffect(() => {
-    if (isOpen) {
-      setAmount(String(session.total_amount))
-      setSettledDate(todayIso())
+    if (!isOpen) return
+    setAmount(String(session.total_amount))
+    setSettledDate(todayIso())
+    setReferenceNumber('')
+    setNotes('')
+    if (!banksReady) return
+
+    const configuredId =
+      session.cc_settlement_bank_account_id ??
+      configuredCc?.settlement_bank_account_id ??
+      null
+
+    if (configuredId != null && banks.some((b) => b.id === configuredId)) {
+      setBankAccountId(configuredId)
+      setOrphanBankLabel(null)
+      return
     }
-  }, [isOpen, session.total_amount])
+
+    const resolved = resolveSessionSettlementBank(session.cc_id, ownerCards, banks)
+    setBankAccountId(resolved.bankAccountId)
+    setOrphanBankLabel(resolved.orphanLabel)
+  }, [
+    isOpen,
+    session.total_amount,
+    session.cc_id,
+    session.cc_settlement_bank_account_id,
+    banksReady,
+    banks,
+    ownerCards,
+    configuredCc?.settlement_bank_account_id,
+  ])
 
   if (!isOpen) return null
 
   const selectedBank = banks.find((b) => b.id === bankAccountId)
+  const banksSelectLoading = banksLoading || banksFetching || cardsLoading
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -61,17 +105,36 @@ export function SettleModal({
               Total: {fmtCurrency(session.total_amount)}
             </p>
           </div>
+          {configuredCc?.settlement_bank_account_id != null && (
+            <p className="text-[11px] text-teal-600 dark:text-teal-400">
+              Rekening default dari pengaturan kartu kredit
+              {banksSelectLoading ? ' (memuat…)' : ''}
+            </p>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Rekening Bayar *</label>
             <select
               value={bankAccountId}
-              onChange={(e) => setBankAccountId(e.target.value ? Number(e.target.value) : '')}
-              className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm"
+              onChange={(e) => {
+                setBankAccountId(e.target.value ? Number(e.target.value) : '')
+                setOrphanBankLabel(null)
+              }}
+              disabled={banksSelectLoading || !companyId}
+              className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm disabled:opacity-60"
             >
-              <option value="">Pilih rekening</option>
+              <option value="">
+                {banksSelectLoading
+                  ? 'Memuat rekening…'
+                  : !companyId
+                    ? 'Konteks perusahaan tidak tersedia'
+                    : 'Pilih rekening'}
+              </option>
+              {orphanBankLabel && bankAccountId !== '' && (
+                <option value={bankAccountId}>{orphanBankLabel}</option>
+              )}
               {banks.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.account_name} — {b.account_number}
+                  {formatBankAccountOption(b)}
                 </option>
               ))}
             </select>
@@ -118,7 +181,8 @@ export function SettleModal({
               Dr {coaCode} Hutang CC Owner {fmtCurrency(Number(amount) || 0)}
             </p>
             <p>
-              Cr {selectedBank?.account_name ?? 'Bank'} {fmtCurrency(Number(amount) || 0)}
+              Cr {selectedBank ? formatBankAccountOption(selectedBank) : 'Bank'}{' '}
+              {fmtCurrency(Number(amount) || 0)}
             </p>
           </div>
         </div>

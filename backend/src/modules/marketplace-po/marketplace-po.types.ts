@@ -27,12 +27,20 @@ export type OwnerCreditCard = {
   bank_name: string
   last4: string | null
   coa_code: string
+  settlement_bank_account_id: number | null
   is_active: boolean
   sort_order: number
   created_by: string | null
   updated_by: string | null
   created_at: string
   updated_at: string
+}
+
+/** List/detail response — settlement bank joined when configured */
+export type OwnerCreditCardWithSettlement = OwnerCreditCard & {
+  settlement_bank_account_name: string | null
+  settlement_bank_account_number: string | null
+  settlement_bank_name: string | null
 }
 
 export type MarketplaceCheckoutSession = {
@@ -100,13 +108,34 @@ export type MarketplaceShipment = {
 export type CreateOwnerCreditCardDto = {
   card_label: string
   bank_name: string
-  last4: string | null
+  last4?: string | null
   coa_code: string
+  settlement_bank_account_id?: number | null
   sort_order?: number
   is_active?: boolean
 }
 
 export type UpdateOwnerCreditCardDto = Partial<CreateOwnerCreditCardDto>
+
+export type OwnerCreditCardCreateRepoData = {
+  card_label: string
+  bank_name: string
+  last4: string | null
+  coa_code: string
+  is_active: boolean
+  sort_order: number
+  settlement_bank_account_id: number | null
+}
+
+export type OwnerCreditCardUpdateRepoData = {
+  card_label?: string
+  bank_name?: string
+  last4?: string | null
+  coa_code?: string
+  is_active?: boolean
+  sort_order?: number
+  settlement_bank_account_id?: number | null
+}
 
 export type CreateMarketplaceSessionDto = {
   platform: MarketplacePlatform

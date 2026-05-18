@@ -3,6 +3,7 @@ import { marketplacePoService } from './marketplace-po.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import type { OwnerCreditCardWithSettlement } from './marketplace-po.types'
 import type {
   ownerCreditCardListSchema,
   ownerCreditCardIdSchema,
@@ -200,7 +201,7 @@ export class MarketplacePoController {
     try {
       const companyId = req.context?.company_id ?? ''
       const { query } = (req as ListCcReq).validated
-      const rows = await marketplacePoService.listOwnerCreditCards(companyId, query)
+      const rows: OwnerCreditCardWithSettlement[] = await marketplacePoService.listOwnerCreditCards(companyId, query)
       sendSuccess(res, rows, 'Owner credit cards retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_owner_credit_cards' })
@@ -212,7 +213,7 @@ export class MarketplacePoController {
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
       const { body } = (req as CreateCcReq).validated
-      const row = await marketplacePoService.createOwnerCreditCard(companyId, userId, body)
+      const row: OwnerCreditCardWithSettlement = await marketplacePoService.createOwnerCreditCard(companyId, userId, body)
       sendSuccess(res, row, 'Owner credit card created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_owner_credit_card' })
@@ -225,7 +226,7 @@ export class MarketplacePoController {
       const userId = req.user?.id ?? ''
       const { id } = (req as CcIdReq).validated.params
       const { body } = (req as UpdateCcReq).validated
-      const row = await marketplacePoService.updateOwnerCreditCard(companyId, userId, id, body)
+      const row: OwnerCreditCardWithSettlement = await marketplacePoService.updateOwnerCreditCard(companyId, userId, id, body)
       sendSuccess(res, row, 'Owner credit card updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_owner_credit_card', id: req.params.id })

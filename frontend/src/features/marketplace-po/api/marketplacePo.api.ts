@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import type {
   OwnerCreditCard,
+  OwnerCreditCardResponse,
+  CreateOwnerCreditCardPayload,
+  UpdateOwnerCreditCardPayload,
   MarketplaceCheckoutSession,
   MarketplaceSessionDetail,
   PendingPoLine,
@@ -26,7 +29,7 @@ export function useOwnerCreditCards(params?: { is_active?: boolean }) {
     queryKey: KEYS.ownerCards(params ?? {}),
     queryFn: async () => {
       const { data } = await api.get('/owner-credit-cards', { params })
-      return data.data as OwnerCreditCard[]
+      return data.data as OwnerCreditCardResponse[]
     },
     staleTime: 60_000,
   })
@@ -35,16 +38,9 @@ export function useOwnerCreditCards(params?: { is_active?: boolean }) {
 export function useCreateOwnerCreditCard() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: {
-      card_label: string
-      bank_name: string
-      last4?: string | null
-      coa_code: string
-      is_active?: boolean
-      sort_order?: number
-    }) => {
+    mutationFn: async (body: CreateOwnerCreditCardPayload) => {
       const { data } = await api.post('/owner-credit-cards', body)
-      return data.data as OwnerCreditCard
+      return data.data as OwnerCreditCardResponse
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['owner-credit-cards'] }),
   })
@@ -56,17 +52,9 @@ export function useUpdateOwnerCreditCard() {
     mutationFn: async ({
       id,
       ...body
-    }: {
-      id: string
-      card_label?: string
-      bank_name?: string
-      last4?: string | null
-      coa_code?: string
-      is_active?: boolean
-      sort_order?: number
-    }) => {
+    }: { id: string } & UpdateOwnerCreditCardPayload) => {
       const { data } = await api.put(`/owner-credit-cards/${id}`, body)
-      return data.data as OwnerCreditCard
+      return data.data as OwnerCreditCardResponse
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['owner-credit-cards'] }),
   })
@@ -411,15 +399,22 @@ export interface BankAccountOption {
   account_number: string
   bank_name?: string
   coa_code?: string
+  is_active?: boolean
 }
 
-export function useCompanyBankAccounts() {
+/** Company bank accounts for settlement / owner CC settings */
+export function useCompanyBankAccounts(companyId?: string) {
   return useQuery({
-    queryKey: ['bank-accounts', 'marketplace-settle'],
+    queryKey: ['bank-accounts', 'company', companyId ?? 'all'],
     queryFn: async () => {
-      const { data } = await api.get('/bank-accounts')
+      const { data } = await api.get('/bank-accounts', {
+        params: companyId
+          ? { owner_type: 'company', owner_id: companyId, is_active: true }
+          : undefined,
+      })
       return (data.data || []) as BankAccountOption[]
     },
+    enabled: companyId === undefined || !!companyId,
     staleTime: 5 * 60_000,
   })
 }
