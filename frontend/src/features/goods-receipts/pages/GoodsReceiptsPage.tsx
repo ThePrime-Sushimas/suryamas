@@ -8,6 +8,7 @@ import { Pagination } from '@/components/ui/Pagination'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useGoodsReceipts, useDeleteGoodsReceipt } from '../api/goodsReceipts.api'
 import type { GoodsReceipt } from '../api/goodsReceipts.api'
+import { GrSourceBadge } from '../components/GrSourceBadge'
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
@@ -127,7 +128,10 @@ export default function GoodsReceiptsPage() {
                   <tr key={gr.id} onClick={() => navigate(`/inventory/goods-receipts/${gr.id}`)}
                     className="hover:bg-teal-50/30 dark:hover:bg-teal-900/10 cursor-pointer transition-colors group">
                     <td className="px-6 py-4">
-                      <span className="font-mono font-semibold text-teal-700 dark:text-teal-400 group-hover:underline">{gr.gr_number}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono font-semibold text-teal-700 dark:text-teal-400 group-hover:underline">{gr.gr_number}</span>
+                        <GrSourceBadge source={gr.source} supplierName={gr.supplier_name} status={gr.status} />
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-mono text-gray-600 dark:text-gray-300">{gr.po_number}</span>
@@ -195,7 +199,10 @@ export default function GoodsReceiptsPage() {
                     className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/50 transition-colors">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="min-w-0">
-                        <p className="font-mono text-sm font-bold text-teal-700 dark:text-teal-400 truncate mb-0.5">{gr.gr_number}</p>
+                        <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                          <p className="font-mono text-sm font-bold text-teal-700 dark:text-teal-400 truncate">{gr.gr_number}</p>
+                          <GrSourceBadge source={gr.source} supplierName={gr.supplier_name} status={gr.status} />
+                        </div>
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{gr.supplier_name}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{gr.branch_name}</p>
                       </div>

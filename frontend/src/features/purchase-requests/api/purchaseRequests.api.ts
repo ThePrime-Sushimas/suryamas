@@ -35,7 +35,23 @@ export interface PurchaseRequest {
   total_estimated: number
   created_at: string
   lines?: PurchaseRequestLine[]
-  purchase_orders?: Array<{ id: string; po_number: string; status: string; supplier_name: string; is_deleted: boolean }>
+  purchase_orders?: Array<{
+    id: string
+    po_number: string
+    status: string
+    supplier_name: string
+    is_deleted: boolean
+    gr_id?: string | null
+    gp_id?: string | null
+    gp_status?: string | null
+    gp_number?: string | null
+    is_marketplace_supplier?: boolean
+    marketplace_session_id?: string | null
+    marketplace_session_number?: string | null
+    marketplace_session_status?: string | null
+    marketplace_platform?: string | null
+    marketplace_cancel_reason?: string | null
+  }>
 }
 
 interface Pagination { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean }

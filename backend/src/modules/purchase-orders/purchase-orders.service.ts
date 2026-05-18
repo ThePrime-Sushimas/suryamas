@@ -1,5 +1,6 @@
 import { pool } from '../../config/db'
 import { purchaseOrdersRepository } from './purchase-orders.repository'
+import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
 import {
   PurchaseOrderNotFoundError, PurchaseOrderDuplicateError, PurchaseOrderInvalidStatusError,
   PurchaseOrderEmptyLinesError, PurchaseOrderManualCreateDisabledError, PurchaseOrderHasReceiptsError
@@ -206,9 +207,10 @@ export class PurchaseOrdersService {
       throw new PurchaseOrderInvalidStatusError(existing.status, 'DRAFT, PENDING_APPROVAL, APPROVED, or SENT')
     }
 
-    // Cannot cancel if already has GR
-    const hasGR = await purchaseOrdersRepository.hasGoodsReceipts(id)
-    if (hasGR) throw new PurchaseOrderHasReceiptsError()
+    await goodsReceiptsRepository.softDeleteDraftsByPoId(id, companyId, userId)
+
+    const hasConfirmedGr = await purchaseOrdersRepository.hasGoodsReceipts(id)
+    if (hasConfirmedGr) throw new PurchaseOrderHasReceiptsError()
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'CANCELLED', { cancelled_reason: reason, updated_by: userId })
     await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: existing.status }, { status: 'CANCELLED', cancelled_reason: reason })

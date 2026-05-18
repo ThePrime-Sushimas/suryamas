@@ -64,6 +64,12 @@ export interface PurchaseRequestWithLines extends PurchaseRequestWithRelations {
     gp_id: string | null
     gp_status: string | null
     gp_number: string | null
+    is_marketplace_supplier?: boolean
+    marketplace_session_id?: string | null
+    marketplace_session_number?: string | null
+    marketplace_session_status?: string | null
+    marketplace_platform?: string | null
+    marketplace_cancel_reason?: string | null
   }>  
 }
 

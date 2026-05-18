@@ -305,6 +305,11 @@ export class GoodsReceiptsService {
     if (!existing) throw new GoodsReceiptNotFoundError(id)
     if (existing.status !== 'DRAFT') throw new GoodsReceiptAlreadyConfirmedError()
 
+    const po = await goodsReceiptsRepository.findPoForGr(existing.po_id, companyId)
+    if (po && isMarketplaceSupplierName(po.supplier_name)) {
+      throw new GoodsReceiptMarketplaceSupplierError()
+    }
+
     const client = await pool.connect()
     try {
       await client.query('BEGIN')

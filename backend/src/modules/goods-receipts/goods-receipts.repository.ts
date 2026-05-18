@@ -324,6 +324,7 @@ export class GoodsReceiptsRepository {
     return (rowCount ?? 0) > 0;
   }
 
+  /** Soft-delete draft GR. Audit actor: updated_by (goods_receipts has no deleted_by column). */
   async softDelete(
     id: string,
     companyId: string,
@@ -335,6 +336,16 @@ export class GoodsReceiptsRepository {
       [userId ?? null, id, companyId],
     );
     return (rowCount ?? 0) > 0;
+  }
+
+  /** Same audit fields as softDelete — used when PO is cancelled. */
+  async softDeleteDraftsByPoId(poId: string, companyId: string, userId: string): Promise<number> {
+    const { rowCount } = await pool.query(
+      `UPDATE goods_receipts SET deleted_at = now(), is_deleted = true, updated_by = $1
+       WHERE po_id = $2 AND company_id = $3 AND status = 'DRAFT' AND deleted_at IS NULL`,
+      [userId, poId, companyId],
+    );
+    return rowCount ?? 0;
   }
 
   // ── PO Validation Helpers ──

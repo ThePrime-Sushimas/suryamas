@@ -3,7 +3,7 @@ import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
-import { upload } from '../../middleware/upload.middleware'
+import { documentUploadSingle } from '../../middleware/upload-document.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { marketplacePoController } from './marketplace-po.controller'
 import {
@@ -57,7 +57,13 @@ router.post('/marketplace-sessions', canInsert('marketplace_po'), validateSchema
 router.put('/marketplace-sessions/:id', canUpdate('marketplace_po'), validateSchema(updateMarketplaceSessionSchema), (req, res) => marketplacePoController.updateSession(req, res))
 router.delete('/marketplace-sessions/:id', canDelete('marketplace_po'), validateSchema(cancelMarketplaceSessionSchema), (req, res) => marketplacePoController.cancelSession(req, res))
 
-router.post('/marketplace-sessions/:id/attachments', canUpdate('marketplace_po'), upload.single('file'), validateSchema(uploadMarketplaceAttachmentSchema), (req, res) => marketplacePoController.uploadAttachment(req, res))
+router.post(
+  '/marketplace-sessions/:id/attachments',
+  canUpdate('marketplace_po'),
+  documentUploadSingle('file'),
+  validateSchema(uploadMarketplaceAttachmentSchema),
+  (req, res) => marketplacePoController.uploadAttachment(req, res),
+)
 router.delete('/marketplace-sessions/:id/attachments/:attachmentId', canUpdate('marketplace_po'), validateSchema(deleteMarketplaceAttachmentSchema), (req, res) => marketplacePoController.deleteAttachment(req, res))
 
 router.post('/marketplace-sessions/:id/order', canUpdate('marketplace_po'), validateSchema(orderMarketplaceSessionSchema), (req, res) => marketplacePoController.orderSession(req, res))

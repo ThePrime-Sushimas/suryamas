@@ -301,7 +301,11 @@ export class MarketplacePoController {
 
       const file = req.file
       if (!file) {
-        res.status(400).json({ success: false, message: 'No file uploaded' })
+        res.status(400).json({
+          success: false,
+          message:
+            'File tidak diterima. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+        })
         return
       }
 

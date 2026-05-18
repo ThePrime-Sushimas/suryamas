@@ -23,7 +23,7 @@ function AttachmentThumb({
   fileName: string | null
   onOpen: (url: string) => void
 }) {
-  const isImage = /\.(jpg|jpeg|png|webp)$/i.test(filePath)
+  const isImage = /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(filePath)
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -187,10 +187,14 @@ export function SessionAttachmentsTab({
               <label className="block text-xs font-medium text-gray-500 mb-1">File</label>
               <input
                 type="file"
-                accept="image/*,.pdf"
+                accept="image/*,.pdf,.heic,.heif"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 className="w-full text-sm"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                JPG, PNG, WEBP, PDF, atau HEIC · maks. 10MB. Di iPhone, &quot;Most Compatible&quot;
+                menghindari HEIC jika upload gagal.
+              </p>
             </div>
           </div>
           <button

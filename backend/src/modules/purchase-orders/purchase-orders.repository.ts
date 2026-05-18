@@ -153,8 +153,11 @@ export class PurchaseOrdersRepository {
 
   async hasGoodsReceipts(poId: string): Promise<boolean> {
     const { rows } = await pool.query(
-      'SELECT EXISTS(SELECT 1 FROM goods_receipts WHERE po_id = $1 AND deleted_at IS NULL) AS has',
-      [poId]
+      `SELECT EXISTS(
+         SELECT 1 FROM goods_receipts
+         WHERE po_id = $1 AND deleted_at IS NULL AND status = 'CONFIRMED'
+       ) AS has`,
+      [poId],
     )
     return rows[0].has
   }

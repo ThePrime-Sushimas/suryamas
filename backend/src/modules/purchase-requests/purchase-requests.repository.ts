@@ -105,7 +105,13 @@ export class PurchaseRequestsRepository {
            gr.id          AS gr_id,
            gp.id          AS gp_id,
            gp.status      AS gp_status,
-           gp.processing_number AS gp_number
+           gp.processing_number AS gp_number,
+           (s.supplier_name ILIKE '%shopee%' OR s.supplier_name ILIKE '%tokped%' OR s.supplier_name ILIKE '%tokopedia%') AS is_marketplace_supplier,
+           mcs_latest.id AS marketplace_session_id,
+           mcs_latest.session_number AS marketplace_session_number,
+           mcs_latest.status AS marketplace_session_status,
+           mcs_latest.platform AS marketplace_platform,
+           mcs_latest.cancel_reason AS marketplace_cancel_reason
          FROM purchase_orders po
          JOIN suppliers s ON s.id = po.supplier_id
          LEFT JOIN goods_receipts gr
@@ -115,6 +121,15 @@ export class PurchaseRequestsRepository {
          LEFT JOIN goods_processing gp
            ON gp.goods_receipt_id = gr.id
            AND gp.deleted_at IS NULL
+         LEFT JOIN LATERAL (
+           -- mcl has no deleted_at; session soft-delete is filtered on mcs
+           SELECT mcs.id, mcs.session_number, mcs.status, mcs.platform, mcs.cancel_reason
+           FROM marketplace_checkout_lines mcl
+           JOIN marketplace_checkout_sessions mcs ON mcs.id = mcl.session_id AND mcs.deleted_at IS NULL
+           WHERE mcl.po_id = po.id
+           ORDER BY mcs.updated_at DESC
+           LIMIT 1
+         ) mcs_latest ON true
          WHERE po.purchase_request_id = $1
          ORDER BY po.created_at ASC`,
         [id]

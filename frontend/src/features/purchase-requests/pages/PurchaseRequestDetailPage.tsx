@@ -286,12 +286,12 @@ export default function PurchaseRequestDetailPage() {
                         </button>
                       )}
                       {!po.is_deleted && (() => {
-                        if ('gp_id' in po && po.gp_id) {
+                        if (po.gp_id) {
                           const gpCfg: Record<string, { label: string; className: string }> = {
                             PROCESSING: { label: 'GP Processing', className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700' },
                             CONFIRMED:  { label: 'GP Selesai',    className: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700' },
                           }
-                          const cfg = gpCfg[po.status ?? ''] ?? { label: po.status ?? 'GP', className: 'bg-gray-100 text-gray-500 border-gray-200' }
+                          const cfg = gpCfg[po.gp_status ?? ''] ?? { label: po.gp_status ?? 'GP', className: 'bg-gray-100 text-gray-500 border-gray-200' }
                           return (
                             <button
                               onClick={() => navigate(`/inventory/goods-processing/${po.gp_id}`)}
@@ -301,6 +301,56 @@ export default function PurchaseRequestDetailPage() {
                               {cfg.label}
                             </button>
                           )
+                        }
+                        if (po.is_marketplace_supplier) {
+                          const mStatus = po.marketplace_session_status
+                          if (mStatus === 'CANCELLED') {
+                            return (
+                              <>
+                                <span
+                                  className="px-2 py-0.5 text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700 rounded"
+                                  title={po.marketplace_cancel_reason ?? undefined}
+                                >
+                                  Checkout dibatalkan
+                                </span>
+                                {po.marketplace_session_id && (
+                                  <button
+                                    onClick={() => navigate(`/inventory/marketplace-po/${po.marketplace_session_id}`)}
+                                    className="px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200 underline hover:no-underline"
+                                  >
+                                    {po.marketplace_session_number ?? 'Detail checkout'}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => navigate('/inventory/marketplace-po/new')}
+                                  className="px-2 py-0.5 text-xs font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 rounded hover:bg-violet-100 dark:hover:bg-violet-900/50"
+                                >
+                                  Checkout ulang
+                                </button>
+                              </>
+                            )
+                          }
+                          if (po.marketplace_session_id && mStatus && !['SETTLED', 'RECEIVED'].includes(mStatus)) {
+                            return (
+                              <button
+                                onClick={() => navigate(`/inventory/marketplace-po/${po.marketplace_session_id}`)}
+                                className="px-2 py-0.5 text-xs font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 rounded hover:bg-violet-100 dark:hover:bg-violet-900/50"
+                              >
+                                {po.marketplace_session_number ?? 'Marketplace PO'}
+                              </button>
+                            )
+                          }
+                          if (['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status) && !po.gr_id) {
+                            return (
+                              <button
+                                onClick={() => navigate('/inventory/marketplace-po/new')}
+                                className="px-2 py-0.5 text-xs font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 rounded hover:bg-violet-100 dark:hover:bg-violet-900/50"
+                              >
+                                Checkout Marketplace
+                              </button>
+                            )
+                          }
+                          return null
                         }
                         if (["ORDERED", "PARTIAL_RECEIVED"].includes(po.status)) {
                           return (

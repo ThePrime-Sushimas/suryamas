@@ -24,6 +24,8 @@ export interface GoodsReceiptLine {
   notes?: string | null
 }
 
+export type GoodsReceiptSource = 'SUPPLIER' | 'MARKETPLACE'
+
 export interface GoodsReceipt {
   id: string
   company_id: string
@@ -31,6 +33,7 @@ export interface GoodsReceipt {
   po_id: string
   warehouse_id: string
   gr_number: string
+  source?: GoodsReceiptSource | null
   status: 'DRAFT' | 'CONFIRMED'
   received_date: string
   invoice_number: string | null

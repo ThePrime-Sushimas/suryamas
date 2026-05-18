@@ -35,6 +35,8 @@ import {
 } from "../api/goodsReceipts.api";
 import api from "@/lib/axios";
 import { lineHasWeighing } from "../utils/weighing.util";
+import { GrSourceBadge } from "../components/GrSourceBadge";
+import { isOrphanMarketplaceGr } from "@/lib/marketplaceSupplier";
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 const fmtDate = (d: string) =>
@@ -239,6 +241,7 @@ export default function GoodsReceiptDetailPage() {
   const hasInvoiceAttachment = attachments?.some(
     (a) => a.file_type === "INVOICE",
   );
+  const isOrphanDraft = isOrphanMarketplaceGr(gr);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
@@ -265,6 +268,11 @@ export default function GoodsReceiptDetailPage() {
                 >
                   {gr.status === "CONFIRMED" ? "Confirmed" : "Draft"}
                 </span>
+                <GrSourceBadge
+                  source={gr.source}
+                  supplierName={gr.supplier_name}
+                  status={gr.status}
+                />
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 {gr.supplier_name} — {gr.branch_name}
@@ -282,7 +290,7 @@ export default function GoodsReceiptDetailPage() {
                 <span className="hidden sm:inline">Cetak GR</span>
               </button>
             )}
-            {gr.status === "DRAFT" && canUpdate && (
+            {gr.status === "DRAFT" && canUpdate && !isOrphanDraft && (
               <>
                 <button
                   onClick={() =>
@@ -309,8 +317,30 @@ export default function GoodsReceiptDetailPage() {
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Alerts */}
-          {((hasDisputed && gr.status === "DRAFT") || (gr.status === "DRAFT" && !hasInvoiceAttachment)) && (
+          {((hasDisputed && gr.status === "DRAFT") || (gr.status === "DRAFT" && !hasInvoiceAttachment) || isOrphanDraft) && (
             <div className="space-y-3">
+              {isOrphanDraft && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-start gap-3 shadow-sm">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-400">
+                      Draft salah jalur (supplier marketplace)
+                    </h4>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      Penerimaan Shopee/Tokopedia tidak bisa dikonfirmasi dari sini. Hapus draft ini dari daftar GR, lalu terima barang lewat{" "}
+                      <button
+                        type="button"
+                        onClick={() => navigate("/inventory/marketplace-po")}
+                        className="font-medium underline hover:no-underline"
+                      >
+                        Marketplace PO
+                      </button>
+                      .
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {hasDisputed && gr.status === "DRAFT" && (
                 <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-start gap-3 shadow-sm">
                   <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
@@ -323,7 +353,7 @@ export default function GoodsReceiptDetailPage() {
                 </div>
               )}
 
-              {gr.status === "DRAFT" && !hasInvoiceAttachment && (
+              {gr.status === "DRAFT" && !hasInvoiceAttachment && !isOrphanDraft && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl flex items-start gap-3 shadow-sm">
                   <Info className="w-5 h-5 text-blue-600 dark:text-blue-500 shrink-0 mt-0.5" />
                   <div>

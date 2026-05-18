@@ -700,7 +700,7 @@
         throw new BusinessRuleError('Attachment can only be uploaded for DRAFT or ORDERED sessions')
       }
 
-      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf']
+      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
       const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
         throw new BusinessRuleError(`File type .${ext} not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`)
