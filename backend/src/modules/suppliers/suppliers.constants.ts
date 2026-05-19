@@ -24,8 +24,8 @@ export const VALID_INVOICE_BYPASS_REASONS = ['marketplace', 'cash', 'informal'] 
 
 /** Suppliers eligible for purchase-invoice flows (not marketplace / invoice-bypass). */
 export const SQL_SUPPLIER_ELIGIBLE_FOR_PI = `(
-  COALESCE(s.requires_invoice, true) IS TRUE
-  AND (s.invoice_bypass_reason IS NULL OR s.invoice_bypass_reason <> 'marketplace')
+  s.requires_invoice IS TRUE
+  AND s.invoice_bypass_reason IS DISTINCT FROM 'marketplace'
 )`
 
 /** @deprecated Use SQL_SUPPLIER_ELIGIBLE_FOR_PI */

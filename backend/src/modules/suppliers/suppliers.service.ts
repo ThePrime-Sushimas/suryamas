@@ -41,11 +41,24 @@ export class SuppliersService {
     const updates: UpdateSupplierDto = { ...data }
     if (updates.requires_invoice !== false) {
       updates.invoice_bypass_reason = null
-    } else if (updates.requires_invoice === false && !updates.invoice_bypass_reason && !existingSupplier.invoice_bypass_reason) {
-      throw new SupplierValidationError(
-        'invoice_bypass_reason is required when requires_invoice is false',
-        { invoice_bypass_reason: { required: true } },
-      )
+    } else if (updates.requires_invoice === false) {
+      if (updates.invoice_bypass_reason === null) {
+        throw new SupplierValidationError(
+          'invoice_bypass_reason cannot be cleared while requires_invoice is false',
+          { invoice_bypass_reason: { required: true } },
+        )
+      }
+      const effectiveBypassReason =
+        updates.invoice_bypass_reason ?? existingSupplier.invoice_bypass_reason
+      if (!effectiveBypassReason) {
+        throw new SupplierValidationError(
+          'invoice_bypass_reason is required when requires_invoice is false',
+          { invoice_bypass_reason: { required: true } },
+        )
+      }
+      if (updates.invoice_bypass_reason === undefined) {
+        updates.invoice_bypass_reason = effectiveBypassReason
+      }
     }
 
     const updatedSupplier = await suppliersRepository.updateById(id, {

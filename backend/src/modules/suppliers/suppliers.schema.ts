@@ -10,7 +10,10 @@ type SupplierInvoiceSettings = {
   invoice_bypass_reason?: string | null
 }
 
-function refineSupplierInvoiceSettings(data: SupplierInvoiceSettings, ctx: z.RefinementCtx): void {
+function refineInvoiceBypassReasonOnlyWhenNotRequired(
+  data: SupplierInvoiceSettings,
+  ctx: z.RefinementCtx,
+): void {
   if (data.requires_invoice !== false && data.invoice_bypass_reason) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -18,6 +21,10 @@ function refineSupplierInvoiceSettings(data: SupplierInvoiceSettings, ctx: z.Ref
       path: ['invoice_bypass_reason'],
     })
   }
+}
+
+function refineCreateSupplierInvoiceSettings(data: SupplierInvoiceSettings, ctx: z.RefinementCtx): void {
+  refineInvoiceBypassReasonOnlyWhenNotRequired(data, ctx)
   if (data.requires_invoice === false && !data.invoice_bypass_reason) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -96,7 +103,7 @@ export const createSupplierSchema = z.object({
     requires_invoice: z.boolean().optional(),
     invoice_bypass_reason: invoiceBypassReasonSchema.nullable().optional(),
     default_tax_rate: z.number().min(0).max(100).optional(),
-  }).superRefine(refineSupplierInvoiceSettings),
+  }).superRefine(refineCreateSupplierInvoiceSettings),
 })
 
 export const updateSupplierSchema = z.object({
@@ -163,7 +170,7 @@ export const updateSupplierSchema = z.object({
     requires_invoice: z.boolean().optional(),
     invoice_bypass_reason: invoiceBypassReasonSchema.nullable().optional(),
     default_tax_rate: z.number().min(0).max(100).optional(),
-  }).superRefine(refineSupplierInvoiceSettings),
+  }).superRefine(refineInvoiceBypassReasonOnlyWhenNotRequired),
   params: z.object({
     id: z.string().uuid('Invalid supplier ID format'),
   }),
