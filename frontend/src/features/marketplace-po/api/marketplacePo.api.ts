@@ -205,7 +205,8 @@ export function usePostReceiveJournal() {
       })
       return data.data as MarketplaceSessionDetail
     },
-    onSuccess: (_d, vars) => {
+    onSuccess: (data, vars) => {
+      qc.setQueryData(KEYS.session(vars.id), data)
       qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
       qc.invalidateQueries({ queryKey: KEYS.session(vars.id) })
     },
