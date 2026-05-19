@@ -29,6 +29,114 @@ const LINE_SELECT = `pol.*, p.product_code, p.product_name`
 const LINE_FROM = `FROM purchase_order_lines pol JOIN products p ON p.id = pol.product_id`
 
 export class PurchaseOrdersRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async verifyOwnershipReferences(
+    companyId: string,
+    branchId: string,
+    supplierId: string,
+    prId: string
+  ): Promise<{ branch_ok: number; supplier_ok: number; pr_ok: number }> {
+    const { rows } = await pool.query(
+      `SELECT
+        (SELECT COUNT(*)::int FROM branches WHERE id = $2 AND company_id = $1) AS branch_ok,
+        (SELECT COUNT(*)::int FROM suppliers WHERE id = $3 AND deleted_at IS NULL) AS supplier_ok,
+        (SELECT COUNT(*)::int FROM purchase_requests WHERE id = $4 AND company_id = $1 AND deleted_at IS NULL) AS pr_ok`,
+      [companyId, branchId, supplierId, prId]
+    )
+    return rows[0]
+  }
+
+  async lockStatusForUpdate(client: PoolClient, id: string, companyId: string): Promise<string | null> {
+    const { rows } = await client.query(
+      'SELECT status FROM purchase_orders WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL FOR UPDATE',
+      [id, companyId]
+    )
+    return rows[0]?.status ?? null
+  }
+
+  async updateSent(
+    client: PoolClient,
+    id: string,
+    companyId: string,
+    data: { expected_delivery_date?: string | null; notes?: string | null; updated_by: string }
+  ): Promise<void> {
+    const fields: string[] = ['updated_at = now()']
+    const params: unknown[] = []
+    let idx = 1
+
+    if (data.expected_delivery_date !== undefined) { params.push(data.expected_delivery_date); fields.push(`expected_delivery_date = $${idx++}`) }
+    if (data.notes !== undefined) { params.push(data.notes); fields.push(`notes = $${idx++}`) }
+    params.push(data.updated_by); fields.push(`updated_by = $${idx++}`)
+    params.push(id, companyId)
+
+    await client.query(
+      `UPDATE purchase_orders SET ${fields.join(', ')} WHERE id = $${idx} AND company_id = $${idx + 1}`,
+      params
+    )
+  }
+
+  async findSimilarRecent(
+    companyId: string,
+    supplierId: string,
+    branchId: string,
+    totalAmount: number,
+    since: Date
+  ): Promise<Array<{ id: string; po_number: string; total_amount: number; order_date: string; status: string; supplier_name: string }>> {
+    const { rows } = await pool.query(
+      `SELECT po.id, po.po_number, po.total_amount, po.order_date, po.status, s.supplier_name
+       FROM purchase_orders po
+       JOIN suppliers s ON s.id = po.supplier_id
+       WHERE po.company_id = $1 AND po.supplier_id = $2 AND po.branch_id = $3
+         AND po.created_at >= $4
+         AND po.status != 'CANCELLED'
+         AND po.deleted_at IS NULL
+         AND ABS(po.total_amount - $5) <= ($5 * 0.05)`,
+      [companyId, supplierId, branchId, since.toISOString(), totalAmount]
+    )
+    return rows
+  }
+
+  async findLatestPricelistPrice(companyId: string, productId: string, supplierId: string): Promise<number | null> {
+    const { rows } = await pool.query(
+      `SELECT price FROM pricelists
+       WHERE product_id = $1 AND supplier_id = $2 AND company_id = $3
+         AND is_active = true AND deleted_at IS NULL
+         AND status = 'APPROVED'
+         AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+         AND (valid_to IS NULL OR valid_to >= CURRENT_DATE)
+       ORDER BY updated_at DESC LIMIT 1`,
+      [productId, supplierId, companyId]
+    )
+    return rows[0]?.price != null ? Number(rows[0].price) : null
+  }
+
+  async findSupplierProductPrice(productId: string, supplierId: string): Promise<number | null> {
+    const { rows } = await pool.query(
+      'SELECT price FROM supplier_products WHERE product_id = $1 AND supplier_id = $2 AND is_active = true AND deleted_at IS NULL LIMIT 1',
+      [productId, supplierId]
+    )
+    return rows[0]?.price != null ? Number(rows[0].price) : null
+  }
+
+  async findProductAverageCost(productId: string): Promise<number> {
+    const { rows } = await pool.query('SELECT average_cost FROM products WHERE id = $1', [productId])
+    return Number(rows[0]?.average_cost ?? 0)
+  }
+
   async findAll(
     companyId: string,
     pagination: { limit: number; offset: number },

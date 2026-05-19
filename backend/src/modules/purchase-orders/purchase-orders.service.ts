@@ -1,4 +1,3 @@
-import { pool } from '../../config/db'
 import { purchaseOrdersRepository } from './purchase-orders.repository'
 import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
 import {
@@ -20,14 +19,7 @@ export class PurchaseOrdersService {
    * Verify branch, supplier, and PR belong to the given company.
    */
   private async verifyOwnership(companyId: string, branchId: string, supplierId: string, prId: string): Promise<void> {
-    const { rows } = await pool.query(
-      `SELECT
-        (SELECT COUNT(*)::int FROM branches WHERE id = $2 AND company_id = $1) AS branch_ok,
-        (SELECT COUNT(*)::int FROM suppliers WHERE id = $3 AND deleted_at IS NULL) AS supplier_ok,
-        (SELECT COUNT(*)::int FROM purchase_requests WHERE id = $4 AND company_id = $1 AND deleted_at IS NULL) AS pr_ok`,
-      [companyId, branchId, supplierId, prId]
-    )
-    const r = rows[0]
+    const r = await purchaseOrdersRepository.verifyOwnershipReferences(companyId, branchId, supplierId, prId)
     if (!r.branch_ok) throw new InvalidReferenceError('branch_id does not belong to your company')
     if (!r.supplier_ok) throw new InvalidReferenceError('supplier_id not found')
     if (!r.pr_ok) throw new InvalidReferenceError('purchase_request_id not found or does not belong to your company')
@@ -120,40 +112,21 @@ export class PurchaseOrdersService {
     // Purchasing adjusts payment terms etc. after stock keeper sends PO (SENT)
     if (existing.status !== 'SENT') throw new PurchaseOrderInvalidStatusError(existing.status, 'SENT')
 
-    const client = await pool.connect()
     try {
-      await client.query('BEGIN')
-
-      const { rows: lockRows } = await client.query(
-        'SELECT status FROM purchase_orders WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL FOR UPDATE',
-        [id, companyId]
-      )
-      if (!lockRows[0] || lockRows[0].status !== 'SENT') {
-        await client.query('ROLLBACK')
-        throw new PurchaseOrderInvalidStatusError(lockRows[0]?.status ?? 'UNKNOWN', 'SENT')
-      }
-
-      const fields: string[] = ['updated_at = now()']
-      const params: unknown[] = []
-      let idx = 1
-
-      if (dto.expected_delivery_date !== undefined) { params.push(dto.expected_delivery_date); fields.push(`expected_delivery_date = $${idx++}`) }
-      if (dto.notes !== undefined) { params.push(dto.notes); fields.push(`notes = $${idx++}`) }
-      params.push(userId); fields.push(`updated_by = $${idx++}`)
-
-      params.push(id, companyId)
-      await client.query(
-        `UPDATE purchase_orders SET ${fields.join(', ')} WHERE id = $${idx} AND company_id = $${idx + 1}`,
-        params
-      )
-
-      await client.query('COMMIT')
+      await purchaseOrdersRepository.withTransaction(async (client) => {
+        const status = await purchaseOrdersRepository.lockStatusForUpdate(client, id, companyId)
+        if (!status || status !== 'SENT') {
+          throw new PurchaseOrderInvalidStatusError(status ?? 'UNKNOWN', 'SENT')
+        }
+        await purchaseOrdersRepository.updateSent(client, id, companyId, {
+          expected_delivery_date: dto.expected_delivery_date,
+          notes: dto.notes,
+          updated_by: userId,
+        })
+      })
     } catch (e) {
-      await client.query('ROLLBACK')
       if (isPostgresError(e, '23503')) throw new InvalidReferenceError('One or more product_id does not exist')
       throw e
-    } finally {
-      client.release()
     }
 
     await AuditService.log('UPDATE', 'purchase_order', id, userId, existing)
@@ -234,19 +207,11 @@ export class PurchaseOrdersService {
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    const { rows } = await pool.query(
-      `SELECT po.id, po.po_number, po.total_amount, po.order_date, po.status, s.supplier_name
-       FROM purchase_orders po
-       JOIN suppliers s ON s.id = po.supplier_id
-       WHERE po.company_id = $1 AND po.supplier_id = $2 AND po.branch_id = $3
-         AND po.created_at >= $4
-         AND po.status != 'CANCELLED'
-         AND po.deleted_at IS NULL
-         AND ABS(po.total_amount - $5) <= ($5 * 0.05)`,
-      [companyId, supplierId, branchId, thirtyDaysAgo.toISOString(), totalAmount]
+    const similar_pos = await purchaseOrdersRepository.findSimilarRecent(
+      companyId, supplierId, branchId, totalAmount, thirtyDaysAgo
     )
 
-    return { count: rows.length, similar_pos: rows }
+    return { count: similar_pos.length, similar_pos }
   }
 
   /**
@@ -254,33 +219,16 @@ export class PurchaseOrdersService {
    * Priority: pricelists (active, valid date) → supplier_products.price → products.average_cost
    */
   async getLatestPrice(companyId: string, productId: string, supplierId?: string): Promise<{ price: number; source: string }> {
-    // 1. Try pricelists (active + valid date range)
     if (supplierId) {
-      const { rows: plRows } = await pool.query(
-        `SELECT price FROM pricelists
-         WHERE product_id = $1 AND supplier_id = $2 AND company_id = $3
-           AND is_active = true AND deleted_at IS NULL
-           AND status = 'approved'
-           AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
-           AND (valid_to IS NULL OR valid_to >= CURRENT_DATE)
-         ORDER BY updated_at DESC LIMIT 1`,
-        [productId, supplierId, companyId]
-      )
-      if (plRows[0]?.price) return { price: Number(plRows[0].price), source: 'pricelist' }
+      const pricelistPrice = await purchaseOrdersRepository.findLatestPricelistPrice(companyId, productId, supplierId)
+      if (pricelistPrice != null) return { price: pricelistPrice, source: 'pricelist' }
+
+      const supplierProductPrice = await purchaseOrdersRepository.findSupplierProductPrice(productId, supplierId)
+      if (supplierProductPrice != null) return { price: supplierProductPrice, source: 'supplier_product' }
     }
 
-    // 2. Fallback: supplier_products price
-    if (supplierId) {
-      const { rows: spRows } = await pool.query(
-        'SELECT price FROM supplier_products WHERE product_id = $1 AND supplier_id = $2 AND is_active = true AND deleted_at IS NULL LIMIT 1',
-        [productId, supplierId]
-      )
-      if (spRows[0]?.price) return { price: Number(spRows[0].price), source: 'supplier_product' }
-    }
-
-    // 3. Fallback: products.average_cost
-    const { rows: pRows } = await pool.query('SELECT average_cost FROM products WHERE id = $1', [productId])
-    return { price: Number(pRows[0]?.average_cost ?? 0), source: 'average_cost' }
+    const averageCost = await purchaseOrdersRepository.findProductAverageCost(productId)
+    return { price: averageCost, source: 'average_cost' }
   }
 }
 
