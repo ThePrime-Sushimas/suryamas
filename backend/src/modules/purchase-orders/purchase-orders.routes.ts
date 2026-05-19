@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete, canApprove } from '../../middleware/permission.middleware'
+import { canView, canUpdate, canDelete, canApprove, canRelease } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { purchaseOrdersController } from './purchase-orders.controller'
 import {
@@ -25,14 +25,14 @@ router.get('/', canView('purchase_orders'), validateSchema(purchaseOrderListSche
 // PO creation only via PR Approval (approve-and-generate) — manual POST disabled
 router.get('/:id/payment-due-preview', canView('purchase_orders'), validateSchema(paymentDuePreviewSchema), (req, res) => purchaseOrdersController.getPaymentDuePreview(req, res))
 router.get('/:id', canView('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.getById(req, res))
-router.put('/:id', canUpdate('purchase_orders'), validateSchema(updatePurchaseOrderSchema), (req, res) => purchaseOrdersController.update(req, res))
+router.put('/:id', canRelease('purchase_orders'), validateSchema(updatePurchaseOrderSchema), (req, res) => purchaseOrdersController.update(req, res))
 router.delete('/:id', canDelete('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.delete(req, res))
 
 // Status transitions
 router.post('/:id/submit', canUpdate('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.submitForApproval(req, res))
 router.post('/:id/approve', canApprove('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.approve(req, res))
 router.post('/:id/send', canUpdate('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.markSent(req, res))
-router.post('/:id/mark-ordered', canUpdate('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.markOrdered(req, res))
-router.post('/:id/cancel', canUpdate('purchase_orders'), validateSchema(cancelSchema), (req, res) => purchaseOrdersController.cancel(req, res))
+router.post('/:id/mark-ordered', canRelease('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.markOrdered(req, res))
+router.post('/:id/cancel', canRelease('purchase_orders'), validateSchema(cancelSchema), (req, res) => purchaseOrdersController.cancel(req, res))
 
 export default router

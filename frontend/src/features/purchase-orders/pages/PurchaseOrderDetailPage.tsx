@@ -50,6 +50,7 @@ export default function PurchaseOrderDetailPage() {
   const toast = useToast()
   const hasPermission = usePermissionStore((state) => state.hasPermission)
   const canUpdate = hasPermission('purchase_orders', 'update')
+  const canRelease = hasPermission('purchase_orders', 'release')
 
   const { data: po, isLoading } = usePurchaseOrder(id ?? '')
   const updatePO = useUpdatePurchaseOrder()
@@ -59,7 +60,7 @@ export default function PurchaseOrderDetailPage() {
 
   const isSent = po?.status === 'SENT'
   /** Purchasing edits payment terms after stock keeper sends PO */
-  const canEdit = isSent && canUpdate
+  const canEdit = isSent && canRelease
 
   const [isEditing, setIsEditing] = useState(false)
   const [expectedDate, setExpectedDate] = useState('')
@@ -281,7 +282,7 @@ export default function PurchaseOrderDetailPage() {
                 <span className="hidden sm:inline">Kirim ke</span> Purchasing
               </button>
             )}
-            {po.status === 'SENT' && canUpdate && !isEditing && (
+            {po.status === 'SENT' && canRelease && !isEditing && (
               <button
                 onClick={handleMarkOrdered}
                 disabled={markOrdered.isPending}
@@ -291,7 +292,7 @@ export default function PurchaseOrderDetailPage() {
                 {markOrdered.isPending ? '...' : 'Konfirmasi Order'}
               </button>
             )}
-            {['DRAFT', 'SENT'].includes(po.status) && canUpdate && !isEditing && (
+            {['DRAFT', 'SENT'].includes(po.status) && canRelease && !isEditing && (
               <button
                 onClick={() => setShowCancelModal(true)}
                 className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20 whitespace-nowrap"
