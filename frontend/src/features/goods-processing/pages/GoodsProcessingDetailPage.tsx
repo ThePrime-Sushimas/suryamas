@@ -327,12 +327,13 @@ function derivePassThroughSplit(
 
   let goodBase: number
   if (output.actual_qty != null && output.actual_uom) {
+    // Ada actual measurement — pakai ini (berlaku untuk OK maupun DAMAGED)
     goodBase = toBaseQty(output.actual_qty, output.actual_uom, uoms)
-  } else if (output.condition_status === 'OK') {
-    goodBase = totalBase
   } else if (output.condition_status === 'DAMAGED') {
+    // DAMAGED tanpa actual_qty = semua rusak
     goodBase = 0
   } else {
+    // OK atau tidak ada info = semua bagus
     goodBase = totalBase
   }
 
