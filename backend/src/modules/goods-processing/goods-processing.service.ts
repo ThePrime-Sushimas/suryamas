@@ -78,11 +78,23 @@ export class GoodsProcessingService {
   }
 
   async update(id: string, companyId: string, dto: UpdateGoodsProcessingDto, userId: string) {
-    const gp = await goodsProcessingRepository.findById(id, companyId)
+    const gp = await goodsProcessingRepository.findDetail(id, companyId)
     if (!gp) throw new GoodsProcessingNotFoundError(id)
     if (!['DRAFT', 'PROCESSING', 'REJECTED'].includes(gp.status)) {
       throw new GoodsProcessingInvalidStatusError(gp.status, 'DRAFT/PROCESSING/REJECTED')
     }
+
+    // Capture previous outputs before database modifications
+    const previousOutputs = gp.inputs.map(inp => ({
+      input_product_name: inp.product_name,
+      outputs: inp.outputs.map(o => ({
+        product_name: o.product_name,
+        qty_output: Number(o.qty_output),
+        uom: o.uom,
+        is_waste: o.is_waste,
+        waste_reason: o.waste_reason,
+      }))
+    }))
 
     await goodsProcessingRepository.updateWithOutputs(
       id,
@@ -90,8 +102,37 @@ export class GoodsProcessingService {
       dto.inputs
     )
 
-    await AuditService.log('UPDATE', 'goods_processing', id, userId)
-    return goodsProcessingRepository.findDetail(id, companyId)
+    // Fetch fresh details after database modifications to construct new state
+    const updatedGp = await goodsProcessingRepository.findDetail(id, companyId)
+
+    const newOutputs = updatedGp!.inputs.map(inp => ({
+      input_product_name: inp.product_name,
+      outputs: inp.outputs.map(o => ({
+        product_name: o.product_name,
+        qty_output: Number(o.qty_output),
+        uom: o.uom,
+        is_waste: o.is_waste,
+        waste_reason: o.waste_reason,
+      }))
+    }))
+
+    await AuditService.log(
+      'UPDATE',
+      'goods_processing',
+      id,
+      userId,
+      {
+        notes: gp.notes,
+        processing_type: gp.processing_type,
+        outputs: previousOutputs,
+      },
+      {
+        notes: dto.notes !== undefined ? dto.notes : gp.notes,
+        processing_type: dto.processing_type !== undefined ? dto.processing_type : gp.processing_type,
+        outputs: newOutputs,
+      }
+    )
+    return updatedGp!
   }
 
   async confirm(id: string, companyId: string, userId: string) {
