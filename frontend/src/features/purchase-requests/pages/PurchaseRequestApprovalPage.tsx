@@ -113,6 +113,8 @@ export default function PurchaseRequestApprovalPage() {
     onError: (err) => toast.error(parseApiError(err, 'Gagal approve & generate PO')),
   })
 
+  const isProcessing = approveAndGenerate.isPending || rejectPR.isPending
+
   const handleApproveAndGenerate = () => {
     const selected = groups.filter(g => g.selected && g.supplier_id)
     if (selected.length === 0) { toast.error('Pilih minimal 1 supplier'); return }
@@ -192,12 +194,12 @@ export default function PurchaseRequestApprovalPage() {
           </div>
           {pr.status === 'PENDING_APPROVAL' && (
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <button onClick={() => setShowRejectModal(true)}
-                className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs sm:text-sm">
+              <button onClick={() => setShowRejectModal(true)} disabled={isProcessing}
+                className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:pointer-events-none text-xs sm:text-sm">
                 <XCircle className="w-4 h-4" /> Tolak PR
               </button>
-              <button onClick={handleApproveAndGenerate} disabled={approveAndGenerate.isPending}
-                className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-xs sm:text-sm">
+              <button onClick={handleApproveAndGenerate} disabled={isProcessing}
+                className="flex items-center gap-1 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none text-xs sm:text-sm">
                 <Send className="w-4 h-4" />
                 {approveAndGenerate.isPending ? 'Processing...' : 'Approve & Generate PO'}
               </button>
@@ -283,7 +285,7 @@ export default function PurchaseRequestApprovalPage() {
                             <input type="number" min="0.01"
                               value={item.qty_approved || ''}
                               onChange={e => updateItemQty(gIdx, iIdx, parseFloat(e.target.value) || 0)}
-                              disabled={!item.selected || !group.selected || !isPending}
+                              disabled={!item.selected || !group.selected || !isPending || isProcessing}
                               className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-sm disabled:opacity-50" />
                           </td>
                           <td className="px-4 py-2.5 text-right">
@@ -300,13 +302,13 @@ export default function PurchaseRequestApprovalPage() {
                           {isPending && (
                             <td className="px-2 py-2.5 text-center">
                               {item.selected ? (
-                                <button onClick={() => toggleItem(gIdx, iIdx)} title="Hapus dari order"
-                                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
+                                <button onClick={() => toggleItem(gIdx, iIdx)} title="Hapus dari order" disabled={isProcessing}
+                                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none">
                                   <X className="w-4 h-4" />
                                 </button>
                               ) : (
-                                <button onClick={() => toggleItem(gIdx, iIdx)} title="Kembalikan ke order"
-                                  className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors">
+                                <button onClick={() => toggleItem(gIdx, iIdx)} title="Kembalikan ke order" disabled={isProcessing}
+                                  className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none">
                                   <RotateCcw className="w-3.5 h-3.5" />
                                 </button>
                               )}
@@ -335,13 +337,13 @@ export default function PurchaseRequestApprovalPage() {
                               <p className="text-sm font-medium text-gray-900 dark:text-white">Rp {fmt(price * item.qty_approved)}</p>
                               {isPending && (
                                 item.selected ? (
-                                  <button onClick={() => toggleItem(gIdx, iIdx)} title="Hapus dari order"
-                                    className="p-1 text-gray-400 hover:text-red-500 rounded">
+                                  <button onClick={() => toggleItem(gIdx, iIdx)} title="Hapus dari order" disabled={isProcessing}
+                                    className="p-1 text-gray-400 hover:text-red-500 rounded disabled:opacity-50 disabled:pointer-events-none">
                                     <X className="w-4 h-4" />
                                   </button>
                                 ) : (
-                                  <button onClick={() => toggleItem(gIdx, iIdx)} title="Kembalikan ke order"
-                                    className="p-1 text-gray-400 hover:text-green-600 rounded">
+                                  <button onClick={() => toggleItem(gIdx, iIdx)} title="Kembalikan ke order" disabled={isProcessing}
+                                    className="p-1 text-gray-400 hover:text-green-600 rounded disabled:opacity-50 disabled:pointer-events-none">
                                     <RotateCcw className="w-3.5 h-3.5" />
                                   </button>
                                 )
@@ -360,7 +362,7 @@ export default function PurchaseRequestApprovalPage() {
                             <input type="number" min="0.01"
                               value={item.qty_approved || ''}
                               onChange={e => updateItemQty(gIdx, iIdx, parseFloat(e.target.value) || 0)}
-                              disabled={!item.selected || !group.selected || !isPending}
+                              disabled={!item.selected || !group.selected || !isPending || isProcessing}
                               className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-right text-xs disabled:opacity-50" />
                             <span className="text-xs text-gray-500">{item.uom}</span>
                           </div>
@@ -385,13 +387,13 @@ export default function PurchaseRequestApprovalPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Delivery</label>
-                      <input type="date" value={group.expected_delivery_date} onChange={e => updateField(gIdx, 'expected_delivery_date', e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                      <input type="date" value={group.expected_delivery_date} onChange={e => updateField(gIdx, 'expected_delivery_date', e.target.value)} disabled={isProcessing}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-                      <input type="text" value={group.notes} onChange={e => updateField(gIdx, 'notes', e.target.value)} placeholder="Optional"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                      <input type="text" value={group.notes} onChange={e => updateField(gIdx, 'notes', e.target.value)} placeholder="Optional" disabled={isProcessing}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50" />
                     </div>
                   </div>
                 </div>
@@ -418,9 +420,9 @@ export default function PurchaseRequestApprovalPage() {
             <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} placeholder="Alasan penolakan (wajib)..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-4" />
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowRejectModal(false)} className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300">Batal</button>
-              <button onClick={handleReject} disabled={rejectPR.isPending || !rejectReason.trim()}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+              <button onClick={() => setShowRejectModal(false)} disabled={isProcessing} className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:pointer-events-none">Batal</button>
+              <button onClick={handleReject} disabled={isProcessing || !rejectReason.trim()}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:pointer-events-none">
                 {rejectPR.isPending ? 'Menolak...' : 'Tolak'}
               </button>
             </div>
