@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/axios';
@@ -10,6 +10,7 @@ import {
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import { usePermissionStore } from "@/features/branch_context/store/permission.store";
+import { useProducts } from "@/features/products/api/products.api";
 import {
   useGoodsProcessingDetail,
   useStartGoodsProcessing,
@@ -62,6 +63,33 @@ interface LocalInput {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isValidUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_RE.test(value)
+}
+
+function findInvalidOutput(outputs: LocalOutput[]): LocalOutput | undefined {
+  return outputs.find(o => !(o as LocalOutput & { _delete?: boolean })._delete && !isValidUuid(o.product_id))
+}
+
+function toApiOutput(o: LocalOutput, sortOrder: number) {
+  return {
+    ...(isValidUuid(o.id) ? { id: o.id } : {}),
+    product_id: o.product_id,
+    qty_output: o.qty_output,
+    uom: o.uom,
+    is_waste: o.is_waste,
+    waste_reason: o.waste_reason,
+    condition_status: o.condition_status,
+    actual_qty: o.actual_qty,
+    actual_uom: o.actual_uom,
+    flagged_for_return: o.flagged_for_return,
+    return_reason: o.return_reason,
+    sort_order: sortOrder,
+  }
+}
 
 /** GP lama menyimpan 1 output = produk input (pass-through placeholder) — abaikan untuk disassembly. */
 function isDefaultPassThroughOutput(
@@ -641,12 +669,22 @@ function DisassemblyOutputRow({
   onChange: (updated: LocalOutput) => void
   onRemove: () => void
 }) {
+  const invalidProduct = !isValidUuid(output.product_id)
   return (
-    <div className={`rounded-lg border p-3 space-y-2 ${output.is_waste ? "border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/20" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"}`}>
+    <div className={`rounded-lg border p-3 space-y-2 ${
+      invalidProduct ? "border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-900/20"
+      : output.is_waste ? "border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/20"
+      : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+    }`}>
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{output.product_name}</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">{output.product_code}</p>
+          {invalidProduct && (
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+              Produk tidak valid — hapus baris ini dan tambah ulang via pencarian
+            </p>
+          )}
         </div>
         {isEditable && (
           <button type="button" onClick={onRemove} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0">
@@ -655,7 +693,7 @@ function DisassemblyOutputRow({
         )}
       </div>
       {isEditable ? (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 focus-within:ring-2 focus-within:ring-blue-300 transition-all">
             <input type="number" min={0} step="0.01"
               value={output.qty_output || ""}
@@ -665,19 +703,10 @@ function DisassemblyOutputRow({
             />
             <span className="text-xs text-gray-500 dark:text-gray-400">{output.uom}</span>
           </div>
-          <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 select-none cursor-pointer">
-            <input type="checkbox" checked={output.is_waste}
-              onChange={(e) => onChange({ ...output, is_waste: e.target.checked })}
-              className="rounded accent-red-500"
-            />
-            Waste
-          </label>
           {output.is_waste && (
-            <input type="text" value={output.waste_reason ?? ""}
-              onChange={(e) => onChange({ ...output, waste_reason: e.target.value || null })}
-              placeholder="Alasan waste..."
-              className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-red-200 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
-            />
+            <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-lg animate-pulse">
+              ⚠️ Waste {output.waste_reason ? `: ${output.waste_reason}` : ''}
+            </span>
           )}
         </div>
       ) : (
@@ -928,10 +957,40 @@ function AddOutputModal({ template, onAdd, onCancel }: {
   const [productCode, setProductCode] = useState("")
   const [qty, setQty] = useState("")
   const [uom, setUom] = useState("")
+  const [isWaste, setIsWaste] = useState(false)
+  const [wasteReason, setWasteReason] = useState("")
+  const [showDropdown, setShowDropdown] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(productName)
+    }, 300) // 300ms debounce
+    return () => clearTimeout(handler)
+  }, [productName])
+
+  useEffect(() => {
+    if (!showDropdown) return
+    const onOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", onOutside)
+    return () => document.removeEventListener("mousedown", onOutside)
+  }, [showDropdown])
+
+  // Server-side product search
+  const { data: searchData, isLoading: isSearchLoading } = useProducts({
+    search: debouncedSearch && debouncedSearch.trim().length >= 2 && !productId ? debouncedSearch : undefined,
+    limit: 8,
+  })
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <h3 className="font-semibold text-gray-900 dark:text-white">Tambah Output</h3>
         {template.length > 0 && (
           <div>
@@ -939,7 +998,13 @@ function AddOutputModal({ template, onAdd, onCancel }: {
             <div className="space-y-1.5">
               {template.map(t => (
                 <button key={t.id} type="button"
-                  onClick={() => { setProductId(t.output_product_id); setProductName(t.output_product_name); setProductCode(t.output_product_code); setUom(t.output_uom) }}
+                  onClick={() => {
+                    setProductId(t.output_product_id)
+                    setProductName(t.output_product_name)
+                    setProductCode(t.output_product_code)
+                    setUom(t.output_uom)
+                    setShowDropdown(false)
+                  }}
                   className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-all ${
                     productId === t.output_product_id ? "border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200" : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
                   }`}
@@ -950,33 +1015,104 @@ function AddOutputModal({ template, onAdd, onCancel }: {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 mb-1">atau isi manual:</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 mb-1">atau cari manual:</p>
           </div>
         )}
-        <div className="space-y-2">
-          <input type="text" value={productName} onChange={(e) => setProductName(e.target.value)}
-            placeholder="Nama produk output"
-            className="w-full border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
-          />
+        <div className="space-y-3 relative">
+          <div className="relative" ref={searchRef}>
+            <input type="text" value={productName} onChange={(e) => {
+              setProductName(e.target.value)
+              if (productId) {
+                setProductId("")
+                setProductCode("")
+                setUom("")
+              }
+              setShowDropdown(e.target.value.trim().length >= 2)
+            }}
+              onFocus={() => { if (productName.trim().length >= 2 && !productId) setShowDropdown(true) }}
+              placeholder="Cari nama produk output..."
+              className="w-full border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+            />
+            {productId && (
+              <span className="absolute right-3 top-2.5 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-[10px] px-1.5 py-0.5 rounded-md border border-green-200 dark:border-green-800 font-medium">
+                Terpilih
+              </span>
+            )}
+            
+            {showDropdown && productName.trim().length >= 2 && !productId && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-700">
+                {isSearchLoading ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 p-3 text-center">Mencari...</p>
+                ) : searchData?.data && searchData.data.length > 0 ? (
+                  searchData.data.map(p => (
+                    <button key={p.id} type="button"
+                      onClick={() => {
+                        setProductId(p.id)
+                        setProductName(p.product_name)
+                        setProductCode(p.product_code)
+                        setUom(p.base_unit_name || "")
+                        setShowDropdown(false)
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm flex flex-col transition-colors"
+                    >
+                      <span className="font-medium text-gray-800 dark:text-gray-200">{p.product_name}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{p.product_code} · UOM: {p.base_unit_name || ""}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 p-3 text-center">Produk tidak ditemukan</p>
+                )}
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <input type="number" value={qty} onChange={(e) => setQty(e.target.value)}
               placeholder="Qty"
-              className="flex-1 border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+              className="flex-1 border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 font-mono text-right"
             />
-            <input type="text" value={uom} onChange={(e) => setUom(e.target.value)}
+            <input type="text" value={uom} readOnly
               placeholder="UOM"
-              className="w-24 border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+              className="w-24 border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-xl px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 focus:outline-none font-medium text-center cursor-not-allowed"
             />
+          </div>
+
+          <div className="border-t pt-3 space-y-2">
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300 select-none cursor-pointer">
+              <input type="checkbox" checked={isWaste} onChange={(e) => setIsWaste(e.target.checked)}
+                className="rounded text-red-600 accent-red-500"
+              />
+              Tandai sebagai Waste (Susut/Pembuangan)
+            </label>
+            {isWaste && (
+              <input type="text" value={wasteReason} onChange={(e) => setWasteReason(e.target.value)}
+                placeholder="Alasan waste (contoh: Susut Thawing / Kotoran)..."
+                className="w-full border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-200 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+              />
+            )}
           </div>
         </div>
         <div className="flex gap-2">
           <button onClick={onCancel} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Batal</button>
           <button
             onClick={() => {
-              if (!productId && !productName) return
-              onAdd({ id: undefined, product_id: productId || "custom", product_name: productName, product_code: productCode, qty_output: parseFloat(qty) || 0, uom, is_waste: false, waste_reason: null, condition_status: null, actual_qty: null, actual_uom: null, flagged_for_return: false, return_reason: null })
+              if (!isValidUuid(productId)) return
+              onAdd({
+                id: undefined,
+                product_id: productId,
+                product_name: productName,
+                product_code: productCode,
+                qty_output: parseFloat(qty) || 0,
+                uom,
+                is_waste: isWaste,
+                waste_reason: isWaste ? wasteReason : null,
+                condition_status: null,
+                actual_qty: null,
+                actual_uom: null,
+                flagged_for_return: false,
+                return_reason: null
+              })
             }}
-            disabled={!productName || !qty || !uom}
+            disabled={!productId || !qty || parseFloat(qty) <= 0 || !uom}
             className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-50 hover:bg-blue-700 transition-colors"
           >Tambah</button>
         </div>
@@ -1042,34 +1178,46 @@ export default function GoodsProcessingDetailPage() {
     [canUpdate, gp?.status]
   )
 
+  const hasProcessing = useMemo(
+    () => gp?.inputs.some(inp => inp.requires_processing) ?? false,
+    [gp]
+  )
+
   // Progress counts
   const doneCount = localInputs.filter(inp => inp.status === 'DONE').length
   const totalCount = localInputs.length
   const allDone = doneCount === totalCount && totalCount > 0
-  // Debug: log semua status input
+
+  const showMobileActionBar = useMemo(() => {
+    if (!gp) return false
+    const s = gp.status
+    if (s === "DRAFT" && canUpdate) return true
+    if (s === "QC_REVIEW" && canApprove) return true
+    if (s === "CONFIRMED") return true
+    if ((s === "PROCESSING" || s === "REJECTED") && isEditable) {
+      if (doneCount > 0 && canApprove && s === "PROCESSING") return true
+      if (!allDone && hasProcessing) return true
+      if (allDone && canApprove) return true
+    }
+    return false
+  }, [gp, canUpdate, canApprove, isEditable, doneCount, allDone, hasProcessing])
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleConfirmItem = useCallback(async (inp: LocalInput) => {
     setConfirmingInputId(inp.id)
     try {
+      const activeOutputs = inp.outputs.filter(o => !(o as LocalOutput & { _delete?: boolean })._delete)
+      const invalid = findInvalidOutput(activeOutputs)
+      if (invalid) {
+        addToast("error", `Output "${invalid.product_name}" belum terhubung ke produk valid. Hapus baris ini dan tambah ulang via pencarian produk.`)
+        return
+      }
+
       const uoms = uomConversions?.[inp.product_id] ?? []
-      const preparedOutputs = inp.outputs
-        .filter(o => !(o as LocalOutput & { _delete?: boolean })._delete)
+      const preparedOutputs = activeOutputs
         .flatMap(o => splitPassThroughOutputIfNecessary(o, inp, uoms))
-        .map((o, i) => ({
-          id: o.id,
-          product_id: o.product_id,
-          qty_output: o.qty_output,
-          uom: o.uom,
-          is_waste: o.is_waste,
-          waste_reason: o.waste_reason,
-          condition_status: o.condition_status,
-          actual_qty: o.actual_qty,
-          actual_uom: o.actual_uom,
-          flagged_for_return: o.flagged_for_return,
-          return_reason: o.return_reason,
-          sort_order: i,
-        }))
+        .map((o, i) => toApiOutput(o as LocalOutput, i))
 
       await confirmInputMut.mutateAsync({
         inputId: inp.id,
@@ -1088,26 +1236,20 @@ export default function GoodsProcessingDetailPage() {
 
   const handleSave = useCallback(async () => {
     if (!gp) return
+    for (const inp of localInputs) {
+      const invalid = findInvalidOutput(inp.outputs)
+      if (invalid) {
+        addToast("error", `Output "${invalid.product_name}" pada ${inp.product_name} belum terhubung ke produk valid. Hapus baris ini dan tambah ulang via pencarian produk.`)
+        return
+      }
+    }
     try {
       await updateMut.mutateAsync({
         inputs: localInputs.map(inp => ({
           id: inp.id,
           outputs: inp.outputs
             .filter(o => !(o as LocalOutput & { _delete?: boolean })._delete)
-            .map((o, i) => ({
-              id: o.id,
-              product_id: o.product_id,
-              qty_output: o.qty_output,
-              uom: o.uom,
-              is_waste: o.is_waste,
-              waste_reason: o.waste_reason,
-              condition_status: o.condition_status,
-              actual_qty: o.actual_qty,
-              actual_uom: o.actual_uom,
-              flagged_for_return: o.flagged_for_return,
-              return_reason: o.return_reason,
-              sort_order: i,
-            })),
+            .map((o, i) => toApiOutput(o, i)),
         })),
       })
       addToast("success", "Tersimpan")
@@ -1346,7 +1488,7 @@ export default function GoodsProcessingDetailPage() {
                       {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
                     </button>
                   )}
-                  {!allDone && (
+                  {!allDone && hasProcessing && (
                     <div className="flex gap-2">
                       <button onClick={handleSave} disabled={isBusy}
                         className="flex items-center gap-1.5 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-sm disabled:opacity-50 hover:border-gray-300 dark:hover:border-gray-500 transition-all shrink-0"
@@ -1396,7 +1538,7 @@ export default function GoodsProcessingDetailPage() {
         </div>
 
         {/* ── RIGHT PANEL — item cards ── */}
-        <div className="flex-1 px-4 py-4 space-y-3 max-w-2xl mx-auto lg:mx-0 lg:max-w-none pb-32 lg:pb-8">
+        <div className={`flex-1 px-4 py-4 space-y-3 max-w-2xl mx-auto lg:mx-0 lg:max-w-none ${showMobileActionBar ? "pb-32" : "pb-4"} lg:pb-8`}>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-0.5">
             {totalCount} Item · {doneCount} selesai
           </p>
@@ -1432,6 +1574,7 @@ export default function GoodsProcessingDetailPage() {
       </div>
 
       {/* ── Mobile bottom action bar ── */}
+      {showMobileActionBar && (
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 px-4 py-3 safe-area-pb">
         <div className="max-w-lg mx-auto">
           {status === "DRAFT" && canUpdate && (
@@ -1453,21 +1596,23 @@ export default function GoodsProcessingDetailPage() {
                   {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
                 </button>
               ) : !allDone ? (
-                <div className="flex gap-2">
-                  <button onClick={handleSave} disabled={isBusy}
-                    className="flex items-center gap-1.5 px-4 py-3.5 border-2 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-2xl font-medium text-sm disabled:opacity-50 hover:border-gray-300 dark:hover:border-gray-500 transition-all shrink-0"
-                  >
-                    <Save size={15} />
-                    Simpan
-                  </button>
-                  {canApprove && (
-                    <button onClick={() => setShowRejectModal(true)} disabled={isBusy}
-                      className="px-3 py-3.5 border-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shrink-0"
+                hasProcessing ? (
+                  <div className="flex gap-2">
+                    <button onClick={handleSave} disabled={isBusy}
+                      className="flex items-center gap-1.5 px-4 py-3.5 border-2 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-2xl font-medium text-sm disabled:opacity-50 hover:border-gray-300 dark:hover:border-gray-500 transition-all shrink-0"
                     >
-                      <XCircle size={15} />
+                      <Save size={15} />
+                      Simpan
                     </button>
-                  )}
-                </div>
+                    {canApprove && (
+                      <button onClick={() => setShowRejectModal(true)} disabled={isBusy}
+                        className="px-3 py-3.5 border-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shrink-0"
+                      >
+                        <XCircle size={15} />
+                      </button>
+                    )}
+                  </div>
+                ) : null
               ) : (
                 <div className="flex">
                   <button type="button" onClick={() => setShowRejectModal(true)} disabled={isBusy}
@@ -1500,6 +1645,7 @@ export default function GoodsProcessingDetailPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* ── Modals ── */}
       {showRejectModal && (
