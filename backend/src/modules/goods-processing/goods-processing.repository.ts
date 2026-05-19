@@ -135,7 +135,42 @@ async confirmInputWithStock(
       [inputId]
     )
 
+    const { rows: [gp] } = await client.query(
+      'SELECT processing_type FROM goods_processing WHERE id = $1',
+      [gpId]
+    )
+    const isPassThrough = gp?.processing_type === 'PASS_THROUGH'
+
     for (const out of freshOutputs) {
+      if (isPassThrough && out.condition_status === 'DAMAGED' && out.actual_qty !== null) {
+        const goodQty = toBaseQty(out.product_id, out.actual_uom ?? out.uom, Number(out.actual_qty), uomsMap)
+        const totalBase = toBaseQty(out.product_id, out.uom, Number(out.qty_output), uomsMap)
+        const wasteQty = Math.max(0, totalBase - goodQty)
+
+        if (goodQty > 0) {
+          const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
+          const currentQty = currentBalance ? Number(currentBalance.qty) : 0
+          const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
+          const newQty = currentQty + goodQty
+
+          const movement = await stockRepository.createMovement(client, {
+            warehouse_id: warehouseId,
+            product_id: out.product_id,
+            movement_type: 'IN_PURCHASE',
+            qty: goodQty,
+            cost_per_unit: 0,
+            reference_type: 'goods_processing',
+            reference_id: gpId,
+            notes: `GP ${processingNumber} - ${goodQty} bagus, ${wasteQty} waste`,
+            created_by: userId,
+          }, newQty)
+
+          await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, currentAvgCost)
+          await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
+        }
+        continue
+      }
+
       if (out.is_waste || out.flagged_for_return) continue
 
       const qty = out.actual_qty != null ? Number(out.actual_qty) : Number(out.qty_output)
@@ -186,6 +221,12 @@ async confirmGpWithStock(
   try {
     await client.query('BEGIN')
 
+    const { rows: [gp] } = await client.query(
+      'SELECT processing_type FROM goods_processing WHERE id = $1',
+      [id]
+    )
+    const isPassThrough = gp?.processing_type === 'PASS_THROUGH'
+
     let totalInputQty = 0
     let totalOutputQty = 0
     let totalWasteQty = 0
@@ -195,6 +236,43 @@ async confirmGpWithStock(
       totalInputQty += baseInputQty
 
       for (const out of inp.outputs) {
+        if (isPassThrough && out.condition_status === 'DAMAGED' && out.actual_qty !== null) {
+          const goodQty = toBaseQty(out.product_id, out.actual_uom ?? out.uom, Number(out.actual_qty), uomsMap)
+          const totalBase = toBaseQty(out.product_id, out.uom, Number(out.qty_output), uomsMap)
+          const wasteQty = Math.max(0, totalBase - goodQty)
+
+          totalWasteQty += wasteQty
+
+          if (out.stock_movement_id) {
+            totalOutputQty += goodQty
+            continue
+          }
+
+          if (goodQty > 0) {
+            const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
+            const currentQty = currentBalance ? Number(currentBalance.qty) : 0
+            const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
+            const newQty = currentQty + goodQty
+            totalOutputQty += goodQty
+
+            const movement = await stockRepository.createMovement(client, {
+              warehouse_id: warehouseId,
+              product_id: out.product_id,
+              movement_type: 'IN_PURCHASE',
+              qty: goodQty,
+              cost_per_unit: 0,
+              reference_type: 'goods_processing',
+              reference_id: id,
+              notes: `GP ${processingNumber} - ${goodQty} bagus, ${wasteQty} waste`,
+              created_by: userId,
+            }, newQty)
+
+            await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, currentAvgCost)
+            await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
+          }
+          continue
+        }
+
         const qty = out.actual_qty !== null ? Number(out.actual_qty) : Number(out.qty_output)
         const uom = out.actual_uom !== null ? out.actual_uom : out.uom
 

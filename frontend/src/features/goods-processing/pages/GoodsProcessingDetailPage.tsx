@@ -100,49 +100,180 @@ function resolveInputOutputs(
 ): LocalOutput[] {
   const template = inp.output_template ?? []
 
-  if (!isDefaultPassThroughOutput(inp, inp.outputs) && inp.outputs.length > 0) {
-    return inp.outputs.map((o, i) => ({
-      id: o.id,
-      product_id: o.product_id,
-      product_name: o.product_name,
-      product_code: o.product_code,
-      qty_output: Number(o.qty_output),
-      uom: o.uom,
-      is_waste: o.is_waste,
-      waste_reason: o.waste_reason,
-      condition_status: o.condition_status,
-      actual_qty: o.actual_qty != null ? Number(o.actual_qty) : null,
-      actual_uom: o.actual_uom ?? null,
-      flagged_for_return: o.flagged_for_return ?? false,
-      return_reason: o.return_reason,
-      sort_order: i,
-      is_pass_through_output: false,
-    }))
+  if (inp.requires_processing) {
+    if (!isDefaultPassThroughOutput(inp, inp.outputs) && inp.outputs.length > 0) {
+      return inp.outputs.map((o, i) => ({
+        id: o.id,
+        product_id: o.product_id,
+        product_name: o.product_name,
+        product_code: o.product_code,
+        qty_output: Number(o.qty_output),
+        uom: o.uom,
+        is_waste: o.is_waste,
+        waste_reason: o.waste_reason,
+        condition_status: o.condition_status,
+        actual_qty: o.actual_qty != null ? Number(o.actual_qty) : null,
+        actual_uom: o.actual_uom ?? null,
+        flagged_for_return: o.flagged_for_return ?? false,
+        return_reason: o.return_reason,
+        sort_order: i,
+        is_pass_through_output: false,
+      }))
+    }
+    return template.length > 0 ? outputsFromTemplate(inp) : []
   }
 
-  if (inp.requires_processing) {
-    return template.length > 0 ? outputsFromTemplate(inp) : []
+  if (inp.outputs.length === 0) {
+    return [{
+      id: undefined,
+      product_id: inp.product_id,
+      product_name: inp.product_name,
+      product_code: inp.product_code,
+      qty_output: Number(inp.qty_input),
+      uom: inp.uom,
+      is_waste: false,
+      waste_reason: null,
+      condition_status: 'OK' as ConditionStatus,
+      actual_qty: null,
+      actual_uom: null,
+      flagged_for_return: false,
+      return_reason: null,
+      sort_order: 0,
+      is_pass_through_output: true,
+    }]
+  }
+
+  const goodPart = inp.outputs.find(o => o.condition_status === 'OK')
+  const damagedPart = inp.outputs.find(o => o.condition_status === 'DAMAGED' || o.is_waste || o.flagged_for_return)
+
+  if (damagedPart && goodPart && damagedPart.id !== goodPart.id) {
+    return [{
+      id: goodPart.id,
+      product_id: inp.product_id,
+      product_name: inp.product_name,
+      product_code: inp.product_code,
+      qty_output: Number(inp.qty_input),
+      uom: inp.uom,
+      is_waste: damagedPart.is_waste,
+      waste_reason: damagedPart.waste_reason,
+      condition_status: 'DAMAGED' as ConditionStatus,
+      actual_qty: Number(goodPart.qty_output),
+      actual_uom: goodPart.uom,
+      flagged_for_return: damagedPart.flagged_for_return,
+      return_reason: damagedPart.return_reason,
+      sort_order: 0,
+      is_pass_through_output: true,
+    }]
   }
 
   const o = inp.outputs[0]
   return [{
-    id: o?.id,
+    id: o.id,
     product_id: inp.product_id,
     product_name: inp.product_name,
     product_code: inp.product_code,
     qty_output: Number(inp.qty_input),
     uom: inp.uom,
-    is_waste: false,
-    waste_reason: null,
-    condition_status: 'OK' as ConditionStatus,
-    actual_qty: null,
-    actual_uom: null,
-    flagged_for_return: false,
-    return_reason: null,
+    is_waste: o.is_waste,
+    waste_reason: o.waste_reason,
+    condition_status: o.condition_status ?? ('OK' as ConditionStatus),
+    actual_qty: o.actual_qty != null ? Number(o.actual_qty) : null,
+    actual_uom: o.actual_uom ?? null,
+    flagged_for_return: o.flagged_for_return ?? false,
+    return_reason: o.return_reason,
     sort_order: 0,
     is_pass_through_output: true,
   }]
 }
+
+function splitPassThroughOutputIfNecessary(
+  o: LocalOutput,
+  inp: LocalInput,
+  productUoms: ProductUomRow[]
+): any[] {
+  if (!o.is_pass_through_output) {
+    return [o]
+  }
+
+  const { totalBase, goodBase, damagedBase, baseUom } = derivePassThroughSplit(o, inp, productUoms)
+
+  if (o.condition_status === 'DAMAGED' && o.actual_qty !== null) {
+    const results = []
+
+    if (goodBase > 0.0001) {
+      results.push({
+        id: o.id,
+        product_id: o.product_id,
+        product_name: o.product_name,
+        product_code: o.product_code,
+        qty_output: goodBase,
+        uom: baseUom,
+        is_waste: false,
+        flagged_for_return: false,
+        condition_status: 'OK',
+        actual_qty: null,
+        actual_uom: null,
+        waste_reason: null,
+        return_reason: null,
+      })
+    }
+
+    if (damagedBase > 0.0001) {
+      results.push({
+        id: goodBase > 0.0001 ? undefined : o.id,
+        product_id: o.product_id,
+        product_name: o.product_name,
+        product_code: o.product_code,
+        qty_output: damagedBase,
+        uom: baseUom,
+        is_waste: o.is_waste,
+        flagged_for_return: o.flagged_for_return,
+        condition_status: 'DAMAGED',
+        actual_qty: null,
+        actual_uom: null,
+        waste_reason: o.waste_reason,
+        return_reason: o.return_reason,
+      })
+    }
+
+    if (results.length === 0) {
+      results.push({
+        id: o.id,
+        product_id: o.product_id,
+        product_name: o.product_name,
+        product_code: o.product_code,
+        qty_output: totalBase,
+        uom: baseUom,
+        is_waste: false,
+        flagged_for_return: false,
+        condition_status: 'OK',
+        actual_qty: null,
+        actual_uom: null,
+        waste_reason: null,
+        return_reason: null,
+      })
+    }
+
+    return results
+  }
+
+  return [{
+    id: o.id,
+    product_id: o.product_id,
+    product_name: o.product_name,
+    product_code: o.product_code,
+    qty_output: o.qty_output,
+    uom: o.uom,
+    is_waste: o.is_waste,
+    flagged_for_return: o.flagged_for_return,
+    condition_status: o.condition_status ?? 'OK',
+    actual_qty: o.actual_qty,
+    actual_uom: o.actual_uom,
+    waste_reason: o.waste_reason,
+    return_reason: o.return_reason,
+  }]
+}
+
 
 function initLocalInputs(detail: GoodsProcessingDetail): LocalInput[] {
   return detail.inputs.map((inp) => ({
@@ -199,6 +330,8 @@ function derivePassThroughSplit(
     goodBase = toBaseQty(output.actual_qty, output.actual_uom, uoms)
   } else if (output.condition_status === 'OK') {
     goodBase = totalBase
+  } else if (output.condition_status === 'DAMAGED') {
+    goodBase = 0
   } else {
     goodBase = totalBase
   }
@@ -918,24 +1051,28 @@ export default function GoodsProcessingDetailPage() {
   const handleConfirmItem = useCallback(async (inp: LocalInput) => {
     setConfirmingInputId(inp.id)
     try {
+      const uoms = uomConversions?.[inp.product_id] ?? []
+      const preparedOutputs = inp.outputs
+        .filter(o => !(o as LocalOutput & { _delete?: boolean })._delete)
+        .flatMap(o => splitPassThroughOutputIfNecessary(o, inp, uoms))
+        .map((o, i) => ({
+          id: o.id,
+          product_id: o.product_id,
+          qty_output: o.qty_output,
+          uom: o.uom,
+          is_waste: o.is_waste,
+          waste_reason: o.waste_reason,
+          condition_status: o.condition_status,
+          actual_qty: o.actual_qty,
+          actual_uom: o.actual_uom,
+          flagged_for_return: o.flagged_for_return,
+          return_reason: o.return_reason,
+          sort_order: i,
+        }))
+
       await confirmInputMut.mutateAsync({
         inputId: inp.id,
-        outputs: inp.outputs
-          .filter(o => !(o as LocalOutput & { _delete?: boolean })._delete)
-          .map((o, i) => ({
-            id: o.id,
-            product_id: o.product_id,
-            qty_output: o.qty_output,
-            uom: o.uom,
-            is_waste: o.is_waste,
-            waste_reason: o.waste_reason,
-            condition_status: o.condition_status,
-            actual_qty: o.actual_qty,
-            actual_uom: o.actual_uom,
-            flagged_for_return: o.flagged_for_return,
-            return_reason: o.return_reason,
-            sort_order: i,
-          })),
+        outputs: preparedOutputs,
       })
       setLocalInputs(prev => prev.map(input => 
         input.id === inp.id ? { ...input, status: 'DONE' } : input
@@ -946,7 +1083,7 @@ export default function GoodsProcessingDetailPage() {
     } finally {
       setConfirmingInputId(null)
     }
-  }, [confirmInputMut, addToast])
+  }, [confirmInputMut, addToast, uomConversions])
 
   const handleSave = useCallback(async () => {
     if (!gp) return
@@ -957,10 +1094,18 @@ export default function GoodsProcessingDetailPage() {
           outputs: inp.outputs
             .filter(o => !(o as LocalOutput & { _delete?: boolean })._delete)
             .map((o, i) => ({
-              id: o.id, product_id: o.product_id, qty_output: o.qty_output, uom: o.uom,
-              is_waste: o.is_waste, waste_reason: o.waste_reason, condition_status: o.condition_status,
-              actual_qty: o.actual_qty, actual_uom: o.actual_uom, flagged_for_return: o.flagged_for_return,
-              return_reason: o.return_reason, sort_order: i,
+              id: o.id,
+              product_id: o.product_id,
+              qty_output: o.qty_output,
+              uom: o.uom,
+              is_waste: o.is_waste,
+              waste_reason: o.waste_reason,
+              condition_status: o.condition_status,
+              actual_qty: o.actual_qty,
+              actual_uom: o.actual_uom,
+              flagged_for_return: o.flagged_for_return,
+              return_reason: o.return_reason,
+              sort_order: i,
             })),
         })),
       })
