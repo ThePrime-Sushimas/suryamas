@@ -40,6 +40,7 @@ interface LocalOutput {
   actual_uom: string | null;
   flagged_for_return: boolean;
   return_reason: string | null;
+  return_resolved_at?: string | null;
   sort_order: number;
   stock_movement_id?: string | null;
   is_pass_through_output?: boolean;
@@ -185,6 +186,7 @@ function resolveInputOutputs(
       actual_uom: o.actual_uom ?? null,
       flagged_for_return: o.flagged_for_return ?? false,
       return_reason: o.return_reason,
+      return_resolved_at: o.return_resolved_at ?? null,
       sort_order: i,
       is_pass_through_output: true,
       stock_movement_id: o.stock_movement_id ?? null,
@@ -448,10 +450,11 @@ function summarizePassThroughOutputs(
   const baseUom = resolveBaseUom(productUoms, input.uom)
   const totalBase = toBaseQty(input.qty_input, input.uom, productUoms)
 
+  // Jangan pakai flagged_for_return/is_waste di sini — form edit masih 1 baris dengan
+  // actual_qty = bagus; flag retur/waste hanya tindak lanjut rusak, bukan split tersimpan.
   const persistedSplit =
     outputs.length > 1 ||
-    outputs.some((o) => o.stock_movement_id != null) ||
-    outputs.some((o) => o.flagged_for_return || o.is_waste)
+    outputs.some((o) => o.stock_movement_id != null)
 
   if (persistedSplit) {
     const goodBase = outputs
@@ -524,6 +527,172 @@ function buildPassThroughOutput(
           waste_reason: null,
         }),
   }
+}
+
+type PassThroughTimelineEvent = {
+  key: string
+  tone: 'green' | 'orange' | 'red' | 'gray'
+  title: string
+  subtitle?: string
+  qty: number
+  uom: string
+  badge?: string
+}
+
+/** Riwayat pass-through setelah item selesai — hindari ringkasan bagus+rusak yang menyesatkan. */
+function buildPassThroughTimeline(
+  input: { qty_input: number; uom: string },
+  outputs: LocalOutput[],
+  productUoms: ProductUomRow[],
+): {
+  events: PassThroughTimelineEvent[]
+  totalInStock: number
+  baseUom: string
+  totalReceived: number
+} {
+  const baseUom = resolveBaseUom(productUoms, input.uom)
+  const totalReceived = toBaseQty(input.qty_input, input.uom, productUoms)
+  const events: PassThroughTimelineEvent[] = []
+  let totalInStock = 0
+
+  for (const o of outputs) {
+    const qty = toBaseQty(Number(o.qty_output), o.uom, productUoms)
+    const keyBase = o.id ?? `${o.condition_status}-${o.qty_output}`
+
+    if (o.is_waste) {
+      events.push({
+        key: `waste-${keyBase}`,
+        tone: 'red',
+        title: 'Waste / tidak layak',
+        subtitle: o.waste_reason ?? undefined,
+        qty,
+        uom: baseUom,
+        badge: 'Tidak masuk gudang',
+      })
+      continue
+    }
+
+    const isReturnLine =
+      o.condition_status === 'DAMAGED' &&
+      (o.return_reason || o.flagged_for_return || o.return_resolved_at)
+
+    if (isReturnLine) {
+      const pending = o.flagged_for_return && !o.return_resolved_at
+      events.push({
+        key: `return-out-${keyBase}`,
+        tone: 'orange',
+        title: 'Dikirim retur ke supplier',
+        subtitle: o.return_reason ?? undefined,
+        qty,
+        uom: baseUom,
+        badge: pending ? 'Menunggu kembali' : undefined,
+      })
+
+      if (o.return_resolved_at) {
+        if (o.stock_movement_id) {
+          events.push({
+            key: `return-in-${keyBase}`,
+            tone: 'green',
+            title: 'Retur kembali — masuk gudang',
+            qty,
+            uom: baseUom,
+          })
+          totalInStock += qty
+        } else {
+          events.push({
+            key: `return-discard-${keyBase}`,
+            tone: 'gray',
+            title: 'Retur kembali — dibuang',
+            qty,
+            uom: baseUom,
+            badge: 'Tidak masuk gudang',
+          })
+        }
+      }
+      continue
+    }
+
+    if (o.condition_status === 'OK' && o.stock_movement_id) {
+      events.push({
+        key: `stock-in-${keyBase}`,
+        tone: 'green',
+        title: 'Terima ke gudang',
+        qty,
+        uom: baseUom,
+      })
+      totalInStock += qty
+    }
+  }
+
+  return { events, totalInStock, baseUom, totalReceived }
+}
+
+const TIMELINE_DOT: Record<PassThroughTimelineEvent['tone'], string> = {
+  green: 'bg-green-500',
+  orange: 'bg-orange-500',
+  red: 'bg-red-500',
+  gray: 'bg-gray-400',
+}
+
+const TIMELINE_BADGE: Record<PassThroughTimelineEvent['tone'], string> = {
+  green: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
+  red: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  gray: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+}
+
+function PassThroughTimeline({
+  events,
+  totalInStock,
+  totalReceived,
+  baseUom,
+}: {
+  events: PassThroughTimelineEvent[]
+  totalInStock: number
+  totalReceived: number
+  baseUom: string
+}) {
+  if (events.length === 0) return null
+
+  return (
+    <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3">
+      <div className="flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <span className="font-semibold uppercase tracking-wide">Riwayat</span>
+        <span>Diterima dari GR: {fmtGpQty(totalReceived)} {baseUom}</span>
+      </div>
+      <ol className="relative border-l-2 border-gray-200 dark:border-gray-600 ml-1.5 space-y-4 pl-5">
+        {events.map((ev) => (
+          <li key={ev.key} className="relative">
+            <span
+              className={`absolute -left-[1.4rem] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-gray-800 ${TIMELINE_DOT[ev.tone]}`}
+            />
+            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{ev.title}</p>
+                {ev.subtitle && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">&quot;{ev.subtitle}&quot;</p>
+                )}
+                {ev.badge && (
+                  <span className={`inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded ${TIMELINE_BADGE[ev.tone]}`}>
+                    {ev.badge}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100 shrink-0">
+                {fmtGpQty(ev.qty)} {ev.uom}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="rounded-xl border-2 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/25 px-3 py-2.5 flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-green-800 dark:text-green-300">Total di gudang</span>
+        <span className="text-base font-bold font-mono text-green-900 dark:text-green-200">
+          {fmtGpQty(totalInStock)} {baseUom}
+        </span>
+      </div>
+    </div>
+  )
 }
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -601,6 +770,10 @@ function PassThroughCard({
     onChange(buildPassThroughOutput(editOutput, good, damaged, baseUom))
   }
 
+  const doneTimeline = isDone
+    ? buildPassThroughTimeline(input, input.outputs, productUoms)
+    : null
+
   return (
     <div className={`rounded-xl border-2 transition-all p-4 space-y-3 ${
       isDone ? "border-green-300 dark:border-green-700 bg-green-50/40 dark:bg-green-900/20"
@@ -632,43 +805,46 @@ function PassThroughCard({
         </div>
       </div>
 
-      {/* Summary strip */}
-      <div className="flex items-center gap-2 flex-wrap border-t border-gray-100 dark:border-gray-700 pt-3">
-        <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg px-2.5 py-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-          <span className="text-xs text-green-700 dark:text-green-300 font-medium">
-            Bagus: <span className="font-bold">{fmtGpQty(goodBase)} {baseUom}</span>
-          </span>
-        </div>
-        {hasDamage ? (
-          <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-1.5">
-            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-            <span className="text-xs text-red-700 dark:text-red-300 font-medium">
-              Rusak: <span className="font-bold">{fmtGpQty(damagedBase)} {baseUom}</span>
+      {isDone && doneTimeline ? (
+        <PassThroughTimeline
+          events={doneTimeline.events}
+          totalInStock={doneTimeline.totalInStock}
+          totalReceived={doneTimeline.totalReceived}
+          baseUom={doneTimeline.baseUom}
+        />
+      ) : (
+        <div className="flex items-center gap-2 flex-wrap border-t border-gray-100 dark:border-gray-700 pt-3">
+          <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg px-2.5 py-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+            <span className="text-xs text-green-700 dark:text-green-300 font-medium">
+              Bagus: <span className="font-bold">{fmtGpQty(goodBase)} {baseUom}</span>
             </span>
           </div>
-        ) : (
-          <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-2.5 py-1.5">
-            <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
-            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Tidak ada rusak</span>
-          </div>
-        )}
-        {hasReturn && (
-          <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg px-2.5 py-1.5">
-            <span className="text-xs text-orange-700 dark:text-orange-300 font-medium">🔄 Retur</span>
-          </div>
-        )}
-        {hasWaste && (
-          <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-1.5">
-            <span className="text-xs text-red-700 dark:text-red-300 font-medium">🗑 Waste</span>
-          </div>
-        )}
-        {isDone && (
-          <div className="flex items-center gap-1.5 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-700 rounded-lg px-2.5 py-1.5">
-            <span className="text-xs text-green-700 dark:text-green-300 font-bold">✓ Masuk gudang</span>
-          </div>
-        )}
-      </div>
+          {hasDamage ? (
+            <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              <span className="text-xs text-red-700 dark:text-red-300 font-medium">
+                Rusak: <span className="font-bold">{fmtGpQty(damagedBase)} {baseUom}</span>
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-2.5 py-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Tidak ada rusak</span>
+            </div>
+          )}
+          {hasReturn && (
+            <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg px-2.5 py-1.5">
+              <span className="text-xs text-orange-700 dark:text-orange-300 font-medium">🔄 Retur</span>
+            </div>
+          )}
+          {hasWaste && (
+            <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-1.5">
+              <span className="text-xs text-red-700 dark:text-red-300 font-medium">🗑 Waste</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {isEditable && !isDone && (
         <div className="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
@@ -783,35 +959,6 @@ function PassThroughCard({
             <CheckCheck size={15} />
             {isConfirming ? 'Menyimpan...' : 'Selesaikan item ini'}
           </button>
-        </div>
-      )}
-
-      {isDone && (
-        <div className="flex items-center gap-2 flex-wrap border-t border-gray-100 dark:border-gray-700 pt-2">
-          <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 dark:text-green-300 font-medium">
-            {fmtGpQty(goodBase)} {baseUom} masuk gudang
-          </span>
-          {hasDamage && (
-            <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 dark:text-red-300 font-medium">
-              {fmtGpQty(damagedBase)} {baseUom} rusak
-            </span>
-          )}
-          {hasReturn && (
-            <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 dark:text-orange-300 font-medium">
-              Retur
-              {input.outputs.find((o) => o.flagged_for_return)?.return_reason
-                ? `: ${input.outputs.find((o) => o.flagged_for_return)?.return_reason}`
-                : ''}
-            </span>
-          )}
-          {hasWaste && (
-            <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 dark:text-red-300 font-medium">
-              Waste
-              {input.outputs.find((o) => o.is_waste)?.waste_reason
-                ? `: ${input.outputs.find((o) => o.is_waste)?.waste_reason}`
-                : ''}
-            </span>
-          )}
         </div>
       )}
     </div>
