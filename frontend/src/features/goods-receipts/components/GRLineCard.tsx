@@ -194,7 +194,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
       </div>
 
       {/* ── Inputs ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
 
         {/* Tidak Terkirim */}
         <div className="space-y-2">

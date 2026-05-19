@@ -89,7 +89,13 @@ export default function PurchaseRequestFormPage() {
 
   const createPR = useCreatePurchaseRequest()
   const updatePR = useUpdatePurchaseRequest()
-  const isPending = createPR.isPending || updatePR.isPending
+  const isSaving = createPR.isPending || updatePR.isPending
+
+  const supplierCount = new Set(
+    lines.map((l) => l.supplier_id ?? '__no_supplier__'),
+  ).size
+  const branchLabel =
+    branches.find((b) => b.id === branchId)?.branch_name ?? null
 
   const addLine = (product: { id: string; name: string; uom_buy: string }, supplier?: { id: string; name: string }) => {
     if (lines.some(l => l.product_id === product.id && l.supplier_id === (supplier?.id ?? null))) {
@@ -180,7 +186,7 @@ export default function PurchaseRequestFormPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-[4.5rem]">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between gap-3">
@@ -279,7 +285,7 @@ export default function PurchaseRequestFormPage() {
       </div>
 
       {/* Lines Table - Grouped by Supplier */}
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="p-4 sm:p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           {lines.length === 0 ? (
             <div className="px-4 py-12 text-center text-gray-400">
@@ -401,22 +407,44 @@ export default function PurchaseRequestFormPage() {
           )}
         </div>
       </div>
-            {/* Sticky Footer */}
-      <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 z-10">
-        <div className="flex justify-center gap-3">
+      <div className="fixed bottom-0 inset-x-0 z-40 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.35)]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+              {lines.length > 0
+                ? `${lines.length} item · ${supplierCount} supplier`
+                : 'Belum ada item'}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              {branchLabel ??
+                (isEdit
+                  ? existingPR?.request_number ?? 'Edit purchase request'
+                  : 'Pilih cabang lalu tambah produk')}
+            </p>
+          </div>
           <button
-            onClick={() => navigate(isEdit ? `/inventory/purchase-requests/${id}` : '/inventory/purchase-requests')}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+            type="button"
+            onClick={() =>
+              navigate(
+                isEdit
+                  ? `/inventory/purchase-requests/${id}`
+                  : '/inventory/purchase-requests',
+              )
+            }
+            className="hidden sm:inline-flex px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
           >
-            Kembali
+            Batal
           </button>
           <button
+            type="button"
             onClick={handleSubmit}
-            disabled={isPending || lines.length === 0}
-            className="flex items-center gap-10 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm"
+            disabled={isSaving || lines.length === 0}
+            className="inline-flex items-center justify-center gap-2 min-w-[9.5rem] sm:min-w-[11rem] px-5 py-3 bg-purple-600 text-white rounded-2xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50 transition-all shadow-md shadow-purple-600/25"
           >
-            <Save className="w-4 h-4" />
-            <span>{isPending ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan Draft'}</span>
+            <Save className="w-4 h-4 shrink-0" />
+            <span>
+              {isSaving ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan Draft'}
+            </span>
           </button>
         </div>
       </div>

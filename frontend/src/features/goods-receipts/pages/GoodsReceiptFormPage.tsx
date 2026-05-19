@@ -18,6 +18,7 @@ import {
 import { useWarehouses } from "@/features/inventory/api/inventory.api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
+import { isMarketplaceSupplierName } from "@/lib/marketplaceSupplier";
 import { GRLineCard, type GRLineData } from "../components/GRLineCard";
 
 interface POOption {
@@ -98,7 +99,13 @@ export default function GoodsReceiptFormPage() {
     },
     staleTime: 30_000,
   });
-  const receivablePOs = posData ?? [];
+  const receivablePOs = useMemo(
+    () =>
+      (posData ?? []).filter(
+        (po) => !isMarketplaceSupplierName(po.supplier_name),
+      ),
+    [posData],
+  );
 
   // Fetch PO detail when selected
   const { data: selectedPO } = useQuery({
@@ -243,6 +250,18 @@ export default function GoodsReceiptFormPage() {
 
   // Create mode: auto-populate lines
   const lastPopulatedPoRef = useRef<string>("");
+
+  // Deep link ?po_id=... may point at a marketplace PO (not in dropdown)
+  useEffect(() => {
+    if (isEdit || !selectedPoId || !selectedPO) return;
+    if (!isMarketplaceSupplierName(selectedPO.supplier_name)) return;
+    setSelectedPoId("");
+    setLines([]);
+    lastPopulatedPoRef.current = "";
+    toast.error(
+      "PO supplier marketplace (Shopee/Tokopedia) hanya bisa diterima lewat modul Marketplace PO",
+    );
+  }, [isEdit, selectedPoId, selectedPO, toast]);
 
   const computedLines = useMemo(() => {
     if (isEdit || !selectedPO?.lines) return null;
@@ -392,50 +411,43 @@ export default function GoodsReceiptFormPage() {
         .catch((err: unknown) => toast.error(parseApiError(err, 'Gagal membuat penerimaan barang')))
     }
   }
+
+  const isSaving = createGR.isPending || updateGR.isPending;
+
   return (
-    <div className="h-screen flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900/50 pb-18">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6 py-4 sticky top-0 z-20">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate("/inventory/goods-receipts")}
-              className="p-2 -ml-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="p-2.5 bg-teal-50 dark:bg-teal-900/20 rounded-xl hidden sm:block">
-              <PackageCheck className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
-                {isEdit ? "Edit Penerimaan Barang" : "Terima Barang"}
-              </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">
-                {isEdit
-                  ? "Perbarui data penerimaan barang"
-                  : "Pilih PO dan catat penerimaan barang ke gudang"}
-              </p>
-            </div>
-          </div>
+        <div className="flex items-center gap-4">
           <button
-            onClick={handleSubmit}
-            disabled={
-              createGR.isPending || updateGR.isPending || lines.length === 0
+            onClick={() =>
+              navigate(
+                isEdit
+                  ? `/inventory/goods-receipts/${id}`
+                  : "/inventory/goods-receipts",
+              )
             }
-            className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-700 disabled:opacity-50 transition-all shadow-sm shadow-teal-600/20 shrink-0"
+            className="p-2 -ml-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
           >
-            <Save className="w-4 h-4" />{" "}
-            <span className="hidden sm:inline">
-              {createGR.isPending || updateGR.isPending
-                ? "Menyimpan..."
-                : "Simpan Penerimaan"}
-            </span>
+            <ArrowLeft className="w-5 h-5" />
           </button>
+          <div className="p-2.5 bg-teal-50 dark:bg-teal-900/20 rounded-xl hidden sm:block">
+            <PackageCheck className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+              {isEdit ? "Edit Penerimaan Barang" : "Terima Barang"}
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">
+              {isEdit
+                ? "Perbarui data penerimaan barang"
+                : "Pilih PO dan catat penerimaan barang ke gudang"}
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 lg:p-6 pb-24">
+      <div className="p-4 lg:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* General Information Card */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
@@ -446,7 +458,7 @@ export default function GoodsReceiptFormPage() {
               </h2>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Purchase Order <span className="text-red-500">*</span>
@@ -501,7 +513,7 @@ export default function GoodsReceiptFormPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     No. Invoice Supplier
@@ -594,6 +606,47 @@ export default function GoodsReceiptFormPage() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 inset-x-0 z-40 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.35)]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+              {lines.length > 0
+                ? `${lines.length} item siap disimpan`
+                : "Belum ada barang"}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              {selectedPO
+                ? selectedPO.po_number
+                : isEdit
+                  ? "Edit draft penerimaan"
+                  : "Pilih PO untuk memuat barang"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                isEdit
+                  ? `/inventory/goods-receipts/${id}`
+                  : "/inventory/goods-receipts",
+              )
+            }
+            className="hidden sm:inline-flex px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSaving || lines.length === 0}
+            className="inline-flex items-center justify-center gap-2 min-w-38 sm:min-w-44 px-5 py-3 bg-teal-600 text-white rounded-2xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-50 transition-all shadow-md shadow-teal-600/25"
+          >
+            <Save className="w-4 h-4 shrink-0" />
+            <span>{isSaving ? "Menyimpan..." : "Simpan"}</span>
+          </button>
         </div>
       </div>
     </div>
