@@ -1,5 +1,7 @@
 export type SupplierType = 'vegetables' | 'meat' | 'seafood' | 'dairy' | 'beverage' | 'dry_goods' | 'packaging' | 'other' | 'frozen_food'
 
+export type InvoiceBypassReason = 'marketplace' | 'cash' | 'informal'
+
 export interface Supplier {
   id: string
   supplier_code: string
@@ -22,6 +24,9 @@ export interface Supplier {
   rating: number | null
   is_active: boolean
   notes: string | null
+  requires_invoice: boolean
+  default_tax_rate: number
+  invoice_bypass_reason: InvoiceBypassReason | null
   created_by: string | null
   updated_by: string | null
   created_at: string
@@ -48,6 +53,9 @@ export interface CreateSupplierDto {
   rating?: number
   is_active?: boolean
   notes?: string
+  requires_invoice?: boolean
+  default_tax_rate?: number
+  invoice_bypass_reason?: InvoiceBypassReason
 }
 
 export interface UpdateSupplierDto {
@@ -69,6 +77,9 @@ export interface UpdateSupplierDto {
   rating?: number
   is_active?: boolean
   notes?: string
+  requires_invoice?: boolean
+  default_tax_rate?: number
+  invoice_bypass_reason?: InvoiceBypassReason | null
 }
 
 export interface SupplierListQuery {

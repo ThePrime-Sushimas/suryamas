@@ -132,7 +132,7 @@ export default function GoodsReceiptsPage() {
                         <Link to={`/inventory/goods-receipts/${gr.id}`} className="font-mono font-bold text-teal-700 dark:text-teal-400 hover:underline" onClick={e => e.stopPropagation()}>
                           {gr.gr_number}
                         </Link>
-                        <GrSourceBadge source={gr.source} supplierName={gr.supplier_name} status={gr.status} />
+                        <GrSourceBadge source={gr.source} invoiceBypassReason={gr.invoice_bypass_reason} status={gr.status} />
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -203,7 +203,7 @@ export default function GoodsReceiptsPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-0.5">
                           <p className="font-mono text-sm font-bold text-teal-700 dark:text-teal-400 truncate">{gr.gr_number}</p>
-                          <GrSourceBadge source={gr.source} supplierName={gr.supplier_name} status={gr.status} />
+                          <GrSourceBadge source={gr.source} invoiceBypassReason={gr.invoice_bypass_reason} status={gr.status} />
                         </div>
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{gr.supplier_name}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{gr.branch_name}</p>

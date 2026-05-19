@@ -38,6 +38,7 @@ export interface PurchaseOrderWithRelations extends PurchaseOrder {
   branch_code: string
   supplier_name: string
   supplier_code: string
+  invoice_bypass_reason: 'marketplace' | 'cash' | 'informal' | null
   request_number: string
   approved_by_name: string | null
   line_count: number

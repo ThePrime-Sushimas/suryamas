@@ -1,5 +1,31 @@
 import { z } from '@/lib/openapi'
-import { VALID_SUPPLIER_TYPES, SUPPLIER_LIMITS } from './suppliers.constants'
+import { VALID_SUPPLIER_TYPES, VALID_INVOICE_BYPASS_REASONS, SUPPLIER_LIMITS } from './suppliers.constants'
+
+const invoiceBypassReasonSchema = z.enum(
+  [...VALID_INVOICE_BYPASS_REASONS] as [string, ...string[]],
+)
+
+type SupplierInvoiceSettings = {
+  requires_invoice?: boolean
+  invoice_bypass_reason?: string | null
+}
+
+function refineSupplierInvoiceSettings(data: SupplierInvoiceSettings, ctx: z.RefinementCtx): void {
+  if (data.requires_invoice !== false && data.invoice_bypass_reason) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'invoice_bypass_reason is only allowed when requires_invoice is false',
+      path: ['invoice_bypass_reason'],
+    })
+  }
+  if (data.requires_invoice === false && !data.invoice_bypass_reason) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'invoice_bypass_reason is required when requires_invoice is false',
+      path: ['invoice_bypass_reason'],
+    })
+  }
+}
 
 const phoneRegex = /^\+?[0-9]{10,15}$/
 const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
@@ -67,7 +93,10 @@ export const createSupplierSchema = z.object({
       .max(SUPPLIER_LIMITS.NOTES_MAX_LENGTH)
       .trim()
       .optional(),
-  }),
+    requires_invoice: z.boolean().optional(),
+    invoice_bypass_reason: invoiceBypassReasonSchema.nullable().optional(),
+    default_tax_rate: z.number().min(0).max(100).optional(),
+  }).superRefine(refineSupplierInvoiceSettings),
 })
 
 export const updateSupplierSchema = z.object({
@@ -131,7 +160,10 @@ export const updateSupplierSchema = z.object({
       .max(SUPPLIER_LIMITS.NOTES_MAX_LENGTH)
       .trim()
       .optional(),
-  }),
+    requires_invoice: z.boolean().optional(),
+    invoice_bypass_reason: invoiceBypassReasonSchema.nullable().optional(),
+    default_tax_rate: z.number().min(0).max(100).optional(),
+  }).superRefine(refineSupplierInvoiceSettings),
   params: z.object({
     id: z.string().uuid('Invalid supplier ID format'),
   }),

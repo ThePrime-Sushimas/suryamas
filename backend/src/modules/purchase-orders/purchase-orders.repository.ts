@@ -9,7 +9,7 @@ import type {
 const HEADER_SELECT = `
   po.*,
   b.branch_name, b.branch_code,
-  s.supplier_name, s.supplier_code,
+  s.supplier_name, s.supplier_code, s.invoice_bypass_reason,
   pr.request_number,
   app_emp.full_name AS approved_by_name,
   COALESCE(lines_agg.line_count, 0)::int AS line_count

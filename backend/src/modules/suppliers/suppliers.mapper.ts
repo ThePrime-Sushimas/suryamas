@@ -1,4 +1,4 @@
-import type { Supplier, SupplierOption } from './suppliers.types'
+import type { Supplier, SupplierOption, InvoiceBypassReason } from './suppliers.types'
 
 export const mapSupplierResponse = (row: Record<string, unknown>): Supplier => {
   return {
@@ -23,6 +23,9 @@ export const mapSupplierResponse = (row: Record<string, unknown>): Supplier => {
     rating: row.rating as number | null,
     is_active: row.is_active as boolean,
     notes: row.notes as string | null,
+    requires_invoice: row.requires_invoice !== false,
+    default_tax_rate: row.default_tax_rate != null ? Number(row.default_tax_rate) : 11,
+    invoice_bypass_reason: (row.invoice_bypass_reason as InvoiceBypassReason) ?? null,
     created_by: row.created_by as string | null,
     updated_by: row.updated_by as string | null,
     created_at: row.created_at as string,

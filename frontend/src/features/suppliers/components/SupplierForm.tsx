@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { SUPPLIER_TYPE_OPTIONS, RATING_OPTIONS } from '../constants/supplier.constants'
-import type { CreateSupplierDto, UpdateSupplierDto, SupplierType, Supplier } from '../types/supplier.types'
+import type { CreateSupplierDto, UpdateSupplierDto, SupplierType, Supplier, InvoiceBypassReason } from '../types/supplier.types'
 import type { MinimalPaymentTerm } from '@/features/payment-terms/types'
 import { paymentTermsApi } from '@/features/payment-terms/api/paymentTerms.api'
 
@@ -42,6 +42,9 @@ export function SupplierForm({ initialData, onSubmit, onCancel, submitLabel, isE
     rating: initialData?.rating || undefined,
     is_active: initialData?.is_active ?? true,
     notes: initialData?.notes || '',
+    requires_invoice: initialData?.requires_invoice ?? true,
+    invoice_bypass_reason: initialData?.invoice_bypass_reason ?? undefined,
+    default_tax_rate: initialData?.default_tax_rate ?? 11,
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,6 +59,9 @@ export function SupplierForm({ initialData, onSubmit, onCancel, submitLabel, isE
       if (submitData.notes === '') delete submitData.notes
       if (submitData.payment_term_id === undefined) delete submitData.payment_term_id
       if (submitData.rating === undefined) delete submitData.rating
+      if (submitData.requires_invoice !== false) {
+        submitData.invoice_bypass_reason = null
+      }
 
       if (isEdit) {
         const { supplier_code: _, ...updateData } = submitData
@@ -194,6 +200,74 @@ export function SupplierForm({ initialData, onSubmit, onCancel, submitLabel, isE
         <div>
           <label className={labelCls}>Catatan</label>
           <textarea name="notes" value={formData.notes} onChange={handleChange} rows={3} className={inputCls} />
+        </div>
+      </div>
+
+      {/* Pengaturan Invoice & Pajak */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Pengaturan Invoice & Pajak
+        </h3>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.requires_invoice ?? true}
+            onChange={(e) => setFormData((f) => ({
+              ...f,
+              requires_invoice: e.target.checked,
+              invoice_bypass_reason: e.target.checked ? undefined : f.invoice_bypass_reason,
+            }))}
+            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
+          />
+          <div>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">
+              Wajib Purchase Invoice
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Nonaktifkan untuk supplier marketplace, cash, atau informal
+            </p>
+          </div>
+        </label>
+
+        {formData.requires_invoice === false && (
+          <div>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+              Alasan bypass invoice
+            </label>
+            <select
+              required
+              value={formData.invoice_bypass_reason ?? ''}
+              onChange={(e) => setFormData((f) => ({
+                ...f,
+                invoice_bypass_reason: e.target.value as InvoiceBypassReason,
+              }))}
+              className={`${inputCls} mt-1`}
+            >
+              <option value="">Pilih alasan</option>
+              <option value="marketplace">Marketplace</option>
+              <option value="cash">Bayar tunai / advance</option>
+              <option value="informal">Supplier informal</option>
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            Tax Rate Default (%)
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={0.01}
+            value={formData.default_tax_rate ?? 11}
+            onChange={(e) => setFormData((f) => ({ ...f, default_tax_rate: Number(e.target.value) }))}
+            className={`${inputCls} mt-1`}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Default 11% (PPN). Set 0 untuk supplier bebas PPN.
+          </p>
         </div>
       </div>
 

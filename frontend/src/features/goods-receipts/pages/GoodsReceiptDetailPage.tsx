@@ -271,7 +271,7 @@ export default function GoodsReceiptDetailPage() {
                 </span>
                 <GrSourceBadge
                   source={gr.source}
-                  supplierName={gr.supplier_name}
+                  invoiceBypassReason={gr.invoice_bypass_reason}
                   status={gr.status}
                 />
               </div>

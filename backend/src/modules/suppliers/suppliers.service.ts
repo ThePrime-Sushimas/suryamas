@@ -1,6 +1,6 @@
 import { suppliersRepository } from './suppliers.repository'
 import type { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, SupplierOption } from './suppliers.types'
-import { SupplierNotFoundError, SupplierCodeAlreadyExistsError } from './suppliers.errors'
+import { SupplierNotFoundError, SupplierCodeAlreadyExistsError, SupplierValidationError } from './suppliers.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 import { AuditService } from '../monitoring/monitoring.service'
 
@@ -38,8 +38,18 @@ export class SuppliersService {
       }
     }
 
+    const updates: UpdateSupplierDto = { ...data }
+    if (updates.requires_invoice !== false) {
+      updates.invoice_bypass_reason = null
+    } else if (updates.requires_invoice === false && !updates.invoice_bypass_reason && !existingSupplier.invoice_bypass_reason) {
+      throw new SupplierValidationError(
+        'invoice_bypass_reason is required when requires_invoice is false',
+        { invoice_bypass_reason: { required: true } },
+      )
+    }
+
     const updatedSupplier = await suppliersRepository.updateById(id, {
-      ...data,
+      ...updates,
       updated_by: userId,
     })
 

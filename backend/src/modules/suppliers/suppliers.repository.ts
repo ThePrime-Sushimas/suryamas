@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import type { Supplier, CreateSupplierDto, UpdateSupplierDto, SupplierListQuery, SupplierOption } from './suppliers.types'
 import { mapSupplierResponse, mapSupplierOption } from './suppliers.mapper'
+import { SupplierValidationError } from './suppliers.errors'
 
 export class SuppliersRepository {
   async findAll(
@@ -30,8 +31,14 @@ export class SuppliersRepository {
   }
 
   async findById(id: string, includeDeleted = false): Promise<Supplier | null> {
-    const condition = includeDeleted ? '' : ' AND deleted_at IS NULL'
-    const { rows } = await pool.query(`SELECT * FROM suppliers WHERE id = $1${condition}`, [id])
+    const condition = includeDeleted ? '' : ' AND s.deleted_at IS NULL'
+    const { rows } = await pool.query(
+      `SELECT s.*, pt.days AS payment_term_days, pt.term_name AS payment_term_name
+       FROM suppliers s
+       LEFT JOIN payment_terms pt ON pt.id_payment_term = s.payment_term_id
+       WHERE s.id = $1${condition}`,
+      [id],
+    )
     return rows[0] ? mapSupplierResponse(rows[0]) : null
   }
 
@@ -44,7 +51,22 @@ export class SuppliersRepository {
   }
 
   async create(data: CreateSupplierDto & { created_by?: string }): Promise<Supplier> {
-    const insertData: Record<string, unknown> = { ...data, lead_time_days: data.lead_time_days ?? 1, minimum_order: data.minimum_order ?? 0, is_active: data.is_active ?? true }
+    const requiresInvoice = data.requires_invoice ?? true
+    if (requiresInvoice === false && !data.invoice_bypass_reason) {
+      throw new SupplierValidationError(
+        'invoice_bypass_reason is required when requires_invoice is false',
+        { invoice_bypass_reason: { required: true } },
+      )
+    }
+    const insertData: Record<string, unknown> = {
+      ...data,
+      lead_time_days: data.lead_time_days ?? 1,
+      minimum_order: data.minimum_order ?? 0,
+      is_active: data.is_active ?? true,
+      requires_invoice: requiresInvoice,
+      default_tax_rate: data.default_tax_rate ?? 11,
+      invoice_bypass_reason: requiresInvoice === false ? data.invoice_bypass_reason : null,
+    }
     const keys = Object.keys(insertData)
     const values = Object.values(insertData)
     const { rows } = await pool.query(

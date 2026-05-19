@@ -18,7 +18,7 @@ import {
 import { useWarehouses } from "@/features/inventory/api/inventory.api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
-import { isMarketplaceSupplierName } from "@/lib/marketplaceSupplier";
+import { isMarketplaceSupplier } from "@/lib/marketplaceSupplier";
 import { GRLineCard, type GRLineData } from "../components/GRLineCard";
 
 interface POOption {
@@ -26,6 +26,7 @@ interface POOption {
   po_number: string;
   supplier_id: string;
   supplier_name: string;
+  invoice_bypass_reason?: "marketplace" | "cash" | "informal" | null;
   branch_id: string;
   branch_name: string;
   warehouse_id?: string;
@@ -102,7 +103,7 @@ export default function GoodsReceiptFormPage() {
   const receivablePOs = useMemo(
     () =>
       (posData ?? []).filter(
-        (po) => !isMarketplaceSupplierName(po.supplier_name),
+        (po) => !isMarketplaceSupplier(po),
       ),
     [posData],
   );
@@ -254,7 +255,7 @@ export default function GoodsReceiptFormPage() {
   // Deep link ?po_id=... may point at a marketplace PO (not in dropdown)
   useEffect(() => {
     if (isEdit || !selectedPoId || !selectedPO) return;
-    if (!isMarketplaceSupplierName(selectedPO.supplier_name)) return;
+    if (!isMarketplaceSupplier(selectedPO)) return;
     setSelectedPoId("");
     setLines([]);
     lastPopulatedPoRef.current = "";

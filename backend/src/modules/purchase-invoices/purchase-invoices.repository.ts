@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
 import { derivePoUnitPricePerReceivedUom } from '../../utils/gr-line-invoice-pricing.util'
+import { SQL_SUPPLIER_ELIGIBLE_FOR_PI } from '../suppliers/suppliers.constants'
 import type {
   PurchaseInvoice,
   PurchaseInvoiceDetail,
@@ -612,7 +613,11 @@ export class PurchaseInvoicesRepository {
     filter?: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string },
   ): Promise<{ data: PurchaseInvoiceWithRelations[]; total: number }> {
 
-    const conditions = ['pi.company_id = $1', 'pi.deleted_at IS NULL']
+    const conditions = [
+      'pi.company_id = $1',
+      'pi.deleted_at IS NULL',
+      SQL_SUPPLIER_ELIGIBLE_FOR_PI,
+    ]
     const params: unknown[] = [companyId]
     let idx = 2
 
@@ -995,6 +1000,7 @@ export class PurchaseInvoicesRepository {
          AND po.supplier_id = $2
          ${branchFilter}
          AND grl.qty_invoiced < grl.qty_received
+         AND ${SQL_SUPPLIER_ELIGIBLE_FOR_PI}
        GROUP BY gr.id, gr.gr_number, gr.received_date, gr.branch_id, s.supplier_name
        ORDER BY gr.received_date DESC`,
       params,

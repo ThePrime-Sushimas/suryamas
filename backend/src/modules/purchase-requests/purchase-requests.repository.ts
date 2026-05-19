@@ -137,7 +137,7 @@ export class PurchaseRequestsRepository {
            gp.id          AS gp_id,
            gp.status      AS gp_status,
            gp.processing_number AS gp_number,
-           (s.supplier_name ILIKE '%shopee%' OR s.supplier_name ILIKE '%tokped%' OR s.supplier_name ILIKE '%tokopedia%') AS is_marketplace_supplier,
+           (s.invoice_bypass_reason = 'marketplace') AS is_marketplace_supplier,
            mcs_latest.id AS marketplace_session_id,
            mcs_latest.session_number AS marketplace_session_number,
            mcs_latest.status AS marketplace_session_status,

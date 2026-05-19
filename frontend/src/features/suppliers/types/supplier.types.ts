@@ -1,5 +1,7 @@
 export type SupplierType = 'vegetables' | 'meat' | 'seafood' | 'dairy' | 'beverage' | 'dry_goods' | 'packaging' | 'other' | 'frozen_food'
 
+export type InvoiceBypassReason = 'marketplace' | 'cash' | 'informal'
+
 export interface Supplier {
   id: string
   supplier_code: string
@@ -45,6 +47,9 @@ export interface CreateSupplierDto {
   rating?: number
   is_active?: boolean
   notes?: string
+  requires_invoice?: boolean
+  invoice_bypass_reason?: InvoiceBypassReason | null
+  default_tax_rate?: number
 }
 
 export type UpdateSupplierDto = Omit<Partial<CreateSupplierDto>, 'supplier_code'>

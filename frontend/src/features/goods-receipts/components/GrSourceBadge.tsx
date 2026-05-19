@@ -1,19 +1,24 @@
-/** Orphan / supplier badges use isMarketplaceSupplierName — sync with backend util. */
-import { isMarketplaceSupplierName } from '@/lib/marketplaceSupplier'
+import { isMarketplaceSupplier, type InvoiceBypassReason } from '@/lib/marketplaceSupplier'
 
 type GoodsReceiptSource = 'SUPPLIER' | 'MARKETPLACE' | null | undefined
 
 interface GrSourceBadgeProps {
   source?: GoodsReceiptSource
-  supplierName: string
+  invoiceBypassReason?: InvoiceBypassReason | null
   status?: string
   className?: string
 }
 
-export function GrSourceBadge({ source, supplierName, status, className = '' }: GrSourceBadgeProps) {
+export function GrSourceBadge({
+  source,
+  invoiceBypassReason,
+  status,
+  className = '',
+}: GrSourceBadgeProps) {
+  const marketplaceSupplier = isMarketplaceSupplier({ invoice_bypass_reason: invoiceBypassReason })
   const orphan =
     status === 'DRAFT' &&
-    isMarketplaceSupplierName(supplierName) &&
+    marketplaceSupplier &&
     source !== 'MARKETPLACE'
 
   if (source === 'MARKETPLACE') {
@@ -38,7 +43,7 @@ export function GrSourceBadge({ source, supplierName, status, className = '' }: 
     )
   }
 
-  if (isMarketplaceSupplierName(supplierName)) {
+  if (marketplaceSupplier) {
     return (
       <span
         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600 ${className}`}

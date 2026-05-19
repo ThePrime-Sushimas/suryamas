@@ -7,7 +7,7 @@ import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
   GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError, GoodsReceiptMarketplaceSupplierError,
 } from './goods-receipts.errors'
-import { isMarketplaceSupplierName } from '../../utils/marketplace-supplier.util'
+
 import { InvalidReferenceError } from '../stock/stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
@@ -16,7 +16,26 @@ import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import { buildProductUomsMap, toProductBaseQty } from '../../utils/product-uom.util'
 import { enrichGrLineInvoicePricing } from '../../utils/gr-line-invoice-pricing.util'
-import type { CreateGoodsReceiptDto, UpdateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
+import type {
+  CreateGoodsReceiptDto,
+  UpdateGoodsReceiptDto,
+  GoodsReceiptWithLines,
+  GoodsReceiptWithRelations,
+  VarianceStatus,
+} from './goods-receipts.types'
+import type { InvoiceBypassReason } from '../suppliers/suppliers.types'
+
+function assertManualGrAllowedForInvoiceBypass(
+  invoiceBypassReason: InvoiceBypassReason | null | undefined,
+): void {
+  if (invoiceBypassReason === 'marketplace') {
+    throw new GoodsReceiptMarketplaceSupplierError()
+  }
+}
+
+function supplierRequiresPurchaseInvoice(gr: Pick<GoodsReceiptWithRelations, 'requires_invoice'>): boolean {
+  return gr.requires_invoice !== false
+}
 
 export class GoodsReceiptsService {
   async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string; invoice_number?: string; source?: string }) {
@@ -44,9 +63,7 @@ export class GoodsReceiptsService {
     if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)) {
       throw new GoodsReceiptInvalidPOStatusError(po.status)
     }
-    if (isMarketplaceSupplierName(po.supplier_name)) {
-      throw new GoodsReceiptMarketplaceSupplierError()
-    }
+    assertManualGrAllowedForInvoiceBypass(po.invoice_bypass_reason)
 
     const wh = await goodsReceiptsRepository.findWarehouse(dto.warehouse_id, companyId)
     if (!wh) throw new InvalidReferenceError('warehouse not found or does not belong to your company')
@@ -110,6 +127,7 @@ export class GoodsReceiptsService {
 
     try {
       const gr = await goodsReceiptsRepository.withTransaction(async (client) => {
+
         const grNumber = await goodsReceiptsRepository.generateGrNumber(client, companyId, branchCode)
         const created = await goodsReceiptsRepository.create(client, companyId, {
           branch_id: po.branch_id,
@@ -145,19 +163,17 @@ export class GoodsReceiptsService {
       throw new BusinessRuleError('Upload minimal 1 dokumen (surat jalan / foto barang) sebelum konfirmasi')
     }
 
-    if (gr.source !== 'MARKETPLACE') {
-      const po = await goodsReceiptsRepository.findPoForGr(gr.po_id, companyId)
-      if (po && isMarketplaceSupplierName(po.supplier_name)) {
-        throw new GoodsReceiptMarketplaceSupplierError()
-      }
-    }
-
-    // Guard: warehouse must exist
     if (!gr.warehouse_id) {
       throw new BusinessRuleError('GR tidak memiliki warehouse yang terdaftar')
     }
 
+    if (gr.source !== 'MARKETPLACE') {
+      assertManualGrAllowedForInvoiceBypass(gr.invoice_bypass_reason)
+    }
+
     await goodsReceiptsRepository.withTransaction(async (client) => {
+      const supplierId = await goodsReceiptsRepository.findPoSupplierId(client, gr.po_id)
+
       const poLines = await goodsReceiptsRepository.findPoLinesForUpdate(client, gr.po_id)
       const poLineMap = new Map(poLines.map(l => [l.id, l]))
 
@@ -187,7 +203,6 @@ export class GoodsReceiptsService {
       // 4b. Calculate payment due date for from_delivery-based terms.
       // NOTE: from_invoice is intentionally excluded here — its due_date is calculated
       // when Purchase Invoice is posted (baseDate = invoice_date), not at GR confirm.
-      const supplierId = await goodsReceiptsRepository.findPoSupplierId(client, gr.po_id)
       if (supplierId) {
         const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client)
         const deliveryTypes = ['from_delivery', 'weekly', 'fixed_date', 'fixed_date_immediate', 'monthly']
@@ -285,7 +300,9 @@ export class GoodsReceiptsService {
         }
       }
 
-      await purchaseInvoicesService.createDraftFromGr(client, companyId, id, userId)
+      if (supplierRequiresPurchaseInvoice(gr)) {
+        await purchaseInvoicesService.createDraftFromGr(client, companyId, id, userId)
+      }
     })
 
     await AuditService.log('UPDATE', 'goods_receipt', id, userId, { status: 'DRAFT' }, { status: 'CONFIRMED' })
@@ -298,8 +315,8 @@ export class GoodsReceiptsService {
     if (existing.status !== 'DRAFT') throw new GoodsReceiptAlreadyConfirmedError()
 
     const po = await goodsReceiptsRepository.findPoForGr(existing.po_id, companyId)
-    if (po && isMarketplaceSupplierName(po.supplier_name)) {
-      throw new GoodsReceiptMarketplaceSupplierError()
+    if (po) {
+      assertManualGrAllowedForInvoiceBypass(po.invoice_bypass_reason)
     }
 
     await goodsReceiptsRepository.withTransaction(async (client) => {

@@ -47,6 +47,7 @@ export interface GoodsReceipt {
   branch_code: string
   po_number: string
   supplier_name: string
+  invoice_bypass_reason?: 'marketplace' | 'cash' | 'informal' | null
   warehouse_name: string
   created_by_name: string | null
   confirmed_by_name: string | null

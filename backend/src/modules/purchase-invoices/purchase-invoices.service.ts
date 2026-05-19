@@ -20,6 +20,7 @@ import type {
   UpdatePurchaseInvoiceDto,
 } from './purchase-invoices.types'
 import { calculateDueDate } from '../../utils/due-date.util'
+import { suppliersRepository } from '../suppliers/suppliers.repository'
 import {
   deriveInvoiceUnitPricePerReceivedUom,
   derivePoQtyInReceivedUom,
@@ -425,6 +426,8 @@ export class PurchaseInvoicesService {
 
     const lines = await purchaseInvoicesRepository.findGrLinesForDraft(client, grId)
     const attachments = await purchaseInvoicesRepository.findGrAttachmentsForDraft(client, grId)
+    const supplier = await suppliersRepository.findById(gr.supplier_id)
+    const taxRate = Number(supplier?.default_tax_rate ?? 11)
 
     // 2. Prepare PI Lines
     let subtotal = 0;
@@ -432,6 +435,7 @@ export class PurchaseInvoicesService {
     let totalAmount = 0;
     
     const piLines = lines.map((l: any, i: number) => {
+
       const qtyReceived = Number(l.qty_received)
       const qtyInvoiced = qtyReceived
       const unitPrice = deriveInvoiceUnitPricePerReceivedUom({
@@ -445,8 +449,8 @@ export class PurchaseInvoicesService {
         qty_po_uom: Number(l.qty_po_uom),
         unit_price_po: l.unit_price_po,
       })
-      const taxRate = 11 // Default tax 11%
       const totals = computeLineTotals(qtyInvoiced, unitPrice, taxRate)
+
 
       subtotal += totals.subtotal
       totalTax += totals.taxAmount

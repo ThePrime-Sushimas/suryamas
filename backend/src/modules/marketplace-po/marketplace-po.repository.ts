@@ -860,7 +860,7 @@ export class MarketplacePoRepository {
     const conditions = [
       'po.company_id = $1',
       `po.status IN ('ORDERED', 'PARTIAL_RECEIVED')`,
-      `(s.supplier_name ILIKE '%shopee%' OR s.supplier_name ILIKE '%tokped%' OR s.supplier_name ILIKE '%tokopedia%')`,
+      `s.invoice_bypass_reason = 'marketplace'`,
       'pol.qty_received < pol.qty',
       `NOT EXISTS (
         SELECT 1 FROM marketplace_checkout_lines mcl

@@ -3,7 +3,7 @@ import { suppliersService } from './suppliers.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import type { SupplierType, SupplierListQuery } from './suppliers.types'
+import type { SupplierType, SupplierListQuery, InvoiceBypassReason } from './suppliers.types'
 import {
   createSupplierSchema, updateSupplierSchema, supplierIdSchema, supplierListQuerySchema,
 } from './suppliers.schema'
@@ -20,6 +20,7 @@ export class SuppliersController {
       const supplier = await suppliersService.createSupplier({
         ...body,
         supplier_type: body.supplier_type as SupplierType,
+        invoice_bypass_reason: (body.invoice_bypass_reason ?? undefined) as InvoiceBypassReason | undefined,
       }, req.context?.employee_id)
       sendSuccess(res, supplier, 'Supplier created successfully', 201)
     } catch (error: unknown) {
@@ -56,6 +57,7 @@ export class SuppliersController {
       const supplier = await suppliersService.updateSupplier(params.id, {
         ...body,
         supplier_type: body.supplier_type as SupplierType | undefined,
+        invoice_bypass_reason: body.invoice_bypass_reason as InvoiceBypassReason | null | undefined,
       }, req.context?.employee_id)
       sendSuccess(res, supplier, 'Supplier updated successfully')
     } catch (error: unknown) {

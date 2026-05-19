@@ -11,7 +11,7 @@ import type {
 const HEADER_SELECT = `
   gr.*,
   b.branch_name, b.branch_code,
-  po.po_number, s.supplier_name,
+  po.po_number, s.supplier_name, s.invoice_bypass_reason, s.requires_invoice,
   w.warehouse_name,
   emp.full_name AS created_by_name,
   emp_confirm.full_name AS confirmed_by_name,
@@ -489,10 +489,13 @@ export class GoodsReceiptsRepository {
     status: string;
     branch_id: string;
     branch_code: string;
+    supplier_id: string;
     supplier_name: string;
+    invoice_bypass_reason: 'marketplace' | 'cash' | 'informal' | null;
   } | null> {
     const { rows } = await pool.query(
-      `SELECT po.id, po.status, po.branch_id, b.branch_code, s.supplier_name
+      `SELECT po.id, po.status, po.branch_id, po.supplier_id, b.branch_code,
+              s.supplier_name, s.invoice_bypass_reason
        FROM purchase_orders po
        JOIN branches b ON b.id = po.branch_id
        JOIN suppliers s ON s.id = po.supplier_id

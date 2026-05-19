@@ -1,21 +1,19 @@
-/**
- * Keep in sync with backend/src/utils/marketplace-supplier.util.ts
- * and marketplace-po pending-po-lines ILIKE filters.
- */
-export function isMarketplaceSupplierName(supplierName: string | null | undefined): boolean {
-  if (!supplierName) return false
-  const n = supplierName.toLowerCase()
-  return n.includes('shopee') || n.includes('tokped') || n.includes('tokopedia')
+export type InvoiceBypassReason = 'marketplace' | 'cash' | 'informal'
+
+export function isMarketplaceSupplier(
+  supplier: { invoice_bypass_reason?: InvoiceBypassReason | null } | null | undefined,
+): boolean {
+  return supplier?.invoice_bypass_reason === 'marketplace'
 }
 
 export function isOrphanMarketplaceGr(gr: {
   status: string
   source?: string | null
-  supplier_name: string
+  invoice_bypass_reason?: InvoiceBypassReason | null
 }): boolean {
   return (
     gr.status === 'DRAFT' &&
-    isMarketplaceSupplierName(gr.supplier_name) &&
+    isMarketplaceSupplier(gr) &&
     gr.source !== 'MARKETPLACE'
   )
 }
