@@ -149,16 +149,6 @@ export default function MarketplacePoNewPage() {
             <p className="text-xs text-gray-500">Pilih platform & item dari PO</p>
           </div>
         </div>
-        {canInsert && (
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={createSession.isPending}
-            className="px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
-          >
-            Simpan Session
-          </button>
-        )}
       </div>
 
       <div className="max-w-5xl mx-auto p-4 lg:p-6 space-y-6">
@@ -328,9 +318,9 @@ export default function MarketplacePoNewPage() {
             type="button"
             onClick={handleSubmit}
             disabled={createSession.isPending}
-            className="px-6 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium"
+            className="px-6 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-700 disabled:opacity-50 transition-all"
           >
-            Simpan Session
+            {createSession.isPending ? 'Memproses...' : 'Simpan Session'}
           </button>
         )}
       </div>
