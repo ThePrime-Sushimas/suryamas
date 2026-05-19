@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/axios';
 import {
   ArrowLeft, CheckCircle2, XCircle, AlertTriangle,
-  Plus, Trash2, Save, Play, RotateCcw, Info,
+  Plus, Trash2, Play, RotateCcw, Info,
    CheckCheck,
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
@@ -14,9 +14,7 @@ import { useProducts } from "@/features/products/api/products.api";
 import {
   useGoodsProcessingDetail,
   useStartGoodsProcessing,
-  useUpdateGoodsProcessing,
   useConfirmGoodsProcessing,
-  useRejectGoodsProcessing,
   useResolveReturn,
   useConfirmGoodsProcessingInput,
 } from "../api/goodsProcessing.api";
@@ -171,8 +169,38 @@ function resolveInputOutputs(
     }]
   }
 
-  const goodPart = inp.outputs.find(o => o.condition_status === 'OK')
-  const damagedPart = inp.outputs.find(o => o.condition_status === 'DAMAGED' || o.is_waste || o.flagged_for_return)
+  // Setelah confirm: backend menyimpan baris terpisah (bagus / rusak-retur). Jangan di-collapse.
+  if (inp.status === 'DONE') {
+    return inp.outputs.map((o, i) => ({
+      id: o.id,
+      product_id: o.product_id,
+      product_name: o.product_name,
+      product_code: o.product_code,
+      qty_output: Number(o.qty_output),
+      uom: o.uom,
+      is_waste: o.is_waste,
+      waste_reason: o.waste_reason,
+      condition_status: o.condition_status,
+      actual_qty: o.actual_qty != null ? Number(o.actual_qty) : null,
+      actual_uom: o.actual_uom ?? null,
+      flagged_for_return: o.flagged_for_return ?? false,
+      return_reason: o.return_reason,
+      sort_order: i,
+      is_pass_through_output: true,
+      stock_movement_id: o.stock_movement_id ?? null,
+    }))
+  }
+
+  const goodPart = inp.outputs.find(
+    (o) =>
+      o.condition_status === 'OK' &&
+      !o.flagged_for_return &&
+      !o.is_waste,
+  )
+  const damagedPart = inp.outputs.find(
+    (o) =>
+      o.condition_status === 'DAMAGED' || o.is_waste || o.flagged_for_return,
+  )
 
   if (damagedPart && goodPart && damagedPart.id !== goodPart.id) {
     return [{
@@ -373,7 +401,7 @@ function sumDisassemblyOutputsBase(
 
 function derivePassThroughSplit(
   output: LocalOutput,
-  input: LocalInput,
+  input: { qty_input: number; uom: string },
   uoms: ProductUomRow[],
 ): { totalBase: number; goodBase: number; damagedBase: number; baseUom: string } {
   const baseUom = resolveBaseUom(uoms, input.uom)
@@ -393,6 +421,84 @@ function derivePassThroughSplit(
 
   const damagedBase = Math.max(0, totalBase - goodBase)
   return { totalBase, goodBase, damagedBase, baseUom }
+}
+
+/** Qty bagus/rusak untuk tampilan — dari baris DB terpisah atau form tunggal. */
+function summarizePassThroughOutputs(
+  input: { qty_input: number; uom: string },
+  outputs: Array<{
+    condition_status?: ConditionStatus | null
+    qty_output: number
+    uom: string
+    actual_qty?: number | null
+    actual_uom?: string | null
+    flagged_for_return?: boolean
+    is_waste?: boolean
+    stock_movement_id?: string | null
+  }>,
+  productUoms: ProductUomRow[],
+): {
+  totalBase: number
+  goodBase: number
+  damagedBase: number
+  baseUom: string
+  hasReturn: boolean
+  hasWaste: boolean
+} {
+  const baseUom = resolveBaseUom(productUoms, input.uom)
+  const totalBase = toBaseQty(input.qty_input, input.uom, productUoms)
+
+  const persistedSplit =
+    outputs.length > 1 ||
+    outputs.some((o) => o.stock_movement_id != null) ||
+    outputs.some((o) => o.flagged_for_return || o.is_waste)
+
+  if (persistedSplit) {
+    const goodBase = outputs
+      .filter((o) => !o.flagged_for_return && !o.is_waste)
+      .reduce(
+        (s, o) => s + toBaseQty(Number(o.qty_output), o.uom, productUoms),
+        0,
+      )
+    const damagedBase = outputs
+      .filter(
+        (o) =>
+          o.flagged_for_return ||
+          o.is_waste ||
+          o.condition_status === 'DAMAGED',
+      )
+      .reduce(
+        (s, o) => s + toBaseQty(Number(o.qty_output), o.uom, productUoms),
+        0,
+      )
+    return {
+      totalBase,
+      goodBase,
+      damagedBase,
+      baseUom,
+      hasReturn: outputs.some((o) => o.flagged_for_return),
+      hasWaste: outputs.some((o) => o.is_waste),
+    }
+  }
+
+  const row = outputs[0]
+  if (!row) {
+    return {
+      totalBase,
+      goodBase: 0,
+      damagedBase: 0,
+      baseUom,
+      hasReturn: false,
+      hasWaste: false,
+    }
+  }
+
+  const split = derivePassThroughSplit(row as LocalOutput, input, productUoms)
+  return {
+    ...split,
+    hasReturn: !!row.flagged_for_return,
+    hasWaste: !!row.is_waste,
+  }
 }
 
 function buildPassThroughOutput(
@@ -463,30 +569,36 @@ function PassThroughCard({
   isConfirming: boolean
 }) {
   const isDone = input.status === 'DONE'
-  const { totalBase, goodBase, damagedBase, baseUom } = derivePassThroughSplit(output, input, productUoms)
+  const editOutput = input.outputs[0] ?? output
+  const { totalBase, goodBase, damagedBase, baseUom, hasReturn, hasWaste } =
+    summarizePassThroughOutputs(
+      input,
+      isDone ? input.outputs : [editOutput],
+      productUoms,
+    )
   const showPoHint = shouldShowPoHint(grLine, baseUom, totalBase, productUoms)
 
   const overTotal = goodBase + damagedBase > totalBase + 0.0001
   const hasDamage = damagedBase > 0.0001
-  const missingDisposition = hasDamage && !output.flagged_for_return && !output.is_waste
+  const missingDisposition = hasDamage && !editOutput.flagged_for_return && !editOutput.is_waste
   const missingReason =
     hasDamage &&
-    ((output.flagged_for_return && !(output.return_reason?.trim())) ||
-      (output.is_waste && !(output.waste_reason?.trim())))
+    ((editOutput.flagged_for_return && !(editOutput.return_reason?.trim())) ||
+      (editOutput.is_waste && !(editOutput.waste_reason?.trim())))
   const canConfirm = !overTotal && !missingDisposition && !missingReason
 
   const applyGood = (raw: string) => {
     const parsed = raw === '' ? 0 : parseFloat(raw)
     const good = Math.min(Math.max(0, Number.isFinite(parsed) ? parsed : 0), totalBase)
     const damaged = Math.max(0, totalBase - good)
-    onChange(buildPassThroughOutput(output, good, damaged, baseUom))
+    onChange(buildPassThroughOutput(editOutput, good, damaged, baseUom))
   }
 
   const applyDamaged = (raw: string) => {
     const parsed = raw === '' ? 0 : parseFloat(raw)
     const damaged = Math.min(Math.max(0, Number.isFinite(parsed) ? parsed : 0), totalBase)
     const good = Math.max(0, totalBase - damaged)
-    onChange(buildPassThroughOutput(output, good, damaged, baseUom))
+    onChange(buildPassThroughOutput(editOutput, good, damaged, baseUom))
   }
 
   return (
@@ -541,12 +653,12 @@ function PassThroughCard({
             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Tidak ada rusak</span>
           </div>
         )}
-        {output.flagged_for_return && (
+        {hasReturn && (
           <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg px-2.5 py-1.5">
             <span className="text-xs text-orange-700 dark:text-orange-300 font-medium">🔄 Retur</span>
           </div>
         )}
-        {output.is_waste && (
+        {hasWaste && (
           <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-1.5">
             <span className="text-xs text-red-700 dark:text-red-300 font-medium">🗑 Waste</span>
           </div>
@@ -610,13 +722,13 @@ function PassThroughCard({
                 <button
                   type="button"
                   onClick={() => onChange({
-                    ...buildPassThroughOutput(output, goodBase, damagedBase, baseUom),
+                    ...buildPassThroughOutput(editOutput, goodBase, damagedBase, baseUom),
                     flagged_for_return: true,
                     is_waste: false,
                     waste_reason: null,
                   })}
                   className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                    output.flagged_for_return
+                    editOutput.flagged_for_return
                       ? 'bg-orange-500 border-orange-500 text-white'
                       : 'bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 dark:placeholder:text-gray-500 border-gray-200 text-gray-600 hover:border-orange-300 dark:hover:border-orange-600'
                   }`}
@@ -626,13 +738,13 @@ function PassThroughCard({
                 <button
                   type="button"
                   onClick={() => onChange({
-                    ...buildPassThroughOutput(output, goodBase, damagedBase, baseUom),
+                    ...buildPassThroughOutput(editOutput, goodBase, damagedBase, baseUom),
                     is_waste: true,
                     flagged_for_return: false,
                     return_reason: null,
                   })}
                   className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                    output.is_waste
+                    editOutput.is_waste
                       ? 'bg-red-500 border-red-500 text-white'
                       : 'bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 border-gray-200 dark:border-gray-600 text-gray-600 hover:border-red-300 dark:hover:border-red-600'
                   }`}
@@ -640,16 +752,16 @@ function PassThroughCard({
                   Waste
                 </button>
               </div>
-              {(output.flagged_for_return || output.is_waste) && (
+              {(editOutput.flagged_for_return || editOutput.is_waste) && (
                 <input
                   type="text"
-                  value={output.flagged_for_return ? (output.return_reason ?? '') : (output.waste_reason ?? '')}
+                  value={editOutput.flagged_for_return ? (editOutput.return_reason ?? '') : (editOutput.waste_reason ?? '')}
                   onChange={(e) => onChange({
-                    ...buildPassThroughOutput(output, goodBase, damagedBase, baseUom),
-                    return_reason: output.flagged_for_return ? e.target.value || null : null,
-                    waste_reason: output.is_waste ? e.target.value || null : null,
+                    ...buildPassThroughOutput(editOutput, goodBase, damagedBase, baseUom),
+                    return_reason: editOutput.flagged_for_return ? e.target.value || null : null,
+                    waste_reason: editOutput.is_waste ? e.target.value || null : null,
                   })}
-                  placeholder={output.flagged_for_return ? 'Alasan retur (wajib)...' : 'Alasan waste (wajib)...'}
+                  placeholder={editOutput.flagged_for_return ? 'Alasan retur (wajib)...' : 'Alasan waste (wajib)...'}
                   className="w-full border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
                 />
               )}
@@ -684,14 +796,20 @@ function PassThroughCard({
               {fmtGpQty(damagedBase)} {baseUom} rusak
             </span>
           )}
-          {output.flagged_for_return && (
+          {hasReturn && (
             <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 dark:text-orange-300 font-medium">
-              Retur{output.return_reason ? `: ${output.return_reason}` : ''}
+              Retur
+              {input.outputs.find((o) => o.flagged_for_return)?.return_reason
+                ? `: ${input.outputs.find((o) => o.flagged_for_return)?.return_reason}`
+                : ''}
             </span>
           )}
-          {output.is_waste && (
+          {hasWaste && (
             <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 dark:text-red-300 font-medium">
-              Waste{output.waste_reason ? `: ${output.waste_reason}` : ''}
+              Waste
+              {input.outputs.find((o) => o.is_waste)?.waste_reason
+                ? `: ${input.outputs.find((o) => o.is_waste)?.waste_reason}`
+                : ''}
             </span>
           )}
         </div>
@@ -959,40 +1077,6 @@ function ReturnItemsSection({ gp, onResolve, canApprove }: {
   )
 }
 
-// ── RejectModal ───────────────────────────────────────────────────────────────
-
-function RejectModal({ onConfirm, onCancel, loading }: {
-  onConfirm: (reason: string) => void
-  onCancel: () => void
-  loading: boolean
-}) {
-  const [reason, setReason] = useState("")
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
-        <div className="flex items-center gap-2">
-          <XCircle size={20} className="text-red-500" />
-          <h3 className="font-semibold text-gray-900 dark:text-white">Tolak Proses</h3>
-        </div>
-        <textarea
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="Alasan penolakan..."
-          rows={3}
-          autoFocus
-          className="w-full border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
-        />
-        <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Batal</button>
-          <button onClick={() => reason.trim() && onConfirm(reason.trim())} disabled={!reason.trim() || loading}
-            className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium disabled:opacity-50 hover:bg-red-600 transition-colors"
-          >{loading ? "Menyimpan..." : "Tolak"}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── AddOutputModal ────────────────────────────────────────────────────────────
 
 function AddOutputModal({ template, onAdd, onCancel }: {
@@ -1181,9 +1265,7 @@ export default function GoodsProcessingDetailPage() {
 
   const { data: gp, isLoading, error } = useGoodsProcessingDetail(id!)
   const startMut = useStartGoodsProcessing(id!)
-  const updateMut = useUpdateGoodsProcessing(id!)
   const confirmMut = useConfirmGoodsProcessing(id!)
-  const rejectMut = useRejectGoodsProcessing(id!)
   const resolveMut = useResolveReturn(id!)
   const confirmInputMut = useConfirmGoodsProcessingInput(id!)
 
@@ -1232,7 +1314,6 @@ export default function GoodsProcessingDetailPage() {
   const getGrLine = (grLineId: string) =>
     grDetail?.lines.find(l => l.id === grLineId) ?? null
 
-  const [showRejectModal, setShowRejectModal] = useState(false)
   const [addOutputFor, setAddOutputFor] = useState<string | null>(null)
 
   useEffect(() => {
@@ -1240,13 +1321,8 @@ export default function GoodsProcessingDetailPage() {
   }, [gp])
 
   const isEditable = useMemo(
-    () => canUpdate && (gp?.status === "PROCESSING" || gp?.status === "PARTIAL" || gp?.status === "REJECTED"),
+    () => canUpdate && (gp?.status === "PROCESSING" || gp?.status === "PARTIAL"),
     [canUpdate, gp?.status]
-  )
-
-  const hasProcessing = useMemo(
-    () => gp?.inputs.some(inp => inp.requires_processing) ?? false,
-    [gp]
   )
 
   // Progress counts
@@ -1259,13 +1335,9 @@ export default function GoodsProcessingDetailPage() {
     const s = gp.status
     if (s === "DRAFT" && canUpdate) return true
     if (s === "CONFIRMED") return true
-    if ((s === "PROCESSING" || s === "PARTIAL" || s === "REJECTED") && isEditable) {
-      if (doneCount > 0 && canApprove && (s === "PROCESSING" || s === "PARTIAL")) return true
-      if (!allDone && hasProcessing) return true
-      if (allDone && canApprove) return true
-    }
+    if ((s === "PROCESSING" || s === "PARTIAL") && doneCount > 0 && canApprove) return true
     return false
-  }, [gp, canUpdate, canApprove, isEditable, doneCount, allDone, hasProcessing])
+  }, [gp, canUpdate, canApprove, doneCount])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -1296,30 +1368,6 @@ export default function GoodsProcessingDetailPage() {
     }
   }, [confirmInputMut, addToast, uomConversions])
 
-  const handleSave = useCallback(async () => {
-    if (!gp) return
-    for (const inp of localInputs) {
-      const invalid = findInvalidOutput(inp.outputs)
-      if (invalid) {
-        addToast("error", `Output "${invalid.product_name}" pada ${inp.product_name} belum terhubung ke produk valid. Hapus baris ini dan tambah ulang via pencarian produk.`)
-        return
-      }
-    }
-    try {
-      await updateMut.mutateAsync({
-        inputs: localInputs.map(inp => ({
-          id: inp.id,
-          outputs: inp.outputs
-            .filter(o => !(o as LocalOutput & { _delete?: boolean })._delete)
-            .map((o, i) => toApiOutput(o, i)),
-        })),
-      })
-      addToast("success", "Tersimpan")
-    } catch (e) {
-      addToast("error", parseApiError(e, "Terjadi kesalahan"))
-    }
-  }, [gp, localInputs, updateMut, addToast])
-
   const handleConfirmGp = useCallback(async () => {
     if (!gp) return
     try {
@@ -1339,15 +1387,6 @@ export default function GoodsProcessingDetailPage() {
     }
   }, [startMut, addToast])
 
-  const handleReject = useCallback(async (reason: string) => {
-    try {
-      await rejectMut.mutateAsync({ rejection_reason: reason })
-      setShowRejectModal(false)
-      addToast("info", "Proses ditolak")
-    } catch (e) {
-      addToast("error", parseApiError(e, "Terjadi kesalahan"))
-    }
-  }, [rejectMut, addToast])
 
   const handleResolveReturn = useCallback(async (outputId: string, resolution: "STOCK" | "DISCARD") => {
     try {
@@ -1402,7 +1441,7 @@ export default function GoodsProcessingDetailPage() {
   const status = gp.status
   const isInProgress = status === "PROCESSING" || status === "PARTIAL"
   const cfg = resolveGpHeaderStatusConfig(status, doneCount, totalCount)
-  const isBusy = startMut.isPending || updateMut.isPending || confirmMut.isPending || rejectMut.isPending
+  const isBusy = startMut.isPending || confirmMut.isPending
   const addOutputInput = addOutputFor != null ? localInputs.find(inp => inp.id === addOutputFor) : null
 
   return (
@@ -1535,7 +1574,7 @@ export default function GoodsProcessingDetailPage() {
                 </button>
               )}
 
-              {(isInProgress || status === "REJECTED") && isEditable && (
+              {isInProgress && isEditable && (
                 <div className="space-y-2">
                   {doneCount > 0 && isInProgress && (
                     <p className="text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
@@ -1549,31 +1588,6 @@ export default function GoodsProcessingDetailPage() {
                     >
                       <CheckCircle2 size={16} />
                       {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
-                    </button>
-                  )}
-                  {!allDone && hasProcessing && (
-                    <div className="flex gap-2">
-                      <button onClick={handleSave} disabled={isBusy}
-                        className="flex items-center gap-1.5 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-sm disabled:opacity-50 hover:border-gray-300 dark:hover:border-gray-500 transition-all shrink-0"
-                      >
-                        <Save size={15} />
-                        Simpan
-                      </button>
-                      {canApprove && (
-                        <button onClick={() => setShowRejectModal(true)} disabled={isBusy}
-                          className="flex items-center gap-1.5 px-4 py-3 border-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl font-medium text-sm disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shrink-0"
-                        >
-                          <XCircle size={15} />
-                          Tolak
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {allDone && canApprove && (
-                    <button type="button" onClick={() => setShowRejectModal(true)} disabled={isBusy}
-                      className="w-full py-2 border-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-sm font-medium disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                    >
-                      Tolak seluruh proses
                     </button>
                   )}
                 </div>
@@ -1604,7 +1618,7 @@ export default function GoodsProcessingDetailPage() {
                 grLine={grLine}
                 productUoms={uomConversions?.[inp.product_id] ?? []}
                 uomMap={uomConversions ?? {}}
-                isEditable={isEditable}
+                isEditable={isEditable && inp.status !== "DONE"}
                 onChange={(oi, updated) => updateDisassemblyOutput(inputIndex, oi, updated as LocalOutput & { _delete?: boolean })}
                 onAddOutput={() => setAddOutputFor(inp.id)}
                 onConfirmItem={() => handleConfirmItem(inp)}
@@ -1615,7 +1629,7 @@ export default function GoodsProcessingDetailPage() {
                 key={inp.id}
                 input={inp}
                 output={inp.outputs[0] ?? { id: '', product_id: '', product_name: '', product_code: '', qty_output: 0, uom: '', is_waste: false, waste_reason: null, condition_status: null, actual_qty: null, actual_uom: null, flagged_for_return: false, return_reason: null, sort_order: 0 }}
-                isEditable={isEditable}
+                isEditable={isEditable && inp.status !== "DONE"}
                 onChange={(updated) => updatePassThroughOutput(inputIndex, updated)}
                 productUoms={uomConversions?.[inp.product_id] ?? []}
                 grLine={grLine}
@@ -1640,43 +1654,13 @@ export default function GoodsProcessingDetailPage() {
             </button>
           )}
 
-          {(isInProgress || status === "REJECTED") && isEditable && (
-            <div className="space-y-2">
-              {doneCount > 0 && canApprove && isInProgress ? (
-                <button type="button" onClick={handleConfirmGp} disabled={isBusy}
-                  className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
-                >
-                  <CheckCircle2 size={16} />
-                  {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
-                </button>
-              ) : !allDone ? (
-                hasProcessing ? (
-                  <div className="flex gap-2">
-                    <button onClick={handleSave} disabled={isBusy}
-                      className="flex items-center gap-1.5 px-4 py-3.5 border-2 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-2xl font-medium text-sm disabled:opacity-50 hover:border-gray-300 dark:hover:border-gray-500 transition-all shrink-0"
-                    >
-                      <Save size={15} />
-                      Simpan
-                    </button>
-                    {canApprove && (
-                      <button onClick={() => setShowRejectModal(true)} disabled={isBusy}
-                        className="px-3 py-3.5 border-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shrink-0"
-                      >
-                        <XCircle size={15} />
-                      </button>
-                    )}
-                  </div>
-                ) : null
-              ) : (
-                <div className="flex">
-                  <button type="button" onClick={() => setShowRejectModal(true)} disabled={isBusy}
-                    className="w-full py-2.5 border-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-2xl text-sm font-medium disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                  >
-                    Tolak seluruh proses
-                  </button>
-                </div>
-              )}
-            </div>
+          {isInProgress && isEditable && doneCount > 0 && canApprove && (
+            <button type="button" onClick={handleConfirmGp} disabled={isBusy}
+              className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
+            >
+              <CheckCircle2 size={16} />
+              {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
+            </button>
           )}
 
 
@@ -1691,9 +1675,6 @@ export default function GoodsProcessingDetailPage() {
       )}
 
       {/* ── Modals ── */}
-      {showRejectModal && (
-        <RejectModal onConfirm={handleReject} onCancel={() => setShowRejectModal(false)} loading={rejectMut.isPending} />
-      )}
       {addOutputFor != null && addOutputInput && (
         <AddOutputModal
           template={addOutputInput.output_template}

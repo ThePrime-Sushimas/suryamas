@@ -387,13 +387,27 @@ async updateWithOutputs(
     await client.query('BEGIN')
     await this.updateHeader(client, id, data)
     for (const inp of inputs) {
+      const { rows: [line] } = await client.query<{ status: string }>(
+        `SELECT status FROM goods_processing_inputs
+         WHERE id = $1 AND goods_processing_id = $2`,
+        [inp.id, id],
+      )
+      if (!line) continue
+      // Item sudah dikonfirmasi per-baris (stok sudah masuk) — jangan hapus/replace outputs.
+      if (line.status === 'DONE') continue
+
       const outputs = inp.outputs.map((o, i) => ({
         product_id: o.product_id,
         qty_output: o.qty_output,
         uom: o.uom,
-        is_waste: o.is_waste,
+        is_waste: o.is_waste ?? false,
         waste_reason: o.waste_reason ?? null,
         photo_urls: o.photo_urls ?? null,
+        condition_status: o.condition_status ?? null,
+        actual_qty: o.actual_qty ?? null,
+        actual_uom: o.actual_uom ?? null,
+        flagged_for_return: o.flagged_for_return ?? false,
+        return_reason: o.return_reason ?? null,
         sort_order: o.sort_order ?? i,
       }))
       await this.replaceOutputs(client, id, inp.id, outputs)
