@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
+import { canView, canInsert, canUpdate, canDelete, canRelease } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { documentUploadSingle } from '../../middleware/upload-document.middleware'
 import { PermissionService } from '../../services/permission.service'
@@ -83,14 +83,14 @@ router.post('/marketplace-settlements/bulk', canUpdate('cc_owner_settlements'), 
 // Cancel session with reason
 router.post(
   '/marketplace-sessions/:id/cancel-ordered',
-  canUpdate('marketplace_po'),
+  canRelease('marketplace_po'),
   validateSchema(cancelOrderedSessionSchema),
   (req, res) => marketplacePoController.cancelOrderedSession(req, res),
 )
 
 router.post(
   '/marketplace-sessions/:id/cancel-shipped',
-  canUpdate('marketplace_po'),
+  canRelease('marketplace_po'),
   validateSchema(cancelShippedSessionSchema),
   (req, res) => marketplacePoController.cancelShippedSession(req, res),
 )

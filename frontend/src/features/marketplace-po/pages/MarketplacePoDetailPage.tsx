@@ -40,6 +40,7 @@ export default function MarketplacePoDetailPage() {
   const toast = useToast()
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canUpdate = hasPermission('marketplace_po', 'update')
+  const canRelease = hasPermission('marketplace_po', 'release')
 
   const [activeTab, setActiveTab] = useState<TabId>('items')
   const [showOrderModal, setShowOrderModal] = useState(false)
@@ -158,7 +159,9 @@ export default function MarketplacePoDetailPage() {
     return map[header.status]
   }, [header, canUpdate])
 
-  const showCancelButton = canUpdate && (header?.status === 'ORDERED' || header?.status === 'SHIPPED')
+  const showCancelButton =
+  canRelease &&
+  (header?.status === 'ORDERED' || header?.status === 'SHIPPED')
 
   if (isLoading) {
     return (
