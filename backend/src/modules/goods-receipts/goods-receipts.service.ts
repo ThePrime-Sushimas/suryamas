@@ -15,6 +15,7 @@ import { calculateDueDate } from '../../utils/due-date.util'
 import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import { buildProductUomsMap, toProductBaseQty } from '../../utils/product-uom.util'
+import { enrichGrLineInvoicePricing } from '../../utils/gr-line-invoice-pricing.util'
 import type { CreateGoodsReceiptDto, UpdateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
 
 export class GoodsReceiptsService {
@@ -28,7 +29,13 @@ export class GoodsReceiptsService {
   async getById(id: string, companyId: string): Promise<GoodsReceiptWithLines> {
     const gr = await goodsReceiptsRepository.findWithLines(id, companyId)
     if (!gr) throw new GoodsReceiptNotFoundError(id)
-    return gr
+    return {
+      ...gr,
+      lines: gr.lines.map((line) => ({
+        ...line,
+        ...enrichGrLineInvoicePricing(line),
+      })),
+    }
   }
 
   async create(companyId: string, dto: CreateGoodsReceiptDto, userId: string) {

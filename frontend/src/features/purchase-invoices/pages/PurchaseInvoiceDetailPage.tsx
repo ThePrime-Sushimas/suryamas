@@ -504,7 +504,10 @@ export default function PurchaseInvoiceDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                {inv.lines.map((l, index) => (
+                {inv.lines.map((l, index) => {
+                  const uom = l.uom_received ?? "";
+                  const unitPricePoOperational = Number(l.unit_price_po_operational ?? 0);
+                  return (
                   <tr
                     key={index}
                     className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors"
@@ -518,18 +521,28 @@ export default function PurchaseInvoiceDetailPage() {
                       </p>
                     </td>
                     <td className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">
-                      {l.qty_received}
+                      {fmtQty(l.qty_received)}
+                      {uom ? (
+                        <span className="text-[10px] text-gray-400 block">{uom}</span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-gray-900 dark:text-white">
-                      {l.qty_invoiced}
+                      {fmtQty(l.qty_invoiced)}
+                      {uom ? (
+                        <span className="text-[10px] text-gray-400 block">{uom}</span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <p className="font-medium text-gray-900 dark:text-white">
                         {fmtCurrency(l.unit_price)}
+                        {uom ? (
+                          <span className="text-[10px] text-gray-400 font-normal">/{uom}</span>
+                        ) : null}
                       </p>
-                      {l.unit_price !== l.unit_price_po && (
+                      {Math.abs(l.unit_price - unitPricePoOperational) > 0.01 && (
                         <p className="text-[10px] text-yellow-600 font-medium">
-                          PO: {fmtCurrency(l.unit_price_po ?? 0)}
+                          PO: {fmtCurrency(unitPricePoOperational)}
+                          {uom ? `/${uom}` : ""}
                         </p>
                       )}
                     </td>
@@ -553,7 +566,8 @@ export default function PurchaseInvoiceDetailPage() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>

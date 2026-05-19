@@ -1,5 +1,6 @@
 import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
+import { derivePoUnitPricePerReceivedUom } from '../../utils/gr-line-invoice-pricing.util'
 import type {
   PurchaseInvoice,
   PurchaseInvoiceDetail,
@@ -68,12 +69,17 @@ const HEADER_FROM = `
 const LINE_SELECT = `
   pil.*,
   p.product_code,
-  p.product_name
+  p.product_name,
+  grl.uom_received,
+  grl.qty_po_uom,
+  grl.uom_po,
+  grl.conversion_factor
 `
 
 const LINE_FROM = `
   FROM purchase_invoice_lines pil
   JOIN products p ON p.id = pil.product_id
+  JOIN goods_receipt_lines grl ON grl.id = pil.gr_line_id
 `
 
 export type GrLineDetailForInvoicing = {
@@ -81,8 +87,11 @@ export type GrLineDetailForInvoicing = {
   gr_id: string
   product_id: string
   qty_received: string | number
+  qty_po_uom: string | number
+  conversion_factor: string | number
+  uom_received: string
+  unit_price_invoice: string | number | null
   unit_price_po: string | number
-  qty_po: string | number
 }
 
 export class PurchaseInvoicesRepository {
@@ -103,9 +112,10 @@ export class PurchaseInvoicesRepository {
 
   async findGrLineDetailsForInvoicing(client: PoolClient, grLineIds: string[]): Promise<GrLineDetailForInvoicing[]> {
     const { rows } = await client.query(
-      `SELECT grl.id, grl.gr_id, grl.product_id, grl.qty_received, grl.unit_price_po, pol.qty AS qty_po
+      `SELECT grl.id, grl.gr_id, grl.product_id,
+              grl.qty_received, grl.qty_po_uom, grl.conversion_factor, grl.uom_received,
+              grl.unit_price_invoice, grl.unit_price_po
        FROM goods_receipt_lines grl
-       JOIN purchase_order_lines pol ON pol.id = grl.po_line_id
        WHERE grl.id = ANY($1::uuid[])`,
       [grLineIds],
     )
@@ -114,8 +124,8 @@ export class PurchaseInvoicesRepository {
 
   async copyAttachmentsFromGrs(client: PoolClient, invoiceId: string, grIds: string[]): Promise<void> {
     await client.query(
-      `INSERT INTO purchase_invoice_attachments (purchase_invoice_id, file_path, file_name, file_type, file_size, uploaded_by)
-       SELECT $1, file_path, file_name, file_type, file_size, uploaded_by
+      `INSERT INTO purchase_invoice_attachments (purchase_invoice_id, file_path, file_name, file_type, uploaded_by)
+       SELECT $1, file_path, file_name, file_type, uploaded_by
        FROM goods_receipt_attachments
        WHERE gr_id = ANY($2::uuid[])
        AND NOT EXISTS (
@@ -769,7 +779,14 @@ export class PurchaseInvoicesRepository {
     return {
       ...header,
       gr_links: linksRes.rows,
-      lines: linesRes.rows,
+      lines: linesRes.rows.map((row) => ({
+        ...row,
+        unit_price_po_operational: derivePoUnitPricePerReceivedUom({
+          qty_received: Number(row.qty_received),
+          qty_po_uom: Number(row.qty_po_uom),
+          unit_price_po: Number(row.unit_price_po),
+        }),
+      })),
       attachments: attachmentsRes.rows,
       gp_line_audits: gpLineAudits,
     }

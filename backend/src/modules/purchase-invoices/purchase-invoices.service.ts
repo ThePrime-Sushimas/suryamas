@@ -20,6 +20,10 @@ import type {
   UpdatePurchaseInvoiceDto,
 } from './purchase-invoices.types'
 import { calculateDueDate } from '../../utils/due-date.util'
+import {
+  deriveInvoiceUnitPricePerReceivedUom,
+  derivePoQtyInReceivedUom,
+} from '../../utils/gr-line-invoice-pricing.util'
 
 function computeLineTotals(qtyInvoiced: number, unitPrice: number, taxRate: number) {
   const subtotal = qtyInvoiced * unitPrice
@@ -80,14 +84,23 @@ export class PurchaseInvoicesService {
 
       const qtyReceived = Number(grl.qty_received)
       const unitPricePo = Number(grl.unit_price_po)
-      const qtyPo = Number(grl.qty_po)
+      const qtyPoOperational = derivePoQtyInReceivedUom({
+        qty_received: qtyReceived,
+        qty_po_uom: Number(grl.qty_po_uom),
+        conversion_factor: Number(grl.conversion_factor),
+      })
+      const unitPricePoOperational = deriveInvoiceUnitPricePerReceivedUom({
+        qty_received: qtyReceived,
+        qty_po_uom: Number(grl.qty_po_uom),
+        unit_price_po: unitPricePo,
+      })
 
       subtotal += totals.subtotal
       totalTax += totals.taxAmount
       totalAmount += totals.total
 
       const varianceQty = qtyInvoiced - qtyReceived
-      const variancePrice = unitPrice - unitPricePo
+      const variancePrice = unitPrice - unitPricePoOperational
 
       enrichedLines.push({
         gr_line_id: l.gr_line_id,
@@ -99,7 +112,7 @@ export class PurchaseInvoicesService {
         subtotal: totals.subtotal,
         tax_amount: totals.taxAmount,
         total: totals.total,
-        qty_po: qtyPo,
+        qty_po: qtyPoOperational,
         unit_price_po: unitPricePo,
         variance_qty: varianceQty,
         variance_price: variancePrice,
@@ -419,29 +432,44 @@ export class PurchaseInvoicesService {
     let totalAmount = 0;
     
     const piLines = lines.map((l: any, i: number) => {
-      const qtyInvoiced = Number(l.qty_received);
-      const unitPrice = Number(l.unit_price_invoice ?? l.unit_price_po);
-      const taxRate = 11; // Default tax 11%
-      const totals = computeLineTotals(qtyInvoiced, unitPrice, taxRate);
-      
-      subtotal += totals.subtotal;
-      totalTax += totals.taxAmount;
-      totalAmount += totals.total;
+      const qtyReceived = Number(l.qty_received)
+      const qtyInvoiced = qtyReceived
+      const unitPrice = deriveInvoiceUnitPricePerReceivedUom({
+        qty_received: qtyReceived,
+        qty_po_uom: Number(l.qty_po_uom),
+        unit_price_invoice: l.unit_price_invoice,
+        unit_price_po: l.unit_price_po,
+      })
+      const unitPricePoOperational = deriveInvoiceUnitPricePerReceivedUom({
+        qty_received: qtyReceived,
+        qty_po_uom: Number(l.qty_po_uom),
+        unit_price_po: l.unit_price_po,
+      })
+      const taxRate = 11 // Default tax 11%
+      const totals = computeLineTotals(qtyInvoiced, unitPrice, taxRate)
+
+      subtotal += totals.subtotal
+      totalTax += totals.taxAmount
+      totalAmount += totals.total
 
       return {
         gr_line_id: l.id,
         product_id: l.product_id,
-        qty_received: Number(l.qty_received),
+        qty_received: qtyReceived,
         qty_invoiced: qtyInvoiced,
         unit_price: unitPrice,
         tax_rate: taxRate,
         subtotal: totals.subtotal,
         tax_amount: totals.taxAmount,
         total: totals.total,
-        qty_po: Number(l.qty_po),
+        qty_po: derivePoQtyInReceivedUom({
+          qty_received: qtyReceived,
+          qty_po_uom: Number(l.qty_po_uom),
+          conversion_factor: Number(l.conversion_factor),
+        }),
         unit_price_po: Number(l.unit_price_po),
         variance_qty: 0,
-        variance_price: unitPrice - Number(l.unit_price_po),
+        variance_price: unitPrice - unitPricePoOperational,
         match_status: 'MATCH' as const,
         sort_order: i,
         created_by: userId,

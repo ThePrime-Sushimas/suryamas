@@ -77,6 +77,10 @@ export interface PurchaseInvoiceLine {
   sort_order: number
   product_code: string
   product_name: string
+  uom_received?: string
+  qty_po_uom?: number
+  uom_po?: string
+  unit_price_po_operational: number
 }
 
 export interface PurchaseInvoiceGpLineAudit {

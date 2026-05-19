@@ -18,6 +18,9 @@ export interface GoodsReceiptLine {
   unit_price_invoice: number
   total_price_invoice?: number
   unit_price_po?: number
+  unit_price_po_operational?: number
+  unit_price_invoice_operational?: number
+  qty_po_operational?: number
   price_variance?: number
   price_variance_pct?: number
   variance_status?: 'OK' | 'NOTICE' | 'DISPUTED'

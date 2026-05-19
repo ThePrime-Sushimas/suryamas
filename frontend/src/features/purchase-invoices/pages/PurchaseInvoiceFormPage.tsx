@@ -24,6 +24,8 @@ interface PILine {
   tax_rate: number;
   qty_po: number;
   unit_price_po: number;
+  unit_price_po_operational: number;
+  uom_received: string;
   gr_number: string;
 }
 
@@ -77,6 +79,8 @@ export default function PurchaseInvoiceFormPage() {
           tax_rate: Number(l.tax_rate),
           qty_po: Number(l.qty_po ?? 0),
           unit_price_po: Number(l.unit_price_po ?? 0),
+          unit_price_po_operational: Number(l.unit_price_po_operational ?? 0),
+          uom_received: l.uom_received ?? "",
           gr_number:
             existingPI.gr_links.find(() =>
               existingPI.lines.some((pl) => pl.gr_line_id === l.gr_line_id),
@@ -89,19 +93,24 @@ export default function PurchaseInvoiceFormPage() {
   // Fetch GR lines when GRs are selected (only in create mode or when adding new GRs)
   const fetchGrLines = async (grId: string) => {
     const { data } = await api.get(`/goods-receipts/${grId}`);
-    return data.data.lines.map((l: any) => ({
-      gr_line_id: l.id,
-      product_id: l.product_id,
-      product_code: l.product_code,
-      product_name: l.product_name,
-      qty_received: Number(l.qty_received),
-      qty_invoiced: Number(l.qty_received), // Default to received qty
-      unit_price: Number(l.unit_price_po ?? 0), // Default to PO price
-      tax_rate: 11, // Default PPN
-      qty_po: Number(l.qty_po_uom ?? 0),
-      unit_price_po: Number(l.unit_price_po ?? 0),
-      gr_number: data.data.gr_number,
-    }));
+    return data.data.lines.map((l: any) => {
+      const qtyReceived = Number(l.qty_received);
+      return {
+        gr_line_id: l.id,
+        product_id: l.product_id,
+        product_code: l.product_code,
+        product_name: l.product_name,
+        qty_received: qtyReceived,
+        qty_invoiced: qtyReceived,
+        unit_price: Number(l.unit_price_invoice_operational ?? 0),
+        tax_rate: 11,
+        qty_po: qtyReceived,
+        unit_price_po: Number(l.unit_price_po ?? 0),
+        unit_price_po_operational: Number(l.unit_price_po_operational ?? 0),
+        uom_received: l.uom_received ?? l.uom_po ?? "",
+        gr_number: data.data.gr_number,
+      };
+    });
   };
 
   const handleGrToggle = async (grId: string) => {
@@ -446,6 +455,11 @@ export default function PurchaseInvoiceFormPage() {
                         </td>
                         <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400 font-medium">
                           {l.qty_received}
+                          {l.uom_received ? (
+                            <span className="text-[10px] text-gray-400 block">
+                              {l.uom_received}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <input
@@ -458,6 +472,11 @@ export default function PurchaseInvoiceFormPage() {
                             }
                             className={`w-20 px-2 py-1 border rounded text-center text-sm outline-none focus:ring-2 ${isOver ? "border-red-300 focus:ring-red-500 text-red-600" : "border-gray-200 dark:border-gray-600 focus:ring-indigo-500"}`}
                           />
+                          {l.uom_received ? (
+                            <span className="text-[10px] text-gray-400 block">
+                              {l.uom_received}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <input
@@ -471,7 +490,8 @@ export default function PurchaseInvoiceFormPage() {
                             className="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-right text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                           />
                           <div className="text-[10px] text-gray-400 mt-0.5">
-                            PO: {fmtCurrency(l.unit_price_po)}
+                            PO: {fmtCurrency(l.unit_price_po_operational)}
+                            {l.uom_received ? `/${l.uom_received}` : ""}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
