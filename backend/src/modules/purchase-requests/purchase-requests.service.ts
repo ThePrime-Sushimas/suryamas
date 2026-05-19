@@ -1,4 +1,3 @@
-import { pool } from '../../config/db'
 import { purchaseRequestsRepository } from './purchase-requests.repository'
 import {
   PurchaseRequestNotFoundError, PurchaseRequestInvalidStatusError,
@@ -30,41 +29,31 @@ export class PurchaseRequestsService {
   async create(companyId: string, dto: CreatePurchaseRequestDto, userId: string) {
     if (!dto.lines || dto.lines.length === 0) throw new PurchaseRequestEmptyLinesError()
 
-    // Get branch code for number generation
-    const { rows: branchRows } = await pool.query('SELECT branch_code FROM branches WHERE id = $1', [dto.branch_id])
-    const branchCode = branchRows[0]?.branch_code ?? 'XXX'
+    const branchCode = (await purchaseRequestsRepository.findBranchCodeById(dto.branch_id)) ?? 'XXX'
 
-    const client = await pool.connect()
     try {
-      await client.query('BEGIN')
-
-      // Generate number inside transaction with FOR UPDATE lock
-      const requestNumber = await purchaseRequestsRepository.generateRequestNumber(client, companyId, branchCode)
-
-      const pr = await purchaseRequestsRepository.create(client, companyId, {
-        branch_id: dto.branch_id,
-        request_number: requestNumber,
-        request_date: dto.request_date,
-        needed_by_date: dto.needed_by_date,
-        priority: dto.priority,
-        notes: dto.notes,
-        requested_by: userId,
-        status: 'PENDING_APPROVAL',
-        created_by: userId,
+      const pr = await purchaseRequestsRepository.withTransaction(async (client) => {
+        const requestNumber = await purchaseRequestsRepository.generateRequestNumber(client, companyId, branchCode)
+        const created = await purchaseRequestsRepository.create(client, companyId, {
+          branch_id: dto.branch_id,
+          request_number: requestNumber,
+          request_date: dto.request_date,
+          needed_by_date: dto.needed_by_date,
+          priority: dto.priority,
+          notes: dto.notes,
+          requested_by: userId,
+          status: 'PENDING_APPROVAL',
+          created_by: userId,
+        })
+        await purchaseRequestsRepository.insertLines(client, created.id, dto.lines)
+        return created
       })
-
-      await purchaseRequestsRepository.insertLines(client, pr.id, dto.lines)
-
-      await client.query('COMMIT')
 
       await AuditService.log('CREATE', 'purchase_request', pr.id, userId, undefined, pr)
       return purchaseRequestsRepository.findWithLines(pr.id, companyId)
     } catch (e) {
-      await client.query('ROLLBACK')
       if (isPostgresError(e, '23505')) throw new PurchaseRequestDuplicateError('auto-generated')
       throw e
-    } finally {
-      client.release()
     }
   }
 
@@ -75,39 +64,17 @@ export class PurchaseRequestsService {
       throw new PurchaseRequestInvalidStatusError(existing.status, 'DRAFT or PENDING_APPROVAL')
     }
 
-    // All updates in single transaction
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-
-      // Update header
-      const fields: string[] = ['updated_at = now()']
-      const params: unknown[] = []
-      let idx = 1
-
-      if (dto.needed_by_date !== undefined) { params.push(dto.needed_by_date); fields.push(`needed_by_date = $${idx++}`) }
-      if (dto.notes !== undefined) { params.push(dto.notes); fields.push(`notes = $${idx++}`) }
-      params.push(userId); fields.push(`updated_by = $${idx++}`)
-      params.push(id, companyId)
-
-      await client.query(
-        `UPDATE purchase_requests SET ${fields.join(', ')} WHERE id = $${idx} AND company_id = $${idx + 1} AND deleted_at IS NULL AND status IN ('DRAFT', 'PENDING_APPROVAL')`,
-        params
-      )
-
-      // Replace lines if provided
+    await purchaseRequestsRepository.withTransaction(async (client) => {
+      await purchaseRequestsRepository.updateEditable(client, id, companyId, {
+        needed_by_date: dto.needed_by_date,
+        notes: dto.notes,
+        updated_by: userId,
+      })
       if (dto.lines && dto.lines.length > 0) {
         await purchaseRequestsRepository.deleteLines(client, id)
         await purchaseRequestsRepository.insertLines(client, id, dto.lines)
       }
-
-      await client.query('COMMIT')
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
-    }
+    })
 
     await AuditService.log('UPDATE', 'purchase_request', id, userId, existing)
     return purchaseRequestsRepository.findWithLines(id, companyId)

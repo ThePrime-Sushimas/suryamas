@@ -56,6 +56,26 @@ const LINE_FROM = `
   `
 
 export class PurchaseRequestsRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async findBranchCodeById(branchId: string): Promise<string | null> {
+    const { rows } = await pool.query('SELECT branch_code FROM branches WHERE id = $1', [branchId])
+    return rows[0]?.branch_code ?? null
+  }
+
   async findAll(
     companyId: string,
     pagination: { limit: number; offset: number },
@@ -176,6 +196,27 @@ export class PurchaseRequestsRepository {
 
   async deleteLines(client: PoolClient, requestId: string): Promise<void> {
     await client.query('DELETE FROM purchase_request_lines WHERE request_id = $1', [requestId])
+  }
+
+  async updateEditable(
+    client: PoolClient,
+    id: string,
+    companyId: string,
+    data: { needed_by_date?: string | null; notes?: string | null; updated_by: string }
+  ): Promise<void> {
+    const fields: string[] = ['updated_at = now()']
+    const params: unknown[] = []
+    let idx = 1
+
+    if (data.needed_by_date !== undefined) { params.push(data.needed_by_date); fields.push(`needed_by_date = $${idx++}`) }
+    if (data.notes !== undefined) { params.push(data.notes); fields.push(`notes = $${idx++}`) }
+    params.push(data.updated_by); fields.push(`updated_by = $${idx++}`)
+    params.push(id, companyId)
+
+    await client.query(
+      `UPDATE purchase_requests SET ${fields.join(', ')} WHERE id = $${idx} AND company_id = $${idx + 1} AND deleted_at IS NULL AND status IN ('DRAFT', 'PENDING_APPROVAL')`,
+      params
+    )
   }
 
   async updateStatus(id: string, companyId: string, status: PurchaseRequestStatus, extra?: Record<string, unknown>): Promise<PurchaseRequest | null> {
