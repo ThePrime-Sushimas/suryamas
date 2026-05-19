@@ -222,7 +222,8 @@ async syncHeaderStatusFromLines(client: PoolClient, gpId: string): Promise<void>
     'SELECT status FROM goods_processing WHERE id = $1',
     [gpId]
   )
-  if (!gp || !['PROCESSING', 'PARTIAL', 'REJECTED'].includes(gp.status)) return
+  // CORRECTING: status header hanya berubah lewat unconfirm / confirm GP, bukan sync per-baris
+  if (!gp || gp.status === 'CORRECTING' || !['PROCESSING', 'PARTIAL', 'REJECTED'].includes(gp.status)) return
 
   const statuses = lineRows.map(r => r.status)
   const anyDone = statuses.some(s => s === 'DONE')
@@ -419,6 +420,29 @@ async updateWithOutputs(
   } finally {
     client.release()
   }
+}
+
+async hasPostedPurchaseInvoice(gpId: string): Promise<boolean> {
+  const { rows } = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS(
+       SELECT 1
+       FROM goods_processing_inputs gpi
+       JOIN purchase_invoice_lines pil
+         ON pil.gr_line_id = gpi.gr_line_id
+        AND pil.deleted_at IS NULL
+       JOIN purchase_invoices pi
+         ON pi.id = pil.purchase_invoice_id
+        AND pi.deleted_at IS NULL
+        AND pi.status = 'POSTED'
+       WHERE gpi.goods_processing_id = $1
+     ) AS exists`,
+    [gpId],
+  )
+  return Boolean(rows[0]?.exists)
+}
+
+async unconfirmGp(id: string, userId: string): Promise<void> {
+  await pool.query('SELECT unconfirm_goods_processing($1::uuid, $2::uuid)', [id, userId])
 }
 
 /** Batalkan finalisasi QC — kembalikan ke PROCESSING/PARTIAL agar item belum DONE bisa dilanjutkan. */

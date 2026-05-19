@@ -79,6 +79,18 @@ export class GoodsProcessingController {
     }
   }
 
+  unconfirm = async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string
+      const companyId = getCompanyId(req)
+      const userId = getUserId(req)
+      const result = await goodsProcessingService.unconfirm(id, companyId, userId)
+      sendSuccess(res, result, 'GP dibuka kembali untuk koreksi')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'unconfirm_goods_processing' })
+    }
+  }
+
   confirm = async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string

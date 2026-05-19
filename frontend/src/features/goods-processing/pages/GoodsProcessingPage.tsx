@@ -24,6 +24,7 @@ const STATUS_CONFIG: Record<string, {
   PROCESSING: { label: "Diproses",  dot: "bg-blue-500",   badge: "bg-blue-50 text-blue-700",     icon: <LoaderCircle size={12} /> },
   PARTIAL:    { label: "Sebagian selesai", dot: "bg-indigo-500", badge: "bg-indigo-50 text-indigo-700", icon: <LoaderCircle size={12} /> },
   CONFIRMED:  { label: "Selesai",   dot: "bg-green-500",  badge: "bg-green-50 text-green-700",   icon: <CheckCircle2 size={12} /> },
+  CORRECTING: { label: "Koreksi",   dot: "bg-amber-500",  badge: "bg-amber-50 text-amber-800",   icon: <LoaderCircle size={12} /> },
   REJECTED:   { label: "Ditolak",   dot: "bg-red-500",    badge: "bg-red-50 text-red-700",       icon: <XCircle size={12} /> },
 }
 
@@ -54,7 +55,7 @@ function WeighingSummary({ summary }: { summary?: string | null }) {
 
 const FILTER_OPTS = [
   { value: "",                          label: "Semua" },
-  { value: "DRAFT,PROCESSING,PARTIAL,REJECTED", label: "Perlu diproses" },
+  { value: "DRAFT,PROCESSING,PARTIAL,REJECTED,CORRECTING", label: "Perlu diproses" },
   { value: "CONFIRMED",                 label: "Selesai" },
 ]
 

@@ -645,8 +645,26 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  GoodsProcessingReturnDiscardForbiddenError: {
+    name: 'GoodsProcessingReturnDiscardForbiddenError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 403,
+    category: 'inventory',
+  },
+  GoodsProcessingReturnStockForbiddenError: {
+    name: 'GoodsProcessingReturnStockForbiddenError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 403,
+    category: 'inventory',
+  },
   GoodsProcessingInputsNotCompleteError: {
     name: 'GoodsProcessingInputsNotCompleteError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsProcessingPendingReturnError: {
+    name: 'GoodsProcessingPendingReturnError',
     importPath: '../modules/goods-processing/goods-processing.errors',
     defaultStatusCode: 422,
     category: 'inventory',
@@ -659,6 +677,12 @@ export const ERROR_REGISTRY = {
   },
   GoodsProcessingReopenNotNeededError: {
     name: 'GoodsProcessingReopenNotNeededError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsProcessingPostedInvoiceBlocksUnconfirmError: {
+    name: 'GoodsProcessingPostedInvoiceBlocksUnconfirmError',
     importPath: '../modules/goods-processing/goods-processing.errors',
     defaultStatusCode: 422,
     category: 'inventory',

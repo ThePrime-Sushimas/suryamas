@@ -16,6 +16,7 @@ import {
   useStartGoodsProcessing,
   useConfirmGoodsProcessing,
   useReopenGoodsProcessing,
+  useUnconfirmGoodsProcessing,
   useResolveReturn,
   useConfirmGoodsProcessingInput,
 } from "../api/goodsProcessing.api";
@@ -703,6 +704,7 @@ const STATUS_CONFIG = {
   PROCESSING: { label: "Diproses",  color: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",    dot: "bg-blue-500"  },
   PARTIAL:    { label: "Sebagian selesai", color: "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300", dot: "bg-indigo-500" },
   CONFIRMED:  { label: "Selesai",   color: "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300",  dot: "bg-green-500" },
+  CORRECTING: { label: "Koreksi",   color: "bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200", dot: "bg-amber-500" },
   REJECTED:   { label: "Ditolak",   color: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",      dot: "bg-red-500"   },
 } as const
 
@@ -1181,10 +1183,11 @@ function DisassemblyCard({
 
 // ── ReturnItemsSection ────────────────────────────────────────────────────────
 
-function ReturnItemsSection({ gp, onResolve, canApprove, resolvingOutputId, resolvingResolution }: {
+function ReturnItemsSection({ gp, onResolve, canApprove, canRelease, resolvingOutputId, resolvingResolution }: {
   gp: GoodsProcessingDetail
   onResolve: (outputId: string, resolution: "STOCK" | "DISCARD") => void
   canApprove: boolean
+  canRelease: boolean
   resolvingOutputId: string | null
   resolvingResolution: "STOCK" | "DISCARD" | null
 }) {
@@ -1217,38 +1220,42 @@ function ReturnItemsSection({ gp, onResolve, canApprove, resolvingOutputId, reso
               <span className="text-gray-500 dark:text-gray-400 ml-1">{item.uom}</span>
             </div>
           </div>
-          {canApprove && (
+          {(canApprove || canRelease) && (
             <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={isResolving}
-                onClick={() => onResolve(item.id, "STOCK")}
-                className="flex-1 py-2 bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-[36px]"
-              >
-                {itemBusy && resolvingResolution === "STOCK" ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin shrink-0" />
-                    Memproses...
-                  </>
-                ) : (
-                  "✓ Masukkan Gudang"
-                )}
-              </button>
-              <button
-                type="button"
-                disabled={isResolving}
-                onClick={() => onResolve(item.id, "DISCARD")}
-                className="flex-1 py-2 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-[36px]"
-              >
-                {itemBusy && resolvingResolution === "DISCARD" ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin shrink-0" />
-                    Memproses...
-                  </>
-                ) : (
-                  "🗑 Buang"
-                )}
-              </button>
+              {canApprove && (
+                <button
+                  type="button"
+                  disabled={isResolving}
+                  onClick={() => onResolve(item.id, "STOCK")}
+                  className="flex-1 py-2 bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-[36px]"
+                >
+                  {itemBusy && resolvingResolution === "STOCK" ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin shrink-0" />
+                      Memproses...
+                    </>
+                  ) : (
+                    "✓ Masukkan Gudang"
+                  )}
+                </button>
+              )}
+              {canRelease && (
+                <button
+                  type="button"
+                  disabled={isResolving}
+                  onClick={() => onResolve(item.id, "DISCARD")}
+                  className="flex-1 py-2 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-[36px]"
+                >
+                  {itemBusy && resolvingResolution === "DISCARD" ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin shrink-0" />
+                      Memproses...
+                    </>
+                  ) : (
+                    "🗑 Buang"
+                  )}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1443,11 +1450,13 @@ export default function GoodsProcessingDetailPage() {
   const hasPermission = usePermissionStore(s => s.hasPermission)
   const canUpdate = hasPermission("goods_processing", "update")
   const canApprove = hasPermission("goods_processing", "approve")
+  const canRelease = hasPermission("goods_processing", "release")
 
   const { data: gp, isLoading, error } = useGoodsProcessingDetail(id!)
   const startMut = useStartGoodsProcessing(id!)
   const confirmMut = useConfirmGoodsProcessing(id!)
   const reopenMut = useReopenGoodsProcessing(id!)
+  const unconfirmMut = useUnconfirmGoodsProcessing(id!)
   const resolveMut = useResolveReturn(id!)
   const resolveInFlightRef = useRef(false)
   const confirmInputMut = useConfirmGoodsProcessingInput(id!)
@@ -1504,7 +1513,7 @@ export default function GoodsProcessingDetailPage() {
   }, [gp])
 
   const isEditable = useMemo(
-    () => canUpdate && (gp?.status === "PROCESSING" || gp?.status === "PARTIAL"),
+    () => canUpdate && (gp?.status === "PROCESSING" || gp?.status === "PARTIAL" || gp?.status === "CORRECTING"),
     [canUpdate, gp?.status]
   )
 
@@ -1513,6 +1522,17 @@ export default function GoodsProcessingDetailPage() {
   const totalCount = localInputs.length
   const allDone = doneCount === totalCount && totalCount > 0
 
+  const pendingReturnCount = useMemo(() => {
+    if (!gp) return 0
+    return gp.inputs
+      .flatMap((inp) => inp.outputs)
+      .filter((o) => o.flagged_for_return && !o.return_resolved_at).length
+  }, [gp])
+
+  const hasPendingReturns = pendingReturnCount > 0
+  /** Semua baris input DONE + tidak ada retur yang belum masuk gudang/dibuang */
+  const canFinalizeGp = allDone && !hasPendingReturns
+
   const needsReopen = gp?.status === "CONFIRMED" && !allDone
 
   const showMobileActionBar = useMemo(() => {
@@ -1520,9 +1540,9 @@ export default function GoodsProcessingDetailPage() {
     const s = gp.status
     if (s === "DRAFT" && canUpdate) return true
     if (s === "CONFIRMED" && (allDone || (needsReopen && canApprove))) return true
-    if ((s === "PROCESSING" || s === "PARTIAL") && allDone && canApprove) return true
+    if ((s === "PROCESSING" || s === "PARTIAL" || s === "CORRECTING") && canFinalizeGp && canApprove) return true
     return false
-  }, [gp, canUpdate, canApprove, allDone, needsReopen])
+  }, [gp, canUpdate, canApprove, allDone, canFinalizeGp, needsReopen])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -1562,6 +1582,13 @@ export default function GoodsProcessingDetailPage() {
       )
       return
     }
+    if (hasPendingReturns) {
+      addToast(
+        "error",
+        `Masih ada ${pendingReturnCount} barang retur belum diproses. Selesaikan di bagian Barang Retur Tiba dulu.`,
+      )
+      return
+    }
     if (
       !window.confirm(
         "Finalisasi GP ini? Semua item sudah selesai. Setelah dikonfirmasi, GP tidak bisa diedit lagi.",
@@ -1575,7 +1602,7 @@ export default function GoodsProcessingDetailPage() {
     } catch (e) {
       addToast("error", parseApiError(e, "Gagal konfirmasi"))
     }
-  }, [gp, confirmMut, addToast, allDone, doneCount, totalCount])
+  }, [gp, confirmMut, addToast, allDone, hasPendingReturns, pendingReturnCount, doneCount, totalCount])
 
   const handleReopen = useCallback(async () => {
     if (!gp || !needsReopen) return
@@ -1593,6 +1620,23 @@ export default function GoodsProcessingDetailPage() {
       addToast("error", parseApiError(e, "Gagal membuka kembali GP"))
     }
   }, [gp, needsReopen, doneCount, totalCount, reopenMut, addToast])
+
+  const handleUnconfirm = useCallback(async () => {
+    if (!gp || gp.status !== "CONFIRMED" || !allDone) return
+    if (
+      !window.confirm(
+        "Buka GP untuk koreksi? Stok output akan dibalik (keluar gudang). Setelah diedit, finalisasi ulang seperti biasa.",
+      )
+    ) {
+      return
+    }
+    try {
+      await unconfirmMut.mutateAsync()
+      addToast("success", "GP dibuka untuk koreksi — stok output sudah dibalik")
+    } catch (e) {
+      addToast("error", parseApiError(e, "Gagal membuka koreksi"))
+    }
+  }, [gp, allDone, unconfirmMut, addToast])
 
   const handleStart = useCallback(async () => {
     try {
@@ -1659,9 +1703,10 @@ export default function GoodsProcessingDetailPage() {
   )
 
   const status = gp.status
-  const isInProgress = status === "PROCESSING" || status === "PARTIAL"
+  const isInProgress = status === "PROCESSING" || status === "PARTIAL" || status === "CORRECTING"
+  const canUnconfirmForCorrection = status === "CONFIRMED" && allDone && canApprove
   const cfg = resolveGpHeaderStatusConfig(status, doneCount, totalCount)
-  const isBusy = startMut.isPending || confirmMut.isPending || reopenMut.isPending || resolveMut.isPending
+  const isBusy = startMut.isPending || confirmMut.isPending || reopenMut.isPending || unconfirmMut.isPending || resolveMut.isPending
   const resolvingOutputId = resolveMut.isPending ? (resolveMut.variables?.outputId ?? null) : null
   const resolvingResolution = resolveMut.isPending ? (resolveMut.variables?.resolution ?? null) : null
   const addOutputInput = addOutputFor != null ? localInputs.find(inp => inp.id === addOutputFor) : null
@@ -1786,6 +1831,7 @@ export default function GoodsProcessingDetailPage() {
                 gp={gp}
                 onResolve={handleResolveReturn}
                 canApprove={canApprove}
+                canRelease={canRelease}
                 resolvingOutputId={resolvingOutputId}
                 resolvingResolution={resolvingResolution}
               />
@@ -1804,13 +1850,25 @@ export default function GoodsProcessingDetailPage() {
 
               {isInProgress && isEditable && (
                 <div className="space-y-2">
+                  {status === "CORRECTING" && (
+                    <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                      Mode koreksi — stok output sudah dibalik. Edit tiap item lalu <strong>Selesaikan item ini</strong>, lalu finalisasi ulang.
+                    </p>
+                  )}
                   {doneCount > 0 && !allDone && (
                     <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
                       {doneCount} dari {totalCount} item selesai (stok item itu sudah masuk).
-                      Selesaikan sisanya dengan <strong>Selesaikan item ini</strong> — tombol finalisasi GP baru muncul jika semua item selesai.
+                      Selesaikan sisanya dengan <strong>Selesaikan item ini</strong> — tombol finalisasi GP baru muncul jika semua item selesai dan retur (jika ada) sudah diproses.
                     </p>
                   )}
-                  {allDone && (
+                  {allDone && hasPendingReturns && (
+                    <p className="text-xs text-orange-800 dark:text-orange-200 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg px-3 py-2">
+                      Semua item sudah dikonfirmasi per baris, tetapi masih ada{" "}
+                      <strong>{pendingReturnCount} barang retur</strong> yang belum diproses.
+                      Selesaikan di <strong>Barang Retur Tiba</strong> (masuk gudang atau buang) sebelum finalisasi GP.
+                    </p>
+                  )}
+                  {canFinalizeGp && (
                     <p className="text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
                       Semua item selesai.
                       {canApprove
@@ -1818,7 +1876,7 @@ export default function GoodsProcessingDetailPage() {
                         : " Menunggu persetujuan finalisasi."}
                     </p>
                   )}
-                  {allDone && canApprove && (
+                  {canFinalizeGp && canApprove && (
                     <button type="button" onClick={handleConfirmGp} disabled={isBusy}
                       className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
                     >
@@ -1843,7 +1901,21 @@ export default function GoodsProcessingDetailPage() {
                 </div>
               )}
 
-              {status === "CONFIRMED" && allDone && (
+              {canUnconfirmForCorrection && (
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                    Perlu ubah output setelah finalisasi? Buka koreksi — stok yang sudah masuk akan dibalik.
+                  </p>
+                  <button type="button" onClick={handleUnconfirm} disabled={isBusy}
+                    className="w-full py-3 bg-amber-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-amber-700 transition-all"
+                  >
+                    <RotateCcw size={16} />
+                    {unconfirmMut.isPending ? "Memproses..." : "Buka untuk koreksi"}
+                  </button>
+                </div>
+              )}
+
+              {status === "CONFIRMED" && allDone && !canApprove && (
                 <div className="flex items-center justify-center gap-2 py-2">
                   <CheckCircle2 size={16} className="text-green-600" />
                   <p className="text-sm text-green-700 dark:text-green-300 font-medium">Proses selesai</p>
@@ -1904,13 +1976,19 @@ export default function GoodsProcessingDetailPage() {
             </button>
           )}
 
-          {isInProgress && isEditable && allDone && canApprove && (
+          {isInProgress && isEditable && canFinalizeGp && canApprove && (
             <button type="button" onClick={handleConfirmGp} disabled={isBusy}
               className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
             >
               <CheckCircle2 size={16} />
               {isBusy ? "Memproses..." : "Finalisasi GP"}
             </button>
+          )}
+
+          {isInProgress && isEditable && allDone && hasPendingReturns && (
+            <p className="text-xs text-center text-orange-700 dark:text-orange-300 py-1">
+              Selesaikan {pendingReturnCount} retur di atas sebelum finalisasi
+            </p>
           )}
 
 
@@ -1923,7 +2001,16 @@ export default function GoodsProcessingDetailPage() {
             </button>
           )}
 
-          {status === "CONFIRMED" && allDone && (
+          {canUnconfirmForCorrection && (
+            <button type="button" onClick={handleUnconfirm} disabled={isBusy}
+              className="w-full py-3.5 bg-amber-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-amber-700 transition-all"
+            >
+              <RotateCcw size={16} />
+              {unconfirmMut.isPending ? "Memproses..." : "Buka untuk koreksi"}
+            </button>
+          )}
+
+          {status === "CONFIRMED" && allDone && !canApprove && (
             <div className="flex items-center justify-center gap-2 py-2">
               <CheckCircle2 size={16} className="text-green-600" />
               <p className="text-sm text-green-700 dark:text-green-300 font-medium">Proses selesai · Stok sudah masuk gudang</p>

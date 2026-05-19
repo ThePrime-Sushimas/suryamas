@@ -3,7 +3,7 @@
 
 export type ConditionStatus = 'OK' | 'SHORTAGE' | 'DAMAGED'
 /** QC_REVIEW may still appear from legacy DB rows — treat as PROCESSING in UI */
-export type GoodsProcessingStatus = 'DRAFT' | 'PROCESSING' | 'PARTIAL' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
+export type GoodsProcessingStatus = 'DRAFT' | 'PROCESSING' | 'PARTIAL' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED' | 'CORRECTING'
 export type ProcessingType = 'PASS_THROUGH' | 'DISASSEMBLY'
 
 // ── Output template ───────────────────────────────────────────────────────────

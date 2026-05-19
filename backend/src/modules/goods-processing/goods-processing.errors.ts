@@ -42,10 +42,30 @@ export class GoodsProcessingReturnNotPendingError extends BusinessRuleError {
   }
 }
 
+export class GoodsProcessingReturnDiscardForbiddenError extends BusinessRuleError {
+  constructor() {
+    super('Anda tidak berwenang membuang barang retur. Hubungi atasan / tim yang punya akses pembuangan retur.')
+  }
+}
+
+export class GoodsProcessingReturnStockForbiddenError extends BusinessRuleError {
+  constructor() {
+    super('Anda tidak berwenang memasukkan barang retur ke gudang. Hubungi tim QC / persetujuan gudang.')
+  }
+}
+
 export class GoodsProcessingInputsNotCompleteError extends BusinessRuleError {
   constructor(doneCount: number, totalCount: number) {
     super(
       `Belum semua item selesai (${doneCount}/${totalCount}). Selesaikan tiap item dengan "Selesaikan item ini" terlebih dahulu.`,
+    )
+  }
+}
+
+export class GoodsProcessingPendingReturnError extends BusinessRuleError {
+  constructor(pendingCount: number) {
+    super(
+      `Masih ada ${pendingCount} barang retur yang belum diproses. Selesaikan di bagian Barang Retur Tiba (masuk gudang atau buang) sebelum finalisasi GP.`,
     )
   }
 }
@@ -59,5 +79,11 @@ export class GoodsProcessingNotReopenableError extends BusinessRuleError {
 export class GoodsProcessingReopenNotNeededError extends BusinessRuleError {
   constructor() {
     super('Semua item sudah selesai — GP tidak perlu dibuka kembali.')
+  }
+}
+
+export class GoodsProcessingPostedInvoiceBlocksUnconfirmError extends BusinessRuleError {
+  constructor() {
+    super('Tidak bisa dikoreksi: Purchase Invoice sudah POSTED untuk GP ini')
   }
 }

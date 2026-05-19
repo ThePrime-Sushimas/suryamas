@@ -5,7 +5,8 @@ export type GoodsProcessingStatus =
   | "PARTIAL"
   | "QC_REVIEW"
   | "CONFIRMED"
-  | "REJECTED";
+  | "REJECTED"
+  | "CORRECTING";
 export type ConditionStatus = "OK" | "DAMAGED" | "SHORTAGE";
 
 export interface GoodsProcessing {

@@ -5,11 +5,16 @@ import {
   GoodsProcessingInvalidStatusError,
   GoodsProcessingOutputExceedsInputError,
   GoodsProcessingReturnNotPendingError,
+  GoodsProcessingReturnDiscardForbiddenError,
+  GoodsProcessingReturnStockForbiddenError,
   GoodsProcessingInputsNotCompleteError,
+  GoodsProcessingPendingReturnError,
   GoodsProcessingNotReopenableError,
   GoodsProcessingReopenNotNeededError,
+  GoodsProcessingPostedInvoiceBlocksUnconfirmError,
 } from './goods-processing.errors'
 import { AuditService } from '../monitoring/monitoring.service'
+import { PermissionService } from '../../services/permission.service'
 import {
   buildProductUomsMap,
   resolveBaseUom,
@@ -100,7 +105,7 @@ function formatConfirmedInputLineForAudit(
   }
 }
 
-const CONFIRMABLE_STATUSES = ['PROCESSING', 'PARTIAL', 'REJECTED'] as const
+const CONFIRMABLE_STATUSES = ['PROCESSING', 'PARTIAL', 'REJECTED', 'CORRECTING'] as const
 /** QC_REVIEW kept for legacy rows only — no active transition sets this status */
 const REJECTABLE_STATUSES = ['PROCESSING', 'PARTIAL', 'QC_REVIEW'] as const
 
@@ -139,8 +144,8 @@ export class GoodsProcessingService {
   async update(id: string, companyId: string, dto: UpdateGoodsProcessingDto, userId: string) {
     const gp = await goodsProcessingRepository.findDetail(id, companyId)
     if (!gp) throw new GoodsProcessingNotFoundError(id)
-    if (!['DRAFT', 'PROCESSING', 'PARTIAL', 'REJECTED'].includes(gp.status)) {
-      throw new GoodsProcessingInvalidStatusError(gp.status, 'DRAFT/PROCESSING/PARTIAL/REJECTED')
+    if (!['DRAFT', 'PROCESSING', 'PARTIAL', 'REJECTED', 'CORRECTING'].includes(gp.status)) {
+      throw new GoodsProcessingInvalidStatusError(gp.status, 'DRAFT/PROCESSING/PARTIAL/REJECTED/CORRECTING')
     }
 
     // Capture previous outputs before database modifications
@@ -207,6 +212,13 @@ export class GoodsProcessingService {
       throw new GoodsProcessingInputsNotCompleteError(doneInputs, totalInputs)
     }
 
+    const pendingReturns = detail.inputs
+      .flatMap((inp) => inp.outputs)
+      .filter((o) => o.flagged_for_return && !o.return_resolved_at)
+    if (pendingReturns.length > 0) {
+      throw new GoodsProcessingPendingReturnError(pendingReturns.length)
+    }
+
     const allProductIds = [
       ...detail.inputs.map(inp => inp.product_id),
       ...detail.inputs.flatMap(inp => inp.outputs.map(o => o.product_id)),
@@ -245,6 +257,31 @@ export class GoodsProcessingService {
     )
 
     await AuditService.log('UPDATE', 'goods_processing', id, userId, { status: detail.status }, { status: 'CONFIRMED' })
+    return goodsProcessingRepository.findDetail(id, companyId)
+  }
+
+  async unconfirm(id: string, companyId: string, userId: string) {
+    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+    if (!detail) throw new GoodsProcessingNotFoundError(id)
+    if (detail.status !== 'CONFIRMED') {
+      throw new GoodsProcessingInvalidStatusError(detail.status, 'CONFIRMED')
+    }
+
+    const hasPostedInvoice = await goodsProcessingRepository.hasPostedPurchaseInvoice(id)
+    if (hasPostedInvoice) {
+      throw new GoodsProcessingPostedInvoiceBlocksUnconfirmError()
+    }
+
+    await goodsProcessingRepository.unconfirmGp(id, userId)
+
+    await AuditService.log(
+      'UPDATE',
+      'goods_processing',
+      id,
+      userId,
+      { status: 'CONFIRMED' },
+      { status: 'CORRECTING', reason: 'unconfirm_for_correction' },
+    )
     return goodsProcessingRepository.findDetail(id, companyId)
   }
 
@@ -339,6 +376,18 @@ export class GoodsProcessingService {
     }
     if (!output.flagged_for_return) {
       throw new GoodsProcessingReturnNotPendingError()
+    }
+
+    if (resolution === 'DISCARD') {
+      const discardPerm = await PermissionService.hasPermission(userId, 'goods_processing', 'release')
+      if (!discardPerm.allowed) {
+        throw new GoodsProcessingReturnDiscardForbiddenError()
+      }
+    } else {
+      const stockPerm = await PermissionService.hasPermission(userId, 'goods_processing', 'approve')
+      if (!stockPerm.allowed) {
+        throw new GoodsProcessingReturnStockForbiddenError()
+      }
     }
 
     const uomsMap = await buildUomsMap([output.product_id])
