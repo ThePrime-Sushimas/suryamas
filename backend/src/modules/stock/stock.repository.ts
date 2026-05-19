@@ -35,6 +35,60 @@ const MOVEMENT_FROM = `
 `
 
 export class StockRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async warehouseBelongsToCompany(warehouseId: string, companyId: string): Promise<boolean> {
+    const { rows } = await pool.query(
+      'SELECT id FROM warehouses WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+      [warehouseId, companyId],
+    )
+    return rows.length > 0
+  }
+
+  async hasOpeningBalanceMovement(
+    warehouseId: string,
+    productId: string,
+    client?: PoolClient,
+  ): Promise<boolean> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+      `SELECT EXISTS(
+         SELECT 1 FROM stock_movements
+         WHERE warehouse_id = $1 AND product_id = $2 AND movement_type = 'IN_OPENING'
+       ) AS has_opening`,
+      [warehouseId, productId],
+    )
+    return Boolean(rows[0]?.has_opening)
+  }
+
+  async lockBalanceRow(client: PoolClient, warehouseId: string, productId: string): Promise<void> {
+    await client.query(
+      'SELECT 1 FROM stock_balances WHERE warehouse_id = $1 AND product_id = $2 FOR UPDATE',
+      [warehouseId, productId],
+    )
+  }
+
+  async getBalanceQty(client: PoolClient, warehouseId: string, productId: string): Promise<number> {
+    const { rows } = await client.query(
+      'SELECT qty FROM stock_balances WHERE warehouse_id = $1 AND product_id = $2',
+      [warehouseId, productId],
+    )
+    return rows[0] ? Number(rows[0].qty) : 0
+  }
+
   // ─── BALANCES ───────────────────────────────────────────────────────────────
 
   async findBalances(

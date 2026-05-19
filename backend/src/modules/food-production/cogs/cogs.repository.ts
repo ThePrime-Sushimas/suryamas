@@ -1,4 +1,5 @@
 import { pool } from '../../../config/db'
+import type { PoolClient } from 'pg'
 import type { CogsCalculation, CogsCalculationLine } from './cogs.types'
 
 export interface SalesAggregateRow {
@@ -14,6 +15,50 @@ export interface SalesAggregateRow {
 }
 
 export class CogsRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async isFiscalPeriodOpen(companyId: string, periodStart: string, periodEnd: string): Promise<boolean> {
+    const { rows } = await pool.query(
+      `SELECT id FROM fiscal_periods
+       WHERE company_id = $1 AND is_open = true
+         AND period_start <= $2::date AND period_end >= $3::date
+       LIMIT 1`,
+      [companyId, periodStart, periodEnd],
+    )
+    return rows.length > 0
+  }
+
+  async findMenuCategoryCogsMappings(
+    companyId: string,
+  ): Promise<Array<{ category_code: string; cogs_coa_id: string | null }>> {
+    const { rows } = await pool.query(
+      `SELECT category_code, cogs_coa_id FROM menu_categories WHERE company_id = $1 AND deleted_at IS NULL`,
+      [companyId],
+    )
+    return rows
+  }
+
+  async findInventoryCoaId(companyId: string, accountCode = '110501'): Promise<string | null> {
+    const { rows } = await pool.query(
+      `SELECT id FROM chart_of_accounts WHERE company_id = $1 AND account_code = $2 AND deleted_at IS NULL`,
+      [companyId, accountCode],
+    )
+    return rows[0]?.id ?? null
+  }
+
   /**
    * Get aggregated sales data per menu for a period.
    * Joins tr_salesmenu → tr_saleshead (for date/branch filter) → menus (for cost).
@@ -68,58 +113,108 @@ export class CogsRepository {
     }))
   }
 
-  async saveCalculation(companyId: string, data: {
-    branch_id: string | null
-    period_start: string
-    period_end: string
-    total_food_cogs: number
-    total_beverage_cogs: number
-    total_other_cogs: number
-    total_cogs: number
-    total_revenue: number
-    cogs_percentage: number
-    unmapped_menu_count: number
-    notes: string | null
-    created_by: string
-  }): Promise<CogsCalculation> {
-    const { rows } = await pool.query(
+  async insertCalculation(
+    client: PoolClient,
+    companyId: string,
+    data: {
+      branch_id: string | null
+      period_start: string
+      period_end: string
+      total_food_cogs: number
+      total_beverage_cogs: number
+      total_other_cogs: number
+      total_cogs: number
+      total_revenue: number
+      cogs_percentage: number
+      unmapped_menu_count: number
+      notes: string | null
+      created_by: string
+    },
+  ): Promise<CogsCalculation> {
+    const { rows } = await client.query(
       `INSERT INTO cogs_calculations
        (company_id, branch_id, period_start, period_end, total_food_cogs, total_beverage_cogs, total_other_cogs, total_cogs, total_revenue, cogs_percentage, unmapped_menu_count, notes, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [companyId, data.branch_id, data.period_start, data.period_end, data.total_food_cogs, data.total_beverage_cogs, data.total_other_cogs, data.total_cogs, data.total_revenue, data.cogs_percentage, data.unmapped_menu_count, data.notes, data.created_by]
+      [
+        companyId,
+        data.branch_id,
+        data.period_start,
+        data.period_end,
+        data.total_food_cogs,
+        data.total_beverage_cogs,
+        data.total_other_cogs,
+        data.total_cogs,
+        data.total_revenue,
+        data.cogs_percentage,
+        data.unmapped_menu_count,
+        data.notes,
+        data.created_by,
+      ],
     )
     return rows[0]
   }
 
-  async saveCalculationLines(calculationId: string, lines: Array<{
-    menu_id: string | null
-    menu_name: string
-    category_name: string | null
-    qty_sold: number
-    cost_per_unit: number
-    total_cogs: number
-    revenue: number
-    cogs_percentage: number
-    has_recipe: boolean
-  }>): Promise<void> {
-    if (lines.length === 0) return
+  async insertCalculationLines(
+    client: PoolClient,
+    calculationId: string,
+    lines: Array<{
+      menu_id: string | null
+      menu_name: string
+      category_name: string | null
+      qty_sold: number
+      cost_per_unit: number
+      total_cogs: number
+      revenue: number
+      cogs_percentage: number
+      has_recipe: boolean
+    }>,
+  ): Promise<void> {
+    const CHUNK_SIZE = 500
+    for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
+      const chunk = lines.slice(i, i + CHUNK_SIZE)
+      if (chunk.length === 0) continue
 
-    // Use individual INSERT for null-safe menu_id handling (unnest with nullable UUID is fragile)
-    const valueRows: string[] = []
-    const params: unknown[] = []
-    let idx = 1
+      const valueRows: string[] = []
+      const params: unknown[] = []
+      let idx = 1
 
-    for (const l of lines) {
-      valueRows.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7}, $${idx + 8}, $${idx + 9})`)
-      params.push(calculationId, l.menu_id, l.menu_name, l.category_name, l.qty_sold, l.cost_per_unit, l.total_cogs, l.revenue, l.cogs_percentage, l.has_recipe)
-      idx += 10
+      for (const l of chunk) {
+        valueRows.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7}, $${idx + 8}, $${idx + 9})`)
+        params.push(
+          calculationId,
+          l.menu_id,
+          l.menu_name,
+          l.category_name,
+          l.qty_sold,
+          l.cost_per_unit,
+          l.total_cogs,
+          l.revenue,
+          l.cogs_percentage,
+          l.has_recipe,
+        )
+        idx += 10
+      }
+
+      await client.query(
+        `INSERT INTO cogs_calculation_lines (calculation_id, menu_id, menu_name, category_name, qty_sold, cost_per_unit, total_cogs, revenue, cogs_percentage, has_recipe)
+         VALUES ${valueRows.join(', ')}`,
+        params,
+      )
     }
+  }
 
-    await pool.query(
-      `INSERT INTO cogs_calculation_lines (calculation_id, menu_id, menu_name, category_name, qty_sold, cost_per_unit, total_cogs, revenue, cogs_percentage, has_recipe)
-       VALUES ${valueRows.join(', ')}`,
-      params
+  async voidAndSupersede(client: PoolClient, oldId: string, newId: string): Promise<void> {
+    await client.query(
+      'UPDATE cogs_calculations SET superseded_by = $1, status = $2 WHERE id = $3',
+      [newId, 'VOID', oldId],
+    )
+  }
+
+  async markJournaled(client: PoolClient, calculationId: string, journalId: string): Promise<void> {
+    await client.query(
+      'UPDATE cogs_calculations SET status = $1, journal_id = $2 WHERE id = $3',
+      ['JOURNALED', journalId, calculationId],
     )
   }
 
@@ -156,18 +251,6 @@ export class CogsRepository {
       pool.query(`SELECT COUNT(*)::int AS total FROM cogs_calculations ${where}`, params),
     ])
     return { data: dataRes.rows, total: countRes.rows[0].total }
-  }
-
-  async updateStatus(id: string, status: string, journalId?: string | null): Promise<void> {
-    if (journalId) {
-      await pool.query('UPDATE cogs_calculations SET status = $1, journal_id = $2 WHERE id = $3', [status, journalId, id])
-    } else {
-      await pool.query('UPDATE cogs_calculations SET status = $1 WHERE id = $2', [status, id])
-    }
-  }
-
-  async supersede(id: string, newId: string): Promise<void> {
-    await pool.query('UPDATE cogs_calculations SET superseded_by = $1 WHERE id = $2', [newId, id])
   }
 
   async findExistingForPeriod(companyId: string, periodStart: string, periodEnd: string, branchId: string | null): Promise<CogsCalculation | null> {

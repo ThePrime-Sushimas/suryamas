@@ -1,4 +1,4 @@
-import { pool } from '../../../config/db'
+import type { PoolClient } from 'pg'
 import { BusinessRuleError } from '../../../utils/errors.base'
 import { AuditService } from '../../monitoring/monitoring.service'
 import { productionOrdersRepository } from './production-orders.repository'
@@ -34,22 +34,14 @@ class ProductionOrdersService {
   }
 
   async create(dto: CreateProductionOrderDto): Promise<ProductionOrder> {
-    // Validate user has access to the target branch
     if (!dto.created_by) {
       throw new BusinessRuleError('User tidak teridentifikasi')
     }
-    const accessCheck = await pool.query(
-      `SELECT 1 FROM employee_branches eb
-       JOIN employees e ON e.id = eb.employee_id
-       WHERE e.user_id = $1 AND eb.branch_id = $2 AND eb.status = 'active'
-       LIMIT 1`,
-      [dto.created_by, dto.branch_id]
-    )
-    if (accessCheck.rows.length === 0) {
+    const hasAccess = await productionOrdersRepository.userHasBranchAccess(dto.created_by, dto.branch_id)
+    if (!hasAccess) {
       throw new BusinessRuleError('Anda tidak memiliki akses ke cabang ini')
     }
 
-    // Validate WIP position access
     const requestedWipIds = dto.lines.map(l => l.wip_id)
     const allowedWipIds = await filterAccessibleWipIds(dto.created_by, requestedWipIds)
     const blockedWips = requestedWipIds.filter(id => !allowedWipIds.includes(id))
@@ -57,15 +49,10 @@ class ProductionOrdersService {
       throw new BusinessRuleError('Anda tidak memiliki akses posisi untuk memproduksi beberapa WIP yang dipilih')
     }
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-
-      // Generate order number with retry
+    const order = await productionOrdersRepository.withTransaction(async (client) => {
       const orderNumber = await this.generateOrderNumber(client, dto.company_id, dto.branch_id, dto.production_date)
 
-      // Insert header
-      const order = await productionOrdersRepository.insertHeader(client, {
+      const header = await productionOrdersRepository.insertHeader(client, {
         company_id: dto.company_id,
         branch_id: dto.branch_id,
         order_number: orderNumber,
@@ -74,14 +61,13 @@ class ProductionOrdersService {
         created_by: dto.created_by,
       })
 
-      // For each WIP line: snapshot + explode ingredients
       for (let i = 0; i < dto.lines.length; i++) {
         const lineDto = dto.lines[i]
         const wip = await wipRepository.findByIdWithIngredients(lineDto.wip_id, dto.company_id)
         if (!wip) continue
 
         const line = await productionOrdersRepository.insertLine(client, {
-          production_order_id: order.id,
+          production_order_id: header.id,
           wip_id: wip.id,
           wip_name: wip.wip_name,
           wip_code: wip.wip_code,
@@ -92,28 +78,23 @@ class ProductionOrdersService {
           sort_order: i,
         })
 
-        // Explode ingredients → materials
         for (let j = 0; j < (wip.ingredients?.length || 0); j++) {
           const ingredient = wip.ingredients[j]
 
           const costPerUnit = ingredient.cost_per_unit > 0
             ? ingredient.cost_per_unit
-            : 0 // fallback handled below
+            : 0
           const costSource = ingredient.cost_per_unit > 0
             ? 'wip_ingredient'
             : 'average_cost'
 
-          // If wip_ingredient cost is 0, try products.average_cost
           let finalCost = costPerUnit
           if (finalCost === 0) {
-            const prodRes = await client.query(
-              `SELECT average_cost FROM products WHERE id = $1`, [ingredient.product_id]
-            )
-            finalCost = prodRes.rows[0]?.average_cost || 0
+            finalCost = await productionOrdersRepository.findProductAverageCost(client, ingredient.product_id)
           }
 
           await productionOrdersRepository.insertMaterial(client, {
-            production_order_id: order.id,
+            production_order_id: header.id,
             production_line_id: line.id,
             product_id: ingredient.product_id,
             product_name: ingredient.product_name || '',
@@ -127,16 +108,11 @@ class ProductionOrdersService {
         }
       }
 
-      await client.query('COMMIT')
+      return header
+    })
 
-      await AuditService.log('CREATE', 'production_order', order.id, dto.created_by || '', undefined, order)
-      return order
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
-    }
+    await AuditService.log('CREATE', 'production_order', order.id, dto.created_by || '', undefined, order)
+    return order
   }
 
   async complete(id: string, companyId: string, dto: CompleteProductionOrderDto): Promise<void> {
@@ -144,10 +120,7 @@ class ProductionOrdersService {
     if (!order) throw new ProductionOrderNotFoundError(id)
     if (order.status !== 'DRAFT') throw new ProductionOrderNotDraftError()
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-
+    const totals = await productionOrdersRepository.withTransaction(async (client) => {
       let totalMaterialCost = 0
       let totalWasteCost = 0
 
@@ -197,15 +170,10 @@ class ProductionOrdersService {
         updated_by: dto.user_id,
       })
 
-      await client.query('COMMIT')
+      return { totalMaterialCost, totalWasteCost }
+    })
 
-      await AuditService.log('UPDATE', 'production_order', id, dto.user_id, { status: 'DRAFT' }, { status: 'COMPLETED', totalMaterialCost, totalWasteCost })
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
-    }
+    await AuditService.log('UPDATE', 'production_order', id, dto.user_id, { status: 'DRAFT' }, { status: 'COMPLETED', ...totals })
   }
 
   async generateJournal(id: string, companyId: string, userId: string, employeeId?: string): Promise<{ journal_id: string }> {
@@ -213,112 +181,85 @@ class ProductionOrdersService {
     if (!order) throw new ProductionOrderNotFoundError(id)
     if (order.status !== 'COMPLETED') throw new ProductionOrderNotCompletedError()
 
-    // Check fiscal period is open + get period string in one query
-    const fpRes = await pool.query(
-      `SELECT id, period FROM fiscal_periods
-       WHERE company_id = $1 AND is_open = true
-         AND period_start <= $2::date AND period_end >= $2::date
-       LIMIT 1`,
-      [companyId, order.production_date]
-    )
-    if (fpRes.rows.length === 0) throw new FiscalPeriodClosedError()
-    const fiscalPeriod = fpRes.rows[0].period as string
+    const fiscalPeriod = await productionOrdersRepository.findOpenFiscalPeriod(companyId, order.production_date)
+    if (!fiscalPeriod) throw new FiscalPeriodClosedError()
 
-    // Get COA accounts (filter by company_id — ada 2 row per code)
-    const getCOA = async (code: string) => {
-      const { rows } = await pool.query(
-        `SELECT id, account_name FROM chart_of_accounts WHERE company_id = $1 AND account_code = $2 LIMIT 1`,
-        [companyId, code]
-      )
-      if (!rows[0]) throw new COANotFoundError(code)
-      return rows[0]
+    const resolveCoa = async (code: string) => {
+      const account = await productionOrdersRepository.findCoaByCode(companyId, code)
+      if (!account) throw new COANotFoundError(code)
+      return account
     }
 
-    const bahanBaku = await getCOA('110501')
-    const barangDalamProses = await getCOA('110502')
-    const selisihHPP = await getCOA('510301')
+    const bahanBaku = await resolveCoa('110501')
+    const barangDalamProses = await resolveCoa('110502')
+    const selisihHPP = await resolveCoa('510301')
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-
-      const period = fiscalPeriod
-
-      // Get next sequence
-      const seqRes = await client.query(
-        `SELECT get_next_journal_sequence($1, $2, 'GENERAL')`,
-        [companyId, period]
-      )
-      const seq = seqRes.rows[0].get_next_journal_sequence
+    const journalId = await productionOrdersRepository.withTransaction(async (client) => {
+      const period = fiscalPeriod.period
+      const seq = await productionOrdersRepository.getNextJournalSequence(client, companyId, period)
       const journalNumber = `JG-${period}-${String(seq).padStart(4, '0')}`
 
       const totalDebit = order.total_material_cost
       const productionCost = order.total_material_cost - order.total_waste_cost
 
-      // Insert journal header
-      const headerRes = await client.query(
-        `INSERT INTO journal_headers (
-          company_id, branch_id, journal_number, sequence_number,
-          journal_type, journal_date, period, description,
-          total_debit, total_credit, currency, exchange_rate,
-          status, source_module, reference_type, reference_id, reference_number,
-          is_auto, posted_at, created_by, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, 'GENERAL', $5, $6, $7, $8, $8, 'IDR', 1,
-          'POSTED', 'food_production', 'production_order', $9, $10,
-          true, NOW(), $11, NOW(), NOW())
-        RETURNING id`,
-        [companyId, order.branch_id, journalNumber, seq,
-         order.production_date, period,
-         `Produksi ${order.production_date} - ${order.branch_name}`,
-         totalDebit, order.id, order.order_number, employeeId || null]
-      )
-      const journalId = headerRes.rows[0].id
+      const headerId = await productionOrdersRepository.insertProductionJournalHeader(client, {
+        companyId,
+        branchId: order.branch_id,
+        journalNumber,
+        sequenceNumber: seq,
+        journalDate: order.production_date,
+        period,
+        description: `Produksi ${order.production_date} - ${order.branch_name}`,
+        totalAmount: totalDebit,
+        referenceId: order.id,
+        referenceNumber: order.order_number,
+        createdBy: employeeId || null,
+      })
 
-      // Insert journal lines
       let lineNum = 1
 
-      // DEBIT: Barang Dalam Proses
       if (productionCost > 0) {
-        await client.query(
-          `INSERT INTO journal_lines (journal_header_id, line_number, account_id, description, debit_amount, credit_amount, base_debit_amount, base_credit_amount)
-           VALUES ($1, $2, $3, $4, $5, 0, $5, 0)`,
-          [journalId, lineNum++, barangDalamProses.id, 'Produksi - Barang Dalam Proses', productionCost]
-        )
+        await productionOrdersRepository.insertJournalLine(client, {
+          journalHeaderId: headerId,
+          lineNumber: lineNum++,
+          accountId: barangDalamProses.id,
+          description: 'Produksi - Barang Dalam Proses',
+          debitAmount: productionCost,
+          creditAmount: 0,
+        })
       }
 
-      // DEBIT: Selisih HPP (waste)
       if (order.total_waste_cost > 0) {
-        await client.query(
-          `INSERT INTO journal_lines (journal_header_id, line_number, account_id, description, debit_amount, credit_amount, base_debit_amount, base_credit_amount)
-           VALUES ($1, $2, $3, $4, $5, 0, $5, 0)`,
-          [journalId, lineNum++, selisihHPP.id, 'Produksi - Selisih HPP (Waste)', order.total_waste_cost]
-        )
+        await productionOrdersRepository.insertJournalLine(client, {
+          journalHeaderId: headerId,
+          lineNumber: lineNum++,
+          accountId: selisihHPP.id,
+          description: 'Produksi - Selisih HPP (Waste)',
+          debitAmount: order.total_waste_cost,
+          creditAmount: 0,
+        })
       }
 
-      // CREDIT: Bahan Baku
-      await client.query(
-        `INSERT INTO journal_lines (journal_header_id, line_number, account_id, description, debit_amount, credit_amount, base_debit_amount, base_credit_amount)
-         VALUES ($1, $2, $3, $4, 0, $5, 0, $5)`,
-        [journalId, lineNum, bahanBaku.id, 'Produksi - Pemakaian Bahan Baku', totalDebit]
-      )
+      await productionOrdersRepository.insertJournalLine(client, {
+        journalHeaderId: headerId,
+        lineNumber: lineNum,
+        accountId: bahanBaku.id,
+        description: 'Produksi - Pemakaian Bahan Baku',
+        debitAmount: 0,
+        creditAmount: totalDebit,
+      })
 
-      // Update production order with journal link
       await productionOrdersRepository.updateHeaderStatus(client, id, {
         status: 'JOURNALED',
-        journal_id: journalId,
+        journal_id: headerId,
         updated_by: userId,
       })
 
-      await client.query('COMMIT')
+      return headerId
+    })
 
-      await AuditService.log('UPDATE', 'production_order', id, userId, { status: 'COMPLETED' }, { status: 'JOURNALED', journal_id: journalId })
-      return { journal_id: journalId }
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
-    }
+    await AuditService.log('UPDATE', 'production_order', id, userId, { status: 'COMPLETED' }, { status: 'JOURNALED', journal_id: journalId })
+    return { journal_id: journalId }
   }
 
   async voidOrder(id: string, companyId: string, dto: VoidProductionOrderDto): Promise<void> {
@@ -326,75 +267,44 @@ class ProductionOrdersService {
     if (!order) throw new ProductionOrderNotFoundError(id)
     if (order.status === 'VOID') throw new ProductionOrderNotVoidableError()
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-
-      // If JOURNALED, reverse the journal
-      if (order.status === 'JOURNALED') {
-        if (!order.journal_id) {
-          // Inconsistent state: JOURNALED but no journal_id — just void without reversal
-        } else {
-          // Get original journal lines
-          const linesRes = await client.query(
-            `SELECT account_id, description, debit_amount, credit_amount FROM journal_lines WHERE journal_header_id = $1 ORDER BY line_number`,
-            [order.journal_id]
-          )
-
-        // Get period
-        const periodRes = await client.query(
-          `SELECT period FROM journal_headers WHERE id = $1`, [order.journal_id]
-        )
-        const period = periodRes.rows[0]?.period || ''
-
-        // Get next sequence for reversal
-        const seqRes = await client.query(
-          `SELECT get_next_journal_sequence($1, $2, 'GENERAL')`, [companyId, period]
-        )
-        const seq = seqRes.rows[0].get_next_journal_sequence
+    await productionOrdersRepository.withTransaction(async (client) => {
+      if (order.status === 'JOURNALED' && order.journal_id) {
+        const lines = await productionOrdersRepository.findJournalLinesByHeaderId(client, order.journal_id)
+        const period = (await productionOrdersRepository.findJournalPeriod(client, order.journal_id)) || ''
+        const seq = await productionOrdersRepository.getNextJournalSequence(client, companyId, period)
         const reversalNumber = `JG-${period}-${String(seq).padStart(4, '0')}`
-
         const totalAmount = order.total_material_cost
 
-        // Create reversal journal
-        const revRes = await client.query(
-          `INSERT INTO journal_headers (
-            company_id, branch_id, journal_number, sequence_number,
-            journal_type, journal_date, period, description,
-            total_debit, total_credit, currency, exchange_rate,
-            status, source_module, reference_type, reference_id, reference_number,
-            is_auto, posted_at, created_by, created_at, updated_at, reversal_of_journal_id
-          ) VALUES ($1, $2, $3, $4, 'GENERAL', $5, $6, $7, $8, $8, 'IDR', 1,
-            'POSTED', 'food_production', 'production_order', $9, $10,
-            true, NOW(), $11, NOW(), NOW(), $12)
-          RETURNING id`,
-          [companyId, order.branch_id, reversalNumber, seq,
-           order.production_date, period,
-           `[REVERSAL] Produksi ${order.production_date} - ${order.branch_name}`,
-           totalAmount, order.id, order.order_number, dto.user_id, order.journal_id]
-        )
-        const reversalId = revRes.rows[0].id
+        const reversalId = await productionOrdersRepository.insertReversalJournalHeader(client, {
+          companyId,
+          branchId: order.branch_id,
+          journalNumber: reversalNumber,
+          sequenceNumber: seq,
+          journalDate: order.production_date,
+          period,
+          description: `[REVERSAL] Produksi ${order.production_date} - ${order.branch_name}`,
+          totalAmount,
+          referenceId: order.id,
+          referenceNumber: order.order_number,
+          createdBy: dto.user_id,
+          reversalOfJournalId: order.journal_id,
+        })
 
-        // Insert reversed lines (swap debit/credit)
-        for (let i = 0; i < linesRes.rows.length; i++) {
-          const line = linesRes.rows[i]
-          await client.query(
-            `INSERT INTO journal_lines (journal_header_id, line_number, account_id, description, debit_amount, credit_amount, base_debit_amount, base_credit_amount)
-             VALUES ($1, $2, $3, $4, $5, $6, $5, $6)`,
-            [reversalId, i + 1, line.account_id, `[REVERSAL] ${line.description}`, line.credit_amount, line.debit_amount]
-          )
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]
+          await productionOrdersRepository.insertJournalLine(client, {
+            journalHeaderId: reversalId,
+            lineNumber: i + 1,
+            accountId: line.account_id,
+            description: `[REVERSAL] ${line.description}`,
+            debitAmount: line.credit_amount,
+            creditAmount: line.debit_amount,
+          })
         }
 
-        // Mark original as reversed
-        await client.query(
-          `UPDATE journal_headers SET is_reversed = true, reversed_by_journal_id = $1, reversal_date = NOW(), reversal_reason = $2, updated_at = NOW()
-           WHERE id = $3`,
-          [reversalId, dto.reason, order.journal_id]
-        )
-        }
+        await productionOrdersRepository.markJournalAsReversed(client, reversalId, dto.reason, order.journal_id)
       }
 
-      // Update production order status
       await productionOrdersRepository.updateHeaderStatus(client, id, {
         status: 'VOID',
         voided_by: dto.user_id,
@@ -402,16 +312,9 @@ class ProductionOrdersService {
         void_reason: dto.reason,
         updated_by: dto.user_id,
       })
+    })
 
-      await client.query('COMMIT')
-
-      await AuditService.log('UPDATE', 'production_order', id, dto.user_id, { status: order.status }, { status: 'VOID', reason: dto.reason })
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
-    }
+    await AuditService.log('UPDATE', 'production_order', id, dto.user_id, { status: order.status }, { status: 'VOID', reason: dto.reason })
   }
 
   async delete(id: string, companyId: string, userId: string): Promise<void> {
@@ -428,29 +331,24 @@ class ProductionOrdersService {
     return productionOrdersRepository.getMaterialsReport(companyId, dateFrom, dateTo, branchId)
   }
 
-  // ─── Private ───
-
-  private async generateOrderNumber(client: import('pg').PoolClient, companyId: string, branchId: string, date: string): Promise<string> {
-    // Get branch code
-    const branchRes = await client.query(`SELECT branch_code FROM branches WHERE id = $1`, [branchId])
-    const branchCode = branchRes.rows[0]?.branch_code || 'XXX'
-
+  private async generateOrderNumber(
+    client: PoolClient,
+    companyId: string,
+    branchId: string,
+    date: string,
+  ): Promise<string> {
+    const branchCode = (await productionOrdersRepository.findBranchCode(client, branchId)) || 'XXX'
     const dateStr = date.replace(/-/g, '')
     const prefix = `PRD-${branchCode}-${dateStr}`
 
-    // Retry up to 3 times on collision
     for (let attempt = 0; attempt < 3; attempt++) {
       const last = await productionOrdersRepository.getLastOrderNumber(companyId, prefix)
       const lastSeq = last ? parseInt(last.split('-').pop() || '0') : 0
       const nextSeq = lastSeq + 1 + attempt
       const orderNumber = `${prefix}-${String(nextSeq).padStart(3, '0')}`
 
-      // Check if exists (race condition guard)
-      const exists = await client.query(
-        `SELECT 1 FROM production_orders WHERE company_id = $1 AND order_number = $2`,
-        [companyId, orderNumber]
-      )
-      if (exists.rows.length === 0) return orderNumber
+      const exists = await productionOrdersRepository.productionOrderNumberExists(client, companyId, orderNumber)
+      if (!exists) return orderNumber
     }
 
     throw new OrderNumberCollisionError()

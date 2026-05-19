@@ -1,8 +1,6 @@
-import { pool } from '../../../config/db'
-import type { PoolClient } from 'pg'
 import { cogsRepository } from './cogs.repository'
 import type { SalesAggregateRow } from './cogs.repository'
-import { CogsCalculationNotFoundError, CogsNoSalesDataError, CogsAlreadyJournaledError, CogsPeriodNotOpenError } from './cogs.errors'
+import { CogsCalculationNotFoundError, CogsNoSalesDataError, CogsPeriodNotOpenError } from './cogs.errors'
 import { journalHeadersService } from '../../accounting/journals/journal-headers/journal-headers.service'
 import { AuditService } from '../../monitoring/monitoring.service'
 import { logError } from '../../../config/logger'
@@ -33,76 +31,68 @@ export class CogsService {
    * All DB writes are wrapped in a single transaction.
    */
   async finalize(companyId: string, params: CogsFinalizeParams, userId: string): Promise<{ calculation: CogsCalculation; journal_id: string; journal_number: string }> {
-    // Pre-checks (read-only, outside transaction)
-    const periodOpen = await this.isFiscalPeriodOpen(companyId, params.period_start, params.period_end)
+    const periodOpen = await cogsRepository.isFiscalPeriodOpen(companyId, params.period_start, params.period_end)
     if (!periodOpen) throw new CogsPeriodNotOpenError()
 
     const salesData = await cogsRepository.getSalesAggregate(companyId, params.period_start, params.period_end, params.branch_id)
     if (salesData.length === 0) throw new CogsNoSalesDataError(params.period_start, params.period_end)
 
     const result = this.buildResult(params.period_start, params.period_end, params.branch_id ?? null, salesData)
-
-    // Validate and get COA mappings (single query, reused in generateJournal)
     const coaMappings = await this.validateAndGetCoaMappings(companyId, result.summary)
-
-    // Check existing record for supersede
     const existing = await cogsRepository.findExistingForPeriod(companyId, params.period_start, params.period_end, params.branch_id ?? null)
 
-    // === Transaction: all writes atomic ===
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
+    const journalDate = params.journal_date || params.period_end
 
-      // 1. Save calculation
-      const { rows: [calcRow] } = await client.query(
-        `INSERT INTO cogs_calculations
-         (company_id, branch_id, period_start, period_end, total_food_cogs, total_beverage_cogs, total_other_cogs, total_cogs, total_revenue, cogs_percentage, unmapped_menu_count, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-         RETURNING *`,
-        [companyId, params.branch_id ?? null, params.period_start, params.period_end, result.summary.total_food_cogs, result.summary.total_beverage_cogs, result.summary.total_other_cogs, result.summary.total_cogs, result.summary.total_revenue, result.summary.cogs_percentage, result.summary.unmapped_menu_count, params.notes ?? null, userId]
-      )
-      const calculation = calcRow as CogsCalculation
-
-      // 2. Supersede old record (always set VOID regardless of journal_id)
-      if (existing) {
-        await client.query('UPDATE cogs_calculations SET superseded_by = $1, status = $2 WHERE id = $3', [calculation.id, 'VOID', existing.id])
-      }
-
-      // 3. Save lines (chunked for param safety)
-      await this.saveLinesBatch(client, calculation.id, result.lines)
-
-      // 4. Generate journal
-      const journalDate = params.journal_date || params.period_end
-      const journal = await this.generateJournal(companyId, calculation, journalDate, userId, coaMappings)
-
-      // 5. Update status
-      await client.query('UPDATE cogs_calculations SET status = $1, journal_id = $2 WHERE id = $3', ['JOURNALED', journal.id, calculation.id])
-
-      await client.query('COMMIT')
-
-      // Post-commit: reverse old journal (outside transaction — journal service has its own)
-      if (existing?.journal_id) {
-        try {
-          await journalHeadersService.reverse(existing.journal_id, 'Superseded by COGS re-calculation', userId, companyId)
-        } catch (err: unknown) {
-          // Log but don't fail — new journal is already created. Old journal can be manually reversed.
-          logError('Failed to reverse old COGS journal', { journal_id: existing.journal_id, error: err instanceof Error ? err.message : 'Unknown' })
-        }
-      }
-
-      await AuditService.log('CREATE', 'cogs_calculation', calculation.id, userId, undefined, {
-        ...result.summary,
-        journal_id: journal.id,
-        journal_number: journal.journal_number,
-        superseded: existing?.id ?? null,
+    // journalHeadersService.create posts in its own connection/transaction. If markJournaled
+    // fails afterward, the journal may exist while cogs_calculations stays unjournaled (same
+    // limitation as marketplace-po). Full atomicity needs journal layer to accept PoolClient.
+    const { calculation, journal } = await cogsRepository.withTransaction(async (client) => {
+      const calc = await cogsRepository.insertCalculation(client, companyId, {
+        branch_id: params.branch_id ?? null,
+        period_start: params.period_start,
+        period_end: params.period_end,
+        total_food_cogs: result.summary.total_food_cogs,
+        total_beverage_cogs: result.summary.total_beverage_cogs,
+        total_other_cogs: result.summary.total_other_cogs,
+        total_cogs: result.summary.total_cogs,
+        total_revenue: result.summary.total_revenue,
+        cogs_percentage: result.summary.cogs_percentage,
+        unmapped_menu_count: result.summary.unmapped_menu_count,
+        notes: params.notes ?? null,
+        created_by: userId,
       })
 
-      return { calculation: { ...calculation, status: 'JOURNALED', journal_id: journal.id }, journal_id: journal.id, journal_number: journal.journal_number }
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
+      if (existing) {
+        await cogsRepository.voidAndSupersede(client, existing.id, calc.id)
+      }
+
+      await cogsRepository.insertCalculationLines(client, calc.id, result.lines)
+
+      const journalResult = await this.generateJournal(companyId, calc, journalDate, userId, coaMappings)
+      await cogsRepository.markJournaled(client, calc.id, journalResult.id)
+
+      return { calculation: calc, journal: journalResult }
+    })
+
+    if (existing?.journal_id) {
+      try {
+        await journalHeadersService.reverse(existing.journal_id, 'Superseded by COGS re-calculation', userId, companyId)
+      } catch (err: unknown) {
+        logError('Failed to reverse old COGS journal', { journal_id: existing.journal_id, error: err instanceof Error ? err.message : 'Unknown' })
+      }
+    }
+
+    await AuditService.log('CREATE', 'cogs_calculation', calculation.id, userId, undefined, {
+      ...result.summary,
+      journal_id: journal.id,
+      journal_number: journal.journal_number,
+      superseded: existing?.id ?? null,
+    })
+
+    return {
+      calculation: { ...calculation, status: 'JOURNALED', journal_id: journal.id },
+      journal_id: journal.id,
+      journal_number: journal.journal_number,
     }
   }
 
@@ -138,7 +128,6 @@ export class CogsService {
       else totalOtherCogs += totalCogs
 
       totalRevenue += revenue
-      // "unmapped" = menu without recipe (includes menus not in menus table at all)
       if (!row.has_recipe) unmappedCount++
 
       return {
@@ -175,16 +164,9 @@ export class CogsService {
     }
   }
 
-  /**
-   * Validate COA mappings exist and return them for reuse in generateJournal.
-   * Single query — no race window between validate and generate.
-   */
   private async validateAndGetCoaMappings(companyId: string, summary: CogsPreviewResult['summary']): Promise<CoaMappings> {
-    const { rows: categories } = await pool.query(
-      `SELECT category_code, cogs_coa_id FROM menu_categories WHERE company_id = $1 AND deleted_at IS NULL`,
-      [companyId]
-    )
-    const cogsCoaMap = new Map(categories.map((c: { category_code: string; cogs_coa_id: string | null }) => [c.category_code, c.cogs_coa_id]))
+    const categories = await cogsRepository.findMenuCategoryCogsMappings(companyId)
+    const cogsCoaMap = new Map(categories.map(c => [c.category_code, c.cogs_coa_id]))
 
     const missing: string[] = []
     if (summary.total_food_cogs > 0 && !cogsCoaMap.get(FOOD_CODE)) missing.push(FOOD_CODE)
@@ -195,21 +177,17 @@ export class CogsService {
       throw new BusinessRuleError(`Missing COGS COA mapping for categories: ${missing.join(', ')}. Please set cogs_coa_id in menu_categories.`)
     }
 
-    const { rows: [invCoa] } = await pool.query(
-      `SELECT id FROM chart_of_accounts WHERE company_id = $1 AND account_code = '110501' AND deleted_at IS NULL`,
-      [companyId]
-    )
-    if (!invCoa) {
+    const inventoryCoaId = await cogsRepository.findInventoryCoaId(companyId)
+    if (!inventoryCoaId) {
       throw new BusinessRuleError('Inventory COA (110501 - Bahan Baku) not found. Please create this account first.')
     }
 
-    // Cast to non-null map (validated above)
     const validMap = new Map<string, string>()
     for (const [code, coaId] of cogsCoaMap) {
       if (coaId) validMap.set(code, coaId)
     }
 
-    return { cogsCoaMap: validMap, inventoryCoaId: invCoa.id }
+    return { cogsCoaMap: validMap, inventoryCoaId }
   }
 
   private async generateJournal(companyId: string, calculation: CogsCalculation, journalDate: string, userId: string, coaMappings: CoaMappings): Promise<{ id: string; journal_number: string }> {
@@ -219,7 +197,6 @@ export class CogsService {
 
     const desc = `COGS — ${calculation.period_start} s/d ${calculation.period_end}`
 
-    // Debit lines per category
     if (calculation.total_food_cogs > 0) {
       lineNum++
       lines.push({ line_number: lineNum, account_id: cogsCoaMap.get(FOOD_CODE)!, description: `${desc} — Makanan`, debit_amount: calculation.total_food_cogs, credit_amount: 0 })
@@ -233,7 +210,6 @@ export class CogsService {
       lines.push({ line_number: lineNum, account_id: cogsCoaMap.get(OTHER_CODE)!, description: `${desc} — Lainnya`, debit_amount: calculation.total_other_cogs, credit_amount: 0 })
     }
 
-    // Credit line: Bahan Baku (total)
     lineNum++
     lines.push({ line_number: lineNum, account_id: inventoryCoaId, description: desc, debit_amount: 0, credit_amount: calculation.total_cogs })
 
@@ -248,45 +224,6 @@ export class CogsService {
     }, userId)
 
     return { id: journal.id, journal_number: journal.journal_number }
-  }
-
-  /**
-   * Save calculation lines in chunks to avoid PostgreSQL parameter limit.
-   * Uses client for transaction participation.
-   */
-  private async saveLinesBatch(client: PoolClient, calculationId: string, lines: CogsPreviewResult['lines']): Promise<void> {
-    const CHUNK_SIZE = 500
-    for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-      const chunk = lines.slice(i, i + CHUNK_SIZE)
-      if (chunk.length === 0) continue
-
-      const valueRows: string[] = []
-      const params: unknown[] = []
-      let idx = 1
-
-      for (const l of chunk) {
-        valueRows.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7}, $${idx + 8}, $${idx + 9})`)
-        params.push(calculationId, l.menu_id, l.menu_name, l.category_name, l.qty_sold, l.cost_per_unit, l.total_cogs, l.revenue, l.cogs_percentage, l.has_recipe)
-        idx += 10
-      }
-
-      await client.query(
-        `INSERT INTO cogs_calculation_lines (calculation_id, menu_id, menu_name, category_name, qty_sold, cost_per_unit, total_cogs, revenue, cogs_percentage, has_recipe)
-         VALUES ${valueRows.join(', ')}`,
-        params
-      )
-    }
-  }
-
-  private async isFiscalPeriodOpen(companyId: string, periodStart: string, periodEnd: string): Promise<boolean> {
-    const { rows } = await pool.query(
-      `SELECT id FROM fiscal_periods
-       WHERE company_id = $1 AND is_open = true
-         AND period_start <= $2::date AND period_end >= $3::date
-       LIMIT 1`,
-      [companyId, periodStart, periodEnd]
-    )
-    return rows.length > 0
   }
 }
 

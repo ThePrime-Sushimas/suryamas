@@ -884,7 +884,7 @@ export class FiscalPeriodsService {
 
       // 1. Get next sequence
       const seqRes = await client.query(
-        `SELECT get_next_journal_sequence($1, $2, 'GENERAL')`,
+        `SELECT get_next_journal_sequence($1, $2, 'GENERAL'::journal_type_enum)`,
         [companyId, period.period]
       )
       const seq = seqRes.rows[0].get_next_journal_sequence

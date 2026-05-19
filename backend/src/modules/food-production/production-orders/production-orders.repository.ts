@@ -7,6 +7,234 @@ import type {
 } from './production-orders.types'
 
 export class ProductionOrdersRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async userHasBranchAccess(userId: string, branchId: string): Promise<boolean> {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM employee_branches eb
+       JOIN employees e ON e.id = eb.employee_id
+       WHERE e.user_id = $1 AND eb.branch_id = $2 AND eb.status = 'active'
+       LIMIT 1`,
+      [userId, branchId],
+    )
+    return rows.length > 0
+  }
+
+  async findBranchCode(client: PoolClient, branchId: string): Promise<string | null> {
+    const { rows } = await client.query(`SELECT branch_code FROM branches WHERE id = $1`, [branchId])
+    return rows[0]?.branch_code ?? null
+  }
+
+  async productionOrderNumberExists(
+    client: PoolClient,
+    companyId: string,
+    orderNumber: string,
+  ): Promise<boolean> {
+    const { rows } = await client.query(
+      `SELECT 1 FROM production_orders WHERE company_id = $1 AND order_number = $2`,
+      [companyId, orderNumber],
+    )
+    return rows.length > 0
+  }
+
+  async findProductAverageCost(client: PoolClient, productId: string): Promise<number> {
+    const { rows } = await client.query(
+      `SELECT average_cost FROM products WHERE id = $1`,
+      [productId],
+    )
+    return Number(rows[0]?.average_cost ?? 0)
+  }
+
+  async findOpenFiscalPeriod(companyId: string, productionDate: string): Promise<{ period: string } | null> {
+    const { rows } = await pool.query(
+      `SELECT period FROM fiscal_periods
+       WHERE company_id = $1 AND is_open = true
+         AND period_start <= $2::date AND period_end >= $2::date
+       LIMIT 1`,
+      [companyId, productionDate],
+    )
+    return rows[0] ? { period: rows[0].period as string } : null
+  }
+
+  async findCoaByCode(
+    companyId: string,
+    accountCode: string,
+  ): Promise<{ id: string; account_name: string } | null> {
+    const { rows } = await pool.query(
+      `SELECT id, account_name FROM chart_of_accounts WHERE company_id = $1 AND account_code = $2 LIMIT 1`,
+      [companyId, accountCode],
+    )
+    return rows[0] ?? null
+  }
+
+  async getNextJournalSequence(client: PoolClient, companyId: string, period: string): Promise<number> {
+    const { rows } = await client.query(
+      `SELECT get_next_journal_sequence($1, $2, 'GENERAL'::journal_type_enum) AS seq`,
+      [companyId, period],
+    )
+    return Number(rows[0].seq)
+  }
+
+  async insertProductionJournalHeader(
+    client: PoolClient,
+    data: {
+      companyId: string
+      branchId: string
+      journalNumber: string
+      sequenceNumber: number
+      journalDate: string
+      period: string
+      description: string
+      totalAmount: number
+      referenceId: string
+      referenceNumber: string
+      createdBy: string | null
+    },
+  ): Promise<string> {
+    const { rows } = await client.query(
+      `INSERT INTO journal_headers (
+         company_id, branch_id, journal_number, sequence_number,
+         journal_type, journal_date, period, description,
+         total_debit, total_credit, currency, exchange_rate,
+         status, source_module, reference_type, reference_id, reference_number,
+         is_auto, posted_at, created_by, created_at, updated_at
+       ) VALUES ($1, $2, $3, $4, 'GENERAL', $5, $6, $7, $8, $8, 'IDR', 1,
+         'POSTED', 'food_production', 'production_order', $9, $10,
+         true, NOW(), $11, NOW(), NOW())
+       RETURNING id`,
+      [
+        data.companyId,
+        data.branchId,
+        data.journalNumber,
+        data.sequenceNumber,
+        data.journalDate,
+        data.period,
+        data.description,
+        data.totalAmount,
+        data.referenceId,
+        data.referenceNumber,
+        data.createdBy,
+      ],
+    )
+    return rows[0].id as string
+  }
+
+  async insertJournalLine(
+    client: PoolClient,
+    data: {
+      journalHeaderId: string
+      lineNumber: number
+      accountId: string
+      description: string
+      debitAmount: number
+      creditAmount: number
+    },
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO journal_lines (journal_header_id, line_number, account_id, description, debit_amount, credit_amount, base_debit_amount, base_credit_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $5, $6)`,
+      [
+        data.journalHeaderId,
+        data.lineNumber,
+        data.accountId,
+        data.description,
+        data.debitAmount,
+        data.creditAmount,
+      ],
+    )
+  }
+
+  async findJournalLinesByHeaderId(
+    client: PoolClient,
+    journalHeaderId: string,
+  ): Promise<Array<{ account_id: string; description: string; debit_amount: number; credit_amount: number }>> {
+    const { rows } = await client.query(
+      `SELECT account_id, description, debit_amount, credit_amount
+       FROM journal_lines WHERE journal_header_id = $1 ORDER BY line_number`,
+      [journalHeaderId],
+    )
+    return rows
+  }
+
+  async findJournalPeriod(client: PoolClient, journalHeaderId: string): Promise<string | null> {
+    const { rows } = await client.query(
+      `SELECT period FROM journal_headers WHERE id = $1`,
+      [journalHeaderId],
+    )
+    return rows[0]?.period ?? null
+  }
+
+  async insertReversalJournalHeader(
+    client: PoolClient,
+    data: {
+      companyId: string
+      branchId: string
+      journalNumber: string
+      sequenceNumber: number
+      journalDate: string
+      period: string
+      description: string
+      totalAmount: number
+      referenceId: string
+      referenceNumber: string
+      createdBy: string
+      reversalOfJournalId: string
+    },
+  ): Promise<string> {
+    const { rows } = await client.query(
+      `INSERT INTO journal_headers (
+         company_id, branch_id, journal_number, sequence_number,
+         journal_type, journal_date, period, description,
+         total_debit, total_credit, currency, exchange_rate,
+         status, source_module, reference_type, reference_id, reference_number,
+         is_auto, posted_at, created_by, created_at, updated_at, reversal_of_journal_id
+       ) VALUES ($1, $2, $3, $4, 'GENERAL', $5, $6, $7, $8, $8, 'IDR', 1,
+         'POSTED', 'food_production', 'production_order', $9, $10,
+         true, NOW(), $11, NOW(), NOW(), $12)
+       RETURNING id`,
+      [
+        data.companyId,
+        data.branchId,
+        data.journalNumber,
+        data.sequenceNumber,
+        data.journalDate,
+        data.period,
+        data.description,
+        data.totalAmount,
+        data.referenceId,
+        data.referenceNumber,
+        data.createdBy,
+        data.reversalOfJournalId,
+      ],
+    )
+    return rows[0].id as string
+  }
+
+  async markJournalAsReversed(
+    client: PoolClient,
+    reversalJournalId: string,
+    reason: string,
+    originalJournalId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE journal_headers SET is_reversed = true, reversed_by_journal_id = $1, reversal_date = NOW(), reversal_reason = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [reversalJournalId, reason, originalJournalId],
+    )
+  }
 
   // ─── List ───
 
