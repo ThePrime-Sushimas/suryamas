@@ -186,7 +186,7 @@ export default function PurchaseRequestFormPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-[4.5rem]">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-18">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between gap-3">
@@ -439,7 +439,7 @@ export default function PurchaseRequestFormPage() {
             type="button"
             onClick={handleSubmit}
             disabled={isSaving || lines.length === 0}
-            className="inline-flex items-center justify-center gap-2 min-w-[9.5rem] sm:min-w-[11rem] px-5 py-3 bg-purple-600 text-white rounded-2xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50 transition-all shadow-md shadow-purple-600/25"
+            className="inline-flex items-center justify-center gap-2 min-w-38 sm:min-w-44 px-5 py-3 bg-purple-600 text-white rounded-2xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50 transition-all shadow-md shadow-purple-600/25"
           >
             <Save className="w-4 h-4 shrink-0" />
             <span>
