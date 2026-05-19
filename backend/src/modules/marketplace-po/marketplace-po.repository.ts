@@ -20,6 +20,372 @@ const OWNER_CC_FROM = `
 `
 
 export class MarketplacePoRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async findCompanySettlementBankAccount(companyId: string, bankAccountId: number): Promise<boolean> {
+    const { rows } = await pool.query(
+      `SELECT id FROM bank_accounts
+       WHERE id = $1
+         AND owner_type = 'company'
+         AND owner_id = $2
+         AND is_active = true
+         AND deleted_at IS NULL`,
+      [bankAccountId, companyId],
+    )
+    return rows.length > 0
+  }
+
+  async generateSessionNumber(client: PoolClient, companyId: string, platform: string): Promise<string | null> {
+    const { rows } = await client.query(
+      'SELECT generate_marketplace_session_number($1::uuid, $2::varchar) AS session_number',
+      [companyId, platform],
+    )
+    return rows[0]?.session_number ?? null
+  }
+
+  async findOwnerCreditCardCoaCode(client: PoolClient, ccId: string, companyId: string): Promise<string | null> {
+    const { rows } = await client.query(
+      `SELECT coa_code FROM owner_credit_cards WHERE id = $1 AND company_id = $2 AND is_active = true`,
+      [ccId, companyId],
+    )
+    return rows[0]?.coa_code ?? null
+  }
+
+  async existsMarketplaceGrForSession(client: PoolClient, sessionNumber: string): Promise<boolean> {
+    const { rows } = await client.query(
+      `SELECT id FROM goods_receipts
+       WHERE invoice_number = $1
+         AND source = 'MARKETPLACE'
+         AND deleted_at IS NULL
+       LIMIT 1`,
+      [sessionNumber],
+    )
+    return rows.length > 0
+  }
+
+  async findPoBranchForMarketplaceGr(
+    client: PoolClient,
+    poId: string,
+    companyId: string,
+  ): Promise<{ branch_id: string; branch_code: string } | null> {
+    const { rows } = await client.query(
+      `SELECT po.branch_id, b.branch_code
+       FROM purchase_orders po
+       JOIN branches b ON b.id = po.branch_id
+       WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL`,
+      [poId, companyId],
+    )
+    return rows[0] ?? null
+  }
+
+  async findMainWarehouseId(client: PoolClient, branchId: string, companyId: string): Promise<string | null> {
+    const { rows } = await client.query(
+      `SELECT id FROM warehouses
+       WHERE branch_id = $1 AND company_id = $2 AND warehouse_type = 'MAIN' AND deleted_at IS NULL
+       LIMIT 1`,
+      [branchId, companyId],
+    )
+    return rows[0]?.id ?? null
+  }
+
+  async markSessionShipped(
+    client: PoolClient,
+    sessionId: string,
+    companyId: string,
+    userId: string,
+    goodsReceiptId: string | null,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = 'SHIPPED',
+           goods_receipt_id = $1,
+           updated_by = $2,
+           updated_at = now()
+       WHERE id = $3 AND company_id = $4`,
+      [goodsReceiptId, userId, sessionId, companyId],
+    )
+  }
+
+  async updateJournalReceivedId(
+    client: PoolClient,
+    sessionId: string,
+    companyId: string,
+    userId: string,
+    journalId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET journal_received_id = $1,
+           updated_by = $2,
+           updated_at = now()
+       WHERE id = $3 AND company_id = $4`,
+      [journalId, userId, sessionId, companyId],
+    )
+  }
+
+  async findBankAccountCoaCode(
+    bankAccountId: number,
+    companyId: string,
+    client?: PoolClient,
+  ): Promise<string | null> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+      `SELECT coa_code FROM bank_accounts WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+      [bankAccountId, companyId],
+    )
+    return rows[0]?.coa_code ?? null
+  }
+
+  async completeSessionSettlement(
+    client: PoolClient,
+    data: {
+      sessionId: string
+      companyId: string
+      userId: string
+      journalId: string
+      settledDate: string
+      bankAccountId: number
+      amount: number
+      referenceNumber: string | null
+      notes: string | null
+    },
+  ): Promise<void> {
+    await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = 'SETTLED', journal_settled_id = $1, updated_by = $2, updated_at = now()
+       WHERE id = $3 AND company_id = $4`,
+      [data.journalId, data.userId, data.sessionId, data.companyId],
+    )
+    await client.query(
+      `INSERT INTO marketplace_settlements (session_id, settled_date, bank_account_id, amount, reference_number, notes, journal_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        data.sessionId,
+        data.settledDate,
+        data.bankAccountId,
+        data.amount,
+        data.referenceNumber,
+        data.notes,
+        data.journalId,
+        data.userId,
+      ],
+    )
+  }
+
+  async findSettlementSummary(companyId: string): Promise<{
+    total_pending: number
+    total_this_month: number
+    history: unknown[]
+  }> {
+    const { rows: pendingRows } = await pool.query(
+      `SELECT COALESCE(SUM(total_amount), 0)::numeric AS total
+       FROM marketplace_checkout_sessions
+       WHERE company_id = $1 AND status = 'RECEIVED' AND deleted_at IS NULL`,
+      [companyId],
+    )
+    const totalPending = Number(pendingRows[0]?.total ?? 0)
+
+    const firstDayOfMonth = new Date()
+    firstDayOfMonth.setDate(1)
+    firstDayOfMonth.setHours(0, 0, 0, 0)
+
+    const { rows: thisMonthRows } = await pool.query(
+      `SELECT COALESCE(SUM(ms.amount), 0)::numeric AS total
+       FROM marketplace_settlements ms
+       JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
+       WHERE mcs.company_id = $1
+         AND ms.settled_date >= $2::date`,
+      [companyId, firstDayOfMonth.toISOString().slice(0, 10)],
+    )
+    const totalThisMonth = Number(thisMonthRows[0]?.total ?? 0)
+
+    const { rows: historyRows } = await pool.query(
+      `SELECT ms.*, ba.account_name AS bank_name
+       FROM marketplace_settlements ms
+       JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
+       JOIN bank_accounts ba ON ba.id = ms.bank_account_id
+       WHERE mcs.company_id = $1
+       ORDER BY ms.settled_date DESC
+       LIMIT 100`,
+      [companyId],
+    )
+
+    return {
+      total_pending: totalPending,
+      total_this_month: totalThisMonth,
+      history: historyRows,
+    }
+  }
+
+  async listUnreconciledBankStatements(
+    companyId: string,
+    bankAccountId: number,
+    filter: { date_from?: string; date_to?: string } = {},
+  ) {
+    const params: unknown[] = [companyId, bankAccountId]
+    let idx = 3
+    const conditions = [
+      'company_id = $1',
+      'bank_account_id = $2',
+      'is_reconciled = false',
+      'journal_id IS NULL',
+      'deleted_at IS NULL',
+    ]
+
+    if (filter.date_from) {
+      conditions.push(`transaction_date >= $${idx}::date`)
+      params.push(filter.date_from)
+      idx++
+    }
+    if (filter.date_to) {
+      conditions.push(`transaction_date <= $${idx}::date`)
+      params.push(filter.date_to)
+      idx++
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, transaction_date, description, debit_amount, credit_amount, reference_number
+       FROM bank_statements
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY transaction_date DESC
+       LIMIT 100`,
+      params,
+    )
+    return rows
+  }
+
+  async findReceivedSessionsForBulkSettlement(
+    companyId: string,
+    sessionIds: string[],
+    client?: PoolClient,
+  ) {
+    const db = client ?? pool
+    const lockClause = client ? ' FOR UPDATE OF mcs' : ''
+    const { rows } = await db.query(
+      `SELECT mcs.*, occ.coa_code AS cc_coa_code
+       FROM marketplace_checkout_sessions mcs
+       JOIN owner_credit_cards occ ON occ.id = mcs.cc_id
+       WHERE mcs.id = ANY($1::uuid[])
+         AND mcs.company_id = $2
+         AND mcs.status = 'RECEIVED'
+         AND mcs.deleted_at IS NULL
+       ORDER BY mcs.id${lockClause}`,
+      [sessionIds, companyId],
+    )
+    return rows
+  }
+
+  async findBankAccountCoaCodeForBulk(
+    bankAccountId: number,
+    companyId: string,
+    client?: PoolClient,
+  ): Promise<string | null> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+      `SELECT coa.account_code
+       FROM bank_accounts ba
+       JOIN chart_of_accounts coa ON coa.id = ba.coa_account_id
+       WHERE ba.id = $1 AND ba.owner_id = $2 AND ba.deleted_at IS NULL`,
+      [bankAccountId, companyId],
+    )
+    return rows[0]?.account_code ?? null
+  }
+
+  async markSessionSettledInBulk(
+    client: PoolClient,
+    sessionId: string,
+    companyId: string,
+    userId: string,
+    journalId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = 'SETTLED',
+           journal_settled_id = $1,
+           updated_by = $2,
+           updated_at = now()
+       WHERE id = $3 AND company_id = $4`,
+      [journalId, userId, sessionId, companyId],
+    )
+  }
+
+  async insertMarketplaceSettlement(
+    client: PoolClient,
+    data: {
+      sessionId: string
+      settledDate: string
+      bankAccountId: number
+      amount: number
+      referenceNumber: string | null
+      notes: string | null
+      journalId: string
+      userId: string
+    },
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO marketplace_settlements
+         (session_id, settled_date, bank_account_id, amount, reference_number, notes, journal_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        data.sessionId,
+        data.settledDate,
+        data.bankAccountId,
+        data.amount,
+        data.referenceNumber,
+        data.notes,
+        data.journalId,
+        data.userId,
+      ],
+    )
+  }
+
+  async findUnreconciledBankStatementForLink(
+    client: PoolClient,
+    bankStatementId: number,
+    companyId: string,
+    bankAccountId: number,
+  ): Promise<boolean> {
+    const { rows } = await client.query(
+      `SELECT id FROM bank_statements
+       WHERE id = $1
+         AND company_id = $2
+         AND bank_account_id = $3
+         AND deleted_at IS NULL
+         AND journal_id IS NULL
+         AND is_reconciled = false`,
+      [bankStatementId, companyId, bankAccountId],
+    )
+    return rows.length > 0
+  }
+
+  async linkBankStatementToJournal(
+    client: PoolClient,
+    bankStatementId: number,
+    journalId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE bank_statements
+       SET journal_id = $1,
+           is_reconciled = true,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [journalId, bankStatementId],
+    )
+  }
+
   async findOwnerCreditCards(companyId: string): Promise<OwnerCreditCardWithSettlement[]> {
     const { rows } = await pool.query(
       `SELECT ${OWNER_CC_SELECT}
@@ -551,8 +917,8 @@ export class MarketplacePoRepository {
     return (rowCount ?? 0) > 0
   }
 
-  async getSessionStatus(db: PoolClient | typeof pool, sessionId: string, companyId: string) {
-    const { rows } = await (db as any).query(
+  async getSessionStatus(sessionId: string, companyId: string) {
+    const { rows } = await pool.query(
       `SELECT id, status FROM marketplace_checkout_sessions WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
       [sessionId, companyId],
     )

@@ -1,4 +1,4 @@
-  import { pool } from '../../config/db'
+  import { randomUUID } from 'crypto'
   import { logError } from '../../config/logger'
   import { BusinessRuleError } from '../../utils/errors.base'
   import { AuditService } from '../monitoring/monitoring.service'
@@ -22,16 +22,51 @@
       userId: string,
       companyId: string,
     ): Promise<void> {
-      if (!journalOrderedId) return
-      try {
-        await journalHeadersService.forceDelete(journalOrderedId, userId, companyId)
-      } catch (journalErr) {
-        logError('forceDelete journal gagal setelah cancel session', {
-          sessionId,
-          journalId: journalOrderedId,
-          error: journalErr instanceof Error ? journalErr.message : String(journalErr),
-        })
+      await this.cleanupPostedJournalsAfterFailure(
+        journalOrderedId ? [journalOrderedId] : [],
+        'cancelSession',
+        userId,
+        companyId,
+        { sessionId },
+      )
+    }
+
+    /**
+     * Journal service commits each step on its own connection. If linking the marketplace
+     * session fails afterward, remove posted journal(s) so we do not leave orphans.
+     */
+    private async cleanupPostedJournalsAfterFailure(
+      journalIds: string[],
+      context: string,
+      userId: string,
+      companyId: string,
+      extra?: Record<string, unknown>,
+    ): Promise<void> {
+      for (const journalId of journalIds) {
+        if (!journalId) continue
+        try {
+          await journalHeadersService.forceDelete(journalId, userId, companyId)
+        } catch (journalErr) {
+          logError('forceDelete journal gagal setelah kegagalan link session', {
+            context,
+            journalId,
+            ...extra,
+            error: journalErr instanceof Error ? journalErr.message : String(journalErr),
+          })
+        }
       }
+    }
+
+    private async postJournalWorkflow(
+      journalCreateDto: any,
+      employeeId: string,
+      companyId: string,
+    ): Promise<{ id: string }> {
+      const journalHeader = await journalHeadersService.create(journalCreateDto, employeeId)
+      await journalHeadersService.submit(journalHeader.id, employeeId, companyId)
+      await journalHeadersService.approve(journalHeader.id, employeeId, companyId)
+      await journalHeadersService.post(journalHeader.id, employeeId, companyId)
+      return { id: journalHeader.id }
     }
     async list(companyId: string, filter: any, pagination: { page: number; limit: number }) {
       const offset = (pagination.page - 1) * pagination.limit
@@ -55,16 +90,8 @@
       bankAccountId: number | null | undefined,
     ): Promise<void> {
       if (bankAccountId == null) return
-      const { rows } = await pool.query(
-        `SELECT id FROM bank_accounts
-         WHERE id = $1
-           AND owner_type = 'company'
-           AND owner_id = $2
-           AND is_active = true
-           AND deleted_at IS NULL`,
-        [bankAccountId, companyId],
-      )
-      if (!rows[0]) {
+      const exists = await marketplacePoRepository.findCompanySettlementBankAccount(companyId, bankAccountId)
+      if (!exists) {
         throw new BusinessRuleError('Rekening bank pelunasan tidak ditemukan atau tidak aktif')
       }
     }
@@ -78,9 +105,7 @@
       userId: string,
       dto: CreateOwnerCreditCardDto,
     ): Promise<OwnerCreditCardWithSettlement> {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
+      return marketplacePoRepository.withTransaction(async (client) => {
         if (dto.coa_code) {
           const coa = await chartOfAccountsRepository.findByCode(companyId, dto.coa_code)
           if (!coa) throw new BusinessRuleError('COA for owner credit card not found')
@@ -97,14 +122,8 @@
           settlement_bank_account_id: settlementBankAccountId,
         })
         if (!created) throw new BusinessRuleError('Owner credit card not created')
-        await client.query('COMMIT')
         return created
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+      })
     }
 
     async updateOwnerCreditCard(
@@ -113,9 +132,7 @@
       id: string,
       dto: UpdateOwnerCreditCardDto,
     ): Promise<OwnerCreditCardWithSettlement> {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
+      return marketplacePoRepository.withTransaction(async (client) => {
         if (dto.coa_code) {
           const coa = await chartOfAccountsRepository.findByCode(companyId, dto.coa_code)
           if (!coa) throw new BusinessRuleError('COA for owner credit card not found')
@@ -133,42 +150,21 @@
           settlement_bank_account_id: dto.settlement_bank_account_id,
         })
         if (!updated) throw new BusinessRuleError('Owner credit card not found')
-        await client.query('COMMIT')
         return updated
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+      })
     }
 
     async deleteOwnerCreditCard(companyId: string, userId: string, id: string) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
+      return marketplacePoRepository.withTransaction(async (client) => {
         const deleted = await marketplacePoRepository.softDeleteOwnerCreditCard(client, id, companyId, userId)
         if (!deleted) throw new BusinessRuleError('Owner credit card not found')
-        await client.query('COMMIT')
         return deleted
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+      })
     }
 
     async createSession(companyId: string, userId: string, dto: any) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
-
-        const { rows: seqRows } = await client.query(
-          'SELECT generate_marketplace_session_number($1::uuid, $2::varchar) AS session_number',
-          [companyId, dto.platform],
-        )
-        const sessionNumber = seqRows[0]?.session_number
+      const session = await marketplacePoRepository.withTransaction(async (client) => {
+        const sessionNumber = await marketplacePoRepository.generateSessionNumber(client, companyId, dto.platform)
         if (!sessionNumber) throw new BusinessRuleError('Failed to generate session number')
 
         const lines = dto.lines
@@ -176,7 +172,7 @@
 
         const totalAmount = lines.reduce((sum: number, l: any) => sum + Number(l.unit_price_netto) * Number(l.qty), 0)
 
-        const session = await marketplacePoRepository.createSessionAndLines(client, companyId, userId, {
+        return marketplacePoRepository.createSessionAndLines(client, companyId, userId, {
           session_number: sessionNumber,
           platform: dto.platform,
           cc_id: dto.cc_id,
@@ -196,22 +192,14 @@
           })),
           total_amount: totalAmount,
         })
+      })
 
-        await client.query('COMMIT')
-        await AuditService.log('CREATE', 'marketplace_checkout_session', session.id, userId, undefined, session)
-        return session
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+      await AuditService.log('CREATE', 'marketplace_checkout_session', session.id, userId, undefined, session)
+      return session
     }
 
     async updateSessionHeader(companyId: string, userId: string, id: string, dto: any) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
+      return marketplacePoRepository.withTransaction(async (client) => {
         const updated = await marketplacePoRepository.updateSessionHeader(client, id, companyId, userId, {
           platform: dto.platform,
           cc_id: dto.cc_id,
@@ -219,134 +207,116 @@
           notes: dto.notes,
         })
         if (!updated) throw new BusinessRuleError('Session not found or not in DRAFT')
-        await client.query('COMMIT')
         return updated
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+      })
     }
 
     async cancelSession(companyId: string, userId: string, id: string) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
+      return marketplacePoRepository.withTransaction(async (client) => {
         const cancelled = await marketplacePoRepository.cancelSession(client, id, companyId, userId)
         if (!cancelled) throw new BusinessRuleError('Session not found or not in DRAFT')
-        await client.query('COMMIT')
         return cancelled
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+      })
     }
 
     async orderSession(companyId: string, userId: string, employeeId: string, id: string, dto: any) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
-        if (!employeeId) throw new BusinessRuleError('Employee context not found')
+      if (!employeeId) throw new BusinessRuleError('Employee context not found')
 
-        const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
-        if (!session) throw new BusinessRuleError('Marketplace session not found')
-        if (session.status !== 'DRAFT') throw new BusinessRuleError('Session must be DRAFT')
+      const { session, ccCoaCode } = await marketplacePoRepository.withTransaction(async (client) => {
+        const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
+        if (!locked) throw new BusinessRuleError('Marketplace session not found')
+        if (locked.status !== 'DRAFT') throw new BusinessRuleError('Session must be DRAFT')
 
         const hasBuktip = await marketplacePoRepository.hasBuktipBayarAttachment(client, id)
         if (!hasBuktip) throw new BusinessRuleError('Attachment BUKTI_BAYAR is required before ORDERED')
 
-        const { rows: ccRows } = await client.query(
-          `SELECT coa_code FROM owner_credit_cards WHERE id = $1 AND company_id = $2 AND is_active = true`,
-          [session.cc_id, companyId],
-        )
-        const ccCoaCode = ccRows[0]?.coa_code
-        if (!ccCoaCode) throw new BusinessRuleError('COA for CC not found')
+        const code = await marketplacePoRepository.findOwnerCreditCardCoaCode(client, locked.cc_id, companyId)
+        if (!code) throw new BusinessRuleError('COA for CC not found')
 
-        const coa110598 = await chartOfAccountsRepository.findByCode(companyId, '110598')
-        if (!coa110598) throw new BusinessRuleError('COA 110598 not found')
+        return { session: locked, ccCoaCode: code }
+      })
 
-        const coaCc = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
-        if (!coaCc) throw new BusinessRuleError('COA for CC not found')
+      const coa110598 = await chartOfAccountsRepository.findByCode(companyId, '110598')
+      if (!coa110598) throw new BusinessRuleError('COA 110598 not found')
 
-        const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
-        const total = Number(session.total_amount)
+      const coaCc = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
+      if (!coaCc) throw new BusinessRuleError('COA for CC not found')
 
-        const journalCreateDto: any = {
-          company_id: companyId,
-          branch_id: session.branch_id ?? null,
-          journal_date,
-          journal_type: 'INVENTORY',
-          description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
-          currency: 'IDR',
-          exchange_rate: 1,
-          reference_type: 'marketplace_checkout_session',
-          reference_id: id,
-          reference_number: session.session_number,
-          source_module: 'marketplace_po',
-          tags: { platform: session.platform, session_number: session.session_number },
-          lines: [
-            {
-              line_number: 1,
-              account_id: coa110598.id,
-              description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
-              debit_amount: total,
-              credit_amount: 0,
-            },
-            {
-              line_number: 2,
-              account_id: coaCc.id,
-              description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
-              debit_amount: 0,
-              credit_amount: total,
-            },
-          ],
-        }
+      const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
+      const total = Number(session.total_amount)
 
-        const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
-        await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
-        await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
-        await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
-
-        await marketplacePoRepository.updateOrderData(client, id, companyId, userId, {
-          platform_order_ids: dto?.platform_order_ids ?? null,
-          platform_receipt_url: dto?.platform_receipt_url ?? null,
-          journal_ordered_id: journalHeader.id,
-          status: 'ORDERED',
-        })
-
-        await client.query('COMMIT')
-        return await marketplacePoRepository.findSessionDetail(id, companyId)
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
+      const journalCreateDto = {
+        company_id: companyId,
+        branch_id: session.branch_id ?? null,
+        journal_date,
+        journal_type: 'INVENTORY',
+        description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
+        currency: 'IDR',
+        exchange_rate: 1,
+        reference_type: 'marketplace_checkout_session',
+        reference_id: id,
+        reference_number: session.session_number,
+        source_module: 'marketplace_po',
+        tags: { platform: session.platform, session_number: session.session_number },
+        lines: [
+          {
+            line_number: 1,
+            account_id: coa110598.id,
+            description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
+            debit_amount: total,
+            credit_amount: 0,
+          },
+          {
+            line_number: 2,
+            account_id: coaCc.id,
+            description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
+            debit_amount: 0,
+            credit_amount: total,
+          },
+        ],
       }
+
+      let journalId: string | null = null
+      try {
+        const posted = await this.postJournalWorkflow(journalCreateDto, employeeId, companyId)
+        journalId = posted.id
+
+        await marketplacePoRepository.withTransaction(async (client) => {
+          const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
+          if (!locked) throw new BusinessRuleError('Marketplace session not found')
+          if (locked.status !== 'DRAFT') throw new BusinessRuleError('Session must be DRAFT')
+
+          const updated = await marketplacePoRepository.updateOrderData(client, id, companyId, userId, {
+            platform_order_ids: dto?.platform_order_ids ?? null,
+            platform_receipt_url: dto?.platform_receipt_url ?? null,
+            journal_ordered_id: journalId!,
+            status: 'ORDERED',
+          })
+          if (!updated) throw new BusinessRuleError('Session not found or not in DRAFT')
+        })
+      } catch (e) {
+        await this.cleanupPostedJournalsAfterFailure(
+          journalId ? [journalId] : [],
+          'orderSession',
+          userId,
+          companyId,
+          { sessionId: id },
+        )
+        throw e
+      }
+
+      return marketplacePoRepository.findSessionDetail(id, companyId)
     }
 
     async shipSession(companyId: string, userId: string, id: string, dto: any) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
-    
+      await marketplacePoRepository.withTransaction(async (client) => {
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
         if (session.status !== 'ORDERED') throw new BusinessRuleError('Session must be ORDERED to SHIPPED')
         if (!dto?.shipments || dto.shipments.length === 0) throw new BusinessRuleError('At least 1 shipment/resi is required')
-    
-        // Guard: cek apakah GR sudah pernah dibuat untuk session ini
-        const { rows: existingGrs } = await client.query(
-          `SELECT id FROM goods_receipts
-           WHERE invoice_number = $1
-             AND source = 'MARKETPLACE'
-             AND deleted_at IS NULL
-           LIMIT 1`,
-          [session.session_number],
-        )
-        if (existingGrs.length > 0) {
+
+        const grExists = await marketplacePoRepository.existsMarketplaceGrForSession(client, session.session_number)
+        if (grExists) {
           throw new BusinessRuleError('GR sudah pernah dibuat untuk session ini')
         }
     
@@ -365,23 +335,10 @@
         let firstGrId: string | null = null
     
         for (const [poId, poLines] of Object.entries(linesByPo)) {
-          const { rows: poRows } = await client.query(
-            `SELECT po.branch_id, b.branch_code
-             FROM purchase_orders po
-             JOIN branches b ON b.id = po.branch_id
-             WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL`,
-            [poId, companyId],
-          )
-          const po = poRows[0]
+          const po = await marketplacePoRepository.findPoBranchForMarketplaceGr(client, poId, companyId)
           if (!po) throw new BusinessRuleError(`Purchase order ${poId} not found`)
-    
-          const { rows: whRows } = await client.query(
-            `SELECT id FROM warehouses
-             WHERE branch_id = $1 AND company_id = $2 AND warehouse_type = 'MAIN' AND deleted_at IS NULL
-             LIMIT 1`,
-            [po.branch_id, companyId],
-          )
-          const warehouseId = whRows[0]?.id
+
+          const warehouseId = await marketplacePoRepository.findMainWarehouseId(client, po.branch_id, companyId)
           if (!warehouseId) throw new BusinessRuleError(`Warehouse tidak ditemukan untuk cabang ${po.branch_id}`)
     
           const branchCode = po.branch_code ?? 'XXX'
@@ -432,25 +389,10 @@
           await goodsReceiptsRepository.insertLines(client, gr.id, processedLines)
         }
     
-        // Update session status + simpan goods_receipt_id
-        await client.query(
-          `UPDATE marketplace_checkout_sessions
-           SET status = 'SHIPPED',
-               goods_receipt_id = $1,
-               updated_by = $2,
-               updated_at = now()
-           WHERE id = $3 AND company_id = $4`,
-          [firstGrId, userId, id, companyId],
-        )
-    
-        await client.query('COMMIT')
-        return await marketplacePoRepository.findSessionDetail(id, companyId)
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+        await marketplacePoRepository.markSessionShipped(client, id, companyId, userId, firstGrId)
+      })
+
+      return marketplacePoRepository.findSessionDetail(id, companyId)
     }
 
     async cancelOrderedSession(
@@ -460,37 +402,28 @@
       id: string,
       dto: CancelSessionDto,
     ) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
+      const journalOrderedId = await marketplacePoRepository.withTransaction(async (client) => {
         if (!employeeId) throw new BusinessRuleError('Employee context not found')
-    
+
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
         if (session.status !== 'ORDERED') throw new BusinessRuleError('Session harus ORDERED untuk dibatalkan')
-    
-        const journalOrderedId = session.journal_ordered_id as string | null
-    
+
         const cancelled = await marketplacePoRepository.cancelOrderedOrShippedSession(
           client, id, companyId, userId, ['ORDERED'],
           { cancel_reason: dto.cancel_reason, platform_cancel_ref: dto.platform_cancel_ref ?? null },
         )
         if (!cancelled) throw new BusinessRuleError('Gagal membatalkan session')
 
-        await client.query('COMMIT')
-        await this.cleanupOrderedJournalAfterCancel(id, journalOrderedId, userId, companyId)
+        return session.journal_ordered_id as string | null
+      })
 
-        await AuditService.log('CANCEL_ORDERED', 'marketplace_checkout_session', id, userId,
-          { status: 'ORDERED', journal_ordered_id: journalOrderedId },
-          { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
-        )
-        return await marketplacePoRepository.findSessionDetail(id, companyId)
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+      await this.cleanupOrderedJournalAfterCancel(id, journalOrderedId, userId, companyId)
+      await AuditService.log('CANCEL_ORDERED', 'marketplace_checkout_session', id, userId,
+        { status: 'ORDERED', journal_ordered_id: journalOrderedId },
+        { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
+      )
+      return marketplacePoRepository.findSessionDetail(id, companyId)
     }
     
     async cancelShippedSession(
@@ -500,38 +433,30 @@
       id: string,
       dto: CancelSessionDto,
     ) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
+      const journalOrderedId = await marketplacePoRepository.withTransaction(async (client) => {
         if (!employeeId) throw new BusinessRuleError('Employee context not found')
-    
+
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
         if (session.status !== 'SHIPPED') throw new BusinessRuleError('Session harus SHIPPED untuk dibatalkan')
-    
-        const journalOrderedId = session.journal_ordered_id as string | null
-    
+
         const cancelled = await marketplacePoRepository.cancelOrderedOrShippedSession(
           client, id, companyId, userId, ['SHIPPED'],
           { cancel_reason: dto.cancel_reason, platform_cancel_ref: dto.platform_cancel_ref ?? null },
         )
         if (!cancelled) throw new BusinessRuleError('Gagal membatalkan session')
 
-        await client.query('COMMIT')
-        await this.cleanupOrderedJournalAfterCancel(id, journalOrderedId, userId, companyId)
+        return session.journal_ordered_id as string | null
+      })
 
-        await AuditService.log('CANCEL_SHIPPED', 'marketplace_checkout_session', id, userId,
-          { status: 'SHIPPED', journal_ordered_id: journalOrderedId },
-          { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
-        )
-        return await marketplacePoRepository.findSessionDetail(id, companyId)
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+      await this.cleanupOrderedJournalAfterCancel(id, journalOrderedId, userId, companyId)
+      await AuditService.log('CANCEL_SHIPPED', 'marketplace_checkout_session', id, userId,
+        { status: 'SHIPPED', journal_ordered_id: journalOrderedId },
+        { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
+      )
+      return marketplacePoRepository.findSessionDetail(id, companyId)
     }
+
     async postReceiveJournal(
       companyId: string,
       userId: string,
@@ -539,81 +464,82 @@
       id: string,
       dto: { journal_date?: string },
     ) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
-        if (!employeeId) throw new BusinessRuleError('Employee context not found')
-    
-        const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
-        if (!session) throw new BusinessRuleError('Marketplace session not found')
-        if (session.status !== 'RECEIVED') throw new BusinessRuleError('Session harus RECEIVED untuk post journal')
-        if (session.journal_received_id) throw new BusinessRuleError('Journal receive sudah pernah di-post')
-    
-        const coaDebit = await chartOfAccountsRepository.findByCode(companyId, '110501')
-        if (!coaDebit) throw new BusinessRuleError('COA 110501 tidak ditemukan')
-    
-        const coaCredit = await chartOfAccountsRepository.findByCode(companyId, '110598')
-        if (!coaCredit) throw new BusinessRuleError('COA 110598 tidak ditemukan')
-    
-        const total = Number(session.total_amount)
-        const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
-        const journalDesc = `Barang Masuk Marketplace - ${session.session_number}`
-    
-        const journalCreateDto: any = {
-          company_id: companyId,
-          journal_date,
-          journal_type: 'INVENTORY',
-          description: journalDesc,
-          currency: 'IDR',
-          exchange_rate: 1,
-          reference_type: 'marketplace_checkout_session',
-          reference_id: id,
-          reference_number: session.session_number,
-          source_module: 'marketplace_po',
-          lines: [
-            {
-              line_number: 1,
-              account_id: coaDebit.id,
-              description: journalDesc,
-              debit_amount: total,
-              credit_amount: 0,
-            },
-            {
-              line_number: 2,
-              account_id: coaCredit.id,
-              description: journalDesc,
-              debit_amount: 0,
-              credit_amount: total,
-            },
-          ],
-        }
-    
-        const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
-        await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
-        await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
-        await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
-    
-        await client.query(
-          `UPDATE marketplace_checkout_sessions
-           SET journal_received_id = $1,
-               updated_by = $2,
-               updated_at = now()
-           WHERE id = $3 AND company_id = $4`,
-          [journalHeader.id, userId, id, companyId],
-        )
-    
-        await client.query('COMMIT')
-        await AuditService.log('POST_RECEIVE_JOURNAL', 'marketplace_checkout_session', id, userId,
-          { journal_received_id: null },
-          { journal_received_id: journalHeader.id },
-        )
-        return await marketplacePoRepository.findSessionDetail(id, companyId)
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
+      if (!employeeId) throw new BusinessRuleError('Employee context not found')
+
+      const detail = await marketplacePoRepository.findSessionDetail(id, companyId)
+      if (!detail?.header) throw new BusinessRuleError('Marketplace session not found')
+      const session = detail.header
+      if (session.status !== 'RECEIVED') throw new BusinessRuleError('Session harus RECEIVED untuk post journal')
+      if (session.journal_received_id) throw new BusinessRuleError('Journal receive sudah pernah di-post')
+
+      const coaDebit = await chartOfAccountsRepository.findByCode(companyId, '110501')
+      if (!coaDebit) throw new BusinessRuleError('COA 110501 tidak ditemukan')
+
+      const coaCredit = await chartOfAccountsRepository.findByCode(companyId, '110598')
+      if (!coaCredit) throw new BusinessRuleError('COA 110598 tidak ditemukan')
+
+      const total = Number(session.total_amount)
+      const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
+      const journalDesc = `Barang Masuk Marketplace - ${session.session_number}`
+
+      const journalCreateDto = {
+        company_id: companyId,
+        journal_date,
+        journal_type: 'INVENTORY',
+        description: journalDesc,
+        currency: 'IDR',
+        exchange_rate: 1,
+        reference_type: 'marketplace_checkout_session',
+        reference_id: id,
+        reference_number: session.session_number,
+        source_module: 'marketplace_po',
+        lines: [
+          {
+            line_number: 1,
+            account_id: coaDebit.id,
+            description: journalDesc,
+            debit_amount: total,
+            credit_amount: 0,
+          },
+          {
+            line_number: 2,
+            account_id: coaCredit.id,
+            description: journalDesc,
+            debit_amount: 0,
+            credit_amount: total,
+          },
+        ],
       }
+
+      let journalId: string | null = null
+      try {
+        const posted = await this.postJournalWorkflow(journalCreateDto, employeeId, companyId)
+        journalId = posted.id
+
+        await marketplacePoRepository.withTransaction(async (client) => {
+          const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
+          if (!locked) throw new BusinessRuleError('Marketplace session not found')
+          if (locked.status !== 'RECEIVED') throw new BusinessRuleError('Session harus RECEIVED untuk post journal')
+          if (locked.journal_received_id) throw new BusinessRuleError('Journal receive sudah pernah di-post')
+
+          await marketplacePoRepository.updateJournalReceivedId(client, id, companyId, userId, journalId!)
+        })
+      } catch (e) {
+        await this.cleanupPostedJournalsAfterFailure(
+          journalId ? [journalId] : [],
+          'postReceiveJournal',
+          userId,
+          companyId,
+          { sessionId: id },
+        )
+        throw e
+      }
+
+      await AuditService.log('POST_RECEIVE_JOURNAL', 'marketplace_checkout_session', id, userId,
+        { journal_received_id: null },
+        { journal_received_id: journalId },
+      )
+      return marketplacePoRepository.findSessionDetail(id, companyId)
     }
 
     async uploadAttachment(
@@ -623,7 +549,7 @@
       file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
       fileType: string,
     ) {
-      const session = await marketplacePoRepository.getSessionStatus(pool, sessionId, companyId)
+      const session = await marketplacePoRepository.getSessionStatus(sessionId, companyId)
       if (!session) throw new BusinessRuleError('Marketplace session not found')
       if (!['DRAFT', 'ORDERED'].includes(session.status)) {
         throw new BusinessRuleError('Attachment can only be uploaded for DRAFT or ORDERED sessions')
@@ -643,24 +569,15 @@
 
       await storageService.uploadToPath(file.buffer, path, file.mimetype, 'invoices')
 
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
-        const attachment = await marketplacePoRepository.insertAttachment(client, sessionId, {
+      return marketplacePoRepository.withTransaction(async (client) =>
+        marketplacePoRepository.insertAttachment(client, sessionId, {
           file_type: fileType,
           file_path: path,
           file_name: file.originalname,
           file_size: file.size,
           uploaded_by: userId,
-        })
-        await client.query('COMMIT')
-        return attachment
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
+        }),
+      )
     }
 
     async deleteAttachment(companyId: string, sessionId: string, attachmentId: string) {
@@ -677,226 +594,154 @@
     }
 
     async settleSession(companyId: string, userId: string, employeeId: string, id: string, dto: any) {
-      const client = await pool.connect()
+      if (!employeeId) throw new BusinessRuleError('Employee context not found')
+
+      const detail = await marketplacePoRepository.findSessionDetail(id, companyId)
+      if (!detail?.header) throw new BusinessRuleError('Marketplace session not found')
+      const session = detail.header
+      if (session.status !== 'RECEIVED') throw new BusinessRuleError('Session must be RECEIVED to SETTLED')
+      if (session.journal_settled_id) throw new BusinessRuleError('Session sudah di-settle')
+
+      const amount = dto?.amount ?? Number(session.total_amount)
+      const bankAccountId = dto.bank_account_id
+
+      const ccCoaCode = await marketplacePoRepository.withTransaction(async (client) => {
+        const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
+        if (!locked) throw new BusinessRuleError('Marketplace session not found')
+        if (locked.status !== 'RECEIVED') throw new BusinessRuleError('Session must be RECEIVED to SETTLED')
+        if (locked.journal_settled_id) throw new BusinessRuleError('Session sudah di-settle')
+
+        const code = await marketplacePoRepository.findOwnerCreditCardCoaCode(client, locked.cc_id, companyId)
+        if (!code) throw new BusinessRuleError('COA for CC not found')
+        return code
+      })
+
+      const coaDebit = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
+      if (!coaDebit) throw new BusinessRuleError('COA for CC not found')
+
+      const bankCoaCode = await marketplacePoRepository.findBankAccountCoaCode(bankAccountId, companyId)
+      if (!bankCoaCode) throw new BusinessRuleError('COA for bank account not found')
+
+      const coaCredit = await chartOfAccountsRepository.findByCode(companyId, bankCoaCode)
+      if (!coaCredit) throw new BusinessRuleError('COA for bank account not found')
+
+      const journal_date = dto?.settled_date ?? new Date().toISOString().slice(0, 10)
+
+      const journalCreateDto = {
+        company_id: companyId,
+        journal_date,
+        journal_type: 'FINANCING',
+        description: `Pelunasan CC Owner - ${session.session_number}`,
+        currency: 'IDR',
+        exchange_rate: 1,
+        reference_type: 'marketplace_checkout_session',
+        reference_id: id,
+        reference_number: session.session_number,
+        source_module: 'marketplace_po',
+        lines: [
+          {
+            line_number: 1,
+            account_id: coaDebit.id,
+            description: `Pelunasan CC Owner - ${session.session_number}`,
+            debit_amount: amount,
+            credit_amount: 0,
+          },
+          {
+            line_number: 2,
+            account_id: coaCredit.id,
+            description: `Pelunasan CC Owner - ${session.session_number}`,
+            debit_amount: 0,
+            credit_amount: amount,
+          },
+        ],
+      }
+
+      let journalId: string | null = null
       try {
-        await client.query('BEGIN')
-        if (!employeeId) throw new BusinessRuleError('Employee context not found')
-        const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
-        if (!session) throw new BusinessRuleError('Marketplace session not found')
-        if (session.status !== 'RECEIVED') throw new BusinessRuleError('Session must be RECEIVED to SETTLED')
+        const posted = await this.postJournalWorkflow(journalCreateDto, employeeId, companyId)
+        journalId = posted.id
 
-        const amount = dto?.amount ?? Number(session.total_amount)
-        const bankAccountId = dto.bank_account_id
+        await marketplacePoRepository.withTransaction(async (client) => {
+          const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
+          if (!locked) throw new BusinessRuleError('Marketplace session not found')
+          if (locked.status !== 'RECEIVED') throw new BusinessRuleError('Session must be RECEIVED to SETTLED')
+          if (locked.journal_settled_id) throw new BusinessRuleError('Session sudah di-settle')
 
-        const { rows: ccRows } = await client.query(
-          `SELECT coa_code FROM owner_credit_cards WHERE id=$1 AND company_id=$2 AND is_active=true`,
-          [session.cc_id, companyId],
-        )
-        const ccCoaCode = ccRows[0]?.coa_code
-        if (!ccCoaCode) throw new BusinessRuleError('COA for CC not found')
-
-        const coaDebit = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
-        if (!coaDebit) throw new BusinessRuleError('COA for CC not found')
-
-        const { rows: bankRows } = await client.query(
-          `SELECT coa_code FROM bank_accounts WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL`,
-          [bankAccountId, companyId],
-        )
-        const bankCoaCode = bankRows[0]?.coa_code
-        if (!bankCoaCode) throw new BusinessRuleError('COA for bank account not found')
-
-        const coaCredit = await chartOfAccountsRepository.findByCode(companyId, bankCoaCode)
-        if (!coaCredit) throw new BusinessRuleError('COA for bank account not found')
-
-        const journal_date = dto?.settled_date ?? new Date().toISOString().slice(0, 10)
-
-        const journalCreateDto: any = {
-          company_id: companyId,
-          journal_date,
-          journal_type: 'FINANCING',
-          description: `Pelunasan CC Owner - ${session.session_number}`,
-          currency: 'IDR',
-          exchange_rate: 1,
-          reference_type: 'marketplace_checkout_session',
-          reference_id: id,
-          reference_number: session.session_number,
-          source_module: 'marketplace_po',
-          lines: [
-            {
-              line_number: 1,
-              account_id: coaDebit.id,
-              description: `Pelunasan CC Owner - ${session.session_number}`,
-              debit_amount: amount,
-              credit_amount: 0,
-            },
-            {
-              line_number: 2,
-              account_id: coaCredit.id,
-              description: `Pelunasan CC Owner - ${session.session_number}`,
-              debit_amount: 0,
-              credit_amount: amount,
-            },
-          ],
-        }
-
-        const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
-        await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
-        await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
-        await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
-
-        await client.query(
-          `UPDATE marketplace_checkout_sessions SET status='SETTLED', journal_settled_id=$1, updated_by=$2, updated_at=now() WHERE id=$3 AND company_id=$4`,
-          [journalHeader.id, userId, id, companyId],
-        )
-
-        await client.query(
-          `INSERT INTO marketplace_settlements (session_id, settled_date, bank_account_id, amount, reference_number, notes, journal_id, created_by)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [
-            id,
-            dto.settled_date ?? new Date().toISOString().slice(0, 10),
+          await marketplacePoRepository.completeSessionSettlement(client, {
+            sessionId: id,
+            companyId,
+            userId,
+            journalId: journalId!,
+            settledDate: dto.settled_date ?? new Date().toISOString().slice(0, 10),
             bankAccountId,
             amount,
-            dto.reference_number,
-            dto.notes ?? null,
-            journalHeader.id,
-            userId,
-          ],
-        )
-
-        await client.query('COMMIT')
-        return await marketplacePoRepository.findSessionDetail(id, companyId)
+            referenceNumber: dto.reference_number ?? null,
+            notes: dto.notes ?? null,
+          })
+        })
       } catch (e) {
-        await client.query('ROLLBACK')
+        await this.cleanupPostedJournalsAfterFailure(
+          journalId ? [journalId] : [],
+          'settleSession',
+          userId,
+          companyId,
+          { sessionId: id },
+        )
         throw e
-      } finally {
-        client.release()
       }
+
+      return marketplacePoRepository.findSessionDetail(id, companyId)
     }
 
-    // ── CC Owner Bulk Settlement ──
     async getSettlementSummary(companyId: string) {
-      const { rows: pendingRows } = await pool.query(
-        `SELECT COALESCE(SUM(total_amount), 0)::numeric AS total
-         FROM marketplace_checkout_sessions
-         WHERE company_id = $1 AND status = 'RECEIVED' AND deleted_at IS NULL`,
-        [companyId],
-      )
-      const totalPending = Number(pendingRows[0]?.total ?? 0)
-
-      const firstDayOfMonth = new Date()
-      firstDayOfMonth.setDate(1)
-      firstDayOfMonth.setHours(0, 0, 0, 0)
-
-      const { rows: thisMonthRows } = await pool.query(
-        `SELECT COALESCE(SUM(ms.amount), 0)::numeric AS total
-         FROM marketplace_settlements ms
-         JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
-         WHERE mcs.company_id = $1
-           AND ms.settled_date >= $2::date`,
-        [companyId, firstDayOfMonth.toISOString().slice(0, 10)],
-      )
-      const totalThisMonth = Number(thisMonthRows[0]?.total ?? 0)
-
-      const { rows: historyRows } = await pool.query(
-        `SELECT ms.*, ba.account_name AS bank_name
-         FROM marketplace_settlements ms
-         JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
-         JOIN bank_accounts ba ON ba.id = ms.bank_account_id
-         WHERE mcs.company_id = $1
-         ORDER BY ms.settled_date DESC
-         LIMIT 100`,
-        [companyId],
-      )
-
-      return {
-        total_pending: totalPending,
-        total_this_month: totalThisMonth,
-        history: historyRows,
-      }
+      return marketplacePoRepository.findSettlementSummary(companyId)
     }
-      // ── Tambah method baru di class MarketplacePoService ──
 
-      async listUnreconciledStatements(
-        companyId: string,
-        bankAccountId: number,
-        filter: { date_from?: string; date_to?: string } = {},
-      ) {
-        const params: unknown[] = [companyId, bankAccountId]
-        let idx = 3
-        const conditions = [
-          'company_id = $1',
-          'bank_account_id = $2',
-          'is_reconciled = false',
-          'journal_id IS NULL',
-          'deleted_at IS NULL',
-        ]
+    async listUnreconciledStatements(
+      companyId: string,
+      bankAccountId: number,
+      filter: { date_from?: string; date_to?: string } = {},
+    ) {
+      return marketplacePoRepository.listUnreconciledBankStatements(companyId, bankAccountId, filter)
+    }
 
-        if (filter.date_from) {
-          conditions.push(`transaction_date >= $${idx}::date`)
-          params.push(filter.date_from)
-          idx++
-        }
-        if (filter.date_to) {
-          conditions.push(`transaction_date <= $${idx}::date`)
-          params.push(filter.date_to)
-          idx++
-        }
+    async createBulkSettlement(
+      companyId: string,
+      userId: string,
+      employeeId: string,
+      dto: any,
+    ): Promise<{ settled_count: number; journal_ids: string[] }> {
+      if (!employeeId) throw new BusinessRuleError('Employee context tidak ditemukan')
 
-        const { rows } = await pool.query(
-          `SELECT id, transaction_date, description, debit_amount, credit_amount, reference_number
-          FROM bank_statements
-          WHERE ${conditions.join(' AND ')}
-          ORDER BY transaction_date DESC
-          LIMIT 100`,
-          params,
-        )
-        return rows
+      const bulkId = randomUUID()
+      const sessions = await marketplacePoRepository.findReceivedSessionsForBulkSettlement(
+        companyId,
+        dto.session_ids,
+      )
+      if (sessions.length !== dto.session_ids.length) {
+        throw new BusinessRuleError('Beberapa sesi tidak ditemukan atau statusnya bukan RECEIVED')
       }
-    async createBulkSettlement(companyId: string, userId: string, employeeId: string, dto: any) {
-      const client = await pool.connect()
+
+      const bankCoaCode = await marketplacePoRepository.findBankAccountCoaCodeForBulk(
+        dto.bank_account_id,
+        companyId,
+      )
+      if (!bankCoaCode) throw new BusinessRuleError('COA untuk bank account tidak ditemukan')
+
+      const coaCredit = await chartOfAccountsRepository.findByCode(companyId, bankCoaCode)
+      if (!coaCredit) throw new BusinessRuleError('COA bank tidak ditemukan di chart of accounts')
+
+      const byCc = sessions.reduce((acc: Record<string, typeof sessions>, s: (typeof sessions)[0]) => {
+        const key = s.cc_coa_code as string
+        if (!acc[key]) acc[key] = []
+        acc[key].push(s)
+        return acc
+      }, {})
+
+      const journalIdByCc = new Map<string, string>()
+      const journalIds: string[] = []
+
       try {
-        await client.query('BEGIN')
-        if (!employeeId) throw new BusinessRuleError('Employee context tidak ditemukan')
-          const { rows: uuidRows } = await client.query(
-            `SELECT gen_random_uuid()::text AS bulk_id`
-          )
-          const bulkId = uuidRows[0].bulk_id
-        const { rows: sessions } = await client.query(
-          `SELECT mcs.*, occ.coa_code AS cc_coa_code
-           FROM marketplace_checkout_sessions mcs
-           JOIN owner_credit_cards occ ON occ.id = mcs.cc_id
-           WHERE mcs.id = ANY($1::uuid[])
-             AND mcs.company_id = $2
-             AND mcs.status = 'RECEIVED'
-             AND mcs.deleted_at IS NULL`,
-          [dto.session_ids, companyId],
-        )
-        if (sessions.length !== dto.session_ids.length) {
-          throw new BusinessRuleError('Beberapa sesi tidak ditemukan atau statusnya bukan RECEIVED')
-        }
-
-        const { rows: bankRows } = await client.query(
-          `SELECT coa.account_code FROM bank_accounts ba
-           JOIN chart_of_accounts coa ON coa.id = ba.coa_account_id
-           WHERE ba.id = $1 AND ba.owner_id = $2 AND ba.deleted_at IS NULL`,
-          [dto.bank_account_id, companyId],
-        )
-        const bankCoaCode = bankRows[0]?.account_code
-        if (!bankCoaCode) throw new BusinessRuleError('COA untuk bank account tidak ditemukan')
-
-        const coaCredit = await chartOfAccountsRepository.findByCode(companyId, bankCoaCode)
-        if (!coaCredit) throw new BusinessRuleError('COA bank tidak ditemukan di chart of accounts')
-
-        const byCc = sessions.reduce((acc: Record<string, typeof sessions>, s: (typeof sessions)[0]) => {
-          const key = s.cc_coa_code
-          if (!acc[key]) acc[key] = []
-          acc[key].push(s)
-          return acc
-        }, {})
-
-        const journalIds: string[] = []
-
         for (const [ccCoaCode, ccSessions] of Object.entries(byCc)) {
           const coaDebit = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
           if (!coaDebit) throw new BusinessRuleError(`COA CC ${ccCoaCode} tidak ditemukan`)
@@ -906,7 +751,7 @@
             0,
           )
 
-          const journalCreateDto: any = {
+          const journalCreateDto = {
             company_id: companyId,
             journal_date: dto.settled_date,
             journal_type: 'FINANCING',
@@ -914,8 +759,8 @@
             currency: 'IDR',
             exchange_rate: 1,
             reference_type: 'marketplace_bulk_settlement',
-            reference_id: bulkId,       // ← tambah ini
-            reference_number: bulkId,   // ← pakai bulkId, bukan dto.reference_number
+            reference_id: bulkId,
+            reference_number: bulkId,
             source_module: 'marketplace_po',
             lines: [
               {
@@ -935,78 +780,83 @@
             ],
           }
 
-          const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
-          await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
-          await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
-          await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
-          journalIds.push(journalHeader.id)
+          const posted = await this.postJournalWorkflow(journalCreateDto, employeeId, companyId)
+          journalIdByCc.set(ccCoaCode, posted.id)
+          journalIds.push(posted.id)
+        }
 
-          for (const session of ccSessions as typeof sessions) {
-            await client.query(
-              `UPDATE marketplace_checkout_sessions
-               SET status = 'SETTLED',
-                   journal_settled_id = $1,
-                   updated_by = $2,
-                   updated_at = now()
-               WHERE id = $3 AND company_id = $4`,
-              [journalHeader.id, userId, session.id, companyId],
-            )
+        await marketplacePoRepository.withTransaction(async (client) => {
+          const locked = await marketplacePoRepository.findReceivedSessionsForBulkSettlement(
+            companyId,
+            dto.session_ids,
+            client,
+          )
+          if (locked.length !== dto.session_ids.length) {
+            throw new BusinessRuleError('Beberapa sesi tidak ditemukan atau statusnya bukan RECEIVED')
+          }
 
-            await client.query(
-              `INSERT INTO marketplace_settlements
-                 (session_id, settled_date, bank_account_id, amount, reference_number, notes, journal_id, created_by)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-               [
+          const lockedByCc = locked.reduce((acc: Record<string, typeof locked>, s: (typeof locked)[0]) => {
+            const key = s.cc_coa_code as string
+            if (!acc[key]) acc[key] = []
+            acc[key].push(s)
+            return acc
+          }, {})
+
+          for (const [ccCoaCode, ccSessions] of Object.entries(lockedByCc)) {
+            const journalHeaderId = journalIdByCc.get(ccCoaCode)
+            if (!journalHeaderId) throw new BusinessRuleError(`Journal untuk CC ${ccCoaCode} tidak ditemukan`)
+
+            for (const session of ccSessions) {
+              await marketplacePoRepository.markSessionSettledInBulk(
+                client,
                 session.id,
-                dto.settled_date,
-                dto.bank_account_id,
-                Number(session.total_amount),
-                dto.reference_number ?? null,  // ← tetap simpan input user, boleh null
-                dto.notes ?? null,
-                journalHeader.id,
+                companyId,
                 userId,
-              ],
-            )
-          }
-        }
-          // SESUDAH:
-          // ── Link ke bank statement jika dipilih user ──────────────────────
-          // ── di dalam createBulkSettlement, sebelum await client.query('COMMIT') ──
-
-        if (dto.bank_statement_id) {
-          const { rows: stmtCheck } = await client.query(
-            `SELECT id FROM bank_statements
-            WHERE id = $1
-              AND company_id = $2
-              AND bank_account_id = $3
-              AND deleted_at IS NULL
-              AND journal_id IS NULL
-              AND is_reconciled = false`,
-            [dto.bank_statement_id, companyId, dto.bank_account_id],
-          )
-
-          if (!stmtCheck[0]) {
-            throw new BusinessRuleError(
-              'Bank statement tidak ditemukan, tidak sesuai bank account, atau sudah ter-rekonsiliasi',
-            )
+                journalHeaderId,
+              )
+              await marketplacePoRepository.insertMarketplaceSettlement(client, {
+                sessionId: session.id,
+                settledDate: dto.settled_date,
+                bankAccountId: dto.bank_account_id,
+                amount: Number(session.total_amount),
+                referenceNumber: dto.reference_number ?? null,
+                notes: dto.notes ?? null,
+                journalId: journalHeaderId,
+                userId,
+              })
+            }
           }
 
-          await client.query(
-            `UPDATE bank_statements
-            SET journal_id = $1,
-                is_reconciled = true,
-                updated_at = NOW()
-            WHERE id = $2`,
-            [journalIds[0], dto.bank_statement_id],
-          )
-        }
-        await client.query('COMMIT')
-        return { settled_count: sessions.length, journal_ids: journalIds }
-      } catch (err) {
-        await client.query('ROLLBACK')
-        throw err
-      } finally {
-        client.release()
+          if (dto.bank_statement_id) {
+            const stmtOk = await marketplacePoRepository.findUnreconciledBankStatementForLink(
+              client,
+              dto.bank_statement_id,
+              companyId,
+              dto.bank_account_id,
+            )
+            if (!stmtOk) {
+              throw new BusinessRuleError(
+                'Bank statement tidak ditemukan, tidak sesuai bank account, atau sudah ter-rekonsiliasi',
+              )
+            }
+            await marketplacePoRepository.linkBankStatementToJournal(
+              client,
+              dto.bank_statement_id,
+              journalIds[0],
+            )
+          }
+        })
+
+        return { settled_count: dto.session_ids.length, journal_ids: journalIds }
+      } catch (e) {
+        await this.cleanupPostedJournalsAfterFailure(
+          journalIds,
+          'createBulkSettlement',
+          userId,
+          companyId,
+          { bulkId, sessionIds: dto.session_ids },
+        )
+        throw e
       }
     }
   }
