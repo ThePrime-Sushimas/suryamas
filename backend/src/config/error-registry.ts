@@ -639,6 +639,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 409,
     category: 'inventory',
   },
+  GoodsProcessingReturnNotPendingError: {
+    name: 'GoodsProcessingReturnNotPendingError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

@@ -5,7 +5,7 @@ import api from '@/lib/axios';
 import {
   ArrowLeft, CheckCircle2, XCircle, AlertTriangle,
   Plus, Trash2, Play, RotateCcw, Info,
-   CheckCheck,
+   CheckCheck, Loader2,
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
@@ -1033,24 +1033,32 @@ function DisassemblyCard({
 
 // ── ReturnItemsSection ────────────────────────────────────────────────────────
 
-function ReturnItemsSection({ gp, onResolve, canApprove }: {
+function ReturnItemsSection({ gp, onResolve, canApprove, resolvingOutputId, resolvingResolution }: {
   gp: GoodsProcessingDetail
   onResolve: (outputId: string, resolution: "STOCK" | "DISCARD") => void
   canApprove: boolean
+  resolvingOutputId: string | null
+  resolvingResolution: "STOCK" | "DISCARD" | null
 }) {
   const returnItems = gp.inputs.flatMap(inp =>
     inp.outputs.filter(o => o.flagged_for_return && !o.return_resolved_at)
       .map(o => ({ ...o, input_product_name: inp.product_name }))
   )
   if (returnItems.length === 0) return null
+  const isResolving = resolvingOutputId != null
   return (
     <div className="rounded-xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-900/20 p-4 space-y-3">
       <div className="flex items-center gap-2">
         <RotateCcw size={16} className="text-orange-600 dark:text-orange-400" />
-        <h3 className="font-semibold text-orange-800 dark:text-orange-300 text-sm">Menunggu Retur ({returnItems.length})</h3>
+        <h3 className="font-semibold text-orange-800 dark:text-orange-300 text-sm">Barang Retur Tiba ({returnItems.length})</h3>
       </div>
-      {returnItems.map(item => (
-        <div key={item.id} className="bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-800 p-3 space-y-2">
+      <p className="text-xs text-orange-700/90 dark:text-orange-300/90 -mt-1">
+        Pilih satu tindakan per barang. Proses membutuhkan beberapa detik — tunggu hingga selesai.
+      </p>
+      {returnItems.map(item => {
+        const itemBusy = resolvingOutputId === item.id
+        return (
+        <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-800 p-3 space-y-2 ${itemBusy ? "opacity-90" : ""}`}>
           <div className="flex justify-between items-start gap-2">
             <div>
               <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{item.product_name}</p>
@@ -1063,16 +1071,41 @@ function ReturnItemsSection({ gp, onResolve, canApprove }: {
           </div>
           {canApprove && (
             <div className="flex gap-2">
-              <button type="button" onClick={() => onResolve(item.id, "STOCK")}
-                className="flex-1 py-1.5 bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors"
-              >✓ Masukkan Gudang</button>
-              <button type="button" onClick={() => onResolve(item.id, "DISCARD")}
-                className="flex-1 py-1.5 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors"
-              >🗑 Buang</button>
+              <button
+                type="button"
+                disabled={isResolving}
+                onClick={() => onResolve(item.id, "STOCK")}
+                className="flex-1 py-2 bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-[36px]"
+              >
+                {itemBusy && resolvingResolution === "STOCK" ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin shrink-0" />
+                    Memproses...
+                  </>
+                ) : (
+                  "✓ Masukkan Gudang"
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={isResolving}
+                onClick={() => onResolve(item.id, "DISCARD")}
+                className="flex-1 py-2 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-[36px]"
+              >
+                {itemBusy && resolvingResolution === "DISCARD" ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin shrink-0" />
+                    Memproses...
+                  </>
+                ) : (
+                  "🗑 Buang"
+                )}
+              </button>
             </div>
           )}
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -1267,6 +1300,7 @@ export default function GoodsProcessingDetailPage() {
   const startMut = useStartGoodsProcessing(id!)
   const confirmMut = useConfirmGoodsProcessing(id!)
   const resolveMut = useResolveReturn(id!)
+  const resolveInFlightRef = useRef(false)
   const confirmInputMut = useConfirmGoodsProcessingInput(id!)
 
   const [confirmingInputId, setConfirmingInputId] = useState<string | null>(null)
@@ -1389,11 +1423,15 @@ export default function GoodsProcessingDetailPage() {
 
 
   const handleResolveReturn = useCallback(async (outputId: string, resolution: "STOCK" | "DISCARD") => {
+    if (resolveInFlightRef.current || resolveMut.isPending) return
+    resolveInFlightRef.current = true
     try {
       await resolveMut.mutateAsync({ outputId, resolution })
       addToast("success", resolution === "STOCK" ? "Barang masuk gudang" : "Barang dibuang")
     } catch (e) {
       addToast("error", parseApiError(e, "Terjadi kesalahan"))
+    } finally {
+      resolveInFlightRef.current = false
     }
   }, [resolveMut, addToast])
 
@@ -1441,7 +1479,9 @@ export default function GoodsProcessingDetailPage() {
   const status = gp.status
   const isInProgress = status === "PROCESSING" || status === "PARTIAL"
   const cfg = resolveGpHeaderStatusConfig(status, doneCount, totalCount)
-  const isBusy = startMut.isPending || confirmMut.isPending
+  const isBusy = startMut.isPending || confirmMut.isPending || resolveMut.isPending
+  const resolvingOutputId = resolveMut.isPending ? (resolveMut.variables?.outputId ?? null) : null
+  const resolvingResolution = resolveMut.isPending ? (resolveMut.variables?.resolution ?? null) : null
   const addOutputInput = addOutputFor != null ? localInputs.find(inp => inp.id === addOutputFor) : null
 
   return (
@@ -1560,7 +1600,13 @@ export default function GoodsProcessingDetailPage() {
 
             {/* Return items */}
             {(status === "CONFIRMED" || isInProgress) && (
-              <ReturnItemsSection gp={gp} onResolve={handleResolveReturn} canApprove={canApprove} />
+              <ReturnItemsSection
+                gp={gp}
+                onResolve={handleResolveReturn}
+                canApprove={canApprove}
+                resolvingOutputId={resolvingOutputId}
+                resolvingResolution={resolvingResolution}
+              />
             )}
 
             {/* ── Action bar (desktop: in sidebar / mobile: fixed bottom) ── */}

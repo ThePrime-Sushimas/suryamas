@@ -4,6 +4,7 @@ import {
   GoodsProcessingNotFoundError,
   GoodsProcessingInvalidStatusError,
   GoodsProcessingOutputExceedsInputError,
+  GoodsProcessingReturnNotPendingError,
 } from './goods-processing.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import {
@@ -297,15 +298,20 @@ export class GoodsProcessingService {
     if (!detail) throw new GoodsProcessingNotFoundError(id)
 
     const output = detail.inputs.flatMap(i => i.outputs).find(o => o.id === outputId)
-    if (!output) throw new Error(`Output ${outputId} not found in GP ${id}`)
-    if (!output.flagged_for_return) throw new Error(`Output ${outputId} is not flagged for return`)
+    if (!output) throw new GoodsProcessingNotFoundError(id)
+    if (output.return_resolved_at) {
+      return goodsProcessingRepository.findDetail(id, companyId)
+    }
+    if (!output.flagged_for_return) {
+      throw new GoodsProcessingReturnNotPendingError()
+    }
 
     const uomsMap = await buildUomsMap([output.product_id])
     const qty = output.actual_qty != null ? Number(output.actual_qty) : Number(output.qty_output)
     const uom = output.actual_uom != null ? output.actual_uom : output.uom
     const baseQty = strictToBaseQty(output.product_id, uom, qty, uomsMap, output.product_name)
 
-    await goodsProcessingRepository.resolveReturnWithStock(
+    const result = await goodsProcessingRepository.resolveReturnWithStock(
       outputId,
       output,
       detail.warehouse_id,
@@ -315,6 +321,10 @@ export class GoodsProcessingService {
       userId,
       baseQty
     )
+
+    if (result === 'already_resolved') {
+      return goodsProcessingRepository.findDetail(id, companyId)
+    }
 
     await AuditService.log('UPDATE', 'goods_processing_outputs', outputId, userId, { flagged_for_return: true }, { flagged_for_return: false, resolution })
     return goodsProcessingRepository.findDetail(id, companyId)

@@ -35,3 +35,9 @@ export class GoodsProcessingAlreadyExistsError extends BusinessRuleError {
     super(`Goods Processing untuk GR ${grNumber} sudah ada`)
   }
 }
+
+export class GoodsProcessingReturnNotPendingError extends BusinessRuleError {
+  constructor() {
+    super('Barang retur ini sudah diproses atau tidak ditandai retur')
+  }
+}

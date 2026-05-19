@@ -449,10 +449,23 @@ async rejectGp(id: string, rejection_reason: string, userId: string): Promise<vo
     resolution: 'STOCK' | 'DISCARD',
     userId: string,
     baseQty: number
-  ): Promise<void> {
+  ): Promise<'resolved' | 'already_resolved'> {
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+
+      const { rows: locked } = await client.query<{ id: string }>(
+        `SELECT id FROM goods_processing_outputs
+         WHERE id = $1
+           AND flagged_for_return = true
+           AND return_resolved_at IS NULL
+         FOR UPDATE`,
+        [outputId],
+      )
+      if (locked.length === 0) {
+        await client.query('COMMIT')
+        return 'already_resolved'
+      }
 
       if (resolution === 'STOCK') {
         const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, output.product_id)
@@ -478,6 +491,7 @@ async rejectGp(id: string, rejection_reason: string, userId: string): Promise<vo
 
       await this.resolveReturnOutput(client, outputId, userId)
       await client.query('COMMIT')
+      return 'resolved'
     } catch (e) {
       await client.query('ROLLBACK')
       throw e
