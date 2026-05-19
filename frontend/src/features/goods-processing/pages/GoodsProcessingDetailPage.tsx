@@ -330,19 +330,45 @@ function toBaseQty(qty: number, uomName: string, uoms: ProductUomRow[]): number 
   return qty * (match?.conversion_factor ?? 1)
 }
 
-function fromBaseQty(baseQty: number, uomName: string, uoms: ProductUomRow[]): number {
-  if (!uoms.length) return baseQty
-  const match = uoms.find((u) => u.unit_name === uomName)
-  const cf = match?.conversion_factor ?? 1
-  return cf > 0 ? baseQty / cf : baseQty
-}
-
 function resolveBaseUom(uoms: ProductUomRow[], fallbackUom: string): string {
   return uoms.find((u) => u.is_base_unit)?.unit_name ?? fallbackUom
 }
 
 function fmtGpQty(n: number): string {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(n)
+}
+
+/** PO hint: tampil jika satuan PO ≠ base, atau qty PO tidak match qty base (legacy). */
+function shouldShowPoHint(
+  grLine: { qty_po_uom?: number; uom_po?: string } | null | undefined,
+  baseUom: string,
+  totalBase: number,
+  productUoms: ProductUomRow[],
+): boolean {
+  if (!grLine?.uom_po) return false
+  if (grLine.uom_po !== baseUom) return true
+  if (grLine.qty_po_uom == null || productUoms.length === 0) return false
+  const poQtyAsBase = toBaseQty(Number(grLine.qty_po_uom), grLine.uom_po, productUoms)
+  return Math.abs(poQtyAsBase - totalBase) > 0.0001
+}
+
+type UomMap = Record<string, ProductUomRow[]>
+
+/** Konversi qty output ke base unit produk output — sama dengan strictToBaseQty di backend. */
+function outputQtyInProductBase(output: LocalOutput, uomMap: UomMap): number {
+  const uoms = uomMap[output.product_id] ?? []
+  return toBaseQty(output.qty_output || 0, output.uom, uoms)
+}
+
+function sumDisassemblyOutputsBase(
+  outputs: LocalOutput[],
+  uomMap: UomMap,
+  wasteOnly: boolean,
+): number {
+  return outputs
+    .filter(o => !(o as LocalOutput & { _delete?: boolean })._delete)
+    .filter(o => (wasteOnly ? o.is_waste : !o.is_waste))
+    .reduce((s, o) => s + outputQtyInProductBase(o, uomMap), 0)
 }
 
 function derivePassThroughSplit(
@@ -371,7 +397,6 @@ function derivePassThroughSplit(
 
 function buildPassThroughOutput(
   output: LocalOutput,
-  input: LocalInput,
   goodBase: number,
   damagedBase: number,
   baseUom: string,
@@ -379,8 +404,8 @@ function buildPassThroughOutput(
   const hasDamage = damagedBase > 0.0001
   return {
     ...output,
-    qty_output: input.qty_input,
-    uom: input.uom,
+    qty_output: goodBase + damagedBase,
+    uom: baseUom,
     condition_status: hasDamage ? 'DAMAGED' : 'OK',
     actual_qty: goodBase,
     actual_uom: baseUom,
@@ -433,16 +458,13 @@ function PassThroughCard({
   isEditable: boolean
   onChange: (updated: LocalOutput) => void
   productUoms: ProductUomRow[]
-  grLine: { qty_received: number; uom_received: string } | null
+  grLine: { qty_received: number; uom_received: string; qty_po_uom?: number; uom_po?: string } | null
   onConfirmItem: () => void
   isConfirming: boolean
 }) {
   const isDone = input.status === 'DONE'
   const { totalBase, goodBase, damagedBase, baseUom } = derivePassThroughSplit(output, input, productUoms)
-  const inputUomHint =
-    input.uom !== baseUom
-      ? `≈ ${fmtGpQty(fromBaseQty(totalBase, input.uom, productUoms))} ${input.uom}`
-      : null
+  const showPoHint = shouldShowPoHint(grLine, baseUom, totalBase, productUoms)
 
   const overTotal = goodBase + damagedBase > totalBase + 0.0001
   const hasDamage = damagedBase > 0.0001
@@ -457,14 +479,14 @@ function PassThroughCard({
     const parsed = raw === '' ? 0 : parseFloat(raw)
     const good = Math.min(Math.max(0, Number.isFinite(parsed) ? parsed : 0), totalBase)
     const damaged = Math.max(0, totalBase - good)
-    onChange(buildPassThroughOutput(output, input, good, damaged, baseUom))
+    onChange(buildPassThroughOutput(output, good, damaged, baseUom))
   }
 
   const applyDamaged = (raw: string) => {
     const parsed = raw === '' ? 0 : parseFloat(raw)
     const damaged = Math.min(Math.max(0, Number.isFinite(parsed) ? parsed : 0), totalBase)
     const good = Math.max(0, totalBase - damaged)
-    onChange(buildPassThroughOutput(output, input, good, damaged, baseUom))
+    onChange(buildPassThroughOutput(output, good, damaged, baseUom))
   }
 
   return (
@@ -484,13 +506,15 @@ function PassThroughCard({
         </div>
         <div className="text-right shrink-0">
           <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{fmtGpQty(totalBase)}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{baseUom} total</p>
-          {inputUomHint && (
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-0.5">{inputUomHint}</p>
-          )}
-          {grLine && grLine.uom_received !== baseUom && grLine.uom_received !== input.uom && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">{baseUom}</p>
+          {showPoHint && grLine && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              timbang {fmtGpQty(grLine.qty_received)} {grLine.uom_received}
+              PO: {fmtGpQty(Number(grLine.qty_po_uom ?? grLine.qty_received))} {grLine.uom_po}
+            </p>
+          )}
+          {grLine && grLine.uom_received !== baseUom && (
+            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-0.5">
+              GR timbang: {fmtGpQty(grLine.qty_received)} {grLine.uom_received}
             </p>
           )}
         </div>
@@ -586,7 +610,7 @@ function PassThroughCard({
                 <button
                   type="button"
                   onClick={() => onChange({
-                    ...buildPassThroughOutput(output, input, goodBase, damagedBase, baseUom),
+                    ...buildPassThroughOutput(output, goodBase, damagedBase, baseUom),
                     flagged_for_return: true,
                     is_waste: false,
                     waste_reason: null,
@@ -602,7 +626,7 @@ function PassThroughCard({
                 <button
                   type="button"
                   onClick={() => onChange({
-                    ...buildPassThroughOutput(output, input, goodBase, damagedBase, baseUom),
+                    ...buildPassThroughOutput(output, goodBase, damagedBase, baseUom),
                     is_waste: true,
                     flagged_for_return: false,
                     return_reason: null,
@@ -621,7 +645,7 @@ function PassThroughCard({
                   type="text"
                   value={output.flagged_for_return ? (output.return_reason ?? '') : (output.waste_reason ?? '')}
                   onChange={(e) => onChange({
-                    ...buildPassThroughOutput(output, input, goodBase, damagedBase, baseUom),
+                    ...buildPassThroughOutput(output, goodBase, damagedBase, baseUom),
                     return_reason: output.flagged_for_return ? e.target.value || null : null,
                     waste_reason: output.is_waste ? e.target.value || null : null,
                   })}
@@ -742,10 +766,12 @@ function DisassemblyOutputRow({
 // ── DisassemblyCard ───────────────────────────────────────────────────────────
 
 function DisassemblyCard({
-  input, grLine, isEditable, onChange, onAddOutput, onConfirmItem, isConfirming,
+  input, grLine, productUoms, uomMap, isEditable, onChange, onAddOutput, onConfirmItem, isConfirming,
 }: {
   input: LocalInput
-  grLine: { qty_received: number; uom_received: string } | null
+  grLine: { qty_received: number; uom_received: string; qty_po_uom?: number; uom_po?: string } | null
+  productUoms: ProductUomRow[]
+  uomMap: UomMap
   isEditable: boolean
   onChange: (outputIndex: number, updated: LocalOutput) => void
   onAddOutput: () => void
@@ -753,10 +779,14 @@ function DisassemblyCard({
   isConfirming: boolean
 }) {
   const isDone = input.status === 'DONE'
-  const totalNonWaste = input.outputs.filter(o => !o.is_waste).reduce((s, o) => s + (o.qty_output || 0), 0)
-  const totalWaste = input.outputs.filter(o => o.is_waste).reduce((s, o) => s + (o.qty_output || 0), 0)
-  const pct = input.qty_input > 0 ? Math.round((totalNonWaste / input.qty_input) * 100) : 0
-  const overLimit = totalNonWaste > input.qty_input
+  const baseUom = resolveBaseUom(productUoms, input.uom)
+  const totalBase = toBaseQty(input.qty_input, input.uom, productUoms)
+  const showPoHint = shouldShowPoHint(grLine, baseUom, totalBase, productUoms)
+  // Yield vs input: jumlahkan base unit tiap produk output (sama seperti validasi backend confirm).
+  const totalNonWasteBase = sumDisassemblyOutputsBase(input.outputs, uomMap, false)
+  const totalWasteBase = sumDisassemblyOutputsBase(input.outputs, uomMap, true)
+  const pct = totalBase > 0 ? Math.round((totalNonWasteBase / totalBase) * 100) : 0
+  const overLimit = totalNonWasteBase > totalBase + 0.0001
   const canConfirm = input.outputs.length > 0 && !overLimit
 
   return (
@@ -771,11 +801,11 @@ function DisassemblyCard({
           <p className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{input.product_code}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{input.qty_input}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{input.uom} masuk</p>
-          {grLine && (
-            <p className="text-xs text-blue-600 font-medium mt-0.5">
-              ≈ {grLine.qty_received} {grLine.uom_received}
+          <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{fmtGpQty(totalBase)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{baseUom}</p>
+          {showPoHint && grLine && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+              PO: {fmtGpQty(Number(grLine.qty_po_uom ?? grLine.qty_received))} {grLine.uom_po}
             </p>
           )}
         </div>
@@ -789,7 +819,7 @@ function DisassemblyCard({
               <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg px-2.5 py-1.5">
                 <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
                 <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                  Input: <span className="font-bold">{input.qty_input} {input.uom}</span>
+                  Input: <span className="font-bold">{fmtGpQty(totalBase)} {baseUom}</span>
                 </span>
               </div>
               <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 border ${
@@ -797,15 +827,15 @@ function DisassemblyCard({
               }`}>
                 <span className={`w-2 h-2 rounded-full shrink-0 ${overLimit ? "bg-red-500" : pct >= 90 ? "bg-green-500" : "bg-gray-400"}`} />
                 <span className={`text-xs font-medium ${overLimit ? "text-red-700 dark:text-red-300" : pct >= 90 ? "text-green-700 dark:text-green-300" : "text-gray-600 dark:text-gray-300"}`}>
-                  Output: <span className="font-bold">{totalNonWaste.toFixed(2)} {input.uom}</span>
+                  Output: <span className="font-bold">{fmtGpQty(totalNonWasteBase)} {baseUom}</span>
                   {overLimit && <span className="ml-1">⚠</span>}
                 </span>
               </div>
-              {totalWaste > 0 && (
+              {totalWasteBase > 0.0001 && (
                 <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-1.5">
                   <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
                   <span className="text-xs text-red-700 dark:text-red-300 font-medium">
-                    Waste: <span className="font-bold">{totalWaste.toFixed(2)} {input.uom}</span>
+                    Waste: <span className="font-bold">{fmtGpQty(totalWasteBase)} {baseUom}</span>
                   </span>
                 </div>
               )}
@@ -1158,15 +1188,26 @@ export default function GoodsProcessingDetailPage() {
   const confirmInputMut = useConfirmGoodsProcessingInput(id!)
 
   const [confirmingInputId, setConfirmingInputId] = useState<string | null>(null)
+  const [localInputs, setLocalInputs] = useState<LocalInput[]>([])
+
+  const uomProductIds = useMemo(() => {
+    if (!gp) return [] as string[]
+    return [
+      ...new Set([
+        ...gp.inputs.map(inp => inp.product_id),
+        ...gp.inputs.flatMap(inp => inp.outputs.map(o => o.product_id)),
+        ...localInputs.flatMap(inp => inp.outputs.map(o => o.product_id).filter(Boolean)),
+      ]),
+    ]
+  }, [gp, localInputs])
 
   const { data: uomConversions } = useQuery({
-    queryKey: ['product-uoms', 'conversions-gp', gp?.id],
+    queryKey: ['product-uoms', 'conversions-gp', gp?.id, uomProductIds],
     queryFn: async () => {
-      const productIds = gp!.inputs.map(inp => inp.product_id)
-      const { data } = await api.post('/product-uoms/conversions-batch', { product_ids: productIds })
+      const { data } = await api.post('/product-uoms/conversions-batch', { product_ids: uomProductIds })
       return data.data as Record<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>
     },
-    enabled: !!gp,
+    enabled: !!gp && uomProductIds.length > 0,
     staleTime: 60_000,
   })
 
@@ -1174,7 +1215,15 @@ export default function GoodsProcessingDetailPage() {
     queryKey: ['gr-detail-for-gp', gp?.goods_receipt_id],
     queryFn: async () => {
       const { data } = await api.get(`/goods-receipts/${gp!.goods_receipt_id}`)
-      return data.data as { lines: Array<{ id: string; qty_received: number; uom_received: string }> }
+      return data.data as {
+        lines: Array<{
+          id: string
+          qty_received: number
+          uom_received: string
+          qty_po_uom?: number
+          uom_po?: string
+        }>
+      }
     },
     enabled: !!gp?.goods_receipt_id,
     staleTime: 60_000,
@@ -1183,7 +1232,6 @@ export default function GoodsProcessingDetailPage() {
   const getGrLine = (grLineId: string) =>
     grDetail?.lines.find(l => l.id === grLineId) ?? null
 
-  const [localInputs, setLocalInputs] = useState<LocalInput[]>([])
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [addOutputFor, setAddOutputFor] = useState<string | null>(null)
 
@@ -1554,6 +1602,8 @@ export default function GoodsProcessingDetailPage() {
                 key={inp.id}
                 input={inp}
                 grLine={grLine}
+                productUoms={uomConversions?.[inp.product_id] ?? []}
+                uomMap={uomConversions ?? {}}
                 isEditable={isEditable}
                 onChange={(oi, updated) => updateDisassemblyOutput(inputIndex, oi, updated as LocalOutput & { _delete?: boolean })}
                 onAddOutput={() => setAddOutputFor(inp.id)}

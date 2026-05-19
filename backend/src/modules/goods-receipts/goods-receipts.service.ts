@@ -13,6 +13,8 @@ import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { calculateDueDate } from '../../utils/due-date.util'
 import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service'
+import { productUomsRepository } from '../product-uoms/product-uoms.repository'
+import { buildProductUomsMap, toProductBaseQty } from '../../utils/product-uom.util'
 import type { CreateGoodsReceiptDto, UpdateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
 
 export class GoodsReceiptsService {
@@ -230,10 +232,17 @@ export class GoodsReceiptsService {
         disassemblyProductIds.length > 0
           ? await productOutputTemplateRepository.findByProductIds(disassemblyProductIds)
           : {}
+      const productUomsMap = buildProductUomsMap(await productUomsRepository.findAllUomsBatch(lineProductIds))
 
       for (const line of gr.lines) {
-        const qtyInput = line.qty_received
-        const uomInput = line.uom_received ?? line.uom ?? 'kg'
+        const uomReceived = line.uom_received ?? line.uom ?? 'kg'
+        const { qty: qtyInput, uom: uomInput } = toProductBaseQty(
+          line.product_id,
+          Number(line.qty_received),
+          uomReceived,
+          productUomsMap,
+          line.product_name,
+        )
 
         const inputId = await goodsReceiptsRepository.insertGoodsProcessingInput(
           client, gpId, line.id, line.product_id, qtyInput, uomInput,

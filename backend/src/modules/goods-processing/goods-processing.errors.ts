@@ -12,9 +12,15 @@ export class GoodsProcessingInvalidStatusError extends BusinessRuleError {
   }
 }
 
+function fmtGpQty(n: number): string {
+  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(n)
+}
+
 export class GoodsProcessingOutputExceedsInputError extends BusinessRuleError {
-  constructor(productName: string, inputQty: number, totalOutput: number) {
-    super(`Total output (${totalOutput}) melebihi input (${inputQty}) untuk ${productName}`)
+  constructor(productName: string, baseInputQty: number, baseUom: string, totalOutputBase: number) {
+    super(
+      `Total output (${fmtGpQty(totalOutputBase)} ${baseUom}) melebihi input (${fmtGpQty(baseInputQty)} ${baseUom}) untuk ${productName}`,
+    )
   }
 }
 

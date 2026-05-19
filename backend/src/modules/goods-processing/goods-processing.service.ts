@@ -6,41 +6,31 @@ import {
   GoodsProcessingOutputExceedsInputError,
 } from './goods-processing.errors'
 import { AuditService } from '../monitoring/monitoring.service'
+import {
+  buildProductUomsMap,
+  resolveBaseUom,
+  toBaseQty,
+  type ProductUomsMap,
+} from '../../utils/product-uom.util'
 import type { UpdateGoodsProcessingDto, RejectDto, GoodsProcessingDetail } from './goods-processing.types'
 
-// ── Helpers (tetap di service karena pure logic, tidak butuh DB) ──────────────
-function toBaseQty(
-  productId: string,
-  uomName: string,
-  qty: number,
-  uomsMap: Map<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>
-): number {
-  const productUoms = uomsMap.get(productId)
-  if (!productUoms) {
-    console.warn(`[toBaseQty] No UOMs found for product ${productId}, using raw qty ${qty}`)
-    return qty
-  }
-  const match = productUoms.find((u) => u.unit_name === uomName)
-  if (!match) {
-    console.warn(`[toBaseQty] UOM "${uomName}" not found for product ${productId}, using raw qty ${qty}`)
-    return qty
-  }
-  return qty * match.conversion_factor
+async function buildUomsMap(productIds: string[]): Promise<ProductUomsMap> {
+  if (productIds.length === 0) return new Map()
+  return buildProductUomsMap(await productUomsRepository.findAllUomsBatch(productIds))
 }
 
-async function buildUomsMap(productIds: string[]): Promise<Map<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>> {
-  if (productIds.length === 0) return new Map()
-  const allUoms = await productUomsRepository.findAllUomsBatch(productIds)
-  const uomsMap = new Map<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>()
-  for (const uom of allUoms) {
-    if (!uomsMap.has(uom.product_id)) uomsMap.set(uom.product_id, [])
-    uomsMap.get(uom.product_id)!.push({
-      unit_name: uom.unit_name,
-      conversion_factor: uom.conversion_factor,
-      is_base_unit: uom.is_base_unit,
-    })
-  }
-  return uomsMap
+/** GP confirm/stock paths — missing UOM must fail, not silently use raw qty. */
+function strictToBaseQty(
+  productId: string,
+  uom: string,
+  qty: number,
+  uomsMap: ProductUomsMap,
+  productLabel?: string,
+): number {
+  return toBaseQty(productId, uom, qty, uomsMap, {
+    onMissing: 'throw',
+    productLabel: productLabel ?? productId,
+  })
 }
 
 type GpInputLine = GoodsProcessingDetail['inputs'][number]
@@ -207,18 +197,31 @@ export class GoodsProcessingService {
       throw new GoodsProcessingInvalidStatusError(detail.status, CONFIRMABLE_STATUSES.join('/'))
     }
 
-    for (const inp of detail.inputs) {
-      const totalOutput = inp.outputs.reduce((s, o) => s + Number(o.qty_output), 0)
-      if (totalOutput > Number(inp.qty_input)) {
-        throw new GoodsProcessingOutputExceedsInputError(inp.product_name, Number(inp.qty_input), totalOutput)
-      }
-    }
-
     const allProductIds = [
       ...detail.inputs.map(inp => inp.product_id),
       ...detail.inputs.flatMap(inp => inp.outputs.map(o => o.product_id)),
     ]
     const uomsMap = await buildUomsMap([...new Set(allProductIds)])
+
+    for (const inp of detail.inputs) {
+      const baseInputQty = strictToBaseQty(
+        inp.product_id,
+        inp.uom,
+        Number(inp.qty_input),
+        uomsMap,
+        inp.product_name,
+      )
+      const totalOutputBase = inp.outputs.reduce(
+        (s, o) =>
+          s +
+          strictToBaseQty(o.product_id, o.uom, Number(o.qty_output), uomsMap, o.product_name ?? inp.product_name),
+        0,
+      )
+      if (totalOutputBase > baseInputQty + 0.0001) {
+        const baseUom = resolveBaseUom(uomsMap.get(inp.product_id) ?? [], inp.uom)
+        throw new GoodsProcessingOutputExceedsInputError(inp.product_name, baseInputQty, baseUom, totalOutputBase)
+      }
+    }
 
     await goodsProcessingRepository.confirmGpWithStock(
       id,
@@ -228,7 +231,7 @@ export class GoodsProcessingService {
       userId,
       detail.status,
       uomsMap,
-      toBaseQty
+      strictToBaseQty
     )
 
     await AuditService.log('UPDATE', 'goods_processing', id, userId, { status: detail.status }, { status: 'CONFIRMED' })
@@ -271,7 +274,7 @@ export class GoodsProcessingService {
       detail.processing_number,
       userId,
       uomsMap,
-      toBaseQty
+      strictToBaseQty
     )
 
     const updated = await goodsProcessingRepository.findDetail(id, companyId)
@@ -300,7 +303,7 @@ export class GoodsProcessingService {
     const uomsMap = await buildUomsMap([output.product_id])
     const qty = output.actual_qty != null ? Number(output.actual_qty) : Number(output.qty_output)
     const uom = output.actual_uom != null ? output.actual_uom : output.uom
-    const baseQty = toBaseQty(output.product_id, uom, qty, uomsMap)
+    const baseQty = strictToBaseQty(output.product_id, uom, qty, uomsMap, output.product_name)
 
     await goodsProcessingRepository.resolveReturnWithStock(
       outputId,
