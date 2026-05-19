@@ -9,10 +9,12 @@ interface PermissionProviderProps {
 
 export const PermissionProvider = ({ children }: PermissionProviderProps) => {
   const { currentBranch } = useBranchContextStore()
-  const { setPermissions, setLoading, setError, clear, error } = usePermissionStore()
+  const { setPermissions, setLoading, setError, clear, error, isLoaded } = usePermissionStore()
   const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
+    if (isLoaded) return
+
     if (!currentBranch?.role_id) {
       clear()
       return
@@ -46,7 +48,7 @@ export const PermissionProvider = ({ children }: PermissionProviderProps) => {
       controller.abort()
       isCurrentRequest = false
     }
-  }, [clear, currentBranch?.role_id, retryCount, setError, setLoading, setPermissions])
+  }, [clear, currentBranch?.role_id, retryCount, setError, setLoading, setPermissions, isLoaded])
   
   if (error) {
     return (
