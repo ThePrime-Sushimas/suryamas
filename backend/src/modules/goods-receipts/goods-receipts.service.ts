@@ -1,4 +1,3 @@
-import { pool } from '../../config/db'
 import { goodsReceiptsRepository } from './goods-receipts.repository'
 import { goodsProcessingRepository } from '../goods-processing/goods-processing.repository'
 import { productOutputTemplateRepository } from '../products/product-output-template.repository'
@@ -100,37 +99,30 @@ export class GoodsReceiptsService {
 
     const branchCode = po.branch_code ?? 'XXX'
 
-    const client = await pool.connect()
     try {
-      await client.query('BEGIN')
-
-      const grNumber = await goodsReceiptsRepository.generateGrNumber(client, companyId, branchCode)
-
-      const gr = await goodsReceiptsRepository.create(client, companyId, {
-        branch_id: po.branch_id,
-        po_id: dto.po_id,
-        warehouse_id: dto.warehouse_id,
-        gr_number: grNumber,
-        received_date: dto.received_date,
-        invoice_number: dto.invoice_number,
-        invoice_date: dto.invoice_date,
-        notes: dto.notes,
-        created_by: userId,
+      const gr = await goodsReceiptsRepository.withTransaction(async (client) => {
+        const grNumber = await goodsReceiptsRepository.generateGrNumber(client, companyId, branchCode)
+        const created = await goodsReceiptsRepository.create(client, companyId, {
+          branch_id: po.branch_id,
+          po_id: dto.po_id,
+          warehouse_id: dto.warehouse_id,
+          gr_number: grNumber,
+          received_date: dto.received_date,
+          invoice_number: dto.invoice_number,
+          invoice_date: dto.invoice_date,
+          notes: dto.notes,
+          created_by: userId,
+        })
+        await goodsReceiptsRepository.insertLines(client, created.id, processedLines)
+        return created
       })
-
-      await goodsReceiptsRepository.insertLines(client, gr.id, processedLines)
-
-      await client.query('COMMIT')
 
       await AuditService.log('CREATE', 'goods_receipt', gr.id, userId, undefined, gr)
       return goodsReceiptsRepository.findWithLines(gr.id, companyId)
     } catch (e) {
-      await client.query('ROLLBACK')
       if (isPostgresError(e, '23505')) throw new GoodsReceiptDuplicateError('auto-generated')
       if (isPostgresError(e, '23503')) throw new InvalidReferenceError('Invalid reference in GR lines')
       throw e
-    } finally {
-      client.release()
     }
   }
 
@@ -156,11 +148,7 @@ export class GoodsReceiptsService {
       throw new BusinessRuleError('GR tidak memiliki warehouse yang terdaftar')
     }
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-
-      // 1. Lock PO lines FOR UPDATE to prevent concurrent confirm race condition
+    await goodsReceiptsRepository.withTransaction(async (client) => {
       const poLines = await goodsReceiptsRepository.findPoLinesForUpdate(client, gr.po_id)
       const poLineMap = new Map(poLines.map(l => [l.id, l]))
 
@@ -190,11 +178,7 @@ export class GoodsReceiptsService {
       // 4b. Calculate payment due date for from_delivery-based terms.
       // NOTE: from_invoice is intentionally excluded here — its due_date is calculated
       // when Purchase Invoice is posted (baseDate = invoice_date), not at GR confirm.
-      const { rows: poRows } = await client.query(
-        'SELECT supplier_id FROM purchase_orders WHERE id = $1',
-        [gr.po_id]
-      )
-      const supplierId = poRows[0]?.supplier_id
+      const supplierId = await goodsReceiptsRepository.findPoSupplierId(client, gr.po_id)
       if (supplierId) {
         const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client)
         const deliveryTypes = ['from_delivery', 'weekly', 'fixed_date', 'fixed_date_immediate', 'monthly']
@@ -217,48 +201,30 @@ export class GoodsReceiptsService {
       })
       // 5b. Kalau GR dari marketplace, update session → RECEIVED
       if (gr.source === 'MARKETPLACE') {
-        const { rowCount } = await client.query(
-          `UPDATE marketplace_checkout_sessions
-          SET status = 'RECEIVED',
-              updated_by = $1,
-              updated_at = now()
-          WHERE goods_receipt_id = $2
-            AND status = 'SHIPPED'
-            AND deleted_at IS NULL`,
-          [userId, id],
-        )
-        if (!rowCount || rowCount === 0) {
+        const rowCount = await goodsReceiptsRepository.markMarketplaceSessionReceived(client, userId, id)
+        if (rowCount === 0) {
           throw new BusinessRuleError('Session marketplace tidak ditemukan atau status bukan SHIPPED')
         }
       }
-      // 6. Auto-create Goods Processing
+
       const branchCode = gr.branch_code ?? 'XXX'
       const gpNumber = await goodsProcessingRepository.generateGpNumber(client, companyId, branchCode)
-
-      // Detect processing type: DISASSEMBLY if any product requires_processing
-      const { rows: productFlags } = await client.query(
-        `SELECT DISTINCT p.requires_processing FROM goods_receipt_lines grl JOIN products p ON p.id = grl.product_id WHERE grl.gr_id = $1`,
-        [id]
-      )
-      const hasDisassembly = productFlags.some((r: { requires_processing: boolean }) => r.requires_processing)
+      const hasDisassembly = await goodsReceiptsRepository.hasDisassemblyProducts(client, id)
       const processingType = hasDisassembly ? 'DISASSEMBLY' : 'PASS_THROUGH'
 
-      const { rows: gpRows } = await client.query(
-        `INSERT INTO goods_processing (company_id, branch_id, warehouse_id, goods_receipt_id, processing_number, processing_date, processing_type, status, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'DRAFT', $8) RETURNING id`,
-        [companyId, gr.branch_id, gr.warehouse_id, id, gpNumber, gr.received_date, processingType, userId]
-      )
-      const gpId = gpRows[0].id
+      const gpId = await goodsReceiptsRepository.createGoodsProcessingDraft(client, {
+        companyId,
+        branchId: gr.branch_id,
+        warehouseId: gr.warehouse_id,
+        grId: id,
+        gpNumber,
+        receivedDate: gr.received_date,
+        processingType,
+        userId,
+      })
 
-      // Auto-create inputs + outputs (pass-through = same product; disassembly = from output template)
       const lineProductIds = [...new Set(gr.lines.map((l) => l.product_id))]
-      const { rows: productRows } = await client.query<{ id: string; requires_processing: boolean }>(
-        `SELECT id, requires_processing FROM products WHERE id = ANY($1::uuid[])`,
-        [lineProductIds]
-      )
-      const requiresProcessingByProduct = new Map(
-        productRows.map((r) => [r.id, r.requires_processing])
-      )
+      const requiresProcessingByProduct = await goodsReceiptsRepository.findProductsRequiresProcessing(client, lineProductIds)
       const disassemblyProductIds = lineProductIds.filter((id) => requiresProcessingByProduct.get(id))
       const outputTemplatesByProduct =
         disassemblyProductIds.length > 0
@@ -269,12 +235,9 @@ export class GoodsReceiptsService {
         const qtyInput = line.qty_received
         const uomInput = line.uom_received ?? line.uom ?? 'kg'
 
-        const { rows: inputRows } = await client.query(
-          `INSERT INTO goods_processing_inputs (goods_processing_id, gr_line_id, product_id, qty_input, uom, sort_order)
-           VALUES ($1, $2, $3, $4, $5, 0) RETURNING id`,
-          [gpId, line.id, line.product_id, qtyInput, uomInput]
+        const inputId = await goodsReceiptsRepository.insertGoodsProcessingInput(
+          client, gpId, line.id, line.product_id, qtyInput, uomInput,
         )
-        const inputId = inputRows[0].id
 
         const needsProcessing = requiresProcessingByProduct.get(line.product_id) ?? false
         if (needsProcessing) {
@@ -285,34 +248,32 @@ export class GoodsReceiptsService {
               t.suggested_pct != null
                 ? Math.round(qtyInput * (Number(t.suggested_pct) / 100) * 10000) / 10000
                 : 0
-            await client.query(
-              `INSERT INTO goods_processing_outputs (goods_processing_id, input_id, product_id, qty_output, uom, is_waste, sort_order)
-               VALUES ($1, $2, $3, $4, $5, false, $6)`,
-              [gpId, inputId, t.output_product_id, qtyOutput, t.output_uom, i]
-            )
+            await goodsReceiptsRepository.insertGoodsProcessingOutput(client, {
+              gpId,
+              inputId,
+              productId: t.output_product_id,
+              qtyOutput,
+              uom: t.output_uom,
+              sortOrder: i,
+            })
           }
         } else {
-          await client.query(
-            `INSERT INTO goods_processing_outputs (goods_processing_id, input_id, product_id, qty_output, uom, is_waste, sort_order)
-             VALUES ($1, $2, $3, $4, $5, false, 0)`,
-            [gpId, inputId, line.product_id, qtyInput, uomInput]
-          )
+          await goodsReceiptsRepository.insertGoodsProcessingOutput(client, {
+            gpId,
+            inputId,
+            productId: line.product_id,
+            qtyOutput: qtyInput,
+            uom: uomInput,
+            sortOrder: 0,
+          })
         }
       }
 
-      // 6b. Auto-create Purchase Invoice Draft
       await purchaseInvoicesService.createDraftFromGr(client, companyId, id, userId)
+    })
 
-      await client.query('COMMIT')
-
-      await AuditService.log('UPDATE', 'goods_receipt', id, userId, { status: 'DRAFT' }, { status: 'CONFIRMED' })
-      return goodsReceiptsRepository.findWithLines(id, companyId)
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
-    }
+    await AuditService.log('UPDATE', 'goods_receipt', id, userId, { status: 'DRAFT' }, { status: 'CONFIRMED' })
+    return goodsReceiptsRepository.findWithLines(id, companyId)
   }
 
   async update(id: string, companyId: string, dto: UpdateGoodsReceiptDto, userId: string) {
@@ -325,10 +286,7 @@ export class GoodsReceiptsService {
       throw new GoodsReceiptMarketplaceSupplierError()
     }
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-
+    await goodsReceiptsRepository.withTransaction(async (client) => {
       await goodsReceiptsRepository.updateHeader(client, id, companyId, {
         warehouse_id: dto.warehouse_id,
         received_date: dto.received_date,
@@ -341,8 +299,6 @@ export class GoodsReceiptsService {
       if (dto.lines && dto.lines.length > 0) {
         const poLineIds = dto.lines.map(l => l.po_line_id).filter(Boolean)
         const poLinePriceMap = await goodsReceiptsRepository.findPoLinePrices(client, poLineIds)
-
-        // Get PO line UOMs for snapshot
         const poLines = await goodsReceiptsRepository.findPoLines(existing.po_id)
         const poLineMap = new Map(poLines.map(l => [l.id, l]))
 
@@ -354,7 +310,6 @@ export class GoodsReceiptsService {
           const conversionFactor = qtyPoUom > 0 ? line.qty_received / qtyPoUom : 1
 
           const unitPricePo = poLinePriceMap.get(line.po_line_id) ?? line.unit_price_invoice
-          // Compare total method (both in PO UOM, only accepted qty)
           const qtyAccepted = qtyPoUom - (line.qty_rejected ?? 0)
           const poTotal = qtyAccepted * unitPricePo
           const invoiceTotal = qtyAccepted * line.unit_price_invoice
@@ -382,16 +337,10 @@ export class GoodsReceiptsService {
 
         await goodsReceiptsRepository.replaceLines(client, id, processedLines)
       }
+    })
 
-      await client.query('COMMIT')
-      await AuditService.log('UPDATE', 'goods_receipt', id, userId, existing)
-      return goodsReceiptsRepository.findWithLines(id, companyId)
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
-    }
+    await AuditService.log('UPDATE', 'goods_receipt', id, userId, existing)
+    return goodsReceiptsRepository.findWithLines(id, companyId)
   }
 
   async delete(id: string, companyId: string, userId: string) {

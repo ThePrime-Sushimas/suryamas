@@ -69,6 +69,127 @@ export interface GoodsReceiptAttachment {
 }
 
 export class GoodsReceiptsRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async findPoSupplierId(client: PoolClient, poId: string): Promise<string | null> {
+    const { rows } = await client.query(
+      'SELECT supplier_id FROM purchase_orders WHERE id = $1',
+      [poId],
+    )
+    return rows[0]?.supplier_id ?? null
+  }
+
+  async markMarketplaceSessionReceived(client: PoolClient, userId: string, grId: string): Promise<number> {
+    const { rowCount } = await client.query(
+      `UPDATE marketplace_checkout_sessions
+       SET status = 'RECEIVED',
+           updated_by = $1,
+           updated_at = now()
+       WHERE goods_receipt_id = $2
+         AND status = 'SHIPPED'
+         AND deleted_at IS NULL`,
+      [userId, grId],
+    )
+    return rowCount ?? 0
+  }
+
+  async hasDisassemblyProducts(client: PoolClient, grId: string): Promise<boolean> {
+    const { rows } = await client.query<{ requires_processing: boolean }>(
+      `SELECT DISTINCT p.requires_processing
+       FROM goods_receipt_lines grl
+       JOIN products p ON p.id = grl.product_id
+       WHERE grl.gr_id = $1`,
+      [grId],
+    )
+    return rows.some((r) => r.requires_processing)
+  }
+
+  async createGoodsProcessingDraft(
+    client: PoolClient,
+    data: {
+      companyId: string
+      branchId: string
+      warehouseId: string
+      grId: string
+      gpNumber: string
+      receivedDate: string
+      processingType: 'DISASSEMBLY' | 'PASS_THROUGH'
+      userId: string
+    },
+  ): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      `INSERT INTO goods_processing (company_id, branch_id, warehouse_id, goods_receipt_id, processing_number, processing_date, processing_type, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'DRAFT', $8) RETURNING id`,
+      [
+        data.companyId,
+        data.branchId,
+        data.warehouseId,
+        data.grId,
+        data.gpNumber,
+        data.receivedDate,
+        data.processingType,
+        data.userId,
+      ],
+    )
+    return rows[0].id
+  }
+
+  async findProductsRequiresProcessing(client: PoolClient, productIds: string[]): Promise<Map<string, boolean>> {
+    if (productIds.length === 0) return new Map()
+    const { rows } = await client.query<{ id: string; requires_processing: boolean }>(
+      'SELECT id, requires_processing FROM products WHERE id = ANY($1::uuid[])',
+      [productIds],
+    )
+    return new Map(rows.map((r) => [r.id, r.requires_processing]))
+  }
+
+  async insertGoodsProcessingInput(
+    client: PoolClient,
+    gpId: string,
+    grLineId: string,
+    productId: string,
+    qtyInput: number,
+    uomInput: string,
+  ): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      `INSERT INTO goods_processing_inputs (goods_processing_id, gr_line_id, product_id, qty_input, uom, sort_order)
+       VALUES ($1, $2, $3, $4, $5, 0) RETURNING id`,
+      [gpId, grLineId, productId, qtyInput, uomInput],
+    )
+    return rows[0].id
+  }
+
+  async insertGoodsProcessingOutput(
+    client: PoolClient,
+    data: {
+      gpId: string
+      inputId: string
+      productId: string
+      qtyOutput: number
+      uom: string
+      sortOrder: number
+    },
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO goods_processing_outputs (goods_processing_id, input_id, product_id, qty_output, uom, is_waste, sort_order)
+       VALUES ($1, $2, $3, $4, $5, false, $6)`,
+      [data.gpId, data.inputId, data.productId, data.qtyOutput, data.uom, data.sortOrder],
+    )
+  }
+
   async findAll(
     companyId: string,
     pagination: { limit: number; offset: number },
