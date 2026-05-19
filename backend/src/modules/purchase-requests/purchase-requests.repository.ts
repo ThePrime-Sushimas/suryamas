@@ -47,7 +47,18 @@ const LINE_FROM = `
   LEFT JOIN suppliers s ON s.id = prl.supplier_id
   LEFT JOIN LATERAL (
     SELECT
-      COALESCE(SUM(pol.qty) FILTER (WHERE po.deleted_at IS NULL), 0) AS qty_ordered,
+      COALESCE(SUM(
+        COALESCE(
+          (
+            SELECT mcl.qty
+            FROM marketplace_checkout_lines mcl
+            JOIN marketplace_checkout_sessions mcs ON mcs.id = mcl.session_id
+            WHERE mcl.po_line_id = pol.id AND mcs.status != 'CANCELLED' AND mcs.deleted_at IS NULL
+            LIMIT 1
+          ),
+          pol.qty
+        )
+      ) FILTER (WHERE po.deleted_at IS NULL), 0) AS qty_ordered,
       COALESCE(SUM(pol.qty_received) FILTER (WHERE po.deleted_at IS NULL), 0) AS qty_received
     FROM purchase_order_lines pol
     JOIN purchase_orders po ON po.id = pol.po_id

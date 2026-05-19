@@ -194,7 +194,8 @@
         })
       })
 
-      await AuditService.log('CREATE', 'marketplace_checkout_session', session.id, userId, undefined, session)
+      const fullDetail = await marketplacePoRepository.findSessionDetail(session.id, companyId)
+      await AuditService.log('CREATE', 'marketplace_checkout_session', session.id, userId, undefined, fullDetail ?? session)
       return session
     }
 
