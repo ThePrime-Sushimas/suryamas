@@ -22,6 +22,21 @@ export interface UpsertOutputTemplateDto {
 }
 
 export class ProductOutputTemplateRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
   // Get full template for a product (joined with product name)
   async findByProductId(productId: string): Promise<OutputTemplateRow[]> {
     const { rows } = await pool.query(
