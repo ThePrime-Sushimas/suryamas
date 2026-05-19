@@ -16,7 +16,6 @@ import type {
   cancelMarketplaceSessionSchema,
   orderMarketplaceSessionSchema,
   shipMarketplaceSessionSchema,
-  receiveMarketplaceSessionSchema,
   settleMarketplaceSessionSchema,
   uploadMarketplaceAttachmentSchema,
   deleteMarketplaceAttachmentSchema,
@@ -39,7 +38,6 @@ type UpdateSessionReq = ValidatedAuthRequest<typeof updateMarketplaceSessionSche
 type CancelSessionReq = ValidatedAuthRequest<typeof cancelMarketplaceSessionSchema>
 type OrderSessionReq = ValidatedAuthRequest<typeof orderMarketplaceSessionSchema>
 type ShipSessionReq = ValidatedAuthRequest<typeof shipMarketplaceSessionSchema>
-type ReceiveSessionReq = ValidatedAuthRequest<typeof receiveMarketplaceSessionSchema>
 type SettleSessionReq = ValidatedAuthRequest<typeof settleMarketplaceSessionSchema>
 type BulkSettleSessionReq = ValidatedAuthRequest<typeof bulkSettleMarketplaceSessionSchema>
 
@@ -139,7 +137,19 @@ export class MarketplacePoController {
       await handleError(res, error, req, { action: 'cancel_ordered_session', id: req.params.id })
     }
   }
-  
+  postReceiveJournal = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as any).validated.params
+      const body = (req as any).validated.body ?? {}
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const employeeId = req.context?.employee_id ?? ''
+      const detail = await marketplacePoService.postReceiveJournal(companyId, userId, employeeId, id, body)
+      sendSuccess(res, detail, 'Journal receive berhasil di-post')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'post_receive_journal', id: req.params.id })
+    }
+  }
   cancelShippedSession = async (req: Request, res: Response) => {
     try {
       const { id } = (req as CancelShippedReq).validated.params
@@ -214,20 +224,6 @@ export class MarketplacePoController {
       sendSuccess(res, detail, 'Marketplace session shipped')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'ship_marketplace_session', id: req.params.id })
-    }
-  }
-
-  receiveSession = async (req: Request, res: Response) => {
-    try {
-      const { id } = (req as ReceiveSessionReq).validated.params
-      const body = (req as ReceiveSessionReq).validated.body ?? {}
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const employeeId = req.context?.employee_id ?? ''
-      const detail = await marketplacePoService.receiveSession(companyId, userId, employeeId, id, body)
-      sendSuccess(res, detail, 'Marketplace session received')
-    } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'receive_marketplace_session', id: req.params.id })
     }
   }
 

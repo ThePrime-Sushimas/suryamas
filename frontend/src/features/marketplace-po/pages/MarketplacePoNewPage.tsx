@@ -56,6 +56,14 @@ export default function MarketplacePoNewPage() {
     return sum
   }, [selectedLines])
 
+  const selectedBranchIds = useMemo(() => {
+    const ids = new Set<string>()
+    selectedLines.forEach((l) => ids.add(l.branch_id))
+    return ids
+  }, [selectedLines])
+
+  const isMultiBranch = selectedBranchIds.size > 1
+
   const toggleLine = (line: (typeof pendingLines)[0], checked: boolean) => {
     setSelectedLines((prev) => {
       const next = new Map(prev)
@@ -63,6 +71,16 @@ export default function MarketplacePoNewPage() {
         next.delete(line.po_line_id)
         return next
       }
+
+      // Guard: cek apakah sudah ada item dari cabang lain
+      const existingBranchIds = new Set<string>()
+      prev.forEach((l) => existingBranchIds.add(l.branch_id))
+
+      if (existingBranchIds.size > 0 && !existingBranchIds.has(line.branch_id)) {
+        toast.warning('Satu session hanya untuk satu cabang. Buat session terpisah untuk cabang lain.')
+        return prev // tidak update
+      }
+
       const remaining = Number(line.qty) - Number(line.qty_received)
       next.set(line.po_line_id, {
         po_line_id: line.po_line_id,
@@ -87,6 +105,10 @@ export default function MarketplacePoNewPage() {
   }
 
   const handleSubmit = async () => {
+    if (isMultiBranch) {
+      toast.error('Satu session hanya untuk satu cabang. Hapus item dari cabang lain.')
+      return
+    }
     if (!ccId) {
       toast.warning('Pilih kartu kredit owner')
       return
@@ -219,6 +241,12 @@ export default function MarketplacePoNewPage() {
               ))}
             </select>
           </div>
+
+          {isMultiBranch && (
+            <div className="mb-3 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-400">
+              ⚠️ Item dari lebih dari satu cabang dipilih. Satu session hanya boleh untuk satu cabang.
+            </div>
+          )}
 
           {isLoading ? (
             <div className="space-y-2">

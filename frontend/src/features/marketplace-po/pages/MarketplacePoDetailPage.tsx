@@ -7,8 +7,8 @@ import { usePermissionStore } from '@/features/branch_context/store/permission.s
 import {
   useMarketplaceSession,
   useOrderSession,
-  useReceiveSession,
   useSettleSession,
+  useMarketplaceSessionGrs,
 } from '../api/marketplacePo.api'
 import { SessionStatusBadge, PlatformBadge } from '../components/SessionStatusBadge'
 import { SessionTimeline } from '../components/SessionTimeline'
@@ -17,7 +17,6 @@ import { SessionShipmentsTab } from '../components/SessionShipmentsTab'
 import { SessionAttachmentsTab } from '../components/SessionAttachmentsTab'
 import { SessionJournalTab } from '../components/SessionJournalTab'
 import { OrderConfirmModal } from '../components/OrderConfirmModal'
-import { ReceiveConfirmModal } from '../components/ReceiveConfirmModal'
 import { SettleModal } from '../components/SettleModal'
 import { fmtCurrency, fmtDate } from '../utils/format'
 import { PLATFORM_CONFIG } from '../utils/constants'
@@ -44,18 +43,21 @@ export default function MarketplacePoDetailPage() {
 
   const [activeTab, setActiveTab] = useState<TabId>('items')
   const [showOrderModal, setShowOrderModal] = useState(false)
-  const [showReceiveModal, setShowReceiveModal] = useState(false)
   const [showSettleModal, setShowSettleModal] = useState(false)
 
   const { data, isLoading } = useMarketplaceSession(id)
   const orderSession = useOrderSession()
-  const receiveSession = useReceiveSession()
   const settleSession = useSettleSession()
 
   const header = data?.header
   const lines = data?.lines ?? []
   const shipments = data?.shipments ?? []
   const attachments = data?.attachments ?? []
+
+  const { data: sessionGrs = [] } = useMarketplaceSessionGrs(
+    header?.session_number ?? '',
+    header?.status === 'SHIPPED' || header?.status === 'RECEIVED',
+  )
 
   const branchCount = useMemo(
     () => new Set(lines.map((l) => l.branch_id)).size,
@@ -99,17 +101,6 @@ export default function MarketplacePoDetailPage() {
     }
   }
 
-  const handleReceive = async () => {
-    if (!header) return
-    try {
-      await receiveSession.mutateAsync({ id: header.id })
-      toast.success('Barang diterima & GR dibuat')
-      setShowReceiveModal(false)
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, 'Gagal konfirmasi penerimaan'))
-    }
-  }
-
   const handleSettle = async (payload: {
     bank_account_id: number
     amount: number
@@ -143,11 +134,7 @@ export default function MarketplacePoDetailPage() {
         onClick: () => setActiveTab('shipments'),
         className: 'bg-blue-600 hover:bg-blue-700',
       },
-      SHIPPED: {
-        label: 'Konfirmasi Diterima',
-        onClick: () => setShowReceiveModal(true),
-        className: 'bg-teal-600 hover:bg-teal-700',
-      },
+      SHIPPED:null,      
       RECEIVED: {
         label: 'Lunasi CC Owner',
         onClick: () => setShowSettleModal(true),
@@ -253,6 +240,29 @@ export default function MarketplacePoDetailPage() {
           <SessionTimeline status={header.status} />
         </section>
 
+        {header.status === 'SHIPPED' && sessionGrs.length > 0 && (
+          <section className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-4">
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
+              📦 Barang sedang dalam pengiriman
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">
+              Saat barang tiba, konfirmasi penerimaan melalui halaman Goods Receipt berikut:
+            </p>
+            <div className="flex flex-col gap-2">
+              {sessionGrs.map((gr) => (
+                <Link
+                  key={gr.id}
+                  to={`/inventory/goods-receipts/${gr.id}`}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-xl text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  {gr.gr_number} — Konfirmasi di sini
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <InfoCard label="Total" value={fmtCurrency(header.total_amount)} highlight />
           <InfoCard label="Platform" value={<PlatformBadge platform={header.platform} />} />
@@ -261,7 +271,19 @@ export default function MarketplacePoDetailPage() {
           <InfoCard
             label="Goods Receipt"
             value={
-              header.goods_receipt_id ? (
+              sessionGrs.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  {sessionGrs.map((gr) => (
+                    <Link
+                      key={gr.id}
+                      to={`/inventory/goods-receipts/${gr.id}`}
+                      className="inline-flex items-center gap-1 text-teal-600 hover:underline text-sm"
+                    >
+                      {gr.gr_number} <ExternalLink className="w-3.5 h-3.5" />
+                    </Link>
+                  ))}
+                </div>
+              ) : header?.goods_receipt_id ? (
                 <Link
                   to={`/inventory/goods-receipts/${header.goods_receipt_id}`}
                   className="inline-flex items-center gap-1 text-teal-600 hover:underline text-sm"
@@ -338,13 +360,6 @@ export default function MarketplacePoDetailPage() {
         attachments={attachments}
         lineCount={lines.length}
         branchCount={branchCount}
-      />
-      <ReceiveConfirmModal
-        isOpen={showReceiveModal}
-        onClose={() => setShowReceiveModal(false)}
-        onConfirm={handleReceive}
-        isLoading={receiveSession.isPending}
-        session={header}
       />
       <SettleModal
         isOpen={showSettleModal}

@@ -127,11 +127,6 @@ export const shipMarketplaceSessionSchema = z.object({
   }),
 })
 
-export const receiveMarketplaceSessionSchema = z.object({
-  params: z.object({ id: z.string().uuid() }),
-  body: z.object({ journal_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).optional(),
-})
-
 export const settleMarketplaceSessionSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
@@ -174,7 +169,12 @@ export const cancelOrderedSessionSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: cancelSessionBody,
 })
-
+export const postReceiveJournalSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    journal_date: z.string().optional(),
+  }),
+})
 /** Same payload as cancel-ordered; separate route for SHIPPED sessions */
 export const cancelShippedSessionSchema = cancelOrderedSessionSchema
 

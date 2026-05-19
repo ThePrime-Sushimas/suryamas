@@ -79,6 +79,8 @@ export class GoodsReceiptsRepository {
       branch_ids?: string[];
       date_from?: string;
       date_to?: string;
+      invoice_number?: string;
+      source?: string;
     },
   ): Promise<{ data: GoodsReceiptWithRelations[]; total: number }> {
     const conditions = ["gr.company_id = $1", "gr.deleted_at IS NULL"];
@@ -107,6 +109,14 @@ export class GoodsReceiptsRepository {
     if (filter?.date_to) {
       params.push(filter.date_to);
       conditions.push(`gr.received_date <= $${idx++}::date`);
+    }
+    if (filter?.invoice_number) {
+      params.push(filter.invoice_number);
+      conditions.push(`gr.invoice_number = $${idx++}`);
+    }
+    if (filter?.source) {
+      params.push(filter.source);
+      conditions.push(`gr.source = $${idx++}`);
     }
 
     const where = `WHERE ${conditions.join(" AND ")}`;

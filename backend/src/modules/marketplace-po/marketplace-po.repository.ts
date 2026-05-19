@@ -586,6 +586,7 @@ export class MarketplacePoRepository {
     )
     return rows[0] ?? null
   }
+
 }
 export const marketplacePoRepository = new MarketplacePoRepository()
 

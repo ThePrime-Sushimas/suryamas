@@ -41,6 +41,8 @@ export const goodsReceiptListSchema = z.object({
     branch_id: z.string().uuid().optional(),
     date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    invoice_number: z.string().optional(),
+    source: z.string().optional(),
   }),
 })
 

@@ -18,7 +18,6 @@ import {
   cancelMarketplaceSessionSchema,
   orderMarketplaceSessionSchema,
   shipMarketplaceSessionSchema,
-  receiveMarketplaceSessionSchema,
   settleMarketplaceSessionSchema,
   uploadMarketplaceAttachmentSchema,
   deleteMarketplaceAttachmentSchema,
@@ -26,6 +25,7 @@ import {
   bulkSettleMarketplaceSessionSchema,
   cancelOrderedSessionSchema,
   cancelShippedSessionSchema,
+  postReceiveJournalSchema,
 } from './marketplace-po.schema'
 import { unreconciledStatementsSchema } from './marketplace-po.schema'
 
@@ -68,7 +68,6 @@ router.delete('/marketplace-sessions/:id/attachments/:attachmentId', canUpdate('
 
 router.post('/marketplace-sessions/:id/order', canUpdate('marketplace_po'), validateSchema(orderMarketplaceSessionSchema), (req, res) => marketplacePoController.orderSession(req, res))
 router.post('/marketplace-sessions/:id/shipments',canUpdate('marketplace_po'), validateSchema(shipMarketplaceSessionSchema), (req, res) => marketplacePoController.shipSession(req, res))
-router.post('/marketplace-sessions/:id/receive', canUpdate('marketplace_po'), validateSchema(receiveMarketplaceSessionSchema), (req, res) => marketplacePoController.receiveSession(req, res))
 router.post('/marketplace-sessions/:id/settle', canUpdate('marketplace_po'), validateSchema(settleMarketplaceSessionSchema), (req, res) => marketplacePoController.settleSession(req, res))
 router.get(
   '/marketplace-settlements/unreconciled-statements',
@@ -93,6 +92,13 @@ router.post(
   canRelease('marketplace_po'),
   validateSchema(cancelShippedSessionSchema),
   (req, res) => marketplacePoController.cancelShippedSession(req, res),
+)
+
+router.post(
+  '/marketplace-sessions/:id/post-receive-journal',
+  canRelease('marketplace_po'),
+  validateSchema(postReceiveJournalSchema),
+  (req, res) => marketplacePoController.postReceiveJournal(req, res),
 )
 
 export default router

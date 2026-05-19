@@ -17,7 +17,7 @@ import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.
 import type { CreateGoodsReceiptDto, UpdateGoodsReceiptDto, GoodsReceiptWithLines, VarianceStatus } from './goods-receipts.types'
 
 export class GoodsReceiptsService {
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string }) {
+  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string; invoice_number?: string; source?: string }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await goodsReceiptsRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
     const totalPages = Math.ceil(total / pagination.limit)
@@ -215,7 +215,22 @@ export class GoodsReceiptsService {
       await goodsReceiptsRepository.updateStatus(client, id, 'CONFIRMED', {
         updated_by: userId,
       })
-
+      // 5b. Kalau GR dari marketplace, update session → RECEIVED
+      if (gr.source === 'MARKETPLACE') {
+        const { rowCount } = await client.query(
+          `UPDATE marketplace_checkout_sessions
+          SET status = 'RECEIVED',
+              updated_by = $1,
+              updated_at = now()
+          WHERE goods_receipt_id = $2
+            AND status = 'SHIPPED'
+            AND deleted_at IS NULL`,
+          [userId, id],
+        )
+        if (!rowCount || rowCount === 0) {
+          throw new BusinessRuleError('Session marketplace tidak ditemukan atau status bukan SHIPPED')
+        }
+      }
       // 6. Auto-create Goods Processing
       const branchCode = gr.branch_code ?? 'XXX'
       const gpNumber = await goodsProcessingRepository.generateGpNumber(client, companyId, branchCode)

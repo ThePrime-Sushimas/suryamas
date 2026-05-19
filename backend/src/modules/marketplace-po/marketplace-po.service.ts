@@ -1,16 +1,12 @@
   import { pool } from '../../config/db'
   import { logError } from '../../config/logger'
-  import type { PoolClient } from 'pg'
   import { BusinessRuleError } from '../../utils/errors.base'
   import { AuditService } from '../monitoring/monitoring.service'
   import { marketplacePoRepository } from './marketplace-po.repository'
   import { chartOfAccountsRepository } from '../accounting/chart-of-accounts/chart-of-accounts.repository'
   import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
   import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
-  import { goodsProcessingRepository } from '../goods-processing/goods-processing.repository'
-  import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service'
   import { storageService } from '../../services/storage.service'
-  import type { VarianceStatus } from '../goods-receipts/goods-receipts.types'
   import type {
     CancelSessionDto,
     CreateOwnerCreditCardDto,
@@ -335,141 +331,118 @@
       const client = await pool.connect()
       try {
         await client.query('BEGIN')
+    
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
         if (session.status !== 'ORDERED') throw new BusinessRuleError('Session must be ORDERED to SHIPPED')
-
         if (!dto?.shipments || dto.shipments.length === 0) throw new BusinessRuleError('At least 1 shipment/resi is required')
-
-        await marketplacePoRepository.updateOrInsertShipments(client, id, userId, dto.shipments)
-
-        await client.query(
-          `UPDATE marketplace_checkout_sessions SET status='SHIPPED', updated_by=$1, updated_at=now() WHERE id=$2 AND company_id=$3`,
-          [userId, id, companyId],
+    
+        // Guard: cek apakah GR sudah pernah dibuat untuk session ini
+        const { rows: existingGrs } = await client.query(
+          `SELECT id FROM goods_receipts
+           WHERE invoice_number = $1
+             AND source = 'MARKETPLACE'
+             AND deleted_at IS NULL
+           LIMIT 1`,
+          [session.session_number],
         )
-
-        await client.query('COMMIT')
-        return await marketplacePoRepository.findSessionDetail(id, companyId)
-      } catch (e) {
-        await client.query('ROLLBACK')
-        throw e
-      } finally {
-        client.release()
-      }
-    }
-
-    async receiveSession(companyId: string, userId: string, employeeId: string, id: string, dto: any) {
-      const client = await pool.connect()
-      try {
-        await client.query('BEGIN')
-        if (!employeeId) throw new BusinessRuleError('Employee context not found')
-        const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
-        if (!session) throw new BusinessRuleError('Marketplace session not found')
-        if (session.status !== 'SHIPPED') throw new BusinessRuleError('Session must be SHIPPED to RECEIVED')
-
-            // ✅ GUARD DULU sebelum jurnal dibuat
-            const lines = await marketplacePoRepository.findSessionLinesForReceive(client, id)
-            if (lines.length === 0) throw new BusinessRuleError('Sesi tidak memiliki line barang')
-      
-            const allPoLineIds = lines.map((l: any) => l.po_line_id as string)
-            const fullyReceivedIds = await marketplacePoRepository.findFullyReceivedPoLines(client, allPoLineIds)
-            if (fullyReceivedIds.length > 0) {
-              throw new BusinessRuleError(
-                `${fullyReceivedIds.length} PO line sudah pernah diterima penuh. ` +
-                `Periksa GR yang sudah ada sebelum melanjutkan.`,
-              )
-            }
-      
-            const uniquePoIds = [...new Set(lines.map((l: any) => l.po_id as string))]
-            for (const poId of uniquePoIds) {
-              const existingGr = await marketplacePoRepository.findExistingMarketplaceGr(client, poId, companyId)
-              if (existingGr) {
-                throw new BusinessRuleError(
-                  `PO ini sudah memiliki GR marketplace (${existingGr.gr_number}). ` +
-                  `Double receive tidak diizinkan.`,
-                )
-              }
-            }
-            // ✅ END GUARD — aman lanjut ke jurnal
-      
-        const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
-
-        const coaDebit = await chartOfAccountsRepository.findByCode(companyId, '110501')
-        if (!coaDebit) throw new BusinessRuleError('COA 110501 not found')
-
-        const coaCredit = await chartOfAccountsRepository.findByCode(companyId, '110598')
-        if (!coaCredit) throw new BusinessRuleError('COA 110598 not found')
-
-        const total = Number(session.total_amount)
-        const journalDesc = `Barang Masuk Marketplace - ${session.session_number}`
-
-        const journalCreateDto: any = {
-          company_id: companyId,
-          journal_date,
-          journal_type: 'INVENTORY',
-          description: journalDesc,
-          currency: 'IDR',
-          exchange_rate: 1,
-          reference_type: 'marketplace_checkout_session',
-          reference_id: id,
-          reference_number: session.session_number,
-          source_module: 'marketplace_po',
-          lines: [
-            {
-              line_number: 1,
-              account_id: coaDebit.id,
-              description: journalDesc,
-              debit_amount: total,
-              credit_amount: 0,
-            },
-            {
-              line_number: 2,
-              account_id: coaCredit.id,
-              description: journalDesc,
-              debit_amount: 0,
-              credit_amount: total,
-            },
-          ],
+        if (existingGrs.length > 0) {
+          throw new BusinessRuleError('GR sudah pernah dibuat untuk session ini')
         }
-
-        const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
-        await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
-        await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
-        await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
-        
-
+    
+        await marketplacePoRepository.updateOrInsertShipments(client, id, userId, dto.shipments)
+    
+        // ── Buat GR DRAFT per PO ──
+        const lines = await marketplacePoRepository.findSessionLinesForReceive(client, id)
+        if (lines.length === 0) throw new BusinessRuleError('Session tidak memiliki line barang')
+    
         const linesByPo = lines.reduce((acc: Record<string, typeof lines>, l: (typeof lines)[0]) => {
           if (!acc[l.po_id]) acc[l.po_id] = []
           acc[l.po_id].push(l)
           return acc
         }, {})
-
+    
         let firstGrId: string | null = null
-
+    
         for (const [poId, poLines] of Object.entries(linesByPo)) {
-          const gr = await this.createMarketplaceGr(
-            client,
-            companyId,
-            userId,
-            poId,
-            poLines,
-            session.session_number,
-            journal_date,
+          const { rows: poRows } = await client.query(
+            `SELECT po.branch_id, b.branch_code
+             FROM purchase_orders po
+             JOIN branches b ON b.id = po.branch_id
+             WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL`,
+            [poId, companyId],
           )
-          if (!firstGrId) firstGrId = gr.grId
+          const po = poRows[0]
+          if (!po) throw new BusinessRuleError(`Purchase order ${poId} not found`)
+    
+          const { rows: whRows } = await client.query(
+            `SELECT id FROM warehouses
+             WHERE branch_id = $1 AND company_id = $2 AND warehouse_type = 'MAIN' AND deleted_at IS NULL
+             LIMIT 1`,
+            [po.branch_id, companyId],
+          )
+          const warehouseId = whRows[0]?.id
+          if (!warehouseId) throw new BusinessRuleError(`Warehouse tidak ditemukan untuk cabang ${po.branch_id}`)
+    
+          const branchCode = po.branch_code ?? 'XXX'
+          const grNumber = await goodsReceiptsRepository.generateGrNumber(client, companyId, branchCode)
+    
+          const gr = await goodsReceiptsRepository.create(client, companyId, {
+            branch_id: po.branch_id,
+            po_id: poId,
+            warehouse_id: warehouseId,
+            gr_number: grNumber,
+            received_date: new Date().toISOString().slice(0, 10),
+            invoice_number: session.session_number,
+            created_by: userId,
+            source: 'MARKETPLACE',
+            status: 'DRAFT', // ← DRAFT, tim lapangan yang confirm
+          })
+    
+          if (!firstGrId) firstGrId = gr.id
+    
+          // Insert lines pakai qty pesanan
+          const processedLines = (poLines as typeof lines).map((line) => {
+            const qtyPoUom = Number(line.qty)
+            const unitPricePo = Number(line.unit_price_po ?? 0)
+            const unitPriceInvoice = Number(line.unit_price_netto)
+            const variance = unitPriceInvoice - unitPricePo
+            const variancePct = unitPricePo > 0 ? Math.abs(variance / unitPricePo) * 100 : 0
+            const varianceStatus = variancePct <= 0.01 ? 'OK' : variancePct <= 15 ? 'NOTICE' : 'DISPUTED'
+    
+            return {
+              po_line_id: line.po_line_id,
+              product_id: line.product_id,
+              qty_po_uom: qtyPoUom,
+              uom_po: line.uom,
+              qty_received: qtyPoUom, // asumsi semua datang, GP verifikasi qty real
+              uom_received: line.uom,
+              conversion_factor: 1,
+              unit_price_invoice: unitPriceInvoice,
+              unit_price_po: unitPricePo,
+              price_variance: variance,
+              price_variance_pct: variancePct,
+              variance_status: varianceStatus,
+              qty_rejected: 0,
+              reject_reason: null,
+              notes: null,
+            }
+          })
+    
+          await goodsReceiptsRepository.insertLines(client, gr.id, processedLines)
         }
-
+    
+        // Update session status + simpan goods_receipt_id
         await client.query(
           `UPDATE marketplace_checkout_sessions
-          SET status = 'RECEIVED',
-              journal_received_id = $1,
-              goods_receipt_id = $2,
-              updated_by = $3,
-              updated_at = now()
-          WHERE id = $4 AND company_id = $5`,
-          [journalHeader.id, firstGrId, userId, id, companyId],
+           SET status = 'SHIPPED',
+               goods_receipt_id = $1,
+               updated_by = $2,
+               updated_at = now()
+           WHERE id = $3 AND company_id = $4`,
+          [firstGrId, userId, id, companyId],
         )
-
+    
         await client.query('COMMIT')
         return await marketplacePoRepository.findSessionDetail(id, companyId)
       } catch (e) {
@@ -478,133 +451,6 @@
       } finally {
         client.release()
       }
-    }
-
-    private async createMarketplaceGr(
-      client: PoolClient,
-      companyId: string,
-      userId: string,
-      poId: string,
-      poLines: Array<{
-        po_line_id: string
-        product_id: string
-        qty: number | string
-        unit_price_netto: number | string
-        unit_price_po?: number | string
-        uom: string
-        requires_processing?: boolean
-      }>,
-      sessionNumber: string,
-      receivedDate: string,
-    ): Promise<{ grId: string; grNumber: string }> {
-      const { rows: poRows } = await client.query(
-        `SELECT po.branch_id, b.branch_code
-        FROM purchase_orders po
-        JOIN branches b ON b.id = po.branch_id
-        WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL`,
-        [poId, companyId],
-      )
-      const po = poRows[0]
-      if (!po) throw new BusinessRuleError(`Purchase order ${poId} not found`)
-
-      const { rows: whRows } = await client.query(
-        `SELECT id FROM warehouses
-        WHERE branch_id = $1 AND company_id = $2 AND warehouse_type = 'MAIN' AND deleted_at IS NULL
-        LIMIT 1`,
-        [po.branch_id, companyId],
-      )
-      const warehouseId = whRows[0]?.id
-      if (!warehouseId) {
-        throw new BusinessRuleError(`Warehouse tidak ditemukan untuk cabang ${po.branch_id}`)
-      }
-
-      const branchCode = po.branch_code ?? 'XXX'
-      const grNumber = await goodsReceiptsRepository.generateGrNumber(client, companyId, branchCode)
-      const gr = await goodsReceiptsRepository.create(client, companyId, {
-        branch_id: po.branch_id,
-        po_id: poId,
-        warehouse_id: warehouseId,
-        gr_number: grNumber,
-        received_date: receivedDate,
-        invoice_number: sessionNumber,
-        created_by: userId,
-        source: 'MARKETPLACE',
-        status: 'CONFIRMED',
-      })
-
-      const processedLines = poLines.map((line) => {
-        const qtyPoUom = Number(line.qty)
-        const qtyAccepted = qtyPoUom
-        const unitPricePo = Number(line.unit_price_po ?? 0)
-        const unitPriceInvoice = Number(line.unit_price_netto)
-        const poTotal = qtyAccepted * unitPricePo
-        const invoiceTotal = qtyAccepted * unitPriceInvoice
-        const variance = invoiceTotal - poTotal
-        const variancePct = poTotal > 0 ? Math.abs(variance / poTotal) * 100 : 0
-        const varianceStatus: VarianceStatus = variancePct <= 0.01 ? 'OK' : variancePct <= 15 ? 'NOTICE' : 'DISPUTED'
-
-        return {
-          po_line_id: line.po_line_id,
-          product_id: line.product_id,
-          qty_po_uom: qtyPoUom,
-          uom_po: line.uom,
-          qty_received: qtyPoUom,
-          uom_received: line.uom,
-          conversion_factor: 1,
-          unit_price_invoice: unitPriceInvoice,
-          unit_price_po: unitPricePo,
-          price_variance: variance,
-          price_variance_pct: variancePct,
-          variance_status: varianceStatus,
-          qty_rejected: 0,
-          reject_reason: null,
-          notes: null,
-        }
-      })
-
-      await goodsReceiptsRepository.insertLines(client, gr.id, processedLines)
-
-      for (const line of processedLines) {
-        const qtyAccepted = line.qty_po_uom - (line.qty_rejected ?? 0)
-        await goodsReceiptsRepository.incrementPoLineQtyReceived(client, line.po_line_id, qtyAccepted)
-      }
-
-      const newPoStatus = await goodsReceiptsRepository.resolvePoStatus(client, poId)
-      await goodsReceiptsRepository.updatePoStatus(client, poId, newPoStatus, userId)
-
-      const gpNumber = await goodsProcessingRepository.generateGpNumber(client, companyId, branchCode)
-      const hasDisassembly = poLines.some((l) => l.requires_processing)
-      const processingType = hasDisassembly ? 'DISASSEMBLY' : 'PASS_THROUGH'
-
-      const { rows: gpRows } = await client.query(
-        `INSERT INTO goods_processing (company_id, branch_id, warehouse_id, goods_receipt_id, processing_number, processing_date, processing_type, status, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'DRAFT', $8) RETURNING id`,
-        [companyId, po.branch_id, warehouseId, gr.id, gpNumber, receivedDate, processingType, userId],
-      )
-      const gpId = gpRows[0].id
-
-      const { rows: grLineRows } = await client.query(
-        `SELECT id, product_id, qty_received, uom_received, uom_po
-        FROM goods_receipt_lines WHERE gr_id = $1`,
-        [gr.id],
-      )
-
-      for (const line of grLineRows) {
-        const { rows: inputRows } = await client.query(
-          `INSERT INTO goods_processing_inputs (goods_processing_id, gr_line_id, product_id, qty_input, uom, sort_order)
-          VALUES ($1, $2, $3, $4, $5, 0) RETURNING id`,
-          [gpId, line.id, line.product_id, line.qty_received, line.uom_received ?? line.uom_po ?? 'kg'],
-        )
-        await client.query(
-          `INSERT INTO goods_processing_outputs (goods_processing_id, input_id, product_id, qty_output, uom, is_waste, sort_order)
-          VALUES ($1, $2, $3, $4, $5, false, 0)`,
-          [gpId, inputRows[0].id, line.product_id, line.qty_received, line.uom_received ?? line.uom_po ?? 'kg'],
-        )
-      }
-
-      await purchaseInvoicesService.createDraftFromGr(client, companyId, gr.id, userId)
-
-      return { grId: gr.id, grNumber }
     }
 
     async cancelOrderedSession(
@@ -677,6 +523,89 @@
         await AuditService.log('CANCEL_SHIPPED', 'marketplace_checkout_session', id, userId,
           { status: 'SHIPPED', journal_ordered_id: journalOrderedId },
           { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
+        )
+        return await marketplacePoRepository.findSessionDetail(id, companyId)
+      } catch (e) {
+        await client.query('ROLLBACK')
+        throw e
+      } finally {
+        client.release()
+      }
+    }
+    async postReceiveJournal(
+      companyId: string,
+      userId: string,
+      employeeId: string,
+      id: string,
+      dto: { journal_date?: string },
+    ) {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        if (!employeeId) throw new BusinessRuleError('Employee context not found')
+    
+        const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
+        if (!session) throw new BusinessRuleError('Marketplace session not found')
+        if (session.status !== 'RECEIVED') throw new BusinessRuleError('Session harus RECEIVED untuk post journal')
+        if (session.journal_received_id) throw new BusinessRuleError('Journal receive sudah pernah di-post')
+    
+        const coaDebit = await chartOfAccountsRepository.findByCode(companyId, '110501')
+        if (!coaDebit) throw new BusinessRuleError('COA 110501 tidak ditemukan')
+    
+        const coaCredit = await chartOfAccountsRepository.findByCode(companyId, '110598')
+        if (!coaCredit) throw new BusinessRuleError('COA 110598 tidak ditemukan')
+    
+        const total = Number(session.total_amount)
+        const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
+        const journalDesc = `Barang Masuk Marketplace - ${session.session_number}`
+    
+        const journalCreateDto: any = {
+          company_id: companyId,
+          journal_date,
+          journal_type: 'INVENTORY',
+          description: journalDesc,
+          currency: 'IDR',
+          exchange_rate: 1,
+          reference_type: 'marketplace_checkout_session',
+          reference_id: id,
+          reference_number: session.session_number,
+          source_module: 'marketplace_po',
+          lines: [
+            {
+              line_number: 1,
+              account_id: coaDebit.id,
+              description: journalDesc,
+              debit_amount: total,
+              credit_amount: 0,
+            },
+            {
+              line_number: 2,
+              account_id: coaCredit.id,
+              description: journalDesc,
+              debit_amount: 0,
+              credit_amount: total,
+            },
+          ],
+        }
+    
+        const journalHeader = await (journalHeadersService as any).create(journalCreateDto, employeeId)
+        await (journalHeadersService as any).submit(journalHeader.id, employeeId, companyId)
+        await (journalHeadersService as any).approve(journalHeader.id, employeeId, companyId)
+        await (journalHeadersService as any).post(journalHeader.id, employeeId, companyId)
+    
+        await client.query(
+          `UPDATE marketplace_checkout_sessions
+           SET journal_received_id = $1,
+               updated_by = $2,
+               updated_at = now()
+           WHERE id = $3 AND company_id = $4`,
+          [journalHeader.id, userId, id, companyId],
+        )
+    
+        await client.query('COMMIT')
+        await AuditService.log('POST_RECEIVE_JOURNAL', 'marketplace_checkout_session', id, userId,
+          { journal_received_id: null },
+          { journal_received_id: journalHeader.id },
         )
         return await marketplacePoRepository.findSessionDetail(id, companyId)
       } catch (e) {

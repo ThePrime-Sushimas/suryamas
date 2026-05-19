@@ -196,6 +196,21 @@ export function useCancelShippedSession() {
     },
   })
 }
+export function usePostReceiveJournal() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, journal_date }: { id: string; journal_date?: string }) => {
+      const { data } = await api.post(`/marketplace-sessions/${id}/post-receive-journal`, {
+        journal_date,
+      })
+      return data.data as MarketplaceSessionDetail
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
+      qc.invalidateQueries({ queryKey: KEYS.session(vars.id) })
+    },
+  })
+}
 export function usePendingPoLines(params: { platform?: MarketplacePlatform; branch_id?: string }) {
   return useQuery({
     queryKey: KEYS.pendingLines(params),
@@ -502,4 +517,30 @@ export async function getSignedUrl(filePath: string) {
     params: { path: filePath, bucket: 'invoices' },
   })
   return data.data.url as string
+}
+
+export interface SessionGrSummary {
+  id: string
+  gr_number: string
+  status: string
+  branch_name: string
+}
+
+export function useMarketplaceSessionGrs(sessionNumber: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['marketplace-session-grs', sessionNumber],
+    queryFn: async () => {
+      const { data } = await api.get('/goods-receipts', {
+        params: {
+          invoice_number: sessionNumber,
+          source: 'MARKETPLACE',
+          limit: 10,
+          page: 1,
+        },
+      })
+      return (data.data ?? []) as SessionGrSummary[]
+    },
+    enabled: !!sessionNumber && enabled,
+    staleTime: 30_000,
+  })
 }

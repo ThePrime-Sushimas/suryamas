@@ -7,7 +7,6 @@ import {
   cancelMarketplaceSessionSchema,
   orderMarketplaceSessionSchema,
   shipMarketplaceSessionSchema,
-  receiveMarketplaceSessionSchema,
   settleMarketplaceSessionSchema,
   uploadMarketplaceAttachmentSchema,
   deleteMarketplaceAttachmentSchema,
@@ -181,9 +180,6 @@ export type ShipSessionDto = {
   }>
 }
 
-export type ReceiveSessionDto = {
-  journal_date?: string
-}
 export type CancelSessionDto = {
   cancel_reason: string
   platform_cancel_ref?: string | null
