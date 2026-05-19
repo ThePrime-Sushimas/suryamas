@@ -2,7 +2,8 @@
 // ── Condition & status enums ───────────────────────────────────────────────────
 
 export type ConditionStatus = 'OK' | 'SHORTAGE' | 'DAMAGED'
-export type GoodsProcessingStatus = 'DRAFT' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
+/** QC_REVIEW may still appear from legacy DB rows — treat as PROCESSING in UI */
+export type GoodsProcessingStatus = 'DRAFT' | 'PROCESSING' | 'PARTIAL' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
 export type ProcessingType = 'PASS_THROUGH' | 'DISASSEMBLY'
 
 // ── Output template ───────────────────────────────────────────────────────────
@@ -91,6 +92,7 @@ export interface GoodsProcessingWithRelations {
   total_output_qty: number | null
   yield_percentage: number | null
   input_count: number | null
+  done_input_count?: number | null
   item_names: string[]
   weighing_line_count?: number
   weighing_summary?: string | null

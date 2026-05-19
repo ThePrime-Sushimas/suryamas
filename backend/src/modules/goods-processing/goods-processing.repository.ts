@@ -17,6 +17,7 @@ const HEADER_SELECT = `
   gr.gr_number,
   s.supplier_name,
   COALESCE(inp_agg.input_count, 0)::int AS input_count,
+  COALESCE(inp_agg.done_input_count, 0)::int AS done_input_count,
   COALESCE(inp_agg.item_names, '{}') AS item_names,
   COALESCE(weighing_agg.weighing_line_count, 0)::int AS weighing_line_count,
   weighing_agg.weighing_summary
@@ -31,6 +32,7 @@ const HEADER_FROM = `
   LEFT JOIN LATERAL (
     SELECT
       COUNT(*)::int AS input_count,
+      COUNT(*) FILTER (WHERE gpi.status = 'DONE')::int AS done_input_count,
       ARRAY_AGG(p.product_name ORDER BY gpi.sort_order) AS item_names
     FROM goods_processing_inputs gpi
     JOIN products p ON p.id = gpi.product_id
@@ -198,12 +200,39 @@ async confirmInputWithStock(
       await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
     }
 
+    await this.syncHeaderStatusFromLines(client, gpId)
+
     await client.query('COMMIT')
   } catch (e) {
     await client.query('ROLLBACK')
     throw e
   } finally {
     client.release()
+  }
+}
+
+async syncHeaderStatusFromLines(client: PoolClient, gpId: string): Promise<void> {
+  const { rows: lineRows } = await client.query<{ status: string }>(
+    'SELECT status FROM goods_processing_inputs WHERE goods_processing_id = $1',
+    [gpId]
+  )
+  if (lineRows.length === 0) return
+
+  const { rows: [gp] } = await client.query<{ status: string }>(
+    'SELECT status FROM goods_processing WHERE id = $1',
+    [gpId]
+  )
+  if (!gp || !['PROCESSING', 'PARTIAL', 'REJECTED'].includes(gp.status)) return
+
+  const statuses = lineRows.map(r => r.status)
+  const anyDone = statuses.some(s => s === 'DONE')
+  const newStatus = anyDone ? 'PARTIAL' : 'PROCESSING'
+
+  if (newStatus !== gp.status) {
+    await client.query(
+      'UPDATE goods_processing SET status = $1, updated_at = now() WHERE id = $2',
+      [newStatus, gpId]
+    )
   }
 }
 

@@ -2,6 +2,7 @@ export type GoodsProcessingType = "PASS_THROUGH" | "DISASSEMBLY";
 export type GoodsProcessingStatus =
   | "DRAFT"
   | "PROCESSING"
+  | "PARTIAL"
   | "QC_REVIEW"
   | "CONFIRMED"
   | "REJECTED";
@@ -44,6 +45,7 @@ export interface GoodsProcessingWithRelations extends GoodsProcessing {
   gr_number: string;
   supplier_name: string;
   input_count: number;
+  done_input_count: number;
   item_names: string[];
   weighing_line_count: number;
   weighing_summary: string | null;

@@ -212,14 +212,17 @@ export interface OutputPayload {
 }
 
 export function useConfirmGoodsProcessingInput(gpId: string) {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: { inputId: string; outputs: OutputPayload[] }) =>
-      api.patch(`/goods-processing/${gpId}/inputs/${payload.inputId}/confirm`, {
+    mutationFn: async (payload: { inputId: string; outputs: OutputPayload[] }) => {
+      const { data } = await api.patch(`/goods-processing/${gpId}/inputs/${payload.inputId}/confirm`, {
         outputs: payload.outputs,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['goods-processing', gpId] })
+      })
+      return data.data as GoodsProcessingDetail
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(gpKeys.detail(gpId), data)
+      qc.invalidateQueries({ queryKey: gpKeys.lists() })
     },
   })
 }

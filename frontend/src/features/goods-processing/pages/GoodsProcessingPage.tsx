@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Package, ChevronRight, Clock, CheckCircle2, XCircle, RotateCcw, Scale, LoaderCircle } from "lucide-react"
+import { Package, ChevronRight, Clock, CheckCircle2, XCircle, Scale, LoaderCircle } from "lucide-react"
 import { Pagination } from "@/components/ui/Pagination"
 import { useGoodsProcessingList } from "../api/goodsProcessing.api"
 
@@ -22,9 +22,22 @@ const STATUS_CONFIG: Record<string, {
 }> = {
   DRAFT:      { label: "Menunggu",  dot: "bg-gray-400",   badge: "bg-gray-100 text-gray-600",    icon: <Clock size={12} /> },
   PROCESSING: { label: "Diproses",  dot: "bg-blue-500",   badge: "bg-blue-50 text-blue-700",     icon: <LoaderCircle size={12} /> },
-  QC_REVIEW:  { label: "Review QC", dot: "bg-yellow-500", badge: "bg-yellow-50 text-yellow-700", icon: <RotateCcw size={12} /> },
+  PARTIAL:    { label: "Sebagian selesai", dot: "bg-indigo-500", badge: "bg-indigo-50 text-indigo-700", icon: <LoaderCircle size={12} /> },
   CONFIRMED:  { label: "Selesai",   dot: "bg-green-500",  badge: "bg-green-50 text-green-700",   icon: <CheckCircle2 size={12} /> },
   REJECTED:   { label: "Ditolak",   dot: "bg-red-500",    badge: "bg-red-50 text-red-700",       icon: <XCircle size={12} /> },
+}
+
+function normalizeGpListStatus(status: string): string {
+  return status === "QC_REVIEW" ? "PROCESSING" : status
+}
+
+function resolveGpListStatusConfig(gp: { status: string; input_count?: number | null; done_input_count?: number | null }) {
+  const key = normalizeGpListStatus(gp.status)
+  const cfg = STATUS_CONFIG[key] ?? STATUS_CONFIG.DRAFT
+  if (gp.status === "PARTIAL" && gp.input_count && gp.done_input_count === gp.input_count) {
+    return { ...cfg, label: "Menunggu konfirmasi" }
+  }
+  return cfg
 }
 
 function WeighingSummary({ summary }: { summary?: string | null }) {
@@ -41,7 +54,7 @@ function WeighingSummary({ summary }: { summary?: string | null }) {
 
 const FILTER_OPTS = [
   { value: "",                          label: "Semua" },
-  { value: "DRAFT,PROCESSING,REJECTED", label: "Perlu diproses" },
+  { value: "DRAFT,PROCESSING,PARTIAL,REJECTED", label: "Perlu diproses" },
   { value: "CONFIRMED",                 label: "Selesai" },
 ]
 
@@ -131,7 +144,7 @@ export default function GoodsProcessingPage() {
             {/* ── Mobile: card list ── */}
             <div className="lg:hidden p-4 space-y-3">
               {items.map(gp => {
-                const cfg = STATUS_CONFIG[gp.status] ?? STATUS_CONFIG.DRAFT
+                const cfg = resolveGpListStatusConfig(gp)
                 const names = gp.item_names ?? []
                 return (
                   <Link
@@ -196,7 +209,7 @@ export default function GoodsProcessingPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
                     {items.map(gp => {
-                      const cfg = STATUS_CONFIG[gp.status] ?? STATUS_CONFIG.DRAFT
+                      const cfg = resolveGpListStatusConfig(gp)
                       const names = gp.item_names ?? []
                       return (
                         <tr

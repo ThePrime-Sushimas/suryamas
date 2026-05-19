@@ -83,10 +83,13 @@ const GP_LINE_STATUS_CONFIG: Record<
 > = {
   PENDING: { label: "Menunggu", color: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300" },
   PROCESSING: { label: "Diproses", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-  QC_REVIEW: { label: "Review QC", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
-  CONFIRMED: { label: "Selesai", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
+  CONFIRMED: { label: "Selesai", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-blue-300" },
   REJECTED: { label: "Ditolak", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
 };
+
+function normalizeGpLineStatus(status: string): string {
+  return status === "QC_REVIEW" ? "PROCESSING" : status
+}
 
 const fmtQty = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 
@@ -692,7 +695,7 @@ export default function PurchaseInvoiceDetailPage() {
                   <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
                     {rows.map((row) => {
                       const st =
-                        GP_LINE_STATUS_CONFIG[row.gp_line_status] ??
+                        GP_LINE_STATUS_CONFIG[normalizeGpLineStatus(row.gp_line_status)] ??
                         GP_LINE_STATUS_CONFIG.PENDING;
                       const goodOutputs = row.outputs.filter((o) => !o.is_waste);
                       return (

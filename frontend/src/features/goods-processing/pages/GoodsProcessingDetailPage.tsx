@@ -400,10 +400,28 @@ function buildPassThroughOutput(
 const STATUS_CONFIG = {
   DRAFT:      { label: "Draft",     color: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",   dot: "bg-gray-400"  },
   PROCESSING: { label: "Diproses",  color: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",    dot: "bg-blue-500"  },
-  QC_REVIEW:  { label: "Review QC", color: "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300", dot: "bg-yellow-500" },
+  PARTIAL:    { label: "Sebagian selesai", color: "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300", dot: "bg-indigo-500" },
   CONFIRMED:  { label: "Selesai",   color: "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300",  dot: "bg-green-500" },
   REJECTED:   { label: "Ditolak",   color: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",      dot: "bg-red-500"   },
-};
+} as const
+
+/** Legacy DB value — displayed as PROCESSING */
+function normalizeGpHeaderStatus(status: string): keyof typeof STATUS_CONFIG {
+  return status === "QC_REVIEW" ? "PROCESSING" : status as keyof typeof STATUS_CONFIG
+}
+
+function resolveGpHeaderStatusConfig(
+  status: string,
+  doneCount: number,
+  totalCount: number,
+) {
+  const key = normalizeGpHeaderStatus(status)
+  const cfg = STATUS_CONFIG[key] ?? STATUS_CONFIG.PROCESSING
+  if (status === "PARTIAL" && totalCount > 0 && doneCount === totalCount) {
+    return { ...cfg, label: "Menunggu konfirmasi" }
+  }
+  return cfg
+}
 
 // ── PassThroughCard ───────────────────────────────────────────────────────────
 
@@ -1174,7 +1192,7 @@ export default function GoodsProcessingDetailPage() {
   }, [gp])
 
   const isEditable = useMemo(
-    () => canUpdate && (gp?.status === "PROCESSING" || gp?.status === "REJECTED"),
+    () => canUpdate && (gp?.status === "PROCESSING" || gp?.status === "PARTIAL" || gp?.status === "REJECTED"),
     [canUpdate, gp?.status]
   )
 
@@ -1192,10 +1210,9 @@ export default function GoodsProcessingDetailPage() {
     if (!gp) return false
     const s = gp.status
     if (s === "DRAFT" && canUpdate) return true
-    if (s === "QC_REVIEW" && canApprove) return true
     if (s === "CONFIRMED") return true
-    if ((s === "PROCESSING" || s === "REJECTED") && isEditable) {
-      if (doneCount > 0 && canApprove && s === "PROCESSING") return true
+    if ((s === "PROCESSING" || s === "PARTIAL" || s === "REJECTED") && isEditable) {
+      if (doneCount > 0 && canApprove && (s === "PROCESSING" || s === "PARTIAL")) return true
       if (!allDone && hasProcessing) return true
       if (allDone && canApprove) return true
     }
@@ -1223,9 +1240,6 @@ export default function GoodsProcessingDetailPage() {
         inputId: inp.id,
         outputs: preparedOutputs,
       })
-      setLocalInputs(prev => prev.map(input => 
-        input.id === inp.id ? { ...input, status: 'DONE' } : input
-      ))
       addToast("success", `${inp.product_name} selesai ✓`)
     } catch (e) {
       addToast("error", parseApiError(e, "Terjadi kesalahan"))
@@ -1338,7 +1352,8 @@ export default function GoodsProcessingDetailPage() {
   )
 
   const status = gp.status
-  const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
+  const isInProgress = status === "PROCESSING" || status === "PARTIAL"
+  const cfg = resolveGpHeaderStatusConfig(status, doneCount, totalCount)
   const isBusy = startMut.isPending || updateMut.isPending || confirmMut.isPending || rejectMut.isPending
   const addOutputInput = addOutputFor != null ? localInputs.find(inp => inp.id === addOutputFor) : null
 
@@ -1362,7 +1377,7 @@ export default function GoodsProcessingDetailPage() {
         </div>
 
         {/* Progress bar partial */}
-        {status === "PROCESSING" && totalCount > 0 && (
+        {isInProgress && totalCount > 0 && (
           <div className="px-4 pb-3">
             <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="text-gray-500 dark:text-gray-400">Progress item</span>
@@ -1421,7 +1436,7 @@ export default function GoodsProcessingDetailPage() {
               </div>
             )}
 
-            {status === "PROCESSING" && (
+            {isInProgress && (
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl px-3 py-2.5 flex items-start gap-2">
                 <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
                 <p className="text-xs text-blue-700 dark:text-blue-300">
@@ -1457,7 +1472,7 @@ export default function GoodsProcessingDetailPage() {
             )}
 
             {/* Return items */}
-            {(status === "CONFIRMED" || status === "PROCESSING") && (
+            {(status === "CONFIRMED" || isInProgress) && (
               <ReturnItemsSection gp={gp} onResolve={handleResolveReturn} canApprove={canApprove} />
             )}
 
@@ -1472,15 +1487,15 @@ export default function GoodsProcessingDetailPage() {
                 </button>
               )}
 
-              {(status === "PROCESSING" || status === "REJECTED") && isEditable && (
+              {(isInProgress || status === "REJECTED") && isEditable && (
                 <div className="space-y-2">
-                  {doneCount > 0 && status === "PROCESSING" && (
+                  {doneCount > 0 && isInProgress && (
                     <p className="text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
                       {allDone ? "Semua item selesai." : `${doneCount} dari ${totalCount} item selesai, stok sudah masuk gudang.`}
                       {canApprove ? " Konfirmasi untuk finalisasi proses." : " Menunggu konfirmasi final."}
                     </p>
                   )}
-                  {doneCount > 0 && canApprove && status === "PROCESSING" && (
+                  {doneCount > 0 && canApprove && isInProgress && (
                     <button type="button" onClick={handleConfirmGp} disabled={isBusy}
                       className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
                     >
@@ -1513,17 +1528,6 @@ export default function GoodsProcessingDetailPage() {
                       Tolak seluruh proses
                     </button>
                   )}
-                </div>
-              )}
-
-              {status === "QC_REVIEW" && canApprove && (
-                <div className="flex gap-2">
-                  <button onClick={() => setShowRejectModal(true)} disabled={isBusy}
-                    className="flex-1 py-3 border-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl font-semibold text-sm disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                  >Tolak</button>
-                  <button onClick={() => confirmMut.mutateAsync()} disabled={isBusy}
-                    className="flex-1 py-3 bg-green-600 text-white rounded-xl font-semibold text-sm disabled:opacity-50 hover:bg-green-700 transition-all"
-                  >Konfirmasi</button>
                 </div>
               )}
 
@@ -1586,9 +1590,9 @@ export default function GoodsProcessingDetailPage() {
             </button>
           )}
 
-          {(status === "PROCESSING" || status === "REJECTED") && isEditable && (
+          {(isInProgress || status === "REJECTED") && isEditable && (
             <div className="space-y-2">
-              {doneCount > 0 && canApprove && status === "PROCESSING" ? (
+              {doneCount > 0 && canApprove && isInProgress ? (
                 <button type="button" onClick={handleConfirmGp} disabled={isBusy}
                   className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
                 >
@@ -1625,17 +1629,6 @@ export default function GoodsProcessingDetailPage() {
             </div>
           )}
 
-
-          {status === "QC_REVIEW" && canApprove && (
-            <div className="flex gap-2">
-              <button onClick={() => setShowRejectModal(true)} disabled={isBusy}
-                className="flex-1 py-3.5 border-2 border-red-200 text-red-600 rounded-2xl font-semibold text-sm disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-              >Tolak</button>
-              <button onClick={() => confirmMut.mutateAsync()} disabled={isBusy}
-                className="flex-1 py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm disabled:opacity-50 hover:bg-green-700 transition-all"
-              >Konfirmasi</button>
-            </div>
-          )}
 
           {status === "CONFIRMED" && (
             <div className="flex items-center justify-center gap-2 py-2">
