@@ -11,6 +11,7 @@ import {
 } from "../api/purchaseInvoices.api";
 import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
+import { isSupplierEligibleForPurchaseInvoice } from "@/lib/marketplaceSupplier";
 import api from "@/lib/axios";
 
 interface PILine {
@@ -55,7 +56,14 @@ export default function PurchaseInvoiceFormPage() {
     branchId,
   );
 
-  const suppliers = suppliersData?.data ?? [];
+  const suppliers = useMemo(() => {
+    const all = suppliersData?.data ?? [];
+    return all.filter(
+      (s) =>
+        isSupplierEligibleForPurchaseInvoice(s) ||
+        (isEdit && s.id === existingPI?.supplier_id),
+    );
+  }, [suppliersData, isEdit, existingPI?.supplier_id]);
   const branches = branchesData?.data ?? [];
 
   // Initialize for edit mode

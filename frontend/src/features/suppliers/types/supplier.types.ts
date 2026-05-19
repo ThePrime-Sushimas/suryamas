@@ -23,6 +23,9 @@ export interface Supplier {
   rating: number | null
   is_active: boolean
   notes: string | null
+  requires_invoice: boolean
+  invoice_bypass_reason: InvoiceBypassReason | null
+  default_tax_rate: number
   created_at: string
   updated_at: string
   deleted_at: string | null
