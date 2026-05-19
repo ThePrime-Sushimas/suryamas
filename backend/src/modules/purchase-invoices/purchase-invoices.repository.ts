@@ -76,7 +76,262 @@ const LINE_FROM = `
   JOIN products p ON p.id = pil.product_id
 `
 
+export type GrLineDetailForInvoicing = {
+  id: string
+  gr_id: string
+  product_id: string
+  qty_received: string | number
+  unit_price_po: string | number
+  qty_po: string | number
+}
+
 export class PurchaseInvoicesRepository {
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  async findGrLineDetailsForInvoicing(client: PoolClient, grLineIds: string[]): Promise<GrLineDetailForInvoicing[]> {
+    const { rows } = await client.query(
+      `SELECT grl.id, grl.gr_id, grl.product_id, grl.qty_received, grl.unit_price_po, pol.qty AS qty_po
+       FROM goods_receipt_lines grl
+       JOIN purchase_order_lines pol ON pol.id = grl.po_line_id
+       WHERE grl.id = ANY($1::uuid[])`,
+      [grLineIds],
+    )
+    return rows
+  }
+
+  async copyAttachmentsFromGrs(client: PoolClient, invoiceId: string, grIds: string[]): Promise<void> {
+    await client.query(
+      `INSERT INTO purchase_invoice_attachments (purchase_invoice_id, file_path, file_name, file_type, file_size, uploaded_by)
+       SELECT $1, file_path, file_name, file_type, file_size, uploaded_by
+       FROM goods_receipt_attachments
+       WHERE gr_id = ANY($2::uuid[])
+       AND NOT EXISTS (
+         SELECT 1 FROM purchase_invoice_attachments
+         WHERE purchase_invoice_id = $1 AND file_path = goods_receipt_attachments.file_path
+       )`,
+      [invoiceId, grIds],
+    )
+  }
+
+  async findUnconfirmedGpProcessingNumber(client: PoolClient, invoiceId: string): Promise<string | null> {
+    const { rows } = await client.query(
+      `SELECT gp.processing_number
+       FROM purchase_invoice_lines pil
+       JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
+       JOIN goods_processing gp ON gp.id = gpi.goods_processing_id
+       WHERE pil.purchase_invoice_id = $1
+         AND pil.deleted_at IS NULL
+         AND gpi.status != 'CONFIRMED'
+       LIMIT 1`,
+      [invoiceId],
+    )
+    return rows[0]?.processing_number ?? null
+  }
+
+  async recomputeStockBalanceAvgCost(client: PoolClient, warehouseId: string, productId: string): Promise<void> {
+    const { rows } = await client.query(
+      `SELECT
+         CASE WHEN sb.qty > 0
+           THEN (
+             SELECT SUM(sm.qty * sm.cost_per_unit) / NULLIF(SUM(sm.qty), 0)
+             FROM stock_movements sm
+             WHERE sm.warehouse_id = $1 AND sm.product_id = $2
+               AND sm.qty > 0 AND sm.cost_per_unit > 0
+           )
+           ELSE 0
+         END AS new_avg_cost
+       FROM stock_balances sb
+       WHERE sb.warehouse_id = $1 AND sb.product_id = $2`,
+      [warehouseId, productId],
+    )
+    const newAvgCost = Number(rows[0]?.new_avg_cost ?? 0)
+    await client.query(
+      'UPDATE stock_balances SET avg_cost = $1, updated_at = now() WHERE warehouse_id = $2 AND product_id = $3',
+      [newAvgCost, warehouseId, productId],
+    )
+  }
+
+  async findCoaIdsByCodes(client: PoolClient, companyId: string, codes: string[]): Promise<Array<{ account_code: string; id: string }>> {
+    const { rows } = await client.query(
+      `SELECT id, account_code
+       FROM chart_of_accounts
+       WHERE company_id = $1 AND account_code = ANY($2::text[])`,
+      [companyId, codes],
+    )
+    return rows.map((r) => ({ account_code: String(r.account_code), id: String(r.id) }))
+  }
+
+  async findFiscalPeriodForDate(client: PoolClient, companyId: string, date: string): Promise<string | null> {
+    const { rows } = await client.query(
+      `SELECT period FROM fiscal_periods
+       WHERE company_id = $1 AND period_start <= $2::date AND period_end >= $2::date
+       LIMIT 1`,
+      [companyId, date],
+    )
+    return rows[0]?.period ?? null
+  }
+
+  async getNextJournalSequence(client: PoolClient, companyId: string, period: string): Promise<number> {
+    const { rows } = await client.query(
+      `SELECT get_next_journal_sequence($1, $2, 'GENERAL'::journal_type_enum) AS seq`,
+      [companyId, period],
+    )
+    return Number(rows[0].seq)
+  }
+
+  async findAttachmentsByInvoiceId(invoiceId: string) {
+    const { rows } = await pool.query(
+      `SELECT * FROM purchase_invoice_attachments WHERE purchase_invoice_id = $1 ORDER BY uploaded_at DESC`,
+      [invoiceId],
+    )
+    return rows
+  }
+
+  async findGrWithPoForDraft(client: PoolClient, grId: string, companyId: string) {
+    const { rows } = await client.query(
+      `SELECT gr.*, po.supplier_id, po.branch_id
+       FROM goods_receipts gr
+       JOIN purchase_orders po ON po.id = gr.po_id
+       WHERE gr.id = $1 AND gr.company_id = $2`,
+      [grId, companyId],
+    )
+    return rows[0] ?? null
+  }
+
+  async findGrLinesForDraft(client: PoolClient, grId: string) {
+    const { rows } = await client.query(
+      `SELECT grl.*, pol.unit_price AS unit_price_po, pol.qty AS qty_po
+       FROM goods_receipt_lines grl
+       JOIN purchase_order_lines pol ON pol.id = grl.po_line_id
+       WHERE grl.gr_id = $1`,
+      [grId],
+    )
+    return rows
+  }
+
+  async findGrAttachmentsForDraft(client: PoolClient, grId: string) {
+    const { rows } = await client.query(
+      `SELECT * FROM goods_receipt_attachments WHERE gr_id = $1`,
+      [grId],
+    )
+    return rows
+  }
+
+  async insertInvoiceAttachment(
+    client: PoolClient,
+    invoiceId: string,
+    filePath: string,
+    fileName: string,
+    fileType: string,
+    uploadedBy: string,
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO purchase_invoice_attachments (
+         purchase_invoice_id, file_path, file_name, file_type, uploaded_by
+       ) VALUES ($1, $2, $3, $4, $5)`,
+      [invoiceId, filePath, fileName, fileType, uploadedBy],
+    )
+  }
+
+  async findDraftInvoicesForMerge(client: PoolClient, invoiceIds: string[], companyId: string) {
+    const { rows } = await client.query(
+      `SELECT * FROM purchase_invoices
+       WHERE id = ANY($1::uuid[]) AND company_id = $2 AND status = 'DRAFT' AND deleted_at IS NULL`,
+      [invoiceIds, companyId],
+    )
+    return rows
+  }
+
+  async moveLinesToMasterInvoice(client: PoolClient, masterId: string, userId: string, invoiceIds: string[]): Promise<void> {
+    await client.query(
+      `UPDATE purchase_invoice_lines
+       SET purchase_invoice_id = $1, updated_by = $2, updated_at = NOW()
+       WHERE purchase_invoice_id = ANY($3::uuid[]) AND deleted_at IS NULL`,
+      [masterId, userId, invoiceIds],
+    )
+  }
+
+  async moveGrLinksToMasterInvoice(client: PoolClient, masterId: string, invoiceIds: string[]): Promise<void> {
+    await client.query(
+      `UPDATE purchase_invoice_gr_links SET purchase_invoice_id = $1 WHERE purchase_invoice_id = ANY($2::uuid[])`,
+      [masterId, invoiceIds],
+    )
+  }
+
+  async moveAttachmentsToMasterInvoice(client: PoolClient, masterId: string, invoiceIds: string[]): Promise<void> {
+    await client.query(
+      `UPDATE purchase_invoice_attachments SET purchase_invoice_id = $1 WHERE purchase_invoice_id = ANY($2::uuid[])`,
+      [masterId, invoiceIds],
+    )
+  }
+
+  async sumLineTotalsForInvoice(client: PoolClient, invoiceId: string): Promise<{ subtotal: number; total_tax: number; total_amount: number }> {
+    const { rows } = await client.query(
+      `SELECT SUM(subtotal) AS subtotal, SUM(tax_amount) AS total_tax, SUM(total) AS total_amount
+       FROM purchase_invoice_lines
+       WHERE purchase_invoice_id = $1 AND deleted_at IS NULL`,
+      [invoiceId],
+    )
+    return {
+      subtotal: Number(rows[0]?.subtotal ?? 0),
+      total_tax: Number(rows[0]?.total_tax ?? 0),
+      total_amount: Number(rows[0]?.total_amount ?? 0),
+    }
+  }
+
+  async updateMasterInvoiceAfterMerge(
+    client: PoolClient,
+    masterId: string,
+    totals: { subtotal: number; total_tax: number; total_amount: number },
+    sourceInvoiceIds: string[],
+    userId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE purchase_invoices
+       SET subtotal = $1, total_tax = $2, total_amount = $3,
+           merged_from_invoice_ids = $4, updated_by = $5, updated_at = NOW()
+       WHERE id = $6`,
+      [totals.subtotal, totals.total_tax, totals.total_amount, sourceInvoiceIds, userId, masterId],
+    )
+  }
+
+  async softDeleteInvoicesByIds(client: PoolClient, invoiceIds: string[], userId: string): Promise<void> {
+    await client.query(
+      `UPDATE purchase_invoices SET deleted_at = NOW(), updated_by = $1, updated_at = NOW() WHERE id = ANY($2::uuid[])`,
+      [userId, invoiceIds],
+    )
+  }
+
+  async findStatusCounts(companyId: string): Promise<{ verify_count: number; approval_count: number; final_count: number }> {
+    const { rows } = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status IN ('DRAFT', 'REJECTED')) AS verify_count,
+         COUNT(*) FILTER (WHERE status = 'SUBMITTED') AS approval_count,
+         COUNT(*) FILTER (WHERE status = 'APPROVED') AS final_count
+       FROM purchase_invoices
+       WHERE company_id = $1 AND deleted_at IS NULL`,
+      [companyId],
+    )
+    return {
+      verify_count: Number(rows[0].verify_count),
+      approval_count: Number(rows[0].approval_count),
+      final_count: Number(rows[0].final_count),
+    }
+  }
+
   /**
    * Build posting rows for cost allocation + journal + qty_invoiced updates.
    * Mapping:
