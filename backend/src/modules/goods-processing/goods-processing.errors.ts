@@ -41,3 +41,23 @@ export class GoodsProcessingReturnNotPendingError extends BusinessRuleError {
     super('Barang retur ini sudah diproses atau tidak ditandai retur')
   }
 }
+
+export class GoodsProcessingInputsNotCompleteError extends BusinessRuleError {
+  constructor(doneCount: number, totalCount: number) {
+    super(
+      `Belum semua item selesai (${doneCount}/${totalCount}). Selesaikan tiap item dengan "Selesaikan item ini" terlebih dahulu.`,
+    )
+  }
+}
+
+export class GoodsProcessingNotReopenableError extends BusinessRuleError {
+  constructor(current: string) {
+    super(`GP status "${current}" tidak bisa dibuka kembali. Hanya GP berstatus CONFIRMED.`)
+  }
+}
+
+export class GoodsProcessingReopenNotNeededError extends BusinessRuleError {
+  constructor() {
+    super('Semua item sudah selesai — GP tidak perlu dibuka kembali.')
+  }
+}

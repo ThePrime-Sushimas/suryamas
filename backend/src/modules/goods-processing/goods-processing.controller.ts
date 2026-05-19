@@ -67,6 +67,18 @@ export class GoodsProcessingController {
     }
   }
 
+  reopen = async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string
+      const companyId = getCompanyId(req)
+      const userId = getUserId(req)
+      const result = await goodsProcessingService.reopen(id, companyId, userId)
+      sendSuccess(res, result, 'Goods processing dibuka kembali untuk melanjutkan item')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reopen_goods_processing' })
+    }
+  }
+
   confirm = async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string

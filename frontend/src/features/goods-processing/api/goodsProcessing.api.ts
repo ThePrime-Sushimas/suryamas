@@ -152,6 +152,20 @@ export function useConfirmGoodsProcessing(id: string) {
   })
 }
 
+export function useReopenGoodsProcessing(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/goods-processing/${id}/reopen`)
+      return data.data as GoodsProcessingDetail
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(gpKeys.detail(id), data)
+      qc.invalidateQueries({ queryKey: gpKeys.lists() })
+    },
+  })
+}
+
 export function useRejectGoodsProcessing(id: string) {
   const qc = useQueryClient()
   return useMutation({

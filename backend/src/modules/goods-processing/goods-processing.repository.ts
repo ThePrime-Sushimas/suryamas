@@ -421,6 +421,35 @@ async updateWithOutputs(
   }
 }
 
+/** Batalkan finalisasi QC — kembalikan ke PROCESSING/PARTIAL agar item belum DONE bisa dilanjutkan. */
+async reopenProcessing(id: string, userId: string): Promise<'PROCESSING' | 'PARTIAL'> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    const { rows: lineRows } = await client.query<{ status: string }>(
+      'SELECT status FROM goods_processing_inputs WHERE goods_processing_id = $1',
+      [id],
+    )
+    const anyDone = lineRows.some((r) => r.status === 'DONE')
+    const newStatus = anyDone ? 'PARTIAL' : 'PROCESSING'
+
+    await this.updateStatus(client, id, newStatus, {
+      qc_confirmed_by: null,
+      qc_confirmed_at: null,
+      updated_by: userId,
+    })
+
+    await client.query('COMMIT')
+    return newStatus
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
 async rejectGp(id: string, rejection_reason: string, userId: string): Promise<void> {
   const client = await pool.connect()
   try {

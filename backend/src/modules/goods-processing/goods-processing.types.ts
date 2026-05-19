@@ -59,7 +59,7 @@ export interface GoodsProcessingInput {
   qty_input: number;
   uom: string;
   sort_order: number;
-  status: "PENDING" | "PROCESSING" | "QC_REVIEW" | "CONFIRMED" | "REJECTED";
+  status: "PENDING" | "PROCESSING" | "DONE" | "QC_REVIEW" | "CONFIRMED" | "REJECTED";
   processed_by: string | null;
   processed_at: string | null;
   qc_confirmed_by: string | null;

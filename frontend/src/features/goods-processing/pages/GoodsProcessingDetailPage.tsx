@@ -15,6 +15,7 @@ import {
   useGoodsProcessingDetail,
   useStartGoodsProcessing,
   useConfirmGoodsProcessing,
+  useReopenGoodsProcessing,
   useResolveReturn,
   useConfirmGoodsProcessingInput,
 } from "../api/goodsProcessing.api";
@@ -1446,6 +1447,7 @@ export default function GoodsProcessingDetailPage() {
   const { data: gp, isLoading, error } = useGoodsProcessingDetail(id!)
   const startMut = useStartGoodsProcessing(id!)
   const confirmMut = useConfirmGoodsProcessing(id!)
+  const reopenMut = useReopenGoodsProcessing(id!)
   const resolveMut = useResolveReturn(id!)
   const resolveInFlightRef = useRef(false)
   const confirmInputMut = useConfirmGoodsProcessingInput(id!)
@@ -1511,14 +1513,16 @@ export default function GoodsProcessingDetailPage() {
   const totalCount = localInputs.length
   const allDone = doneCount === totalCount && totalCount > 0
 
+  const needsReopen = gp?.status === "CONFIRMED" && !allDone
+
   const showMobileActionBar = useMemo(() => {
     if (!gp) return false
     const s = gp.status
     if (s === "DRAFT" && canUpdate) return true
-    if (s === "CONFIRMED") return true
-    if ((s === "PROCESSING" || s === "PARTIAL") && doneCount > 0 && canApprove) return true
+    if (s === "CONFIRMED" && (allDone || (needsReopen && canApprove))) return true
+    if ((s === "PROCESSING" || s === "PARTIAL") && allDone && canApprove) return true
     return false
-  }, [gp, canUpdate, canApprove, doneCount])
+  }, [gp, canUpdate, canApprove, allDone, needsReopen])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -1551,13 +1555,44 @@ export default function GoodsProcessingDetailPage() {
 
   const handleConfirmGp = useCallback(async () => {
     if (!gp) return
+    if (!allDone) {
+      addToast(
+        "error",
+        `Belum semua item selesai (${doneCount}/${totalCount}). Gunakan "Selesaikan item ini" per produk dulu.`,
+      )
+      return
+    }
+    if (
+      !window.confirm(
+        "Finalisasi GP ini? Semua item sudah selesai. Setelah dikonfirmasi, GP tidak bisa diedit lagi.",
+      )
+    ) {
+      return
+    }
     try {
       await confirmMut.mutateAsync()
-      addToast("success", "Barang masuk gudang ✓")
+      addToast("success", "GP difinalisasi ✓")
     } catch (e) {
       addToast("error", parseApiError(e, "Gagal konfirmasi"))
     }
-  }, [gp, confirmMut, addToast])
+  }, [gp, confirmMut, addToast, allDone, doneCount, totalCount])
+
+  const handleReopen = useCallback(async () => {
+    if (!gp || !needsReopen) return
+    if (
+      !window.confirm(
+        `GP ini terlanjur difinalisasi padahal baru ${doneCount}/${totalCount} item selesai. Buka kembali agar item sisanya bisa diproses?`,
+      )
+    ) {
+      return
+    }
+    try {
+      await reopenMut.mutateAsync()
+      addToast("success", "GP dibuka kembali — lanjutkan item yang belum selesai")
+    } catch (e) {
+      addToast("error", parseApiError(e, "Gagal membuka kembali GP"))
+    }
+  }, [gp, needsReopen, doneCount, totalCount, reopenMut, addToast])
 
   const handleStart = useCallback(async () => {
     try {
@@ -1626,7 +1661,7 @@ export default function GoodsProcessingDetailPage() {
   const status = gp.status
   const isInProgress = status === "PROCESSING" || status === "PARTIAL"
   const cfg = resolveGpHeaderStatusConfig(status, doneCount, totalCount)
-  const isBusy = startMut.isPending || confirmMut.isPending || resolveMut.isPending
+  const isBusy = startMut.isPending || confirmMut.isPending || reopenMut.isPending || resolveMut.isPending
   const resolvingOutputId = resolveMut.isPending ? (resolveMut.variables?.outputId ?? null) : null
   const resolvingResolution = resolveMut.isPending ? (resolveMut.variables?.resolution ?? null) : null
   const addOutputInput = addOutputFor != null ? localInputs.find(inp => inp.id === addOutputFor) : null
@@ -1769,24 +1804,46 @@ export default function GoodsProcessingDetailPage() {
 
               {isInProgress && isEditable && (
                 <div className="space-y-2">
-                  {doneCount > 0 && isInProgress && (
-                    <p className="text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
-                      {allDone ? "Semua item selesai." : `${doneCount} dari ${totalCount} item selesai, stok sudah masuk gudang.`}
-                      {canApprove ? " Konfirmasi untuk finalisasi proses." : " Menunggu konfirmasi final."}
+                  {doneCount > 0 && !allDone && (
+                    <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                      {doneCount} dari {totalCount} item selesai (stok item itu sudah masuk).
+                      Selesaikan sisanya dengan <strong>Selesaikan item ini</strong> — tombol finalisasi GP baru muncul jika semua item selesai.
                     </p>
                   )}
-                  {doneCount > 0 && canApprove && isInProgress && (
+                  {allDone && (
+                    <p className="text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+                      Semua item selesai.
+                      {canApprove
+                        ? " Finalisasi GP untuk menutup dokumen (tidak bisa diedit lagi)."
+                        : " Menunggu persetujuan finalisasi."}
+                    </p>
+                  )}
+                  {allDone && canApprove && (
                     <button type="button" onClick={handleConfirmGp} disabled={isBusy}
                       className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
                     >
                       <CheckCircle2 size={16} />
-                      {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
+                      {isBusy ? "Memproses..." : "Finalisasi GP"}
                     </button>
                   )}
                 </div>
               )}
 
-              {status === "CONFIRMED" && (
+              {needsReopen && canApprove && (
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                    GP terlanjur difinalisasi ({doneCount}/{totalCount} item selesai). Item belum selesai tidak bisa diedit sampai dibuka kembali.
+                  </p>
+                  <button type="button" onClick={handleReopen} disabled={isBusy}
+                    className="w-full py-3 bg-amber-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-amber-700 transition-all"
+                  >
+                    <RotateCcw size={16} />
+                    {isBusy ? "Memproses..." : "Buka kembali untuk lanjutkan item"}
+                  </button>
+                </div>
+              )}
+
+              {status === "CONFIRMED" && allDone && (
                 <div className="flex items-center justify-center gap-2 py-2">
                   <CheckCircle2 size={16} className="text-green-600" />
                   <p className="text-sm text-green-700 dark:text-green-300 font-medium">Proses selesai</p>
@@ -1847,17 +1904,26 @@ export default function GoodsProcessingDetailPage() {
             </button>
           )}
 
-          {isInProgress && isEditable && doneCount > 0 && canApprove && (
+          {isInProgress && isEditable && allDone && canApprove && (
             <button type="button" onClick={handleConfirmGp} disabled={isBusy}
               className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition-all"
             >
               <CheckCircle2 size={16} />
-              {isBusy ? "Memproses..." : allDone ? "Konfirmasi selesai" : "Konfirmasi sebagian"}
+              {isBusy ? "Memproses..." : "Finalisasi GP"}
             </button>
           )}
 
 
-          {status === "CONFIRMED" && (
+          {needsReopen && canApprove && (
+            <button type="button" onClick={handleReopen} disabled={isBusy}
+              className="w-full py-3.5 bg-amber-600 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-amber-700 transition-all"
+            >
+              <RotateCcw size={16} />
+              {isBusy ? "Memproses..." : "Buka kembali untuk lanjutkan item"}
+            </button>
+          )}
+
+          {status === "CONFIRMED" && allDone && (
             <div className="flex items-center justify-center gap-2 py-2">
               <CheckCircle2 size={16} className="text-green-600" />
               <p className="text-sm text-green-700 dark:text-green-300 font-medium">Proses selesai · Stok sudah masuk gudang</p>

@@ -5,6 +5,9 @@ import {
   GoodsProcessingInvalidStatusError,
   GoodsProcessingOutputExceedsInputError,
   GoodsProcessingReturnNotPendingError,
+  GoodsProcessingInputsNotCompleteError,
+  GoodsProcessingNotReopenableError,
+  GoodsProcessingReopenNotNeededError,
 } from './goods-processing.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import {
@@ -198,6 +201,12 @@ export class GoodsProcessingService {
       throw new GoodsProcessingInvalidStatusError(detail.status, CONFIRMABLE_STATUSES.join('/'))
     }
 
+    const totalInputs = detail.inputs.length
+    const doneInputs = detail.inputs.filter((inp) => inp.status === 'DONE').length
+    if (totalInputs > 0 && doneInputs < totalInputs) {
+      throw new GoodsProcessingInputsNotCompleteError(doneInputs, totalInputs)
+    }
+
     const allProductIds = [
       ...detail.inputs.map(inp => inp.product_id),
       ...detail.inputs.flatMap(inp => inp.outputs.map(o => o.product_id)),
@@ -236,6 +245,32 @@ export class GoodsProcessingService {
     )
 
     await AuditService.log('UPDATE', 'goods_processing', id, userId, { status: detail.status }, { status: 'CONFIRMED' })
+    return goodsProcessingRepository.findDetail(id, companyId)
+  }
+
+  async reopen(id: string, companyId: string, userId: string) {
+    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+    if (!detail) throw new GoodsProcessingNotFoundError(id)
+    if (detail.status !== 'CONFIRMED') {
+      throw new GoodsProcessingNotReopenableError(detail.status)
+    }
+
+    const totalInputs = detail.inputs.length
+    const doneInputs = detail.inputs.filter((inp) => inp.status === 'DONE').length
+    if (totalInputs === 0 || doneInputs >= totalInputs) {
+      throw new GoodsProcessingReopenNotNeededError()
+    }
+
+    const newStatus = await goodsProcessingRepository.reopenProcessing(id, userId)
+
+    await AuditService.log(
+      'UPDATE',
+      'goods_processing',
+      id,
+      userId,
+      { status: 'CONFIRMED' },
+      { status: newStatus, reason: 'reopen_incomplete_lines' },
+    )
     return goodsProcessingRepository.findDetail(id, companyId)
   }
 

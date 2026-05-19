@@ -645,6 +645,24 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  GoodsProcessingInputsNotCompleteError: {
+    name: 'GoodsProcessingInputsNotCompleteError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsProcessingNotReopenableError: {
+    name: 'GoodsProcessingNotReopenableError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsProcessingReopenNotNeededError: {
+    name: 'GoodsProcessingReopenNotNeededError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
 } as const;
 
 export type ErrorRegistryKey = keyof typeof ERROR_REGISTRY;

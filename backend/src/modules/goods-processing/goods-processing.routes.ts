@@ -22,6 +22,7 @@ router.post('/bulk-confirm', requireWriteAccess, canApprove('goods_processing'),
 router.get('/:id',                             canView('goods_processing'),    validateSchema(IdParamSchema),                (req, res) => goodsProcessingController.getById(req, res))
 router.put('/:id',                             requireWriteAccess, canUpdate('goods_processing'),  validateSchema(UpdateGoodsProcessingSchema), (req, res) => goodsProcessingController.update(req, res))
 router.post('/:id/start',                      requireWriteAccess, canUpdate('goods_processing'),  validateSchema(IdParamSchema),               (req, res) => goodsProcessingController.start(req, res))
+router.post('/:id/reopen',                     requireWriteAccess, canApprove('goods_processing'), validateSchema(IdParamSchema),               (req, res) => goodsProcessingController.reopen(req, res))
 router.post('/:id/confirm',                    requireWriteAccess, canApprove('goods_processing'), validateSchema(IdParamSchema),               (req, res) => goodsProcessingController.confirm(req, res))
 router.post('/:id/reject',                     requireWriteAccess, canApprove('goods_processing'), validateSchema(RejectSchema),                (req, res) => goodsProcessingController.reject(req, res))
 router.post('/:id/outputs/:outputId/resolve-return', requireWriteAccess, canApprove('goods_processing'), validateSchema(ResolveReturnSchema),   (req, res) => goodsProcessingController.resolveReturn(req, res))
