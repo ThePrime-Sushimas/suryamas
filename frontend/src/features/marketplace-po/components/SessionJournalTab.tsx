@@ -16,7 +16,7 @@ interface JournalBlock {
 export function SessionJournalTab({ header }: { header: MarketplaceCheckoutSession }) {
   const toast = useToast()
   const hasPermission = usePermissionStore((s) => s.hasPermission)
-  const canRelease = hasPermission('marketplace_po', 'release')
+  const canUpdate = hasPermission('marketplace_po', 'update')
   const postJournal = usePostReceiveJournal()
   const [posting, setPosting] = useState(false)
 
@@ -51,7 +51,7 @@ export function SessionJournalTab({ header }: { header: MarketplaceCheckoutSessi
   ]
 
   const showPostButton =
-    canRelease &&
+    canUpdate &&
     header.status === 'RECEIVED' &&
     !header.journal_received_id
 

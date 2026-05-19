@@ -96,7 +96,7 @@ router.post(
 
 router.post(
   '/marketplace-sessions/:id/post-receive-journal',
-  canRelease('marketplace_po'),
+  canUpdate('marketplace_po'),
   validateSchema(postReceiveJournalSchema),
   (req, res) => marketplacePoController.postReceiveJournal(req, res),
 )

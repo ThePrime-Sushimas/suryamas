@@ -9,6 +9,7 @@ import { usePermissionStore } from '@/features/branch_context/store/permission.s
 import {
   useMarketplaceSessions,
   useCancelMarketplaceSession,
+  usePostReceiveJournal,
 } from '../api/marketplacePo.api'
 import { SessionStatusBadge, PlatformBadge } from '../components/SessionStatusBadge'
 import { fmtCurrency, fmtDate } from '../utils/format'
@@ -26,6 +27,7 @@ export default function MarketplacePoListPage() {
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('marketplace_po', 'insert')
   const canDelete = hasPermission('marketplace_po', 'delete')
+  const canUpdate = hasPermission('marketplace_po', 'update')
 
   const [page, setPage] = useState(1)
   const [platform, setPlatform] = useState('')
@@ -46,6 +48,20 @@ export default function MarketplacePoListPage() {
 
   const { data, isLoading } = useMarketplaceSessions(params)
   const cancelSession = useCancelMarketplaceSession()
+  const postJournal = usePostReceiveJournal()
+  const [postingId, setPostingId] = useState<string | null>(null)
+
+  const handleQuickPostJournal = async (s: MarketplaceCheckoutSession) => {
+    setPostingId(s.id)
+    try {
+      await postJournal.mutateAsync({ id: s.id })
+      toast.success(`Journal receive untuk ${s.session_number} berhasil di-post`)
+    } catch (err) {
+      toast.error(parseApiError(err, 'Gagal post journal'))
+    } finally {
+      setPostingId(null)
+    }
+  }
 
   const sessions = data?.data ?? []
   const pagination = data?.pagination
@@ -214,6 +230,16 @@ export default function MarketplacePoListPage() {
                             Batalkan
                           </button>
                         )}
+                        {s.status === 'RECEIVED' && !s.journal_received_id && canUpdate && (
+                          <button
+                            type="button"
+                            disabled={postingId !== null}
+                            onClick={() => handleQuickPostJournal(s)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
+                          >
+                            {postingId === s.id ? 'Memproses...' : 'Post Jurnal'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -242,7 +268,19 @@ export default function MarketplacePoListPage() {
                     <PlatformBadge platform={s.platform} />
                     <span className="text-xs text-gray-500">{fmtDate(s.checkout_date)}</span>
                   </div>
-                  <p className="mt-2 text-sm font-medium">{fmtCurrency(s.total_amount)}</p>
+                  <div className="mt-3 flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
+                    <p className="text-sm font-medium">{fmtCurrency(s.total_amount)}</p>
+                    {s.status === 'RECEIVED' && !s.journal_received_id && canUpdate && (
+                      <button
+                        type="button"
+                        disabled={postingId !== null}
+                        onClick={() => handleQuickPostJournal(s)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
+                      >
+                        {postingId === s.id ? 'Memproses...' : 'Post Jurnal'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             )}
