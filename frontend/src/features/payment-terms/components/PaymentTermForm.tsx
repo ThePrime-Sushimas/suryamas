@@ -72,9 +72,9 @@ const CALCULATION_TYPES: { value: CalculationType; label: string }[] = [
   { value: 'from_delivery', label: 'From Delivery Date' },
   { value: 'fixed_date', label: 'Fixed Dates (skip if same day)' },
   { value: 'fixed_date_immediate', label: 'Fixed Dates (pay same day if match)' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly (next slot after anchor day)' },
-  { value: 'monthly_immediate', label: 'Monthly (same-day slot counts)' },
+  { value: 'weekly', label: 'Mingguan (hari bayar pertama ≥ acuan; boleh hari yang sama)' },
+  { value: 'monthly', label: 'Bulanan (slot berikutnya, bukan hari yang sama)' },
+  { value: 'monthly_immediate', label: 'Bulanan (slot boleh hari yang sama dengan acuan)' },
 ]
 
 const PAYMENT_METHODS = ['Cash', 'Bank Transfer', 'Credit Card', 'Check', 'E-Wallet']
@@ -387,7 +387,11 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             <option value="5">Friday</option>
             <option value="6">Saturday</option>
           </select>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Payment due every selected day of the week</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Jatuh tempo di <strong>hari pembayaran pertama pada atau setelah</strong> tanggal acuan (setelah offset hari di atas).
+            Kalau tanggal acuan sudah jatuh di hari itu — misalnya terima barang hari Senin dan pembayaran tiap Senin — maka{' '}
+            <strong>jatuh tempo tetap hari Senin yang sama</strong>, bukan Senin berikutnya.
+          </p>
         </div>
       )}
 
@@ -402,16 +406,21 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
           <div className="flex-1">
             <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">Preview Due Date</h4>
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              {formData.calculation_type === 'fixed_date' 
-                ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'}. Next: ${getPreviewDueDate()}`
+              {formData.calculation_type === 'fixed_date'
+                ? `Tanggal tetap (strict): slot jadwal harus setelah tanggal acuan. Jadwal: ${formData.payment_dates?.map((d) => (d === 999 ? 'akhir bulan' : d)).join(', ') || '-'}. Contoh jatuh tempo: ${getPreviewDueDate()}`
                 : formData.calculation_type === 'fixed_date_immediate' || formData.calculation_type === 'monthly_immediate'
-                ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'} (termasuk hari ini / slot sama dengan acuan). Contoh: ${getPreviewDueDate()}`
-                : formData.calculation_type === 'monthly'
-                ? `Monthly payment on day ${formData.payment_dates?.[0] === 999 ? 'end of month' : formData.payment_dates?.[0] || '-'}: ${getPreviewDueDate()}`
-                : `If ${formData.calculation_type === 'from_delivery' ? 'delivery' : formData.calculation_type === 'weekly' ? 'any' : 'invoice'} date is today, payment due: ${getPreviewDueDate()}`
-              }
+                  ? `Slot jadwal boleh di hari yang sama dengan tanggal acuan (setelah offset hari). Jadwal: ${formData.payment_dates?.map((d) => (d === 999 ? 'akhir bulan' : d)).join(', ') || '-'}. Contoh: ${getPreviewDueDate()}`
+                  : formData.calculation_type === 'monthly'
+                    ? `Bulanan (strict): seperti tanggal tetap — slot berikutnya setelah tanggal acuan, bukan hari yang sama. Contoh: ${getPreviewDueDate()}`
+                    : formData.calculation_type === 'weekly'
+                      ? `Mingguan: ke hari pembayaran pertama pada atau setelah tanggal acuan (setelah ${formData.days} hari). Jika acuan sudah di hari bayar, tanggal jatuh tempo = hari itu. Contoh (hari ini sebagai acuan): ${getPreviewDueDate()}`
+                      : formData.calculation_type === 'from_delivery' || formData.calculation_type === 'from_invoice'
+                        ? `Offset ${formData.days} hari dari tanggal acuan (${formData.calculation_type === 'from_delivery' ? 'kirim / terima' : 'invoice'}). Contoh: ${getPreviewDueDate()}`
+                        : `Contoh jatuh tempo (hari ini sebagai tanggal acuan): ${getPreviewDueDate()}`}
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">This is an example calculation for reference</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              Contoh memakai <strong>hari ini</strong> sebagai tanggal acuan; setelah simpan, sistem memakai tanggal GR / invoice sesuai modul.
+            </p>
           </div>
         </div>
       </div>
