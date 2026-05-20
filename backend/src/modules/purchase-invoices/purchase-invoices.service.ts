@@ -13,13 +13,18 @@ import {
   PurchaseInvoiceJournalAlreadyExistsError,
   PurchaseInvoiceNotFoundError,
 } from './purchase-invoices.errors'
+import {
+  buildPiPaymentDueInfo,
+  computePurchaseInvoiceDueDate,
+} from './purchase-invoice-payment.util'
+import type { PoPaymentTermSnapshot } from '../purchase-orders/purchase-order-payment.util'
 import type {
   CreatePurchaseInvoiceDto,
   PurchaseInvoiceDetail,
   PurchaseInvoiceLine,
+  PurchaseInvoiceWithRelations,
   UpdatePurchaseInvoiceDto,
 } from './purchase-invoices.types'
-import { calculateDueDate } from '../../utils/due-date.util'
 import {
   defaultQtyInvoicedInInvoiceUom,
   mergePricelistUomForConversion,
@@ -31,6 +36,7 @@ import {
 import { pricelistsRepository } from '../pricelists/pricelists.repository'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import { suppliersRepository } from '../suppliers/suppliers.repository'
+import type { CalculationType } from '../payment-terms/payment-terms.types'
 
 function computeLineTotals(qtyInvoiced: number, unitPrice: number, taxRate: number) {
   const subtotal = qtyInvoiced * unitPrice
@@ -72,6 +78,42 @@ export class PurchaseInvoicesService {
       uomsByProduct.set(row.product_id, list)
     }
     return { pricelistByProduct, uomsByProduct }
+  }
+
+  private toTermSnapshot(
+    term: Awaited<ReturnType<typeof purchaseOrdersRepository.findSupplierPaymentTerm>>,
+  ): PoPaymentTermSnapshot | null {
+    if (!term) return null
+    return {
+      payment_term_id: term.payment_term_id,
+      term_name: term.term_name,
+      calculation_type: term.calculation_type as CalculationType,
+      days: term.days,
+      grace_period_days: term.grace_period_days,
+      payment_dates: term.payment_dates,
+      payment_day_of_week: term.payment_day_of_week,
+    }
+  }
+
+  /** Persist estimated due_date on draft PI (visible before verify/post). */
+  private async syncDraftDueDate(
+    client: PoolClient,
+    invoiceId: string,
+    supplierId: string,
+    invoiceDate: string,
+  ): Promise<void> {
+    const [term, ctxMap] = await Promise.all([
+      purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client),
+      purchaseInvoicesRepository.findPaymentContextBatch([invoiceId]),
+    ])
+    const ctx = ctxMap.get(invoiceId)
+    const dueDate = computePurchaseInvoiceDueDate({
+      invoice_date: invoiceDate,
+      gr_received_date: ctx?.gr_received_date ?? null,
+      po_payment_due_date: ctx?.po_payment_due_date ?? null,
+      term: this.toTermSnapshot(term),
+    })
+    await purchaseInvoicesRepository.updateDueDate(client, invoiceId, dueDate)
   }
 
   private resolveGrLineInvoiceUom(
@@ -188,9 +230,10 @@ export class PurchaseInvoicesService {
   async list(companyId: string, pagination: { page: number; limit: number }, filter?: any) {
     const offset = (pagination.page - 1) * pagination.limit
     const result = await purchaseInvoicesRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
+    const data = await this.enrichListWithPaymentDue(result.data)
     const totalPages = Math.ceil(result.total / pagination.limit)
     return {
-      data: result.data,
+      data,
       pagination: {
         page: pagination.page,
         limit: pagination.limit,
@@ -209,7 +252,68 @@ export class PurchaseInvoicesService {
   async getById(id: string, companyId: string): Promise<PurchaseInvoiceDetail> {
     const detail = await purchaseInvoicesRepository.findById(id, companyId)
     if (!detail) throw new PurchaseInvoiceNotFoundError(id)
-    return this.enrichDetailWithInvoiceUom(detail)
+    return this.enrichDetail(detail)
+  }
+
+  private async enrichDetail(detail: PurchaseInvoiceDetail): Promise<PurchaseInvoiceDetail> {
+    const withUom = await this.enrichDetailWithInvoiceUom(detail)
+    return this.enrichDetailWithPaymentDue(withUom)
+  }
+
+  private async enrichListWithPaymentDue(
+    invoices: PurchaseInvoiceWithRelations[],
+  ): Promise<PurchaseInvoiceWithRelations[]> {
+    if (invoices.length === 0) return invoices
+
+    const ctxMap = await purchaseInvoicesRepository.findPaymentContextBatch(invoices.map((i) => i.id))
+    const supplierIds = [...new Set(invoices.map((i) => i.supplier_id))]
+    const termBySupplier = new Map<string, Awaited<ReturnType<typeof purchaseOrdersRepository.findSupplierPaymentTerm>>>()
+
+    await Promise.all(
+      supplierIds.map(async (supplierId) => {
+        const term = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId)
+        termBySupplier.set(supplierId, term)
+      }),
+    )
+
+    return invoices.map((inv) => {
+      const ctx = ctxMap.get(inv.id)
+      const term = termBySupplier.get(inv.supplier_id) ?? null
+      const payment_due_info = buildPiPaymentDueInfo({
+        status: inv.status,
+        invoice_date: inv.invoice_date,
+        due_date: inv.due_date,
+        po_payment_due_date: ctx?.po_payment_due_date ?? null,
+        gr_received_date: ctx?.gr_received_date ?? null,
+        term: this.toTermSnapshot(term),
+      })
+      return { ...inv, payment_due_info }
+    })
+  }
+
+  private async enrichDetailWithPaymentDue(detail: PurchaseInvoiceDetail): Promise<PurchaseInvoiceDetail> {
+    const ctxMap = await purchaseInvoicesRepository.findPaymentContextBatch([detail.id])
+    const ctx = ctxMap.get(detail.id)
+    const grReceivedFromLinks =
+      detail.gr_links.length > 0
+        ? detail.gr_links.reduce<string | null>((max, gl) => {
+            const d = gl.received_date?.slice(0, 10) ?? null
+            if (!d) return max
+            return !max || d > max ? d : max
+          }, null)
+        : null
+
+    const term = await purchaseOrdersRepository.findSupplierPaymentTerm(detail.supplier_id)
+    const payment_due_info = buildPiPaymentDueInfo({
+      status: detail.status,
+      invoice_date: detail.invoice_date,
+      due_date: detail.due_date,
+      po_payment_due_date: ctx?.po_payment_due_date ?? null,
+      gr_received_date: ctx?.gr_received_date ?? grReceivedFromLinks,
+      term: this.toTermSnapshot(term),
+    })
+
+    return { ...detail, payment_due_info }
   }
 
   private async enrichDetailWithInvoiceUom(detail: PurchaseInvoiceDetail): Promise<PurchaseInvoiceDetail> {
@@ -272,13 +376,14 @@ export class PurchaseInvoicesService {
       await purchaseInvoicesRepository.replaceLines(client, created.id, enrichedLines)
       await purchaseInvoicesRepository.insertGrLinks(client, created.id, grIds)
       await purchaseInvoicesRepository.copyAttachmentsFromGrs(client, created.id, grIds)
+      await this.syncDraftDueDate(client, created.id, dto.supplier_id, dto.invoice_date)
       return created
     })
 
     await AuditService.log('CREATE', 'purchase_invoices', invoice.id, userId)
     const created = await purchaseInvoicesRepository.findById(invoice.id, companyId)
     if (!created) throw new PurchaseInvoiceNotFoundError(invoice.id)
-    return this.enrichDetailWithInvoiceUom(created)
+    return this.enrichDetail(created)
   }
 
   async update(companyId: string, id: string, dto: UpdatePurchaseInvoiceDto, userId: string) {
@@ -309,6 +414,7 @@ export class PurchaseInvoicesService {
         notes: dto.notes ?? existing.notes,
         updated_by: userId,
       })
+      await this.syncDraftDueDate(client, id, existing.supplier_id, existing.invoice_date)
     })
 
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId)
@@ -328,7 +434,7 @@ export class PurchaseInvoicesService {
       })
     })
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'SUBMITTED' })
-    return purchaseInvoicesRepository.findById(id, companyId)
+    return this.getById(id, companyId)
   }
 
   async approve(companyId: string, id: string, userId: string) {
@@ -344,7 +450,7 @@ export class PurchaseInvoicesService {
       })
     })
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'APPROVED' })
-    return purchaseInvoicesRepository.findById(id, companyId)
+    return this.getById(id, companyId)
   }
 
   async reject(companyId: string, id: string, reason: string, userId: string) {
@@ -361,7 +467,7 @@ export class PurchaseInvoicesService {
       })
     })
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'REJECTED' })
-    return purchaseInvoicesRepository.findById(id, companyId)
+    return this.getById(id, companyId)
   }
 
   async post(companyId: string, id: string, userId: string, employeeId?: string) {
@@ -499,17 +605,19 @@ export class PurchaseInvoicesService {
       })
 
       const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(detail.supplier_id, client)
-      if (supplierTerm?.calculation_type === 'from_invoice') {
-        const dueDate = calculateDueDate({
-          calculation_type: 'from_invoice',
-          days: supplierTerm.days,
-          grace_period_days: supplierTerm.grace_period_days,
-          payment_dates: supplierTerm.payment_dates,
-          payment_day_of_week: supplierTerm.payment_day_of_week,
-        }, detail.invoice_date)
-
+      const ctxMap = await purchaseInvoicesRepository.findPaymentContextBatch([id])
+      const ctx = ctxMap.get(id)
+      const dueDate = computePurchaseInvoiceDueDate({
+        invoice_date: detail.invoice_date,
+        gr_received_date: ctx?.gr_received_date ?? null,
+        po_payment_due_date: ctx?.po_payment_due_date ?? null,
+        term: this.toTermSnapshot(supplierTerm),
+      })
+      if (dueDate) {
         await purchaseInvoicesRepository.updateDueDate(client, id, dueDate)
-        await purchaseInvoicesRepository.updatePaymentDueDateForReferencedPOs(client, id, dueDate)
+        if (supplierTerm?.calculation_type === 'from_invoice') {
+          await purchaseInvoicesRepository.updatePaymentDueDateForReferencedPOs(client, id, dueDate)
+        }
       }
 
       await purchaseInvoicesRepository.updateGoodsReceiptQtyInvoiced(client, id)
@@ -523,7 +631,7 @@ export class PurchaseInvoicesService {
     })
 
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'POSTED' })
-    return purchaseInvoicesRepository.findById(id, companyId)
+    return this.getById(id, companyId)
   }
 
   async createDraftFromGr(client: PoolClient, companyId: string, grId: string, userId: string) {
@@ -592,22 +700,37 @@ export class PurchaseInvoicesService {
       }
     })
 
-    // 3. Create PI Header
+    const invoiceDate = new Date().toISOString().split('T')[0]
+    const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(gr.supplier_id, client)
+    const grReceived = gr.received_date
+      ? String(gr.received_date).slice(0, 10)
+      : invoiceDate
+    const poDue =
+      gr.payment_due_date != null ? String(gr.payment_due_date).slice(0, 10) : null
+    const estimatedDueDate = computePurchaseInvoiceDueDate({
+      invoice_date: invoiceDate,
+      gr_received_date: grReceived,
+      po_payment_due_date: poDue,
+      term: this.toTermSnapshot(supplierTerm),
+    })
+
+    // 3. Create PI Header (due_date = estimasi jatuh tempo agar terlihat sejak draft)
     const invoice = await purchaseInvoicesRepository.create(client, companyId, {
       supplier_id: gr.supplier_id,
       branch_id: gr.branch_id,
       invoice_number: `[DRAFT-AUTO] ${gr.gr_number}`,
-      invoice_date: new Date().toISOString().split('T')[0],
+      invoice_date: invoiceDate,
       notes: `Auto-generated from GR ${gr.gr_number}`,
       subtotal,
       total_tax: totalTax,
       total_amount: totalAmount,
-      created_by: userId
-    });
+      due_date: estimatedDueDate,
+      created_by: userId,
+    })
 
     // 4. Insert Lines & GR Links
-    await purchaseInvoicesRepository.replaceLines(client, invoice.id, piLines);
-    await purchaseInvoicesRepository.insertGrLinks(client, invoice.id, [grId]);
+    await purchaseInvoicesRepository.replaceLines(client, invoice.id, piLines)
+    await purchaseInvoicesRepository.insertGrLinks(client, invoice.id, [grId])
 
     for (const att of attachments) {
       await purchaseInvoicesRepository.insertInvoiceAttachment(
@@ -673,11 +796,17 @@ export class PurchaseInvoicesService {
       const totals = await purchaseInvoicesRepository.sumLineTotalsForInvoice(client, created.id)
       await purchaseInvoicesRepository.updateMasterInvoiceAfterMerge(client, created.id, totals, invoiceIds, userId)
       await purchaseInvoicesRepository.softDeleteInvoicesByIds(client, invoiceIds, userId)
+      await this.syncDraftDueDate(
+        client,
+        created.id,
+        supplierId,
+        new Date().toISOString().split('T')[0],
+      )
       return created
     })
 
     await AuditService.log('CREATE', 'purchase_invoices', master.id, userId, { merged_from: invoiceIds })
-    return master
+    return this.getById(master.id, companyId)
   }
 
   async getCounts(companyId: string) {

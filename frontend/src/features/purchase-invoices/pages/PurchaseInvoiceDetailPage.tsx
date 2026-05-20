@@ -18,6 +18,7 @@ import {
   Package,
 } from "lucide-react";
 import api from "@/lib/axios";
+import { PurchaseInvoicePaymentDue } from "../components/PurchaseInvoicePaymentDue";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -402,7 +403,10 @@ export default function PurchaseInvoiceDetailPage() {
               Jatuh Tempo
             </p>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {inv.due_date ? fmtDate(inv.due_date) : "—"}
+              {inv.payment_due_info?.date
+                ? fmtDate(inv.payment_due_info.date) +
+                  (!inv.payment_due_info.confirmed ? " (est.)" : "")
+                : inv.payment_due_info?.text ?? "—"}
             </p>
           </div>
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
@@ -429,6 +433,10 @@ export default function PurchaseInvoiceDetailPage() {
             </div>
           </div>
         </div>
+
+        {inv.payment_due_info && (
+          <PurchaseInvoicePaymentDue info={inv.payment_due_info} variant="card" />
+        )}
 
         {inv.status === "DRAFT" && hasOverQty && (
           <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl flex items-start gap-3">

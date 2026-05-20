@@ -112,8 +112,17 @@ export function buildPoPaymentDueInfo(input: {
     }
   }
 
+  const scheduleTypes: CalculationType[] = [
+    'weekly',
+    'fixed_date',
+    'fixed_date_immediate',
+    'monthly',
+  ]
   const isCash =
-    input.payment_type === 'CASH' || (input.term != null && input.term.days === 0)
+    input.payment_type === 'CASH' ||
+    (input.term != null &&
+      input.term.days === 0 &&
+      !scheduleTypes.includes(input.term.calculation_type ?? 'from_delivery'))
 
   if (isCash) {
     return {

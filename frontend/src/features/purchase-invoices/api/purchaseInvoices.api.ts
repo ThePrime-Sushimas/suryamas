@@ -3,6 +3,18 @@ import api from '@/lib/axios'
 
 export type PurchaseInvoiceStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'POSTED'
 
+export interface PiPaymentDueInfo {
+  label: string
+  date: string | null
+  text: string | null
+  confirmed: boolean
+  hint: string
+  term_name: string | null
+  calculation_type: string | null
+  base_source: 'invoice' | 'gr' | null
+  base_date: string | null
+}
+
 export interface PurchaseInvoice {
   id: string
   company_id: string
@@ -43,6 +55,7 @@ export interface PurchaseInvoice {
   approver_name: string | null
   rejector_name: string | null
   poster_name: string | null
+  payment_due_info?: PiPaymentDueInfo | null
 }
 
 

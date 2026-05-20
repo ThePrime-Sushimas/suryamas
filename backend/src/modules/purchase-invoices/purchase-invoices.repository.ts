@@ -82,6 +82,12 @@ const LINE_FROM = `
   JOIN goods_receipt_lines grl ON grl.id = pil.gr_line_id
 `
 
+export type PiPaymentContextRow = {
+  invoice_id: string
+  po_payment_due_date: string | null
+  gr_received_date: string | null
+}
+
 export type GrLineDetailForInvoicing = {
   id: string
   gr_id: string
@@ -212,7 +218,7 @@ export class PurchaseInvoicesRepository {
 
   async findGrWithPoForDraft(client: PoolClient, grId: string, companyId: string) {
     const { rows } = await client.query(
-      `SELECT gr.*, po.supplier_id, po.branch_id
+      `SELECT gr.*, po.supplier_id, po.branch_id, po.payment_due_date
        FROM goods_receipts gr
        JOIN purchase_orders po ON po.id = gr.po_id
        WHERE gr.id = $1 AND gr.company_id = $2`,
@@ -605,6 +611,26 @@ export class PurchaseInvoicesRepository {
     )
   }
 
+  /**
+   * PO due date + latest GR received_date per invoice (for payment term display).
+   * MIN(po.payment_due_date) = earliest due among linked POs; term is still per-supplier (edge case: multi-PO invoice).
+   */
+  async findPaymentContextBatch(invoiceIds: string[]): Promise<Map<string, PiPaymentContextRow>> {
+    if (invoiceIds.length === 0) return new Map()
+    const { rows } = await pool.query<PiPaymentContextRow>(
+      `SELECT pilg.purchase_invoice_id AS invoice_id,
+              MIN(po.payment_due_date)::text AS po_payment_due_date,
+              MAX(gr.received_date)::text AS gr_received_date
+       FROM purchase_invoice_gr_links pilg
+       JOIN goods_receipts gr ON gr.id = pilg.goods_receipt_id AND gr.deleted_at IS NULL
+       JOIN purchase_orders po ON po.id = gr.po_id AND po.deleted_at IS NULL
+       WHERE pilg.purchase_invoice_id = ANY($1::uuid[])
+       GROUP BY pilg.purchase_invoice_id`,
+      [invoiceIds],
+    )
+    return new Map(rows.map((r) => [r.invoice_id, r]))
+  }
+
   async findAll(
     companyId: string,
     pagination: { limit: number; offset: number },
@@ -798,6 +824,7 @@ export class PurchaseInvoicesRepository {
     total_tax: number
     total_amount: number
     created_by: string
+    due_date?: string | null
   }): Promise<PurchaseInvoice> {
     const { rows } = await client.query<PurchaseInvoice>(
       `INSERT INTO purchase_invoices (
@@ -814,7 +841,7 @@ export class PurchaseInvoicesRepository {
         data.branch_id,
         data.invoice_number,
         data.invoice_date,
-        null,
+        data.due_date ?? null,
         data.notes,
         data.subtotal,
         data.total_tax,
@@ -917,7 +944,7 @@ export class PurchaseInvoicesRepository {
     )
   }
 
-  async updateDueDate(client: PoolClient, invoiceId: string, dueDate: string): Promise<void> {
+  async updateDueDate(client: PoolClient, invoiceId: string, dueDate: string | null): Promise<void> {
     await client.query(
       `UPDATE purchase_invoices SET due_date = $1, updated_at = now() WHERE id = $2`,
       [dueDate, invoiceId],

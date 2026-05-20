@@ -1,4 +1,19 @@
+import type { CalculationType } from '../payment-terms/payment-terms.types'
+
 export type PurchaseInvoiceStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'POSTED'
+
+/** Payment due display — from payment terms + GR/invoice dates */
+export interface PiPaymentDueInfo {
+  label: string
+  date: string | null
+  text: string | null
+  confirmed: boolean
+  hint: string
+  term_name: string | null
+  calculation_type: CalculationType | null
+  base_source: 'invoice' | 'gr' | null
+  base_date: string | null
+}
 
 export interface PurchaseInvoice {
   id: string
@@ -36,6 +51,7 @@ export interface PurchaseInvoiceWithRelations extends PurchaseInvoice {
   branch_name: string
   branch_code: string
   goods_receipt_count: number
+  payment_due_info?: PiPaymentDueInfo | null
 }
 
 export interface PurchaseInvoiceGrLink {

@@ -15,6 +15,7 @@ import {
 import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
 import type { PurchaseInvoice } from "../api/purchaseInvoices.api";
+import { PurchaseInvoicePaymentDue } from "../components/PurchaseInvoicePaymentDue";
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString("id-ID", {
@@ -372,7 +373,10 @@ export default function PurchaseInvoicesPage() {
                         {fmtDate(inv.invoice_date)}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                        {inv.due_date ? fmtDate(inv.due_date) : "—"}
+                        <PurchaseInvoicePaymentDue
+                          info={inv.payment_due_info}
+                          variant="table"
+                        />
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
                         {fmtCurrency(Number(inv.total_amount))}
@@ -469,6 +473,15 @@ export default function PurchaseInvoicesPage() {
                         {fmtCurrency(Number(inv.total_amount))}
                       </div>
                     </div>
+                    {inv.payment_due_info && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        Jatuh tempo:{" "}
+                        <PurchaseInvoicePaymentDue
+                          info={inv.payment_due_info}
+                          variant="inline"
+                        />
+                      </p>
+                    )}
                     <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-gray-700/50">
                       <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-medium">
                         {inv.goods_receipt_count} Goods Receipt
