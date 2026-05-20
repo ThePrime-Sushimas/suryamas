@@ -126,7 +126,7 @@ export interface PurchaseInvoiceGpLineAudit {
   product_code: string
   product_name: string
   requires_processing: boolean
-  gp_line_status: 'PENDING' | 'PROCESSING' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
+  gp_line_status: 'PENDING' | 'PROCESSING' | 'DONE' | 'QC_REVIEW' | 'CONFIRMED' | 'REJECTED'
   qty_input: number
   uom: string
   processed_at: string | null

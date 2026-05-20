@@ -342,15 +342,29 @@ async confirmGpWithStock(
 
     const yieldPct = totalInputQty > 0 ? (totalOutputQty / totalInputQty) * 100 : 0
 
+    const qcConfirmedAt = new Date().toISOString()
+
     await this.updateStatus(client, id, 'CONFIRMED', {
       qc_confirmed_by: userId,
-      qc_confirmed_at: new Date().toISOString(),
+      qc_confirmed_at: qcConfirmedAt,
       total_input_qty: totalInputQty,
       total_output_qty: totalOutputQty,
       total_waste_qty: totalWasteQty,
       yield_percentage: Math.min(Math.round(yieldPct * 100) / 100, 999.99),
       updated_by: userId,
     })
+
+    // Finalisasi GP: semua baris DONE → CONFIRMED (syarat post jurnal PI)
+    await client.query(
+      `UPDATE goods_processing_inputs
+       SET status = 'CONFIRMED',
+           qc_confirmed_by = $1,
+           qc_confirmed_at = $2,
+           updated_at = now()
+       WHERE goods_processing_id = $3
+         AND status = 'DONE'`,
+      [userId, qcConfirmedAt, id],
+    )
 
     await client.query('COMMIT')
   } catch (e) {
@@ -778,6 +792,15 @@ async rejectGp(id: string, rejection_reason: string, userId: string): Promise<vo
       await client.query(
         `UPDATE goods_processing_inputs
          SET status = $1, rejected_by = $2, rejected_at = now(), updated_at = now()
+         WHERE id = $3`,
+        [status, userId, inputId]
+      )
+      return
+    }
+    if (status === 'CONFIRMED') {
+      await client.query(
+        `UPDATE goods_processing_inputs
+         SET status = $1, qc_confirmed_by = $2, qc_confirmed_at = COALESCE(qc_confirmed_at, now()), updated_at = now()
          WHERE id = $3`,
         [status, userId, inputId]
       )
