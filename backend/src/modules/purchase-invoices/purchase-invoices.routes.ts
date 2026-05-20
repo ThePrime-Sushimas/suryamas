@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/auth.middleware";
 import { resolveBranchContext } from "../../middleware/branch-context.middleware";
+import { requireWriteAccess } from "../../middleware/write-guard.middleware";
 import {
   canView,
   canInsert,
@@ -16,6 +17,7 @@ import {
   deletePurchaseInvoiceSchema,
   listPurchaseInvoicesSchema,
   postPurchaseInvoiceSchema,
+  unpostPurchaseInvoiceSchema,
   purchaseInvoiceIdParamSchema,
   rejectPurchaseInvoiceSchema,
   approvePurchaseInvoiceSchema,
@@ -107,9 +109,17 @@ router.post(
 );
 router.post(
   "/:id/post",
+  requireWriteAccess,
   canUpdate("purchase_invoices"),
   validateSchema(postPurchaseInvoiceSchema),
   (req, res) => purchaseInvoicesController.post(req, res),
+);
+router.post(
+  "/:id/unpost",
+  requireWriteAccess,
+  canRelease("purchase_invoices"),
+  validateSchema(unpostPurchaseInvoiceSchema),
+  (req, res) => purchaseInvoicesController.unpost(req, res),
 );
 
 export default router;

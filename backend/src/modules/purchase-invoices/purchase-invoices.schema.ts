@@ -149,3 +149,9 @@ export const postPurchaseInvoiceSchema = z.object({
   }),
 })
 
+export const unpostPurchaseInvoiceSchema = z.object({
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+})
+

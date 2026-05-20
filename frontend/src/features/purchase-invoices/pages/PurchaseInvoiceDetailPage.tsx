@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Image,
   Plus,
+  Undo2,
   Loader2,
   Package,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import {
   useApprovePurchaseInvoice,
   useRejectPurchaseInvoice,
   useDeletePurchaseInvoice,
+  useUnpostPurchaseInvoice,
   usePurchaseInvoiceAttachments,
 } from "../api/purchaseInvoices.api";
 import { useEffect } from "react";
@@ -179,10 +181,12 @@ export default function PurchaseInvoiceDetailPage() {
   const approvePI = useApprovePurchaseInvoice();
   const rejectPI = useRejectPurchaseInvoice();
   const deletePI = useDeletePurchaseInvoice();
+  const unpostPI = useUnpostPurchaseInvoice();
 
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showUnpostModal, setShowUnpostModal] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [confirmOverQty, setConfirmOverQty] = useState(false);
 
@@ -238,6 +242,16 @@ export default function PurchaseInvoiceDetailPage() {
       navigate("/inventory/purchase-invoices");
     } catch (err: unknown) {
       toast.error(parseApiError(err, "Gagal menghapus invoice"));
+    }
+  };
+
+  const handleUnpost = async () => {
+    try {
+      await unpostPI.mutateAsync(id!);
+      toast.success("Post jurnal dibatalkan — invoice kembali ke Approved");
+      setShowUnpostModal(false);
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, "Gagal batalkan post"));
     }
   };
 
@@ -350,9 +364,26 @@ export default function PurchaseInvoiceDetailPage() {
             )}
 
             {inv.status === "POSTED" && (
-              <button className="flex items-center gap-2 px-4 py-2 border border-green-200 bg-green-50 text-green-700 rounded-lg text-sm font-medium cursor-default">
-                <CheckCircle2 className="w-4 h-4" /> Sudah Di-post
-              </button>
+              <>
+                <span className="flex items-center gap-2 px-4 py-2 border border-green-200 bg-green-50 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300 rounded-lg text-sm font-medium">
+                  <CheckCircle2 className="w-4 h-4" /> Sudah Di-post
+                </span>
+                {canRelease && (
+                  <button
+                    type="button"
+                    onClick={() => setShowUnpostModal(true)}
+                    disabled={unpostPI.isPending}
+                    className="flex items-center gap-2 px-4 py-2 border border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50 text-sm font-medium transition-all"
+                  >
+                    {unpostPI.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Undo2 className="w-4 h-4" />
+                    )}
+                    {unpostPI.isPending ? "Membatalkan..." : "Batalkan Post"}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -956,6 +987,30 @@ export default function PurchaseInvoiceDetailPage() {
         confirmText="Hapus"
         variant="danger"
         isLoading={deletePI.isPending}
+      />
+
+      <ConfirmModal
+        isOpen={showUnpostModal}
+        onClose={() => setShowUnpostModal(false)}
+        onConfirm={handleUnpost}
+        title="Batalkan Post Jurnal"
+        message={
+          <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+            <p>
+              Semua efek post jurnal akan dibatalkan untuk invoice{" "}
+              <span className="font-semibold text-gray-900 dark:text-white">{inv.invoice_number}</span>:
+            </p>
+            <ul className="list-disc pl-5 space-y-1 text-xs">
+              <li>Jurnal dihapus permanen (bukan reversal)</li>
+              <li>Alokasi biaya GP &amp; avg cost stok dikembalikan ke 0</li>
+              <li>Status invoice kembali ke Approved</li>
+              <li>Qty invoiced GR &amp; jatuh tempo PO disesuaikan ulang</li>
+            </ul>
+          </div>
+        }
+        confirmText="Batalkan Post"
+        variant="danger"
+        isLoading={unpostPI.isPending}
       />
 
       <ConfirmModal

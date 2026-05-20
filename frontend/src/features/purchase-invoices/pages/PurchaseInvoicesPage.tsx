@@ -1,6 +1,6 @@
 import { useState, useMemo, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, Search, CheckSquare, Square, ClipboardCheck, Loader2 } from "lucide-react";
+import { FileText, Plus, Search, CheckSquare, Square, ClipboardCheck, Loader2, Undo2 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -12,6 +12,7 @@ import {
   usePurchaseInvoiceCounts,
   useMergePurchaseInvoices,
   usePostPurchaseInvoice,
+  useUnpostPurchaseInvoice,
 } from "../api/purchaseInvoices.api";
 import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
@@ -78,6 +79,7 @@ export default function PurchaseInvoicesPage() {
   const [branchId, setBranchId] = useState("");
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [postingId, setPostingId] = useState<string | null>(null);
+  const [unpostTarget, setUnpostTarget] = useState<PurchaseInvoice | null>(null);
 
   const { data: counts } = usePurchaseInvoiceCounts();
   const { data: suppliersData } = useSuppliers();
@@ -102,6 +104,7 @@ export default function PurchaseInvoicesPage() {
   const { data, isLoading } = usePurchaseInvoices(queryParams);
   const deleteInvoice = useDeletePurchaseInvoice();
   const postInvoice = usePostPurchaseInvoice();
+  const unpostInvoice = useUnpostPurchaseInvoice();
 
   const invoices = data?.data ?? [];
   const pagination = data?.pagination;
@@ -129,6 +132,18 @@ export default function PurchaseInvoicesPage() {
       toast.error(parseApiError(err, "Gagal post jurnal"));
     } finally {
       setPostingId(null);
+    }
+  };
+
+  const handleUnpost = async () => {
+    if (!unpostTarget) return;
+    try {
+      await unpostInvoice.mutateAsync(unpostTarget.id);
+      toast.success("Post jurnal dibatalkan — invoice kembali ke Approved");
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, "Gagal batalkan post"));
+    } finally {
+      setUnpostTarget(null);
     }
   };
 
@@ -415,6 +430,22 @@ export default function PurchaseInvoicesPage() {
                       >
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           {activeTab === "FINAL" &&
+                            inv.status === "POSTED" &&
+                            canRelease && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setUnpostTarget(inv);
+                                }}
+                                disabled={unpostInvoice.isPending}
+                                className="inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold transition-all border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200 dark:hover:bg-amber-900/30"
+                              >
+                                <Undo2 className="w-3.5 h-3.5 shrink-0" />
+                                Batalkan Post
+                              </button>
+                            )}
+                          {activeTab === "FINAL" &&
                             inv.status === "APPROVED" &&
                             canUpdate && (
                               <button
@@ -540,6 +571,22 @@ export default function PurchaseInvoicesPage() {
                         {inv.goods_receipt_count} Goods Receipt
                       </div>
                       {activeTab === "FINAL" &&
+                        inv.status === "POSTED" &&
+                        canRelease && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUnpostTarget(inv);
+                            }}
+                            disabled={unpostInvoice.isPending}
+                            className="inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold transition-all border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+                          >
+                            <Undo2 className="w-3.5 h-3.5 shrink-0" />
+                            Batalkan Post
+                          </button>
+                        )}
+                      {activeTab === "FINAL" &&
                         inv.status === "APPROVED" &&
                         canUpdate && (
                           <button
@@ -610,6 +657,21 @@ export default function PurchaseInvoicesPage() {
         confirmText="Hapus"
         variant="danger"
         isLoading={deleteInvoice.isPending}
+      />
+
+      <ConfirmModal
+        isOpen={!!unpostTarget}
+        onClose={() => setUnpostTarget(null)}
+        onConfirm={handleUnpost}
+        title="Batalkan Post Jurnal"
+        message={
+          unpostTarget
+            ? `Batalkan post jurnal untuk "${unpostTarget.invoice_number}"? Jurnal akan dihapus permanen, biaya stok dikembalikan, dan status kembali ke Approved.`
+            : ""
+        }
+        confirmText="Batalkan Post"
+        variant="danger"
+        isLoading={unpostInvoice.isPending}
       />
     </div>
   );

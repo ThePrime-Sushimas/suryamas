@@ -30,6 +30,25 @@ export class PurchaseInvoiceJournalAlreadyExistsError extends BusinessRuleError 
   }
 }
 
+export class PurchaseInvoiceNotPostedError extends BusinessRuleError {
+  constructor() {
+    super('Purchase invoice is not posted — nothing to unpost')
+  }
+}
+
+export class PurchaseInvoiceNoJournalError extends BusinessRuleError {
+  constructor() {
+    super('Purchase invoice has no linked journal')
+  }
+}
+
+/** TODO(purchase-payments): block unpost when linked payments exist — module belum ada. */
+// export class PurchaseInvoiceHasPaymentsError extends BusinessRuleError {
+//   constructor() {
+//     super('Cannot unpost: payment already recorded against this invoice')
+//   }
+// }
+
 export class PurchaseInvoiceGpNotConfirmedError extends BusinessRuleError {
   constructor(gpNumber: string) {
     super(`Cannot post: Goods Processing ${gpNumber} is not CONFIRMED`)

@@ -12,7 +12,9 @@ import {
   PurchaseInvoiceGpNotConfirmedError,
   PurchaseInvoiceInvalidStatusError,
   PurchaseInvoiceJournalAlreadyExistsError,
+  PurchaseInvoiceNoJournalError,
   PurchaseInvoiceNotFoundError,
+  PurchaseInvoiceNotPostedError,
 } from './purchase-invoices.errors'
 import {
   buildPiPaymentDueInfo,
@@ -903,6 +905,103 @@ export class PurchaseInvoicesService {
     })
 
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'POSTED' })
+    return this.getById(id, companyId)
+  }
+
+  /**
+   * Reverse all side effects of post() in one transaction (hard-delete journal, not reversal).
+   *
+   * Design notes:
+   * - avg_cost: recomputeStockBalanceAvgCost recalculates WA from ALL positive IN movements
+   *   with cost > 0 after movement costs are zeroed — full recompute, not partial.
+   * - PO payment_due_date: only touched when term calculation_type === 'from_invoice',
+   *   symmetric with post() which only sets PO due from PI on that term type.
+   *   Other terms (from_delivery, weekly, …) keep PO due from GR confirm — unchanged here.
+   * - qty_invoiced: recalculateGrQtyInvoicedForGrLines sums ALL POSTED PIs per GR line.
+   * - Fiscal period: checked on invoice_date (same as journal_date on post), not posted_at.
+   *   Unpost hard-deletes the journal in that period; closed period → block (audit integrity).
+   * - TODO(purchase-payments): guard when purchase_payment linked to this invoice exists.
+   */
+  async unpost(companyId: string, id: string, userId: string) {
+    const detail = await purchaseInvoicesRepository.findById(id, companyId)
+    if (!detail) throw new PurchaseInvoiceNotFoundError(id)
+    if (detail.status !== 'POSTED') throw new PurchaseInvoiceNotPostedError()
+    if (!detail.journal_id) throw new PurchaseInvoiceNoJournalError()
+
+    // TODO(purchase-payments): if (await hasLinkedPayments(client, id)) throw PurchaseInvoiceHasPaymentsError()
+
+    const journalId = detail.journal_id
+
+    await purchaseInvoicesRepository.withTransaction(async (client) => {
+      // Journal is created with journal_date = invoice_date on post — period gate matches that date.
+      const periodOpen = await purchaseInvoicesRepository.isFiscalPeriodOpen(
+        client,
+        companyId,
+        String(detail.invoice_date),
+      )
+      if (!periodOpen) {
+        throw new PurchaseInvoiceInvalidStatusError(
+          'closed fiscal period',
+          'open fiscal period for invoice date',
+        )
+      }
+
+      const stockPairs = await purchaseInvoicesRepository.findUnpostStockPairsForInvoice(client, id)
+
+      await purchaseInvoicesRepository.resetStockMovementCostsForInvoice(client, id)
+      await purchaseInvoicesRepository.resetGpOutputCostsForInvoice(client, id)
+
+      const seenPairs = new Set<string>()
+      for (const row of stockPairs) {
+        const pairKey = `${row.product_id}-${row.warehouse_id}`
+        if (seenPairs.has(pairKey)) continue
+        seenPairs.add(pairKey)
+        await purchaseInvoicesRepository.recomputeStockBalanceAvgCost(
+          client,
+          row.warehouse_id,
+          row.product_id,
+        )
+      }
+
+      await purchaseInvoicesRepository.updateStatus(client, id, 'APPROVED', {
+        journal_id: null,
+        posted_by: null,
+        posted_at: null,
+        updated_by: userId,
+      })
+
+      await purchaseInvoicesRepository.hardDeleteJournal(client, journalId)
+
+      const grIds = await purchaseInvoicesRepository.findGrIdsForInvoice(client, id)
+      const draftDueDate = await this.computeDraftDueDate(
+        client,
+        detail.supplier_id,
+        String(detail.invoice_date),
+        grIds,
+      )
+      await purchaseInvoicesRepository.updateDueDate(client, id, draftDueDate)
+
+      await purchaseInvoicesRepository.recalculateGrQtyInvoicedForGrLines(client, id)
+
+      // Mirror post(): PO due only flows from PI when term is from_invoice.
+      const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(detail.supplier_id, client)
+      if (supplierTerm?.calculation_type === 'from_invoice') {
+        const poIds = await purchaseInvoicesRepository.findPoIdsForInvoice(client, id)
+        for (const poId of poIds) {
+          const latestDue = await purchaseInvoicesRepository.findLatestPostedPiDueDateForPo(client, poId)
+          await purchaseInvoicesRepository.updatePoPaymentDueDate(client, poId, latestDue)
+        }
+      }
+    })
+
+    await AuditService.log(
+      'UPDATE',
+      'purchase_invoices',
+      id,
+      userId,
+      { status: 'POSTED', journal_id: journalId },
+      { status: 'APPROVED', journal_id: null, unpost: true },
+    )
     return this.getById(id, companyId)
   }
 

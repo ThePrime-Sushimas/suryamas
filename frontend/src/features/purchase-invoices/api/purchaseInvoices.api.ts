@@ -305,6 +305,23 @@ export const usePostPurchaseInvoice = () => {
   })
 }
 
+export const useUnpostPurchaseInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/purchase-invoices/${id}/unpost`)
+      return data.data as PurchaseInvoice
+    },
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['purchase-invoices'] })
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: ['stock'] })
+      qc.invalidateQueries({ queryKey: ['purchase-invoices', 'counts'] })
+      qc.invalidateQueries({ queryKey: ['journals'] })
+    },
+  })
+}
+
 export const useDeletePurchaseInvoice = () => {
   const qc = useQueryClient()
   return useMutation({

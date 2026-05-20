@@ -122,6 +122,18 @@ export class PurchaseInvoicesController {
     }
   }
 
+  unpost = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const id = req.params.id as string
+      const result = await purchaseInvoicesService.unpost(companyId, id, userId)
+      sendSuccess(res, result, 'Purchase invoice unposted')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'unpost_purchase_invoice', id: req.params.id })
+    }
+  }
+
   delete = async (req: Request, res: Response) => {
     try {
       const companyId = req.context?.company_id ?? ''

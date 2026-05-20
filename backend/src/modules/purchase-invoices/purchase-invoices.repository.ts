@@ -188,6 +188,11 @@ export class PurchaseInvoicesRepository {
     return rows[0]?.processing_number ?? null
   }
 
+  /**
+   * Full weighted-average recalc from all IN stock movements (qty > 0, cost > 0)
+   * for the warehouse/product pair — not a partial/delta update.
+   * Used after post (set costs) and unpost (reset costs to 0).
+   */
   async recomputeStockBalanceAvgCost(client: PoolClient, warehouseId: string, productId: string): Promise<void> {
     const { rows } = await client.query(
       `SELECT
@@ -650,24 +655,151 @@ export class PurchaseInvoicesRepository {
   }
 
   async updateGoodsReceiptQtyInvoiced(client: PoolClient, invoiceId: string): Promise<void> {
-    // qty_invoiced on goods_receipt_lines = SUM(purchase_invoice_lines.qty_invoiced) for linked invoice(s)
+    await this.recalculateGrQtyInvoicedForGrLines(client, invoiceId)
+  }
+
+  /** Sum qty_invoiced from all POSTED invoices for GR lines linked to this PI. */
+  async recalculateGrQtyInvoicedForGrLines(client: PoolClient, invoiceId: string): Promise<void> {
     await client.query(
       `
-      UPDATE goods_receipt_lines grl
-      SET qty_invoiced = COALESCE(sub.sum_qty, 0),
-          updated_at = now()
-      FROM (
-        SELECT pil.gr_line_id,
-               SUM(pil.qty_invoiced)::numeric(20,4) AS sum_qty
+      WITH affected AS (
+        SELECT DISTINCT pil.gr_line_id
         FROM purchase_invoice_lines pil
         WHERE pil.purchase_invoice_id = $1
           AND pil.deleted_at IS NULL
+      ),
+      posted_totals AS (
+        SELECT pil.gr_line_id,
+               SUM(pil.qty_invoiced)::numeric(20,4) AS sum_qty
+        FROM purchase_invoice_lines pil
+        JOIN purchase_invoices pi ON pi.id = pil.purchase_invoice_id
+        WHERE pil.gr_line_id IN (SELECT gr_line_id FROM affected)
+          AND pil.deleted_at IS NULL
+          AND pi.deleted_at IS NULL
+          AND pi.status = 'POSTED'
         GROUP BY pil.gr_line_id
-      ) sub
-      WHERE grl.id = sub.gr_line_id
+      )
+      UPDATE goods_receipt_lines grl
+      SET qty_invoiced = COALESCE(pt.sum_qty, 0),
+          updated_at = now()
+      FROM affected a
+      LEFT JOIN posted_totals pt ON pt.gr_line_id = a.gr_line_id
+      WHERE grl.id = a.gr_line_id
       `,
       [invoiceId],
     )
+  }
+
+  async findUnpostStockPairsForInvoice(
+    client: PoolClient,
+    invoiceId: string,
+  ): Promise<Array<{ product_id: string; warehouse_id: string; stock_movement_id: string }>> {
+    const { rows } = await client.query<{
+      product_id: string
+      warehouse_id: string
+      stock_movement_id: string
+    }>(
+      `
+      SELECT DISTINCT gpo.product_id, gpo.warehouse_id, gpo.stock_movement_id
+      FROM goods_processing_outputs gpo
+      JOIN purchase_invoice_lines pil ON pil.id = gpo.purchase_invoice_line_id
+      WHERE pil.purchase_invoice_id = $1
+        AND pil.deleted_at IS NULL
+        AND gpo.stock_movement_id IS NOT NULL
+        AND gpo.warehouse_id IS NOT NULL
+      `,
+      [invoiceId],
+    )
+    return rows
+  }
+
+  async resetGpOutputCostsForInvoice(client: PoolClient, invoiceId: string): Promise<void> {
+    await client.query(
+      `
+      UPDATE goods_processing_outputs gpo
+      SET unit_cost = 0,
+          allocated_cost = 0,
+          purchase_invoice_line_id = NULL,
+          updated_at = now()
+      FROM purchase_invoice_lines pil
+      WHERE pil.id = gpo.purchase_invoice_line_id
+        AND pil.purchase_invoice_id = $1
+        AND pil.deleted_at IS NULL
+      `,
+      [invoiceId],
+    )
+  }
+
+  async resetStockMovementCostsForInvoice(client: PoolClient, invoiceId: string): Promise<void> {
+    await client.query(
+      `
+      UPDATE stock_movements sm
+      SET cost_per_unit = 0,
+          total_cost = 0,
+          updated_at = now()
+      FROM goods_processing_outputs gpo
+      JOIN purchase_invoice_lines pil ON pil.id = gpo.purchase_invoice_line_id
+      WHERE sm.id = gpo.stock_movement_id
+        AND pil.purchase_invoice_id = $1
+        AND pil.deleted_at IS NULL
+      `,
+      [invoiceId],
+    )
+  }
+
+  async hardDeleteJournal(client: PoolClient, journalId: string): Promise<void> {
+    await client.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [journalId])
+    await client.query('DELETE FROM journal_headers WHERE id = $1', [journalId])
+  }
+
+  async findLatestPostedPiDueDateForPo(client: PoolClient, poId: string): Promise<string | null> {
+    const { rows } = await client.query<{ due_date: string | null }>(
+      `
+      SELECT pi.due_date
+      FROM purchase_invoices pi
+      JOIN purchase_invoice_gr_links pilg ON pilg.purchase_invoice_id = pi.id
+      JOIN goods_receipts gr ON gr.id = pilg.goods_receipt_id
+      WHERE gr.po_id = $1
+        AND pi.status = 'POSTED'
+        AND pi.deleted_at IS NULL
+        AND pi.due_date IS NOT NULL
+      ORDER BY pi.posted_at DESC NULLS LAST, pi.created_at DESC
+      LIMIT 1
+      `,
+      [poId],
+    )
+    return rows[0]?.due_date ?? null
+  }
+
+  async findPoIdsForInvoice(client: PoolClient, invoiceId: string): Promise<string[]> {
+    const { rows } = await client.query<{ po_id: string }>(
+      `
+      SELECT DISTINCT gr.po_id
+      FROM purchase_invoice_gr_links pilg
+      JOIN goods_receipts gr ON gr.id = pilg.goods_receipt_id
+      WHERE pilg.purchase_invoice_id = $1
+        AND gr.po_id IS NOT NULL
+      `,
+      [invoiceId],
+    )
+    return rows.map((r) => r.po_id)
+  }
+
+  async updatePoPaymentDueDate(client: PoolClient, poId: string, dueDate: string | null): Promise<void> {
+    await client.query(
+      `UPDATE purchase_orders SET payment_due_date = $1, updated_at = now() WHERE id = $2`,
+      [dueDate, poId],
+    )
+  }
+
+  async isFiscalPeriodOpen(client: PoolClient, companyId: string, date: string): Promise<boolean> {
+    const { rows } = await client.query<{ is_open: boolean }>(
+      `SELECT is_open FROM fiscal_periods
+       WHERE company_id = $1 AND period_start <= $2::date AND period_end >= $2::date
+       LIMIT 1`,
+      [companyId, date],
+    )
+    return Boolean(rows[0]?.is_open)
   }
 
   async updateJournalIdAndPost(
