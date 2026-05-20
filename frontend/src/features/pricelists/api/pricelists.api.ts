@@ -1,8 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query'
 import axiosInstance from '@/lib/axios'
 import type {
   Pricelist, PricelistWithRelations, CreatePricelistDto, UpdatePricelistDto,
-  PricelistApprovalDto, PricelistListQuery, PricelistListResponse, PricelistLookupQuery, PricelistLookupResponse
+  PricelistApprovalDto, PricelistListQuery, PricelistListResponse, PricelistLookupQuery, PricelistLookupResponse,
+  PriceChangeListQuery, PriceChangeListResponse, PriceChangeChartQuery, PriceChangeChartResult,
 } from '../types/pricelist.types'
 
 const BASE_URL = '/pricelists'
@@ -23,7 +24,10 @@ function buildQueryString(params: Record<string, unknown>): string {
 
 // ── React Query Hooks ──
 
-export const usePricelists = (query: PricelistListQuery = {}) =>
+export const usePricelists = (
+  query: PricelistListQuery = {},
+  options?: Pick<UseQueryOptions<PricelistListResponse>, 'enabled'>,
+) =>
   useQuery({
     queryKey: ['pricelists', query],
     queryFn: async () => {
@@ -32,6 +36,7 @@ export const usePricelists = (query: PricelistListQuery = {}) =>
       return unwrapData<PricelistListResponse>(response)
     },
     staleTime: 60_000,
+    enabled: options?.enabled ?? true,
   })
 
 export const usePricelist = (id: string) =>
@@ -42,6 +47,37 @@ export const usePricelist = (id: string) =>
       return unwrapData<PricelistWithRelations>(response)
     },
     enabled: !!id,
+  })
+
+export const usePriceChanges = (query: PriceChangeListQuery = {}) =>
+  useQuery({
+    queryKey: ['pricelists', 'price-changes', query],
+    queryFn: async () => {
+      const qs = buildQueryString(query as Record<string, unknown>)
+      const response = await axiosInstance.get(`${BASE_URL}/price-changes${qs}`)
+      const body = response.data as {
+        data: { items: PriceChangeListResponse['items']; summary: PriceChangeListResponse['summary'] }
+        pagination: PriceChangeListResponse['pagination']
+      }
+      return {
+        items: body.data.items,
+        summary: body.data.summary,
+        pagination: body.pagination,
+      } satisfies PriceChangeListResponse
+    },
+    staleTime: 30_000,
+  })
+
+export const usePriceChangeChart = (query: PriceChangeChartQuery | null) =>
+  useQuery({
+    queryKey: ['pricelists', 'price-changes', 'chart', query],
+    queryFn: async () => {
+      const qs = buildQueryString(query as unknown as Record<string, unknown>)
+      const response = await axiosInstance.get(`${BASE_URL}/price-changes/chart${qs}`)
+      return unwrapData<PriceChangeChartResult>(response)
+    },
+    enabled: !!query?.supplier_id && !!query?.product_id && !!query?.uom_id,
+    staleTime: 60_000,
   })
 
 export const useCreatePricelist = () => {

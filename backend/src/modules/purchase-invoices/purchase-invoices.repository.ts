@@ -141,6 +141,7 @@ export class PurchaseInvoicesRepository {
       return result
     } catch (error) {
       await client.query('ROLLBACK')
+      // Re-throw all errors (BusinessRuleError, ConflictError, DB) — caller handles HTTP mapping.
       throw error
     } finally {
       client.release()

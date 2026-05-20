@@ -8,6 +8,7 @@ import { PermissionService } from '../../services/permission.service'
 import {
   createPricelistSchema, updatePricelistSchema, pricelistIdSchema,
   pricelistListQuerySchema, approvalSchema, lookupPriceSchema,
+  priceChangeListQuerySchema, priceChangeChartQuerySchema,
 } from './pricelists.schema'
 
 const router = Router()
@@ -17,6 +18,8 @@ PermissionService.registerModule('pricelists', 'Pricelist Management').catch(() 
 router.use(authenticate, resolveBranchContext)
 
 router.get('/lookup', canView('pricelists'), validateSchema(lookupPriceSchema), (req, res) => pricelistsController.lookupPrice(req, res))
+router.get('/price-changes/chart', canView('pricelists'), validateSchema(priceChangeChartQuerySchema), (req, res) => pricelistsController.priceChangeChart(req, res))
+router.get('/price-changes', canView('pricelists'), validateSchema(priceChangeListQuerySchema), (req, res) => pricelistsController.listPriceChanges(req, res))
 router.post('/batch-lookup', canView('pricelists'), (req, res) => pricelistsController.batchLookup(req, res))
 router.get('/', canView('pricelists'), validateSchema(pricelistListQuerySchema), (req, res) => pricelistsController.list(req, res))
 router.get('/:id', canView('pricelists'), validateSchema(pricelistIdSchema), (req, res) => pricelistsController.findById(req, res))

@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg'
 import { pool } from '../../config/db'
 import { ProductUom, CreateProductUomDto, UpdateProductUomDto } from '../products/products.types'
 
@@ -132,6 +133,23 @@ export class ProductUomsRepository {
          AND pu.is_deleted = false
        ORDER BY pu.product_id, pu.conversion_factor`,
       [productIds]
+    )
+    return rows
+  }
+
+  async findAllUomsWithIdsBatch(
+    productIds: string[],
+    client?: PoolClient,
+  ): Promise<Array<{ product_id: string; uom_id: string; unit_name: string }>> {
+    if (productIds.length === 0) return []
+    const db = client ?? pool
+    const { rows } = await db.query(
+      `SELECT pu.product_id, pu.id AS uom_id, mu.unit_name
+       FROM product_uoms pu
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pu.product_id = ANY($1::uuid[])
+         AND pu.is_deleted = false`,
+      [productIds],
     )
     return rows
   }

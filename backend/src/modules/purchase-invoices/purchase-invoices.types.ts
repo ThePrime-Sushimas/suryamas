@@ -148,6 +148,16 @@ export interface PurchaseInvoiceDetail extends PurchaseInvoiceWithRelations {
   lines: PurchaseInvoiceLine[]
   charges: PurchaseInvoiceCharge[]
   gp_line_audits: PurchaseInvoiceGpLineAudit[]
+  /** Present on POST response when pricelist auto-sync runs */
+  pricelist_sync?: {
+    synced: number
+    skipped: number
+    warnings: Array<{
+      product_name: string
+      uom_invoice: string
+      reason: string
+    }>
+  }
 }
 
 export interface CreatePurchaseInvoiceLineDto {

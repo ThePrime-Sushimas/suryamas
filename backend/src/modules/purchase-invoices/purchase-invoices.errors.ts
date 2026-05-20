@@ -1,4 +1,5 @@
-import { BusinessRuleError, NotFoundError } from '../../utils/errors.base'
+import { BusinessRuleError, NotFoundError, ConflictError } from '../../utils/errors.base'
+import type { UnpostPricelistBlockedItem } from '../pricelists/pricelists.types'
 
 export class PurchaseInvoiceNotFoundError extends NotFoundError {
   constructor(id: string) {
@@ -58,5 +59,18 @@ export class PurchaseInvoiceGpNotConfirmedError extends BusinessRuleError {
 export class PurchaseInvoiceChargesInvalidError extends BusinessRuleError {
   constructor(message: string) {
     super(message)
+  }
+}
+
+export class PurchaseInvoicePricelistSupersededError extends ConflictError {
+  constructor(blocked: UnpostPricelistBlockedItem[]) {
+    const lines = blocked.map((b) => {
+      const suffix = b.superseding_invoice_number
+        ? ` Invoice ${b.superseding_invoice_number}`
+        : ''
+      return `${b.product_name} (${b.uom_name}): harga sudah diupdate${suffix} — unpost dibatalkan.`
+    })
+    super(lines.join(' '), { blocked_items: blocked })
+    this.name = 'PurchaseInvoicePricelistSupersededError'
   }
 }

@@ -77,3 +77,29 @@ export const lookupPriceSchema = z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)').optional(),
   }),
 })
+
+const CHANGE_SOURCES = ['PI_POST', 'PI_UNPOST', 'MANUAL'] as const
+
+export const priceChangeListQuerySchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().max(100).default(20),
+    supplier_id: z.string().uuid('Invalid supplier ID').optional(),
+    product_id: z.string().uuid('Invalid product ID').optional(),
+    uom_id: z.string().uuid('Invalid UOM ID').optional(),
+    source: z.enum(CHANGE_SOURCES).optional(),
+    date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)').optional(),
+    date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)').optional(),
+    search: z.string().optional(),
+  }),
+})
+
+export const priceChangeChartQuerySchema = z.object({
+  query: z.object({
+    supplier_id: z.string().uuid('Invalid supplier ID'),
+    product_id: z.string().uuid('Invalid product ID'),
+    uom_id: z.string().uuid('Invalid UOM ID'),
+    limit: z.coerce.number().int().positive().max(90).default(30),
+    days: z.coerce.number().int().positive().max(365).default(90),
+  }),
+})

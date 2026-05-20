@@ -6,6 +6,7 @@ import type { ValidatedAuthRequest } from '../../middleware/validation.middlewar
 import {
   createPricelistSchema, updatePricelistSchema, pricelistIdSchema,
   pricelistListQuerySchema, approvalSchema, lookupPriceSchema,
+  priceChangeListQuerySchema, priceChangeChartQuerySchema,
 } from './pricelists.schema'
 
 type CreateReq = ValidatedAuthRequest<typeof createPricelistSchema>
@@ -14,6 +15,8 @@ type IdReq = ValidatedAuthRequest<typeof pricelistIdSchema>
 type ListReq = ValidatedAuthRequest<typeof pricelistListQuerySchema>
 type ApprovalReq = ValidatedAuthRequest<typeof approvalSchema>
 type LookupReq = ValidatedAuthRequest<typeof lookupPriceSchema>
+type PriceChangeListReq = ValidatedAuthRequest<typeof priceChangeListQuerySchema>
+type PriceChangeChartReq = ValidatedAuthRequest<typeof priceChangeChartQuerySchema>
 
 export class PricelistsController {
   create = async (req: Request, res: Response) => {
@@ -107,6 +110,34 @@ export class PricelistsController {
       sendSuccess(res, result, 'Batch price lookup')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'batch_lookup' })
+    }
+  }
+
+  listPriceChanges = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const { query } = (req as PriceChangeListReq).validated
+      const result = await pricelistsService.getPriceChanges(companyId, query)
+      sendSuccess(
+        res,
+        { items: result.data, summary: result.summary },
+        'Price changes retrieved successfully',
+        200,
+        result.pagination,
+      )
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_price_changes' })
+    }
+  }
+
+  priceChangeChart = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const { query } = (req as PriceChangeChartReq).validated
+      const result = await pricelistsService.getPriceChangeChart(companyId, query)
+      sendSuccess(res, result, 'Price change chart data retrieved successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'price_change_chart' })
     }
   }
 }

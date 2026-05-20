@@ -3,8 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { supplierProductsApi } from '@/features/supplier-products'
-import { usePricelists, useDeletePricelist, useApprovePricelist, useRestorePricelist, pricelistsApi } from '../api/pricelists.api'
+import { usePricelists, useDeletePricelist, useApprovePricelist, useRestorePricelist, pricelistsApi, usePriceChangeChart } from '../api/pricelists.api'
 import { PricelistTable } from '../components/PricelistTable'
+import { PriceChangeHistorySection } from '../components/PriceChangeHistorySection'
+import { PriceHistoryChart } from '../components/PriceHistoryChart'
 import { Pagination } from '@/components/ui/Pagination'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { DEFAULT_VALUES } from '../constants/pricelist.constants'
@@ -55,6 +57,24 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
 
   const pricelists = supplierProduct ? (data?.data ?? []) : []
   const pagination = data?.pagination
+
+  const activePricelist = pricelists.find((p) => p.is_active && p.status === 'APPROVED' && !p.deleted_at)
+    ?? pricelists.find((p) => p.status === 'APPROVED' && !p.deleted_at)
+
+  const chartQuery = supplierProduct && activePricelist
+    ? {
+        supplier_id: supplierProduct.supplier_id,
+        product_id: supplierProduct.product_id,
+        uom_id: activePricelist.uom_id,
+        days: 90,
+        limit: 30,
+      }
+    : null
+
+  const { data: chartData, isLoading: chartLoading } = usePriceChangeChart(chartQuery)
+
+  const fmtPrice = (n: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
 
   // Fetch supplier product context
   useEffect(() => {
@@ -135,51 +155,74 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
   const isMutating = deletePL.isPending || approvePL.isPending || restorePL.isPending
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Context Header */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+    <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-10">
+      {/* Hero */}
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 lg:p-8 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-300">Daftar Harga:</h2>
-            <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
-              <span className="font-medium">Supplier:</span> {supplierProduct.supplier?.supplier_name || '—'}
+            <p className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-2">Supplier · Produk</p>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+              {supplierProduct.product?.product_name || '—'}
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {supplierProduct.supplier?.supplier_name || '—'}
+              {activePricelist?.uom_name ? ` · ${activePricelist.uom_name}` : ''}
             </p>
-            <p className="text-sm text-blue-700 dark:text-blue-400">
-              <span className="font-medium">Produk:</span> {supplierProduct.product?.product_name || '—'}
-            </p>
+            {activePricelist && (
+              <p className="text-3xl font-semibold tabular-nums text-gray-900 dark:text-white mt-4">
+                {fmtPrice(Number(activePricelist.price))}
+              </p>
+            )}
           </div>
-          <button onClick={() => navigate('/supplier-products')}
-            className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 rounded">
-            Kembali
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate('/supplier-products')}
+              className="px-4 py-2 text-sm rounded-2xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+              Kembali
+            </button>
+            <button onClick={() => navigate(`/supplier-products/${supplierProductId}/pricelists/create`)}
+              className="px-4 py-2 text-sm rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700">
+              Tambah Harga
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex justify-between items-center mb-6">
+      {/* Chart */}
+      {activePricelist && (
+        <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 lg:p-8 shadow-sm">
+          <p className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Trend 90 hari</p>
+          {chartLoading ? (
+            <CardSkeleton />
+          ) : (
+            <PriceHistoryChart
+              points={chartData?.points ?? []}
+              activePrice={chartData?.active_price ?? Number(activePricelist.price)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Actions row */}
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Kelola Harga</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Atur harga per UOM untuk kombinasi supplier-produk ini</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Kelola Harga</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Semua versi harga untuk kombinasi ini</p>
         </div>
         <div className="flex gap-2">
-          <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-md">
-            <input type="checkbox" checked={showDeleted} onChange={e => setShowDeleted(e.target.checked)}
+          <label className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)}
               className="rounded border-gray-300 dark:border-gray-600" />
             <span className="text-sm text-gray-700 dark:text-gray-300">Terhapus</span>
           </label>
           <button onClick={handleExport} disabled={isLoading || pricelists.length === 0}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
+            className="px-4 py-2 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 text-sm">
             Ekspor CSV
-          </button>
-          <button onClick={() => navigate(`/supplier-products/${supplierProductId}/pricelists/create`)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-            Tambah Harga
           </button>
         </div>
       </div>
 
-      {/* Table */}
-      <PricelistTable
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm overflow-hidden p-4 lg:p-6">
+        <PricelistTable
         data={pricelists}
         loading={isLoading}
         onEdit={id => navigate(`/supplier-products/${supplierProductId}/pricelists/${id}/edit`)}
@@ -192,18 +235,24 @@ export const SupplierProductPricelistsPage = memo(function SupplierProductPricel
         onSort={handleSort}
         showDeleted={showDeleted}
       />
+      </div>
 
       {pagination && pagination.total > 0 && (
-        <div className="mt-6">
-          <Pagination
-            pagination={pagination}
-            onPageChange={p => setFilters(prev => ({ ...prev, page: p }))}
-            onLimitChange={l => setFilters(prev => ({ ...prev, limit: l, page: 1 }))}
-            currentLength={pricelists.length}
-            loading={isLoading}
-          />
-        </div>
+        <Pagination
+          pagination={pagination}
+          onPageChange={p => setFilters(prev => ({ ...prev, page: p }))}
+          onLimitChange={l => setFilters(prev => ({ ...prev, limit: l, page: 1 }))}
+          currentLength={pricelists.length}
+          loading={isLoading}
+        />
       )}
+
+      <PriceChangeHistorySection
+        supplierId={supplierProduct.supplier_id}
+        productId={supplierProduct.product_id}
+        uomId={activePricelist?.uom_id}
+        compact
+      />
 
       <ConfirmModal isOpen={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={handleDelete}
         title="Hapus Pricelist" message="Yakin ingin menghapus pricelist ini?"

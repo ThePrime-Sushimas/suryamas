@@ -38,6 +38,10 @@ import {
   type ProductUomConversion,
 } from '../../utils/purchase-invoice-uom.util'
 import { pricelistsRepository } from '../pricelists/pricelists.repository'
+import { pricelistsService } from '../pricelists/pricelists.service'
+import type { PiLineForPricelistSync, PricelistSyncResult } from '../pricelists/pricelists.types'
+import { recipesRepository } from '../food-production/recipes/recipes.repository'
+import { logError } from '../../config/logger'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import { suppliersRepository } from '../suppliers/suppliers.repository'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
@@ -574,6 +578,61 @@ export class PurchaseInvoicesService {
     return { ...detail, lines }
   }
 
+  private resolveUomIdForInvoiceLine(
+    productId: string,
+    uomInvoice: string,
+    uomRows: Array<{ product_id: string; uom_id: string; unit_name: string }>,
+  ): string | null {
+    const key = normalizeUomName(uomInvoice)
+    const match = uomRows.find(
+      (r) => r.product_id === productId && normalizeUomName(r.unit_name) === key,
+    )
+    return match?.uom_id ?? null
+  }
+
+  private async buildPricelistSyncLines(
+    detail: PurchaseInvoiceDetail,
+    client?: PoolClient,
+  ): Promise<PiLineForPricelistSync[]> {
+    // enrichDetailWithInvoiceUom: read-only (pool), no writes — resolves uom_invoice from GR/pricelist master.
+    const enriched = await this.enrichDetailWithInvoiceUom(detail)
+    const productIds = enriched.lines.map((l) => l.product_id)
+    const uomRows = await productUomsRepository.findAllUomsWithIdsBatch(productIds, client)
+    return enriched.lines.map((line) => ({
+      id: line.id,
+      product_id: line.product_id,
+      product_name: line.product_name,
+      unit_price: Number(line.unit_price),
+      uom_invoice: line.uom_invoice ?? '',
+      uom_id: line.uom_invoice
+        ? this.resolveUomIdForInvoiceLine(line.product_id, line.uom_invoice, uomRows)
+        : null,
+    }))
+  }
+
+  /**
+   * Recipe/WIP/menu cost propagation runs after pricelist tx commits.
+   * Failures are logged — invoice post/unpost is not rolled back; recalc can be retried manually.
+   */
+  private async recalculateRecipesAfterPricelistChange(
+    productIds: Iterable<string>,
+    companyId: string,
+    context: { invoiceId: string; action: 'post' | 'unpost' },
+  ): Promise<void> {
+    for (const productId of productIds) {
+      try {
+        await recipesRepository.recalculateCostFromProduct(productId, companyId)
+      } catch (err) {
+        logError('Recipe recalc failed after purchase invoice pricelist sync', {
+          productId,
+          invoiceId: context.invoiceId,
+          action: context.action,
+          err: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+  }
+
   async create(companyId: string, dto: CreatePurchaseInvoiceDto, userId: string) {
     const invoice = await purchaseInvoicesRepository.withTransaction(async (client) => {
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
@@ -738,6 +797,9 @@ export class PurchaseInvoicesService {
     if (detail.status !== 'APPROVED') throw new PurchaseInvoiceInvalidStatusError(detail.status, 'APPROVED')
     if (detail.journal_id) throw new PurchaseInvoiceJournalAlreadyExistsError()
 
+    let pricelistSync: PricelistSyncResult = { synced: 0, skipped: 0, warnings: [] }
+    const recipeProductIds = new Set<string>()
+
     await purchaseInvoicesRepository.withTransaction(async (client) => {
       const unconfirmedGpNumber = await purchaseInvoicesRepository.findUnconfirmedGpProcessingNumber(client, id)
       if (unconfirmedGpNumber) {
@@ -896,6 +958,24 @@ export class PurchaseInvoicesService {
 
       await purchaseInvoicesRepository.updateGoodsReceiptQtyInvoiced(client, id)
 
+      const detailInTx = await purchaseInvoicesRepository.findById(id, companyId, client)
+      if (detailInTx) {
+        const syncLines = await this.buildPricelistSyncLines(detailInTx, client)
+        const { result, affectedProductIds } = await pricelistsService.syncAllFromPostedPurchaseInvoice({
+          client,
+          companyId,
+          supplierId: detail.supplier_id,
+          invoiceId: id,
+          invoiceDate: String(detail.invoice_date).slice(0, 10),
+          userId,
+          lines: syncLines,
+        })
+        pricelistSync = result
+        for (const productId of affectedProductIds) {
+          recipeProductIds.add(productId)
+        }
+      }
+
       await purchaseInvoicesRepository.updateStatus(client, id, 'POSTED', {
         posted_by: userId,
         posted_at: new Date().toISOString(),
@@ -904,8 +984,14 @@ export class PurchaseInvoicesService {
       })
     })
 
+    await this.recalculateRecipesAfterPricelistChange(recipeProductIds, companyId, {
+      invoiceId: id,
+      action: 'post',
+    })
+
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'POSTED' })
-    return this.getById(id, companyId)
+    const invoice = await this.getById(id, companyId)
+    return { ...invoice, pricelist_sync: pricelistSync }
   }
 
   /**
@@ -920,6 +1006,7 @@ export class PurchaseInvoicesService {
    * - qty_invoiced: recalculateGrQtyInvoicedForGrLines sums ALL POSTED PIs per GR line.
    * - Fiscal period: checked on invoice_date (same as journal_date on post), not posted_at.
    *   Unpost hard-deletes the journal in that period; closed period → block (audit integrity).
+   * - PurchaseInvoicePricelistSupersededError (409): thrown inside tx → full rollback incl. pricelist revert.
    * - TODO(purchase-payments): guard when purchase_payment linked to this invoice exists.
    */
   async unpost(companyId: string, id: string, userId: string) {
@@ -931,6 +1018,7 @@ export class PurchaseInvoicesService {
     // TODO(purchase-payments): if (await hasLinkedPayments(client, id)) throw PurchaseInvoiceHasPaymentsError()
 
     const journalId = detail.journal_id
+    const recipeProductIds = new Set<string>()
 
     await purchaseInvoicesRepository.withTransaction(async (client) => {
       // Journal is created with journal_date = invoice_date on post — period gate matches that date.
@@ -944,6 +1032,17 @@ export class PurchaseInvoicesService {
           'closed fiscal period',
           'open fiscal period for invoice date',
         )
+      }
+
+      const affectedProducts = await pricelistsService.revertPricelistOnPurchaseInvoiceUnpost({
+        client,
+        companyId,
+        invoiceId: id,
+        invoiceDate: String(detail.invoice_date).slice(0, 10),
+        userId,
+      })
+      for (const productId of affectedProducts) {
+        recipeProductIds.add(productId)
       }
 
       const stockPairs = await purchaseInvoicesRepository.findUnpostStockPairsForInvoice(client, id)
@@ -992,6 +1091,11 @@ export class PurchaseInvoicesService {
           await purchaseInvoicesRepository.updatePoPaymentDueDate(client, poId, latestDue)
         }
       }
+    })
+
+    await this.recalculateRecipesAfterPricelistChange(recipeProductIds, companyId, {
+      invoiceId: id,
+      action: 'unpost',
     })
 
     await AuditService.log(

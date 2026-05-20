@@ -26,6 +26,76 @@ export type SortField = 'price' | 'valid_from' | 'valid_to' | 'created_at' | 'up
 
 export type SortOrder = 'asc' | 'desc'
 
+export type PricelistChangeSource = 'PI_POST' | 'PI_UNPOST' | 'MANUAL'
+
+export interface PriceChangeWithRelations {
+  id: string
+  company_id: string
+  supplier_id: string
+  product_id: string
+  uom_id: string
+  old_price: number | null
+  new_price: number
+  change_amount: number | null
+  change_pct: number | null
+  effective_date: string
+  source: PricelistChangeSource
+  purchase_invoice_id: string | null
+  purchase_invoice_line_id: string | null
+  pricelist_id: string | null
+  created_at: string
+  supplier_name: string
+  product_name: string
+  product_code: string | null
+  uom_name: string
+  invoice_number: string | null
+  recent_prices: number[]
+}
+
+export interface PriceChangeSummary {
+  up_count: number
+  down_count: number
+  avg_change_pct: number | null
+}
+
+export interface PriceChangeListQuery {
+  page?: number
+  limit?: number
+  supplier_id?: string
+  product_id?: string
+  uom_id?: string
+  source?: PricelistChangeSource
+  date_from?: string
+  date_to?: string
+  search?: string
+}
+
+export interface PriceChangeChartQuery {
+  supplier_id: string
+  product_id: string
+  uom_id: string
+  limit?: number
+  days?: number
+}
+
+export interface PriceChangeChartPoint {
+  effective_date: string
+  new_price: number
+  change_pct: number | null
+  source: PricelistChangeSource
+}
+
+export interface PriceChangeChartResult {
+  points: PriceChangeChartPoint[]
+  active_price: number | null
+}
+
+export interface PriceChangeListResponse {
+  items: PriceChangeWithRelations[]
+  summary: PriceChangeSummary
+  pagination: PaginationParams
+}
+
 // ============================================================================
 // BASE ENTITIES
 // ============================================================================

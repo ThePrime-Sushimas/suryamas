@@ -126,8 +126,20 @@ export default function PurchaseInvoicesPage() {
     if (!inv.post_journal_ready || postingId !== null) return;
     setPostingId(inv.id);
     try {
-      await postInvoice.mutateAsync(inv.id);
+      const result = await postInvoice.mutateAsync(inv.id);
       toast.success("Invoice berhasil di-post ke jurnal");
+      const warnings = result.pricelist_sync?.warnings ?? [];
+      if (warnings.length > 0) {
+        const preview = warnings
+          .slice(0, 3)
+          .map((w) => `${w.product_name} (${w.uom_invoice}): ${w.reason}`)
+          .join("; ");
+        const suffix =
+          warnings.length > 3 ? ` (+${warnings.length - 3} lainnya)` : "";
+        toast.warning(
+          `Pricelist: ${result.pricelist_sync?.synced ?? 0} diupdate, ${warnings.length} baris dilewati. ${preview}${suffix}`,
+        );
+      }
     } catch (err: unknown) {
       toast.error(parseApiError(err, "Gagal post jurnal"));
     } finally {

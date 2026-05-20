@@ -76,6 +76,20 @@ export interface PurchaseInvoice {
   post_journal_ready?: boolean
 }
 
+export interface PricelistSyncResult {
+  synced: number
+  skipped: number
+  warnings: Array<{
+    product_name: string
+    uom_invoice: string
+    reason: string
+  }>
+}
+
+export type PostPurchaseInvoiceResult = PurchaseInvoice & {
+  pricelist_sync?: PricelistSyncResult
+}
+
 
 export interface PurchaseInvoiceGrLink {
   id: string
@@ -294,13 +308,14 @@ export const usePostPurchaseInvoice = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data } = await api.post(`/purchase-invoices/${id}/post`)
-      return data.data as PurchaseInvoice
+      return data.data as PostPurchaseInvoiceResult
     },
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ['purchase-invoices'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: ['stock'] })
       qc.invalidateQueries({ queryKey: ['purchase-invoices', 'counts'] })
+      qc.invalidateQueries({ queryKey: ['pricelists'] })
     },
   })
 }
@@ -318,6 +333,7 @@ export const useUnpostPurchaseInvoice = () => {
       qc.invalidateQueries({ queryKey: ['stock'] })
       qc.invalidateQueries({ queryKey: ['purchase-invoices', 'counts'] })
       qc.invalidateQueries({ queryKey: ['journals'] })
+      qc.invalidateQueries({ queryKey: ['pricelists'] })
     },
   })
 }

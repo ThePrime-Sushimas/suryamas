@@ -1,5 +1,22 @@
+import type { PoolClient } from 'pg'
 import { pool } from '../../config/db'
-import { Pricelist, PricelistWithRelations, CreatePricelistDto, UpdatePricelistDto, PricelistListQuery, PricelistLookup } from './pricelists.types'
+import {
+  Pricelist,
+  PricelistWithRelations,
+  CreatePricelistDto,
+  UpdatePricelistDto,
+  PricelistListQuery,
+  PricelistLookup,
+  InsertPriceChangeInput,
+  UnpostPricelistBlockedItem,
+  PricelistSource,
+  PriceChangeWithRelations,
+  PriceChangeListQuery,
+  PriceChangeSummary,
+  PriceChangeChartQuery,
+  PriceChangeChartResult,
+} from './pricelists.types'
+import { calcChangeAmount, calcChangePct, SPARKLINE_HISTORY_POINTS } from './pricelists.utils'
 
 const DETAIL_SELECT = `
   pl.*,
@@ -64,6 +81,201 @@ export class PricelistsRepository {
       [companyId, supplierId, productId, uomId]
     )
     return rows[0] ?? null
+  }
+
+  async findActiveForUpdate(
+    client: PoolClient,
+    companyId: string,
+    supplierId: string,
+    productId: string,
+    uomId: string,
+  ): Promise<{ id: string; price: number } | null> {
+    const { rows } = await client.query(
+      `SELECT id, price FROM pricelists
+       WHERE company_id = $1 AND supplier_id = $2 AND product_id = $3 AND uom_id = $4
+         AND is_active = true AND status = 'APPROVED' AND deleted_at IS NULL
+       FOR UPDATE`,
+      [companyId, supplierId, productId, uomId],
+    )
+    return rows[0] ? { id: rows[0].id, price: Number(rows[0].price) } : null
+  }
+
+  async findByIdForUpdate(client: PoolClient, id: string): Promise<Pricelist | null> {
+    const { rows } = await client.query(
+      `SELECT * FROM pricelists WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+      [id],
+    )
+    return rows[0] ?? null
+  }
+
+  async deactivateWithValidTo(
+    client: PoolClient,
+    id: string,
+    validTo: string,
+    updatedBy?: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE pricelists
+       SET is_active = false, valid_to = $1, updated_by = $2, updated_at = now()
+       WHERE id = $3`,
+      [validTo, updatedBy ?? null, id],
+    )
+  }
+
+  async createInTransaction(
+    client: PoolClient,
+    data: CreatePricelistDto & {
+      source?: PricelistSource
+      purchase_invoice_id?: string | null
+      created_by?: string
+    },
+  ): Promise<Pricelist> {
+    const insertData: Record<string, unknown> = {
+      company_id: data.company_id,
+      supplier_id: data.supplier_id,
+      product_id: data.product_id,
+      uom_id: data.uom_id,
+      price: data.price,
+      currency: data.currency || 'IDR',
+      valid_from: data.valid_from,
+      valid_to: data.valid_to ?? null,
+      is_active: data.is_active ?? true,
+      status: 'APPROVED',
+      source: data.source ?? 'MANUAL',
+      purchase_invoice_id: data.purchase_invoice_id ?? null,
+      created_by: data.created_by ?? null,
+    }
+    const keys = Object.keys(insertData)
+    const values = Object.values(insertData)
+    const { rows } = await client.query(
+      `INSERT INTO pricelists (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      values,
+    )
+    return rows[0]
+  }
+
+  async insertPriceChange(data: InsertPriceChangeInput, client?: PoolClient): Promise<void> {
+    const db = client ?? pool
+    const changeAmount = calcChangeAmount(data.old_price, data.new_price)
+    const changePct = calcChangePct(data.old_price, data.new_price)
+    await db.query(
+      `INSERT INTO pricelist_price_changes (
+         company_id, supplier_id, product_id, uom_id,
+         old_price, new_price, change_amount, change_pct,
+         effective_date, source,
+         purchase_invoice_id, purchase_invoice_line_id, pricelist_id, created_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [
+        data.company_id,
+        data.supplier_id,
+        data.product_id,
+        data.uom_id,
+        data.old_price,
+        data.new_price,
+        changeAmount,
+        changePct,
+        data.effective_date,
+        data.source,
+        data.purchase_invoice_id ?? null,
+        data.purchase_invoice_line_id ?? null,
+        data.pricelist_id ?? null,
+        data.created_by ?? null,
+      ],
+    )
+  }
+
+  async findUnpostBlockedItems(
+    client: PoolClient,
+    purchaseInvoiceId: string,
+    companyId: string,
+  ): Promise<UnpostPricelistBlockedItem[]> {
+    const { rows } = await client.query<UnpostPricelistBlockedItem & {
+      pricelist_is_active: boolean
+      has_newer_pi_post: boolean
+    }>(
+      `SELECT
+         p.product_name,
+         mu.unit_name AS uom_name,
+         pl.is_active AS pricelist_is_active,
+         (newer.invoice_number IS NOT NULL) AS has_newer_pi_post,
+         newer.invoice_number AS superseding_invoice_number
+       FROM pricelist_price_changes ppc
+       JOIN products p ON p.id = ppc.product_id
+       JOIN product_uoms pu ON pu.id = ppc.uom_id
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       JOIN pricelists pl ON pl.id = ppc.pricelist_id
+       LEFT JOIN LATERAL (
+         SELECT pi2.invoice_number
+         FROM pricelist_price_changes ppc2
+         JOIN purchase_invoices pi2 ON pi2.id = ppc2.purchase_invoice_id
+         JOIN purchase_invoices pi_orig ON pi_orig.id = $1
+         WHERE ppc2.supplier_id = ppc.supplier_id
+           AND ppc2.product_id = ppc.product_id
+           AND ppc2.uom_id = ppc.uom_id
+           AND ppc2.source = 'PI_POST'
+           AND ppc2.purchase_invoice_id != $1
+           AND pi2.status = 'POSTED'
+           AND pi2.deleted_at IS NULL
+           AND (
+             ppc2.effective_date > ppc.effective_date
+             OR (
+               ppc2.effective_date = ppc.effective_date
+               AND pi2.posted_at > pi_orig.posted_at
+             )
+           )
+         ORDER BY ppc2.effective_date DESC, pi2.posted_at DESC
+         LIMIT 1
+       ) newer ON true
+       WHERE ppc.purchase_invoice_id = $1
+         AND ppc.company_id = $2
+         AND ppc.source = 'PI_POST'`,
+      [purchaseInvoiceId, companyId],
+    )
+
+    return rows
+      .filter((r) => !r.pricelist_is_active || r.has_newer_pi_post)
+      .map((r) => ({
+        product_name: r.product_name,
+        uom_name: r.uom_name,
+        superseding_invoice_number: r.superseding_invoice_number,
+      }))
+  }
+
+  async findPiPostChangesForRevert(
+    client: PoolClient,
+    purchaseInvoiceId: string,
+    companyId: string,
+  ): Promise<Array<{
+    id: string
+    supplier_id: string
+    product_id: string
+    uom_id: string
+    product_name: string
+    uom_name: string
+    old_price: number | null
+    new_price: number
+    effective_date: string
+    pricelist_id: string
+  }>> {
+    const { rows } = await client.query(
+      `SELECT ppc.id, ppc.supplier_id, ppc.product_id, ppc.uom_id,
+              ppc.old_price, ppc.new_price, ppc.effective_date, ppc.pricelist_id,
+              p.product_name, mu.unit_name AS uom_name
+       FROM pricelist_price_changes ppc
+       JOIN products p ON p.id = ppc.product_id
+       JOIN product_uoms pu ON pu.id = ppc.uom_id
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE ppc.purchase_invoice_id = $1 AND ppc.company_id = $2 AND ppc.source = 'PI_POST'
+       ORDER BY ppc.created_at ASC`,
+      [purchaseInvoiceId, companyId],
+    )
+    return rows.map((r) => ({
+      ...r,
+      product_name: r.product_name,
+      uom_name: r.uom_name,
+      old_price: r.old_price != null ? Number(r.old_price) : null,
+      new_price: Number(r.new_price),
+    }))
   }
 
   async getProductName(productId: string): Promise<string> {
@@ -198,8 +410,9 @@ export class PricelistsRepository {
    * Get latest approved pricelist cost per base unit for a product.
    * Returns price / conversion_factor from the most recent valid_from (not future).
    */
-  async getLatestCostPerBaseUnit(productId: string): Promise<number | null> {
-    const { rows } = await pool.query(
+  async getLatestCostPerBaseUnit(productId: string, client?: PoolClient): Promise<number | null> {
+    const db = client ?? pool
+    const { rows } = await db.query(
       `SELECT pl.price, pu.conversion_factor
        FROM pricelists pl
        JOIN product_uoms pu ON pu.id = pl.uom_id
@@ -215,8 +428,9 @@ export class PricelistsRepository {
     return Number(cost.toFixed(6))
   }
 
-  async updateProductAverageCost(productId: string, averageCost: number): Promise<void> {
-    await pool.query(
+  async updateProductAverageCost(productId: string, averageCost: number, client?: PoolClient): Promise<void> {
+    const db = client ?? pool
+    await db.query(
       'UPDATE products SET average_cost = $1, updated_at = now() WHERE id = $2',
       [averageCost, productId]
     )
@@ -226,13 +440,205 @@ export class PricelistsRepository {
    * Update base_price for all UOMs of a product.
    * base_price = costPerBaseUnit × conversion_factor
    */
-  async updateAllUomBasePrices(productId: string, costPerBaseUnit: number): Promise<void> {
-    await pool.query(
+  async updateAllUomBasePrices(productId: string, costPerBaseUnit: number, client?: PoolClient): Promise<void> {
+    const db = client ?? pool
+    await db.query(
       `UPDATE product_uoms
        SET base_price = ROUND(($1 * conversion_factor)::numeric, 2), updated_at = now()
        WHERE product_id = $2 AND is_deleted = false`,
       [costPerBaseUnit, productId]
     )
+  }
+
+  private buildPriceChangeFilters(
+    companyId: string,
+    query?: PriceChangeListQuery,
+  ): { where: string; params: unknown[] } {
+    const conditions = ['ppc.company_id = $1']
+    const params: unknown[] = [companyId]
+    let idx = 2
+
+    if (query?.supplier_id) {
+      conditions.push(`ppc.supplier_id = $${idx++}`)
+      params.push(query.supplier_id)
+    }
+    if (query?.product_id) {
+      conditions.push(`ppc.product_id = $${idx++}`)
+      params.push(query.product_id)
+    }
+    if (query?.uom_id) {
+      conditions.push(`ppc.uom_id = $${idx++}`)
+      params.push(query.uom_id)
+    }
+    if (query?.source) {
+      conditions.push(`ppc.source = $${idx++}`)
+      params.push(query.source)
+    }
+    if (query?.date_from) {
+      conditions.push(`ppc.effective_date >= $${idx++}`)
+      params.push(query.date_from)
+    }
+    if (query?.date_to) {
+      conditions.push(`ppc.effective_date <= $${idx++}`)
+      params.push(query.date_to)
+    }
+    if (query?.search) {
+      conditions.push(`(
+        p.product_name ILIKE $${idx}
+        OR p.product_code ILIKE $${idx}
+        OR s.supplier_name ILIKE $${idx}
+        OR pi.invoice_number ILIKE $${idx}
+      )`)
+      params.push(`%${query.search}%`)
+      idx++
+    }
+
+    return { where: `WHERE ${conditions.join(' AND ')}`, params }
+  }
+
+  /** Shared FROM/JOIN for price-change list, count, and summary (keep in sync). */
+  private priceChangeListFrom(): string {
+    return `
+      FROM pricelist_price_changes ppc
+      JOIN suppliers s ON s.id = ppc.supplier_id
+      JOIN products p ON p.id = ppc.product_id
+      JOIN product_uoms pu ON pu.id = ppc.uom_id
+      JOIN metric_units mu ON mu.id = pu.metric_unit_id
+      LEFT JOIN purchase_invoices pi ON pi.id = ppc.purchase_invoice_id`
+  }
+
+  async findPriceChanges(
+    companyId: string,
+    pagination: { limit: number; offset: number },
+    query?: PriceChangeListQuery,
+  ): Promise<{ data: PriceChangeWithRelations[]; total: number }> {
+    const { where, params } = this.buildPriceChangeFilters(companyId, query)
+    const limitIdx = params.length + 1
+    const offsetIdx = params.length + 2
+
+    const sql = `
+      SELECT
+        ppc.*,
+        s.supplier_name,
+        p.product_name,
+        p.product_code,
+        mu.unit_name AS uom_name,
+        pi.invoice_number,
+        COALESCE(
+          (
+            SELECT ARRAY_AGG(sub.new_price ORDER BY sub.effective_date ASC, sub.created_at ASC)
+            FROM (
+              SELECT ppc2.new_price, ppc2.effective_date, ppc2.created_at
+              FROM pricelist_price_changes ppc2
+              WHERE ppc2.company_id = ppc.company_id
+                AND ppc2.supplier_id = ppc.supplier_id
+                AND ppc2.product_id = ppc.product_id
+                AND ppc2.uom_id = ppc.uom_id
+                AND (
+                  ppc2.effective_date < ppc.effective_date
+                  OR (ppc2.effective_date = ppc.effective_date AND ppc2.created_at < ppc.created_at)
+                )
+              ORDER BY ppc2.effective_date DESC, ppc2.created_at DESC
+              LIMIT ${SPARKLINE_HISTORY_POINTS}
+            ) sub
+          ),
+          ARRAY[]::numeric[]
+        ) AS recent_prices
+      FROM pricelist_price_changes ppc
+      JOIN suppliers s ON s.id = ppc.supplier_id
+      JOIN products p ON p.id = ppc.product_id
+      JOIN product_uoms pu ON pu.id = ppc.uom_id
+      JOIN metric_units mu ON mu.id = pu.metric_unit_id
+      LEFT JOIN purchase_invoices pi ON pi.id = ppc.purchase_invoice_id
+      ${where}
+      ORDER BY ppc.effective_date DESC, ppc.created_at DESC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}`
+
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      ${this.priceChangeListFrom()}
+      ${where}`
+
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(sql, [...params, pagination.limit, pagination.offset]),
+      pool.query(countSql, params),
+    ])
+
+    return {
+      data: dataRes.rows.map((row) => ({
+        ...row,
+        old_price: row.old_price != null ? Number(row.old_price) : null,
+        new_price: Number(row.new_price),
+        change_amount: row.change_amount != null ? Number(row.change_amount) : null,
+        change_pct: row.change_pct != null ? Number(row.change_pct) : null,
+        recent_prices: (row.recent_prices ?? []).map(Number),
+      })) as PriceChangeWithRelations[],
+      total: countRes.rows[0].total,
+    }
+  }
+
+  async summarizePriceChanges(
+    companyId: string,
+    query?: PriceChangeListQuery,
+  ): Promise<PriceChangeSummary> {
+    const { where, params } = this.buildPriceChangeFilters(companyId, query)
+    const { rows } = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE ppc.change_pct > 0)::int AS up_count,
+         COUNT(*) FILTER (WHERE ppc.change_pct < 0)::int AS down_count,
+         ROUND(AVG(ppc.change_pct) FILTER (WHERE ppc.change_pct IS NOT NULL), 2) AS avg_change_pct
+       ${this.priceChangeListFrom()}
+       ${where}`,
+      params,
+    )
+    const row = rows[0]
+    return {
+      up_count: Number(row.up_count ?? 0),
+      down_count: Number(row.down_count ?? 0),
+      avg_change_pct: row.avg_change_pct != null ? Number(row.avg_change_pct) : null,
+    }
+  }
+
+  async findPriceChangeChart(
+    companyId: string,
+    query: PriceChangeChartQuery,
+  ): Promise<PriceChangeChartResult> {
+    const limit = Math.min(query.limit ?? 30, 90)
+    const days = query.days ?? 90
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - days)
+    const cutoffStr = cutoff.toISOString().slice(0, 10)
+
+    const { rows } = await pool.query(
+      `SELECT ppc.effective_date, ppc.new_price, ppc.change_pct, ppc.source
+       FROM pricelist_price_changes ppc
+       WHERE ppc.company_id = $1
+         AND ppc.supplier_id = $2
+         AND ppc.product_id = $3
+         AND ppc.uom_id = $4
+         AND ppc.effective_date >= $5
+       ORDER BY ppc.effective_date ASC, ppc.created_at ASC
+       LIMIT $6`,
+      [companyId, query.supplier_id, query.product_id, query.uom_id, cutoffStr, limit],
+    )
+
+    const activeRes = await pool.query(
+      `SELECT price FROM pricelists
+       WHERE company_id = $1 AND supplier_id = $2 AND product_id = $3 AND uom_id = $4
+         AND is_active = true AND status = 'APPROVED' AND deleted_at IS NULL
+       LIMIT 1`,
+      [companyId, query.supplier_id, query.product_id, query.uom_id],
+    )
+
+    return {
+      points: rows.map((r) => ({
+        effective_date: String(r.effective_date).slice(0, 10),
+        new_price: Number(r.new_price),
+        change_pct: r.change_pct != null ? Number(r.change_pct) : null,
+        source: r.source,
+      })),
+      active_price: activeRes.rows[0] ? Number(activeRes.rows[0].price) : null,
+    }
   }
 }
 

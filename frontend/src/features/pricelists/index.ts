@@ -21,6 +21,11 @@ export { useUomSearch } from '@/hooks/_shared/useUomSearch'
 // Components
 export { PricelistTable } from './components/PricelistTable'
 export { PricelistFormContextual } from './components/PricelistFormContextual'
+export { PriceChangeHistorySection } from './components/PriceChangeHistorySection'
+export { PriceChangeCard } from './components/PriceChangeCard'
+export { PriceChangeStats } from './components/PriceChangeStats'
+export { PriceHistoryChart } from './components/PriceHistoryChart'
+export { MiniSparkline } from './components/MiniSparkline'
 
 // Pages
 export { default as PricelistsPage } from './pages/PricelistsPage'
