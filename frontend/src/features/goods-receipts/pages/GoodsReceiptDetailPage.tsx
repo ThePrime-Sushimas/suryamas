@@ -36,6 +36,7 @@ import {
 import api from "@/lib/axios";
 import { lineHasWeighing } from "../utils/weighing.util";
 import { GrSourceBadge } from "../components/GrSourceBadge";
+import { PrintGRModal } from "../components/PrintGRModal";
 import { isOrphanMarketplaceGr } from "@/lib/marketplaceSupplier";
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
@@ -131,6 +132,7 @@ export default function GoodsReceiptDetailPage() {
   const deleteAttachment = useDeleteGRAttachment();
 
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showPrintThermalModal, setShowPrintThermalModal] = useState(false);
   const [uploadType, setUploadType] = useState<string>("INVOICE");
   const attachFileRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -170,7 +172,7 @@ export default function GoodsReceiptDetailPage() {
         <div><strong>No. Invoice:</strong> ${esc(gr.invoice_number || "-")}</div>
       </div>
       <table>
-        <thead><tr><th class="text-center">No</th><th>Produk</th><th class="text-right">Diterima</th><th class="text-right">Ditolak</th><th>UOM</th><th class="text-right">Harga</th><th class="text-right">Subtotal</th></tr></thead>
+        <thead><tr><th class="text-center">No</th><th>Produk</th><th class="text-right">Diterima</th><th class="text-right">Ditolak</th><th>UOM</th></tr></thead>
         <tbody>
           ${lines
             .map((l, i) => {
@@ -183,11 +185,10 @@ export default function GoodsReceiptDetailPage() {
               const uomDisplay = hasDual
                 ? esc(l.uom_received ?? l.uom ?? "")
                 : esc(l.uom ?? "");
-              return `<tr><td class="text-center">${i + 1}</td><td>${esc(l.product_name ?? "")}</td><td class="text-right">${qtyDisplay}</td><td class="text-right">${(l.qty_rejected ?? 0) > 0 ? fmt(l.qty_rejected ?? 0) : "-"}</td><td>${uomDisplay}</td><td class="text-right">Rp ${fmt(l.unit_price_invoice)}</td><td class="text-right">Rp ${fmt(l.total_price_invoice ?? l.qty_received * l.unit_price_invoice)}</td></tr>`;
+              return `<tr><td class="text-center">${i + 1}</td><td>${esc(l.product_name ?? "")}</td><td class="text-right">${qtyDisplay}</td><td class="text-right">${(l.qty_rejected ?? 0) > 0 ? fmt(l.qty_rejected ?? 0) : "-"}</td><td>${uomDisplay}</td></tr>`;
             })
             .join("")}
         </tbody>
-        <tfoot><tr><td colspan="6" class="text-right"><strong>Total:</strong></td><td class="text-right"><strong>Rp ${fmt(gr.total_invoice_amount)}</strong></td></tr></tfoot>
       </table>
       ${gr.notes ? `<p><strong>Catatan:</strong> ${esc(gr.notes)}</p>` : ""}
       <div class="signatures">
@@ -283,13 +284,24 @@ export default function GoodsReceiptDetailPage() {
 
           <div className="flex items-center gap-3">
             {gr.status === "CONFIRMED" && (
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors bg-white dark:bg-gray-800 shadow-sm"
-              >
-                <Printer className="w-4 h-4" />{" "}
-                <span className="hidden sm:inline">Cetak GR</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowPrintThermalModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-900/20 text-sm font-medium transition-colors bg-white dark:bg-gray-800 shadow-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="hidden sm:inline">Print Thermal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors bg-white dark:bg-gray-800 shadow-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="hidden sm:inline">Cetak A4</span>
+                </button>
+              </>
             )}
             {gr.status === "DRAFT" && canUpdate && !isOrphanDraft && (
               <>
@@ -716,6 +728,14 @@ export default function GoodsReceiptDetailPage() {
           </div>
         </div>
       </div>
+
+      {showPrintThermalModal && gr.lines && gr.lines.length > 0 && (
+        <PrintGRModal
+          grId={gr.id}
+          lines={gr.lines}
+          onClose={() => setShowPrintThermalModal(false)}
+        />
+      )}
 
       <ConfirmModal
         isOpen={showConfirm}

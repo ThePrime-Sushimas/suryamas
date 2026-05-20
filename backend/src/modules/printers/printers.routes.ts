@@ -4,7 +4,13 @@ import { resolveBranchContext } from '../../middleware/branch-context.middleware
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { printersController } from './printers.controller'
-import { createPrinterSchema, updatePrinterSchema, printerIdSchema, printPurchaseRequestSchema } from './printers.schema'
+import {
+  createPrinterSchema,
+  updatePrinterSchema,
+  printerIdSchema,
+  printPurchaseRequestSchema,
+  printGoodsReceiptSchema,
+} from './printers.schema'
 import { PermissionService } from '../../services/permission.service'
 
 const router = Router()
@@ -18,6 +24,7 @@ router.get('/', canView('printers'), (req, res) => printersController.list(req, 
 
 // Static routes BEFORE dynamic :id routes
 router.post('/print/purchase-request/:id', canView('purchase_requests'), validateSchema(printPurchaseRequestSchema), (req, res) => printersController.printPurchaseRequest(req, res))
+router.post('/print/goods-receipt/:id', canView('goods_receipts'), validateSchema(printGoodsReceiptSchema), (req, res) => printersController.printGoodsReceipt(req, res))
 
 router.get('/:id', canView('printers'), validateSchema(printerIdSchema), (req, res) => printersController.getById(req, res))
 router.post('/', canInsert('printers'), validateSchema(createPrinterSchema), (req, res) => printersController.create(req, res))

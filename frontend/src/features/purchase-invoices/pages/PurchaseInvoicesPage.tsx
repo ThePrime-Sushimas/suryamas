@@ -63,7 +63,6 @@ export default function PurchaseInvoicesPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
-  const canInsert = hasPermission("purchase_invoices", "insert");
   const canRelease = hasPermission("purchase_invoices", "release");
   const canUpdate = hasPermission("purchase_invoices", "update");
 

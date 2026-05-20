@@ -36,3 +36,11 @@ export const printPurchaseRequestSchema = z.object({
   }),
   params: z.object({ id: z.string().uuid() }),
 })
+
+export const printGoodsReceiptSchema = z.object({
+  body: z.object({
+    printer_id: z.string().uuid(),
+    line_ids: z.array(z.string().uuid()).min(1, 'Pilih minimal 1 item untuk dicetak'),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+})

@@ -71,6 +71,7 @@ export type ReceiptRow =
   | { type: 'kv'; key: string; value: string }
   | { type: 'section-header'; text: string }
   | { type: 'item'; label: string; detail: string; amount: string }
+  | { type: 'item-qty'; label: string; detail: string }
   | { type: 'total'; label: string; amount: string }
   | { type: 'center'; text: string }
   | { type: 'text'; text: string }
@@ -113,6 +114,9 @@ export function buildReceipt(template: ReceiptTemplate): Buffer {
         break
       case 'item':
         b.cmd(CMD.ALIGN_LEFT).line(row.label).line(cols(`   ${row.detail}`, row.amount, w))
+        break
+      case 'item-qty':
+        b.cmd(CMD.ALIGN_LEFT).line(row.label).line(`   ${row.detail}`)
         break
       case 'total':
         b.cmd(CMD.ALIGN_LEFT).cmd(CMD.BOLD_ON).line(cols(row.label, row.amount, w)).cmd(CMD.BOLD_OFF)
@@ -165,6 +169,33 @@ export function buildDocReceipt(data: PrintDocData): Buffer {
     const now = new Date()
     rows.push({ type: 'center', text: `Printed: ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}` })
   }
+
+  return buildReceipt({ paper_width: data.paper_width, rows })
+}
+
+export interface GoodsReceiptPrintData {
+  paper_width: number
+  header: Array<{ key: string; value: string }>
+  items: Array<{ label: string; detail: string }>
+  footer?: string
+}
+
+/** Thermal Bukti Penerimaan Barang — tanpa harga. */
+export function buildGoodsReceiptReceipt(data: GoodsReceiptPrintData): Buffer {
+  const now = new Date()
+  const defaultFooter = `Printed: ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`
+
+  const rows: ReceiptRow[] = [
+    { type: 'title', text: 'SURYAMAS' },
+    { type: 'subtitle', text: 'Bukti Penerimaan Barang' },
+    { type: 'double-separator' },
+    ...data.header.map((h) => ({ type: 'kv' as const, key: h.key, value: h.value })),
+    { type: 'separator' },
+    { type: 'section-header', text: 'BARANG:' },
+    ...data.items.map((i) => ({ type: 'item-qty' as const, label: i.label, detail: i.detail })),
+    { type: 'double-separator' },
+    { type: 'center', text: data.footer ?? defaultFooter },
+  ]
 
   return buildReceipt({ paper_width: data.paper_width, rows })
 }

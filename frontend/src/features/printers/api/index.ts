@@ -58,3 +58,13 @@ export const usePrintPurchaseRequest = () =>
       })
     },
   })
+
+export const usePrintGoodsReceipt = () =>
+  useMutation({
+    mutationFn: async (payload: { grId: string; printer_id: string; line_ids: string[] }) => {
+      await api.post(`/printers/print/goods-receipt/${payload.grId}`, {
+        printer_id: payload.printer_id,
+        line_ids: payload.line_ids,
+      })
+    },
+  })

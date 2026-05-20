@@ -8,6 +8,7 @@ import type {
   updatePrinterSchema,
   printerIdSchema,
   printPurchaseRequestSchema,
+  printGoodsReceiptSchema,
 } from './printers.schema'
 
 export class PrintersController {
@@ -77,6 +78,22 @@ export class PrintersController {
       sendSuccess(res, null, 'Print job sent successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'print_purchase_request' })
+    }
+  }
+
+  printGoodsReceipt = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { params, body } = (req as ValidatedAuthRequest<typeof printGoodsReceiptSchema>).validated
+      await printersService.printGoodsReceipt(
+        body.printer_id,
+        params.id,
+        body.line_ids,
+        req.context!.company_id,
+        req.user!.id,
+      )
+      sendSuccess(res, null, 'Print job sent successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'print_goods_receipt' })
     }
   }
 }
