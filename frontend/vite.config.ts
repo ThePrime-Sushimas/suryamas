@@ -17,6 +17,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Single implementation with backend (no duplicate preview logic in frontend)
+      '@due-date': path.resolve(__dirname, '../backend/src/utils/due-date.util.ts'),
     },
   },
   build: {

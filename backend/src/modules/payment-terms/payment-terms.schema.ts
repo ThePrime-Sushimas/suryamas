@@ -9,7 +9,9 @@ export const createPaymentTermSchema = z.object({
     term_name: z.string().min(1).max(PAYMENT_TERM_LIMITS.TERM_NAME_MAX_LENGTH),
     calculation_type: z.enum(VALID_CALCULATION_TYPES as [string, ...string[]]).optional(),
     days: z.number().int().min(0).optional(),
-    payment_dates: z.array(z.number().int().min(1)).nullish(),
+    payment_dates: z
+      .array(z.number().int().refine((d) => (d >= 1 && d <= 31) || d === 999))
+      .nullish(),
     payment_day_of_week: z.number().int().min(1).max(7).nullish(),
     early_payment_discount: z.number().min(0).max(PAYMENT_TERM_LIMITS.MAX_DISCOUNT_PERCENT).optional(),
     early_payment_days: z.number().int().min(0).optional(),
@@ -32,7 +34,9 @@ export const updatePaymentTermSchema = z.object({
     term_name: z.string().min(1).max(PAYMENT_TERM_LIMITS.TERM_NAME_MAX_LENGTH).optional(),
     calculation_type: z.enum(VALID_CALCULATION_TYPES as [string, ...string[]]).optional(),
     days: z.number().int().min(0).optional(),
-    payment_dates: z.array(z.number().int().min(1)).nullish(),
+    payment_dates: z
+      .array(z.number().int().refine((d) => (d >= 1 && d <= 31) || d === 999))
+      .nullish(),
     payment_day_of_week: z.number().int().min(1).max(7).nullish(),
     early_payment_discount: z.number().min(0).max(PAYMENT_TERM_LIMITS.MAX_DISCOUNT_PERCENT).optional(),
     early_payment_days: z.number().int().min(0).optional(),

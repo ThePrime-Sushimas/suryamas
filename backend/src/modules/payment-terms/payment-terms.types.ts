@@ -1,6 +1,13 @@
 // backend/src/modules/payment-terms/payment-terms.types.ts
 
-export type CalculationType = 'from_invoice' | 'from_delivery' | 'fixed_date' | 'fixed_date_immediate' | 'weekly' | 'monthly'
+export type CalculationType =
+  | 'from_invoice'
+  | 'from_delivery'
+  | 'fixed_date'
+  | 'fixed_date_immediate'
+  | 'weekly'
+  | 'monthly'
+  | 'monthly_immediate'
 
 export interface PaymentTerm {
   id: number

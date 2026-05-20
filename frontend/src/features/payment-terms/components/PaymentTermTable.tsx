@@ -19,6 +19,7 @@ const CALCULATION_TYPE_LABELS: Record<CalculationType, string> = {
   fixed_date_immediate: 'Tanggal Tetap (Langsung)',
   weekly: 'Mingguan',
   monthly: 'Bulanan',
+  monthly_immediate: 'Bulanan (slot hari ini)',
 }
 
 const WEEKDAY_LABELS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
@@ -30,11 +31,11 @@ const getTermDetails = (term: PaymentTerm): string => {
       return `${term.days} hari`
     case 'fixed_date':
     case 'fixed_date_immediate':
+    case 'monthly':
+    case 'monthly_immediate':
       return term.payment_dates?.map(d => d === 999 ? 'Akhir Bulan' : d).join(', ') || '-'
     case 'weekly':
       return term.payment_day_of_week !== null ? WEEKDAY_LABELS[term.payment_day_of_week] : '-'
-    case 'monthly':
-      return term.payment_dates?.[0] === 999 ? 'Akhir bulan' : `Tanggal ${term.payment_dates?.[0] || '-'}`
     default:
       return '-'
   }

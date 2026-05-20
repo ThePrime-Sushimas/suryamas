@@ -1,11 +1,29 @@
 import { useState, useMemo } from 'react'
 import { z } from 'zod'
 import type { PaymentTerm, CreatePaymentTermDto, CalculationType } from '../types'
+import { calculateDueDate as calculateDueDatePreview, type PaymentTermForDueDate } from '@due-date'
+
+const CALCULATION_TYPE_ENUM = [
+  'from_invoice',
+  'from_delivery',
+  'fixed_date',
+  'fixed_date_immediate',
+  'weekly',
+  'monthly',
+  'monthly_immediate',
+] as const satisfies readonly CalculationType[]
+
+const CALC_TYPES_NEED_PAYMENT_DATES: CalculationType[] = [
+  'fixed_date',
+  'fixed_date_immediate',
+  'monthly',
+  'monthly_immediate',
+]
 
 const paymentTermSchema = z.object({
   term_code: z.string().min(1, 'Term code is required').max(50, 'Max 50 characters').trim(),
   term_name: z.string().min(1, 'Term name is required').max(100, 'Max 100 characters').trim(),
-  calculation_type: z.enum(['from_invoice', 'from_delivery', 'fixed_date', 'fixed_date_immediate', 'weekly', 'monthly']),
+  calculation_type: z.enum(CALCULATION_TYPE_ENUM),
   days: z.number().min(0, 'Days must be >= 0').max(999, 'Days must be <= 999'),
   payment_dates: z.array(z.number().refine(val => (val >= 1 && val <= 31) || val === 999, {
     message: 'Payment dates must be 1-31 or 999 (end of month)'
@@ -25,8 +43,8 @@ const paymentTermSchema = z.object({
   if (data.calculation_type === 'weekly' && data.payment_day_of_week === null) {
     return false
   }
-  // fixed_date/fixed_date_immediate/monthly MUST have payment_dates
-  if (['fixed_date', 'fixed_date_immediate', 'monthly'].includes(data.calculation_type) && (!data.payment_dates || data.payment_dates.length === 0)) {
+  // fixed_date / fixed_date_immediate / monthly / monthly_immediate MUST have payment_dates
+  if (CALC_TYPES_NEED_PAYMENT_DATES.includes(data.calculation_type) && (!data.payment_dates || data.payment_dates.length === 0)) {
     return false
   }
   // from_invoice/from_delivery MUST NOT have payment_dates or payment_day_of_week
@@ -55,7 +73,8 @@ const CALCULATION_TYPES: { value: CalculationType; label: string }[] = [
   { value: 'fixed_date', label: 'Fixed Dates (skip if same day)' },
   { value: 'fixed_date_immediate', label: 'Fixed Dates (pay same day if match)' },
   { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' }
+  { value: 'monthly', label: 'Monthly (next slot after anchor day)' },
+  { value: 'monthly_immediate', label: 'Monthly (same-day slot counts)' },
 ]
 
 const PAYMENT_METHODS = ['Cash', 'Bank Transfer', 'Credit Card', 'Check', 'E-Wallet']
@@ -104,71 +123,35 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
     return newErrors
   }, [formData, touched])
 
-  const showPaymentDates = ['fixed_date', 'fixed_date_immediate', 'monthly'].includes(formData.calculation_type)
+  const showPaymentDates = CALC_TYPES_NEED_PAYMENT_DATES.includes(formData.calculation_type)
   const showPaymentDayOfWeek = formData.calculation_type === 'weekly'
 
-  // Preview due date calculation
+  // Preview due date — mirrors backend calculateDueDate (incl. days offset + grace_period_days)
   const getPreviewDueDate = () => {
     const today = new Date()
-    const result = new Date(today)
-
-    switch (formData.calculation_type) {
-      case 'from_invoice':
-      case 'from_delivery':
-        result.setDate(result.getDate() + formData.days)
-        return result.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-
-      case 'fixed_date':
-        if (formData.payment_dates && formData.payment_dates.length > 0) {
-          const currentDay = today.getDate()
-          const nextDate = formData.payment_dates.find(d => d > currentDay) || formData.payment_dates[0]
-          if (nextDate === 999) {
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-            return lastDay.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-          }
-          result.setDate(nextDate)
-          if (nextDate <= currentDay) result.setMonth(result.getMonth() + 1)
-          return result.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-        }
-        return '-'
-
-      case 'fixed_date_immediate':
-        if (formData.payment_dates && formData.payment_dates.length > 0) {
-          const currentDay = today.getDate()
-          const nextDate = formData.payment_dates.find(d => d >= currentDay) || formData.payment_dates[0]
-          if (nextDate === 999) {
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-            return lastDay.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-          }
-          result.setDate(nextDate)
-          if (nextDate < currentDay) result.setMonth(result.getMonth() + 1)
-          return result.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-        }
-        return '-'
-
-      case 'weekly':
-        if (formData.payment_day_of_week !== null) {
-          const daysUntil = (formData.payment_day_of_week - today.getDay() + 7) % 7 || 7
-          result.setDate(result.getDate() + daysUntil)
-          return result.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-        }
-        return '-'
-
-      case 'monthly':
-        if (formData.payment_dates && formData.payment_dates.length > 0) {
-          const targetDay = formData.payment_dates[0]
-          if (targetDay === 999) {
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 2, 0)
-            return lastDay.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-          }
-          result.setMonth(result.getMonth() + 1)
-          result.setDate(targetDay)
-          return result.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-        }
-        return '-'
-
-      default:
-        return '-'
+    const y = today.getFullYear()
+    const m = String(today.getMonth() + 1).padStart(2, '0')
+    const d = String(today.getDate()).padStart(2, '0')
+    const base = `${y}-${m}-${d}`
+    try {
+      const iso = calculateDueDatePreview(
+        {
+          calculation_type: formData.calculation_type,
+          days: formData.days,
+          grace_period_days: formData.grace_period_days ?? 0,
+          payment_dates: formData.payment_dates,
+          payment_day_of_week: formData.payment_day_of_week,
+        } satisfies PaymentTermForDueDate,
+        base,
+      )
+      const [yy, mm, dd] = iso.split('-').map(Number)
+      return new Date(yy, mm - 1, dd).toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    } catch {
+      return '-'
     }
   }
 
@@ -189,13 +172,13 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
         ...prev,
         calculation_type: newType,
         // Clear payment_dates if not fixed_date/fixed_date_immediate/monthly
-        payment_dates: ['fixed_date', 'fixed_date_immediate', 'monthly'].includes(newType) ? prev.payment_dates : null,
+        payment_dates: CALC_TYPES_NEED_PAYMENT_DATES.includes(newType) ? prev.payment_dates : null,
         // Set payment_day_of_week: default to 1 (Monday) if weekly, else null
         payment_day_of_week: newType === 'weekly' ? (prev.payment_day_of_week ?? 1) : null,
         // Set days to 0 if not from_invoice/from_delivery
         days: ['from_invoice', 'from_delivery'].includes(newType) ? prev.days : 0
       }))
-      if (!['fixed_date', 'fixed_date_immediate', 'monthly'].includes(newType)) {
+      if (!CALC_TYPES_NEED_PAYMENT_DATES.includes(newType)) {
         setPaymentDatesInput('')
       }
     } else {
@@ -249,7 +232,7 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
       sanitized.payment_day_of_week = null
     } else if (sanitized.calculation_type === 'weekly') {
       sanitized.payment_dates = null
-    } else if (['fixed_date', 'fixed_date_immediate', 'monthly'].includes(sanitized.calculation_type)) {
+    } else if (CALC_TYPES_NEED_PAYMENT_DATES.includes(sanitized.calculation_type)) {
       sanitized.payment_day_of_week = null
     }
     
@@ -421,8 +404,8 @@ export const PaymentTermForm = ({ initialData, isEdit, onSubmit, isLoading, onCa
             <p className="text-sm text-blue-800 dark:text-blue-200">
               {formData.calculation_type === 'fixed_date' 
                 ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'}. Next: ${getPreviewDueDate()}`
-                : formData.calculation_type === 'fixed_date_immediate'
-                ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'} (termasuk hari ini). Next: ${getPreviewDueDate()}`
+                : formData.calculation_type === 'fixed_date_immediate' || formData.calculation_type === 'monthly_immediate'
+                ? `Pembayaran setiap tanggal ${formData.payment_dates?.map(d => d === 999 ? '(akhir bulan)' : d).join(', ') || '-'} (termasuk hari ini / slot sama dengan acuan). Contoh: ${getPreviewDueDate()}`
                 : formData.calculation_type === 'monthly'
                 ? `Monthly payment on day ${formData.payment_dates?.[0] === 999 ? 'end of month' : formData.payment_dates?.[0] || '-'}: ${getPreviewDueDate()}`
                 : `If ${formData.calculation_type === 'from_delivery' ? 'delivery' : formData.calculation_type === 'weekly' ? 'any' : 'invoice'} date is today, payment due: ${getPreviewDueDate()}`

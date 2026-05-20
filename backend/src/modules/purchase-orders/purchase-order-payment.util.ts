@@ -1,5 +1,6 @@
 import { calculateDueDate, type PaymentTermForDueDate } from '../../utils/due-date.util'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
+import { PAYMENT_DUE_AT_GR_CONFIRM_TYPES, PAYMENT_TERM_SCHEDULE_TYPES } from '../payment-terms/payment-terms.constants'
 import type { PaymentType } from './purchase-orders.types'
 
 export interface PoPaymentTermSnapshot {
@@ -22,19 +23,13 @@ export interface PoPaymentDueInfo {
   calculation_type: CalculationType | null
 }
 
-const DELIVERY_PREVIEW_TYPES: CalculationType[] = [
-  'from_delivery',
-  'weekly',
-  'fixed_date',
-  'fixed_date_immediate',
-  'monthly',
-]
+const DELIVERY_PREVIEW_TYPES: readonly CalculationType[] = PAYMENT_DUE_AT_GR_CONFIRM_TYPES
 
 const WEEKDAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
 function formatPaymentDates(dates: number[]): string {
   return dates
-    .map((d) => (d === 31 ? 'akhir bulan' : `tgl ${d}`))
+    .map((d) => (d === 31 || d === 999 ? 'akhir bulan' : `tgl ${d}`))
     .join(' / ')
 }
 
@@ -67,8 +62,11 @@ function buildTermDescription(term: PoPaymentTermSnapshot): string {
     case 'fixed_date':
     case 'fixed_date_immediate':
     case 'monthly':
+    case 'monthly_immediate':
       if (term.payment_dates?.length) {
-        parts.push(`— ${term.days} hari, jadwal ${formatPaymentDates(term.payment_dates)}`)
+        const sched = formatPaymentDates(term.payment_dates)
+        const suffix = type === 'monthly_immediate' ? ' (slot tanggal jadwal = tanggal acuan dihitung)' : ''
+        parts.push(`— ${term.days} hari, jadwal ${sched}${suffix}`)
       } else {
         parts.push(`— ${term.days} hari`)
       }
@@ -112,12 +110,7 @@ export function buildPoPaymentDueInfo(input: {
     }
   }
 
-  const scheduleTypes: CalculationType[] = [
-    'weekly',
-    'fixed_date',
-    'fixed_date_immediate',
-    'monthly',
-  ]
+  const scheduleTypes: readonly CalculationType[] = PAYMENT_TERM_SCHEDULE_TYPES
   const isCash =
     input.payment_type === 'CASH' ||
     (input.term != null &&

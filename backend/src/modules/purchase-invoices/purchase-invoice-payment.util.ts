@@ -1,5 +1,6 @@
 import { calculateDueDate, type PaymentTermForDueDate } from '../../utils/due-date.util'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
+import { PAYMENT_DUE_AT_GR_CONFIRM_TYPES, PAYMENT_TERM_SCHEDULE_TYPES } from '../payment-terms/payment-terms.constants'
 import type { PoPaymentTermSnapshot } from '../purchase-orders/purchase-order-payment.util'
 import type { PurchaseInvoiceStatus } from './purchase-invoices.types'
 
@@ -15,20 +16,9 @@ export interface PiPaymentDueInfo {
   base_date: string | null
 }
 
-const DELIVERY_BASE_TYPES: CalculationType[] = [
-  'from_delivery',
-  'weekly',
-  'fixed_date',
-  'fixed_date_immediate',
-  'monthly',
-]
+const DELIVERY_BASE_TYPES: readonly CalculationType[] = PAYMENT_DUE_AT_GR_CONFIRM_TYPES
 
-const SCHEDULE_BASE_TYPES: CalculationType[] = [
-  'weekly',
-  'fixed_date',
-  'fixed_date_immediate',
-  'monthly',
-]
+const SCHEDULE_BASE_TYPES: readonly CalculationType[] = PAYMENT_TERM_SCHEDULE_TYPES
 
 /** days=0 on schedule terms is normal; only from_invoice/from_delivery + 0 days = tunai/COD. */
 export function isImmediateCashTerm(term: PoPaymentTermSnapshot): boolean {
@@ -69,10 +59,14 @@ function buildTermDescription(term: PoPaymentTermSnapshot): string {
     case 'fixed_date':
     case 'fixed_date_immediate':
     case 'monthly':
+    case 'monthly_immediate':
       if (term.payment_dates?.length) {
         parts.push(
-          `— ${term.days} hari, jadwal ${term.payment_dates.map((d) => (d === 31 ? 'akhir bulan' : `tgl ${d}`)).join(' / ')}`,
+          `— ${term.days} hari, jadwal ${term.payment_dates.map((d) => (d === 31 || d === 999 ? 'akhir bulan' : `tgl ${d}`)).join(' / ')}`,
         )
+        if (type === 'monthly_immediate') {
+          parts.push('(slot pada hari yang sama dengan tanggal acuan dihitung)')
+        }
       } else {
         parts.push(`— ${term.days} hari`)
       }

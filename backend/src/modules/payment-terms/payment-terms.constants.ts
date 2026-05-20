@@ -1,5 +1,7 @@
 // backend/src/modules/payment-terms/payment-terms.constants.ts
 
+import type { CalculationType } from './payment-terms.types'
+
 export const CALCULATION_TYPE = {
   FROM_INVOICE: 'from_invoice',
   FROM_DELIVERY: 'from_delivery',
@@ -7,9 +9,41 @@ export const CALCULATION_TYPE = {
   FIXED_DATE_IMMEDIATE: 'fixed_date_immediate',
   WEEKLY: 'weekly',
   MONTHLY: 'monthly',
+  /** Same as monthly, but a payment slot on the same calendar day as the anchor counts (>=). */
+  MONTHLY_IMMEDIATE: 'monthly_immediate',
 } as const
 
 export const VALID_CALCULATION_TYPES = Object.values(CALCULATION_TYPE)
+
+/**
+ * Terms where PO `payment_due_date` is derived when goods receipt is confirmed,
+ * using GR `received_date` as the anchor in `calculateDueDate`.
+ *
+ * Excludes `from_invoice` — that is computed when Purchase Invoice is posted (invoice anchor).
+ *
+ * Keep in sync with due-date rules: any new `CalculationType` that should use GR date
+ * at confirm time belongs here (and in `calculateDueDate` switch if needed).
+ */
+export const PAYMENT_DUE_AT_GR_CONFIRM_TYPES: readonly CalculationType[] = [
+  CALCULATION_TYPE.FROM_DELIVERY,
+  CALCULATION_TYPE.WEEKLY,
+  CALCULATION_TYPE.FIXED_DATE,
+  CALCULATION_TYPE.FIXED_DATE_IMMEDIATE,
+  CALCULATION_TYPE.MONTHLY,
+  CALCULATION_TYPE.MONTHLY_IMMEDIATE,
+]
+
+/**
+ * Schedule-based calculation types (excludes `from_delivery`).
+ * Used where `days === 0` must not be treated as tunai/COD (e.g. PI cash-term heuristic).
+ */
+export const PAYMENT_TERM_SCHEDULE_TYPES: readonly CalculationType[] = [
+  CALCULATION_TYPE.WEEKLY,
+  CALCULATION_TYPE.FIXED_DATE,
+  CALCULATION_TYPE.FIXED_DATE_IMMEDIATE,
+  CALCULATION_TYPE.MONTHLY,
+  CALCULATION_TYPE.MONTHLY_IMMEDIATE,
+]
 
 export const PAYMENT_TERM_DEFAULTS = {
   CALCULATION_TYPE: CALCULATION_TYPE.FROM_INVOICE,

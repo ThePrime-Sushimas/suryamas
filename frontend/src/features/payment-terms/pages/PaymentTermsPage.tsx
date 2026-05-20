@@ -99,8 +99,10 @@ export default function PaymentTermsPage() {
               <option value="from_invoice">Dari Invoice</option>
               <option value="from_delivery">Dari Pengiriman</option>
               <option value="fixed_date">Tanggal Tetap</option>
+              <option value="fixed_date_immediate">Tanggal Tetap (segera)</option>
               <option value="weekly">Mingguan</option>
               <option value="monthly">Bulanan</option>
+              <option value="monthly_immediate">Bulanan (slot hari ini)</option>
             </select>
             <select value={isActive} onChange={e => { setIsActive(e.target.value); setPage(1) }}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">

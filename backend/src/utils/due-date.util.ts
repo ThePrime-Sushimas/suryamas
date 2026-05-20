@@ -1,3 +1,4 @@
+/** Shared by backend and frontend (Vite alias `@due-date`) — keep browser-safe (no Node-only imports). */
 import type { CalculationType } from '../modules/payment-terms/payment-terms.types'
 
 export interface PaymentTermForDueDate {
@@ -41,9 +42,16 @@ export function calculateDueDate(term: PaymentTermForDueDate, baseDate: string):
       break
 
     case 'monthly':
-      // monthly = days offset + snap to payment_dates
+      // monthly = days offset + snap to next payment_dates strictly after anchor day
       dueDate = term.payment_dates?.length
         ? snapToPaymentDates(afterDays, term.payment_dates, false)
+        : afterDays
+      break
+
+    case 'monthly_immediate':
+      // monthly_immediate = same as monthly, but slot on the same day as anchor counts (>=)
+      dueDate = term.payment_dates?.length
+        ? snapToPaymentDates(afterDays, term.payment_dates, true)
         : afterDays
       break
 
@@ -86,8 +94,8 @@ function snapToWeekday(date: Date, targetDay: number): Date {
  * payment_dates = [15, 31] means 15th and last day of month.
  * 31 = last day of month (handles months with < 31 days).
  *
- * @param immediate - if true (fixed_date_immediate): candidate on the same day as date counts.
- *                    if false (fixed_date): must be strictly AFTER date (next occurrence).
+ * @param immediate - if true (fixed_date_immediate, monthly_immediate): candidate on the same day as date counts.
+ *                    if false (fixed_date, monthly): must be strictly AFTER date (next occurrence).
  */
 function snapToPaymentDates(date: Date, paymentDates: number[], immediate: boolean): Date {
   if (paymentDates.length === 0) return date
@@ -114,7 +122,9 @@ function snapToPaymentDates(date: Date, paymentDates: number[], immediate: boole
 
 /**
  * Resolve a payment date in a given month/year.
- * pd=31 → last day of that month.
+ * pd=31 → last day of that month (legacy convention).
+ * pd=999 → last day of month (UI / master data convention; same effect as min(pd, lastDay)).
+ * Other pd → calendar day, capped at last day of month.
  */
 function resolvePaymentDate(year: number, month: number, pd: number): Date {
   // Normalize month overflow

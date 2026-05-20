@@ -11,6 +11,7 @@ const CALC_TYPE_LABELS: Record<string, string> = {
   fixed_date_immediate: 'Tanggal Tetap (Segera)',
   weekly: 'Mingguan',
   monthly: 'Bulanan',
+  monthly_immediate: 'Bulanan (slot hari ini)',
 }
 
 const fmtCurrency = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)

@@ -2,6 +2,7 @@ import { goodsReceiptsRepository } from './goods-receipts.repository'
 import { goodsProcessingRepository } from '../goods-processing/goods-processing.repository'
 import { productOutputTemplateRepository } from '../products/product-output-template.repository'
 import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.repository'
+import { PAYMENT_DUE_AT_GR_CONFIRM_TYPES } from '../payment-terms/payment-terms.constants'
 import { BusinessRuleError } from '../../utils/errors.base'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
@@ -198,8 +199,10 @@ export class GoodsReceiptsService {
       // when Purchase Invoice is posted (baseDate = invoice_date), not at GR confirm.
       if (supplierId) {
         const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client)
-        const deliveryTypes = ['from_delivery', 'weekly', 'fixed_date', 'fixed_date_immediate', 'monthly']
-        if (supplierTerm && deliveryTypes.includes(supplierTerm.calculation_type)) {
+        if (
+          supplierTerm &&
+          (PAYMENT_DUE_AT_GR_CONFIRM_TYPES as readonly string[]).includes(supplierTerm.calculation_type)
+        ) {
           const receivedDate = gr.received_date ?? new Date().toISOString().slice(0, 10)
           const dueDate = calculateDueDate({
             calculation_type: supplierTerm.calculation_type as import('../../utils/due-date.util').PaymentTermForDueDate['calculation_type'],
