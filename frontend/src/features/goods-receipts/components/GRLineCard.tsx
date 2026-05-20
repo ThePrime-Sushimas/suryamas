@@ -78,7 +78,7 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     return Math.abs(line.conversion_factor - estimatedCF) / estimatedCF * 100
   }, [estimatedCF, line.conversion_factor])
 
-  /** Stock / operational UOM when product has multiple UOMs (not only requires_processing). */
+  /** Default stock UOM (e.g. Gram) when PO UOM differs — for warehouse entry without decimals. */
   const autoDetectedUom = useMemo(() => {
     if (!productUoms || productUoms.length <= 1) return null
     const poUom = productUoms.find((u) => u.metric_units?.unit_name === line.uom_po)
@@ -307,18 +307,18 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
         </div>
       </div>
 
-      {/* ── Hasil Timbang — qty editable; satuan dari master (read-only) ── */}
+      {/* ── Qty masuk gudang — satuan default stock (read-only), angka bulat ── */}
       {showWeighingInput && (
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
             <Scale className="w-4 h-4 text-teal-500" />
-            Hasil Timbang
+            Qty Masuk Gudang
             <span className="font-normal text-gray-400">
               — untuk {fmt(qtyDiterima)} {line.uom_po} yang diterima
             </span>
           </label>
           <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
-            Satuan timbang mengikuti master produk. Tim hanya mengisi angka timbang.
+            Satuan gudang dari master produk (mis. Gram, angka bulat). Harga tagihan supplier (mis. per KG) di modul Purchase Invoice.
           </p>
           <div className="flex gap-2">
             <input

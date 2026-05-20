@@ -8,8 +8,35 @@ export type ProductUomConversion = {
   conversion_factor: number
 }
 
+const UOM_ALIASES: Record<string, string> = {
+  kg: 'kilogram',
+  kilo: 'kilogram',
+  kilogram: 'kilogram',
+  g: 'gram',
+  gr: 'gram',
+  gram: 'gram',
+}
+
 export function normalizeUomName(name: string): string {
-  return name.trim().toLowerCase()
+  const key = name.trim().toLowerCase()
+  return UOM_ALIASES[key] ?? key
+}
+
+/**
+ * Append pricelist billing UOM when missing from active product_uoms batch.
+ * Caller must pass pricelist from batchLookupBySupplier (active product_uoms only).
+ * conversion_factor = base units per 1 unit of that UOM (relative to product base, e.g. Gram).
+ */
+export function mergePricelistUomForConversion(
+  uoms: ProductUomConversion[],
+  pricelist: { uom_name: string; conversion_factor: number } | undefined,
+): ProductUomConversion[] {
+  if (!pricelist?.uom_name?.trim()) return uoms
+  const key = normalizeUomName(pricelist.uom_name)
+  if (uoms.some((u) => normalizeUomName(u.unit_name) === key)) return uoms
+  const cf = Number(pricelist.conversion_factor)
+  if (!(cf > 0)) return uoms
+  return [...uoms, { unit_name: pricelist.uom_name.trim(), conversion_factor: cf }]
 }
 
 export function findUomConversionFactor(

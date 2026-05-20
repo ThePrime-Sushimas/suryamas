@@ -56,16 +56,20 @@ DRAFT → SUBMITTED → APPROVED → POSTED
 - GR yang bisa dipilih: status `CONFIRMED` + supplier sama + branch sama + belum fully invoiced
 - **Constraint:** Semua GR dalam 1 invoice harus dari branch yang sama (untuk jurnal)
 
-### Satuan di Invoice — Selalu `uom_received` (Satuan Operasional)
+### Satuan di Invoice — `uom_invoice` (Pricelist / Komersial)
 
-> **Ref:** `.amazonq/docs/GR_UOM_CONVERSION_DESIGN.md`
+> **Ref:** `.amazonq/docs/GR_UOM_CONVERSION_DESIGN.md`, util `purchase-invoice-uom.util.ts`
 
-Sejak GR mendukung dual UOM (Ekor → KG), invoice **selalu** menggunakan satuan operasional (`uom_received`):
-- GR line: `qty_po_uom = 2 Ekor`, `qty_received = 7.2 KG`, `uom_received = KG`
-- Invoice line: `qty_invoiced = 7.2`, satuan = KG, `unit_price = Rp 55.000/KG`
-- Finance input harga dari invoice fisik supplier (user-entered, bukan derived)
+GR menyimpan qty gudang (`uom_received`, mis. Gram). Invoice memakai **`uom_invoice`**:
+1. UOM dari **pricelist** `batch-lookup` (biasanya Kilogram)
+2. Fallback `uom_po`, lalu `uom_received`
 
-**Alasan:** Supplier menagih per satuan timbang (KG), bukan per satuan kontrak (Ekor).
+Contoh salmon:
+- GR: `qty_po_uom = 2 Ekor`, `qty_received = 28000`, `uom_received = Gram`
+- PI: `qty_invoiced = 28`, `uom_invoice = Kilogram`, `unit_price` per KG
+- Konversi qty: `product_uoms.conversions-batch` (Gram → KG)
+
+**Alasan:** Supplier menagih per KG (pricelist), gudang timbang/stok per Gram; jangan kalikan Gram × harga/KG tanpa konversi.
 
 ### Harga Default (Pre-fill dari Pricelist)
 - Saat Finance pilih GR, harga per item **otomatis terisi dari pricelist** (latest price per supplier + product)
@@ -81,13 +85,13 @@ Sejak GR mendukung dual UOM (Ekor → KG), invoice **selalu** menggunakan satuan
 
 ### 3-Way Match (per line)
 
-Semua qty di-compare dalam **satuan operasional** (`uom_received`):
+Qty match membandingkan dalam **`uom_invoice`**:
 ```
-PO qty (converted)  ←→  GR qty_received  ←→  Invoice qty_invoiced
+PO qty (uom_po / qty_po_uom)  ←→  GR qty (dikonversi ke uom_invoice)  ←→  qty_invoiced
 ```
 
-- `qty_po` di invoice line = `gr_line.qty_received` (bukan `po_line.qty` dalam satuan PO)
-- Ini karena invoice dan GR sudah dalam satuan yang sama (`uom_received`)
+- `qty_po` di invoice line = `qty_po_uom` dari GR (referensi kontrak PO)
+- `qty_received` untuk variance qty = GR qty dikonversi ke `uom_invoice` (`qty_received_invoice_uom` di API)
 
 | Match Status | Kondisi | Artinya |
 |---|---|---|

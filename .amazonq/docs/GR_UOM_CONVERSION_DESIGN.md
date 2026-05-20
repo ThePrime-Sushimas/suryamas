@@ -1,8 +1,21 @@
 # GR UOM Conversion (Dual UOM) — Design Document
 
-> **Masalah:** Satuan PO (Ekor) ≠ satuan operasional GR/GP (KG/Gram).
-> Salmon dibeli per Ekor, ditimbang saat terima dalam KG, dipecah di GP dalam Gram.
-> Invoice dibayar per satuan timbang (KG), bukan per Ekor.
+> **Masalah:** Satuan PO (Ekor) ≠ satuan gudang GR/GP (Gram) ≠ satuan tagihan supplier (KG dari pricelist).
+> Salmon dibeli per Ekor, ditimbang di GR dalam **Gram** (angka bulat, stok), dipecah di GP dalam **Gram**.
+> Purchase Invoice memakai satuan **pricelist** (biasanya KG), dengan konversi dari `product_uoms`.
+
+---
+
+## Dua Rantai UOM (Keputusan Arsitektur)
+
+| Rantai | Satuan tipikal | Modul |
+|--------|----------------|-------|
+| **Komersial** | Ekor (PO), KG (pricelist / invoice) | PO, Pricelist, Purchase Invoice |
+| **Operasional / gudang** | Gram (default stock / base unit) | GR, GP, stock |
+
+- **`uom_received` di GR** = satuan **gudang** (`default_stock_unit` / base), **bukan** KG invoice.
+- **GR tidak memaksa KG** — staff input Gram (integer); konversi ke KG hanya di **Purchase Invoice** (`purchase-invoice-uom.util.ts`).
+- **`qty_received`** = qty dalam `uom_received` (mis. 28.000 Gram), bukan berat KG hasil timbang di form lama.
 
 ---
 
@@ -13,18 +26,15 @@ PO: 5 Ekor Salmon @ Rp 200.000/Ekor (kontrak)
   ↓
 GR Form:
   - PO Line: Salmon 5 Ekor (readonly)
-  - Qty Diterima (satuan PO): [2] Ekor ← berapa unit PO yang datang
-  - Hasil Timbang: [7.2] KG ← aktual setelah timbang (satuan operasional)
-  - UOM Received: KG
+  - Qty Diterima (satuan PO): [2] Ekor
+  - Qty Masuk Gudang: [28000] Gram ← auto default_stock_unit, angka bulat
+  - conversion_factor: 1 Ekor = 14000 Gram (aktual)
   ↓
 PO Tracking: qty_received += 2 Ekor → sisa 3 Ekor
   ↓
-Goods Processing: 7.2 KG (= 7200 Gram) → pecah ke output
-  - Fillet: 5000 Gram
-  - Head: 1200 Gram
-  - Waste: 1000 Gram
+Goods Processing: input 28000 Gram → pecah ke output (Gram)
   ↓
-Purchase Invoice: 7.2 KG × Rp xxx/KG (bayar per satuan timbang)
+Purchase Invoice: 28 KG × Rp xxx/KG (konversi Gram→KG via product_uoms + uom pricelist)
 ```
 
 ---
@@ -35,8 +45,8 @@ Purchase Invoice: 7.2 KG × Rp xxx/KG (bayar per satuan timbang)
 
 | Produk | UOM PO | UOM Operasional | Perlu Konversi? |
 |--------|--------|-----------------|-----------------|
-| Badan Salmon | Ekor | KG | ✅ Ya |
-| Ayam | Ekor | KG | ✅ Ya |
+| Badan Salmon | Ekor | Gram (stock) | ✅ Ya (PO vs gudang) |
+| Ayam | Ekor | Gram (stock) | ✅ Ya |
 | Beras Sushi | KG | KG | ❌ Tidak (sama) |
 | Avocado Powder | Gram | Gram | ❌ Tidak (sama) |
 | Kecap | Botol | Mililiter | ✅ Ya (jika perlu timbang isi) |
@@ -87,9 +97,9 @@ ALTER TABLE goods_receipt_lines ADD CONSTRAINT chk_conversion_factor_positive CH
 |-------|------|-----------------|----------------|
 | `qty_po_uom` | Berapa unit PO yang diterima | 2 (Ekor) | 200 (KG) |
 | `uom_po` | Satuan PO (**snapshot** dari `purchase_order_lines.uom` saat GR dibuat) | Ekor | KG |
-| `qty_received` | Qty aktual dalam satuan operasional | 7.2 (KG) | 200 (KG) |
-| `uom_received` | Satuan operasional (untuk GP & Invoice) | KG | KG |
-| `conversion_factor` | 1 unit PO = ? unit received | 3.6 (1 Ekor = 3.6 KG) | 1 |
+| `qty_received` | Qty masuk gudang (`uom_received`) | 28000 (Gram) | 200 (KG) |
+| `uom_received` | Satuan gudang / stock (GP, stok) | Gram | KG |
+| `conversion_factor` | 1 unit PO = ? unit received | 14000 (1 Ekor = 14000 Gram) | 1 |
 
 ### `uom_po` — Intentional Snapshot
 
@@ -164,23 +174,23 @@ await client.query(
 
 ## Purchase Invoice
 
-Invoice menggunakan `qty_received` + `uom_received`:
+Invoice **tidak** memakai `uom_received` mentah jika berbeda dari satuan pricelist.
 
 ```
-Invoice line:
-  qty_invoiced: 7.2 (KG)
-  unit_price: user-entered dari invoice fisik supplier (misal Rp 55.000/KG)
-  total: Rp 396.000
+GR line: qty_received = 28000, uom_received = Gram
+Pricelist: unit_price per Kilogram
+PI line: qty_invoiced = 28 (KG), unit_price = Rp 250.000/KG
+         (konversi via product_uoms + resolveInvoiceUom)
 ```
 
-**`unit_price_invoice` adalah USER-ENTERED** — diketik dari invoice fisik supplier, bukan derived/calculated. Ini menghindari masalah rounding dari pembagian harga PO.
+Implementasi: `backend/src/utils/purchase-invoice-uom.util.ts` (mirror di frontend).
+
+**`unit_price`** di PI = per **uom_invoice** (pricelist → fallback uom_po → uom_received).
 
 > **Catatan GR vs Invoice:**
-> - Di **GR**, `unit_price_invoice` = harga per **satuan beli** (`uom_po`). Contoh: Rp 200.000/Ekor.
->   - `total_price_invoice` di GR = `qty_po_uom × unit_price_invoice` = 2 × 200.000 = 400.000
-> - Di **Purchase Invoice** (module terpisah), finance input harga per **satuan operasional** (`uom_received`). Contoh: Rp 55.000/KG.
->   - Ini karena invoice supplier bisa berbeda format dari GR.
-> - Variance di GR dihitung: `(qty_po_uom × invoice_price) - (qty_po_uom × po_price)` — keduanya dalam satuan PO, tidak ada rounding.
+> - Di **GR**, `unit_price_invoice` = harga per **satuan beli** (`uom_po`) jika diisi.
+> - Di **Purchase Invoice**, qty & harga dalam **uom_invoice** (biasanya KG dari pricelist), bukan Gram gudang.
+> - UI GR menampilkan hint: harga tagihan supplier di modul Purchase Invoice.
 
 ---
 

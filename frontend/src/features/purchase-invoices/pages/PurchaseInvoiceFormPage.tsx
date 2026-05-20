@@ -16,6 +16,7 @@ import api from "@/lib/axios";
 import {
   buildProductUomsMap,
   defaultQtyInvoicedInInvoiceUom,
+  mergePricelistUomForConversion,
   qtyReceivedInInvoiceUom,
   resolveInvoiceUom,
 } from "../utils/purchaseInvoiceUom";
@@ -127,7 +128,7 @@ export default function PurchaseInvoiceFormPage() {
     }>;
 
     const productIds = grLines.map((l) => l.product_id);
-    let priceMap: Record<string, { price: number; uom_name: string }> = {};
+    let priceMap: Record<string, { price: number; uom_name: string; conversion_factor: number }> = {};
     let uomsMap: ReturnType<typeof buildProductUomsMap> = {};
 
     if (supplierId && productIds.length > 0) {
@@ -165,7 +166,7 @@ export default function PurchaseInvoiceFormPage() {
     return grLines.map((l) => {
       const qtyReceived = Number(l.qty_received);
       const pl = priceMap[l.product_id];
-      const product_uoms = uomsMap[l.product_id] ?? [];
+      const product_uoms = mergePricelistUomForConversion(uomsMap[l.product_id] ?? [], pl);
       const uom_invoice = resolveInvoiceUom(
         pl?.uom_name,
         l.uom_po ?? "",

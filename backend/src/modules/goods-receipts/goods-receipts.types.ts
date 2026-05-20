@@ -47,7 +47,9 @@ export interface GoodsReceiptLine {
   product_id: string
   qty_po_uom: number
   uom_po: string
+  /** Qty masuk gudang — satuan stock/default (Gram), bukan satuan invoice KG. */
   qty_received: number
+  /** Satuan gudang untuk GP & stok; di-set dari default_stock_unit produk saat GR. */
   uom_received: string
   conversion_factor: number
   unit_price_invoice: number

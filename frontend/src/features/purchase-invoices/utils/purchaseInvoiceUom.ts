@@ -2,13 +2,26 @@
  * Mirror of backend purchase-invoice-uom.util — invoice qty in pricelist UOM (e.g. KG).
  */
 
+import { normalizeUomName } from "@/lib/uomNormalize"
+
 export type ProductUomConversion = {
   unit_name: string
   conversion_factor: number
 }
 
-export function normalizeUomName(name: string): string {
-  return name.trim().toLowerCase()
+export { normalizeUomName }
+
+/** Pricelist row must be from batch-lookup (active product_uoms only). CF = base units per 1 billing UOM. */
+export function mergePricelistUomForConversion(
+  uoms: ProductUomConversion[],
+  pricelist: { uom_name: string; conversion_factor: number } | undefined,
+): ProductUomConversion[] {
+  if (!pricelist?.uom_name?.trim()) return uoms
+  const key = normalizeUomName(pricelist.uom_name)
+  if (uoms.some((u) => normalizeUomName(u.unit_name) === key)) return uoms
+  const cf = Number(pricelist.conversion_factor)
+  if (!(cf > 0)) return uoms
+  return [...uoms, { unit_name: pricelist.uom_name.trim(), conversion_factor: cf }]
 }
 
 function findUomConversionFactor(

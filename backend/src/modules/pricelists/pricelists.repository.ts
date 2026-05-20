@@ -151,15 +151,18 @@ export class PricelistsRepository {
 
   /**
    * Batch lookup latest prices for multiple products from a supplier.
-   * Returns Map<product_id, { price, uom_name }>
+   * Returns Map<product_id, { price, uom_name, conversion_factor }>
    */
-  async batchLookupBySupplier(supplierId: string, productIds: string[]): Promise<Map<string, { price: number; uom_name: string }>> {
+  async batchLookupBySupplier(
+    supplierId: string,
+    productIds: string[],
+  ): Promise<Map<string, { price: number; uom_name: string; conversion_factor: number }>> {
     if (productIds.length === 0) return new Map()
     const { rows } = await pool.query(
       `SELECT DISTINCT ON (pl.product_id)
-        pl.product_id, pl.price, mu.unit_name AS uom_name
+        pl.product_id, pl.price, mu.unit_name AS uom_name, pu.conversion_factor
        FROM pricelists pl
-       JOIN product_uoms pu ON pu.id = pl.uom_id
+       JOIN product_uoms pu ON pu.id = pl.uom_id AND pu.is_deleted = false
        JOIN metric_units mu ON mu.id = pu.metric_unit_id
        WHERE pl.supplier_id = $1
          AND pl.product_id = ANY($2::uuid[])
@@ -168,7 +171,16 @@ export class PricelistsRepository {
        ORDER BY pl.product_id, pl.valid_from DESC, pl.updated_at DESC`,
       [supplierId, productIds]
     )
-    return new Map(rows.map(r => [r.product_id, { price: Number(r.price), uom_name: r.uom_name }]))
+    return new Map(
+      rows.map((r) => [
+        r.product_id,
+        {
+          price: Number(r.price),
+          uom_name: r.uom_name,
+          conversion_factor: Number(r.conversion_factor),
+        },
+      ]),
+    )
   }
 
   async expireOldPricelists(): Promise<number> {

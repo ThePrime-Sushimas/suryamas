@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
+import { normalizeUomName, uomNamesMatch } from "@/lib/uomNormalize";
 import { usePermissionStore } from "@/features/branch_context/store/permission.store";
 import { useProducts } from "@/features/products/api/products.api";
 import {
@@ -356,9 +357,14 @@ function initLocalInputs(detail: GoodsProcessingDetail): LocalInput[] {
 
 type ProductUomRow = { unit_name: string; conversion_factor: number; is_base_unit: boolean }
 
+function findUomRow(uoms: ProductUomRow[], uomName: string): ProductUomRow | undefined {
+  const key = normalizeUomName(uomName)
+  return uoms.find((u) => normalizeUomName(u.unit_name) === key)
+}
+
 function toBaseQty(qty: number, uomName: string, uoms: ProductUomRow[]): number {
   if (!uoms.length) return qty
-  const match = uoms.find((u) => u.unit_name === uomName)
+  const match = findUomRow(uoms, uomName)
   return qty * (match?.conversion_factor ?? 1)
 }
 
@@ -370,6 +376,48 @@ function fmtGpQty(n: number): string {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(n)
 }
 
+/** GR + GP header hints (PO reference, warehouse qty from GR). */
+function GrLineHeaderHints({
+  grLine,
+  baseUom,
+  totalBase,
+  productUoms,
+}: {
+  grLine: { qty_received: number; uom_received: string; qty_po_uom?: number; uom_po?: string } | null
+  baseUom: string
+  totalBase: number
+  productUoms: ProductUomRow[]
+}) {
+  if (!grLine) return null
+  const showPo = shouldShowPoHint(grLine, baseUom, totalBase, productUoms)
+  const sameUom = uomNamesMatch(grLine.uom_received, baseUom)
+  const grAsBase = toBaseQty(grLine.qty_received, grLine.uom_received, productUoms)
+  const qtyAligned = Math.abs(grAsBase - totalBase) < 0.0001
+
+  return (
+    <>
+      {showPo && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+          PO: {fmtGpQty(Number(grLine.qty_po_uom ?? grLine.qty_received))} {grLine.uom_po}
+        </p>
+      )}
+      {sameUom && qtyAligned ? (
+        <p className="text-xs text-teal-600 dark:text-teal-400 font-medium mt-0.5">
+          Sesuai GR: {fmtGpQty(grLine.qty_received)} {grLine.uom_received}
+        </p>
+      ) : !sameUom ? (
+        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5" title="GP memakai satuan gudang (base)">
+          GR: {fmtGpQty(grLine.qty_received)} {grLine.uom_received} → {fmtGpQty(totalBase)} {baseUom}
+        </p>
+      ) : (
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+          GR: {fmtGpQty(grLine.qty_received)} {grLine.uom_received} (qty GP berbeda)
+        </p>
+      )}
+    </>
+  )
+}
+
 /** PO hint: tampil jika satuan PO ≠ base, atau qty PO tidak match qty base (legacy). */
 function shouldShowPoHint(
   grLine: { qty_po_uom?: number; uom_po?: string } | null | undefined,
@@ -378,7 +426,7 @@ function shouldShowPoHint(
   productUoms: ProductUomRow[],
 ): boolean {
   if (!grLine?.uom_po) return false
-  if (grLine.uom_po !== baseUom) return true
+  if (!uomNamesMatch(grLine.uom_po, baseUom)) return true
   if (grLine.qty_po_uom == null || productUoms.length === 0) return false
   const poQtyAsBase = toBaseQty(Number(grLine.qty_po_uom), grLine.uom_po, productUoms)
   return Math.abs(poQtyAsBase - totalBase) > 0.0001
@@ -748,8 +796,6 @@ function PassThroughCard({
       isDone ? input.outputs : [editOutput],
       productUoms,
     )
-  const showPoHint = shouldShowPoHint(grLine, baseUom, totalBase, productUoms)
-
   const overTotal = goodBase + damagedBase > totalBase + 0.0001
   const hasDamage = damagedBase > 0.0001
   const missingDisposition = hasDamage && !editOutput.flagged_for_return && !editOutput.is_waste
@@ -794,17 +840,9 @@ function PassThroughCard({
         </div>
         <div className="text-right shrink-0">
           <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{fmtGpQty(totalBase)}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{baseUom}</p>
-          {showPoHint && grLine && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              PO: {fmtGpQty(Number(grLine.qty_po_uom ?? grLine.qty_received))} {grLine.uom_po}
-            </p>
-          )}
-          {grLine && grLine.uom_received !== baseUom && (
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-0.5">
-              GR timbang: {fmtGpQty(grLine.qty_received)} {grLine.uom_received}
-            </p>
-          )}
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-300">{baseUom}</p>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500">satuan gudang</p>
+          <GrLineHeaderHints grLine={grLine} baseUom={baseUom} totalBase={totalBase} productUoms={productUoms} />
         </div>
       </div>
 
@@ -1049,7 +1087,6 @@ function DisassemblyCard({
   const isDone = input.status === 'DONE'
   const baseUom = resolveBaseUom(productUoms, input.uom)
   const totalBase = toBaseQty(input.qty_input, input.uom, productUoms)
-  const showPoHint = shouldShowPoHint(grLine, baseUom, totalBase, productUoms)
   // Yield vs input: jumlahkan base unit tiap produk output (sama seperti validasi backend confirm).
   const totalNonWasteBase = sumDisassemblyOutputsBase(input.outputs, uomMap, false)
   const totalWasteBase = sumDisassemblyOutputsBase(input.outputs, uomMap, true)
@@ -1070,12 +1107,9 @@ function DisassemblyCard({
         </div>
         <div className="text-right shrink-0">
           <p className="text-lg font-bold text-gray-800 dark:text-gray-100">{fmtGpQty(totalBase)}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{baseUom}</p>
-          {showPoHint && grLine && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              PO: {fmtGpQty(Number(grLine.qty_po_uom ?? grLine.qty_received))} {grLine.uom_po}
-            </p>
-          )}
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-300">{baseUom}</p>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500">satuan gudang</p>
+          <GrLineHeaderHints grLine={grLine} baseUom={baseUom} totalBase={totalBase} productUoms={productUoms} />
         </div>
       </div>
 
@@ -1227,7 +1261,7 @@ function ReturnItemsSection({ gp, onResolve, canApprove, canRelease, resolvingOu
                   type="button"
                   disabled={isResolving}
                   onClick={() => onResolve(item.id, "STOCK")}
-                  className="flex-1 py-2 bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-[36px]"
+                  className="flex-1 py-2 bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-9"
                 >
                   {itemBusy && resolvingResolution === "STOCK" ? (
                     <>
@@ -1244,7 +1278,7 @@ function ReturnItemsSection({ gp, onResolve, canApprove, canRelease, resolvingOu
                   type="button"
                   disabled={isResolving}
                   onClick={() => onResolve(item.id, "DISCARD")}
-                  className="flex-1 py-2 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-[36px]"
+                  className="flex-1 py-2 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 min-h-9"
                 >
                   {itemBusy && resolvingResolution === "DISCARD" ? (
                     <>

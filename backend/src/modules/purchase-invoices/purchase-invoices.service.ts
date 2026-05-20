@@ -22,6 +22,7 @@ import type {
 import { calculateDueDate } from '../../utils/due-date.util'
 import {
   defaultQtyInvoicedInInvoiceUom,
+  mergePricelistUomForConversion,
   normalizeUomName,
   qtyReceivedInInvoiceUom,
   resolveInvoiceUom,
@@ -47,7 +48,7 @@ type InvoiceLineInput = {
 }
 
 type InvoiceUomMaps = {
-  pricelistByProduct: Map<string, { price: number; uom_name: string }>
+  pricelistByProduct: Map<string, { price: number; uom_name: string; conversion_factor: number }>
   uomsByProduct: Map<string, ProductUomConversion[]>
 }
 
@@ -78,7 +79,10 @@ export class PurchaseInvoicesService {
     maps: InvoiceUomMaps,
   ): { uom_invoice: string; product_uoms: ProductUomConversion[] } {
     const pl = maps.pricelistByProduct.get(grl.product_id)
-    const product_uoms = maps.uomsByProduct.get(grl.product_id) ?? []
+    const product_uoms = mergePricelistUomForConversion(
+      maps.uomsByProduct.get(grl.product_id) ?? [],
+      pl,
+    )
     const uom_invoice = resolveInvoiceUom(pl?.uom_name, String(grl.uom_po), String(grl.uom_received))
     return { uom_invoice, product_uoms }
   }

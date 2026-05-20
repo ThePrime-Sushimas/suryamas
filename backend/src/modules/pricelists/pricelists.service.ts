@@ -175,7 +175,10 @@ export class PricelistsService {
     return pricelistsRepository.lookupPrice(lookup)
   }
 
-  async batchLookupBySupplier(supplierId: string, productIds: string[]): Promise<Record<string, { price: number; uom_name: string }>> {
+  async batchLookupBySupplier(
+    supplierId: string,
+    productIds: string[],
+  ): Promise<Record<string, { price: number; uom_name: string; conversion_factor: number }>> {
     const map = await pricelistsRepository.batchLookupBySupplier(supplierId, productIds)
     return Object.fromEntries(map)
   }
