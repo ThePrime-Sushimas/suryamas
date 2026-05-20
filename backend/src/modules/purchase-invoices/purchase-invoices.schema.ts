@@ -50,6 +50,8 @@ export const updatePurchaseInvoiceSchema = z.object({
     id: z.string().uuid(),
   }),
   body: z.object({
+    invoice_number: z.string().min(1).max(100),
+    invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     notes: z.string().nullable().optional(),
     lines: z.array(lineSchema).min(1),
   }),

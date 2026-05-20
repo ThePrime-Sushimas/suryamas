@@ -90,32 +90,17 @@ function buildTermDescription(term: PoPaymentTermSnapshot): string {
 
 /**
  * Estimated / final due date for purchase_invoices.due_date column.
- * Draft: set at PI create (from GR) so finance sees deadline before POST.
+ * Anchor is always `invoice_date` on the PI:
+ * - Auto-draft from GR: invoice_date defaults to GR received_date → same as “mulai dari barang datang”.
+ * - Finance may change Tanggal Invoice on the form → save updates invoice_date and due_date recalculates from it.
  */
 export function computePurchaseInvoiceDueDate(input: {
   invoice_date: string
-  gr_received_date: string | null
-  po_payment_due_date: string | null
   term: PoPaymentTermSnapshot | null
 }): string | null {
   if (!input.term || isImmediateCashTerm(input.term)) return null
-
-  const termInput = termToDueDateInput(input.term)
-
-  if (input.po_payment_due_date) {
-    return input.po_payment_due_date.slice(0, 10)
-  }
-
-  if (input.term.calculation_type === 'from_invoice') {
-    return calculateDueDate(termInput, input.invoice_date.slice(0, 10))
-  }
-
-  const grDate = input.gr_received_date?.slice(0, 10)
-  if (grDate) {
-    return calculateDueDate(termInput, grDate)
-  }
-
-  return calculateDueDate(termInput, input.invoice_date.slice(0, 10))
+  const base = input.invoice_date.slice(0, 10)
+  return calculateDueDate(termToDueDateInput(input.term), base)
 }
 
 /**
@@ -135,19 +120,24 @@ export function buildPiPaymentDueInfo(input: {
   const termDesc = input.term ? buildTermDescription(input.term) : null
 
   if (input.due_date) {
-    const fromInvoice = calculationType === 'from_invoice'
+    const inv = input.invoice_date.slice(0, 10)
+    const gr = input.gr_received_date?.slice(0, 10) ?? null
+    const anchorNote =
+      gr && inv !== gr
+        ? ` Acuan perhitungan: tanggal invoice di PI (${inv}); berbeda dari tanggal terima barang (${gr}).`
+        : gr
+          ? ` Acuan perhitungan: tanggal invoice di PI (${inv}); default dari tanggal terima barang (GR).`
+          : ` Acuan perhitungan: tanggal invoice di PI (${inv}).`
     return {
       label: 'Jatuh tempo pembayaran',
       date: input.due_date.slice(0, 10),
       text: null,
       confirmed: input.status === 'POSTED',
-      hint: fromInvoice
-        ? `${termDesc ?? 'Term pembayaran'}. Dihitung dari tanggal invoice (${input.invoice_date.slice(0, 10)}).`
-        : `${termDesc ?? 'Term pembayaran'}.`,
+      hint: `${termDesc ?? 'Term pembayaran'}.${anchorNote}`,
       term_name: termName,
       calculation_type: calculationType,
-      base_source: fromInvoice ? 'invoice' : 'gr',
-      base_date: fromInvoice ? input.invoice_date.slice(0, 10) : input.gr_received_date?.slice(0, 10) ?? null,
+      base_source: 'invoice',
+      base_date: inv,
     }
   }
 
@@ -206,20 +196,19 @@ export function buildPiPaymentDueInfo(input: {
 
   if (
     term.calculation_type &&
-    DELIVERY_BASE_TYPES.includes(term.calculation_type) &&
-    input.gr_received_date
+    DELIVERY_BASE_TYPES.includes(term.calculation_type)
   ) {
-    const base = input.gr_received_date.slice(0, 10)
+    const base = input.invoice_date.slice(0, 10)
     const preview = calculateDueDate(termToDueDateInput(term), base)
     return {
       label: 'Estimasi jatuh tempo',
       date: preview,
       text: null,
       confirmed: false,
-      hint: `${termDesc}. Estimasi dari tanggal GR (${base}); final setelah GR dikonfirmasi (update PO).`,
+      hint: `${termDesc}. Estimasi dari tanggal invoice di PI (${base}); isi tanggal invoice atau simpan draft untuk menyimpan ke kolom jatuh tempo.`,
       term_name: termName,
       calculation_type: calculationType,
-      base_source: 'gr',
+      base_source: 'invoice',
       base_date: base,
     }
   }

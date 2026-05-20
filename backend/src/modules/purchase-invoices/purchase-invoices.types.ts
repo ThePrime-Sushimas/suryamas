@@ -147,6 +147,8 @@ export interface CreatePurchaseInvoiceDto {
 }
 
 export interface UpdatePurchaseInvoiceDto {
+  invoice_number: string
+  invoice_date: string
   notes?: string | null
   lines: CreatePurchaseInvoiceLineDto[]
 }

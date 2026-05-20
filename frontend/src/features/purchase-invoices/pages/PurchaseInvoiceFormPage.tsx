@@ -396,6 +396,10 @@ export default function PurchaseInvoiceFormPage() {
                   onChange={(e) => setInvoiceDate(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Bisa diubah. Jatuh tempo dihitung dari tanggal ini; draft dari GR
+                  otomatis memakai tanggal terima barang sampai finance menggantinya.
+                </p>
               </div>
             </div>
             <div>

@@ -95,22 +95,55 @@ export class PurchaseInvoicesService {
     }
   }
 
-  /** Persist estimated due_date on draft PI (visible before verify/post). */
+  /** Compact JSON-safe snapshot for perm_audit_log (monitoring). */
+  private snapshotPurchaseInvoiceForAudit(detail: PurchaseInvoiceDetail) {
+    const attachments = (detail as PurchaseInvoiceDetail & { attachments?: unknown[] }).attachments
+    return {
+      invoice_number: detail.invoice_number,
+      invoice_date: String(detail.invoice_date).slice(0, 10),
+      due_date: detail.due_date ? String(detail.due_date).slice(0, 10) : null,
+      status: detail.status,
+      notes: detail.notes,
+      supplier_name: detail.supplier_name,
+      branch_name: detail.branch_name,
+      subtotal: Number(detail.subtotal),
+      total_tax: Number(detail.total_tax),
+      total_amount: Number(detail.total_amount),
+      gr_links: detail.gr_links.map((g) => ({
+        goods_receipt_id: g.goods_receipt_id,
+        goods_receipt_number: g.goods_receipt_number,
+        received_date: g.received_date ? String(g.received_date).slice(0, 10) : null,
+      })),
+      lines: detail.lines.map((l) => ({
+        id: l.id,
+        sort_order: l.sort_order,
+        gr_line_id: l.gr_line_id,
+        product_id: l.product_id,
+        product_code: l.product_code,
+        product_name: l.product_name,
+        qty_invoiced: Number(l.qty_invoiced),
+        unit_price: Number(l.unit_price),
+        tax_rate: Number(l.tax_rate),
+        subtotal: Number(l.subtotal),
+        tax_amount: Number(l.tax_amount),
+        total: Number(l.total),
+        uom_received: l.uom_received,
+        uom_invoice: l.uom_invoice,
+      })),
+      attachment_count: Array.isArray(attachments) ? attachments.length : 0,
+    }
+  }
+
+  /** Persist estimated due_date on draft PI (anchor = invoice_date; recalc on save). */
   private async syncDraftDueDate(
     client: PoolClient,
     invoiceId: string,
     supplierId: string,
     invoiceDate: string,
   ): Promise<void> {
-    const [term, ctxMap] = await Promise.all([
-      purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client),
-      purchaseInvoicesRepository.findPaymentContextBatch([invoiceId]),
-    ])
-    const ctx = ctxMap.get(invoiceId)
+    const term = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client)
     const dueDate = computePurchaseInvoiceDueDate({
       invoice_date: invoiceDate,
-      gr_received_date: ctx?.gr_received_date ?? null,
-      po_payment_due_date: ctx?.po_payment_due_date ?? null,
       term: this.toTermSnapshot(term),
     })
     await purchaseInvoicesRepository.updateDueDate(client, invoiceId, dueDate)
@@ -380,9 +413,16 @@ export class PurchaseInvoicesService {
       return created
     })
 
-    await AuditService.log('CREATE', 'purchase_invoices', invoice.id, userId)
     const created = await purchaseInvoicesRepository.findById(invoice.id, companyId)
     if (!created) throw new PurchaseInvoiceNotFoundError(invoice.id)
+    await AuditService.log(
+      'CREATE',
+      'purchase_invoices',
+      invoice.id,
+      userId,
+      null,
+      this.snapshotPurchaseInvoiceForAudit(created),
+    )
     return this.enrichDetail(created)
   }
 
@@ -391,6 +431,8 @@ export class PurchaseInvoicesService {
     if (!existing) throw new PurchaseInvoiceNotFoundError(id)
     if (existing.status === 'POSTED') throw new PurchaseInvoiceCannotEditPostedError()
     if (existing.status !== 'DRAFT' && existing.status !== 'REJECTED') throw new PurchaseInvoiceInvalidStatusError(existing.status, 'DRAFT/REJECTED')
+
+    const previousAudit = this.snapshotPurchaseInvoiceForAudit(existing)
 
     await purchaseInvoicesRepository.withTransaction(async (client) => {
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
@@ -412,13 +454,24 @@ export class PurchaseInvoicesService {
         total_tax: totalTax,
         total_amount: totalAmount,
         notes: dto.notes ?? existing.notes,
+        invoice_date: dto.invoice_date,
+        invoice_number: dto.invoice_number,
         updated_by: userId,
       })
-      await this.syncDraftDueDate(client, id, existing.supplier_id, existing.invoice_date)
+      await this.syncDraftDueDate(client, id, existing.supplier_id, dto.invoice_date)
     })
 
-    await AuditService.log('UPDATE', 'purchase_invoices', id, userId)
-    return this.getById(id, companyId)
+    const refreshed = await purchaseInvoicesRepository.findById(id, companyId)
+    if (!refreshed) throw new PurchaseInvoiceNotFoundError(id)
+    await AuditService.log(
+      'UPDATE',
+      'purchase_invoices',
+      id,
+      userId,
+      previousAudit,
+      this.snapshotPurchaseInvoiceForAudit(refreshed),
+    )
+    return this.enrichDetail(refreshed)
   }
 
   async submit(companyId: string, id: string, userId: string) {
@@ -605,12 +658,8 @@ export class PurchaseInvoicesService {
       })
 
       const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(detail.supplier_id, client)
-      const ctxMap = await purchaseInvoicesRepository.findPaymentContextBatch([id])
-      const ctx = ctxMap.get(id)
       const dueDate = computePurchaseInvoiceDueDate({
         invoice_date: detail.invoice_date,
-        gr_received_date: ctx?.gr_received_date ?? null,
-        po_payment_due_date: ctx?.po_payment_due_date ?? null,
         term: this.toTermSnapshot(supplierTerm),
       })
       if (dueDate) {
@@ -700,21 +749,16 @@ export class PurchaseInvoicesService {
       }
     })
 
-    const invoiceDate = new Date().toISOString().split('T')[0]
+    const today = new Date().toISOString().split('T')[0]
+    const grReceived = gr.received_date ? String(gr.received_date).slice(0, 10) : today
+    const invoiceDate = grReceived
     const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(gr.supplier_id, client)
-    const grReceived = gr.received_date
-      ? String(gr.received_date).slice(0, 10)
-      : invoiceDate
-    const poDue =
-      gr.payment_due_date != null ? String(gr.payment_due_date).slice(0, 10) : null
     const estimatedDueDate = computePurchaseInvoiceDueDate({
       invoice_date: invoiceDate,
-      gr_received_date: grReceived,
-      po_payment_due_date: poDue,
       term: this.toTermSnapshot(supplierTerm),
     })
 
-    // 3. Create PI Header (due_date = estimasi jatuh tempo agar terlihat sejak draft)
+    // 3. Create PI Header (invoice_date = tanggal terima barang; due_date = estimasi dari term)
     const invoice = await purchaseInvoicesRepository.create(client, companyId, {
       supplier_id: gr.supplier_id,
       branch_id: gr.branch_id,
