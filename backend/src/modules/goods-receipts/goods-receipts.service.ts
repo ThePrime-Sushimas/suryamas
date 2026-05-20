@@ -11,6 +11,8 @@ import {
 
 import { InvalidReferenceError } from '../stock/stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { calculateDueDate } from '../../utils/due-date.util'
 import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service'
@@ -302,7 +304,20 @@ export class GoodsReceiptsService {
     })
 
     await AuditService.log('UPDATE', 'goods_receipt', id, userId, { status: 'DRAFT' }, { status: 'CONFIRMED' })
-    return goodsReceiptsRepository.findWithLines(id, companyId)
+
+    const confirmed = await goodsReceiptsRepository.findWithLines(id, companyId)
+    if (confirmed) {
+      await notificationDispatcher.dispatch(
+        NOTIFICATION_EVENT_KEYS.GOODS_RECEIPT_CONFIRMED,
+        companyId,
+        {
+          entityId: id,
+          variables: { gr_number: confirmed.gr_number },
+          excludeUserIds: [userId],
+        }
+      )
+    }
+    return confirmed
   }
 
   async update(id: string, companyId: string, dto: UpdateGoodsReceiptDto, userId: string) {

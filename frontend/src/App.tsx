@@ -450,6 +450,7 @@ const AlertSettingsPage = lazy(() =>
 )
 const DepartmentsPage = lazy(() => import('./features/settings/pages/DepartmentsPage'))
 const PositionsPage = lazy(() => import('./features/settings/pages/PositionsPage'))
+const NotificationRoutingPage = lazy(() => import('./features/settings/pages/NotificationRoutingPage'))
 const PrintersPage = lazy(() => import('./features/printers/pages/PrintersPage'))
 const AlertHistoryPage = lazy(() =>
   import('./features/payment-method-alerts').then(m => ({ default: m.AlertHistoryPage }))
@@ -1949,6 +1950,16 @@ function App() {
                       <RequirePermission module="positions">
                         <Suspense fallback={<LoadingFallback />}>
                           <PositionsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="settings/notification-routing"
+                    element={
+                      <RequirePermission module="notifications" action="update">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <NotificationRoutingPage />
                         </Suspense>
                       </RequirePermission>
                     }

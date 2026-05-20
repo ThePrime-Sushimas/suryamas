@@ -2,11 +2,18 @@ import 'module-alias/register'
 import dotenv from 'dotenv'
 dotenv.config()
 
+import http from 'http'
 import app from './app'
 import { logInfo, logError } from './config/logger'
 import { jobWorker, registerAllProcessors } from './modules/jobs'
+import { initSocketServer } from './services/socket.service'
 
 const PORT = process.env.PORT || 3000
+
+const httpServer = http.createServer(app)
+
+// Initialize Socket.IO server on top of HTTP server
+initSocketServer(httpServer)
 
 process.on('unhandledRejection', (reason: any) => {
   logError('Unhandled Rejection', { reason: reason?.message || reason })
@@ -17,7 +24,7 @@ process.on('uncaughtException', (error: Error) => {
   process.exit(1)
 })
 
-app.listen(Number(PORT), '0.0.0.0', () => {
+httpServer.listen(Number(PORT), '0.0.0.0', () => {
   logInfo('Server started', { port: PORT, env: process.env.NODE_ENV, host: '0.0.0.0' })
   console.log(`
 🚀 Server running on http://0.0.0.0:${PORT}

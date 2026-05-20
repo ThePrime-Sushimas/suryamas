@@ -45,6 +45,8 @@ import { logError } from '../../config/logger'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import { suppliersRepository } from '../suppliers/suppliers.repository'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 
 function computeLineTotals(qtyInvoiced: number, unitPrice: number, taxRate: number) {
   const subtotal = qtyInvoiced * unitPrice
@@ -755,6 +757,17 @@ export class PurchaseInvoicesService {
       })
     })
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'SUBMITTED' })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_INVOICE_SUBMITTED,
+      companyId,
+      {
+        entityId: id,
+        variables: { invoice_number: detail.invoice_number },
+        excludeUserIds: [userId],
+      }
+    )
+
     return this.getById(id, companyId)
   }
 
@@ -771,6 +784,19 @@ export class PurchaseInvoicesService {
       })
     })
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'APPROVED' })
+
+    const recipientId = detail.submitted_by || detail.created_by
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_INVOICE_APPROVED,
+      companyId,
+      {
+        entityId: id,
+        variables: { invoice_number: detail.invoice_number },
+        additionalRecipientIds: recipientId ? [recipientId] : [],
+        excludeUserIds: [userId],
+      }
+    )
+
     return this.getById(id, companyId)
   }
 
@@ -788,6 +814,22 @@ export class PurchaseInvoicesService {
       })
     })
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'REJECTED' })
+
+    const recipientId = detail.submitted_by || detail.created_by
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_INVOICE_REJECTED,
+      companyId,
+      {
+        entityId: id,
+        variables: {
+          invoice_number: detail.invoice_number,
+          rejection_reason: reason,
+        },
+        additionalRecipientIds: recipientId ? [recipientId] : [],
+        excludeUserIds: [userId],
+      }
+    )
+
     return this.getById(id, companyId)
   }
 
@@ -990,6 +1032,17 @@ export class PurchaseInvoicesService {
     })
 
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId, { status: detail.status }, { status: 'POSTED' })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_INVOICE_POSTED,
+      companyId,
+      {
+        entityId: id,
+        variables: { invoice_number: detail.invoice_number },
+        excludeUserIds: [userId],
+      }
+    )
+
     const invoice = await this.getById(id, companyId)
     return { ...invoice, pricelist_sync: pricelistSync }
   }

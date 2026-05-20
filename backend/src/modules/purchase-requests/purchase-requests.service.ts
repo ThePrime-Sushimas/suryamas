@@ -6,6 +6,8 @@ import {
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { purchaseRequestApprovalService } from './purchase-requests-approval.service'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 import type {
   CreatePurchaseRequestDto, UpdatePurchaseRequestDto,
   RejectPurchaseRequestDto,
@@ -50,7 +52,22 @@ export class PurchaseRequestsService {
       })
 
       await AuditService.log('CREATE', 'purchase_request', pr.id, userId, undefined, pr)
-      return purchaseRequestsRepository.findWithLines(pr.id, companyId)
+      const createdWithLines = await purchaseRequestsRepository.findWithLines(pr.id, companyId)
+      if (createdWithLines) {
+        await notificationDispatcher.dispatch(
+          NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_SUBMITTED,
+          companyId,
+          {
+            entityId: pr.id,
+            variables: {
+              request_number: createdWithLines.request_number,
+              branch_name: createdWithLines.branch_name,
+            },
+            excludeUserIds: [userId],
+          }
+        )
+      }
+      return createdWithLines
     } catch (e) {
       if (isPostgresError(e, '23505')) throw new PurchaseRequestDuplicateError('auto-generated')
       throw e
@@ -88,6 +105,22 @@ export class PurchaseRequestsService {
 
     await purchaseRequestsRepository.updateStatus(id, companyId, 'PENDING_APPROVAL', { updated_by: userId })
     await AuditService.log('UPDATE', 'purchase_request', id, userId, { status: 'DRAFT' }, { status: 'PENDING_APPROVAL' })
+
+    const pr = await purchaseRequestsRepository.findWithLines(id, companyId)
+    if (pr) {
+      await notificationDispatcher.dispatch(
+        NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_SUBMITTED,
+        companyId,
+        {
+          entityId: id,
+          variables: {
+            request_number: pr.request_number,
+            branch_name: pr.branch_name,
+          },
+          excludeUserIds: [userId],
+        }
+      )
+    }
   }
 
   async reject(id: string, companyId: string, dto: RejectPurchaseRequestDto) {
@@ -100,6 +133,25 @@ export class PurchaseRequestsService {
       updated_by: dto.rejected_by,
     })
     await AuditService.log('UPDATE', 'purchase_request', id, dto.rejected_by, { status: 'PENDING_APPROVAL' }, { status: 'REJECTED', rejected_reason: dto.rejected_reason })
+
+    const pr = await purchaseRequestsRepository.findWithLines(id, companyId)
+    if (pr) {
+      const creatorId = pr.created_by ?? pr.requested_by
+      await notificationDispatcher.dispatch(
+        NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_REJECTED,
+        companyId,
+        {
+          entityId: id,
+          variables: {
+            request_number: pr.request_number,
+            branch_name: pr.branch_name,
+            rejected_reason: dto.rejected_reason,
+          },
+          additionalRecipientIds: creatorId ? [creatorId] : [],
+          excludeUserIds: [dto.rejected_by],
+        }
+      )
+    }
   }
 
   async cancel(id: string, companyId: string, userId: string) {

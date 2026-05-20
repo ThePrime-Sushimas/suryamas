@@ -75,6 +75,7 @@ import purchaseInvoicesRoutes from "./modules/purchase-invoices/purchase-invoice
 import marketplacePoRoutes from "./modules/marketplace-po/marketplace-po.routes";
 import printersRoutes from "./modules/printers/printers.routes";
 import storageRoutes from "./routes/storage.routes";
+import notificationsRoutes from "./modules/notifications/notifications.routes";
 import { pool } from "./config/db";
 
 const app = express();
@@ -186,6 +187,7 @@ app.use("/api/v1", marketplacePoRoutes);
 
 app.use("/api/v1/printers", printersRoutes);
 app.use("/api/v1/storage", storageRoutes);
+app.use("/api/v1/notifications", notificationsRoutes);
 app.use("/api/v1", ownerBankAccountsRouter);
 
 // Error handler
@@ -320,6 +322,7 @@ const registerModules = async () => {
     await PermissionService.registerModule("goods_receipts", "Goods Receipts Management");
     await PermissionService.registerModule("goods_processing", "Goods Processing Management");
     await PermissionService.registerModule("purchase_invoices", "Purchase Invoices Verification");
+    await PermissionService.registerModule("notifications", "System Notifications Hub");
 
     // Register dashboard modules
     await PermissionService.registerModule("dashboard_sales", "Dashboard Sales");

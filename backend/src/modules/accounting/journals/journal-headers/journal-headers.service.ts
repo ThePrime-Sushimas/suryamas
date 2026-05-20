@@ -8,6 +8,8 @@ import { PaginatedResponse, createPaginatedResponse } from '../../../../utils/pa
 import { logInfo, logError, logWarn } from '../../../../config/logger'
 import { AuditService } from '../../../monitoring/monitoring.service'
 import { marketplacePoRepository } from '../../../marketplace-po/marketplace-po.repository'
+import { notificationDispatcher } from '../../../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../../../notifications/notification-events'
 
 export class JournalHeadersService {
 
@@ -113,6 +115,16 @@ export class JournalHeadersService {
     await journalHeadersRepository.updateStatus(id, 'SUBMITTED', userId, { submitted_at: new Date().toISOString(), submitted_by: userId })
     await AuditService.log('SUBMIT', 'journal_header', id, userId, { status: journal.status }, { status: 'SUBMITTED' })
     logInfo('Journal submitted', { journal_id: id, user_id: userId })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.JOURNAL_SUBMITTED,
+      companyId,
+      {
+        entityId: id,
+        variables: { journal_number: journal.journal_number },
+        excludeUserIds: [userId],
+      }
+    )
   }
 
   async approve(id: string, userId: string, companyId: string): Promise<void> {
@@ -121,6 +133,19 @@ export class JournalHeadersService {
     await journalHeadersRepository.updateStatus(id, 'APPROVED', userId, { approved_at: new Date().toISOString(), approved_by: userId })
     await AuditService.log('APPROVE', 'journal_header', id, userId, { status: journal.status }, { status: 'APPROVED' })
     logInfo('Journal approved', { journal_id: id, user_id: userId })
+
+    const submitterId = journal.submitted_by ?? journal.created_by
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.JOURNAL_APPROVED,
+      companyId,
+      {
+        entityId: id,
+        variables: { journal_number: journal.journal_number },
+        additionalRecipientIds:
+          submitterId && submitterId !== userId ? [submitterId] : [],
+        excludeUserIds: [userId],
+      }
+    )
   }
 
   async reject(id: string, reason: string, userId: string, companyId: string): Promise<void> {
@@ -130,6 +155,18 @@ export class JournalHeadersService {
     await journalHeadersRepository.clearJournalReferences(id)
     await AuditService.log('REJECT', 'journal_header', id, userId, { status: journal.status }, { status: 'REJECTED', rejection_reason: reason })
     logInfo('Journal rejected', { journal_id: id, user_id: userId, reason })
+
+    const submitterId = journal.submitted_by ?? journal.created_by
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.JOURNAL_REJECTED,
+      companyId,
+      {
+        entityId: id,
+        variables: { journal_number: journal.journal_number, rejection_reason: reason },
+        additionalRecipientIds: submitterId ? [submitterId] : [],
+        excludeUserIds: [userId],
+      }
+    )
   }
 
   async post(id: string, userId: string, companyId: string): Promise<void> {
@@ -146,6 +183,16 @@ export class JournalHeadersService {
     await journalHeadersRepository.updateStatus(id, 'POSTED', userId, { posted_at: new Date().toISOString(), posted_by: userId })
     await AuditService.log('POST', 'journal_header', id, userId, { status: journal.status }, { status: 'POSTED' })
     logInfo('Journal posted', { journal_id: id, user_id: userId })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.JOURNAL_POSTED,
+      companyId,
+      {
+        entityId: id,
+        variables: { journal_number: journal.journal_number },
+        excludeUserIds: [userId],
+      }
+    )
 
     if (journal.source_module === 'POS_AGGREGATES') {
       this.updatePosImportStatusIfFullyPosted(id).catch(err => logError('Failed to update pos_import status', { journal_id: id, error: err }))

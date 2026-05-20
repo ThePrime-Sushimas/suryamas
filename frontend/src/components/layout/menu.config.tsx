@@ -655,6 +655,13 @@ export const menuItems: MenuItem[] = [
         module: "positions",
       },
       {
+        id: "notification-routing",
+        name: "Routing Notifikasi",
+        href: "/settings/notification-routing",
+        icon: <Bell size={16} />,
+        module: "notifications",
+      },
+      {
         id: "monitoring",
         name: "System Monitoring",
         href: "/monitoring",

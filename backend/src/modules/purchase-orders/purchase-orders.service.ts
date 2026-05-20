@@ -13,6 +13,8 @@ import {
   type PoPaymentTermSnapshot,
 } from './purchase-order-payment.util'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 
 export class PurchaseOrdersService {
   /**
@@ -140,6 +142,16 @@ export class PurchaseOrdersService {
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'PENDING_APPROVAL', { updated_by: userId })
     await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: 'DRAFT' }, { status: 'PENDING_APPROVAL' })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_ORDER_SUBMITTED,
+      companyId,
+      {
+        entityId: id,
+        variables: { po_number: existing.po_number },
+        excludeUserIds: [userId],
+      }
+    )
   }
 
   async approve(id: string, companyId: string, userId: string) {
@@ -153,6 +165,19 @@ export class PurchaseOrdersService {
       updated_by: userId,
     })
     await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: 'PENDING_APPROVAL' }, { status: 'APPROVED' })
+
+    const creatorId = existing.created_by
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_ORDER_APPROVED,
+      companyId,
+      {
+        entityId: id,
+        variables: { po_number: existing.po_number },
+        additionalRecipientIds:
+          creatorId && creatorId !== userId ? [creatorId] : [],
+        excludeUserIds: [userId],
+      }
+    )
   }
 
   async markSent(id: string, companyId: string, userId: string) {
@@ -162,6 +187,16 @@ export class PurchaseOrdersService {
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'SENT', { updated_by: userId })
     await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: 'DRAFT' }, { status: 'SENT' })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_ORDER_SENT,
+      companyId,
+      {
+        entityId: id,
+        variables: { po_number: existing.po_number },
+        excludeUserIds: [userId],
+      }
+    )
   }
 
   async markOrdered(id: string, companyId: string, userId: string) {
@@ -171,6 +206,19 @@ export class PurchaseOrdersService {
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'ORDERED', { updated_by: userId })
     await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: 'SENT' }, { status: 'ORDERED' })
+
+    const creatorId = existing.created_by
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_ORDER_ORDERED,
+      companyId,
+      {
+        entityId: id,
+        variables: { po_number: existing.po_number },
+        additionalRecipientIds:
+          creatorId && creatorId !== userId ? [creatorId] : [],
+        excludeUserIds: [userId],
+      }
+    )
   }
 
   async cancel(id: string, companyId: string, userId: string, reason: string) {
@@ -187,6 +235,18 @@ export class PurchaseOrdersService {
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'CANCELLED', { cancelled_reason: reason, updated_by: userId })
     await AuditService.log('UPDATE', 'purchase_order', id, userId, { status: existing.status }, { status: 'CANCELLED', cancelled_reason: reason })
+
+    const creatorId = existing.created_by
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PURCHASE_ORDER_CANCELLED,
+      companyId,
+      {
+        entityId: id,
+        variables: { po_number: existing.po_number, cancelled_reason: reason },
+        additionalRecipientIds: creatorId ? [creatorId] : [],
+        excludeUserIds: [userId],
+      }
+    )
   }
 
   async delete(id: string, companyId: string, userId: string) {

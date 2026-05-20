@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useToast } from "@/contexts/ToastContext";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import {
   Menu,
@@ -10,11 +11,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useAuthStore } from "@/features/auth";
+import { useNotificationsStore } from "@/features/notifications/store/notifications.store";
 import { BranchSwitcher } from "@/features/branch_context";
 import { useBranchAccess } from "@/features/branch_context/hooks/useBranchAccess";
 import { useBranchContextStore } from "@/features/branch_context/store/branchContext.store";
 import { UploadProgressToast } from "@/features/pos-imports/components/UploadProgressToast";
 import { JobNotificationBell } from "@/features/jobs";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Sidebar } from "./Sidebar";
 
@@ -53,7 +56,16 @@ export default function Layout() {
     navigate("/login");
   };
 
+  const { initializeSocket, teardownSocket } = useNotificationsStore();
+  const toast = useToast();
   const userInitial = user?.full_name?.charAt(0).toUpperCase() || "U";
+
+  useEffect(() => {
+    initializeSocket(toast);
+    return () => {
+      teardownSocket();
+    };
+  }, [initializeSocket, teardownSocket, toast]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-black">
@@ -104,6 +116,7 @@ export default function Layout() {
                 <Search size={20} />
               </button>
               <ThemeToggle />
+              <NotificationBell />
               <JobNotificationBell />
 
               {/* Profile Dropdown */}

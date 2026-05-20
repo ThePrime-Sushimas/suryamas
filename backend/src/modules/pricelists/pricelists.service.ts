@@ -22,6 +22,8 @@ import {
   DuplicateRestoreError,
 } from './pricelists.errors'
 import { PurchaseInvoicePricelistSupersededError } from '../purchase-invoices/purchase-invoices.errors'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 import { AuditService } from '../monitoring/monitoring.service'
 import { pricesNearlyEqual } from './pricelists.utils'
@@ -171,6 +173,19 @@ export class PricelistsService {
       await AuditService.log('UPDATE', 'pricelist', id, userId, 
         { status: existing.status }, 
         { status: approval.status }
+      )
+    }
+
+    if (approval.status === 'APPROVED') {
+      const productName = await pricelistsRepository.getProductName(updated.product_id)
+      await notificationDispatcher.dispatch(
+        NOTIFICATION_EVENT_KEYS.PRICELIST_APPROVED,
+        updated.company_id,
+        {
+          entityId: id,
+          variables: { product_label: productName },
+          excludeUserIds: userId ? [userId] : [],
+        }
       )
     }
 

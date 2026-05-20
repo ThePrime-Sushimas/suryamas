@@ -22,6 +22,8 @@ import {
   type ProductUomsMap,
 } from '../../utils/product-uom.util'
 import type { UpdateGoodsProcessingDto, RejectDto, GoodsProcessingDetail } from './goods-processing.types'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 
 async function buildUomsMap(productIds: string[]): Promise<ProductUomsMap> {
   if (productIds.length === 0) return new Map()
@@ -257,6 +259,17 @@ export class GoodsProcessingService {
     )
 
     await AuditService.log('UPDATE', 'goods_processing', id, userId, { status: detail.status }, { status: 'CONFIRMED' })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.GOODS_PROCESSING_CONFIRMED,
+      companyId,
+      {
+        entityId: id,
+        variables: { processing_number: detail.processing_number },
+        excludeUserIds: [userId],
+      }
+    )
+
     return goodsProcessingRepository.findDetail(id, companyId)
   }
 
@@ -424,6 +437,22 @@ export class GoodsProcessingService {
     await goodsProcessingRepository.rejectGp(id, dto.rejection_reason, userId)
 
     await AuditService.log('UPDATE', 'goods_processing', id, userId, { status: gp.status }, { status: 'REJECTED' })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.GOODS_PROCESSING_REJECTED,
+      companyId,
+      {
+        entityId: id,
+        variables: {
+          processing_number: gp.processing_number,
+          rejection_reason: dto.rejection_reason,
+        },
+        additionalRecipientIds:
+          gp.created_by && gp.created_by !== userId ? [gp.created_by] : [],
+        excludeUserIds: [userId],
+      }
+    )
+
     return goodsProcessingRepository.findDetail(id, companyId)
   }
 }

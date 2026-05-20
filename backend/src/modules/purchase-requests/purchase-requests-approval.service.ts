@@ -5,6 +5,8 @@ import { PurchaseRequestNotFoundError, PurchaseRequestInvalidStatusError, Purcha
 import type { PurchaseOrderWithLines } from '../purchase-orders/purchase-orders.types'
 import { AuditService } from '../monitoring/monitoring.service'
 import { logInfo } from '../../config/logger'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 import { calculateDueDate } from '../../utils/due-date.util'
 import type { PurchaseRequestWithLines, PurchaseRequestLineWithRelations } from './purchase-requests.types'
 
@@ -269,6 +271,22 @@ export class PurchaseRequestApprovalService {
         const po = await purchaseOrdersRepository.findWithLines(poId, companyId)
         if (po) purchase_orders.push(po)
       }
+
+      const creatorId = updatedPr.created_by ?? updatedPr.requested_by
+      await notificationDispatcher.dispatch(
+        NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_APPROVED,
+        companyId,
+        {
+          entityId: prId,
+          variables: {
+            request_number: updatedPr.request_number,
+            branch_name: updatedPr.branch_name,
+          },
+          additionalRecipientIds:
+            creatorId && creatorId !== userId ? [creatorId] : [],
+          excludeUserIds: [userId],
+        }
+      )
 
       return { pr_id: prId, po_ids: poIds, pr: updatedPr, purchase_orders }
     } catch (e) {
