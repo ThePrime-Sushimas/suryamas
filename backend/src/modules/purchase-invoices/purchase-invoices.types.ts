@@ -70,6 +70,8 @@ export interface PurchaseInvoiceWithRelations extends PurchaseInvoice {
   branch_code: string
   goods_receipt_count: number
   payment_due_info?: PiPaymentDueInfo | null
+  /** APPROVED, no journal yet, all linked GP inputs CONFIRMED, and at least one posting row exists */
+  post_journal_ready?: boolean
 }
 
 export interface PurchaseInvoiceGrLink {

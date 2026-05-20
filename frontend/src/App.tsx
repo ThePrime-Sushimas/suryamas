@@ -1651,7 +1651,7 @@ function App() {
                   <Route
                     path="inventory/purchase-invoices/new"
                     element={
-                      <RequirePermission module="purchase_invoices">
+                      <RequirePermission module="purchase_invoices" action="release">
                         <Suspense fallback={<LoadingFallback />}>
                           <PurchaseInvoiceFormPage />
                         </Suspense>

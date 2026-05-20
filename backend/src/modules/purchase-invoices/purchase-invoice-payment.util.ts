@@ -1,6 +1,9 @@
 import { calculateDueDate, type PaymentTermForDueDate } from '../../utils/due-date.util'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
-import { PAYMENT_DUE_AT_GR_CONFIRM_TYPES, PAYMENT_TERM_SCHEDULE_TYPES } from '../payment-terms/payment-terms.constants'
+import {
+  PAYMENT_DUE_AT_GR_CONFIRM_TYPES,
+  PAYMENT_TERM_SCHEDULE_TYPES,
+} from '../payment-terms/payment-terms.constants'
 import type { PoPaymentTermSnapshot } from '../purchase-orders/purchase-order-payment.util'
 import type { PurchaseInvoiceStatus } from './purchase-invoices.types'
 
@@ -84,17 +87,34 @@ function buildTermDescription(term: PoPaymentTermSnapshot): string {
 
 /**
  * Estimated / final due date for purchase_invoices.due_date column.
- * Anchor is always `invoice_date` on the PI:
- * - Auto-draft from GR: invoice_date defaults to GR received_date → same as “mulai dari barang datang”.
- * - Finance may change Tanggal Invoice on the form → save updates invoice_date and due_date recalculates from it.
+ * - Auto-draft: invoice_date = GR received_date; GR-based terms use PO due from GR confirm when set.
+ * - Manual draft: same anchors when GR terhubung (tanggal terima + payment_due_date PO).
+ * - from_invoice: always from PI invoice_date (recalc on save/post).
  */
 export function computePurchaseInvoiceDueDate(input: {
   invoice_date: string
+  gr_received_date?: string | null
+  po_payment_due_date?: string | null
   term: PoPaymentTermSnapshot | null
 }): string | null {
   if (!input.term || isImmediateCashTerm(input.term)) return null
-  const base = input.invoice_date.slice(0, 10)
-  return calculateDueDate(termToDueDateInput(input.term), base)
+
+  const type = input.term.calculation_type ?? 'from_delivery'
+  const termInput = termToDueDateInput(input.term)
+
+  if (type === 'from_invoice') {
+    return calculateDueDate(termInput, input.invoice_date.slice(0, 10))
+  }
+
+  if (
+    input.po_payment_due_date &&
+    PAYMENT_DUE_AT_GR_CONFIRM_TYPES.includes(type)
+  ) {
+    return input.po_payment_due_date.slice(0, 10)
+  }
+
+  const base = (input.gr_received_date ?? input.invoice_date).slice(0, 10)
+  return calculateDueDate(termInput, base)
 }
 
 /**

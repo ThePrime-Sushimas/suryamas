@@ -138,6 +138,22 @@ export default function PurchaseInvoiceFormPage() {
   }, [suppliersData, isEdit, existingPI?.supplier_id]);
   const branches = branchesData?.data ?? [];
 
+  /** Sama seperti draft otomatis: tanggal invoice = tanggal terima barang (GR) terbaru yang dipilih. */
+  const syncInvoiceDateFromSelectedGrs = (grIds: string[]) => {
+    if (isEdit || !availableGrs?.length || grIds.length === 0) return;
+    const dates = availableGrs
+      .filter((g) => grIds.includes(g.id))
+      .map((g) => String(g.received_date).slice(0, 10))
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    if (dates.length > 0) {
+      setInvoiceDate(dates.sort((a, b) => (a < b ? 1 : -1))[0]);
+    }
+  };
+
+  useEffect(() => {
+    syncInvoiceDateFromSelectedGrs(selectedGrIds);
+  }, [selectedGrIds, availableGrs, isEdit]);
+
   // Initialize for edit mode
   useEffect(() => {
     if (isEdit && existingPI) {
@@ -285,18 +301,22 @@ export default function PurchaseInvoiceFormPage() {
 
   const handleGrToggle = async (grId: string) => {
     if (selectedGrIds.includes(grId)) {
-      setSelectedGrIds((prev) => prev.filter((id) => id !== grId));
+      const nextIds = selectedGrIds.filter((id) => id !== grId);
+      setSelectedGrIds(nextIds);
       const grData = availableGrs?.find((g) => g.id === grId);
       if (grData) {
         setLines((prev) =>
           prev.filter((l) => l.gr_number !== grData.gr_number),
         );
       }
+      syncInvoiceDateFromSelectedGrs(nextIds);
     } else {
       try {
         const newLines = await fetchGrLines(grId);
-        setSelectedGrIds((prev) => [...prev, grId]);
+        const nextIds = [...selectedGrIds, grId];
+        setSelectedGrIds(nextIds);
         setLines((prev) => [...prev, ...newLines]);
+        syncInvoiceDateFromSelectedGrs(nextIds);
       } catch (err) {
         toast.error("Gagal mengambil data GR");
       }

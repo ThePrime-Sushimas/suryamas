@@ -25,6 +25,7 @@ export const updatePurchaseRequestSchema = z.object({
     needed_by_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     notes: z.string().max(500).nullable().optional(),
     lines: z.array(lineSchema).min(1).optional(),
+    request_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
 })
 

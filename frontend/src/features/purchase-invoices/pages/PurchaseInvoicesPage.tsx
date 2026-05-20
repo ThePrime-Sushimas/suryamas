@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, Search, CheckSquare, Square } from "lucide-react";
+import { FileText, Plus, Search, CheckSquare, Square, ClipboardCheck, Loader2 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -11,6 +11,7 @@ import {
   useDeletePurchaseInvoice,
   usePurchaseInvoiceCounts,
   useMergePurchaseInvoices,
+  usePostPurchaseInvoice,
 } from "../api/purchaseInvoices.api";
 import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
@@ -29,6 +30,9 @@ const fmtCurrency = (v: number) =>
     currency: "IDR",
     minimumFractionDigits: 0,
   }).format(v);
+
+const POST_JOURNAL_DISABLED_HINT =
+  "Menunggu syarat: semua QC Barang Masuk CONFIRMED dan ada output GP siap posting.";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   DRAFT: {
@@ -60,7 +64,8 @@ export default function PurchaseInvoicesPage() {
   const toast = useToast();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
   const canInsert = hasPermission("purchase_invoices", "insert");
-  const canDelete = hasPermission("purchase_invoices", "delete");
+  const canRelease = hasPermission("purchase_invoices", "release");
+  const canUpdate = hasPermission("purchase_invoices", "update");
 
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState<"VERIFY" | "APPROVAL" | "FINAL">(
@@ -73,6 +78,7 @@ export default function PurchaseInvoicesPage() {
   const [supplierId, setSupplierId] = useState("");
   const [branchId, setBranchId] = useState("");
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [postingId, setPostingId] = useState<string | null>(null);
 
   const { data: counts } = usePurchaseInvoiceCounts();
   const { data: suppliersData } = useSuppliers();
@@ -96,6 +102,7 @@ export default function PurchaseInvoicesPage() {
 
   const { data, isLoading } = usePurchaseInvoices(queryParams);
   const deleteInvoice = useDeletePurchaseInvoice();
+  const postInvoice = usePostPurchaseInvoice();
 
   const invoices = data?.data ?? [];
   const pagination = data?.pagination;
@@ -109,6 +116,20 @@ export default function PurchaseInvoicesPage() {
       toast.error(parseApiError(err, "Gagal menghapus invoice"));
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  const handlePostJournal = async (e: MouseEvent, inv: PurchaseInvoice) => {
+    e.stopPropagation();
+    if (!inv.post_journal_ready || postingId !== null) return;
+    setPostingId(inv.id);
+    try {
+      await postInvoice.mutateAsync(inv.id);
+      toast.success("Invoice berhasil di-post ke jurnal");
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, "Gagal post jurnal"));
+    } finally {
+      setPostingId(null);
     }
   };
 
@@ -169,10 +190,11 @@ export default function PurchaseInvoicesPage() {
                 Gabung ({selectedIds.length})
               </button>
             )}
-            {canInsert && (
+            {canRelease && (
               <button
                 onClick={() => navigate("/inventory/purchase-invoices/new")}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-sm hover:shadow text-sm font-medium"
+                title="Hanya role dengan izin release — untuk kasus khusus (auto-draft gagal / koreksi)"
               >
                 <Plus className="w-4 h-4" />{" "}
                 <span className="hidden sm:inline">Buat Manual</span>
@@ -392,14 +414,46 @@ export default function PurchaseInvoicesPage() {
                         className="px-4 py-3 text-right"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {inv.status === "DRAFT" && canDelete && (
-                          <button
-                            onClick={() => setDeleteTarget(inv)}
-                            className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 transition-colors"
-                          >
-                            Hapus
-                          </button>
-                        )}
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {activeTab === "FINAL" &&
+                            inv.status === "APPROVED" &&
+                            canUpdate && (
+                              <button
+                                type="button"
+                                onClick={(e) => handlePostJournal(e, inv)}
+                                disabled={
+                                  !inv.post_journal_ready ||
+                                  postingId !== null
+                                }
+                                title={
+                                  inv.post_journal_ready
+                                    ? undefined
+                                    : POST_JOURNAL_DISABLED_HINT
+                                }
+                                className={`inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold transition-all border shadow-sm ${
+                                  inv.post_journal_ready &&
+                                  postingId === null
+                                    ? "border-indigo-200 bg-indigo-600 text-white hover:bg-indigo-700 dark:border-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500"
+                                    : "border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-600 dark:bg-gray-800/80 dark:text-gray-500 cursor-not-allowed opacity-70"
+                                }`}
+                              >
+                                {postingId === inv.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                                ) : (
+                                  <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
+                                )}
+                                Post Jurnal
+                              </button>
+                            )}
+                          {inv.status === "DRAFT" && canRelease && (
+                            <button
+                              onClick={() => setDeleteTarget(inv)}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 transition-colors"
+                            >
+                              Hapus
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -482,11 +536,41 @@ export default function PurchaseInvoicesPage() {
                         />
                       </p>
                     )}
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-gray-700/50">
-                      <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-medium">
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-gray-50 dark:border-gray-700/50">
+                      <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-medium mr-auto">
                         {inv.goods_receipt_count} Goods Receipt
                       </div>
-                      {inv.status === "DRAFT" && canDelete && (
+                      {activeTab === "FINAL" &&
+                        inv.status === "APPROVED" &&
+                        canUpdate && (
+                          <button
+                            type="button"
+                            onClick={(e) => handlePostJournal(e, inv)}
+                            disabled={
+                              !inv.post_journal_ready ||
+                              postingId !== null
+                            }
+                            title={
+                              inv.post_journal_ready
+                                ? undefined
+                                : POST_JOURNAL_DISABLED_HINT
+                            }
+                            className={`inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold transition-all border ${
+                              inv.post_journal_ready &&
+                              postingId === null
+                                ? "border-indigo-200 bg-indigo-600 text-white hover:bg-indigo-700"
+                                : "border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed opacity-70"
+                            }`}
+                          >
+                            {postingId === inv.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            ) : (
+                              <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
+                            )}
+                            Post Jurnal
+                          </button>
+                        )}
+                      {inv.status === "DRAFT" && canRelease && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

@@ -28,7 +28,6 @@ import {
   useSubmitPurchaseInvoice,
   useApprovePurchaseInvoice,
   useRejectPurchaseInvoice,
-  usePostPurchaseInvoice,
   useDeletePurchaseInvoice,
   usePurchaseInvoiceAttachments,
 } from "../api/purchaseInvoices.api";
@@ -171,15 +170,13 @@ export default function PurchaseInvoiceDetailPage() {
   const hasPermission = usePermissionStore((state) => state.hasPermission);
 
   const canApprove = hasPermission("purchase_invoices", "approve");
-  const canUpdate = hasPermission("purchase_invoices", "update");
-  const canDelete = hasPermission("purchase_invoices", "delete");
+  const canRelease = hasPermission("purchase_invoices", "release");
 
   const { data: inv, isLoading } = usePurchaseInvoice(id ?? "");
   const { data: attachments } = usePurchaseInvoiceAttachments(id ?? "");
   const submitPI = useSubmitPurchaseInvoice();
   const approvePI = useApprovePurchaseInvoice();
   const rejectPI = useRejectPurchaseInvoice();
-  const postPI = usePostPurchaseInvoice();
   const deletePI = useDeletePurchaseInvoice();
 
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -217,7 +214,6 @@ export default function PurchaseInvoiceDetailPage() {
   const isStatusBusy =
     submitPI.isPending ||
     approvePI.isPending ||
-    postPI.isPending ||
     rejectPI.isPending;
 
   const handleStatusAction = async (
@@ -231,17 +227,6 @@ export default function PurchaseInvoiceDetailPage() {
       onSuccess?.();
     } catch (err: unknown) {
       toast.error(parseApiError(err, "Gagal memproses status"));
-    }
-  };
-
-  const handlePostJournal = async () => {
-    if (!id || postPI.isPending) return;
-    try {
-      await postPI.mutateAsync(id);
-      toast.success("Invoice berhasil di-post ke jurnal");
-      navigate("/inventory/purchase-invoices");
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, "Gagal post jurnal"));
     }
   };
 
@@ -287,10 +272,11 @@ export default function PurchaseInvoiceDetailPage() {
           <div className="flex flex-wrap gap-2">
             {(inv.status === "DRAFT" || inv.status === "REJECTED") && (
               <>
-                {canDelete && (
+                {canRelease && (
                   <button
                     onClick={() => setShowDeleteModal(true)}
                     className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm font-medium transition-colors"
+                    title="Hanya draft yang belum disubmit — untuk koreksi operasional"
                   >
                     <Trash2 className="w-4 h-4" /> Hapus
                   </button>
@@ -360,29 +346,6 @@ export default function PurchaseInvoiceDetailPage() {
                   {approvePI.isPending ? "Menyetujui..." : "Setujui"}
                 </button>
               </>
-            )}
-
-            {inv.status === "APPROVED" && canUpdate && (
-              <div className="flex flex-col">
-                <button
-                  onClick={handlePostJournal}
-                  disabled={isStatusBusy || hasUnconfirmedGp}
-                  title={hasUnconfirmedGp ? "Ada item GP yang belum dikonfirmasi (QC). Selesaikan QC dulu sebelum Post Jurnal." : undefined}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
-                >
-                {postPI.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ClipboardCheck className="w-4 h-4" />
-                )}
-                {postPI.isPending ? "Memposting jurnal..." : "Post Jurnal"}
-                </button>
-                {hasUnconfirmedGp && (
-                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                    Tidak bisa post jurnal karena masih ada GP dengan status selain CONFIRMED.
-                  </p>
-                )}
-              </div>
             )}
 
             {inv.status === "POSTED" && (
@@ -761,6 +724,8 @@ export default function PurchaseInvoiceDetailPage() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Prasyarat post jurnal: semua item harus status{" "}
                   <span className="font-semibold text-green-600">Selesai</span>
+                  . Post jurnal dilakukan dari daftar Invoice, tab{" "}
+                  <span className="font-medium">Selesai & Posting</span>.
                 </p>
               </div>
               {inv.status === "APPROVED" && hasUnconfirmedGp && (
@@ -768,13 +733,13 @@ export default function PurchaseInvoiceDetailPage() {
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>
                     Masih ada item yang belum dikonfirmasi di Barang Masuk. Selesaikan QC
-                    sebelum Post Jurnal.
+                    sebelum memposting jurnal dari daftar (tab Selesai & Posting).
                   </span>
                 </div>
               )}
               {allGpLinesConfirmed && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                  <CheckCircle2 className="w-3 h-3" /> Siap Post Jurnal
+                  <CheckCircle2 className="w-3 h-3" /> Siap post dari daftar
                 </span>
               )}
             </div>

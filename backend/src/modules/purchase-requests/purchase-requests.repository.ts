@@ -213,13 +213,14 @@ export class PurchaseRequestsRepository {
     client: PoolClient,
     id: string,
     companyId: string,
-    data: { needed_by_date?: string | null; notes?: string | null; updated_by: string }
+    data: { needed_by_date?: string | null; request_date?: string | null; notes?: string | null; updated_by: string }
   ): Promise<void> {
     const fields: string[] = ['updated_at = now()']
     const params: unknown[] = []
     let idx = 1
 
-    if (data.needed_by_date !== undefined) { params.push(data.needed_by_date); fields.push(`needed_by_date = $${idx++}`) }
+    if (data.needed_by_date !== undefined) { params.push(data.needed_by_date); fields.push(`needed_by_date = $${idx++}::date`) }
+    if (data.request_date !== undefined) { params.push(data.request_date); fields.push(`request_date = $${idx++}::date`) }
     if (data.notes !== undefined) { params.push(data.notes); fields.push(`notes = $${idx++}`) }
     params.push(data.updated_by); fields.push(`updated_by = $${idx++}`)
     params.push(id, companyId)

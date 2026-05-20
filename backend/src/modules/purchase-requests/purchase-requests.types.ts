@@ -95,6 +95,7 @@ export interface CreatePurchaseRequestDto {
 
 export interface UpdatePurchaseRequestDto {
   needed_by_date?: string | null
+  request_date?: string
   notes?: string | null
   lines?: CreatePurchaseRequestLineDto[]
   updated_by?: string

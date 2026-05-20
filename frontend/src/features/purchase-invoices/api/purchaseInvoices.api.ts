@@ -72,6 +72,8 @@ export interface PurchaseInvoice {
   rejector_name: string | null
   poster_name: string | null
   payment_due_info?: PiPaymentDueInfo | null
+  /** From list/detail header SQL — siap untuk POST /post */
+  post_journal_ready?: boolean
 }
 
 
@@ -298,6 +300,7 @@ export const usePostPurchaseInvoice = () => {
       qc.invalidateQueries({ queryKey: ['purchase-invoices'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: ['stock'] })
+      qc.invalidateQueries({ queryKey: ['purchase-invoices', 'counts'] })
     },
   })
 }

@@ -5,8 +5,8 @@ import {
   canView,
   canInsert,
   canUpdate,
-  canDelete,
   canApprove,
+  canRelease,
 } from "../../middleware/permission.middleware";
 import { validateSchema } from "../../middleware/validation.middleware";
 import { purchaseInvoicesController } from "./purchase-invoices.controller";
@@ -65,7 +65,7 @@ router.get(
 
 router.post(
   "/",
-  canInsert("purchase_invoices"),
+  canRelease("purchase_invoices"),
   validateSchema(createPurchaseInvoiceSchema),
   (req, res) => purchaseInvoicesController.create(req, res),
 );
@@ -82,7 +82,7 @@ router.put(
 );
 router.delete(
   "/:id",
-  canDelete("purchase_invoices"),
+  canRelease("purchase_invoices"),
   validateSchema(deletePurchaseInvoiceSchema),
   (req, res) => purchaseInvoicesController.delete(req, res),
 );

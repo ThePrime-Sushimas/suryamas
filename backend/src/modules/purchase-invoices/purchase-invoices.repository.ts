@@ -48,7 +48,32 @@ const HEADER_SELECT = `
   u_submitted.full_name AS submitter_name,
   u_approved.full_name AS approver_name,
   u_rejected.full_name AS rejector_name,
-  u_posted.full_name AS poster_name
+  u_posted.full_name AS poster_name,
+  (
+    pi.status = 'APPROVED'
+    AND pi.journal_id IS NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM purchase_invoice_lines pil
+      JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
+      JOIN goods_processing gp ON gp.id = gpi.goods_processing_id
+      WHERE pil.purchase_invoice_id = pi.id
+        AND pil.deleted_at IS NULL
+        AND gpi.status != 'CONFIRMED'
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM purchase_invoice_lines pil
+      JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
+      JOIN goods_processing_outputs gpo
+        ON gpo.goods_processing_id = gpi.goods_processing_id
+       AND gpo.input_id = gpi.id
+       AND gpo.is_waste = FALSE
+      WHERE pil.purchase_invoice_id = pi.id
+        AND pil.deleted_at IS NULL
+        AND gpi.status = 'CONFIRMED'
+    )
+  ) AS post_journal_ready
 `
 
 const HEADER_FROM = `
@@ -87,6 +112,11 @@ export type PiPaymentContextRow = {
   invoice_id: string
   po_payment_due_date: string | null
   gr_received_date: string | null
+}
+
+export type GrPaymentAnchorDates = {
+  max_received_date: string | null
+  min_po_payment_due_date: string | null
 }
 
 export type GrLineDetailForInvoicing = {
@@ -1072,6 +1102,48 @@ export class PurchaseInvoicesRepository {
     await client.query(
       `UPDATE purchase_invoices SET due_date = $1, updated_at = now() WHERE id = $2`,
       [dueDate, invoiceId],
+    )
+  }
+
+  async findGrPaymentAnchorDates(client: PoolClient, grIds: string[]): Promise<GrPaymentAnchorDates> {
+    if (grIds.length === 0) {
+      return { max_received_date: null, min_po_payment_due_date: null }
+    }
+    const { rows } = await client.query<{
+      max_received_date: string | null
+      min_po_payment_due_date: string | null
+    }>(
+      `SELECT MAX(gr.received_date)::text AS max_received_date,
+              MIN(po.payment_due_date)::text AS min_po_payment_due_date
+       FROM goods_receipts gr
+       JOIN purchase_orders po ON po.id = gr.po_id AND po.deleted_at IS NULL
+       WHERE gr.id = ANY($1::uuid[]) AND gr.deleted_at IS NULL`,
+      [grIds],
+    )
+    const row = rows[0]
+    return {
+      max_received_date: row?.max_received_date?.slice(0, 10) ?? null,
+      min_po_payment_due_date: row?.min_po_payment_due_date?.slice(0, 10) ?? null,
+    }
+  }
+
+  async findGrIdsForInvoice(client: PoolClient, invoiceId: string): Promise<string[]> {
+    const { rows } = await client.query<{ goods_receipt_id: string }>(
+      `SELECT goods_receipt_id FROM purchase_invoice_gr_links WHERE purchase_invoice_id = $1`,
+      [invoiceId],
+    )
+    return rows.map((r) => r.goods_receipt_id)
+  }
+
+  async updateDraftHeaderDates(
+    client: PoolClient,
+    invoiceId: string,
+    invoiceDate: string,
+    dueDate: string | null,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE purchase_invoices SET invoice_date = $1, due_date = $2, updated_at = now() WHERE id = $3`,
+      [invoiceDate, dueDate, invoiceId],
     )
   }
 

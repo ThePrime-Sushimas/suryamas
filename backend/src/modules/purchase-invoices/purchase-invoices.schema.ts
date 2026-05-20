@@ -141,9 +141,7 @@ export const availableGrsSchema = z.object({
   }),
 })
 
-export const deletePurchaseInvoiceSchema = z.object({
-  ...uuidParam,
-})
+export const deletePurchaseInvoiceSchema = uuidParam
 
 export const postPurchaseInvoiceSchema = z.object({
   params: z.object({

@@ -67,6 +67,7 @@ export class PurchaseRequestsService {
     await purchaseRequestsRepository.withTransaction(async (client) => {
       await purchaseRequestsRepository.updateEditable(client, id, companyId, {
         needed_by_date: dto.needed_by_date,
+        request_date: dto.request_date,
         notes: dto.notes,
         updated_by: userId,
       })

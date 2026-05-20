@@ -154,18 +154,46 @@ export class PurchaseInvoicesService {
     }
   }
 
-  /** Persist estimated due_date on draft PI (anchor = invoice_date; recalc on save). */
+  /** Tanggal invoice default = tanggal terima barang (GR) terbaru, sama seperti draft otomatis. */
+  private async resolveInvoiceDateForNewDraft(
+    client: PoolClient,
+    invoiceDate: string,
+    grIds: string[],
+  ): Promise<string> {
+    if (grIds.length === 0) return invoiceDate.slice(0, 10)
+    const anchors = await purchaseInvoicesRepository.findGrPaymentAnchorDates(client, grIds)
+    return anchors.max_received_date ?? invoiceDate.slice(0, 10)
+  }
+
+  /** Estimasi jatuh tempo — pakai acuan GR/PO seperti draft otomatis dari GR confirm. */
+  private async computeDraftDueDate(
+    client: PoolClient,
+    supplierId: string,
+    invoiceDate: string,
+    grIds: string[],
+  ): Promise<string | null> {
+    const anchors =
+      grIds.length > 0
+        ? await purchaseInvoicesRepository.findGrPaymentAnchorDates(client, grIds)
+        : { max_received_date: null, min_po_payment_due_date: null }
+    const term = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client)
+    return computePurchaseInvoiceDueDate({
+      invoice_date: invoiceDate.slice(0, 10),
+      gr_received_date: anchors.max_received_date,
+      po_payment_due_date: anchors.min_po_payment_due_date,
+      term: this.toTermSnapshot(term),
+    })
+  }
+
+  /** Persist estimated due_date on draft PI (recalc on save). */
   private async syncDraftDueDate(
     client: PoolClient,
     invoiceId: string,
     supplierId: string,
     invoiceDate: string,
   ): Promise<void> {
-    const term = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client)
-    const dueDate = computePurchaseInvoiceDueDate({
-      invoice_date: invoiceDate,
-      term: this.toTermSnapshot(term),
-    })
+    const grIds = await purchaseInvoicesRepository.findGrIdsForInvoice(client, invoiceId)
+    const dueDate = await this.computeDraftDueDate(client, supplierId, invoiceDate, grIds)
     await purchaseInvoicesRepository.updateDueDate(client, invoiceId, dueDate)
   }
 
@@ -562,16 +590,20 @@ export class PurchaseInvoicesService {
       const hdr = this.computeHeaderTotalsFromLinesAndCharges(enrichedLines, enrichedCharges)
       this.assertHeaderInventoryNonNegative(hdr.subtotal, hdr.totalChargeAmount)
 
+      const invoiceDate = await this.resolveInvoiceDateForNewDraft(client, dto.invoice_date, grIds)
+      const dueDate = await this.computeDraftDueDate(client, dto.supplier_id, invoiceDate, grIds)
+
       const created = await purchaseInvoicesRepository.create(client, companyId, {
         supplier_id: dto.supplier_id,
         branch_id: dto.branch_id,
         invoice_number: dto.invoice_number,
-        invoice_date: dto.invoice_date,
+        invoice_date: invoiceDate,
         notes: dto.notes ?? null,
         subtotal: hdr.subtotal,
         total_tax: hdr.total_tax,
         total_charges: hdr.total_charges,
         total_amount: hdr.total_amount,
+        due_date: dueDate,
         created_by: userId,
       })
 
@@ -579,7 +611,6 @@ export class PurchaseInvoicesService {
       await purchaseInvoicesRepository.replaceCharges(client, created.id, enrichedCharges)
       await purchaseInvoicesRepository.insertGrLinks(client, created.id, grIds)
       await purchaseInvoicesRepository.copyAttachmentsFromGrs(client, created.id, grIds)
-      await this.syncDraftDueDate(client, created.id, dto.supplier_id, dto.invoice_date)
       return created
     })
 
@@ -846,11 +877,14 @@ export class PurchaseInvoicesService {
         inventoryDebitDescription,
       })
 
+      const grIds = await purchaseInvoicesRepository.findGrIdsForInvoice(client, id)
+      const dueDate = await this.computeDraftDueDate(
+        client,
+        detail.supplier_id,
+        String(detail.invoice_date),
+        grIds,
+      )
       const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(detail.supplier_id, client)
-      const dueDate = computePurchaseInvoiceDueDate({
-        invoice_date: detail.invoice_date,
-        term: this.toTermSnapshot(supplierTerm),
-      })
       if (dueDate) {
         await purchaseInvoicesRepository.updateDueDate(client, id, dueDate)
         if (supplierTerm?.calculation_type === 'from_invoice') {
@@ -941,11 +975,7 @@ export class PurchaseInvoicesService {
     const today = new Date().toISOString().split('T')[0]
     const grReceived = gr.received_date ? String(gr.received_date).slice(0, 10) : today
     const invoiceDate = grReceived
-    const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(gr.supplier_id, client)
-    const estimatedDueDate = computePurchaseInvoiceDueDate({
-      invoice_date: invoiceDate,
-      term: this.toTermSnapshot(supplierTerm),
-    })
+    const estimatedDueDate = await this.computeDraftDueDate(client, gr.supplier_id, invoiceDate, [grId])
 
     // 3. Create PI Header (invoice_date = tanggal terima barang; due_date = estimasi dari term)
     const invoice = await purchaseInvoicesRepository.create(client, companyId, {
@@ -1032,11 +1062,24 @@ export class PurchaseInvoicesService {
       const totals = await purchaseInvoicesRepository.sumFullInvoiceHeaderTotals(client, created.id)
       await purchaseInvoicesRepository.updateMasterInvoiceAfterMerge(client, created.id, totals, invoiceIds, userId)
       await purchaseInvoicesRepository.softDeleteInvoicesByIds(client, invoiceIds, userId)
-      await this.syncDraftDueDate(
+
+      const mergedGrIds = await purchaseInvoicesRepository.findGrIdsForInvoice(client, created.id)
+      const mergedInvoiceDate = await this.resolveInvoiceDateForNewDraft(
+        client,
+        new Date().toISOString().split('T')[0],
+        mergedGrIds,
+      )
+      const mergedDueDate = await this.computeDraftDueDate(
+        client,
+        supplierId,
+        mergedInvoiceDate,
+        mergedGrIds,
+      )
+      await purchaseInvoicesRepository.updateDraftHeaderDates(
         client,
         created.id,
-        supplierId,
-        new Date().toISOString().split('T')[0],
+        mergedInvoiceDate,
+        mergedDueDate,
       )
       return created
     })
