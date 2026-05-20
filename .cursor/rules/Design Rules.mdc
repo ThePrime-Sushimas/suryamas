@@ -1,0 +1,25 @@
+# Design Rules
+
+- Use modern SaaS aesthetic
+- Use large spacing and visual breathing room
+- Prefer rounded-2xl instead of rounded-md
+- Use subtle shadows only
+- Avoid crowded layouts
+- Use strong typography hierarchy
+- Prefer cards with soft borders
+- Use hover transitions
+- Avoid plain tables when possible
+- Use section separation
+- Use max-width containers
+- Use empty states
+- Use loading skeletons
+- Use consistent spacing scale
+- Prefer dashboard quality similar to Stripe, Linear, Vercel
+
+Design style references:
+- Stripe Dashboard
+- Linear
+- Vercel
+- Notion
+- Raycast
+- Resend

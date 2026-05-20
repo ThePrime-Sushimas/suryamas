@@ -15,6 +15,20 @@ export interface PiPaymentDueInfo {
   base_date: string | null
 }
 
+export type PurchaseInvoiceChargeType = 'DISCOUNT' | 'SHIPPING' | 'ADMIN_FEE' | 'OTHER'
+
+export interface PurchaseInvoiceCharge {
+  id: string
+  purchase_invoice_id: string
+  charge_type: PurchaseInvoiceChargeType
+  description: string | null
+  amount: number
+  tax_rate: number
+  tax_amount: number
+  total: number
+  sort_order: number
+}
+
 export interface PurchaseInvoice {
   id: string
   company_id: string
@@ -28,6 +42,8 @@ export interface PurchaseInvoice {
   rejection_reason: string | null
   subtotal: number
   total_tax: number
+  /** Sum of charge rows' `total` (amount + tax per charge); negative net = discounts dominate */
+  total_charges: number
   total_amount: number
   submitted_by: string | null
   submitted_at: string | null
@@ -126,6 +142,7 @@ export interface PurchaseInvoiceGpLineAudit {
 export interface PurchaseInvoiceDetail extends PurchaseInvoiceWithRelations {
   gr_links: PurchaseInvoiceGrLink[]
   lines: PurchaseInvoiceLine[]
+  charges: PurchaseInvoiceCharge[]
   gp_line_audits: PurchaseInvoiceGpLineAudit[]
 }
 
@@ -137,6 +154,14 @@ export interface CreatePurchaseInvoiceLineDto {
   sort_order: number
 }
 
+export interface CreatePurchaseInvoiceChargeDto {
+  charge_type: PurchaseInvoiceChargeType
+  description?: string | null
+  amount: number
+  tax_rate: number
+  sort_order: number
+}
+
 export interface CreatePurchaseInvoiceDto {
   supplier_id: string
   branch_id: string
@@ -144,6 +169,7 @@ export interface CreatePurchaseInvoiceDto {
   invoice_date: string
   notes: string | null
   lines: CreatePurchaseInvoiceLineDto[]
+  charges?: CreatePurchaseInvoiceChargeDto[]
 }
 
 export interface UpdatePurchaseInvoiceDto {
@@ -151,5 +177,6 @@ export interface UpdatePurchaseInvoiceDto {
   invoice_date: string
   notes?: string | null
   lines: CreatePurchaseInvoiceLineDto[]
+  charges?: CreatePurchaseInvoiceChargeDto[]
 }
 

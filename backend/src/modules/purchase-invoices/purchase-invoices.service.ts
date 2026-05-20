@@ -7,6 +7,7 @@ import {
 import { AuditService } from '../monitoring/monitoring.service'
 import {
   PurchaseInvoiceCannotEditPostedError,
+  PurchaseInvoiceChargesInvalidError,
   PurchaseInvoiceGrNotEligibleError,
   PurchaseInvoiceGpNotConfirmedError,
   PurchaseInvoiceInvalidStatusError,
@@ -19,6 +20,7 @@ import {
 } from './purchase-invoice-payment.util'
 import type { PoPaymentTermSnapshot } from '../purchase-orders/purchase-order-payment.util'
 import type {
+  CreatePurchaseInvoiceChargeDto,
   CreatePurchaseInvoiceDto,
   PurchaseInvoiceDetail,
   PurchaseInvoiceLine,
@@ -43,6 +45,12 @@ function computeLineTotals(qtyInvoiced: number, unitPrice: number, taxRate: numb
   const taxAmount = subtotal * (taxRate / 100)
   const total = subtotal + taxAmount
   return { subtotal, taxAmount, total }
+}
+
+function computeChargeTotals(amount: number, taxRate: number) {
+  const taxAmount = amount * (taxRate / 100)
+  const total = amount + taxAmount
+  return { taxAmount, total }
 }
 
 type InvoiceLineInput = {
@@ -108,6 +116,7 @@ export class PurchaseInvoicesService {
       branch_name: detail.branch_name,
       subtotal: Number(detail.subtotal),
       total_tax: Number(detail.total_tax),
+      total_charges: Number(detail.total_charges ?? 0),
       total_amount: Number(detail.total_amount),
       gr_links: detail.gr_links.map((g) => ({
         goods_receipt_id: g.goods_receipt_id,
@@ -129,6 +138,16 @@ export class PurchaseInvoicesService {
         total: Number(l.total),
         uom_received: l.uom_received,
         uom_invoice: l.uom_invoice,
+      })),
+      charges: (detail.charges ?? []).map((c) => ({
+        id: c.id,
+        charge_type: c.charge_type,
+        description: c.description ?? null,
+        amount: Number(c.amount),
+        tax_rate: Number(c.tax_rate),
+        tax_amount: Number(c.tax_amount),
+        total: Number(c.total),
+        sort_order: c.sort_order,
       })),
       attachment_count: Array.isArray(attachments) ? attachments.length : 0,
     }
@@ -258,6 +277,57 @@ export class PurchaseInvoicesService {
     }
 
     return { enrichedLines, grIds, subtotal, totalTax, totalAmount }
+  }
+
+  private buildEnrichedCharges(dtoCharges: CreatePurchaseInvoiceChargeDto[] | undefined, userId: string) {
+    const list = dtoCharges ?? []
+    let totalChargeTax = 0
+    let totalCharges = 0
+    let totalChargeAmount = 0
+    const enrichedCharges: Array<{
+      charge_type: string
+      description: string | null
+      amount: number
+      tax_rate: number
+      tax_amount: number
+      total: number
+      sort_order: number
+      created_by: string
+      updated_by: string
+    }> = []
+
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i]
+      const amount = Number(c.amount)
+      const taxRate = Number(c.tax_rate)
+      const { taxAmount, total } = computeChargeTotals(amount, taxRate)
+      totalChargeTax += taxAmount
+      totalCharges += total
+      totalChargeAmount += amount
+      enrichedCharges.push({
+        charge_type: c.charge_type,
+        description: c.description ?? null,
+        amount,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        total,
+        sort_order: c.sort_order ?? i,
+        created_by: userId,
+        updated_by: userId,
+      })
+    }
+
+    return { enrichedCharges, totalChargeTax, totalCharges, totalChargeAmount }
+  }
+
+  /** Inventory-side debit uses line subtotals + pre-tax charge amounts (e.g. freight in, discount out). */
+  private assertHeaderInventoryNonNegative(lineSubtotal: number, totalChargeAmount: number) {
+    const base = lineSubtotal + totalChargeAmount
+    if (base < -0.0001) {
+      throw new PurchaseInvoiceChargesInvalidError(
+        'Total diskon/biaya tidak boleh membuat nilai persediaan (subtotal barang + biaya pra-pajak) negatif.',
+      )
+    }
   }
 
   async list(companyId: string, pagination: { page: number; limit: number }, filter?: any) {
@@ -393,6 +463,11 @@ export class PurchaseInvoicesService {
         dto.supplier_id,
         maps,
       )
+      const { enrichedCharges, totalChargeTax, totalCharges, totalChargeAmount } = this.buildEnrichedCharges(
+        dto.charges,
+        userId,
+      )
+      this.assertHeaderInventoryNonNegative(subtotal, totalChargeAmount)
 
       const created = await purchaseInvoicesRepository.create(client, companyId, {
         supplier_id: dto.supplier_id,
@@ -401,12 +476,14 @@ export class PurchaseInvoicesService {
         invoice_date: dto.invoice_date,
         notes: dto.notes ?? null,
         subtotal,
-        total_tax: totalTax,
-        total_amount: totalAmount,
+        total_tax: totalTax + totalChargeTax,
+        total_charges: totalCharges,
+        total_amount: totalAmount + totalCharges,
         created_by: userId,
       })
 
       await purchaseInvoicesRepository.replaceLines(client, created.id, enrichedLines)
+      await purchaseInvoicesRepository.replaceCharges(client, created.id, enrichedCharges)
       await purchaseInvoicesRepository.insertGrLinks(client, created.id, grIds)
       await purchaseInvoicesRepository.copyAttachmentsFromGrs(client, created.id, grIds)
       await this.syncDraftDueDate(client, created.id, dto.supplier_id, dto.invoice_date)
@@ -445,14 +522,21 @@ export class PurchaseInvoicesService {
         existing.supplier_id,
         maps,
       )
+      const { enrichedCharges, totalChargeTax, totalCharges, totalChargeAmount } = this.buildEnrichedCharges(
+        dto.charges,
+        userId,
+      )
+      this.assertHeaderInventoryNonNegative(subtotal, totalChargeAmount)
 
       await purchaseInvoicesRepository.replaceLines(client, id, enrichedLines)
+      await purchaseInvoicesRepository.replaceCharges(client, id, enrichedCharges)
       await purchaseInvoicesRepository.replaceGrLinks(client, id, grIds)
       await purchaseInvoicesRepository.copyAttachmentsFromGrs(client, id, grIds)
       await purchaseInvoicesRepository.updateStatus(client, id, existing.status, {
         subtotal,
-        total_tax: totalTax,
-        total_amount: totalAmount,
+        total_tax: totalTax + totalChargeTax,
+        total_charges: totalCharges,
+        total_amount: totalAmount + totalCharges,
         notes: dto.notes ?? existing.notes,
         invoice_date: dto.invoice_date,
         invoice_number: dto.invoice_number,
@@ -613,8 +697,22 @@ export class PurchaseInvoicesService {
       }
 
       const subtotal = Number(detail.subtotal ?? 0)
+      const chargeAmountSum = (detail.charges ?? []).reduce((s, c) => s + Number(c.amount), 0)
+      const debitInventory = subtotal + chargeAmountSum
       const totalTax = Number(detail.total_tax ?? 0)
       const totalAmount = Number(detail.total_amount ?? 0)
+
+      const hasChargeBase = Math.abs(chargeAmountSum) > 0.000001
+      const fmtIdr = (n: number) =>
+        new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Math.round(n))
+
+      const journalDescriptionBase = `Faktur Pembelian ${detail.invoice_number}${detail.supplier_name ? ` - ${detail.supplier_name}` : ''}`
+      const journalDescription = hasChargeBase
+        ? `${journalDescriptionBase}. Posting: debit persediaan = nilai net (subtotal barang Rp ${fmtIdr(subtotal)} + Σ amount charges pra-PPN Rp ${fmtIdr(chargeAmountSum)}; diskon sebagai nilai negatif).`
+        : journalDescriptionBase
+      const inventoryDebitDescription = hasChargeBase
+        ? `${journalDescriptionBase} — Persediaan (net Rp ${fmtIdr(debitInventory)}) = subtotal barang Rp ${fmtIdr(subtotal)} + penyesuaian charges pra-PPN Rp ${fmtIdr(chargeAmountSum)}`
+        : journalDescriptionBase
 
       const period = await purchaseInvoicesRepository.findFiscalPeriodForDate(client, companyId, detail.invoice_date)
       if (!period) {
@@ -625,8 +723,6 @@ export class PurchaseInvoicesService {
       const year = detail.invoice_date.substring(0, 4)
       const month = detail.invoice_date.substring(5, 7)
       const journalNumber = `JG/${year}${month}/${String(sequence).padStart(5, '0')}`
-
-      const journalDescription = `Faktur Pembelian ${detail.invoice_number}${detail.supplier_name ? ` - ${detail.supplier_name}` : ''}`
 
       const journalHeader = await purchaseInvoicesRepository.createJournalHeader(client, {
         companyId,
@@ -641,7 +737,7 @@ export class PurchaseInvoicesService {
         referenceId: id,
         referenceNumber: detail.invoice_number,
         description: journalDescription,
-        totalDebit: subtotal + totalTax,
+        totalDebit: debitInventory + totalTax,
         totalCredit: totalAmount,
         createdBy: employeeId ?? null,
       })
@@ -649,12 +745,13 @@ export class PurchaseInvoicesService {
       await purchaseInvoicesRepository.createJournalLines(client, {
         journalHeaderId: journalHeader.id,
         debitAccountId: coaInv,
-        debitAmount: subtotal,
+        debitAmount: debitInventory,
         taxAccountId: coaTax,
         taxAmount: totalTax,
         creditAccountId: coaPayable,
         creditAmount: totalAmount,
         description: journalDescription,
+        inventoryDebitDescription,
       })
 
       const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(detail.supplier_id, client)
@@ -767,6 +864,7 @@ export class PurchaseInvoicesService {
       notes: `Auto-generated from GR ${gr.gr_number}`,
       subtotal,
       total_tax: totalTax,
+      total_charges: 0,
       total_amount: totalAmount,
       due_date: estimatedDueDate,
       created_by: userId,
@@ -829,15 +927,17 @@ export class PurchaseInvoicesService {
         notes: `Merged from ${invoices.length} drafts: ${invoices.map((i) => i.invoice_number).join(', ')}`,
         subtotal: 0,
         total_tax: 0,
+        total_charges: 0,
         total_amount: 0,
         created_by: userId,
       })
 
       await purchaseInvoicesRepository.moveLinesToMasterInvoice(client, created.id, userId, invoiceIds)
       await purchaseInvoicesRepository.moveGrLinksToMasterInvoice(client, created.id, invoiceIds)
+      await purchaseInvoicesRepository.moveChargesToMasterInvoice(client, created.id, invoiceIds)
       await purchaseInvoicesRepository.moveAttachmentsToMasterInvoice(client, created.id, invoiceIds)
 
-      const totals = await purchaseInvoicesRepository.sumLineTotalsForInvoice(client, created.id)
+      const totals = await purchaseInvoicesRepository.sumFullInvoiceHeaderTotals(client, created.id)
       await purchaseInvoicesRepository.updateMasterInvoiceAfterMerge(client, created.id, totals, invoiceIds, userId)
       await purchaseInvoicesRepository.softDeleteInvoicesByIds(client, invoiceIds, userId)
       await this.syncDraftDueDate(

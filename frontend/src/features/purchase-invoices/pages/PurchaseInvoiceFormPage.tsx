@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Save, AlertCircle, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import {
@@ -21,6 +21,18 @@ import {
   resolveInvoiceUom,
 } from "../utils/purchaseInvoiceUom";
 
+const CHARGE_TYPE_LABELS = {
+  DISCOUNT: "Diskon",
+  SHIPPING: "Ongkir",
+  ADMIN_FEE: "Biaya admin",
+  OTHER: "Lainnya",
+} as const;
+
+function computeChargeLine(amount: number, taxRate: number) {
+  const tax = amount * (taxRate / 100);
+  return { tax_amount: tax, total: amount + tax };
+}
+
 interface PILine {
   gr_line_id: string;
   product_id: string;
@@ -39,6 +51,14 @@ interface PILine {
   gr_number: string;
 }
 
+interface PIChargeRow {
+  charge_type: "DISCOUNT" | "SHIPPING" | "ADMIN_FEE" | "OTHER";
+  description: string;
+  amount: number;
+  tax_rate: number;
+  sort_order: number;
+}
+
 export default function PurchaseInvoiceFormPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -54,6 +74,7 @@ export default function PurchaseInvoiceFormPage() {
   const [notes, setNotes] = useState("");
   const [selectedGrIds, setSelectedGrIds] = useState<string[]>([]);
   const [lines, setLines] = useState<PILine[]>([]);
+  const [charges, setCharges] = useState<PIChargeRow[]>([]);
 
   const { data: existingPI, isLoading: isFetchingPI } = usePurchaseInvoice(
     isEdit ? id : "",
@@ -106,6 +127,15 @@ export default function PurchaseInvoiceFormPage() {
             existingPI.gr_links.find(() =>
               existingPI.lines.some((pl) => pl.gr_line_id === l.gr_line_id),
             )?.goods_receipt_number ?? "—",
+        })),
+      );
+      setCharges(
+        (existingPI.charges ?? []).map((c, i) => ({
+          charge_type: c.charge_type,
+          description: c.description ?? "",
+          amount: Number(c.amount),
+          tax_rate: Number(c.tax_rate),
+          sort_order: c.sort_order ?? i,
         })),
       );
     }
@@ -233,6 +263,29 @@ export default function PurchaseInvoiceFormPage() {
     );
   };
 
+  const handleChargeChange = (index: number, updates: Partial<PIChargeRow>) => {
+    setCharges((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, ...updates } : c)),
+    );
+  };
+
+  const addChargeRow = () => {
+    setCharges((prev) => [
+      ...prev,
+      {
+        charge_type: "SHIPPING",
+        description: "",
+        amount: 0,
+        tax_rate: 0,
+        sort_order: prev.length,
+      },
+    ]);
+  };
+
+  const removeChargeRow = (index: number) => {
+    setCharges((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const createPI = useCreatePurchaseInvoice();
   const updatePI = useUpdatePurchaseInvoice();
 
@@ -241,6 +294,21 @@ export default function PurchaseInvoiceFormPage() {
     if (!branchId) return toast.error("Pilih Cabang");
     if (!invoiceNumber) return toast.error("Isi Nomor Invoice");
     if (lines.length === 0) return toast.error("Minimal 1 item");
+
+    for (const c of charges) {
+      if (c.charge_type === "DISCOUNT" && c.amount > 0) {
+        toast.error("Diskon: nominal harus nol atau negatif.");
+        return;
+      }
+      if (c.charge_type === "SHIPPING" && c.amount < 0) {
+        toast.error("Ongkir tidak boleh negatif.");
+        return;
+      }
+      if (c.charge_type === "ADMIN_FEE" && c.amount < 0) {
+        toast.error("Biaya admin tidak boleh negatif.");
+        return;
+      }
+    }
 
     const payload = {
       supplier_id: supplierId,
@@ -253,6 +321,13 @@ export default function PurchaseInvoiceFormPage() {
         qty_invoiced: l.qty_invoiced,
         unit_price: l.unit_price,
         tax_rate: l.tax_rate,
+        sort_order: i,
+      })),
+      charges: charges.map((c, i) => ({
+        charge_type: c.charge_type,
+        description: c.description.trim() || null,
+        amount: c.amount,
+        tax_rate: c.tax_rate,
         sort_order: i,
       })),
     };
@@ -272,19 +347,35 @@ export default function PurchaseInvoiceFormPage() {
   };
 
   const totals = useMemo(() => {
-    return lines.reduce(
+    const lineAgg = lines.reduce(
       (acc, l) => {
         const subtotal = l.qty_invoiced * l.unit_price;
         const tax = subtotal * (l.tax_rate / 100);
         return {
           subtotal: acc.subtotal + subtotal,
-          tax: acc.tax + tax,
-          total: acc.total + subtotal + tax,
+          lineTax: acc.lineTax + tax,
+          lineGrand: acc.lineGrand + subtotal + tax,
         };
       },
-      { subtotal: 0, tax: 0, total: 0 },
+      { subtotal: 0, lineTax: 0, lineGrand: 0 },
     );
-  }, [lines]);
+    const chargeAgg = charges.reduce(
+      (acc, c) => {
+        const { tax_amount, total } = computeChargeLine(c.amount, c.tax_rate);
+        return {
+          chargeTax: acc.chargeTax + tax_amount,
+          chargeGrand: acc.chargeGrand + total,
+        };
+      },
+      { chargeTax: 0, chargeGrand: 0 },
+    );
+    return {
+      subtotal: lineAgg.subtotal,
+      tax: lineAgg.lineTax + chargeAgg.chargeTax,
+      totalCharges: chargeAgg.chargeGrand,
+      total: lineAgg.lineGrand + chargeAgg.chargeGrand,
+    };
+  }, [lines, charges]);
 
   const fmtCurrency = (v: number) =>
     new Intl.NumberFormat("id-ID", {
@@ -639,15 +730,144 @@ export default function PurchaseInvoiceFormPage() {
             </table>
           </div>
 
+          <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/30 dark:bg-gray-800/40">
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+              Diskon &amp; biaya lain
+            </h2>
+            <button
+              type="button"
+              onClick={addChargeRow}
+              className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Tambah baris
+            </button>
+          </div>
+          <div className="overflow-x-auto px-2 pb-2">
+            {charges.length === 0 ? (
+              <p className="text-sm text-gray-400 italic px-3 py-4 text-center">
+                Opsional — ongkir, diskon nota, biaya admin, dll.
+              </p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="text-gray-500 dark:text-gray-400 text-[10px] uppercase">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Jenis</th>
+                    <th className="px-3 py-2 text-left">Keterangan</th>
+                    <th className="px-3 py-2 text-right">Nilai (pra-PPN)</th>
+                    <th className="px-3 py-2 text-center">PPN %</th>
+                    <th className="px-3 py-2 text-right">Total baris</th>
+                    <th className="px-3 py-2 w-10" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {charges.map((c, index) => {
+                    const { total } = computeChargeLine(c.amount, c.tax_rate);
+                    return (
+                      <tr key={index}>
+                        <td className="px-3 py-2">
+                          <select
+                            value={c.charge_type}
+                            onChange={(e) =>
+                              handleChargeChange(index, {
+                                charge_type: e.target.value as PIChargeRow["charge_type"],
+                              })
+                            }
+                            className="w-full max-w-[140px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                          >
+                            {(Object.keys(CHARGE_TYPE_LABELS) as Array<keyof typeof CHARGE_TYPE_LABELS>).map(
+                              (k) => (
+                                <option key={k} value={k}>
+                                  {CHARGE_TYPE_LABELS[k]}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="text"
+                            value={c.description}
+                            onChange={(e) =>
+                              handleChargeChange(index, { description: e.target.value })
+                            }
+                            placeholder="Opsional"
+                            className="w-full min-w-[120px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <input
+                            type="number"
+                            value={c.amount}
+                            onChange={(e) =>
+                              handleChargeChange(index, {
+                                amount: Number(e.target.value),
+                              })
+                            }
+                            className="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-right text-xs bg-white dark:bg-gray-800"
+                          />
+                          {c.charge_type === "DISCOUNT" ? (
+                            <p className="text-[10px] text-amber-600 mt-0.5">
+                              Gunakan nilai negatif
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input
+                            type="number"
+                            value={c.tax_rate}
+                            onChange={(e) =>
+                              handleChargeChange(index, {
+                                tax_rate: Number(e.target.value),
+                              })
+                            }
+                            className="w-14 px-1 py-1 border border-gray-200 dark:border-gray-600 rounded text-center text-xs bg-white dark:bg-gray-800"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">
+                          {fmtCurrency(total)}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeChargeRow(index)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                            aria-label="Hapus baris"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
           {/* Summary Footer */}
           <div className="bg-gray-50/50 dark:bg-gray-700/30 px-6 py-4 border-t border-gray-100 dark:border-gray-700">
             <div className="flex flex-col items-end gap-2">
               <div className="flex justify-between w-64 text-sm">
-                <span className="text-gray-500">Subtotal</span>
+                <span className="text-gray-500">Subtotal barang</span>
                 <span className="font-medium text-gray-900 dark:text-white">
                   {fmtCurrency(totals.subtotal)}
                 </span>
               </div>
+              {charges.length > 0 ? (
+                <div className="flex justify-between w-64 text-sm">
+                  <span className="text-gray-500">Diskon &amp; biaya (net)</span>
+                  <span
+                    className={`font-medium ${
+                      totals.totalCharges < 0
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-gray-900 dark:text-white"
+                    }`}
+                  >
+                    {fmtCurrency(totals.totalCharges)}
+                  </span>
+                </div>
+              ) : null}
               <div className="flex justify-between w-64 text-sm">
                 <span className="text-gray-500">Total PPN</span>
                 <span className="font-medium text-gray-900 dark:text-white">

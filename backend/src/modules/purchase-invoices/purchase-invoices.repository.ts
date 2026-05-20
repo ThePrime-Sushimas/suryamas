@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg'
 import { SQL_SUPPLIER_ELIGIBLE_FOR_PI } from '../suppliers/suppliers.constants'
 import type {
   PurchaseInvoice,
+  PurchaseInvoiceCharge,
   PurchaseInvoiceDetail,
   PurchaseInvoiceGpLineAudit,
   PurchaseInvoiceLine,
@@ -286,6 +287,15 @@ export class PurchaseInvoicesRepository {
     )
   }
 
+  async moveChargesToMasterInvoice(client: PoolClient, masterId: string, invoiceIds: string[]): Promise<void> {
+    await client.query(
+      `UPDATE purchase_invoice_charges
+       SET purchase_invoice_id = $1, updated_at = NOW()
+       WHERE purchase_invoice_id = ANY($2::uuid[]) AND deleted_at IS NULL`,
+      [masterId, invoiceIds],
+    )
+  }
+
   async moveAttachmentsToMasterInvoice(client: PoolClient, masterId: string, invoiceIds: string[]): Promise<void> {
     await client.query(
       `UPDATE purchase_invoice_attachments SET purchase_invoice_id = $1 WHERE purchase_invoice_id = ANY($2::uuid[])`,
@@ -307,19 +317,55 @@ export class PurchaseInvoicesRepository {
     }
   }
 
+  /** Tax and totals from charge rows only (lines excluded). */
+  async aggregateChargeTotals(client: PoolClient, invoiceId: string): Promise<{
+    total_charge_tax: number
+    total_charge_amount: number
+    total_charges: number
+  }> {
+    const { rows } = await client.query(
+      `SELECT
+         COALESCE(SUM(tax_amount), 0) AS total_charge_tax,
+         COALESCE(SUM(amount), 0) AS total_charge_amount,
+         COALESCE(SUM(total), 0) AS total_charges
+       FROM purchase_invoice_charges
+       WHERE purchase_invoice_id = $1 AND deleted_at IS NULL`,
+      [invoiceId],
+    )
+    return {
+      total_charge_tax: Number(rows[0]?.total_charge_tax ?? 0),
+      total_charge_amount: Number(rows[0]?.total_charge_amount ?? 0),
+      total_charges: Number(rows[0]?.total_charges ?? 0),
+    }
+  }
+
+  async sumFullInvoiceHeaderTotals(
+    client: PoolClient,
+    invoiceId: string,
+  ): Promise<{ subtotal: number; total_tax: number; total_charges: number; total_amount: number }> {
+    const lines = await this.sumLineTotalsForInvoice(client, invoiceId)
+    const ch = await this.aggregateChargeTotals(client, invoiceId)
+    return {
+      subtotal: lines.subtotal,
+      total_tax: lines.total_tax + ch.total_charge_tax,
+      total_charges: ch.total_charges,
+      total_amount: lines.total_amount + ch.total_charges,
+    }
+  }
+
   async updateMasterInvoiceAfterMerge(
     client: PoolClient,
     masterId: string,
-    totals: { subtotal: number; total_tax: number; total_amount: number },
+    totals: { subtotal: number; total_tax: number; total_charges: number; total_amount: number },
     sourceInvoiceIds: string[],
     userId: string,
   ): Promise<void> {
     await client.query(
       `UPDATE purchase_invoices
-       SET subtotal = $1, total_tax = $2, total_amount = $3,
-           merged_from_invoice_ids = $4, updated_by = $5, updated_at = NOW()
-       WHERE id = $6`,
-      [totals.subtotal, totals.total_tax, totals.total_amount, sourceInvoiceIds, userId, masterId],
+       SET subtotal = $1, total_tax = $2, total_charges = $3, total_amount = $4,
+           merged_from_invoice_ids = $5, updated_by = $6, updated_at = NOW()
+       WHERE id = $7`,
+      [totals.subtotal, totals.total_tax, totals.total_charges, totals.total_amount, sourceInvoiceIds, userId, masterId],
     )
   }
 
@@ -508,9 +554,13 @@ export class PurchaseInvoicesRepository {
       creditAccountId: string
       creditAmount: number
       description: string
+      /** When set, used for the inventory debit line (e.g. net = subtotal + pre-tax charges). */
+      inventoryDebitDescription?: string
     },
   ): Promise<void> {
     let lineNum = 1
+
+    const debitLineDescription = input.inventoryDebitDescription ?? input.description
 
     if (input.debitAmount > 0) {
       await client.query(
@@ -521,7 +571,7 @@ export class PurchaseInvoicesRepository {
         )
         VALUES ($1, $2, $3, $4, $5, 0, $5, 0)
         `,
-        [input.journalHeaderId, lineNum++, input.debitAccountId, input.description, input.debitAmount],
+        [input.journalHeaderId, lineNum++, input.debitAccountId, debitLineDescription, input.debitAmount],
       )
     }
 
@@ -774,7 +824,7 @@ export class PurchaseInvoicesRepository {
     const header = rows[0]
     if (!header) return null
 
-    const [linesRes, linksRes, attachmentsRes, gpLineAudits] = await Promise.all([
+    const [linesRes, linksRes, attachmentsRes, gpLineAudits, chargesRes] = await Promise.all([
       db.query<PurchaseInvoiceLine>(
 
         `SELECT ${LINE_SELECT} ${LINE_FROM}
@@ -803,12 +853,25 @@ export class PurchaseInvoicesRepository {
         [id],
       ),
       this.findGpLineAuditsForInvoice(id, client),
+      db.query<PurchaseInvoiceCharge>(
+        `SELECT * FROM purchase_invoice_charges
+         WHERE purchase_invoice_id = $1 AND deleted_at IS NULL
+         ORDER BY sort_order, created_at ASC`,
+        [id],
+      ),
     ])
 
     return {
       ...header,
       gr_links: linksRes.rows,
       lines: linesRes.rows,
+      charges: chargesRes.rows.map((r) => ({
+        ...r,
+        amount: Number(r.amount),
+        tax_rate: Number(r.tax_rate),
+        tax_amount: Number(r.tax_amount),
+        total: Number(r.total),
+      })),
       attachments: attachmentsRes.rows,
       gp_line_audits: gpLineAudits,
     }
@@ -822,6 +885,7 @@ export class PurchaseInvoicesRepository {
     notes: string | null
     subtotal: number
     total_tax: number
+    total_charges: number
     total_amount: number
     created_by: string
     due_date?: string | null
@@ -830,10 +894,10 @@ export class PurchaseInvoicesRepository {
       `INSERT INTO purchase_invoices (
          company_id, supplier_id, branch_id, invoice_number, invoice_date,
          due_date, status, notes,
-         subtotal, total_tax, total_amount,
+         subtotal, total_tax, total_charges, total_amount,
          created_by, updated_by
        )
-       VALUES ($1,$2,$3,$4,$5,$6,'DRAFT',$7,$8,$9,$10,$11,$11)
+       VALUES ($1,$2,$3,$4,$5,$6,'DRAFT',$7,$8,$9,$10,$11,$12,$12)
        RETURNING *`,
       [
         companyId,
@@ -845,6 +909,7 @@ export class PurchaseInvoicesRepository {
         data.notes,
         data.subtotal,
         data.total_tax,
+        data.total_charges,
         data.total_amount,
         data.created_by,
       ],
@@ -914,6 +979,62 @@ export class PurchaseInvoicesRepository {
          variance_qty, variance_price,
          match_status, sort_order,
          is_deleted, deleted_at,
+         created_by, updated_by
+       ) VALUES ${valueRows.join(', ')}`,
+      params,
+    )
+  }
+
+  async replaceCharges(
+    client: PoolClient,
+    invoiceId: string,
+    charges: Array<{
+      charge_type: string
+      description: string | null
+      amount: number
+      tax_rate: number
+      tax_amount: number
+      total: number
+      sort_order: number
+      created_by: string
+      updated_by: string
+    }>,
+  ): Promise<void> {
+    await client.query('DELETE FROM purchase_invoice_charges WHERE purchase_invoice_id = $1 AND deleted_at IS NULL', [
+      invoiceId,
+    ])
+    if (charges.length === 0) return
+
+    const valueRows: string[] = []
+    const params: unknown[] = []
+    let idx = 1
+
+    for (const c of charges) {
+      valueRows.push(
+        `($${idx},$${idx + 1},$${idx + 2},$${idx + 3},$${idx + 4},$${idx + 5},$${idx + 6},$${idx + 7},$${idx + 8},$${idx + 9},$${idx + 10},$${idx + 11})`,
+      )
+      params.push(
+        invoiceId,
+        c.charge_type,
+        c.description,
+        c.amount,
+        c.tax_rate,
+        c.tax_amount,
+        c.total,
+        c.sort_order,
+        false,
+        null,
+        c.created_by,
+        c.updated_by,
+      )
+      idx += 12
+    }
+
+    await client.query(
+      `INSERT INTO purchase_invoice_charges (
+         purchase_invoice_id, charge_type, description,
+         amount, tax_rate, tax_amount, total,
+         sort_order, is_deleted, deleted_at,
          created_by, updated_by
        ) VALUES ${valueRows.join(', ')}`,
       params,

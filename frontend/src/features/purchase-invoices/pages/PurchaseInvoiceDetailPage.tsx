@@ -102,6 +102,13 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   OTHER: "Lainnya",
 };
 
+const PI_CHARGE_LABELS: Record<string, string> = {
+  DISCOUNT: "Diskon",
+  SHIPPING: "Ongkir",
+  ADMIN_FEE: "Biaya admin",
+  OTHER: "Lainnya",
+};
+
 function AttachmentThumbnail({
   filePath,
   isImage,
@@ -598,12 +605,68 @@ export default function PurchaseInvoiceDetailPage() {
             </table>
           </div>
 
+          {(inv.charges ?? []).length > 0 ? (
+            <div className="border-t border-gray-100 dark:border-gray-700 px-6 py-4">
+              <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Diskon &amp; biaya lain
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-gray-500 dark:text-gray-400 text-[10px] uppercase">
+                    <tr>
+                      <th className="text-left py-2 pr-4">Jenis</th>
+                      <th className="text-left py-2 pr-4">Keterangan</th>
+                      <th className="text-right py-2">Nilai (pra-PPN)</th>
+                      <th className="text-center py-2 px-2">PPN %</th>
+                      <th className="text-right py-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                    {(inv.charges ?? []).map((c) => (
+                      <tr key={c.id}>
+                        <td className="py-2 pr-4 text-gray-900 dark:text-white">
+                          {PI_CHARGE_LABELS[c.charge_type] ?? c.charge_type}
+                        </td>
+                        <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">
+                          {c.description ?? "—"}
+                        </td>
+                        <td className="py-2 text-right font-medium">
+                          {fmtCurrency(Number(c.amount))}
+                        </td>
+                        <td className="py-2 text-center text-gray-600 dark:text-gray-400">
+                          {Number(c.tax_rate)}%
+                        </td>
+                        <td className="py-2 text-right font-bold text-gray-900 dark:text-white">
+                          {fmtCurrency(Number(c.total))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
           <div className="bg-gray-50/30 dark:bg-gray-700/30 px-6 py-6 border-t border-gray-100 dark:border-gray-700">
             <div className="flex flex-col items-end gap-2">
               <div className="flex justify-between w-64 text-sm text-gray-600 dark:text-gray-400">
-                <span>Subtotal</span>
+                <span>Subtotal barang</span>
                 <span className="font-medium">{fmtCurrency(inv.subtotal)}</span>
               </div>
+              {(inv.charges ?? []).length > 0 ? (
+                <div className="flex justify-between w-64 text-sm text-gray-600 dark:text-gray-400">
+                  <span>Diskon &amp; biaya (net)</span>
+                  <span
+                    className={`font-medium ${
+                      Number(inv.total_charges) < 0
+                        ? "text-green-600 dark:text-green-400"
+                        : ""
+                    }`}
+                  >
+                    {fmtCurrency(Number(inv.total_charges))}
+                  </span>
+                </div>
+              ) : null}
               <div className="flex justify-between w-64 text-sm text-gray-600 dark:text-gray-400">
                 <span>Total PPN</span>
                 <span className="font-medium">

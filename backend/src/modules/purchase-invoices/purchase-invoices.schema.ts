@@ -34,6 +34,40 @@ const lineSchema = z.object({
   sort_order: z.coerce.number().int().default(0),
 })
 
+const chargeTypes = ['DISCOUNT', 'SHIPPING', 'ADMIN_FEE', 'OTHER'] as const
+
+const chargeSchema = z
+  .object({
+    charge_type: z.enum(chargeTypes),
+    description: z.string().max(255).nullable().optional(),
+    amount: z.coerce.number(),
+    tax_rate: z.coerce.number().min(0),
+    sort_order: z.coerce.number().int().default(0),
+  })
+  .superRefine((data, ctx) => {
+    if (data.charge_type === 'DISCOUNT' && data.amount > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Diskon wajib nilai negatif atau nol (pengurang tagihan).',
+        path: ['amount'],
+      })
+    }
+    if (data.charge_type === 'SHIPPING' && data.amount < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ongkir tidak boleh negatif.',
+        path: ['amount'],
+      })
+    }
+    if (data.charge_type === 'ADMIN_FEE' && data.amount < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Biaya admin tidak boleh negatif.',
+        path: ['amount'],
+      })
+    }
+  })
+
 export const createPurchaseInvoiceSchema = z.object({
   body: z.object({
     supplier_id: z.string().uuid(),
@@ -42,6 +76,7 @@ export const createPurchaseInvoiceSchema = z.object({
     invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     notes: z.string().nullable().optional(),
     lines: z.array(lineSchema).min(1),
+    charges: z.array(chargeSchema).optional().default([]),
   }),
 })
 
@@ -54,6 +89,7 @@ export const updatePurchaseInvoiceSchema = z.object({
     invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     notes: z.string().nullable().optional(),
     lines: z.array(lineSchema).min(1),
+    charges: z.array(chargeSchema).optional().default([]),
   }),
 })
 

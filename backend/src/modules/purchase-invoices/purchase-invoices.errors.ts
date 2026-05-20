@@ -35,3 +35,9 @@ export class PurchaseInvoiceGpNotConfirmedError extends BusinessRuleError {
     super(`Cannot post: Goods Processing ${gpNumber} is not CONFIRMED`)
   }
 }
+
+export class PurchaseInvoiceChargesInvalidError extends BusinessRuleError {
+  constructor(message: string) {
+    super(message)
+  }
+}
