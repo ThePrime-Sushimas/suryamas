@@ -14,6 +14,24 @@ export class PrintersRepository {
     return rows
   }
 
+  /** Printers visible to user: cabang yang di-assign + printer shared (branch_id null). */
+  async findAllAccessible(
+    companyId: string,
+    accessibleBranchIds: string[],
+  ): Promise<PrinterWithRelations[]> {
+    const { rows } = await pool.query(
+      `SELECT p.*, b.branch_name
+       FROM printers p
+       LEFT JOIN branches b ON b.id = p.branch_id
+       WHERE p.company_id = $1
+         AND p.deleted_at IS NULL
+         AND (p.branch_id IS NULL OR p.branch_id = ANY($2::uuid[]))
+       ORDER BY p.is_default DESC, p.printer_name ASC`,
+      [companyId, accessibleBranchIds],
+    )
+    return rows
+  }
+
   async findById(id: string, companyId: string): Promise<PrinterWithRelations | null> {
     const { rows } = await pool.query(
       `SELECT p.*, b.branch_name

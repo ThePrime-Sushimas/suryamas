@@ -16,22 +16,23 @@ interface BranchSelectionGuardProps {
 
 export const BranchSelectionGuard = ({ children }: BranchSelectionGuardProps) => {
   const { token } = useAuthStore()
-  const { currentBranch, branches, switchBranch, isLoading, isLoaded, error, refetchBranches } = useBranchContextStore()
+  const { currentBranch, branches, switchBranch, isLoading, isLoaded, error } = useBranchContextStore()
 
+  // Selalu sync dari API saat login / reload — jangan andalkan cache daftar cabang.
+  // Pakai getState() supaya effect tidak bergantung pada referensi action dari selector (hindari loop).
   useEffect(() => {
-    if (!token || isLoaded) return
-    refetchBranches()
-  }, [token, isLoaded, refetchBranches])
+    if (!token) return
+    void useBranchContextStore.getState().refetchBranches()
+  }, [token])
 
   // Auto-select when only 1 branch
   useEffect(() => {
-    if (isLoaded && branches.length === 1 && !currentBranch) {
-      switchBranch(branches[0].branch_id)
-    }
-  }, [isLoaded, branches, currentBranch, switchBranch])
+    if (!isLoaded || branches.length !== 1 || currentBranch) return
+    useBranchContextStore.getState().switchBranch(branches[0].branch_id)
+  }, [isLoaded, branches, currentBranch])
 
   const handleRetry = () => {
-    refetchBranches()
+    void useBranchContextStore.getState().refetchBranches()
   }
 
   if (!token) {

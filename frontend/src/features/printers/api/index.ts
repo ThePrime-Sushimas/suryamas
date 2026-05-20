@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import type { Printer, CreatePrinterDto, UpdatePrinterDto } from '../types'
 
+/** Printer di cabang yang user punya akses (employee_branches) + shared. */
 export const usePrinters = () =>
   useQuery({
     queryKey: ['printers'],

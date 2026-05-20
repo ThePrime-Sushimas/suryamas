@@ -7,17 +7,45 @@ import { buildDocReceipt, buildGoodsReceiptReceipt, sendToPrinter, testPrinterCo
 import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
 import { GoodsReceiptNotFoundError } from '../goods-receipts/goods-receipts.errors'
 import type { GoodsReceiptLineWithRelations } from '../goods-receipts/goods-receipts.types'
+import { BusinessRuleError } from '../../utils/errors.base'
+import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 import { logInfo } from '../../config/logger'
 import type { CreatePrinterDto, UpdatePrinterDto, PrinterWithRelations } from './printers.types'
 
 export class PrintersService {
-  async list(companyId: string): Promise<PrinterWithRelations[]> {
-    return printersRepository.findAll(companyId)
+  async list(companyId: string, userId: string): Promise<PrinterWithRelations[]> {
+    const accessibleBranchIds = await getAccessibleBranchIds(userId)
+    return printersRepository.findAllAccessible(companyId, accessibleBranchIds)
   }
 
-  async getById(id: string, companyId: string): Promise<PrinterWithRelations> {
+  private async assertPrintAccess(
+    printer: PrinterWithRelations,
+    userId: string,
+    documentBranchId: string,
+  ): Promise<void> {
+    const accessibleBranchIds = await getAccessibleBranchIds(userId)
+    if (!accessibleBranchIds.includes(documentBranchId)) {
+      throw new BusinessRuleError('Anda tidak memiliki akses ke cabang dokumen ini')
+    }
+    if (printer.branch_id && !accessibleBranchIds.includes(printer.branch_id)) {
+      throw new BusinessRuleError('Anda tidak memiliki akses ke printer cabang ini')
+    }
+  }
+
+  private async assertPrinterAccess(
+    printer: PrinterWithRelations,
+    userId: string,
+  ): Promise<void> {
+    const accessibleBranchIds = await getAccessibleBranchIds(userId)
+    if (printer.branch_id && !accessibleBranchIds.includes(printer.branch_id)) {
+      throw new PrinterNotFoundError(printer.id)
+    }
+  }
+
+  async getById(id: string, companyId: string, userId: string): Promise<PrinterWithRelations> {
     const printer = await printersRepository.findById(id, companyId)
     if (!printer) throw new PrinterNotFoundError(id)
+    await this.assertPrinterAccess(printer, userId)
     return printer
   }
 
@@ -50,19 +78,27 @@ export class PrintersService {
     await AuditService.log('DELETE', 'printer', id, userId, existing)
   }
 
-  async testConnection(id: string, companyId: string): Promise<boolean> {
+  async testConnection(id: string, companyId: string, userId: string): Promise<boolean> {
     const printer = await printersRepository.findById(id, companyId)
     if (!printer) throw new PrinterNotFoundError(id)
+    await this.assertPrinterAccess(printer, userId)
     return testPrinterConnection(printer.ip_address, printer.port)
   }
 
-  async printPurchaseRequest(printerId: string, prId: string, lineIds: string[], companyId: string, userId: string) {
+  async printPurchaseRequest(
+    printerId: string,
+    prId: string,
+    lineIds: string[],
+    companyId: string,
+    userId: string,
+  ) {
+    const pr = await purchaseRequestsRepository.findWithLines(prId, companyId)
+    if (!pr) throw new PurchaseRequestNotFoundError(prId)
+
     const printer = await printersRepository.findById(printerId, companyId)
     if (!printer) throw new PrinterNotFoundError(printerId)
     if (!printer.is_active) throw new PrinterConnectionError(printer.ip_address, printer.port, 'Printer is inactive')
-
-    const pr = await purchaseRequestsRepository.findWithLines(prId, companyId)
-    if (!pr) throw new PurchaseRequestNotFoundError(prId)
+    await this.assertPrintAccess(printer, userId, pr.branch_id)
 
     // Filter lines by selected IDs
     const selectedLines = pr.lines.filter(l => lineIds.includes(l.id))
@@ -147,14 +183,15 @@ export class PrintersService {
     companyId: string,
     userId: string,
   ): Promise<void> {
+    const gr = await goodsReceiptsRepository.findWithLines(grId, companyId)
+    if (!gr) throw new GoodsReceiptNotFoundError(grId)
+
     const printer = await printersRepository.findById(printerId, companyId)
     if (!printer) throw new PrinterNotFoundError(printerId)
     if (!printer.is_active) {
       throw new PrinterConnectionError(printer.ip_address, printer.port, 'Printer is inactive')
     }
-
-    const gr = await goodsReceiptsRepository.findWithLines(grId, companyId)
-    if (!gr) throw new GoodsReceiptNotFoundError(grId)
+    await this.assertPrintAccess(printer, userId, gr.branch_id)
 
     const selectedLines = gr.lines.filter((l) => l.id && lineIds.includes(l.id))
     if (selectedLines.length === 0) throw new GoodsReceiptNotFoundError(grId)

@@ -35,10 +35,11 @@ export const useBranchContextStore = create<BranchContextState>()(
       setBranches: (branches) => {
         const current = get().currentBranch
         const validCurrent = current && branches.find(b => b.branch_id === current.branch_id)
-        
+        const primary = branches.find(b => b.is_primary)
+
         set({
           branches,
-          currentBranch: validCurrent || null,
+          currentBranch: validCurrent ?? primary ?? null,
           isLoaded: true,
           error: validCurrent === undefined && current ? 'Your branch access has changed' : null,
         })
@@ -133,9 +134,10 @@ export const useBranchContextStore = create<BranchContextState>()(
     }),
     {
       name: 'erp:branch-context',
+      // Hanya simpan cabang aktif — daftar cabang selalu di-fetch ulang dari /employee-branches/me
+      // agar penempatan baru (mis. Central Stock) langsung muncul tanpa hapus localStorage manual.
       partialize: (state) => ({
         currentBranch: state.currentBranch,
-        branches: state.branches,
       }),
     }
   )

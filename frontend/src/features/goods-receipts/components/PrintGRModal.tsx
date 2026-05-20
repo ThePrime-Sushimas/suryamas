@@ -109,7 +109,9 @@ export function PrintGRModal({ grId, lines, onClose }: PrintGRModalProps) {
               <option value="">Pilih printer...</option>
               {activePrinters.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.printer_name} ({p.ip_address}:{p.port}){p.is_default ? ' ★' : ''}
+                  {p.printer_name}
+                  {p.branch_name ? ` — ${p.branch_name}` : ''}
+                  {p.is_default ? ' ★' : ''}
                 </option>
               ))}
             </select>
