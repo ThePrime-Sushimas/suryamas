@@ -80,7 +80,8 @@ export interface PurchaseInvoiceLine {
   uom_received?: string
   qty_po_uom?: number
   uom_po?: string
-  unit_price_po_operational: number
+  uom_invoice?: string
+  qty_received_invoice_uom?: number
 }
 
 export interface PurchaseInvoiceGpLineAudit {

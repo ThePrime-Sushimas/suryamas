@@ -71,7 +71,10 @@ export interface PurchaseInvoiceLine {
   uom_received: string
   qty_po_uom: number
   uom_po: string
-  unit_price_po_operational: number
+  /** Pricelist / PO billing UOM (e.g. Kilogram) — may differ from uom_received (e.g. Gram) */
+  uom_invoice?: string
+  /** qty_received converted to uom_invoice for display & 3-way match */
+  qty_received_invoice_uom?: number
 }
 
 /** QC / barang masuk audit per invoice line (linked via gr_line_id) */

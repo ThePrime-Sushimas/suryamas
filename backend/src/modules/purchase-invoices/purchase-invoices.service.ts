@@ -20,11 +20,16 @@ import type {
   UpdatePurchaseInvoiceDto,
 } from './purchase-invoices.types'
 import { calculateDueDate } from '../../utils/due-date.util'
-import { suppliersRepository } from '../suppliers/suppliers.repository'
 import {
-  deriveInvoiceUnitPricePerReceivedUom,
-  derivePoQtyInReceivedUom,
-} from '../../utils/gr-line-invoice-pricing.util'
+  defaultQtyInvoicedInInvoiceUom,
+  normalizeUomName,
+  qtyReceivedInInvoiceUom,
+  resolveInvoiceUom,
+  type ProductUomConversion,
+} from '../../utils/purchase-invoice-uom.util'
+import { pricelistsRepository } from '../pricelists/pricelists.repository'
+import { productUomsRepository } from '../product-uoms/product-uoms.repository'
+import { suppliersRepository } from '../suppliers/suppliers.repository'
 
 function computeLineTotals(qtyInvoiced: number, unitPrice: number, taxRate: number) {
   const subtotal = qtyInvoiced * unitPrice
@@ -41,11 +46,49 @@ type InvoiceLineInput = {
   sort_order?: number
 }
 
+type InvoiceUomMaps = {
+  pricelistByProduct: Map<string, { price: number; uom_name: string }>
+  uomsByProduct: Map<string, ProductUomConversion[]>
+}
+
 export class PurchaseInvoicesService {
+  private async loadInvoiceUomMaps(
+    supplierId: string,
+    productIds: string[],
+  ): Promise<InvoiceUomMaps> {
+    const uniqueIds = [...new Set(productIds)]
+    const [pricelistByProduct, uomRows] = await Promise.all([
+      pricelistsRepository.batchLookupBySupplier(supplierId, uniqueIds),
+      uniqueIds.length > 0 ? productUomsRepository.findAllUomsBatch(uniqueIds) : Promise.resolve([]),
+    ])
+    const uomsByProduct = new Map<string, ProductUomConversion[]>()
+    for (const row of uomRows) {
+      const list = uomsByProduct.get(row.product_id) ?? []
+      list.push({
+        unit_name: row.unit_name,
+        conversion_factor: Number(row.conversion_factor),
+      })
+      uomsByProduct.set(row.product_id, list)
+    }
+    return { pricelistByProduct, uomsByProduct }
+  }
+
+  private resolveGrLineInvoiceUom(
+    grl: GrLineDetailForInvoicing,
+    maps: InvoiceUomMaps,
+  ): { uom_invoice: string; product_uoms: ProductUomConversion[] } {
+    const pl = maps.pricelistByProduct.get(grl.product_id)
+    const product_uoms = maps.uomsByProduct.get(grl.product_id) ?? []
+    const uom_invoice = resolveInvoiceUom(pl?.uom_name, String(grl.uom_po), String(grl.uom_received))
+    return { uom_invoice, product_uoms }
+  }
+
   private buildEnrichedLines(
     dtoLines: InvoiceLineInput[],
     grLineDetails: GrLineDetailForInvoicing[],
     userId: string,
+    supplierId: string,
+    maps: InvoiceUomMaps,
   ) {
     const grLineMap = new Map(grLineDetails.map((r) => [r.id, r]))
     const grIds = [...new Set(grLineDetails.map((r) => r.gr_id))]
@@ -81,39 +124,50 @@ export class PurchaseInvoicesService {
       const qtyInvoiced = Number(l.qty_invoiced)
       const unitPrice = Number(l.unit_price)
       const taxRate = Number(l.tax_rate)
-      const totals = computeLineTotals(qtyInvoiced, unitPrice, taxRate)
 
       const qtyReceived = Number(grl.qty_received)
       const unitPricePo = Number(grl.unit_price_po)
-      const qtyPoOperational = derivePoQtyInReceivedUom({
+      const { uom_invoice, product_uoms } = this.resolveGrLineInvoiceUom(grl, maps)
+      const qtyReceivedInvoiceUom = qtyReceivedInInvoiceUom({
         qty_received: qtyReceived,
-        qty_po_uom: Number(grl.qty_po_uom),
-        conversion_factor: Number(grl.conversion_factor),
+        uom_received: String(grl.uom_received),
+        uom_invoice,
+        product_uoms,
       })
-      const unitPricePoOperational = deriveInvoiceUnitPricePerReceivedUom({
-        qty_received: qtyReceived,
-        qty_po_uom: Number(grl.qty_po_uom),
-        unit_price_po: unitPricePo,
-      })
+      let qtyInvoicedFinal = qtyInvoiced
+      if (
+        normalizeUomName(String(grl.uom_received)) !== normalizeUomName(uom_invoice) &&
+        Math.abs(qtyInvoiced - qtyReceived) < 0.0001
+      ) {
+        qtyInvoicedFinal = defaultQtyInvoicedInInvoiceUom({
+          qty_received: qtyReceived,
+          uom_received: String(grl.uom_received),
+          qty_po_uom: Number(grl.qty_po_uom),
+          uom_po: String(grl.uom_po),
+          uom_invoice,
+          product_uoms,
+        })
+      }
+      const totalsAdjusted = computeLineTotals(qtyInvoicedFinal, unitPrice, taxRate)
 
-      subtotal += totals.subtotal
-      totalTax += totals.taxAmount
-      totalAmount += totals.total
+      subtotal += totalsAdjusted.subtotal
+      totalTax += totalsAdjusted.taxAmount
+      totalAmount += totalsAdjusted.total
 
-      const varianceQty = qtyInvoiced - qtyReceived
-      const variancePrice = unitPrice - unitPricePoOperational
+      const varianceQty = qtyInvoicedFinal - qtyReceivedInvoiceUom
+      const variancePrice = unitPrice - unitPricePo
 
       enrichedLines.push({
         gr_line_id: l.gr_line_id,
         product_id: grl.product_id,
         qty_received: qtyReceived,
-        qty_invoiced: qtyInvoiced,
+        qty_invoiced: qtyInvoicedFinal,
         unit_price: unitPrice,
         tax_rate: taxRate,
-        subtotal: totals.subtotal,
-        tax_amount: totals.taxAmount,
-        total: totals.total,
-        qty_po: qtyPoOperational,
+        subtotal: totalsAdjusted.subtotal,
+        tax_amount: totalsAdjusted.taxAmount,
+        total: totalsAdjusted.total,
+        qty_po: Number(grl.qty_po_uom),
         unit_price_po: unitPricePo,
         variance_qty: varianceQty,
         variance_price: variancePrice,
@@ -151,14 +205,53 @@ export class PurchaseInvoicesService {
   async getById(id: string, companyId: string): Promise<PurchaseInvoiceDetail> {
     const detail = await purchaseInvoicesRepository.findById(id, companyId)
     if (!detail) throw new PurchaseInvoiceNotFoundError(id)
-    return detail
+    return this.enrichDetailWithInvoiceUom(detail)
+  }
+
+  private async enrichDetailWithInvoiceUom(detail: PurchaseInvoiceDetail): Promise<PurchaseInvoiceDetail> {
+    const productIds = detail.lines.map((l) => l.product_id)
+    const maps = await this.loadInvoiceUomMaps(detail.supplier_id, productIds)
+    const lines: PurchaseInvoiceLine[] = detail.lines.map((line) => {
+      const grl: GrLineDetailForInvoicing = {
+        id: line.gr_line_id,
+        gr_id: '',
+        product_id: line.product_id,
+        qty_received: line.qty_received,
+        qty_po_uom: line.qty_po_uom,
+        uom_po: line.uom_po,
+        uom_received: line.uom_received,
+        unit_price_invoice: line.unit_price,
+        unit_price_po: line.unit_price_po ?? 0,
+      }
+      const { uom_invoice, product_uoms } = this.resolveGrLineInvoiceUom(grl, maps)
+      const qty_received_invoice_uom = qtyReceivedInInvoiceUom({
+        qty_received: Number(line.qty_received),
+        uom_received: line.uom_received,
+        uom_invoice,
+        product_uoms,
+      })
+      return {
+        ...line,
+        uom_invoice,
+        qty_received_invoice_uom,
+      }
+    })
+    return { ...detail, lines }
   }
 
   async create(companyId: string, dto: CreatePurchaseInvoiceDto, userId: string) {
     const invoice = await purchaseInvoicesRepository.withTransaction(async (client) => {
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
       const grLineDetails = await purchaseInvoicesRepository.findGrLineDetailsForInvoicing(client, grLineIds)
-      const { enrichedLines, grIds, subtotal, totalTax, totalAmount } = this.buildEnrichedLines(dto.lines, grLineDetails, userId)
+      const productIds = grLineDetails.map((g) => g.product_id)
+      const maps = await this.loadInvoiceUomMaps(dto.supplier_id, productIds)
+      const { enrichedLines, grIds, subtotal, totalTax, totalAmount } = this.buildEnrichedLines(
+        dto.lines,
+        grLineDetails,
+        userId,
+        dto.supplier_id,
+        maps,
+      )
 
       const created = await purchaseInvoicesRepository.create(client, companyId, {
         supplier_id: dto.supplier_id,
@@ -179,7 +272,9 @@ export class PurchaseInvoicesService {
     })
 
     await AuditService.log('CREATE', 'purchase_invoices', invoice.id, userId)
-    return purchaseInvoicesRepository.findById(invoice.id, companyId)
+    const created = await purchaseInvoicesRepository.findById(invoice.id, companyId)
+    if (!created) throw new PurchaseInvoiceNotFoundError(invoice.id)
+    return this.enrichDetailWithInvoiceUom(created)
   }
 
   async update(companyId: string, id: string, dto: UpdatePurchaseInvoiceDto, userId: string) {
@@ -191,7 +286,14 @@ export class PurchaseInvoicesService {
     await purchaseInvoicesRepository.withTransaction(async (client) => {
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
       const grLineDetails = await purchaseInvoicesRepository.findGrLineDetailsForInvoicing(client, grLineIds)
-      const { enrichedLines, grIds, subtotal, totalTax, totalAmount } = this.buildEnrichedLines(dto.lines, grLineDetails, userId)
+      const maps = await this.loadInvoiceUomMaps(existing.supplier_id, grLineDetails.map((g) => g.product_id))
+      const { enrichedLines, grIds, subtotal, totalTax, totalAmount } = this.buildEnrichedLines(
+        dto.lines,
+        grLineDetails,
+        userId,
+        existing.supplier_id,
+        maps,
+      )
 
       await purchaseInvoicesRepository.replaceLines(client, id, enrichedLines)
       await purchaseInvoicesRepository.replaceGrLinks(client, id, grIds)
@@ -206,7 +308,7 @@ export class PurchaseInvoicesService {
     })
 
     await AuditService.log('UPDATE', 'purchase_invoices', id, userId)
-    return purchaseInvoicesRepository.findById(id, companyId)
+    return this.getById(id, companyId)
   }
 
   async submit(companyId: string, id: string, userId: string) {
@@ -429,36 +531,45 @@ export class PurchaseInvoicesService {
     const supplier = await suppliersRepository.findById(gr.supplier_id)
     const taxRate = Number(supplier?.default_tax_rate ?? 11)
 
-    // 2. Prepare PI Lines
-    let subtotal = 0;
-    let totalTax = 0;
-    let totalAmount = 0;
-    
-    const piLines = lines.map((l: any, i: number) => {
+    const grLineDetails: GrLineDetailForInvoicing[] = lines.map((l: GrLineDetailForInvoicing & { id: string }) => ({
+      id: l.id,
+      gr_id: grId,
+      product_id: l.product_id,
+      qty_received: l.qty_received,
+      qty_po_uom: l.qty_po_uom,
+      uom_po: l.uom_po,
+      uom_received: l.uom_received,
+      unit_price_invoice: l.unit_price_invoice,
+      unit_price_po: l.unit_price_po,
+    }))
+    const maps = await this.loadInvoiceUomMaps(gr.supplier_id, grLineDetails.map((g) => g.product_id))
 
-      const qtyReceived = Number(l.qty_received)
-      const qtyInvoiced = qtyReceived
-      const unitPrice = deriveInvoiceUnitPricePerReceivedUom({
+    let subtotal = 0
+    let totalTax = 0
+    let totalAmount = 0
+
+    const piLines = grLineDetails.map((grl, i) => {
+      const qtyReceived = Number(grl.qty_received)
+      const unitPrice = Number(grl.unit_price_invoice ?? grl.unit_price_po ?? 0)
+      const unitPricePo = Number(grl.unit_price_po ?? 0)
+      const { uom_invoice, product_uoms } = this.resolveGrLineInvoiceUom(grl, maps)
+      const qtyInvoiced = defaultQtyInvoicedInInvoiceUom({
         qty_received: qtyReceived,
-        qty_po_uom: Number(l.qty_po_uom),
-        unit_price_invoice: l.unit_price_invoice,
-        unit_price_po: l.unit_price_po,
-      })
-      const unitPricePoOperational = deriveInvoiceUnitPricePerReceivedUom({
-        qty_received: qtyReceived,
-        qty_po_uom: Number(l.qty_po_uom),
-        unit_price_po: l.unit_price_po,
+        uom_received: String(grl.uom_received),
+        qty_po_uom: Number(grl.qty_po_uom),
+        uom_po: String(grl.uom_po),
+        uom_invoice,
+        product_uoms,
       })
       const totals = computeLineTotals(qtyInvoiced, unitPrice, taxRate)
-
 
       subtotal += totals.subtotal
       totalTax += totals.taxAmount
       totalAmount += totals.total
 
       return {
-        gr_line_id: l.id,
-        product_id: l.product_id,
+        gr_line_id: grl.id,
+        product_id: grl.product_id,
         qty_received: qtyReceived,
         qty_invoiced: qtyInvoiced,
         unit_price: unitPrice,
@@ -466,14 +577,10 @@ export class PurchaseInvoicesService {
         subtotal: totals.subtotal,
         tax_amount: totals.taxAmount,
         total: totals.total,
-        qty_po: derivePoQtyInReceivedUom({
-          qty_received: qtyReceived,
-          qty_po_uom: Number(l.qty_po_uom),
-          conversion_factor: Number(l.conversion_factor),
-        }),
-        unit_price_po: Number(l.unit_price_po),
+        qty_po: Number(grl.qty_po_uom),
+        unit_price_po: unitPricePo,
         variance_qty: 0,
-        variance_price: unitPrice - unitPricePoOperational,
+        variance_price: unitPrice - unitPricePo,
         match_status: 'MATCH' as const,
         sort_order: i,
         created_by: userId,

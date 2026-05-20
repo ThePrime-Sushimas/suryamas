@@ -1,6 +1,5 @@
 import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
-import { derivePoUnitPricePerReceivedUom } from '../../utils/gr-line-invoice-pricing.util'
 import { SQL_SUPPLIER_ELIGIBLE_FOR_PI } from '../suppliers/suppliers.constants'
 import type {
   PurchaseInvoice,
@@ -89,7 +88,7 @@ export type GrLineDetailForInvoicing = {
   product_id: string
   qty_received: string | number
   qty_po_uom: string | number
-  conversion_factor: string | number
+  uom_po: string
   uom_received: string
   unit_price_invoice: string | number | null
   unit_price_po: string | number
@@ -114,7 +113,7 @@ export class PurchaseInvoicesRepository {
   async findGrLineDetailsForInvoicing(client: PoolClient, grLineIds: string[]): Promise<GrLineDetailForInvoicing[]> {
     const { rows } = await client.query(
       `SELECT grl.id, grl.gr_id, grl.product_id,
-              grl.qty_received, grl.qty_po_uom, grl.conversion_factor, grl.uom_received,
+              grl.qty_received, grl.qty_po_uom, grl.uom_po, grl.uom_received,
               grl.unit_price_invoice, grl.unit_price_po
        FROM goods_receipt_lines grl
        WHERE grl.id = ANY($1::uuid[])`,
@@ -224,9 +223,8 @@ export class PurchaseInvoicesRepository {
 
   async findGrLinesForDraft(client: PoolClient, grId: string) {
     const { rows } = await client.query(
-      `SELECT grl.*, pol.unit_price AS unit_price_po, pol.qty AS qty_po
+      `SELECT grl.*
        FROM goods_receipt_lines grl
-       JOIN purchase_order_lines pol ON pol.id = grl.po_line_id
        WHERE grl.gr_id = $1`,
       [grId],
     )
@@ -784,14 +782,7 @@ export class PurchaseInvoicesRepository {
     return {
       ...header,
       gr_links: linksRes.rows,
-      lines: linesRes.rows.map((row) => ({
-        ...row,
-        unit_price_po_operational: derivePoUnitPricePerReceivedUom({
-          qty_received: Number(row.qty_received),
-          qty_po_uom: Number(row.qty_po_uom),
-          unit_price_po: Number(row.unit_price_po),
-        }),
-      })),
+      lines: linesRes.rows,
       attachments: attachmentsRes.rows,
       gp_line_audits: gpLineAudits,
     }

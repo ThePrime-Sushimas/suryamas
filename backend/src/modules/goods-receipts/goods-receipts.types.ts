@@ -65,11 +65,6 @@ export interface GoodsReceiptLineWithRelations extends GoodsReceiptLine {
   product_code: string
   product_name: string
   uom: string // PO line uom (legacy, kept for compat)
-  /** PO unit price per uom_received (for purchase invoice pre-fill) */
-  unit_price_po_operational: number
-  /** GR/invoice unit price per uom_received (default qty × price on PI form) */
-  unit_price_invoice_operational: number
-  qty_po_operational: number
 }
 
 export interface GoodsReceiptWithLines extends GoodsReceiptWithRelations {

@@ -13,6 +13,12 @@ import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
 import { isSupplierEligibleForPurchaseInvoice } from "@/lib/marketplaceSupplier";
 import api from "@/lib/axios";
+import {
+  buildProductUomsMap,
+  defaultQtyInvoicedInInvoiceUom,
+  qtyReceivedInInvoiceUom,
+  resolveInvoiceUom,
+} from "../utils/purchaseInvoiceUom";
 
 interface PILine {
   gr_line_id: string;
@@ -25,8 +31,10 @@ interface PILine {
   tax_rate: number;
   qty_po: number;
   unit_price_po: number;
-  unit_price_po_operational: number;
   uom_received: string;
+  uom_po: string;
+  uom_invoice: string;
+  qty_received_invoice_uom: number;
   gr_number: string;
 }
 
@@ -85,10 +93,14 @@ export default function PurchaseInvoiceFormPage() {
           qty_invoiced: Number(l.qty_invoiced),
           unit_price: Number(l.unit_price),
           tax_rate: Number(l.tax_rate),
-          qty_po: Number(l.qty_po ?? 0),
+          qty_po: Number(l.qty_po ?? l.qty_po_uom ?? 0),
           unit_price_po: Number(l.unit_price_po ?? 0),
-          unit_price_po_operational: Number(l.unit_price_po_operational ?? 0),
           uom_received: l.uom_received ?? "",
+          uom_po: l.uom_po ?? "",
+          uom_invoice: l.uom_invoice ?? l.uom_po ?? l.uom_received ?? "",
+          qty_received_invoice_uom: Number(
+            l.qty_received_invoice_uom ?? l.qty_received,
+          ),
           gr_number:
             existingPI.gr_links.find(() =>
               existingPI.lines.some((pl) => pl.gr_line_id === l.gr_line_id),
@@ -101,21 +113,94 @@ export default function PurchaseInvoiceFormPage() {
   // Fetch GR lines when GRs are selected (only in create mode or when adding new GRs)
   const fetchGrLines = async (grId: string) => {
     const { data } = await api.get(`/goods-receipts/${grId}`);
-    return data.data.lines.map((l: any) => {
+    const grLines = data.data.lines as Array<{
+      id: string;
+      product_id: string;
+      product_code: string;
+      product_name: string;
+      qty_received: number;
+      qty_po_uom: number;
+      uom_po: string;
+      uom_received: string;
+      unit_price_invoice: number;
+      unit_price_po: number;
+    }>;
+
+    const productIds = grLines.map((l) => l.product_id);
+    let priceMap: Record<string, { price: number; uom_name: string }> = {};
+    let uomsMap: ReturnType<typeof buildProductUomsMap> = {};
+
+    if (supplierId && productIds.length > 0) {
+      const [plRes, uomRes] = await Promise.all([
+        api.post("/pricelists/batch-lookup", {
+          supplier_id: supplierId,
+          product_ids: productIds,
+        }),
+        api.post("/product-uoms/conversions-batch", {
+          product_ids: productIds,
+        }),
+      ]);
+      priceMap = plRes.data.data ?? {};
+      const rawUoms = uomRes.data.data ?? {};
+      const flatRows: Array<{
+        product_id: string;
+        unit_name: string;
+        conversion_factor: number;
+      }> = [];
+      for (const [productId, uoms] of Object.entries(rawUoms)) {
+        for (const u of uoms as Array<{
+          unit_name: string;
+          conversion_factor: number;
+        }>) {
+          flatRows.push({
+            product_id: productId,
+            unit_name: u.unit_name,
+            conversion_factor: u.conversion_factor,
+          });
+        }
+      }
+      uomsMap = buildProductUomsMap(flatRows);
+    }
+
+    return grLines.map((l) => {
       const qtyReceived = Number(l.qty_received);
+      const pl = priceMap[l.product_id];
+      const product_uoms = uomsMap[l.product_id] ?? [];
+      const uom_invoice = resolveInvoiceUom(
+        pl?.uom_name,
+        l.uom_po ?? "",
+        l.uom_received ?? "",
+      );
+      const qty_received_invoice_uom = qtyReceivedInInvoiceUom({
+        qty_received: qtyReceived,
+        uom_received: l.uom_received ?? "",
+        uom_invoice,
+        product_uoms,
+      });
+      const qty_invoiced = defaultQtyInvoicedInInvoiceUom({
+        qty_received: qtyReceived,
+        uom_received: l.uom_received ?? "",
+        qty_po_uom: Number(l.qty_po_uom ?? 0),
+        uom_po: l.uom_po ?? "",
+        uom_invoice,
+        product_uoms,
+      });
+
       return {
         gr_line_id: l.id,
         product_id: l.product_id,
         product_code: l.product_code,
         product_name: l.product_name,
         qty_received: qtyReceived,
-        qty_invoiced: qtyReceived,
-        unit_price: Number(l.unit_price_invoice_operational ?? 0),
+        qty_invoiced,
+        unit_price: Number(l.unit_price_invoice ?? l.unit_price_po ?? 0),
         tax_rate: 11,
-        qty_po: qtyReceived,
+        qty_po: Number(l.qty_po_uom ?? 0),
         unit_price_po: Number(l.unit_price_po ?? 0),
-        unit_price_po_operational: Number(l.unit_price_po_operational ?? 0),
         uom_received: l.uom_received ?? l.uom_po ?? "",
+        uom_po: l.uom_po ?? "",
+        uom_invoice,
+        qty_received_invoice_uom,
         gr_number: data.data.gr_number,
       };
     });
@@ -445,8 +530,10 @@ export default function PurchaseInvoiceFormPage() {
                   lines.map((l, index) => {
                     const lineSubtotal = l.qty_invoiced * l.unit_price;
                     const lineTotal = lineSubtotal * (1 + l.tax_rate / 100);
-                    const isOver = l.qty_invoiced > l.qty_received;
-                    const isUnder = l.qty_invoiced < l.qty_received;
+                    const uomInvoice = l.uom_invoice || l.uom_received;
+                    const qtyReceivedInv = l.qty_received_invoice_uom;
+                    const isOver = l.qty_invoiced > qtyReceivedInv;
+                    const isUnder = l.qty_invoiced < qtyReceivedInv;
 
                     return (
                       <tr
@@ -462,10 +549,17 @@ export default function PurchaseInvoiceFormPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400 font-medium">
-                          {l.qty_received}
-                          {l.uom_received ? (
+                          {qtyReceivedInv}
+                          {uomInvoice ? (
                             <span className="text-[10px] text-gray-400 block">
-                              {l.uom_received}
+                              {uomInvoice}
+                            </span>
+                          ) : null}
+                          {l.uom_received &&
+                          uomInvoice &&
+                          l.uom_received !== uomInvoice ? (
+                            <span className="text-[10px] text-gray-400 block">
+                              ({l.qty_received} {l.uom_received} di GR)
                             </span>
                           ) : null}
                         </td>
@@ -480,9 +574,9 @@ export default function PurchaseInvoiceFormPage() {
                             }
                             className={`w-20 px-2 py-1 border rounded text-center text-sm outline-none focus:ring-2 ${isOver ? "border-red-300 focus:ring-red-500 text-red-600" : "border-gray-200 dark:border-gray-600 focus:ring-indigo-500"}`}
                           />
-                          {l.uom_received ? (
+                          {uomInvoice ? (
                             <span className="text-[10px] text-gray-400 block">
-                              {l.uom_received}
+                              {uomInvoice}
                             </span>
                           ) : null}
                         </td>
@@ -498,8 +592,8 @@ export default function PurchaseInvoiceFormPage() {
                             className="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-right text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                           />
                           <div className="text-[10px] text-gray-400 mt-0.5">
-                            PO: {fmtCurrency(l.unit_price_po_operational)}
-                            {l.uom_received ? `/${l.uom_received}` : ""}
+                            PO: {fmtCurrency(l.unit_price_po)}
+                            {uomInvoice ? `/${uomInvoice}` : ""}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">

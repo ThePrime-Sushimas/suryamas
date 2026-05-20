@@ -505,8 +505,12 @@ export default function PurchaseInvoiceDetailPage() {
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
                 {inv.lines.map((l, index) => {
-                  const uom = l.uom_received ?? "";
-                  const unitPricePoOperational = Number(l.unit_price_po_operational ?? 0);
+                  const uom = l.uom_invoice ?? l.uom_received ?? "";
+                  const qtyReceivedDisplay = Number(
+                    l.qty_received_invoice_uom ?? l.qty_received,
+                  );
+                  const qtyInvoicedDisplay = Number(l.qty_invoiced);
+                  const unitPricePo = Number(l.unit_price_po ?? 0);
                   return (
                   <tr
                     key={index}
@@ -521,13 +525,27 @@ export default function PurchaseInvoiceDetailPage() {
                       </p>
                     </td>
                     <td className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">
-                      {fmtQty(l.qty_received)}
+                      {fmtQty(qtyReceivedDisplay)}
                       {uom ? (
                         <span className="text-[10px] text-gray-400 block">{uom}</span>
                       ) : null}
+                      {l.uom_received &&
+                      uom &&
+                      l.uom_received !== uom ? (
+                        <span className="text-[10px] text-gray-400 block">
+                          ({fmtQty(l.qty_received)} {l.uom_received} di GR)
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-gray-900 dark:text-white">
-                      {fmtQty(l.qty_invoiced)}
+                      {fmtQty(
+                        l.uom_received &&
+                          uom &&
+                          l.uom_received !== uom &&
+                          Math.abs(qtyInvoicedDisplay - l.qty_received) < 0.0001
+                          ? qtyReceivedDisplay
+                          : qtyInvoicedDisplay,
+                      )}
                       {uom ? (
                         <span className="text-[10px] text-gray-400 block">{uom}</span>
                       ) : null}
@@ -539,9 +557,9 @@ export default function PurchaseInvoiceDetailPage() {
                           <span className="text-[10px] text-gray-400 font-normal">/{uom}</span>
                         ) : null}
                       </p>
-                      {Math.abs(l.unit_price - unitPricePoOperational) > 0.01 && (
+                      {Math.abs(l.unit_price - unitPricePo) > 0.01 && (
                         <p className="text-[10px] text-yellow-600 font-medium">
-                          PO: {fmtCurrency(unitPricePoOperational)}
+                          PO: {fmtCurrency(unitPricePo)}
                           {uom ? `/${uom}` : ""}
                         </p>
                       )}
