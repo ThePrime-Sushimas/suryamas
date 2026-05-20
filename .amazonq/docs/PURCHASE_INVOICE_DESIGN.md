@@ -381,7 +381,7 @@ const journalData = {
 | POST | `/purchase-invoices/:id/submit` | DRAFT → SUBMITTED | `purchase_invoices:update` |
 | POST | `/purchase-invoices/:id/approve` | SUBMITTED → APPROVED | `purchase_invoices:approve` |
 | POST | `/purchase-invoices/:id/reject` | SUBMITTED → REJECTED | `purchase_invoices:approve` |
-| POST | `/purchase-invoices/:id/post` | APPROVED → POSTED (+ jurnal + cost allocation) | `purchase_invoices:approve` |
+| POST | `/purchase-invoices/:id/post` | APPROVED → POSTED (+ jurnal + cost allocation) | `purchase_invoices:update` |
 | GET | `/purchase-invoices/available-grs` | GR confirmed yang belum fully invoiced (filter by supplier + branch) | `purchase_invoices:view` |
 
 ---

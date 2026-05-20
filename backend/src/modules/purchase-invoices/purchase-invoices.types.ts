@@ -27,6 +27,8 @@ export interface PurchaseInvoiceCharge {
   tax_amount: number
   total: number
   sort_order: number
+  /** When true on DISCOUNT: diskon memperkecil DPP barang; PPN barang dihitung dari net DPP (tarif baris harus seragam). */
+  affects_dpp: boolean
 }
 
 export interface PurchaseInvoice {
@@ -160,6 +162,7 @@ export interface CreatePurchaseInvoiceChargeDto {
   amount: number
   tax_rate: number
   sort_order: number
+  affects_dpp?: boolean
 }
 
 export interface CreatePurchaseInvoiceDto {

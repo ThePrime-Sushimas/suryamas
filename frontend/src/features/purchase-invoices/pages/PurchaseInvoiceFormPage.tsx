@@ -33,6 +33,37 @@ function computeChargeLine(amount: number, taxRate: number) {
   return { tax_amount: tax, total: amount + tax };
 }
 
+/** Allow typing "-" and partial decimals; comma → dot. */
+function sanitizeChargeAmountInput(raw: string): string {
+  let s = raw.replace(/\s/g, "").replace(/,/g, ".");
+  if (s === "") return "";
+  let out = "";
+  let hasDot = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (i === 0 && ch === "-") {
+      out += "-";
+      continue;
+    }
+    if (ch >= "0" && ch <= "9") {
+      out += ch;
+      continue;
+    }
+    if (ch === "." && !hasDot) {
+      hasDot = true;
+      out += ".";
+    }
+  }
+  return out;
+}
+
+function parseChargeAmountInput(s: string): number {
+  const t = s.trim().replace(/,/g, ".");
+  if (t === "" || t === "-" || t === "." || t === "-.") return 0;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : 0;
+}
+
 interface PILine {
   gr_line_id: string;
   product_id: string;
@@ -54,10 +85,21 @@ interface PILine {
 interface PIChargeRow {
   charge_type: "DISCOUNT" | "SHIPPING" | "ADMIN_FEE" | "OTHER";
   description: string;
-  amount: number;
+  /** Raw string so user can type "-" then digits (type="number" breaks that). */
+  amount: string;
   tax_rate: number;
   sort_order: number;
+  /** Diskon memperkecil DPP barang (PPN dari net DPP); hanya jenis Diskon, PPN % baris harus seragam. */
+  affects_dpp: boolean;
 }
+
+/** Align with backend: diskon affects_dpp tidak punya PPN di baris charge. */
+function effectiveChargeTaxRate(c: PIChargeRow): number {
+  if (c.charge_type === "DISCOUNT" && c.affects_dpp) return 0;
+  return c.tax_rate;
+}
+
+const TAX_RATE_EPS = 0.001;
 
 export default function PurchaseInvoiceFormPage() {
   const navigate = useNavigate();
@@ -133,9 +175,13 @@ export default function PurchaseInvoiceFormPage() {
         (existingPI.charges ?? []).map((c, i) => ({
           charge_type: c.charge_type,
           description: c.description ?? "",
-          amount: Number(c.amount),
+          amount:
+            c.amount === 0 || c.amount === -0
+              ? "0"
+              : String(Number(c.amount)),
           tax_rate: Number(c.tax_rate),
           sort_order: c.sort_order ?? i,
+          affects_dpp: Boolean(c.affects_dpp),
         })),
       );
     }
@@ -275,9 +321,10 @@ export default function PurchaseInvoiceFormPage() {
       {
         charge_type: "SHIPPING",
         description: "",
-        amount: 0,
+        amount: "",
         tax_rate: 0,
         sort_order: prev.length,
+        affects_dpp: false,
       },
     ]);
   };
@@ -295,16 +342,33 @@ export default function PurchaseInvoiceFormPage() {
     if (!invoiceNumber) return toast.error("Isi Nomor Invoice");
     if (lines.length === 0) return toast.error("Minimal 1 item");
 
+    if (charges.some((c) => c.affects_dpp)) {
+      if (lines.every((l) => Math.abs(Number(l.tax_rate)) < TAX_RATE_EPS)) {
+        toast.error(
+          "PPN baris 0%: opsi memperkecil DPP barang tidak berlaku. Matikan centang DPP pada diskon.",
+        );
+        return;
+      }
+      const rates = new Set(lines.map((l) => Number(l.tax_rate)));
+      if (rates.size > 1) {
+        toast.error(
+          "Diskon memperkecil DPP: semua barang harus memiliki PPN % yang sama. Samakan PPN per baris atau matikan centang DPP pada diskon.",
+        );
+        return;
+      }
+    }
+
     for (const c of charges) {
-      if (c.charge_type === "DISCOUNT" && c.amount > 0) {
+      const amt = parseChargeAmountInput(c.amount);
+      if (c.charge_type === "DISCOUNT" && amt > 0) {
         toast.error("Diskon: nominal harus nol atau negatif.");
         return;
       }
-      if (c.charge_type === "SHIPPING" && c.amount < 0) {
+      if (c.charge_type === "SHIPPING" && amt < 0) {
         toast.error("Ongkir tidak boleh negatif.");
         return;
       }
-      if (c.charge_type === "ADMIN_FEE" && c.amount < 0) {
+      if (c.charge_type === "ADMIN_FEE" && amt < 0) {
         toast.error("Biaya admin tidak boleh negatif.");
         return;
       }
@@ -326,9 +390,10 @@ export default function PurchaseInvoiceFormPage() {
       charges: charges.map((c, i) => ({
         charge_type: c.charge_type,
         description: c.description.trim() || null,
-        amount: c.amount,
+        amount: parseChargeAmountInput(c.amount),
         tax_rate: c.tax_rate,
         sort_order: i,
+        affects_dpp: c.charge_type === "DISCOUNT" ? c.affects_dpp : false,
       })),
     };
 
@@ -346,6 +411,21 @@ export default function PurchaseInvoiceFormPage() {
     }
   };
 
+  const allLinesTaxRateZero = useMemo(
+    () =>
+      lines.length > 0 &&
+      lines.every((l) => Math.abs(Number(l.tax_rate)) < TAX_RATE_EPS),
+    [lines],
+  );
+
+  useEffect(() => {
+    if (!allLinesTaxRateZero) return;
+    setCharges((prev) => {
+      if (!prev.some((c) => c.affects_dpp)) return prev;
+      return prev.map((c) => ({ ...c, affects_dpp: false }));
+    });
+  }, [allLinesTaxRateZero]);
+
   const totals = useMemo(() => {
     const lineAgg = lines.reduce(
       (acc, l) => {
@@ -359,9 +439,35 @@ export default function PurchaseInvoiceFormPage() {
       },
       { subtotal: 0, lineTax: 0, lineGrand: 0 },
     );
+
+    const hasAffectsDppDiscount = charges.some(
+      (c) => c.charge_type === "DISCOUNT" && c.affects_dpp,
+    );
+    const dppDiscountSum = charges
+      .filter((c) => c.charge_type === "DISCOUNT" && c.affects_dpp)
+      .reduce((s, c) => s + parseChargeAmountInput(c.amount), 0);
+    const uniformLineTax =
+      lines.length > 0 &&
+      lines.every(
+        (l) =>
+          Math.abs(Number(l.tax_rate) - Number(lines[0].tax_rate)) < TAX_RATE_EPS,
+      );
+
+    let lineTax = lineAgg.lineTax;
+    let lineGrand = lineAgg.lineGrand;
+    if (hasAffectsDppDiscount && uniformLineTax) {
+      const S = lineAgg.subtotal;
+      const netDpp = S + dppDiscountSum;
+      const r0 = Number(lines[0].tax_rate);
+      lineTax = netDpp * (r0 / 100);
+      lineGrand = S + lineTax;
+    }
+
     const chargeAgg = charges.reduce(
       (acc, c) => {
-        const { tax_amount, total } = computeChargeLine(c.amount, c.tax_rate);
+        const amt = parseChargeAmountInput(c.amount);
+        const rate = effectiveChargeTaxRate(c);
+        const { tax_amount, total } = computeChargeLine(amt, rate);
         return {
           chargeTax: acc.chargeTax + tax_amount,
           chargeGrand: acc.chargeGrand + total,
@@ -371,9 +477,9 @@ export default function PurchaseInvoiceFormPage() {
     );
     return {
       subtotal: lineAgg.subtotal,
-      tax: lineAgg.lineTax + chargeAgg.chargeTax,
+      tax: lineTax + chargeAgg.chargeTax,
       totalCharges: chargeAgg.chargeGrand,
-      total: lineAgg.lineGrand + chargeAgg.chargeGrand,
+      total: lineGrand + chargeAgg.chargeGrand,
     };
   }, [lines, charges]);
 
@@ -756,23 +862,27 @@ export default function PurchaseInvoiceFormPage() {
                     <th className="px-3 py-2 text-left">Keterangan</th>
                     <th className="px-3 py-2 text-right">Nilai (pra-PPN)</th>
                     <th className="px-3 py-2 text-center">PPN %</th>
+                    <th className="px-3 py-2 text-center max-w-18">DPP</th>
                     <th className="px-3 py-2 text-right">Total baris</th>
                     <th className="px-3 py-2 w-10" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
                   {charges.map((c, index) => {
-                    const { total } = computeChargeLine(c.amount, c.tax_rate);
+                    const amt = parseChargeAmountInput(c.amount);
+                    const { total } = computeChargeLine(amt, effectiveChargeTaxRate(c));
                     return (
                       <tr key={index}>
                         <td className="px-3 py-2">
                           <select
                             value={c.charge_type}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const v = e.target.value as PIChargeRow["charge_type"];
                               handleChargeChange(index, {
-                                charge_type: e.target.value as PIChargeRow["charge_type"],
-                              })
-                            }
+                                charge_type: v,
+                                affects_dpp: v !== "DISCOUNT" ? false : c.affects_dpp,
+                              });
+                            }}
                             className="w-full max-w-[140px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                           >
                             {(Object.keys(CHARGE_TYPE_LABELS) as Array<keyof typeof CHARGE_TYPE_LABELS>).map(
@@ -797,18 +907,21 @@ export default function PurchaseInvoiceFormPage() {
                         </td>
                         <td className="px-3 py-2 text-right">
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
                             value={c.amount}
                             onChange={(e) =>
                               handleChargeChange(index, {
-                                amount: Number(e.target.value),
+                                amount: sanitizeChargeAmountInput(e.target.value),
                               })
                             }
-                            className="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-right text-xs bg-white dark:bg-gray-800"
+                            placeholder={c.charge_type === "DISCOUNT" ? "-50000" : "0"}
+                            className="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-right text-xs bg-white dark:bg-gray-800 font-mono"
                           />
                           {c.charge_type === "DISCOUNT" ? (
                             <p className="text-[10px] text-amber-600 mt-0.5">
-                              Gunakan nilai negatif
+                              Nilai diskon: tanda minus lalu angka
                             </p>
                           ) : null}
                         </td>
@@ -816,13 +929,46 @@ export default function PurchaseInvoiceFormPage() {
                           <input
                             type="number"
                             value={c.tax_rate}
+                            disabled={c.charge_type === "DISCOUNT" && c.affects_dpp}
                             onChange={(e) =>
                               handleChargeChange(index, {
                                 tax_rate: Number(e.target.value),
                               })
                             }
-                            className="w-14 px-1 py-1 border border-gray-200 dark:border-gray-600 rounded text-center text-xs bg-white dark:bg-gray-800"
+                            className="w-14 px-1 py-1 border border-gray-200 dark:border-gray-600 rounded text-center text-xs bg-white dark:bg-gray-800 disabled:opacity-50"
                           />
+                        </td>
+                        <td className="px-3 py-2 text-center align-top">
+                          {c.charge_type === "DISCOUNT" ? (
+                            <label
+                              title={
+                                allLinesTaxRateZero
+                                  ? "PPN baris 0%, opsi DPP tidak berlaku."
+                                  : undefined
+                              }
+                              className={`flex flex-col items-center gap-1 text-[10px] text-gray-600 dark:text-gray-400 ${
+                                allLinesTaxRateZero ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={allLinesTaxRateZero}
+                                checked={c.affects_dpp}
+                                onChange={(e) =>
+                                  handleChargeChange(index, {
+                                    affects_dpp: e.target.checked,
+                                    tax_rate: e.target.checked ? 0 : c.tax_rate,
+                                  })
+                                }
+                                className="rounded border-gray-300"
+                              />
+                              <span className="max-w-18 leading-tight text-center">
+                                Kurangi DPP barang
+                              </span>
+                            </label>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">
                           {fmtCurrency(total)}

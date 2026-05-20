@@ -107,7 +107,7 @@ router.post(
 );
 router.post(
   "/:id/post",
-  canApprove("purchase_invoices"),
+  canUpdate("purchase_invoices"),
   validateSchema(postPurchaseInvoiceSchema),
   (req, res) => purchaseInvoicesController.post(req, res),
 );

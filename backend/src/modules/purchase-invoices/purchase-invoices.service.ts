@@ -148,6 +148,7 @@ export class PurchaseInvoicesService {
         tax_amount: Number(c.tax_amount),
         total: Number(c.total),
         sort_order: c.sort_order,
+        affects_dpp: Boolean(c.affects_dpp),
       })),
       attachment_count: Array.isArray(attachments) ? attachments.length : 0,
     }
@@ -291,6 +292,7 @@ export class PurchaseInvoicesService {
       tax_rate: number
       tax_amount: number
       total: number
+      affects_dpp: boolean
       sort_order: number
       created_by: string
       updated_by: string
@@ -300,6 +302,7 @@ export class PurchaseInvoicesService {
       const c = list[i]
       const amount = Number(c.amount)
       const taxRate = Number(c.tax_rate)
+      const affectsDpp = Boolean(c.affects_dpp)
       const { taxAmount, total } = computeChargeTotals(amount, taxRate)
       totalChargeTax += taxAmount
       totalCharges += total
@@ -311,6 +314,7 @@ export class PurchaseInvoicesService {
         tax_rate: taxRate,
         tax_amount: taxAmount,
         total,
+        affects_dpp: affectsDpp,
         sort_order: c.sort_order ?? i,
         created_by: userId,
         updated_by: userId,
@@ -318,6 +322,96 @@ export class PurchaseInvoicesService {
     }
 
     return { enrichedCharges, totalChargeTax, totalCharges, totalChargeAmount }
+  }
+
+  /**
+   * Diskon dengan affects_dpp memperkecil DPP gabungan barang sebelum PPN (praktik umum).
+   * PPN barang = tarif seragam × (Σ subtotal + Σ diskon affects_dpp), dialokasi proporsional ke baris.
+   * Baris charge diskon tersebut dipaksa tanpa PPN sendiri.
+   */
+  private applyDppAdjustingDiscountToLineTax(
+    enrichedLines: Array<{ subtotal: number; tax_rate: number; tax_amount: number; total: number }>,
+    enrichedCharges: Array<{
+      charge_type: string
+      amount: number
+      tax_rate: number
+      tax_amount: number
+      total: number
+      affects_dpp: boolean
+    }>,
+  ): void {
+    const dppDiscounts = enrichedCharges.filter(
+      (c) => c.affects_dpp && c.charge_type === 'DISCOUNT' && c.amount < -0.000001,
+    )
+    if (dppDiscounts.length === 0) return
+
+    const discountSum = dppDiscounts.reduce((s, c) => s + c.amount, 0)
+    const S = enrichedLines.reduce((s, l) => s + l.subtotal, 0)
+    if (S <= 0) {
+      throw new PurchaseInvoiceChargesInvalidError('Tidak dapat menghitung DPP: subtotal barang tidak valid.')
+    }
+
+    const netDpp = S + discountSum
+    if (netDpp < -0.0001) {
+      throw new PurchaseInvoiceChargesInvalidError('DPP net setelah diskon tidak boleh negatif.')
+    }
+
+    const r0 = Number(enrichedLines[0].tax_rate)
+    const uniform = enrichedLines.every((l) => Math.abs(Number(l.tax_rate) - r0) < 0.001)
+    if (!uniform) {
+      throw new PurchaseInvoiceChargesInvalidError(
+        'Diskon memperkecil DPP hanya jika semua baris barang memiliki PPN % yang sama. Samakan tarif atau matikan opsi pada diskon.',
+      )
+    }
+
+    const newGoodsPpn = netDpp * (r0 / 100)
+    const n = enrichedLines.length
+    let allocated = 0
+    const SCALE = 1e4
+    for (let i = 0; i < n; i++) {
+      let tax: number
+      if (i < n - 1) {
+        tax = Math.round(((newGoodsPpn * enrichedLines[i].subtotal) / S) * SCALE) / SCALE
+        allocated += tax
+      } else {
+        tax = Math.round((newGoodsPpn - allocated) * SCALE) / SCALE
+      }
+      enrichedLines[i].tax_amount = tax
+      enrichedLines[i].total = enrichedLines[i].subtotal + tax
+    }
+
+    for (const c of enrichedCharges) {
+      if (c.affects_dpp && c.charge_type === 'DISCOUNT') {
+        c.tax_rate = 0
+        c.tax_amount = 0
+        c.total = c.amount
+      }
+    }
+  }
+
+  private computeHeaderTotalsFromLinesAndCharges(
+    enrichedLines: Array<{ subtotal: number; tax_amount: number; total: number }>,
+    enrichedCharges: Array<{ tax_amount: number; total: number; amount: number }>,
+  ): {
+    subtotal: number
+    total_tax: number
+    total_charges: number
+    total_amount: number
+    totalChargeAmount: number
+  } {
+    const lineSubtotal = enrichedLines.reduce((s, l) => s + l.subtotal, 0)
+    const lineTax = enrichedLines.reduce((s, l) => s + l.tax_amount, 0)
+    const lineGrand = enrichedLines.reduce((s, l) => s + l.total, 0)
+    const chTax = enrichedCharges.reduce((s, c) => s + c.tax_amount, 0)
+    const chTot = enrichedCharges.reduce((s, c) => s + c.total, 0)
+    const chAmt = enrichedCharges.reduce((s, c) => s + c.amount, 0)
+    return {
+      subtotal: lineSubtotal,
+      total_tax: lineTax + chTax,
+      total_charges: chTot,
+      total_amount: lineGrand + chTot,
+      totalChargeAmount: chAmt,
+    }
   }
 
   /** Inventory-side debit uses line subtotals + pre-tax charge amounts (e.g. freight in, discount out). */
@@ -456,18 +550,17 @@ export class PurchaseInvoicesService {
       const grLineDetails = await purchaseInvoicesRepository.findGrLineDetailsForInvoicing(client, grLineIds)
       const productIds = grLineDetails.map((g) => g.product_id)
       const maps = await this.loadInvoiceUomMaps(dto.supplier_id, productIds)
-      const { enrichedLines, grIds, subtotal, totalTax, totalAmount } = this.buildEnrichedLines(
+      const { enrichedLines, grIds } = this.buildEnrichedLines(
         dto.lines,
         grLineDetails,
         userId,
         dto.supplier_id,
         maps,
       )
-      const { enrichedCharges, totalChargeTax, totalCharges, totalChargeAmount } = this.buildEnrichedCharges(
-        dto.charges,
-        userId,
-      )
-      this.assertHeaderInventoryNonNegative(subtotal, totalChargeAmount)
+      const { enrichedCharges } = this.buildEnrichedCharges(dto.charges, userId)
+      this.applyDppAdjustingDiscountToLineTax(enrichedLines, enrichedCharges)
+      const hdr = this.computeHeaderTotalsFromLinesAndCharges(enrichedLines, enrichedCharges)
+      this.assertHeaderInventoryNonNegative(hdr.subtotal, hdr.totalChargeAmount)
 
       const created = await purchaseInvoicesRepository.create(client, companyId, {
         supplier_id: dto.supplier_id,
@@ -475,10 +568,10 @@ export class PurchaseInvoicesService {
         invoice_number: dto.invoice_number,
         invoice_date: dto.invoice_date,
         notes: dto.notes ?? null,
-        subtotal,
-        total_tax: totalTax + totalChargeTax,
-        total_charges: totalCharges,
-        total_amount: totalAmount + totalCharges,
+        subtotal: hdr.subtotal,
+        total_tax: hdr.total_tax,
+        total_charges: hdr.total_charges,
+        total_amount: hdr.total_amount,
         created_by: userId,
       })
 
@@ -515,28 +608,27 @@ export class PurchaseInvoicesService {
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
       const grLineDetails = await purchaseInvoicesRepository.findGrLineDetailsForInvoicing(client, grLineIds)
       const maps = await this.loadInvoiceUomMaps(existing.supplier_id, grLineDetails.map((g) => g.product_id))
-      const { enrichedLines, grIds, subtotal, totalTax, totalAmount } = this.buildEnrichedLines(
+      const { enrichedLines, grIds } = this.buildEnrichedLines(
         dto.lines,
         grLineDetails,
         userId,
         existing.supplier_id,
         maps,
       )
-      const { enrichedCharges, totalChargeTax, totalCharges, totalChargeAmount } = this.buildEnrichedCharges(
-        dto.charges,
-        userId,
-      )
-      this.assertHeaderInventoryNonNegative(subtotal, totalChargeAmount)
+      const { enrichedCharges } = this.buildEnrichedCharges(dto.charges, userId)
+      this.applyDppAdjustingDiscountToLineTax(enrichedLines, enrichedCharges)
+      const hdr = this.computeHeaderTotalsFromLinesAndCharges(enrichedLines, enrichedCharges)
+      this.assertHeaderInventoryNonNegative(hdr.subtotal, hdr.totalChargeAmount)
 
       await purchaseInvoicesRepository.replaceLines(client, id, enrichedLines)
       await purchaseInvoicesRepository.replaceCharges(client, id, enrichedCharges)
       await purchaseInvoicesRepository.replaceGrLinks(client, id, grIds)
       await purchaseInvoicesRepository.copyAttachmentsFromGrs(client, id, grIds)
       await purchaseInvoicesRepository.updateStatus(client, id, existing.status, {
-        subtotal,
-        total_tax: totalTax + totalChargeTax,
-        total_charges: totalCharges,
-        total_amount: totalAmount + totalCharges,
+        subtotal: hdr.subtotal,
+        total_tax: hdr.total_tax,
+        total_charges: hdr.total_charges,
+        total_amount: hdr.total_amount,
         notes: dto.notes ?? existing.notes,
         invoice_date: dto.invoice_date,
         invoice_number: dto.invoice_number,

@@ -27,6 +27,7 @@ export interface PurchaseInvoiceCharge {
   tax_amount: number
   total: number
   sort_order: number
+  affects_dpp?: boolean
 }
 
 export interface PurchaseInvoice {

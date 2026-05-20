@@ -871,6 +871,7 @@ export class PurchaseInvoicesRepository {
         tax_rate: Number(r.tax_rate),
         tax_amount: Number(r.tax_amount),
         total: Number(r.total),
+        affects_dpp: Boolean((r as { affects_dpp?: boolean }).affects_dpp),
       })),
       attachments: attachmentsRes.rows,
       gp_line_audits: gpLineAudits,
@@ -995,6 +996,7 @@ export class PurchaseInvoicesRepository {
       tax_rate: number
       tax_amount: number
       total: number
+      affects_dpp: boolean
       sort_order: number
       created_by: string
       updated_by: string
@@ -1011,7 +1013,7 @@ export class PurchaseInvoicesRepository {
 
     for (const c of charges) {
       valueRows.push(
-        `($${idx},$${idx + 1},$${idx + 2},$${idx + 3},$${idx + 4},$${idx + 5},$${idx + 6},$${idx + 7},$${idx + 8},$${idx + 9},$${idx + 10},$${idx + 11})`,
+        `($${idx},$${idx + 1},$${idx + 2},$${idx + 3},$${idx + 4},$${idx + 5},$${idx + 6},$${idx + 7},$${idx + 8},$${idx + 9},$${idx + 10},$${idx + 11},$${idx + 12})`,
       )
       params.push(
         invoiceId,
@@ -1021,19 +1023,20 @@ export class PurchaseInvoicesRepository {
         c.tax_rate,
         c.tax_amount,
         c.total,
+        c.affects_dpp,
         c.sort_order,
         false,
         null,
         c.created_by,
         c.updated_by,
       )
-      idx += 12
+      idx += 13
     }
 
     await client.query(
       `INSERT INTO purchase_invoice_charges (
          purchase_invoice_id, charge_type, description,
-         amount, tax_rate, tax_amount, total,
+         amount, tax_rate, tax_amount, total, affects_dpp,
          sort_order, is_deleted, deleted_at,
          created_by, updated_by
        ) VALUES ${valueRows.join(', ')}`,

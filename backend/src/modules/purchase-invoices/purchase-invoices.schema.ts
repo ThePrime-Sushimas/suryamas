@@ -43,6 +43,7 @@ const chargeSchema = z
     amount: z.coerce.number(),
     tax_rate: z.coerce.number().min(0),
     sort_order: z.coerce.number().int().default(0),
+    affects_dpp: z.boolean().optional().default(false),
   })
   .superRefine((data, ctx) => {
     if (data.charge_type === 'DISCOUNT' && data.amount > 0) {
@@ -64,6 +65,20 @@ const chargeSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Biaya admin tidak boleh negatif.',
         path: ['amount'],
+      })
+    }
+    if (data.affects_dpp && data.charge_type !== 'DISCOUNT') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Memperkecil DPP hanya untuk jenis Diskon.',
+        path: ['affects_dpp'],
+      })
+    }
+    if (data.affects_dpp && data.tax_rate > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Diskon yang memperkecil DPP tidak boleh memiliki PPN pada baris charge (PPN dihitung dari DPP net barang).',
+        path: ['tax_rate'],
       })
     }
   })

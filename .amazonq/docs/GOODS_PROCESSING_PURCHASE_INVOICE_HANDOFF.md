@@ -299,7 +299,7 @@ const { rows } = await pool.query(
 | POST | `/purchase-invoices/:id/submit` | `purchase_invoices:update` |
 | POST | `/purchase-invoices/:id/approve` | `purchase_invoices:approve` |
 | POST | `/purchase-invoices/:id/reject` | `purchase_invoices:approve` |
-| POST | `/purchase-invoices/:id/post` | `purchase_invoices:approve` |
+| POST | `/purchase-invoices/:id/post` | `purchase_invoices:update` |
 
 ### 4.8 Available GRs Query
 

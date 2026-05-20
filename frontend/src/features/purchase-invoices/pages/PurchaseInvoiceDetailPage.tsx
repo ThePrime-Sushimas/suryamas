@@ -171,6 +171,7 @@ export default function PurchaseInvoiceDetailPage() {
   const hasPermission = usePermissionStore((state) => state.hasPermission);
 
   const canApprove = hasPermission("purchase_invoices", "approve");
+  const canUpdate = hasPermission("purchase_invoices", "update");
   const canDelete = hasPermission("purchase_invoices", "delete");
 
   const { data: inv, isLoading } = usePurchaseInvoice(id ?? "");
@@ -361,7 +362,7 @@ export default function PurchaseInvoiceDetailPage() {
               </>
             )}
 
-            {inv.status === "APPROVED" && canApprove && (
+            {inv.status === "APPROVED" && canUpdate && (
               <div className="flex flex-col">
                 <button
                   onClick={handlePostJournal}
@@ -618,6 +619,7 @@ export default function PurchaseInvoiceDetailPage() {
                       <th className="text-left py-2 pr-4">Keterangan</th>
                       <th className="text-right py-2">Nilai (pra-PPN)</th>
                       <th className="text-center py-2 px-2">PPN %</th>
+                      <th className="text-center py-2 px-2">DPP</th>
                       <th className="text-right py-2">Total</th>
                     </tr>
                   </thead>
@@ -635,6 +637,9 @@ export default function PurchaseInvoiceDetailPage() {
                         </td>
                         <td className="py-2 text-center text-gray-600 dark:text-gray-400">
                           {Number(c.tax_rate)}%
+                        </td>
+                        <td className="py-2 text-center text-gray-600 dark:text-gray-400 text-xs">
+                          {c.affects_dpp ? "Ya" : "—"}
                         </td>
                         <td className="py-2 text-right font-bold text-gray-900 dark:text-white">
                           {fmtCurrency(Number(c.total))}
