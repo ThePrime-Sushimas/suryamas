@@ -28,6 +28,27 @@ type ActivePaymentForInvoiceRow = {
   status: string
 }
 
+/** Single branch filter, or scope to user's accessible branches when viewing "all". */
+function appendInvoiceBranchScope(
+  conditions: string[],
+  params: unknown[],
+  nextIdx: () => number,
+  branchId?: string,
+  branchIds?: string[],
+): void {
+  if (branchId) {
+    const i = nextIdx()
+    conditions.push(`pi.branch_id = $${i}`)
+    params.push(branchId)
+    return
+  }
+  if (branchIds && branchIds.length > 0) {
+    const i = nextIdx()
+    conditions.push(`pi.branch_id = ANY($${i}::uuid[])`)
+    params.push(branchIds)
+  }
+}
+
 export class ApPaymentsRepository {
   async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await pool.connect()
@@ -372,6 +393,7 @@ export class ApPaymentsRepository {
   async findDashboardInvoiceRows(
     companyId: string,
     branchId?: string,
+    branchIds?: string[],
   ): Promise<ApDashboardInvoiceRow[]> {
     const conditions: string[] = [
       'pi.company_id = $1',
@@ -381,10 +403,7 @@ export class ApPaymentsRepository {
     const params: unknown[] = [companyId]
     let idx = 2
 
-    if (branchId) {
-      conditions.push(`pi.branch_id = $${idx++}`)
-      params.push(branchId)
-    }
+    appendInvoiceBranchScope(conditions, params, () => idx++, branchId, branchIds)
 
     const where = conditions.join(' AND ')
 
@@ -427,6 +446,7 @@ export class ApPaymentsRepository {
   async findDueDatePivotRows(
     companyId: string,
     branchId?: string,
+    branchIds?: string[],
   ): Promise<ApDueDatePivotRow[]> {
     const conditions: string[] = [
       'pi.company_id = $1',
@@ -436,10 +456,7 @@ export class ApPaymentsRepository {
     const params: unknown[] = [companyId]
     let idx = 2
 
-    if (branchId) {
-      conditions.push(`pi.branch_id = $${idx++}`)
-      params.push(branchId)
-    }
+    appendInvoiceBranchScope(conditions, params, () => idx++, branchId, branchIds)
 
     const where = conditions.join(' AND ')
 

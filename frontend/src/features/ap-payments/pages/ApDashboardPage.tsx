@@ -16,8 +16,8 @@ import {
   Users,
 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 import {
   useApDashboard,
   type ApPivotLocationGrouping,
@@ -79,11 +79,18 @@ function todayKeyLocal(): string {
 
 export default function ApDashboardPage() {
   const toast = useToast()
-  const branch = useBranchContextStore((s) => s.currentBranch)
+  const branchOptions = useUserBranches()
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('ap_payments', 'insert')
 
-  const { data, isLoading, isError } = useApDashboard(branch?.branch_id)
+  const [branchFilter, setBranchFilter] = useState('')
+
+  const { data, isLoading, isError } = useApDashboard(branchFilter || undefined)
+
+  const branchFilterLabel =
+    branchFilter === ''
+      ? 'Semua cabang'
+      : branchOptions.find((b) => b.id === branchFilter)?.branch_name ?? 'Cabang'
   const [expandedSupplier, setExpandedSupplier] = useState<string | null>(null)
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
   const [showBankInfo, setShowBankInfo] = useState(true)
@@ -155,12 +162,24 @@ export default function ApDashboardPage() {
             <div>
               <h1 className={apTheme.title}>AP Dashboard</h1>
               <p className={apTheme.subtitle}>
-                Outstanding hutang per supplier
-                {branch?.branch_name ? ` · ${branch.branch_name}` : ''}
+                Outstanding hutang per supplier · {branchFilterLabel}
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className={apTheme.select}
+              aria-label="Filter cabang"
+            >
+              <option value="">Semua cabang</option>
+              {branchOptions.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.branch_name}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={handleExport}

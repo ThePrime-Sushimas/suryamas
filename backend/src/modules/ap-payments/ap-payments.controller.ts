@@ -4,6 +4,7 @@ import { handleError } from '../../utils/error-handler.util'
 import { storageService } from '../../services/storage.service'
 import { apPaymentsService } from './ap-payments.service'
 import type { ApPaymentListFilter } from './ap-payments.types'
+import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 
 export class ApPaymentsController {
   // GET /ap-payments
@@ -37,12 +38,25 @@ export class ApPaymentsController {
     }
   }
 
-  // GET /ap-payments/dashboard
+  // GET /ap-payments/dashboard — branch_id optional (page filter); default = all branches user can access
   async dashboard(req: Request, res: Response): Promise<void> {
     try {
       const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
       const branchId = (req.query as { branch_id?: string }).branch_id
-      const data = await apPaymentsService.getDashboard(companyId, branchId)
+
+      const accessible = await getAccessibleBranchIds(userId)
+
+      if (branchId && !accessible.includes(branchId)) {
+        res.status(403).json({ success: false, message: 'No access to this branch' })
+        return
+      }
+
+      const data = await apPaymentsService.getDashboard(
+        companyId,
+        branchId,
+        branchId ? undefined : accessible,
+      )
       sendSuccess(res, data, 'AP dashboard retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_ap_dashboard' })

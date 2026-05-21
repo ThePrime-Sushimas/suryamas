@@ -255,10 +255,14 @@ export class ApPaymentsService {
     })
   }
 
-  async getDashboard(companyId: string, branchId?: string): Promise<ApDashboardResponse> {
+  async getDashboard(
+    companyId: string,
+    branchId?: string,
+    branchIds?: string[],
+  ): Promise<ApDashboardResponse> {
     const [rows, pivotRows] = await Promise.all([
-      apPaymentsRepository.findDashboardInvoiceRows(companyId, branchId),
-      apPaymentsRepository.findDueDatePivotRows(companyId, branchId),
+      apPaymentsRepository.findDashboardInvoiceRows(companyId, branchId, branchIds),
+      apPaymentsRepository.findDueDatePivotRows(companyId, branchId, branchIds),
     ])
 
     const base = this.buildDashboardFromRows(rows)
