@@ -53,9 +53,9 @@ let socketToastRef: NotificationToast | undefined
 
 const playNotificationSound = () => {
   try {
-    const AudioContext = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    if (!AudioContext) return
-    const ctx = new AudioContext()
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext
+    if (!AudioContextClass) return
+    const ctx = new AudioContextClass()
     const now = ctx.currentTime
 
     const osc1 = ctx.createOscillator()
@@ -98,9 +98,8 @@ const getStoredSoundPreference = (): boolean => {
 }
 
 const handleSocketNotification = (payload: Notification) => {
-  const { get, set } = useNotificationsStore
-  set((state) => {
-    if (state.notifications.some((n) => n.id === payload.id)) {
+  useNotificationsStore.setState((state: NotificationsState) => {
+    if (state.notifications.some((n: Notification) => n.id === payload.id)) {
       return state
     }
     const updatedNotifications = [payload, ...state.notifications]
@@ -111,7 +110,7 @@ const handleSocketNotification = (payload: Notification) => {
     }
   })
 
-  if (get().soundEnabled) {
+  if (useNotificationsStore.getState().soundEnabled) {
     playNotificationSound()
   }
 

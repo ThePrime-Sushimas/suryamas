@@ -9,6 +9,8 @@
 
 Konfigurasi penerima (posisi): **Settings → Routing Notifikasi** (`/settings/notification-routing`).
 
+> **Catatan:** Jika routing pernah "silang" setelah save (posisi A muncul di event B), buka halaman routing lalu **Simpan ulang** semua aturan — bug upsert paralel pada satu koneksi PG sudah diperbaiki (harus sequential per client).
+
 ---
 
 ## Procurement (Inventory)

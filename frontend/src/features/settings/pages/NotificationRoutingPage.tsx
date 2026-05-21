@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Bell, Save, Info } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -30,11 +30,22 @@ export default function NotificationRoutingPage() {
   const saveRules = useSaveNotificationRules()
   const [draft, setDraft] = useState<DraftMap>({})
 
+  const catalogSnapshot = useMemo(
+    () =>
+      catalog
+        .map(
+          (c) =>
+            `${c.event_key}:${c.rule?.position_id ?? ''}:${c.rule?.is_active ?? false}`
+        )
+        .join('|'),
+    [catalog]
+  )
+
   useEffect(() => {
     if (catalog.length > 0) {
       setDraft(buildDraftFromCatalog(catalog))
     }
-  }, [catalog])
+  }, [catalogSnapshot, catalog])
 
   const positionOptions = positions.data ?? []
 
@@ -48,7 +59,8 @@ export default function NotificationRoutingPage() {
       }
     })
     try {
-      await saveRules.mutateAsync(rules)
+      const saved = await saveRules.mutateAsync(rules)
+      setDraft(buildDraftFromCatalog(saved))
       toast.success('Aturan notifikasi disimpan')
     } catch (err: unknown) {
       toast.error(parseApiError(err, 'Gagal menyimpan aturan notifikasi'))
@@ -56,10 +68,13 @@ export default function NotificationRoutingPage() {
   }
 
   const updateDraft = (eventKey: string, patch: Partial<DraftMap[string]>) => {
-    setDraft((prev) => ({
-      ...prev,
-      [eventKey]: { ...prev[eventKey], ...patch },
-    }))
+    setDraft((prev) => {
+      const current = prev[eventKey] ?? { position_id: null, is_active: false }
+      return {
+        ...prev,
+        [eventKey]: { ...current, ...patch },
+      }
+    })
   }
 
   return (

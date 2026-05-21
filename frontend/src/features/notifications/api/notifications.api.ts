@@ -35,6 +35,8 @@ export const useNotificationRulesCatalog = () =>
       const { data } = await api.get('/notifications/rules')
       return (data.data || []) as NotificationRuleCatalogItem[]
     },
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   })
 
 export const useSaveNotificationRules = () => {
@@ -44,8 +46,8 @@ export const useSaveNotificationRules = () => {
       const { data } = await api.put('/notifications/rules', { rules })
       return (data.data || []) as NotificationRuleCatalogItem[]
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['notification-rules'] })
+    onSuccess: (catalog) => {
+      qc.setQueryData(['notification-rules'], catalog)
     },
   })
 }

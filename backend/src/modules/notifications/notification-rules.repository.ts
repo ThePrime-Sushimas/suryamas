@@ -113,7 +113,10 @@ export class NotificationRulesRepository {
     }
   }
 
-  /** Batch upsert dalam satu transaksi, query paralel per event key */
+  /**
+   * Batch upsert dalam satu transaksi.
+   * WAJIB sequential — satu PoolClient tidak boleh query paralel (hasil bisa tertukar).
+   */
   async upsertMany(
     companyId: string,
     rules: NotificationRuleUpsertDto[],
@@ -124,7 +127,9 @@ export class NotificationRulesRepository {
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
-      await Promise.all(rules.map((dto) => this.upsertOne(client, companyId, dto, userId)))
+      for (const dto of rules) {
+        await this.upsertOne(client, companyId, dto, userId)
+      }
       await client.query('COMMIT')
     } catch (err) {
       await client.query('ROLLBACK')
