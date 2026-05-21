@@ -60,9 +60,9 @@ function groupHeaderClass(group: ApDueDatePivotGroup): string {
 }
 
 function groupTitleClass(group: ApDueDatePivotGroup): string {
-  if (group.is_overdue) return 'text-amber-800 dark:text-amber-200'
-  if (group.is_today) return 'text-pink-800 dark:text-pink-200'
-  return 'text-rose-950 dark:text-rose-50'
+  if (group.is_overdue) return apTheme.groupTitleOverdue
+  if (group.is_today) return apTheme.groupTitleToday
+  return apTheme.groupTitleDefault
 }
 
 export function ApDueDatePivotSection({
@@ -105,7 +105,7 @@ export function ApDueDatePivotSection({
           <button
             type="button"
             onClick={onToggleBankInfo}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border border-rose-200 dark:border-rose-700 text-xs font-medium ${apTheme.hoverRow}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border border-rose-200 dark:border-gray-600 text-xs font-medium ${apTheme.hoverRow}`}
           >
             <Landmark className="w-3.5 h-3.5" />
             {showBankInfo ? 'Sembunyikan bank' : 'Tampilkan bank'}
@@ -133,7 +133,7 @@ export function ApDueDatePivotSection({
                     {group.total_invoice_count} invoice
                   </p>
                 </div>
-                <p className="text-sm font-bold tabular-nums text-rose-950 dark:text-rose-50 shrink-0">
+                <p className={`text-sm font-bold tabular-nums shrink-0 ${apTheme.groupTitleDefault}`}>
                   {fmt(group.total_outstanding)}
                 </p>
                 {open ? (
@@ -157,7 +157,7 @@ export function ApDueDatePivotSection({
                         className="px-5 py-3 grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto_auto] gap-3 items-start sm:items-center"
                       >
                         <div className="min-w-0">
-                          <p className="font-medium text-rose-950 dark:text-rose-50 truncate">
+                          <p className={`font-medium truncate ${apTheme.groupTitleDefault}`}>
                             {row.supplier_name}
                             {row.supplier_code && (
                               <span className="ml-1.5 text-xs font-normal text-gray-400">
@@ -175,7 +175,7 @@ export function ApDueDatePivotSection({
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                           <StatusBadge status={row.invoice_status} />
-                          <p className="text-sm font-bold tabular-nums text-rose-950 dark:text-rose-50">
+                          <p className={`text-sm font-bold tabular-nums ${apTheme.groupTitleDefault}`}>
                             {fmt(row.outstanding)}
                           </p>
                           <span className="text-xs text-gray-400">

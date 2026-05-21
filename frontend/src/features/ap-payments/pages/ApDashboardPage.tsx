@@ -66,7 +66,7 @@ function MetricCard({
       <p className={`text-xs font-medium uppercase tracking-wide ${apTheme.label}`}>
         {label}
       </p>
-      <p className="mt-2 text-2xl font-bold text-rose-950 dark:text-rose-50 tabular-nums">{value}</p>
+      <p className={`mt-2 text-2xl font-bold tabular-nums ${apTheme.groupTitleDefault}`}>{value}</p>
       {sub && <p className={`mt-1 text-xs ${apTheme.muted}`}>{sub}</p>}
     </div>
   )
@@ -359,7 +359,7 @@ export default function ApDashboardPage() {
                           className={`w-full px-5 py-4 flex items-center gap-4 text-left ${apTheme.hoverRow}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-rose-950 dark:text-rose-50 truncate">
+                            <p className={`font-semibold truncate ${apTheme.groupTitleDefault}`}>
                               {s.supplier_name}
                               {s.supplier_code && (
                                 <span className="ml-2 text-xs font-normal text-gray-400">
@@ -372,7 +372,7 @@ export default function ApDashboardPage() {
                                 <Clock className="w-3 h-3" />
                                 Menunggu post: {fmt(s.pending_post_amount)} ({s.pending_post_count})
                               </span>
-                              <span className="inline-flex items-center gap-1 text-pink-600 dark:text-pink-300">
+                              <span className="inline-flex items-center gap-1 text-pink-600 dark:text-emerald-400">
                                 <CheckCircle2 className="w-3 h-3" />
                                 Siap bayar: {fmt(s.ready_to_pay_amount)} ({s.ready_to_pay_count})
                               </span>
@@ -385,7 +385,7 @@ export default function ApDashboardPage() {
                             </div>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-sm font-bold text-rose-950 dark:text-rose-50 tabular-nums">
+                            <p className={`text-sm font-bold tabular-nums ${apTheme.groupTitleDefault}`}>
                               {fmt(s.total_outstanding)}
                             </p>
                             {open ? (
@@ -403,7 +403,7 @@ export default function ApDashboardPage() {
                                 className={`px-3 py-2 rounded-xl ${apTheme.cardInner} text-xs`}
                               >
                                 <p className={apTheme.muted}>{b.label}</p>
-                                <p className="font-medium text-rose-900 dark:text-rose-100">
+                                <p className="font-medium text-rose-900 dark:text-gray-200">
                                   {fmt(b.amount)}
                                 </p>
                               </div>

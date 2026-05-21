@@ -61,12 +61,12 @@ function DayCell({
     >
       <div className="flex items-center justify-between gap-1 mb-1">
         <span
-          className={`text-xs font-semibold ${col.isToday ? 'text-pink-700 dark:text-pink-300' : apTheme.muted}`}
+          className={`text-xs font-semibold ${col.isToday ? apTheme.calDayLabelToday : apTheme.calDayLabel}`}
         >
           {col.dayName}
         </span>
         <span
-          className={`text-base font-bold tabular-nums ${col.isToday ? 'text-pink-800 dark:text-pink-200' : 'text-rose-950 dark:text-rose-50'}`}
+          className={`text-base font-bold tabular-nums ${col.isToday ? apTheme.calDayNumToday : apTheme.calDayNum}`}
         >
           {col.dayNum}
         </span>
@@ -146,7 +146,7 @@ export function ApPaymentCalendarWeek({
     <section className={apTheme.cardOverflow}>
       <div className={`px-5 py-4 border-b ${apTheme.divideBorder} flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3`}>
         <div className="flex items-center gap-2">
-          <CalendarDays className="w-5 h-5 text-rose-500" />
+          <CalendarDays className={`w-5 h-5 ${apTheme.spinner}`} />
           <div>
             <h2 className={apTheme.sectionTitle}>
               Kalender pembayaran
@@ -178,7 +178,7 @@ export function ApPaymentCalendarWeek({
           <button
             type="button"
             onClick={goToday}
-            className={`px-3 py-2 rounded-xl text-xs font-medium border border-rose-200 dark:border-rose-700 ${apTheme.hoverRow}`}
+            className={`px-3 py-2 rounded-xl text-xs font-medium border border-rose-200 dark:border-gray-600 ${apTheme.hoverRow}`}
           >
             Minggu ini
           </button>

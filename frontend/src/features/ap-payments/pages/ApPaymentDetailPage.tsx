@@ -310,7 +310,7 @@ export default function ApPaymentDetailPage() {
                     href={proofViewUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
+                    className={`inline-flex items-center gap-1.5 text-sm ${apTheme.link}`}
                   >
                     <ExternalLink className="w-4 h-4" />
                     Lihat bukti
@@ -406,7 +406,7 @@ export default function ApPaymentDetailPage() {
                 type="button"
                 onClick={() => void handleApprove()}
                 disabled={approve.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-fuchsia-400 to-pink-500 text-white text-sm font-medium hover:from-fuchsia-500 hover:to-pink-600 shadow-sm"
+                className={apTheme.btnApprove}
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Setujui
@@ -450,7 +450,7 @@ export default function ApPaymentDetailPage() {
                       ? 'Tunggu PI POSTED'
                       : undefined
                 }
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-medium hover:from-pink-600 hover:to-rose-600 shadow-sm disabled:opacity-50"
+                className={apTheme.btnPay}
               >
                 <Banknote className="w-4 h-4" />
                 Tandai sudah dibayar

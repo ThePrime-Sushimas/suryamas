@@ -123,10 +123,10 @@ export default function ApPaymentsPage() {
               key={tab.id}
               type="button"
               onClick={() => setFilters({ tab: tab.id, status: '' })}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`transition-colors ${
                 isApListTabActive(tab.id, filters)
-                  ? 'bg-gradient-to-r from-rose-400 to-pink-500 text-white shadow-sm'
-                  : 'text-rose-600/80 dark:text-rose-300/70 hover:bg-rose-100/60 dark:hover:bg-rose-900/30'
+                  ? apTheme.listTabActive
+                  : apTheme.listTabInactive
               }`}
             >
               {tab.label}
@@ -173,7 +173,7 @@ export default function ApPaymentsPage() {
           <select
             value={filters.supplierId}
             onChange={(e) => setFilters({ supplierId: e.target.value })}
-            className={`${apTheme.select} min-w-[160px]`}
+            className={`${apTheme.select} min-w-40`}
           >
             <option value="">Semua supplier</option>
             {(suppliersData?.data ?? []).map((s) => (
@@ -209,12 +209,12 @@ export default function ApPaymentsPage() {
           </div>
         ) : payments.length === 0 ? (
           <div className={`text-center py-16 ${apTheme.card} p-8`}>
-            <Wallet className="mx-auto w-12 h-12 text-rose-300 dark:text-rose-700 mb-4" />
+            <Wallet className="mx-auto w-12 h-12 text-rose-300 dark:text-gray-600 mb-4" />
             <p className={apTheme.muted}>Belum ada pembayaran AP</p>
             {canInsert && (
               <Link
                 to={`${AP_PAYMENTS_LIST_PATH}/new`}
-                className="inline-block mt-4 text-rose-600 dark:text-pink-300 hover:underline text-sm font-medium"
+                className={`inline-block mt-4 text-sm font-medium ${apTheme.link}`}
               >
                 Buat pembayaran pertama
               </Link>
@@ -287,7 +287,7 @@ export default function ApPaymentsPage() {
       </div>
 
       {pagination && pagination.total > 0 && (
-        <div className={`border-t ${apTheme.divideBorder} bg-white/85 dark:bg-rose-950/50 backdrop-blur-md px-4 py-3`}>
+        <div className={`border-t ${apTheme.divideBorder} bg-white/85 dark:bg-gray-800 backdrop-blur-md px-4 py-3`}>
           <Pagination
             pagination={pagination}
             onPageChange={setPage}

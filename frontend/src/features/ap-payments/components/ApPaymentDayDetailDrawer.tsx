@@ -168,7 +168,7 @@ export function ApPaymentDayDetailDrawer({
                   {row.ap_payment_id && (
                     <Link
                       to={`${AP_PAYMENTS_LIST_PATH}/${row.ap_payment_id}`}
-                      className="inline-flex text-sm font-medium text-rose-600 dark:text-pink-300 hover:underline"
+                      className={`inline-flex text-sm font-medium ${apTheme.link}`}
                       onClick={onClose}
                     >
                       Buka contoh AP: {row.ap_payment_number ?? 'pembayaran'}

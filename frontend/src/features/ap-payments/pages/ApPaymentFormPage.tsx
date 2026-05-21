@@ -197,7 +197,7 @@ export default function ApPaymentFormPage() {
         <button
           type="button"
           onClick={() => navigate(`${AP_PAYMENTS_LIST_PATH}/${id}`)}
-          className="text-rose-600 dark:text-pink-300 text-sm font-medium"
+          className={`text-sm font-medium ${apTheme.link}`}
         >
           Kembali ke detail
         </button>
