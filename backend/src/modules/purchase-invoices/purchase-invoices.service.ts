@@ -5,6 +5,7 @@ import {
   type GrLineDetailForInvoicing,
 } from './purchase-invoices.repository'
 import { AuditService } from '../monitoring/monitoring.service'
+import { apPaymentsService } from '../ap-payments/ap-payments.service'
 import {
   PurchaseInvoiceCannotEditPostedError,
   PurchaseInvoiceChargesInvalidError,
@@ -41,7 +42,7 @@ import { pricelistsRepository } from '../pricelists/pricelists.repository'
 import { pricelistsService } from '../pricelists/pricelists.service'
 import type { PiLineForPricelistSync, PricelistSyncResult } from '../pricelists/pricelists.types'
 import { recipesRepository } from '../food-production/recipes/recipes.repository'
-import { logError } from '../../config/logger'
+import { logError, logInfo } from '../../config/logger'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import { suppliersRepository } from '../suppliers/suppliers.repository'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
@@ -797,6 +798,12 @@ export class PurchaseInvoicesService {
       }
     )
 
+    try {
+      await apPaymentsService.createDraftFromApprovedInvoice(id, companyId, userId)
+    } catch (err) {
+      logInfo('AP auto-draft failed after PI approve (non-blocking)', { id, err })
+    }
+
     return this.getById(id, companyId)
   }
 
@@ -829,6 +836,12 @@ export class PurchaseInvoicesService {
         excludeUserIds: [userId],
       }
     )
+
+    try {
+      await apPaymentsService.cancelDraftPaymentsForRejectedInvoice(id, userId)
+    } catch (err) {
+      logInfo('AP draft cancel failed after PI reject (non-blocking)', { id, err })
+    }
 
     return this.getById(id, companyId)
   }

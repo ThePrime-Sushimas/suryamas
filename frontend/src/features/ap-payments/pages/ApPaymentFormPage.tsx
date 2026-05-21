@@ -102,10 +102,12 @@ export default function ApPaymentFormPage() {
 
   const availableToAdd = useMemo(
     () =>
-      outstanding.filter(
-        (inv) => !lines.some((l) => l.purchase_invoice_id === inv.id),
-      ),
-    [outstanding, lines],
+      outstanding.filter((inv) => {
+        if (lines.some((l) => l.purchase_invoice_id === inv.id)) return false
+        if (inv.ap_payment_id && (!isEdit || inv.ap_payment_id !== id)) return false
+        return true
+      }),
+    [outstanding, lines, isEdit, id],
   )
 
   const addLine = (inv: ApOutstandingInvoice) => {
@@ -288,7 +290,7 @@ export default function ApPaymentFormPage() {
 
         <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
-            Invoice (POSTED)
+            Invoice (APPROVED / POSTED)
           </h2>
 
           {!outstandingSupplierId ? (
@@ -313,8 +315,11 @@ export default function ApPaymentFormPage() {
                   </option>
                   {availableToAdd.map((inv) => (
                     <option key={inv.id} value={inv.id}>
-                      {inv.invoice_number} — outstanding {fmtCurrency(parseFloat(String(inv.outstanding)))}
+                      {inv.invoice_number} [{inv.invoice_status}]
+                      {' '}
+                      — {fmtCurrency(parseFloat(String(inv.outstanding)))}
                       {inv.is_overdue ? ' (overdue)' : ''}
+                      {!inv.can_pay ? ' · belum bisa bayar' : ''}
                     </option>
                   ))}
                 </select>

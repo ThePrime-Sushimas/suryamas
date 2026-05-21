@@ -102,6 +102,10 @@ export default function ApPaymentDetailPage() {
   }
 
   const st = AP_STATUS_CONFIG[payment.status]
+  const allLinesPosted = (payment.lines ?? []).every(
+    (l) => l.invoice_status === 'POSTED',
+  )
+  const canMarkPaid = payment.status === 'APPROVED' && payment.proof_url && allLinesPosted
 
   const handleSubmit = async () => {
     if (!id) return
@@ -290,9 +294,14 @@ export default function ApPaymentDetailPage() {
                     {line.invoice_number}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {fmtDate(line.invoice_date)} · Total invoice{' '}
+                    {fmtDate(line.invoice_date)} · PI {line.invoice_status ?? '—'} · Total{' '}
                     {fmtCurrency(Number(line.invoice_total_amount))}
                   </p>
+                  {line.invoice_status && line.invoice_status !== 'POSTED' && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                      Menunggu posting PI / konfirmasi gudang
+                    </p>
+                  )}
                 </div>
                 <p className="font-semibold text-gray-900 dark:text-white shrink-0">
                   {fmtCurrency(Number(line.amount_paid))}
@@ -380,16 +389,30 @@ export default function ApPaymentDetailPage() {
             </button>
           )}
           {payment.status === 'APPROVED' && canUpdate && (
-            <button
-              type="button"
-              onClick={() => setShowPayConfirm(true)}
-              disabled={!payment.proof_url}
-              title={!payment.proof_url ? 'Upload bukti bayar terlebih dahulu' : undefined}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 text-white text-sm font-medium disabled:opacity-50"
-            >
-              <Banknote className="w-4 h-4" />
-              Tandai sudah dibayar
-            </button>
+            <>
+              {!allLinesPosted && (
+                <p className="w-full text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3">
+                  Pembayaran baru bisa ditandai lunas setelah semua invoice PI berstatus POSTED
+                  (jurnal hutang sudah terbentuk).
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowPayConfirm(true)}
+                disabled={!canMarkPaid}
+                title={
+                  !payment.proof_url
+                    ? 'Upload bukti bayar terlebih dahulu'
+                    : !allLinesPosted
+                      ? 'Tunggu PI POSTED'
+                      : undefined
+                }
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 text-white text-sm font-medium disabled:opacity-50"
+              >
+                <Banknote className="w-4 h-4" />
+                Tandai sudah dibayar
+              </button>
+            </>
           )}
           {payment.status === 'PAID' && canUpdate && (
             <button

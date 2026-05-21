@@ -12,16 +12,53 @@ import type {
   RejectApPaymentDto,
   UploadProofDto,
   ReconcileApPaymentDto,
+  ApDashboardResponse,
+  ApDashboardInvoiceRow,
+  ApDashboardAgingBucket,
+  ApDashboardSupplierRow,
+  ApAgingBucketKey,
 } from './ap-payments.types'
 import {
   ApPaymentNotFoundError,
   ApPaymentInvalidStatusError,
-  ApPaymentInvoiceNotPostedError,
+  ApPaymentInvoiceNotEligibleError,
+  ApPaymentInvoiceNotPostedForPaidError,
   ApPaymentOutstandingExceededError,
   ApPaymentLinesTotalMismatchError,
   ApPaymentProofRequiredError,
   ApPaymentEmptyLinesError,
+  ApPaymentDuplicateInvoiceError,
 } from './ap-payments.errors'
+
+const AGING_BUCKET_DEFS: Array<{ bucket: ApAgingBucketKey; label: string }> = [
+  { bucket: 'current', label: 'Belum jatuh tempo' },
+  { bucket: 'days_1_30', label: '1–30 hari' },
+  { bucket: 'days_31_60', label: '31–60 hari' },
+  { bucket: 'days_61_90', label: '61–90 hari' },
+  { bucket: 'days_90_plus', label: '> 90 hari' },
+]
+
+function emptyAgingBuckets(): ApDashboardAgingBucket[] {
+  return AGING_BUCKET_DEFS.map((d) => ({
+    bucket: d.bucket,
+    label: d.label,
+    amount: 0,
+    invoice_count: 0,
+  }))
+}
+
+function resolveAgingBucket(dueDate: string | null, isOverdue: boolean): ApAgingBucketKey {
+  if (!isOverdue || !dueDate) return 'current'
+  const due = new Date(dueDate)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  due.setHours(0, 0, 0, 0)
+  const daysPast = Math.floor((today.getTime() - due.getTime()) / 86400000)
+  if (daysPast <= 30) return 'days_1_30'
+  if (daysPast <= 60) return 'days_31_60'
+  if (daysPast <= 90) return 'days_61_90'
+  return 'days_90_plus'
+}
 
 export class ApPaymentsService {
   private async assertInvoiceLinePayable(
@@ -30,13 +67,21 @@ export class ApPaymentsService {
     companyId: string,
     excludePaymentId?: string,
   ): Promise<void> {
-    const pi = await apPaymentsRepository.findPostedInvoice(
+    const pi = await apPaymentsRepository.findPayableInvoice(
       client,
       line.purchase_invoice_id,
       companyId,
     )
-    if (!pi || pi.status !== 'POSTED') {
-      throw new ApPaymentInvoiceNotPostedError(line.purchase_invoice_id)
+    if (!pi) {
+      throw new ApPaymentInvoiceNotEligibleError(line.purchase_invoice_id)
+    }
+
+    const active = await apPaymentsRepository.findActivePaymentForInvoice(
+      line.purchase_invoice_id,
+      client,
+    )
+    if (active && active.id !== excludePaymentId) {
+      throw new ApPaymentDuplicateInvoiceError(pi.invoice_number, active.payment_number)
     }
 
     const totalPaid = await apPaymentsRepository.sumPaidByInvoice(
@@ -52,6 +97,200 @@ export class ApPaymentsService {
         line.amount_paid,
       )
     }
+  }
+
+  private async assertAllLinesPostedForPaid(
+    client: PoolClient,
+    paymentId: string,
+    companyId: string,
+  ): Promise<void> {
+    const payment = await apPaymentsRepository.findById(paymentId, companyId)
+    if (!payment) throw new ApPaymentNotFoundError(paymentId)
+
+    for (const line of payment.lines) {
+      const pi = await apPaymentsRepository.findPayableInvoice(
+        client,
+        line.purchase_invoice_id,
+        companyId,
+      )
+      if (!pi || pi.status !== 'POSTED') {
+        throw new ApPaymentInvoiceNotPostedForPaidError(line.invoice_number)
+      }
+    }
+  }
+
+  private buildDashboardFromRows(rows: ApDashboardInvoiceRow[]): ApDashboardResponse {
+    const agingTotals = emptyAgingBuckets()
+    const supplierMap = new Map<string, ApDashboardSupplierRow>()
+
+    for (const row of rows) {
+      const out = row.outstanding
+      const bucketKey = resolveAgingBucket(row.due_date, row.is_overdue)
+      const bucketIdx = agingTotals.findIndex((b) => b.bucket === bucketKey)
+      if (bucketIdx >= 0) {
+        agingTotals[bucketIdx].amount += out
+        agingTotals[bucketIdx].invoice_count += 1
+      }
+
+      let supplier = supplierMap.get(row.supplier_id)
+      if (!supplier) {
+        supplier = {
+          supplier_id: row.supplier_id,
+          supplier_name: row.supplier_name,
+          supplier_code: row.supplier_code,
+          pending_post_amount: 0,
+          pending_post_count: 0,
+          ready_to_pay_amount: 0,
+          ready_to_pay_count: 0,
+          total_outstanding: 0,
+          overdue_amount: 0,
+          aging: emptyAgingBuckets(),
+        }
+        supplierMap.set(row.supplier_id, supplier)
+      }
+
+      supplier.total_outstanding += out
+      if (row.is_overdue) supplier.overdue_amount += out
+
+      if (row.invoice_status === 'APPROVED') {
+        supplier.pending_post_amount += out
+        supplier.pending_post_count += 1
+      } else {
+        supplier.ready_to_pay_amount += out
+        supplier.ready_to_pay_count += 1
+      }
+
+      const sBucketIdx = supplier.aging.findIndex((b) => b.bucket === bucketKey)
+      if (sBucketIdx >= 0) {
+        supplier.aging[sBucketIdx].amount += out
+        supplier.aging[sBucketIdx].invoice_count += 1
+      }
+    }
+
+    const suppliers = Array.from(supplierMap.values()).sort((a, b) =>
+      b.total_outstanding - a.total_outstanding,
+    )
+
+    const summary = suppliers.reduce(
+      (acc, s) => ({
+        pending_post_amount: acc.pending_post_amount + s.pending_post_amount,
+        pending_post_count: acc.pending_post_count + s.pending_post_count,
+        ready_to_pay_amount: acc.ready_to_pay_amount + s.ready_to_pay_amount,
+        ready_to_pay_count: acc.ready_to_pay_count + s.ready_to_pay_count,
+        total_outstanding: acc.total_outstanding + s.total_outstanding,
+        overdue_amount: acc.overdue_amount + s.overdue_amount,
+        supplier_count: acc.supplier_count + 1,
+      }),
+      {
+        pending_post_amount: 0,
+        pending_post_count: 0,
+        ready_to_pay_amount: 0,
+        ready_to_pay_count: 0,
+        total_outstanding: 0,
+        overdue_amount: 0,
+        supplier_count: 0,
+      },
+    )
+
+    return { summary, aging_totals: agingTotals, suppliers }
+  }
+
+  async getDashboard(companyId: string, branchId?: string): Promise<ApDashboardResponse> {
+    const rows = await apPaymentsRepository.findDashboardInvoiceRows(companyId, branchId)
+    return this.buildDashboardFromRows(rows)
+  }
+
+  /**
+   * Auto-draft AP saat PI APPROVED (1 PI = 1 payment DRAFT).
+   * Idempotent — skip jika sudah ada payment aktif untuk invoice ini.
+   */
+  async createDraftFromApprovedInvoice(
+    purchaseInvoiceId: string,
+    companyId: string,
+    userId: string,
+  ): Promise<ApPaymentDetail | null> {
+    const existing = await apPaymentsRepository.findActivePaymentForInvoice(purchaseInvoiceId)
+    if (existing) {
+      logInfo('AP auto-draft skipped: active payment exists', {
+        purchaseInvoiceId,
+        paymentId: existing.id,
+      })
+      return null
+    }
+
+    const payment = await apPaymentsRepository.withTransaction(async (client) => {
+      const pi = await apPaymentsRepository.findPayableInvoice(
+        client,
+        purchaseInvoiceId,
+        companyId,
+      )
+      if (!pi || pi.status !== 'APPROVED') return null
+
+      const bankAccountId = await apPaymentsRepository.findDefaultCompanyBankAccountId(
+        companyId,
+        client,
+      )
+      if (!bankAccountId) {
+        logInfo('AP auto-draft skipped: no default bank account', { companyId, purchaseInvoiceId })
+        return null
+      }
+
+      const totalPaid = await apPaymentsRepository.sumPaidByInvoice(purchaseInvoiceId, undefined, client)
+      const outstanding = Number(pi.total_amount) - totalPaid
+      if (outstanding <= 0.01) return null
+
+      const branchCode = await apPaymentsRepository.findBranchCode(client, pi.branch_id)
+      const paymentNumber = await apPaymentsRepository.generateApPaymentNumber(
+        client,
+        companyId,
+        branchCode,
+      )
+
+      const header = await apPaymentsRepository.create(client, {
+        branch_id: pi.branch_id,
+        supplier_id: pi.supplier_id,
+        bank_account_id: bankAccountId,
+        payment_method: 'TRANSFER',
+        total_amount: outstanding,
+        notes: `Auto-generated dari PI ${pi.invoice_number}`,
+        lines: [],
+        payment_number: paymentNumber,
+        company_id: companyId,
+        created_by: userId,
+      })
+
+      await apPaymentsRepository.createLines(client, header.id, [
+        { purchase_invoice_id: purchaseInvoiceId, amount_paid: outstanding },
+      ])
+
+      return header
+    })
+
+    if (!payment) return null
+
+    await AuditService.log('CREATE', 'ap_payments', payment.id, userId, null, {
+      payment_number: payment.payment_number,
+      source: 'PI_APPROVED_AUTO_DRAFT',
+      purchase_invoice_id: purchaseInvoiceId,
+    })
+    logInfo('AP auto-draft created from PI approve', {
+      paymentId: payment.id,
+      purchaseInvoiceId,
+    })
+    return this.getById(payment.id, companyId)
+  }
+
+  async cancelDraftPaymentsForRejectedInvoice(
+    purchaseInvoiceId: string,
+    userId: string,
+  ): Promise<void> {
+    await apPaymentsRepository.withTransaction(async (client) => {
+      await apPaymentsRepository.softDeleteDraftPaymentsForInvoice(
+        client,
+        purchaseInvoiceId,
+        userId,
+      )
+    })
   }
 
   async list(filter: ApPaymentListFilter): Promise<{
@@ -280,6 +519,7 @@ export class ApPaymentsService {
     }
 
     await apPaymentsRepository.withTransaction(async (client) => {
+      await this.assertAllLinesPostedForPaid(client, id, companyId)
       await apPaymentsRepository.updateStatus(client, id, 'PAID', {
         paid_by: userId,
         paid_at: new Date().toISOString(),

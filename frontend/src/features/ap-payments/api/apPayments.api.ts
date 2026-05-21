@@ -20,6 +20,7 @@ export interface ApPaymentInvoiceLine {
   notes: string | null
   invoice_number: string
   invoice_date: string
+  invoice_status?: string
   invoice_total_amount: number | string
   supplier_name: string
   invoice_outstanding: number | string
@@ -58,6 +59,8 @@ export interface ApPayment {
   lines?: ApPaymentInvoiceLine[]
 }
 
+export type PurchaseInvoicePayableStatus = 'APPROVED' | 'POSTED'
+
 export interface ApOutstandingInvoice {
   id: string
   invoice_number: string
@@ -71,6 +74,46 @@ export interface ApOutstandingInvoice {
   total_paid: number | string
   outstanding: number | string
   is_overdue: boolean
+  invoice_status: PurchaseInvoicePayableStatus
+  can_pay: boolean
+  ap_payment_id: string | null
+  ap_payment_number: string | null
+}
+
+export interface ApDashboardAgingBucket {
+  bucket: string
+  label: string
+  amount: number
+  invoice_count: number
+}
+
+export interface ApDashboardSupplierRow {
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string | null
+  pending_post_amount: number
+  pending_post_count: number
+  ready_to_pay_amount: number
+  ready_to_pay_count: number
+  total_outstanding: number
+  overdue_amount: number
+  aging: ApDashboardAgingBucket[]
+}
+
+export interface ApDashboardSummary {
+  pending_post_amount: number
+  pending_post_count: number
+  ready_to_pay_amount: number
+  ready_to_pay_count: number
+  total_outstanding: number
+  overdue_amount: number
+  supplier_count: number
+}
+
+export interface ApDashboardResponse {
+  summary: ApDashboardSummary
+  aging_totals: ApDashboardAgingBucket[]
+  suppliers: ApDashboardSupplierRow[]
 }
 
 export interface CreateApPaymentLineDto {
@@ -111,6 +154,7 @@ interface PaginationMeta {
 const KEYS = {
   list: (params: ApPaymentListQuery) => ['ap-payments', params] as const,
   detail: (id: string) => ['ap-payments', id] as const,
+  dashboard: (branchId?: string) => ['ap-payments', 'dashboard', branchId ?? 'all'] as const,
   outstanding: (params: Record<string, string | boolean | undefined>) =>
     ['ap-payments', 'outstanding', params] as const,
 }
@@ -160,6 +204,17 @@ export const useApPayment = (id: string) =>
       return normalizeApPayment(data.data as ApPayment)
     },
     enabled: !!id,
+  })
+
+export const useApDashboard = (branchId?: string) =>
+  useQuery({
+    queryKey: KEYS.dashboard(branchId),
+    queryFn: async () => {
+      const { data } = await api.get('/ap-payments/dashboard', {
+        params: branchId ? { branch_id: branchId } : undefined,
+      })
+      return data.data as ApDashboardResponse
+    },
   })
 
 export const useOutstandingInvoices = (params: {

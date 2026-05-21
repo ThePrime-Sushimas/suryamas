@@ -15,6 +15,7 @@ import { apPaymentsController } from './ap-payments.controller'
 import {
   listApPaymentsSchema,
   outstandingInvoicesSchema,
+  apDashboardSchema,
   apPaymentParamSchema,
   createApPaymentSchema,
   updateApPaymentSchema,
@@ -30,6 +31,13 @@ PermissionService.registerModule(MODULE, 'AP Payments').catch(() => {})
 const router = Router()
 
 router.use(authenticate, resolveBranchContext)
+
+router.get(
+  '/dashboard',
+  canView(MODULE),
+  validateSchema(apDashboardSchema),
+  (req, res) => apPaymentsController.dashboard(req, res),
+)
 
 router.get(
   '/outstanding-invoices',

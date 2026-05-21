@@ -58,7 +58,7 @@
 
 ### Feature Development
 - [ ] Cash Count dashboard integration (pending count badge + counted display on accounting dashboard)
-- [ ] **AP Payments module** — backend + FE (DB: `20260521_ap_payments.sql`)
+- [ ] **AP Payments** — Sprint 2–4: lampiran request, notifikasi, approval queue, jurnal reconcile
 - [ ] **Purchase Invoice frontend** — list/form/detail. Lihat `.amazonq/docs/GOODS_PROCESSING_PURCHASE_INVOICE_HANDOFF.md`
 - [ ] COGS calculation (HPP dari inventory movement)
 - [ ] Laporan Arus Kas formal PSAK 2 (3 aktivitas: operasi/investasi/pendanaan)
@@ -80,7 +80,7 @@
 | Goods Receipts | ✅ | ✅ | ✅ | Hitung `payment_due_date` saat confirm (from_delivery) |
 | Goods Processing | ✅ | ✅ | ✅ | Per-line status, stock masuk cost=0 |
 | **Purchase Invoice** | ✅ | partial | ✅ | Backend done; FE list/form/detail |
-| **AP Payments** | ❌ | ❌ | ✅ | Migration `20260521_ap_payments.sql` |
+| **AP Payments** | ✅ | partial | ✅ | Sprint 1 dashboard + A+B auto-draft on PI approve |
 | Transfer Orders | ❌ | ❌ | ❌ | |
 | Branch Loans | ❌ | ❌ | ❌ | |
 

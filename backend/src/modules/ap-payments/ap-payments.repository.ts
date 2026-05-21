@@ -9,13 +9,22 @@ import type {
   ApPaymentListFilter,
   CreateApPaymentDto,
   UpdateApPaymentDto,
+  ApDashboardInvoiceRow,
 } from './ap-payments.types'
 
-type PostedInvoiceRow = {
+type PayableInvoiceRow = {
   id: string
   invoice_number: string
   status: string
   total_amount: number
+  supplier_id: string
+  branch_id: string
+}
+
+type ActivePaymentForInvoiceRow = {
+  id: string
+  payment_number: string
+  status: string
 }
 
 export class ApPaymentsRepository {
@@ -42,18 +51,79 @@ export class ApPaymentsRepository {
     return rows[0]?.branch_code ?? 'XXX'
   }
 
-  async findPostedInvoice(
+  async findPayableInvoice(
     client: PoolClient,
     invoiceId: string,
     companyId: string,
-  ): Promise<PostedInvoiceRow | null> {
-    const { rows } = await client.query<PostedInvoiceRow>(
-      `SELECT id, invoice_number, status, total_amount
+  ): Promise<PayableInvoiceRow | null> {
+    const { rows } = await client.query<PayableInvoiceRow>(
+      `SELECT id, invoice_number, status, total_amount, supplier_id, branch_id
        FROM purchase_invoices
-       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+       WHERE id = $1
+         AND company_id = $2
+         AND deleted_at IS NULL
+         AND status IN ('APPROVED', 'POSTED')`,
       [invoiceId, companyId],
     )
     return rows[0] ?? null
+  }
+
+  async findActivePaymentForInvoice(
+    invoiceId: string,
+    client?: PoolClient,
+  ): Promise<ActivePaymentForInvoiceRow | null> {
+    const db = client ?? pool
+    const { rows } = await db.query<ActivePaymentForInvoiceRow>(
+      `SELECT p.id, p.payment_number, p.status
+       FROM ap_payment_invoice_lines l
+       JOIN ap_payments p ON p.id = l.ap_payment_id
+       WHERE l.purchase_invoice_id = $1
+         AND p.deleted_at IS NULL
+         AND p.status NOT IN ('REJECTED')
+       ORDER BY p.created_at DESC
+       LIMIT 1`,
+      [invoiceId],
+    )
+    return rows[0] ?? null
+  }
+
+  async findDefaultCompanyBankAccountId(
+    companyId: string,
+    client?: PoolClient,
+  ): Promise<number | null> {
+    const db = client ?? pool
+    const { rows } = await db.query<{ id: number }>(
+      `SELECT id
+       FROM bank_accounts
+       WHERE owner_type = 'company'
+         AND owner_id = $1
+         AND is_active = true
+         AND deleted_at IS NULL
+       ORDER BY is_primary DESC, id ASC
+       LIMIT 1`,
+      [companyId],
+    )
+    return rows[0]?.id ?? null
+  }
+
+  async softDeleteDraftPaymentsForInvoice(
+    client: PoolClient,
+    invoiceId: string,
+    userId: string,
+  ): Promise<number> {
+    const { rowCount } = await client.query(
+      `UPDATE ap_payments p
+       SET is_deleted = true,
+           deleted_at = now(),
+           updated_by = $2
+       FROM ap_payment_invoice_lines l
+       WHERE l.ap_payment_id = p.id
+         AND l.purchase_invoice_id = $1
+         AND p.status = 'DRAFT'
+         AND p.deleted_at IS NULL`,
+      [invoiceId, userId],
+    )
+    return rowCount ?? 0
   }
 
   // ── Number generation (mirror GR pattern) ──────────────────
@@ -200,6 +270,7 @@ export class ApPaymentsRepository {
          l.*,
          pi.invoice_number,
          pi.invoice_date,
+         pi.status                AS invoice_status,
          pi.total_amount          AS invoice_total_amount,
          s.supplier_name,
          -- Outstanding: total_amount minus semua PAID/RECONCILED payments
@@ -232,7 +303,7 @@ export class ApPaymentsRepository {
   ): Promise<ApOutstandingInvoice[]> {
     const conditions: string[] = [
       `pi.company_id = $1`,
-      `pi.status = 'POSTED'`,
+      `pi.status IN ('APPROVED', 'POSTED')`,
       `pi.deleted_at IS NULL`,
     ]
     const params: unknown[] = [companyId]
@@ -260,9 +331,13 @@ export class ApPaymentsRepository {
          pi.branch_id,
          b.branch_name,
          pi.total_amount,
+         pi.status                                            AS invoice_status,
+         (pi.status = 'POSTED')                               AS can_pay,
          COALESCE(paid.total_paid, 0)                         AS total_paid,
          (pi.total_amount - COALESCE(paid.total_paid, 0))     AS outstanding,
-         (pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE) AS is_overdue
+         (pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE) AS is_overdue,
+         active_ap.id                                         AS ap_payment_id,
+         active_ap.payment_number                             AS ap_payment_number
        FROM purchase_invoices pi
        JOIN suppliers s ON s.id = pi.supplier_id
        JOIN branches  b ON b.id = pi.branch_id
@@ -274,10 +349,71 @@ export class ApPaymentsRepository {
            AND p.deleted_at IS NULL
          GROUP BY l.purchase_invoice_id
        ) paid ON paid.purchase_invoice_id = pi.id
+       LEFT JOIN LATERAL (
+         SELECT p.id, p.payment_number
+         FROM ap_payment_invoice_lines l
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         WHERE l.purchase_invoice_id = pi.id
+           AND p.deleted_at IS NULL
+           AND p.status NOT IN ('REJECTED')
+         ORDER BY p.created_at DESC
+         LIMIT 1
+       ) active_ap ON true
        WHERE ${where}
          AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0
          ${overdueOnly ? 'AND pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE' : ''}
-       ORDER BY pi.due_date ASC NULLS LAST, pi.invoice_date ASC`,
+       ORDER BY pi.status ASC, pi.due_date ASC NULLS LAST, pi.invoice_date ASC`,
+      params,
+    )
+    return rows
+  }
+
+  async findDashboardInvoiceRows(
+    companyId: string,
+    branchId?: string,
+  ): Promise<ApDashboardInvoiceRow[]> {
+    const conditions: string[] = [
+      'pi.company_id = $1',
+      "pi.status IN ('APPROVED', 'POSTED')",
+      'pi.deleted_at IS NULL',
+    ]
+    const params: unknown[] = [companyId]
+    let idx = 2
+
+    if (branchId) {
+      conditions.push(`pi.branch_id = $${idx++}`)
+      params.push(branchId)
+    }
+
+    const where = conditions.join(' AND ')
+
+    const { rows } = await pool.query<ApDashboardInvoiceRow>(
+      `SELECT
+         pi.id,
+         pi.invoice_number,
+         pi.supplier_id,
+         s.supplier_name,
+         s.supplier_code,
+         pi.branch_id,
+         b.branch_name,
+         pi.status AS invoice_status,
+         pi.due_date,
+         (pi.total_amount - COALESCE(paid.total_paid, 0))::float AS outstanding,
+         (pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE) AS is_overdue
+       FROM purchase_invoices pi
+       JOIN suppliers s ON s.id = pi.supplier_id
+       JOIN branches b ON b.id = pi.branch_id
+       LEFT JOIN (
+         SELECT l.purchase_invoice_id, SUM(l.amount_paid) AS total_paid
+         FROM ap_payment_invoice_lines l
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         WHERE p.status IN ('PAID', 'RECONCILED')
+           AND p.deleted_at IS NULL
+         GROUP BY l.purchase_invoice_id
+       ) paid ON paid.purchase_invoice_id = pi.id
+       WHERE ${where}
+         AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0.01
+       ORDER BY s.supplier_name, pi.due_date ASC NULLS LAST`,
       params,
     )
     return rows

@@ -1,6 +1,7 @@
 import type { ApPaymentMethod, ApPaymentStatus } from './api/apPayments.api'
 
 export const AP_PAYMENTS_LIST_PATH = '/finance/ap-payments'
+export const AP_DASHBOARD_PATH = '/finance/ap-payments/dashboard'
 
 export const AP_STATUS_CONFIG: Record<
   ApPaymentStatus,

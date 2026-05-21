@@ -36,6 +36,18 @@ export class ApPaymentsController {
     }
   }
 
+  // GET /ap-payments/dashboard
+  async dashboard(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const branchId = (req.query as { branch_id?: string }).branch_id
+      const data = await apPaymentsService.getDashboard(companyId, branchId)
+      sendSuccess(res, data, 'AP dashboard retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_ap_dashboard' })
+    }
+  }
+
   // GET /ap-payments/outstanding-invoices
   async outstandingInvoices(req: Request, res: Response): Promise<void> {
     try {

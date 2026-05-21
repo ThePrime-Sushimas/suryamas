@@ -76,6 +76,13 @@ export const listApPaymentsSchema = z.object({
   }),
 })
 
+// ── Dashboard ─────────────────────────────────────────────────
+export const apDashboardSchema = z.object({
+  query: z.object({
+    branch_id: z.string().uuid().optional(),
+  }),
+})
+
 // ── Outstanding invoices filter ───────────────────────────────
 export const outstandingInvoicesSchema = z.object({
   query: z.object({

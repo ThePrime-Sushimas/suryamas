@@ -82,9 +82,9 @@ export interface ApPaymentWithRelations extends ApPaymentDB {
 export interface ApPaymentInvoiceLine extends ApPaymentInvoiceLineDB {
   invoice_number: string
   invoice_date: string
+  invoice_status: string
   invoice_total_amount: string
   supplier_name: string
-  // Computed outstanding sebelum payment ini
   invoice_outstanding: string
 }
 
@@ -93,6 +93,8 @@ export interface ApPaymentDetail extends ApPaymentWithRelations {
 }
 
 // ── Outstanding invoice (untuk selector saat buat payment) ───
+export type PurchaseInvoicePayableStatus = 'APPROVED' | 'POSTED'
+
 export interface ApOutstandingInvoice {
   id: string
   invoice_number: string
@@ -103,8 +105,70 @@ export interface ApOutstandingInvoice {
   branch_id: string
   branch_name: string
   total_amount: string
-  total_paid: string           // SUM dari PAID+RECONCILED payments
-  outstanding: string          // total_amount - total_paid
+  total_paid: string
+  outstanding: string
+  is_overdue: boolean
+  invoice_status: PurchaseInvoicePayableStatus
+  can_pay: boolean
+  ap_payment_id: string | null
+  ap_payment_number: string | null
+}
+
+// ── Dashboard (Sprint 1) ────────────────────────────────────
+export type ApAgingBucketKey =
+  | 'current'
+  | 'days_1_30'
+  | 'days_31_60'
+  | 'days_61_90'
+  | 'days_90_plus'
+
+export interface ApDashboardAgingBucket {
+  bucket: ApAgingBucketKey
+  label: string
+  amount: number
+  invoice_count: number
+}
+
+export interface ApDashboardSupplierRow {
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string | null
+  pending_post_amount: number
+  pending_post_count: number
+  ready_to_pay_amount: number
+  ready_to_pay_count: number
+  total_outstanding: number
+  overdue_amount: number
+  aging: ApDashboardAgingBucket[]
+}
+
+export interface ApDashboardSummary {
+  pending_post_amount: number
+  pending_post_count: number
+  ready_to_pay_amount: number
+  ready_to_pay_count: number
+  total_outstanding: number
+  overdue_amount: number
+  supplier_count: number
+}
+
+export interface ApDashboardResponse {
+  summary: ApDashboardSummary
+  aging_totals: ApDashboardAgingBucket[]
+  suppliers: ApDashboardSupplierRow[]
+}
+
+export interface ApDashboardInvoiceRow {
+  id: string
+  invoice_number: string
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string | null
+  branch_id: string
+  branch_name: string
+  invoice_status: PurchaseInvoicePayableStatus
+  due_date: string | null
+  outstanding: number
   is_overdue: boolean
 }
 

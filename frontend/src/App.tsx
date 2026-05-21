@@ -511,6 +511,7 @@ const PurchaseInvoiceFormPage = lazy(() => import("./features/purchase-invoices/
 const PurchaseInvoiceDetailPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceDetailPage"))
 
 // AP Payments
+const ApDashboardPage = lazy(() => import('./features/ap-payments/pages/ApDashboardPage'))
 const ApPaymentsPage = lazy(() => import('./features/ap-payments/pages/ApPaymentsPage'))
 const ApPaymentFormPage = lazy(() => import('./features/ap-payments/pages/ApPaymentFormPage'))
 const ApPaymentDetailPage = lazy(() => import('./features/ap-payments/pages/ApPaymentDetailPage'))
@@ -1685,6 +1686,16 @@ function App() {
                     }
                   />
 
+                  <Route
+                    path="finance/ap-payments/dashboard"
+                    element={
+                      <RequirePermission module="ap_payments">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ApDashboardPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
                   <Route
                     path="finance/ap-payments"
                     element={

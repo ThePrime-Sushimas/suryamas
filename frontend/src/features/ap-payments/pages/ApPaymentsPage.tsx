@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
-import { Wallet, Search, Plus, X } from 'lucide-react'
+import { Wallet, Search, Plus, X, LayoutDashboard } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -12,6 +12,7 @@ import { useBranches } from '@/features/branches/api/branches.api'
 import {
   AP_LIST_TABS,
   AP_PAYMENTS_LIST_PATH,
+  AP_DASHBOARD_PATH,
   AP_PAYMENT_METHOD_LABELS,
   AP_STATUS_CONFIG,
 } from '../constants'
@@ -90,15 +91,24 @@ export default function ApPaymentsPage() {
               </p>
             </div>
           </div>
-          {canInsert && (
+          <div className="flex flex-wrap gap-2 shrink-0">
             <Link
-              to={`${AP_PAYMENTS_LIST_PATH}/new`}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+              to={AP_DASHBOARD_PATH}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              Buat Pembayaran
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
             </Link>
-          )}
+            {canInsert && (
+              <Link
+                to={`${AP_PAYMENTS_LIST_PATH}/new`}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Buat Pembayaran
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
@@ -275,14 +285,11 @@ export default function ApPaymentsPage() {
       {pagination && pagination.total > 0 && (
         <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
           <Pagination
-            page={pagination.page}
-            limit={pagination.limit}
-            total={pagination.total}
-            totalPages={pagination.totalPages}
-            hasNext={pagination.hasNext}
-            hasPrev={pagination.hasPrev}
+            pagination={pagination}
             onPageChange={setPage}
             onLimitChange={setLimit}
+            currentLength={payments.length}
+            loading={isLoading}
           />
         </div>
       )}

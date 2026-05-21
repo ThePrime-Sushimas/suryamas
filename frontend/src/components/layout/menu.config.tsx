@@ -460,7 +460,7 @@ export const menuItems: MenuItem[] = [
       {
         id: "ap-payments",
         name: "AP Payments",
-        href: "/finance/ap-payments",
+        href: "/finance/ap-payments/dashboard",
         icon: <Wallet size={16} />,
         module: "ap_payments",
       },
