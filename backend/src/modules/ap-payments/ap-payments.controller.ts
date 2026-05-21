@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
+import { storageService } from '../../services/storage.service'
 import { apPaymentsService } from './ap-payments.service'
 import type { ApPaymentListFilter } from './ap-payments.types'
 
@@ -143,13 +144,48 @@ export class ApPaymentsController {
     }
   }
 
-  // POST /ap-payments/:id/proof
+  // POST /ap-payments/:id/proof — multipart field `proof` → R2 buktisetoran
   async uploadProof(req: Request, res: Response): Promise<void> {
     try {
       const companyId = req.context?.company_id ?? ''
       const userId    = req.user?.id             ?? ''
       const id = req.params.id as string
-      const payment   = await apPaymentsService.uploadProof(id, req.body, companyId, userId)
+
+      const file = req.file
+      if (!file) {
+        res.status(400).json({
+          success: false,
+          message:
+            'File tidak diterima. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+        })
+        return
+      }
+
+      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
+      const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        res.status(400).json({
+          success: false,
+          message: `Tipe file .${ext} tidak didukung. Gunakan: ${ALLOWED_EXTENSIONS.join(', ')}`,
+        })
+        return
+      }
+
+      const fileName = `${id}-${Date.now()}.${ext}`
+      const uploaded = await storageService.uploadApPaymentProof(
+        file.buffer,
+        fileName,
+        file.mimetype,
+        companyId,
+        'buktisetoran',
+      )
+
+      const payment = await apPaymentsService.uploadProof(
+        id,
+        { proof_url: uploaded.path },
+        companyId,
+        userId,
+      )
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'upload proof ap payment', id: req.params.id })

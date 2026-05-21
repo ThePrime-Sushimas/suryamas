@@ -355,8 +355,12 @@ export const useRejectApPayment = () => {
 export const useUploadApPaymentProof = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, proof_url }: { id: string; proof_url: string }) => {
-      const { data } = await api.post(`/ap-payments/${id}/proof`, { proof_url })
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const formData = new FormData()
+      formData.append('proof', file)
+      const { data } = await api.post(`/ap-payments/${id}/proof`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       return normalizeApPayment(data.data as ApPayment)
     },
     onSuccess: (_d, v) => {

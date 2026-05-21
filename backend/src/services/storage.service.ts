@@ -54,6 +54,24 @@ export interface UploadResult {
 
 export const storageService = {
   /**
+   * AP payment transfer proof — bucket buktisetoran, tenant-scoped path for signed-url.
+   * Path: {companyId}/ap-payments/{year}/{month}/{fileName}
+   */
+  async uploadApPaymentProof(
+    file: Buffer,
+    fileName: string,
+    contentType: string,
+    companyId: string,
+    bucket = DEFAULT_BUCKET,
+  ): Promise<UploadResult> {
+    const now = new Date()
+    const path = `${companyId}/ap-payments/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
+    await this.uploadToPath(file, path, contentType, bucket)
+    const publicUrl = getPublicBaseUrl(bucket) ? `${getPublicBaseUrl(bucket)}/${path}` : path
+    return { path, publicUrl }
+  },
+
+  /**
    * Upload file with auto-generated path (deposits/{year}/{month}/{fileName})
    */
   async upload(file: Buffer, fileName: string, contentType: string, bucket?: string): Promise<UploadResult> {

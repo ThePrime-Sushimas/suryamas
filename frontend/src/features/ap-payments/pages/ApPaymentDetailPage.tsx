@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import api from '@/lib/axios'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
 import {
@@ -7,7 +8,7 @@ import {
   CheckCircle2,
   XCircle,
   Banknote,
-  Link2,
+  Upload,
   Pencil,
   Trash2,
   ExternalLink,
@@ -88,6 +89,31 @@ export default function ApPaymentDetailPage() {
   const [showPayConfirm, setShowPayConfirm] = useState(false)
   const [bankStatementId, setBankStatementId] = useState('')
   const [showReconcile, setShowReconcile] = useState(false)
+  const [proofViewUrl, setProofViewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!payment?.proof_url) {
+      setProofViewUrl(null)
+      return
+    }
+    const raw = payment.proof_url
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      setProofViewUrl(raw)
+      return
+    }
+    let cancelled = false
+    api
+      .get('/storage/signed-url', { params: { path: raw, bucket: 'buktisetoran' } })
+      .then((res) => {
+        if (!cancelled) setProofViewUrl(res.data?.data?.url ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setProofViewUrl(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [payment?.proof_url])
 
   if (isLoading || !payment) {
     return (
@@ -138,10 +164,10 @@ export default function ApPaymentDetailPage() {
     }
   }
 
-  const handleProof = async (proofUrl: string) => {
+  const handleProof = async (file: File) => {
     if (!id) return
     try {
-      await uploadProof.mutateAsync({ id, proof_url: proofUrl })
+      await uploadProof.mutateAsync({ id, file })
       toast.success('Bukti bayar disimpan')
     } catch (err: unknown) {
       toast.error(parseApiError(err, 'Gagal upload bukti'))
@@ -267,15 +293,28 @@ export default function ApPaymentDetailPage() {
           {payment.proof_url && (
             <div className="sm:col-span-2">
               <p className="text-xs text-gray-500 mb-1">Bukti bayar</p>
-              <a
-                href={payment.proof_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Lihat bukti
-              </a>
+              {proofViewUrl ? (
+                <div className="space-y-2">
+                  {/\.(jpe?g|png|webp|heic|heif)(\?|$)/i.test(proofViewUrl) && (
+                    <img
+                      src={proofViewUrl}
+                      alt="Bukti bayar"
+                      className="max-h-40 rounded-2xl border border-gray-200 dark:border-gray-600 object-cover"
+                    />
+                  )}
+                  <a
+                    href={proofViewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Lihat bukti
+                  </a>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">Memuat bukti…</p>
+              )}
             </div>
           )}
         </section>
@@ -384,7 +423,7 @@ export default function ApPaymentDetailPage() {
               onClick={() => setShowProof(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 text-sm font-medium"
             >
-              <Link2 className="w-4 h-4" />
+              <Upload className="w-4 h-4" />
               {payment.proof_url ? 'Update bukti' : 'Upload bukti'}
             </button>
           )}

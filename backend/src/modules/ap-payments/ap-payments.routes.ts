@@ -10,6 +10,7 @@ import {
   canDelete,
 } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
+import { documentUploadSingle } from '../../middleware/upload-document.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { apPaymentsController } from './ap-payments.controller'
 import {
@@ -111,6 +112,7 @@ router.post(
   canUpdate(MODULE),
   requireWriteAccess,
   validateSchema(uploadProofSchema),
+  documentUploadSingle('proof'),
   (req, res) => apPaymentsController.uploadProof(req, res),
 )
 

@@ -45,12 +45,9 @@ export const rejectApPaymentSchema = z.object({
   }),
 })
 
-// ── Upload proof ──────────────────────────────────────────────
+// ── Upload proof (multipart file; params only) ────────────────
 export const uploadProofSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
-  body: z.object({
-    proof_url: z.string().url(),
-  }),
 })
 
 // ── Reconcile ─────────────────────────────────────────────────
