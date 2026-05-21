@@ -3,6 +3,7 @@ import { X, ArrowRight, Building2, Landmark } from 'lucide-react'
 import type { ApDueDatePivotRow, ApPivotLocationGrouping } from '../api/apPayments.api'
 import { AP_PAYMENTS_LIST_PATH } from '../constants'
 import { formatDayTitle } from '../utils/apCalendar.utils'
+import { apTheme } from '../ap-payments.theme'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -22,18 +23,8 @@ interface ApPaymentDayDetailDrawerProps {
 }
 
 function StatusBadge({ status }: { status: ApDueDatePivotRow['invoice_status'] }) {
-  if (status === 'POSTED') {
-    return (
-      <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-        Siap bayar
-      </span>
-    )
-  }
-  return (
-    <span className="text-xs font-medium px-2 py-0.5 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-      Menunggu post
-    </span>
-  )
+  if (status === 'POSTED') return <span className={apTheme.badgeReady}>Siap bayar</span>
+  return <span className={apTheme.badgePending}>Menunggu post</span>
 }
 
 export function ApPaymentDayDetailDrawer({
@@ -51,14 +42,14 @@ export function ApPaymentDayDetailDrawer({
     <div className="fixed inset-0 z-50 flex justify-end">
       <button
         type="button"
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className={apTheme.drawerOverlay}
         aria-label="Tutup"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-lg h-full bg-white dark:bg-gray-800 shadow-xl flex flex-col">
-        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between gap-3">
+      <div className={apTheme.drawerPanel}>
+        <div className={`px-5 py-4 border-b ${apTheme.divideBorder} flex items-start justify-between gap-3`}>
           <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+            <h2 className={apTheme.titleSm}>
               {formatDayTitle(dateKey)}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
@@ -68,13 +59,13 @@ export function ApPaymentDayDetailDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0"
+            className={`${apTheme.btnGhost} shrink-0`}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+        <div className={`flex-1 overflow-y-auto divide-y ${apTheme.divide}`}>
           {rows.length === 0 ? (
             <p className="p-6 text-sm text-gray-500 text-center">Tidak ada pembayaran di hari ini.</p>
           ) : (
@@ -143,7 +134,7 @@ export function ApPaymentDayDetailDrawer({
                     )}
                   </div>
 
-                  <div className="rounded-2xl bg-gray-50 dark:bg-gray-900/50 p-3 space-y-2 text-xs">
+                  <div className={`rounded-2xl p-3 space-y-2 text-xs ${apTheme.cardInner}`}>
                     <div className="flex gap-2">
                       <span className="text-gray-500 shrink-0 w-12">Dari</span>
                       <span className="text-gray-800 dark:text-gray-200 flex items-start gap-1">
@@ -177,7 +168,7 @@ export function ApPaymentDayDetailDrawer({
                   {row.ap_payment_id && (
                     <Link
                       to={`${AP_PAYMENTS_LIST_PATH}/${row.ap_payment_id}`}
-                      className="inline-flex text-sm font-medium text-blue-600 hover:underline"
+                      className="inline-flex text-sm font-medium text-rose-600 dark:text-pink-300 hover:underline"
                       onClick={onClose}
                     >
                       Buka contoh AP: {row.ap_payment_number ?? 'pembayaran'}

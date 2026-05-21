@@ -19,6 +19,8 @@ import {
 import { isApListTabActive } from '../utils/apPaymentFilters.url'
 import { useApPayments, useDeleteApPayment, type ApPayment } from '../api/apPayments.api'
 import { useApPaymentFilters } from '../hooks/useApPaymentFilters'
+import { ApPaymentsShell } from '../components/ApPaymentsShell'
+import { apTheme } from '../ap-payments.theme'
 import type { ApPaymentStatus } from '../api/apPayments.api'
 
 const fmtCurrency = (v: number) =>
@@ -77,16 +79,18 @@ export default function ApPaymentsPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+    <ApPaymentsShell fullHeight className="flex flex-col">
+      <div className={`${apTheme.header} px-4 sm:px-6 py-4`}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Wallet className="w-6 h-6 text-blue-600 shrink-0" />
+            <div className={apTheme.headerIcon}>
+              <Wallet className="w-6 h-6 shrink-0" />
+            </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">
+              <h1 className={`text-lg sm:text-xl font-bold truncate ${apTheme.title}`}>
                 AP Payments
               </h1>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+              <p className={`text-xs sm:text-sm ${apTheme.subtitle}`}>
                 Pembayaran hutang dagang · {pagination?.total ?? 0} dokumen
               </p>
             </div>
@@ -94,7 +98,7 @@ export default function ApPaymentsPage() {
           <div className="flex flex-wrap gap-2 shrink-0">
             <Link
               to={AP_DASHBOARD_PATH}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className={apTheme.btnSecondary}
             >
               <LayoutDashboard className="w-4 h-4" />
               Dashboard
@@ -102,7 +106,7 @@ export default function ApPaymentsPage() {
             {canInsert && (
               <Link
                 to={`${AP_PAYMENTS_LIST_PATH}/new`}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+                className={apTheme.btnPrimary}
               >
                 <Plus className="w-4 h-4" />
                 Buat Pembayaran
@@ -112,7 +116,7 @@ export default function ApPaymentsPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6">
+      <div className={`${apTheme.header} px-4 sm:px-6`}>
         <div className="flex gap-1 overflow-x-auto py-2">
           {AP_LIST_TABS.map((tab) => (
             <button
@@ -121,8 +125,8 @@ export default function ApPaymentsPage() {
               onClick={() => setFilters({ tab: tab.id, status: '' })}
               className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
                 isApListTabActive(tab.id, filters)
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'bg-gradient-to-r from-rose-400 to-pink-500 text-white shadow-sm'
+                  : 'text-rose-600/80 dark:text-rose-300/70 hover:bg-rose-100/60 dark:hover:bg-rose-900/30'
               }`}
             >
               {tab.label}
@@ -131,7 +135,7 @@ export default function ApPaymentsPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3">
+      <div className={`${apTheme.header} px-4 sm:px-6 py-3`}>
         <div className="flex flex-col lg:flex-row gap-2">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -140,7 +144,7 @@ export default function ApPaymentsPage() {
               placeholder="Cari nomor pembayaran..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-9 pr-9 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white"
+              className={apTheme.inputSearch}
             />
             {searchInput && (
               <button
@@ -157,7 +161,7 @@ export default function ApPaymentsPage() {
             onChange={(e) =>
               setFilters({ status: (e.target.value || '') as ApPaymentStatus | '' })
             }
-            className="px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white"
+            className={apTheme.select}
           >
             <option value="">Semua status</option>
             {(Object.keys(AP_STATUS_CONFIG) as ApPaymentStatus[]).map((s) => (
@@ -169,7 +173,7 @@ export default function ApPaymentsPage() {
           <select
             value={filters.supplierId}
             onChange={(e) => setFilters({ supplierId: e.target.value })}
-            className="px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white min-w-[160px]"
+            className={`${apTheme.select} min-w-[160px]`}
           >
             <option value="">Semua supplier</option>
             {(suppliersData?.data ?? []).map((s) => (
@@ -181,7 +185,7 @@ export default function ApPaymentsPage() {
           <select
             value={filters.branchId}
             onChange={(e) => setFilters({ branchId: e.target.value })}
-            className="px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white min-w-[140px]"
+            className={`${apTheme.select} min-w-[140px]`}
           >
             <option value="">Semua cabang</option>
             {(branchesData?.data ?? []).map((b) => (
@@ -199,18 +203,18 @@ export default function ApPaymentsPage() {
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-20 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 animate-pulse"
+                className={apTheme.skeleton}
               />
             ))}
           </div>
         ) : payments.length === 0 ? (
-          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
-            <Wallet className="mx-auto w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">Belum ada pembayaran AP</p>
+          <div className={`text-center py-16 ${apTheme.card} p-8`}>
+            <Wallet className="mx-auto w-12 h-12 text-rose-300 dark:text-rose-700 mb-4" />
+            <p className={apTheme.muted}>Belum ada pembayaran AP</p>
             {canInsert && (
               <Link
                 to={`${AP_PAYMENTS_LIST_PATH}/new`}
-                className="inline-block mt-4 text-blue-600 hover:underline text-sm font-medium"
+                className="inline-block mt-4 text-rose-600 dark:text-pink-300 hover:underline text-sm font-medium"
               >
                 Buat pembayaran pertama
               </Link>
@@ -225,7 +229,7 @@ export default function ApPaymentsPage() {
                   key={p.id}
                   type="button"
                   onClick={() => openDetail(`${AP_PAYMENTS_LIST_PATH}/${p.id}`)}
-                  className="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all"
+                  className={apTheme.listCard}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="min-w-0 space-y-1">
@@ -283,7 +287,7 @@ export default function ApPaymentsPage() {
       </div>
 
       {pagination && pagination.total > 0 && (
-        <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
+        <div className={`border-t ${apTheme.divideBorder} bg-white/85 dark:bg-rose-950/50 backdrop-blur-md px-4 py-3`}>
           <Pagination
             pagination={pagination}
             onPageChange={setPage}
@@ -304,6 +308,6 @@ export default function ApPaymentsPage() {
         variant="danger"
         isLoading={deletePayment.isPending}
       />
-    </div>
+    </ApPaymentsShell>
   )
 }

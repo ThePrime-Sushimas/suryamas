@@ -29,6 +29,8 @@ import { exportApDashboardExcel } from '../utils/apDashboardExport'
 import { getMondayOfWeek, summarizeDay } from '../utils/apCalendar.utils'
 import type { CalendarWeekSpan } from '../utils/apCalendar.utils'
 import { AP_PAYMENTS_LIST_PATH } from '../constants'
+import { ApPaymentsShell } from '../components/ApPaymentsShell'
+import { apTheme } from '../ap-payments.theme'
 
 type DashboardView = 'calendar' | 'planning' | 'suppliers'
 
@@ -52,20 +54,20 @@ function MetricCard({
 }) {
   const toneCls =
     tone === 'warn'
-      ? 'border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20'
+      ? apTheme.metricWarn
       : tone === 'ok'
-        ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-900/20'
+        ? apTheme.metricOk
         : tone === 'muted'
-          ? 'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50'
-          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+          ? apTheme.metricMuted
+          : apTheme.metricDefault
 
   return (
-    <div className={`rounded-2xl border p-5 shadow-sm ${toneCls}`}>
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+    <div className={`rounded-2xl border p-5 ${toneCls}`}>
+      <p className={`text-xs font-medium uppercase tracking-wide ${apTheme.label}`}>
         {label}
       </p>
-      <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white tabular-nums">{value}</p>
-      {sub && <p className="mt-1 text-xs text-gray-500">{sub}</p>}
+      <p className="mt-2 text-2xl font-bold text-rose-950 dark:text-rose-50 tabular-nums">{value}</p>
+      {sub && <p className={`mt-1 text-xs ${apTheme.muted}`}>{sub}</p>}
     </div>
   )
 }
@@ -143,16 +145,16 @@ export default function ApDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-12">
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-5">
+    <ApPaymentsShell>
+      <div className={`${apTheme.header} px-4 sm:px-6 py-5`}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600">
+            <div className={apTheme.headerIcon}>
               <Wallet className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">AP Dashboard</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className={apTheme.title}>AP Dashboard</h1>
+              <p className={apTheme.subtitle}>
                 Outstanding hutang per supplier
                 {branch?.branch_name ? ` · ${branch.branch_name}` : ''}
               </p>
@@ -163,14 +165,14 @@ export default function ApDashboardPage() {
               type="button"
               onClick={handleExport}
               disabled={!data || isLoading || dueDatePivot.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              className={apTheme.btnSecondary}
             >
               <Download className="w-4 h-4" />
               Export Excel
             </button>
             <Link
               to={AP_PAYMENTS_LIST_PATH}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className={apTheme.btnSecondary}
             >
               <List className="w-4 h-4" />
               Daftar pembayaran
@@ -178,7 +180,7 @@ export default function ApDashboardPage() {
             {canInsert && (
               <Link
                 to={`${AP_PAYMENTS_LIST_PATH}/new`}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+                className={apTheme.btnPrimary}
               >
                 <Plus className="w-4 h-4" />
                 Buat pembayaran
@@ -191,7 +193,7 @@ export default function ApDashboardPage() {
       <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-6">
         {isLoading && (
           <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <Loader2 className={`w-8 h-8 animate-spin ${apTheme.spinner}`} />
           </div>
         )}
 
@@ -228,28 +230,28 @@ export default function ApDashboardPage() {
               />
             </div>
 
-            <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
+            <section className={`${apTheme.card} p-5`}>
+              <h2 className={`${apTheme.sectionTitle} mb-4`}>
                 Aging (semua outstanding)
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {agingTotals.map((bucket) => (
                   <div
                     key={bucket.bucket}
-                    className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700"
+                    className={`p-4 rounded-2xl ${apTheme.cardInner}`}
                   >
-                    <p className="text-xs text-gray-500">{bucket.label}</p>
-                    <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white tabular-nums">
+                    <p className={apTheme.label}>{bucket.label}</p>
+                    <p className="mt-1 text-sm font-bold text-rose-950 dark:text-rose-50 tabular-nums">
                       {fmt(bucket.amount)}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{bucket.invoice_count} invoice</p>
+                    <p className={`text-xs mt-0.5 ${apTheme.muted}`}>{bucket.invoice_count} invoice</p>
                   </div>
                 ))}
               </div>
             </section>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex flex-wrap gap-2 p-1 rounded-2xl bg-gray-100 dark:bg-gray-800/80 w-fit">
+            <div className={apTheme.tabsWrap}>
               {(
                 [
                   { id: 'calendar' as const, label: 'Kalender', icon: CalendarDays },
@@ -261,11 +263,7 @@ export default function ApDashboardPage() {
                   key={id}
                   type="button"
                   onClick={() => setDashboardView(id)}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                    dashboardView === id
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
+                  className={dashboardView === id ? apTheme.tabActive : apTheme.tabInactive}
                 >
                   <Icon className="w-4 h-4" />
                   {label}
@@ -273,26 +271,22 @@ export default function ApDashboardPage() {
               ))}
             </div>
             {(dashboardView === 'calendar' || dashboardView === 'planning') && (
-              <div className="inline-flex rounded-2xl border border-gray-200 dark:border-gray-600 p-0.5">
+              <div className={apTheme.pillBorderWrap}>
                 <button
                   type="button"
                   onClick={() => setLocationGrouping('branch')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium ${
-                    locationGrouping === 'branch'
-                      ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                      : 'text-gray-600'
-                  }`}
+                  className={
+                    locationGrouping === 'branch' ? apTheme.pillActive : apTheme.pillInactive
+                  }
                 >
                   Per cabang
                 </button>
                 <button
                   type="button"
                   onClick={() => setLocationGrouping('entity')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium ${
-                    locationGrouping === 'entity'
-                      ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                      : 'text-gray-600'
-                  }`}
+                  className={
+                    locationGrouping === 'entity' ? apTheme.pillActive : apTheme.pillInactive
+                  }
                 >
                   Per rek (PT/CV)
                 </button>
@@ -314,7 +308,7 @@ export default function ApDashboardPage() {
             )}
 
             {dashboardView === 'calendar' && dueDatePivot.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-8">
+              <p className={`text-sm text-center py-8 ${apTheme.muted}`}>
                 Tidak ada jadwal pembayaran untuk ditampilkan di kalender.
               </p>
             )}
@@ -339,20 +333,20 @@ export default function ApDashboardPage() {
             )}
 
             {dashboardView === 'suppliers' && (
-            <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+            <section className={apTheme.cardOverflow}>
+              <div className={`px-5 py-4 border-b ${apTheme.divideBorder} flex items-center justify-between`}>
+                <h2 className={apTheme.sectionTitle}>
                   Per supplier
                 </h2>
-                <span className="text-xs text-gray-500">{suppliers.length} supplier</span>
+                <span className={`text-xs ${apTheme.muted}`}>{suppliers.length} supplier</span>
               </div>
 
               {suppliers.length === 0 ? (
-                <p className="px-5 py-12 text-center text-sm text-gray-500">
+                <p className={`px-5 py-12 text-center text-sm ${apTheme.muted}`}>
                   Tidak ada hutang outstanding saat ini.
                 </p>
               ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                <div className={`divide-y ${apTheme.divide}`}>
                   {suppliers.map((s) => {
                     const open = expandedSupplier === s.supplier_id
                     return (
@@ -362,10 +356,10 @@ export default function ApDashboardPage() {
                           onClick={() =>
                             setExpandedSupplier(open ? null : s.supplier_id)
                           }
-                          className="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors text-left"
+                          className={`w-full px-5 py-4 flex items-center gap-4 text-left ${apTheme.hoverRow}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                            <p className="font-semibold text-rose-950 dark:text-rose-50 truncate">
                               {s.supplier_name}
                               {s.supplier_code && (
                                 <span className="ml-2 text-xs font-normal text-gray-400">
@@ -373,12 +367,12 @@ export default function ApDashboardPage() {
                                 </span>
                               )}
                             </p>
-                            <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
+                            <div className={`mt-1 flex flex-wrap gap-3 text-xs ${apTheme.muted}`}>
                               <span className="inline-flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
                                 Menunggu post: {fmt(s.pending_post_amount)} ({s.pending_post_count})
                               </span>
-                              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                              <span className="inline-flex items-center gap-1 text-pink-600 dark:text-pink-300">
                                 <CheckCircle2 className="w-3 h-3" />
                                 Siap bayar: {fmt(s.ready_to_pay_amount)} ({s.ready_to_pay_count})
                               </span>
@@ -391,7 +385,7 @@ export default function ApDashboardPage() {
                             </div>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-sm font-bold text-gray-900 dark:text-white tabular-nums">
+                            <p className="text-sm font-bold text-rose-950 dark:text-rose-50 tabular-nums">
                               {fmt(s.total_outstanding)}
                             </p>
                             {open ? (
@@ -406,10 +400,10 @@ export default function ApDashboardPage() {
                             {s.aging.map((b) => (
                               <div
                                 key={b.bucket}
-                                className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-900/50 text-xs"
+                                className={`px-3 py-2 rounded-xl ${apTheme.cardInner} text-xs`}
                               >
-                                <p className="text-gray-500">{b.label}</p>
-                                <p className="font-medium text-gray-800 dark:text-gray-200">
+                                <p className={apTheme.muted}>{b.label}</p>
+                                <p className="font-medium text-rose-900 dark:text-rose-100">
                                   {fmt(b.amount)}
                                 </p>
                               </div>
@@ -434,13 +428,13 @@ export default function ApDashboardPage() {
               onClose={() => setSelectedDayKey(null)}
             />
 
-            <p className="text-xs text-gray-500 text-center">
+            <p className={`text-xs text-center ${apTheme.muted}`}>
               PI <strong>APPROVED</strong> → draft AP otomatis. Pembayaran (PAID) hanya setelah PI{' '}
               <strong>POSTED</strong> (jurnal hutang terbentuk).
             </p>
           </>
         )}
       </div>
-    </div>
+    </ApPaymentsShell>
   )
 }

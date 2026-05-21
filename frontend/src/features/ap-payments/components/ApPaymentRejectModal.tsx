@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
+import { apTheme } from '../ap-payments.theme'
 
 interface Props {
   isOpen: boolean
@@ -27,11 +28,11 @@ export function ApPaymentRejectModal({ isOpen, onClose, onSubmit, isLoading }: P
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      className={apTheme.modalOverlay}
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md border border-gray-200 dark:border-gray-700"
+        className={`${apTheme.modal} max-w-md`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
@@ -48,7 +49,7 @@ export function ApPaymentRejectModal({ isOpen, onClose, onSubmit, isLoading }: P
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={4}
-            className="w-full px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm resize-none"
+            className={`${apTheme.input} resize-none`}
             placeholder="Jelaskan alasan penolakan..."
           />
         </div>
@@ -56,7 +57,7 @@ export function ApPaymentRejectModal({ isOpen, onClose, onSubmit, isLoading }: P
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-2xl text-sm border border-gray-200 dark:border-gray-600"
+            className={apTheme.btnSecondary}
           >
             Batal
           </button>
@@ -64,7 +65,7 @@ export function ApPaymentRejectModal({ isOpen, onClose, onSubmit, isLoading }: P
             type="button"
             disabled={!reason.trim() || isLoading}
             onClick={() => void handleSubmit()}
-            className="px-4 py-2.5 rounded-2xl text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+            className="px-4 py-2.5 rounded-2xl text-sm font-medium bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 inline-flex items-center gap-2 shadow-sm"
           >
             {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
             Tolak

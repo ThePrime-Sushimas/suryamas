@@ -35,6 +35,8 @@ import {
 } from '../constants'
 import { ApPaymentProofModal } from '../components/ApPaymentProofModal'
 import { ApPaymentRejectModal } from '../components/ApPaymentRejectModal'
+import { ApPaymentsShell } from '../components/ApPaymentsShell'
+import { apTheme } from '../ap-payments.theme'
 
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -117,13 +119,13 @@ export default function ApPaymentDetailPage() {
 
   if (isLoading || !payment) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <ApPaymentsShell className="min-h-screen flex items-center justify-center">
         {isLoading ? (
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <Loader2 className={`w-8 h-8 animate-spin ${apTheme.spinner}`} />
         ) : (
           <p className="text-gray-500">Pembayaran tidak ditemukan</p>
         )}
-      </div>
+      </ApPaymentsShell>
     )
   }
 
@@ -215,14 +217,14 @@ export default function ApPaymentDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-12">
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 sticky top-0 z-10">
+    <ApPaymentsShell>
+      <div className={`${apTheme.header} ${apTheme.headerSticky} px-4 sm:px-6 py-4`}>
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={backToList}
-              className="p-2 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0"
+              className={`${apTheme.btnGhost} shrink-0`}
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -252,7 +254,7 @@ export default function ApPaymentDetailPage() {
       </div>
 
       <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
-        <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <section className={`${apTheme.card} p-5 grid grid-cols-1 sm:grid-cols-2 gap-4`}>
           <div>
             <p className="text-xs text-gray-500">Total bayar</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -295,7 +297,9 @@ export default function ApPaymentDetailPage() {
               <p className="text-xs text-gray-500 mb-1">Bukti bayar</p>
               {proofViewUrl ? (
                 <div className="space-y-2">
-                  {/\.(jpe?g|png|webp|heic|heif)(\?|$)/i.test(proofViewUrl) && (
+                  {/\.(jpe?g|png|webp|heic|heif)$/i.test(
+                    (payment.proof_url ?? '').split('?')[0],
+                  ) && (
                     <img
                       src={proofViewUrl}
                       alt="Bukti bayar"
@@ -319,7 +323,7 @@ export default function ApPaymentDetailPage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+        <section className={apTheme.cardOverflow}>
           <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
               Invoice ({payment.lines?.length ?? 0})
@@ -350,7 +354,7 @@ export default function ApPaymentDetailPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+        <section className={`${apTheme.card} p-5`}>
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Timeline</h2>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
@@ -390,7 +394,7 @@ export default function ApPaymentDetailPage() {
               type="button"
               onClick={() => void handleSubmit()}
               disabled={submit.isPending}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 text-white text-sm font-medium"
+              className={apTheme.btnPrimary}
             >
               <Send className="w-4 h-4" />
               Ajukan approval
@@ -402,7 +406,7 @@ export default function ApPaymentDetailPage() {
                 type="button"
                 onClick={() => void handleApprove()}
                 disabled={approve.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 text-white text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-fuchsia-400 to-pink-500 text-white text-sm font-medium hover:from-fuchsia-500 hover:to-pink-600 shadow-sm"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Setujui
@@ -446,7 +450,7 @@ export default function ApPaymentDetailPage() {
                       ? 'Tunggu PI POSTED'
                       : undefined
                 }
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 text-white text-sm font-medium disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-medium hover:from-pink-600 hover:to-rose-600 shadow-sm disabled:opacity-50"
               >
                 <Banknote className="w-4 h-4" />
                 Tandai sudah dibayar
@@ -510,11 +514,11 @@ export default function ApPaymentDetailPage() {
 
       {showReconcile && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          className={apTheme.modalOverlay}
           onClick={() => setShowReconcile(false)}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-2xl p-5 w-full max-w-sm border border-gray-200 dark:border-gray-700"
+            className={`${apTheme.modal} max-w-sm p-5`}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
@@ -529,13 +533,13 @@ export default function ApPaymentDetailPage() {
               value={bankStatementId}
               onChange={(e) => setBankStatementId(e.target.value)}
               placeholder="Bank statement ID"
-              className="w-full px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 text-sm mb-4"
+              className={`${apTheme.input} mb-4`}
             />
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowReconcile(false)}
-                className="px-4 py-2 rounded-2xl text-sm border"
+                className={apTheme.btnSecondary}
               >
                 Batal
               </button>
@@ -543,7 +547,7 @@ export default function ApPaymentDetailPage() {
                 type="button"
                 onClick={() => void handleReconcile()}
                 disabled={reconcile.isPending || !bankStatementId.trim()}
-                className="px-4 py-2 rounded-2xl text-sm bg-green-600 text-white disabled:opacity-50"
+                className={apTheme.btnPrimary}
               >
                 Simpan
               </button>
@@ -551,6 +555,6 @@ export default function ApPaymentDetailPage() {
           </div>
         </div>
       )}
-    </div>
+    </ApPaymentsShell>
   )
 }

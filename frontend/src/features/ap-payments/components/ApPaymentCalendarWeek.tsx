@@ -11,6 +11,7 @@ import {
   type CalendarDayColumn,
   type CalendarDaySummary,
 } from '../utils/apCalendar.utils'
+import { apTheme } from '../ap-payments.theme'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -31,16 +32,10 @@ interface ApPaymentCalendarWeekProps {
 }
 
 function dayCellClass(col: { isToday: boolean; isPast: boolean }, hasOverdue: boolean): string {
-  if (hasOverdue) {
-    return 'border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-900/25'
-  }
-  if (col.isToday) {
-    return 'border-blue-400 dark:border-blue-600 bg-blue-50/90 dark:bg-blue-900/25 ring-1 ring-blue-200 dark:ring-blue-800'
-  }
-  if (col.isPast) {
-    return 'border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50'
-  }
-  return 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+  if (hasOverdue) return apTheme.calOverdue
+  if (col.isToday) return apTheme.calToday
+  if (col.isPast) return apTheme.calPast
+  return apTheme.calFuture
 }
 
 function DayCell({
@@ -66,12 +61,12 @@ function DayCell({
     >
       <div className="flex items-center justify-between gap-1 mb-1">
         <span
-          className={`text-xs font-semibold ${col.isToday ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500'}`}
+          className={`text-xs font-semibold ${col.isToday ? 'text-pink-700 dark:text-pink-300' : apTheme.muted}`}
         >
           {col.dayName}
         </span>
         <span
-          className={`text-base font-bold tabular-nums ${col.isToday ? 'text-blue-800 dark:text-blue-200' : 'text-gray-900 dark:text-white'}`}
+          className={`text-base font-bold tabular-nums ${col.isToday ? 'text-pink-800 dark:text-pink-200' : 'text-rose-950 dark:text-rose-50'}`}
         >
           {col.dayNum}
         </span>
@@ -148,15 +143,15 @@ export function ApPaymentCalendarWeek({
   const goToday = () => onWeekStartChange(getMondayOfWeek(new Date()))
 
   return (
-    <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+    <section className={apTheme.cardOverflow}>
+      <div className={`px-5 py-4 border-b ${apTheme.divideBorder} flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3`}>
         <div className="flex items-center gap-2">
-          <CalendarDays className="w-5 h-5 text-blue-600" />
+          <CalendarDays className="w-5 h-5 text-rose-500" />
           <div>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+            <h2 className={apTheme.sectionTitle}>
               Kalender pembayaran
             </h2>
-            <p className="text-xs text-gray-500">
+            <p className={`text-xs ${apTheme.muted}`}>
               {rangeLabel} · {weekSpan * 7} hari (baris {weekSpan}×7)
             </p>
           </div>
@@ -166,7 +161,7 @@ export function ApPaymentCalendarWeek({
           <select
             value={weekSpan}
             onChange={(e) => onWeekSpanChange(Number(e.target.value) as CalendarWeekSpan)}
-            className="text-xs rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2"
+            className={`text-xs rounded-xl px-3 py-2 ${apTheme.select}`}
           >
             <option value={1}>7 hari (1 minggu)</option>
             <option value={2}>14 hari (2 minggu)</option>
@@ -175,7 +170,7 @@ export function ApPaymentCalendarWeek({
           <button
             type="button"
             onClick={goPrev}
-            className="p-2 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className={apTheme.btnIcon}
             title="Periode sebelumnya"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -183,14 +178,14 @@ export function ApPaymentCalendarWeek({
           <button
             type="button"
             onClick={goToday}
-            className="px-3 py-2 rounded-xl text-xs font-medium border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className={`px-3 py-2 rounded-xl text-xs font-medium border border-rose-200 dark:border-rose-700 ${apTheme.hoverRow}`}
           >
             Minggu ini
           </button>
           <button
             type="button"
             onClick={goNext}
-            className="p-2 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className={apTheme.btnIcon}
             title="Periode berikutnya"
           >
             <ChevronRight className="w-4 h-4" />
@@ -237,7 +232,7 @@ export function ApPaymentCalendarWeek({
           <button
             type="button"
             onClick={onSelectNullDue}
-            className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/30 text-left"
+            className={`w-full flex items-center justify-between gap-3 p-4 text-left ${apTheme.cardInnerDashed}`}
           >
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">

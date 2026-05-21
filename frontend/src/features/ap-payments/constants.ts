@@ -9,15 +9,15 @@ export const AP_STATUS_CONFIG: Record<
 > = {
   DRAFT: {
     label: 'Draft',
-    color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    color: 'bg-rose-50 text-rose-600 dark:bg-rose-900/40 dark:text-rose-200',
   },
   PENDING_APPROVAL: {
     label: 'Menunggu Approval',
-    color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/35 dark:text-pink-200',
   },
   APPROVED: {
     label: 'Disetujui',
-    color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+    color: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/35 dark:text-fuchsia-200',
   },
   REJECTED: {
     label: 'Ditolak',
@@ -25,11 +25,11 @@ export const AP_STATUS_CONFIG: Record<
   },
   PAID: {
     label: 'Sudah Dibayar',
-    color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    color: 'bg-pink-200/80 text-pink-800 dark:bg-pink-900/40 dark:text-pink-100',
   },
   RECONCILED: {
     label: 'Reconciled',
-    color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    color: 'bg-rose-200/70 text-rose-800 dark:bg-rose-900/50 dark:text-rose-100',
   },
 }
 

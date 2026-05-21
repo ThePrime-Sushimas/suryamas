@@ -16,6 +16,8 @@ import {
   type ApPaymentMethod,
 } from '../api/apPayments.api'
 import { AP_PAYMENTS_LIST_PATH, AP_PAYMENT_METHOD_LABELS } from '../constants'
+import { ApPaymentsShell } from '../components/ApPaymentsShell'
+import { apTheme } from '../ap-payments.theme'
 
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -32,8 +34,7 @@ type LineDraft = {
   notes: string
 }
 
-const inputCls =
-  'w-full px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white'
+const inputCls = apTheme.input
 
 export default function ApPaymentFormPage() {
   const { id } = useParams<{ id: string }>()
@@ -180,50 +181,50 @@ export default function ApPaymentFormPage() {
 
   if (isEdit && loadingExisting) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-pulse text-gray-500">Memuat...</div>
-      </div>
+      <ApPaymentsShell className="min-h-screen flex items-center justify-center">
+        <div className={`animate-pulse ${apTheme.muted}`}>Memuat...</div>
+      </ApPaymentsShell>
     )
   }
 
   if (isEdit && existing && existing.status !== 'DRAFT') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gray-50 dark:bg-gray-900 p-6">
+      <ApPaymentsShell className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
         <AlertCircle className="w-10 h-10 text-amber-500" />
-        <p className="text-gray-600 dark:text-gray-400 text-center">
+        <p className={`text-center ${apTheme.muted}`}>
           Hanya pembayaran berstatus Draft yang dapat diedit.
         </p>
         <button
           type="button"
           onClick={() => navigate(`${AP_PAYMENTS_LIST_PATH}/${id}`)}
-          className="text-blue-600 text-sm font-medium"
+          className="text-rose-600 dark:text-pink-300 text-sm font-medium"
         >
           Kembali ke detail
         </button>
-      </div>
+      </ApPaymentsShell>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 sticky top-0 z-10">
+    <ApPaymentsShell className="pb-24">
+      <div className={`${apTheme.header} ${apTheme.headerSticky} px-4 sm:px-6 py-4`}>
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
           <button
             type="button"
             onClick={() => navigate(isEdit ? `${AP_PAYMENTS_LIST_PATH}/${id}` : AP_PAYMENTS_LIST_PATH)}
-            className="p-2 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-700"
+            className={apTheme.btnGhost}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+          <h1 className={apTheme.titleSm}>
             {isEdit ? 'Edit Pembayaran AP' : 'Buat Pembayaran AP'}
           </h1>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
-        <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+        <section className={`${apTheme.card} p-5 space-y-4`}>
+          <h2 className={`${apTheme.sectionTitle} uppercase tracking-wide`}>
             Informasi pembayaran
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -288,8 +289,8 @@ export default function ApPaymentFormPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+        <section className={`${apTheme.card} p-5 space-y-4`}>
+          <h2 className={`${apTheme.sectionTitle} uppercase tracking-wide`}>
             Invoice (APPROVED / POSTED)
           </h2>
 
@@ -327,7 +328,7 @@ export default function ApPaymentFormPage() {
                   type="button"
                   onClick={handleAddSelected}
                   disabled={!selectedInvoiceId}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 text-white text-sm font-medium disabled:opacity-50"
+                  className={apTheme.btnPrimary}
                 >
                   <Plus className="w-4 h-4" />
                   Tambah
@@ -341,7 +342,7 @@ export default function ApPaymentFormPage() {
                   {lines.map((line, idx) => (
                     <div
                       key={line.purchase_invoice_id}
-                      className="p-4 rounded-2xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 space-y-3"
+                      className={`p-4 space-y-3 ${apTheme.cardInner}`}
                     >
                       <div className="flex justify-between items-start gap-2">
                         <div>
@@ -395,19 +396,19 @@ export default function ApPaymentFormPage() {
         </section>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+      <div className={apTheme.footerBar}>
         <div className="max-w-4xl mx-auto flex justify-end">
           <button
             type="button"
             onClick={() => void handleSave()}
             disabled={createPayment.isPending || updatePayment.isPending}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+            className={apTheme.btnPrimaryLg}
           >
             <Save className="w-4 h-4" />
             Simpan draft
           </button>
         </div>
       </div>
-    </div>
+    </ApPaymentsShell>
   )
 }
