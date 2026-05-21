@@ -510,6 +510,11 @@ const PurchaseInvoicesPage = lazy(() => import("./features/purchase-invoices/pag
 const PurchaseInvoiceFormPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceFormPage"))
 const PurchaseInvoiceDetailPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceDetailPage"))
 
+// AP Payments
+const ApPaymentsPage = lazy(() => import('./features/ap-payments/pages/ApPaymentsPage'))
+const ApPaymentFormPage = lazy(() => import('./features/ap-payments/pages/ApPaymentFormPage'))
+const ApPaymentDetailPage = lazy(() => import('./features/ap-payments/pages/ApPaymentDetailPage'))
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1675,6 +1680,47 @@ function App() {
                       <RequirePermission module="purchase_invoices">
                         <Suspense fallback={<LoadingFallback />}>
                           <PurchaseInvoiceFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+
+                  <Route
+                    path="finance/ap-payments"
+                    element={
+                      <RequirePermission module="ap_payments">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ApPaymentsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/ap-payments/new"
+                    element={
+                      <RequirePermission module="ap_payments" action="insert">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ApPaymentFormPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/ap-payments/:id"
+                    element={
+                      <RequirePermission module="ap_payments">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ApPaymentDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/ap-payments/:id/edit"
+                    element={
+                      <RequirePermission module="ap_payments" action="update">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ApPaymentFormPage />
                         </Suspense>
                       </RequirePermission>
                     }

@@ -44,6 +44,7 @@ import {
   FileText,
   FlaskConical,
   CreditCard,
+  Wallet,
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -455,6 +456,13 @@ export const menuItems: MenuItem[] = [
         href: "/cash-flow",
         icon: <Activity size={16} />,
         module: "cash_flow",
+      },
+      {
+        id: "ap-payments",
+        name: "AP Payments",
+        href: "/finance/ap-payments",
+        icon: <Wallet size={16} />,
+        module: "ap_payments",
       },
       {
         id: "expense-categorization",
