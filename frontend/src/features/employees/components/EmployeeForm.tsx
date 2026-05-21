@@ -70,7 +70,15 @@ export default function EmployeeForm({
     setErrors({})
     setIsSubmitting(true)
     try {
-      const validated = employeeFormSchema.parse(formData) as EmployeeFormData
+      // In create mode, derive job_position from the selected position dropdown
+      const dataToValidate = { ...formData }
+      if (mode === 'create' && formData.position_id) {
+        const selectedPosition = (positions.data || []).find(p => p.id === formData.position_id)
+        if (selectedPosition && !dataToValidate.job_position) {
+          dataToValidate.job_position = selectedPosition.position_name
+        }
+      }
+      const validated = employeeFormSchema.parse(dataToValidate) as EmployeeFormData
       await onSubmit(validated, profilePicture || undefined)
       setFormData(defaultFormData)
       setProfilePicture(null)
@@ -79,6 +87,9 @@ export default function EmployeeForm({
         const fieldErrors: Record<string, string> = {}
         err.errors.forEach(error => { if (error.path[0]) fieldErrors[error.path[0] as string] = error.message })
         setErrors(fieldErrors)
+      } else {
+        // Re-throw API / network errors so the parent page can show the toast
+        throw err
       }
     } finally {
       setIsSubmitting(false)
