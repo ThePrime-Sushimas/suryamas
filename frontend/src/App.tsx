@@ -1751,6 +1751,11 @@ function App() {
                       </RequirePermission>
                     }
                   />
+                  {/* Legacy notification/deep links → daftar PR approval */}
+                  <Route
+                    path="inventory/pr-approval/:id/approve"
+                    element={<Navigate to="/inventory/pr-approval" replace />}
+                  />
                   <Route
                     path="inventory/purchase-requests/:id/approve"
                     element={

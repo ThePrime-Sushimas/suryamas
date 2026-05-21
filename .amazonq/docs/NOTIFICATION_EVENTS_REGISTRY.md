@@ -17,7 +17,7 @@ Konfigurasi penerima (posisi): **Settings → Routing Notifikasi** (`/settings/n
 
 | Status | Event key | Dipicu saat | Halaman frontend | Service |
 |--------|-----------|-------------|------------------|---------|
-| ✅ | `purchase_request.submitted` | PR create (langsung PENDING) / submit DRAFT | `/inventory/purchase-requests/:id/approve` | `purchase-requests.service` |
+| ✅ | `purchase_request.submitted` | PR create (langsung PENDING) / submit DRAFT | `/inventory/pr-approval` | `purchase-requests.service` |
 | ✅ | `purchase_request.approved` | PR approve + generate PO | `/inventory/purchase-requests/:id` | `purchase-requests-approval.service` |
 | ✅ | `purchase_request.rejected` | PR reject | `/inventory/purchase-requests/:id` | `purchase-requests.service` |
 | ✅ | `purchase_order.submitted` | PO submit (DRAFT → PENDING_APPROVAL) | `/inventory/purchase-orders/:id` | `purchase-orders.service` |

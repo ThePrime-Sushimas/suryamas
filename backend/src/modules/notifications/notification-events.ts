@@ -55,7 +55,7 @@ export const NOTIFICATION_EVENT_CATALOG: NotificationEventDefinition[] = [
     default_type: 'approval_required',
     default_title_template: 'PR menunggu approval',
     default_message_template: '{{request_number}} dari {{branch_name}} menunggu review.',
-    default_redirect_url_template: '/inventory/purchase-requests/{{id}}/approve',
+    default_redirect_url_template: '/inventory/pr-approval',
   },
   {
     event_key: NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_APPROVED,

@@ -1,9 +1,12 @@
 -- Fix stale redirect URL templates and rendered redirectUrl in existing rows.
 
 UPDATE notification_rules
-SET redirect_url_template = '/inventory/purchase-requests/{{id}}/approve',
+SET redirect_url_template = '/inventory/pr-approval',
     updated_at = now()
-WHERE redirect_url_template = '/inventory/pr-approval/{{id}}/approve';
+WHERE redirect_url_template IN (
+  '/inventory/pr-approval/{{id}}/approve',
+  '/inventory/purchase-requests/{{id}}/approve'
+);
 
 UPDATE notification_rules
 SET redirect_url_template = '/pricelists',
@@ -11,19 +14,9 @@ SET redirect_url_template = '/pricelists',
 WHERE redirect_url_template = '/inventory/pricelists';
 
 UPDATE notifications
-SET data = jsonb_set(
-      data,
-      '{redirectUrl}',
-      to_jsonb(
-        regexp_replace(
-          data->>'redirectUrl',
-          '^/inventory/pr-approval/',
-          '/inventory/purchase-requests/'
-        )
-      )
-    ),
+SET data = jsonb_set(data, '{redirectUrl}', to_jsonb('/inventory/pr-approval'::text)),
     updated_at = now()
-WHERE data->>'redirectUrl' ~ '^/inventory/pr-approval/';
+WHERE data->>'redirectUrl' ~ '^/inventory/(pr-approval|purchase-requests)/.*/approve$';
 
 UPDATE notifications
 SET data = jsonb_set(data, '{redirectUrl}', to_jsonb('/pricelists'::text)),
