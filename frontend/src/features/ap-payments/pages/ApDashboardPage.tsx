@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Wallet,
@@ -10,11 +10,27 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Download,
+  CalendarDays,
+  LayoutList,
+  Users,
 } from 'lucide-react'
+import { useToast } from '@/contexts/ToastContext'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { useApDashboard } from '../api/apPayments.api'
-import { AP_DASHBOARD_PATH, AP_PAYMENTS_LIST_PATH } from '../constants'
+import {
+  useApDashboard,
+  type ApPivotLocationGrouping,
+} from '../api/apPayments.api'
+import { ApDueDatePivotSection } from '../components/ApDueDatePivotSection'
+import { ApPaymentCalendarWeek } from '../components/ApPaymentCalendarWeek'
+import { ApPaymentDayDetailDrawer } from '../components/ApPaymentDayDetailDrawer'
+import { exportApDashboardExcel } from '../utils/apDashboardExport'
+import { getMondayOfWeek, summarizeDay } from '../utils/apCalendar.utils'
+import type { CalendarWeekSpan } from '../utils/apCalendar.utils'
+import { AP_PAYMENTS_LIST_PATH } from '../constants'
+
+type DashboardView = 'calendar' | 'planning' | 'suppliers'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -54,17 +70,77 @@ function MetricCard({
   )
 }
 
+function todayKeyLocal(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function ApDashboardPage() {
+  const toast = useToast()
   const branch = useBranchContextStore((s) => s.currentBranch)
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('ap_payments', 'insert')
 
   const { data, isLoading, isError } = useApDashboard(branch?.branch_id)
   const [expandedSupplier, setExpandedSupplier] = useState<string | null>(null)
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
+  const [showBankInfo, setShowBankInfo] = useState(true)
+  const [locationGrouping, setLocationGrouping] =
+    useState<ApPivotLocationGrouping>('branch')
+  const [dashboardView, setDashboardView] = useState<DashboardView>('calendar')
+  const [weekStartMonday, setWeekStartMonday] = useState(() =>
+    getMondayOfWeek(new Date()),
+  )
+  const [weekSpan, setWeekSpan] = useState<CalendarWeekSpan>(1)
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null)
 
   const summary = data?.summary
   const suppliers = data?.suppliers ?? []
   const agingTotals = data?.aging_totals ?? []
+  const dueDatePivot = data?.due_date_pivot ?? []
+
+  useEffect(() => {
+    if (!data?.due_date_pivot?.length) return
+    const today = todayKeyLocal()
+    const keys = data.due_date_pivot
+      .filter(
+        (g) =>
+          g.is_overdue ||
+          g.is_today ||
+          !g.due_date ||
+          (g.due_date && g.due_date <= today),
+      )
+      .map((g) => g.due_date ?? '__null__')
+    setExpandedDates(new Set(keys))
+  }, [data?.due_date_pivot])
+
+  const selectedDayRows = useMemo(() => {
+    if (!selectedDayKey || !dueDatePivot.length) return []
+    if (selectedDayKey === '__null__') {
+      const g = dueDatePivot.find((x) => x.due_date === null)
+      return g?.rows ?? []
+    }
+    const g = dueDatePivot.find((x) => x.due_date === selectedDayKey)
+    return g?.rows ?? []
+  }, [selectedDayKey, dueDatePivot])
+
+  const selectedDaySummary = useMemo(() => {
+    if (!selectedDayKey) return null
+    return summarizeDay(selectedDayRows)
+  }, [selectedDayKey, selectedDayRows])
+
+  const handleExport = () => {
+    if (!data?.due_date_pivot?.length) {
+      toast.error('Tidak ada data untuk di-export')
+      return
+    }
+    try {
+      exportApDashboardExcel(data, locationGrouping)
+      toast.success('Excel berhasil diunduh')
+    } catch {
+      toast.error('Gagal export Excel')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-12">
@@ -83,6 +159,15 @@ export default function ApDashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={!data || isLoading || dueDatePivot.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              Export Excel
+            </button>
             <Link
               to={AP_PAYMENTS_LIST_PATH}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -103,7 +188,7 @@ export default function ApDashboardPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+      <div className="max-w-[1600px] mx-auto p-4 sm:p-6 space-y-6">
         {isLoading && (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -163,6 +248,97 @@ export default function ApDashboardPage() {
               </div>
             </section>
 
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap gap-2 p-1 rounded-2xl bg-gray-100 dark:bg-gray-800/80 w-fit">
+              {(
+                [
+                  { id: 'calendar' as const, label: 'Kalender', icon: CalendarDays },
+                  { id: 'planning' as const, label: 'Planning list', icon: LayoutList },
+                  { id: 'suppliers' as const, label: 'Per supplier', icon: Users },
+                ] as const
+              ).map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setDashboardView(id)}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    dashboardView === id
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            {(dashboardView === 'calendar' || dashboardView === 'planning') && (
+              <div className="inline-flex rounded-2xl border border-gray-200 dark:border-gray-600 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setLocationGrouping('branch')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium ${
+                    locationGrouping === 'branch'
+                      ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  Per cabang
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocationGrouping('entity')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium ${
+                    locationGrouping === 'entity'
+                      ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  Per rek (PT/CV)
+                </button>
+              </div>
+            )}
+            </div>
+
+            {dashboardView === 'calendar' && dueDatePivot.length > 0 && (
+              <ApPaymentCalendarWeek
+                pivot={dueDatePivot}
+                weekStartMonday={weekStartMonday}
+                weekSpan={weekSpan}
+                locationGrouping={locationGrouping}
+                onWeekStartChange={setWeekStartMonday}
+                onWeekSpanChange={setWeekSpan}
+                onSelectDay={(key) => setSelectedDayKey(key)}
+                onSelectNullDue={() => setSelectedDayKey('__null__')}
+              />
+            )}
+
+            {dashboardView === 'calendar' && dueDatePivot.length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-8">
+                Tidak ada jadwal pembayaran untuk ditampilkan di kalender.
+              </p>
+            )}
+
+            {dashboardView === 'planning' && dueDatePivot.length > 0 && (
+              <ApDueDatePivotSection
+                pivot={dueDatePivot}
+                expandedDates={expandedDates}
+                onToggleDate={(key) =>
+                  setExpandedDates((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(key)) next.delete(key)
+                    else next.add(key)
+                    return next
+                  })
+                }
+                showBankInfo={showBankInfo}
+                onToggleBankInfo={() => setShowBankInfo((v) => !v)}
+                locationGrouping={locationGrouping}
+                onLocationGroupingChange={setLocationGrouping}
+              />
+            )}
+
+            {dashboardView === 'suppliers' && (
             <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -246,6 +422,17 @@ export default function ApDashboardPage() {
                 </div>
               )}
             </section>
+            )}
+
+            <ApPaymentDayDetailDrawer
+              isOpen={!!selectedDayKey}
+              dateKey={selectedDayKey}
+              rows={selectedDayRows}
+              totalOutstanding={selectedDaySummary?.totalOutstanding ?? 0}
+              invoiceCount={selectedDaySummary?.invoiceCount ?? 0}
+              locationGrouping={locationGrouping}
+              onClose={() => setSelectedDayKey(null)}
+            />
 
             <p className="text-xs text-gray-500 text-center">
               PI <strong>APPROVED</strong> → draft AP otomatis. Pembayaran (PAID) hanya setelah PI{' '}

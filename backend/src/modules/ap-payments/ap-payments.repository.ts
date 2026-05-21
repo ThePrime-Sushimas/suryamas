@@ -10,6 +10,7 @@ import type {
   CreateApPaymentDto,
   UpdateApPaymentDto,
   ApDashboardInvoiceRow,
+  ApDueDatePivotRow,
 } from './ap-payments.types'
 
 type PayableInvoiceRow = {
@@ -414,6 +415,112 @@ export class ApPaymentsRepository {
        WHERE ${where}
          AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0.01
        ORDER BY s.supplier_name, pi.due_date ASC NULLS LAST`,
+      params,
+    )
+    return rows
+  }
+
+  /**
+   * Pivot outstanding per due_date + supplier + branch (+ company untuk grouping PT/CV).
+   * Rekening supplier dari bank_accounts (owner_type = supplier), bukan kolom di suppliers.
+   */
+  async findDueDatePivotRows(
+    companyId: string,
+    branchId?: string,
+  ): Promise<ApDueDatePivotRow[]> {
+    const conditions: string[] = [
+      'pi.company_id = $1',
+      "pi.status IN ('APPROVED', 'POSTED')",
+      'pi.deleted_at IS NULL',
+    ]
+    const params: unknown[] = [companyId]
+    let idx = 2
+
+    if (branchId) {
+      conditions.push(`pi.branch_id = $${idx++}`)
+      params.push(branchId)
+    }
+
+    const where = conditions.join(' AND ')
+
+    const { rows } = await pool.query<ApDueDatePivotRow>(
+      `SELECT
+         pi.due_date,
+         pi.supplier_id,
+         s.supplier_name,
+         s.supplier_code,
+         pi.branch_id,
+         b.branch_name,
+         b.branch_code,
+         b.company_id,
+         c.company_name,
+         c.company_type,
+         pi.status                                        AS invoice_status,
+         (pi.status = 'POSTED')                           AS can_pay,
+         SUM(pi.total_amount - COALESCE(paid.total_paid, 0))::float AS outstanding,
+         COUNT(pi.id)::int                                AS invoice_count,
+         BOOL_OR(pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE) AS is_overdue,
+         MAX(sup_bank.bank_name)                          AS supplier_bank_name,
+         MAX(sup_bank.account_number)                     AS supplier_account_number,
+         MAX(sup_bank.account_name)                       AS supplier_account_holder,
+         MAX(ap_link.ap_payment_id::text)::uuid          AS ap_payment_id,
+         MAX(ap_link.ap_payment_number)                   AS ap_payment_number,
+         MAX(ap_link.pay_from_bank_name)                  AS pay_from_bank_name,
+         MAX(ap_link.pay_from_account_number)             AS pay_from_account_number,
+         MAX(ap_link.pay_from_account_holder)             AS pay_from_account_holder
+       FROM purchase_invoices pi
+       JOIN suppliers s ON s.id = pi.supplier_id
+       JOIN branches b ON b.id = pi.branch_id
+       JOIN companies c ON c.id = b.company_id
+       LEFT JOIN (
+         SELECT l.purchase_invoice_id, SUM(l.amount_paid) AS total_paid
+         FROM ap_payment_invoice_lines l
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         WHERE p.status IN ('PAID', 'RECONCILED')
+           AND p.deleted_at IS NULL
+         GROUP BY l.purchase_invoice_id
+       ) paid ON paid.purchase_invoice_id = pi.id
+       LEFT JOIN LATERAL (
+         SELECT ba.account_name, ba.account_number, bk.bank_name
+         FROM bank_accounts ba
+         LEFT JOIN banks bk ON bk.id = ba.bank_id
+         WHERE ba.owner_type = 'supplier'
+           AND ba.owner_id = pi.supplier_id::text
+           AND ba.is_active = true
+           AND ba.deleted_at IS NULL
+         ORDER BY ba.is_primary DESC, ba.id ASC
+         LIMIT 1
+       ) sup_bank ON true
+       LEFT JOIN LATERAL (
+         SELECT
+           p.id AS ap_payment_id,
+           p.payment_number AS ap_payment_number,
+           bk2.bank_name AS pay_from_bank_name,
+           ba2.account_number AS pay_from_account_number,
+           ba2.account_name AS pay_from_account_holder
+         FROM purchase_invoices pi_ap
+         JOIN ap_payment_invoice_lines l ON l.purchase_invoice_id = pi_ap.id
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         JOIN bank_accounts ba2 ON ba2.id = p.bank_account_id
+         LEFT JOIN banks bk2 ON bk2.id = ba2.bank_id
+         WHERE pi_ap.company_id = pi.company_id
+           AND pi_ap.supplier_id = pi.supplier_id
+           AND pi_ap.branch_id = pi.branch_id
+           AND pi_ap.status = pi.status
+           AND pi_ap.due_date IS NOT DISTINCT FROM pi.due_date
+           AND pi_ap.deleted_at IS NULL
+           AND p.deleted_at IS NULL
+           AND p.status NOT IN ('REJECTED')
+         ORDER BY p.created_at DESC
+         LIMIT 1
+       ) ap_link ON true
+       WHERE ${where}
+         AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0.01
+       GROUP BY
+         pi.due_date, pi.supplier_id, s.supplier_name, s.supplier_code,
+         pi.branch_id, b.branch_name, b.branch_code, b.company_id,
+         c.company_name, c.company_type, pi.status
+       ORDER BY pi.due_date ASC NULLS LAST, s.supplier_name ASC, b.branch_name ASC`,
       params,
     )
     return rows

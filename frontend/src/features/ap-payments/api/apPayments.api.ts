@@ -110,10 +110,49 @@ export interface ApDashboardSummary {
   supplier_count: number
 }
 
+export interface ApDueDatePivotRow {
+  due_date: string | null
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string | null
+  branch_id: string
+  branch_name: string
+  branch_code: string
+  company_id: string
+  company_name: string
+  company_type: string | null
+  invoice_status: PurchaseInvoicePayableStatus
+  can_pay: boolean
+  outstanding: number
+  invoice_count: number
+  is_overdue: boolean
+  supplier_bank_name: string | null
+  supplier_account_number: string | null
+  supplier_account_holder: string | null
+  ap_payment_id: string | null
+  ap_payment_number: string | null
+  pay_from_bank_name: string | null
+  pay_from_account_number: string | null
+  pay_from_account_holder: string | null
+}
+
+export interface ApDueDatePivotGroup {
+  due_date: string | null
+  due_date_label: string
+  is_overdue: boolean
+  is_today: boolean
+  total_outstanding: number
+  total_invoice_count: number
+  rows: ApDueDatePivotRow[]
+}
+
+export type ApPivotLocationGrouping = 'branch' | 'entity'
+
 export interface ApDashboardResponse {
   summary: ApDashboardSummary
   aging_totals: ApDashboardAgingBucket[]
   suppliers: ApDashboardSupplierRow[]
+  due_date_pivot: ApDueDatePivotGroup[]
 }
 
 export interface CreateApPaymentLineDto {

@@ -17,6 +17,8 @@ import type {
   ApDashboardAgingBucket,
   ApDashboardSupplierRow,
   ApAgingBucketKey,
+  ApDueDatePivotRow,
+  ApDueDatePivotGroup,
 } from './ap-payments.types'
 import {
   ApPaymentNotFoundError,
@@ -192,12 +194,77 @@ export class ApPaymentsService {
       },
     )
 
-    return { summary, aging_totals: agingTotals, suppliers }
+    return { summary, aging_totals: agingTotals, suppliers, due_date_pivot: [] }
+  }
+
+  private dueDatePivotLabel(dueDate: string | null, today: Date): string {
+    if (!dueDate) return 'Tanpa due date'
+
+    const due = new Date(dueDate)
+    due.setHours(0, 0, 0, 0)
+    const diffDays = Math.floor((due.getTime() - today.getTime()) / 86400000)
+
+    if (diffDays < -1) return `${Math.abs(diffDays)} hari lalu`
+    if (diffDays === -1) return 'Kemarin'
+    if (diffDays === 0) return 'Hari ini'
+    if (diffDays === 1) return 'Besok'
+    if (diffDays <= 7) return `${diffDays} hari lagi`
+
+    return due.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+  }
+
+  private buildDueDatePivot(rows: ApDueDatePivotRow[]): ApDueDatePivotGroup[] {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayKey = today.toISOString().slice(0, 10)
+
+    const groupMap = new Map<string, ApDueDatePivotGroup>()
+
+    for (const row of rows) {
+      const key = row.due_date ?? '__null__'
+
+      if (!groupMap.has(key)) {
+        const isToday = row.due_date === todayKey
+        groupMap.set(key, {
+          due_date: row.due_date,
+          due_date_label: this.dueDatePivotLabel(row.due_date, today),
+          is_overdue: false,
+          is_today: isToday,
+          total_outstanding: 0,
+          total_invoice_count: 0,
+          rows: [],
+        })
+      }
+
+      const group = groupMap.get(key)!
+      group.total_outstanding += row.outstanding
+      group.total_invoice_count += row.invoice_count
+      group.is_overdue = group.is_overdue || row.is_overdue
+      group.rows.push(row)
+    }
+
+    return Array.from(groupMap.values()).sort((a, b) => {
+      if (!a.due_date && !b.due_date) return 0
+      if (!a.due_date) return 1
+      if (!b.due_date) return -1
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+    })
   }
 
   async getDashboard(companyId: string, branchId?: string): Promise<ApDashboardResponse> {
-    const rows = await apPaymentsRepository.findDashboardInvoiceRows(companyId, branchId)
-    return this.buildDashboardFromRows(rows)
+    const [rows, pivotRows] = await Promise.all([
+      apPaymentsRepository.findDashboardInvoiceRows(companyId, branchId),
+      apPaymentsRepository.findDueDatePivotRows(companyId, branchId),
+    ])
+
+    const base = this.buildDashboardFromRows(rows)
+    const due_date_pivot = this.buildDueDatePivot(pivotRows)
+
+    return { ...base, due_date_pivot }
   }
 
   /**
