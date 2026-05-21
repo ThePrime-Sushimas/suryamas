@@ -209,7 +209,7 @@ export default function ApPaymentsPage() {
           </div>
         ) : payments.length === 0 ? (
           <div className={`text-center py-16 ${apTheme.card} p-8`}>
-            <Wallet className="mx-auto w-12 h-12 text-rose-300 dark:text-gray-600 mb-4" />
+            <Wallet className="mx-auto w-12 h-12 text-rose-200 dark:text-gray-600 mb-4" />
             <p className={apTheme.muted}>Belum ada pembayaran AP</p>
             {canInsert && (
               <Link

@@ -391,7 +391,7 @@ export default function ApDashboardPage() {
                                 <Clock className="w-3 h-3" />
                                 Menunggu post: {fmt(s.pending_post_amount)} ({s.pending_post_count})
                               </span>
-                              <span className="inline-flex items-center gap-1 text-pink-600 dark:text-emerald-400">
+                              <span className="inline-flex items-center gap-1 text-rose-700 dark:text-emerald-400">
                                 <CheckCircle2 className="w-3 h-3" />
                                 Siap bayar: {fmt(s.ready_to_pay_amount)} ({s.ready_to_pay_count})
                               </span>

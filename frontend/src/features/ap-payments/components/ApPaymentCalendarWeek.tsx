@@ -57,7 +57,7 @@ function DayCell({
       type="button"
       onClick={() => hasItems && onSelect(col.dateKey)}
       disabled={!hasItems}
-      className={`${minH} rounded-2xl border p-3 text-left transition-colors flex flex-col w-full ${dayCellClass(col, summary.hasOverdue)} ${!hasItems ? 'opacity-60 cursor-default' : 'cursor-pointer hover:shadow-sm'}`}
+      className={`${minH} rounded-2xl p-3 text-left transition-all flex flex-col w-full ${dayCellClass(col, summary.hasOverdue)} ${!hasItems ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
     >
       <div className="flex items-center justify-between gap-1 mb-1">
         <span
@@ -193,22 +193,23 @@ export function ApPaymentCalendarWeek({
         </div>
       </div>
 
-      <div className="p-4 sm:p-5 space-y-6">
-        <div className="grid grid-cols-7 gap-2">
-          {CALENDAR_DAY_HEADERS.map((name) => (
-            <div
-              key={name}
-              className="text-center text-xs font-semibold text-gray-500 dark:text-gray-400 py-1"
-            >
-              {name}
-            </div>
-          ))}
-        </div>
+      <div className="p-4 sm:p-5 space-y-4">
+        <div className={apTheme.cardInset}>
+          <div className="grid grid-cols-7 gap-2 mb-3">
+            {CALENDAR_DAY_HEADERS.map((name) => (
+              <div
+                key={name}
+                className={`text-center text-xs font-semibold py-1 ${apTheme.calDayLabel}`}
+              >
+                {name}
+              </div>
+            ))}
+          </div>
 
         {weekBlocks.map((block, blockIdx) => (
           <div key={block.weekLabel} className="space-y-2">
             {weekSpan > 1 && (
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 px-0.5">
+              <p className={`text-xs font-medium px-0.5 ${apTheme.muted}`}>
                 Minggu {blockIdx + 1} · {block.weekLabel}
               </p>
             )}
@@ -225,10 +226,11 @@ export function ApPaymentCalendarWeek({
             </div>
           </div>
         ))}
+        </div>
       </div>
 
       {nullSummary && (
-        <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700">
+        <div className={`px-5 py-4 border-t ${apTheme.divideBorder}`}>
           <button
             type="button"
             onClick={onSelectNullDue}
@@ -247,7 +249,7 @@ export function ApPaymentCalendarWeek({
         </div>
       )}
 
-      <p className="px-5 py-3 text-[10px] text-gray-400 border-t border-gray-100 dark:border-gray-700">
+      <p className={`px-5 py-3 text-[10px] border-t ${apTheme.divideBorder} ${apTheme.muted}`}>
         Tampilan lokasi:{' '}
         {locationGrouping === 'branch' ? 'per cabang' : 'per rek (PT/CV)'} · Klik hari untuk
         detail rekening dari / ke
