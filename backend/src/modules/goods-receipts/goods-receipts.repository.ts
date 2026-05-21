@@ -92,15 +92,50 @@ export class GoodsReceiptsRepository {
     return rows[0]?.supplier_id ?? null
   }
 
-  async markMarketplaceSessionReceived(client: PoolClient, userId: string, grId: string): Promise<number> {
+  async findMarketplaceSessionStatusForGr(
+    client: PoolClient,
+    grId: string,
+  ): Promise<'SHIPPED' | 'RECEIVED' | null> {
+    const { rows } = await client.query<{ status: string }>(
+      `SELECT mcs.status
+       FROM goods_receipts gr
+       JOIN marketplace_checkout_sessions mcs
+         ON mcs.session_number = gr.invoice_number
+        AND mcs.company_id = gr.company_id
+        AND mcs.deleted_at IS NULL
+       WHERE gr.id = $1
+         AND gr.source = 'MARKETPLACE'
+         AND gr.deleted_at IS NULL`,
+      [grId],
+    )
+    const status = rows[0]?.status
+    if (status === 'SHIPPED' || status === 'RECEIVED') return status
+    return null
+  }
+
+  /** Set session RECEIVED hanya jika semua GR marketplace untuk session_number sudah CONFIRMED. */
+  async markMarketplaceSessionReceivedIfComplete(client: PoolClient, userId: string, grId: string): Promise<number> {
     const { rowCount } = await client.query(
-      `UPDATE marketplace_checkout_sessions
+      `UPDATE marketplace_checkout_sessions mcs
        SET status = 'RECEIVED',
            updated_by = $1,
            updated_at = now()
-       WHERE goods_receipt_id = $2
-         AND status = 'SHIPPED'
-         AND deleted_at IS NULL`,
+       FROM goods_receipts gr
+       WHERE gr.id = $2
+         AND gr.source = 'MARKETPLACE'
+         AND gr.deleted_at IS NULL
+         AND mcs.session_number = gr.invoice_number
+         AND mcs.company_id = gr.company_id
+         AND mcs.status = 'SHIPPED'
+         AND mcs.deleted_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM goods_receipts gr_pending
+           WHERE gr_pending.invoice_number = gr.invoice_number
+             AND gr_pending.source = 'MARKETPLACE'
+             AND gr_pending.deleted_at IS NULL
+             AND gr_pending.status <> 'CONFIRMED'
+         )`,
       [userId, grId],
     )
     return rowCount ?? 0

@@ -222,12 +222,13 @@ export class GoodsReceiptsService {
       await goodsReceiptsRepository.updateStatus(client, id, 'CONFIRMED', {
         updated_by: userId,
       })
-      // 5b. Kalau GR dari marketplace, update session → RECEIVED
+      // 5b. Kalau GR dari marketplace, session → RECEIVED hanya setelah semua GR session dikonfirmasi
       if (gr.source === 'MARKETPLACE') {
-        const rowCount = await goodsReceiptsRepository.markMarketplaceSessionReceived(client, userId, id)
-        if (rowCount === 0) {
+        const sessionStatus = await goodsReceiptsRepository.findMarketplaceSessionStatusForGr(client, id)
+        if (!sessionStatus) {
           throw new BusinessRuleError('Session marketplace tidak ditemukan atau status bukan SHIPPED')
         }
+        await goodsReceiptsRepository.markMarketplaceSessionReceivedIfComplete(client, userId, id)
       }
 
       const branchCode = gr.branch_code ?? 'XXX'

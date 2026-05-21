@@ -72,13 +72,13 @@ export default function MarketplacePoNewPage() {
         return next
       }
 
-      // Guard: cek apakah sudah ada item dari cabang lain
+      // Guard: satu cabang per session (satu checkout marketplace per cabang)
       const existingBranchIds = new Set<string>()
       prev.forEach((l) => existingBranchIds.add(l.branch_id))
 
       if (existingBranchIds.size > 0 && !existingBranchIds.has(line.branch_id)) {
         toast.warning('Satu session hanya untuk satu cabang. Buat session terpisah untuk cabang lain.')
-        return prev // tidak update
+        return prev
       }
 
       const remaining = Number(line.qty) - Number(line.qty_received)
