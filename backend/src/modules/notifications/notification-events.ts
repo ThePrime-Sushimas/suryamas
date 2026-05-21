@@ -55,7 +55,7 @@ export const NOTIFICATION_EVENT_CATALOG: NotificationEventDefinition[] = [
     default_type: 'approval_required',
     default_title_template: 'PR menunggu approval',
     default_message_template: '{{request_number}} dari {{branch_name}} menunggu review.',
-    default_redirect_url_template: '/inventory/pr-approval/{{id}}/approve',
+    default_redirect_url_template: '/inventory/purchase-requests/{{id}}/approve',
   },
   {
     event_key: NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_APPROVED,
@@ -205,7 +205,7 @@ export const NOTIFICATION_EVENT_CATALOG: NotificationEventDefinition[] = [
     default_type: 'info',
     default_title_template: 'Pricelist disetujui',
     default_message_template: 'Pricelist produk {{product_label}} disetujui.',
-    default_redirect_url_template: '/inventory/pricelists',
+    default_redirect_url_template: '/pricelists',
   },
   {
     event_key: NOTIFICATION_EVENT_KEYS.JOURNAL_SUBMITTED,
