@@ -89,4 +89,14 @@ export class NotificationsRepository {
     )
     return (rowCount ?? 0) > 0
   }
+
+  async deleteOldReadNotifications(daysThreshold = 30): Promise<number> {
+    const { rowCount } = await pool.query(
+      `DELETE FROM notifications 
+       WHERE is_read = true 
+         AND created_at < NOW() - INTERVAL '1 day' * $1`,
+      [daysThreshold]
+    )
+    return rowCount ?? 0
+  }
 }

@@ -108,4 +108,17 @@ export class NotificationsService {
       throw NotificationErrors.DELETE_FAILED('Failed to delete notification')
     }
   }
+
+  async cleanupOldReadNotifications(daysThreshold = 30): Promise<number> {
+    try {
+      const deletedCount = await this.repository.deleteOldReadNotifications(daysThreshold)
+      if (deletedCount > 0) {
+        logInfo('Completed cleaning up old read notifications', { deleted: deletedCount, thresholdDays: daysThreshold })
+      }
+      return deletedCount
+    } catch (error) {
+      logError('Failed to cleanup old read notifications', { error: error instanceof Error ? error.message : String(error) })
+      return 0
+    }
+  }
 }

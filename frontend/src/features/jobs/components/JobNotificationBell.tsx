@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Bell, Download, X, Clock, CheckCircle, XCircle, Loader, FileText, AlertTriangle, Trash2 } from 'lucide-react'
+import { FileClock, Download, X, Clock, CheckCircle, XCircle, Loader, FileText, AlertTriangle, Trash2 } from 'lucide-react'
 import { useJobsStore } from '../store/jobs.store'
 import type { Job } from '../types/jobs.types'
 
@@ -112,12 +112,12 @@ export function JobNotificationBell() {
 
   return (
     <div className="relative">
-      {/* Bell Icon */}
+      {/* File Queue Icon */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
       >
-        <Bell className="w-5 h-5" />
+        <FileClock className="w-5 h-5" />
         {activeJobsCount > 0 && (
           <span className="absolute top-1 right-1 w-4 h-4 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center">
             {activeJobsCount}
@@ -174,7 +174,7 @@ export function JobNotificationBell() {
                 </div>
               ) : jobs.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  <Bell className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <FileClock className="w-12 h-12 mx-auto mb-2 opacity-50" />
                   <p>No recent jobs</p>
                 </div>
               ) : (

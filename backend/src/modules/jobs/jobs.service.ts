@@ -12,9 +12,11 @@ import { JobErrors } from './jobs.errors'
 import { jobsRepository } from './jobs.repository'
 import { JOB_QUEUE_CONFIG } from './jobs.constants'
 import { AuditService } from '../monitoring/monitoring.service'
+import { NotificationsService } from '../notifications/notifications.service'
 import * as fs from 'fs'
 
 export class JobsService {
+  private readonly notificationsService = new NotificationsService()
   /**
    * Get user's recent jobs (last 10)
    */
@@ -239,6 +241,13 @@ export class JobsService {
       }
     }
     logInfo('Cleanup expired jobs completed', { count: expiredJobs.length })
+
+    // Clean up read notifications older than 30 days
+    try {
+      await this.notificationsService.cleanupOldReadNotifications(30)
+    } catch (notifErr) {
+      logError('Failed to run notifications cleanup', { error: notifErr instanceof Error ? notifErr.message : String(notifErr) })
+    }
   }
 
   /**
