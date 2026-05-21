@@ -37,3 +37,11 @@ export class GoodsReceiptMarketplaceSupplierError extends BusinessRuleError {
     )
   }
 }
+
+export class GoodsReceiptMarketplaceEditForbiddenError extends BusinessRuleError {
+  constructor() {
+    super(
+      'GR marketplace tidak dapat diedit. Konfirmasi penerimaan lalu sesuaikan qty di Barang Masuk (Goods Processing).',
+    )
+  }
+}

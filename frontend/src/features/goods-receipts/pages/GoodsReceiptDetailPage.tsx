@@ -243,7 +243,8 @@ export default function GoodsReceiptDetailPage() {
     (a) => a.file_type === "INVOICE",
   );
   const isOrphanDraft = isOrphanMarketplaceGr(gr);
-  const isGuardViolated = gr.source !== "MARKETPLACE" && (!attachments || attachments.length === 0);
+  const isMarketplaceGr = gr.source === "MARKETPLACE";
+  const isGuardViolated = !isMarketplaceGr && (!attachments || attachments.length === 0);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
@@ -305,14 +306,16 @@ export default function GoodsReceiptDetailPage() {
             )}
             {gr.status === "DRAFT" && canUpdate && !isOrphanDraft && (
               <>
-                <button
-                  onClick={() =>
-                    navigate(`/inventory/goods-receipts/${id}/edit`)
-                  }
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors bg-white dark:bg-gray-800 shadow-sm"
-                >
-                  Edit Data
-                </button>
+                {!isMarketplaceGr && (
+                  <button
+                    onClick={() =>
+                      navigate(`/inventory/goods-receipts/${id}/edit`)
+                    }
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors bg-white dark:bg-gray-800 shadow-sm"
+                  >
+                    Edit Data
+                  </button>
+                )}
                 <button
                   onClick={() => setShowConfirm(true)}
                   disabled={isGuardViolated}
@@ -332,8 +335,25 @@ export default function GoodsReceiptDetailPage() {
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Alerts */}
-          {((hasDisputed && gr.status === "DRAFT") || (gr.status === "DRAFT" && !hasInvoiceAttachment) || isOrphanDraft) && (
+          {((hasDisputed && gr.status === "DRAFT") || (gr.status === "DRAFT" && !hasInvoiceAttachment && !isMarketplaceGr) || isOrphanDraft || (gr.status === "DRAFT" && isMarketplaceGr && !isOrphanDraft)) && (
             <div className="space-y-3">
+              {gr.status === "DRAFT" && isMarketplaceGr && !isOrphanDraft && (
+                <div className="p-4 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-2xl flex items-start gap-3 shadow-sm">
+                  <Info className="w-5 h-5 text-teal-600 dark:text-teal-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-teal-800 dark:text-teal-400">
+                      Penerimaan marketplace
+                    </h4>
+                    <p className="text-sm text-teal-700 dark:text-teal-300 mt-1">
+                      Data qty dari checkout tidak perlu diedit di sini. Saat paket dari toko ini sudah
+                      diterima fisik, klik <span className="font-semibold">Konfirmasi Penerimaan</span>.
+                      Setelah itu timbang dan sesuaikan qty di modul{" "}
+                      <span className="font-semibold">Barang Masuk (Goods Processing)</span>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {isOrphanDraft && (
                 <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-start gap-3 shadow-sm">
                   <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />

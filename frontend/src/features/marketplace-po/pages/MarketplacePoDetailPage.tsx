@@ -257,8 +257,9 @@ export default function MarketplacePoDetailPage() {
               📦 Barang sedang dalam pengiriman
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">
-              Saat barang tiba, konfirmasi penerimaan melalui halaman Goods
-              Receipt berikut:
+              Saat paket per toko tiba, buka GR di bawah lalu{" "}
+              <span className="font-semibold">Konfirmasi Penerimaan</span> (tanpa
+              edit). Qty aktual ditimbang di Barang Masuk (GP).
             </p>
             <div className="flex flex-col gap-2">
               {sessionGrs.map((gr) => (

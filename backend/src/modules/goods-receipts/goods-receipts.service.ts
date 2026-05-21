@@ -7,6 +7,7 @@ import { BusinessRuleError } from '../../utils/errors.base'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
   GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError, GoodsReceiptMarketplaceSupplierError,
+  GoodsReceiptMarketplaceEditForbiddenError,
 } from './goods-receipts.errors'
 
 import { InvalidReferenceError } from '../stock/stock.errors'
@@ -324,6 +325,9 @@ export class GoodsReceiptsService {
     const existing = await goodsReceiptsRepository.findById(id, companyId)
     if (!existing) throw new GoodsReceiptNotFoundError(id)
     if (existing.status !== 'DRAFT') throw new GoodsReceiptAlreadyConfirmedError()
+    if (existing.source === 'MARKETPLACE') {
+      throw new GoodsReceiptMarketplaceEditForbiddenError()
+    }
 
     const po = await goodsReceiptsRepository.findPoForGr(existing.po_id, companyId)
     if (po) {

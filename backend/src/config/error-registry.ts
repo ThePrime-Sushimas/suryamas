@@ -607,6 +607,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  GoodsReceiptMarketplaceEditForbiddenError: {
+    name: 'GoodsReceiptMarketplaceEditForbiddenError',
+    importPath: '../modules/goods-receipts/goods-receipts.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
 
   // ============ GOODS PROCESSING MODULE ============
   GoodsProcessingNotFoundError: {

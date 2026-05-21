@@ -65,9 +65,19 @@ export default function GoodsReceiptFormPage() {
   const [lines, setLines] = useState<GRLineData[]>([]);
 
   // Fetch existing GR for edit mode
-  const { data: existingGR } = useGoodsReceipt(isEdit ? id : "");
+  const { data: existingGR, isLoading: isLoadingGR } = useGoodsReceipt(isEdit ? id : "");
   const [initialized, setInitialized] = useState(false);
   const [enriched, setEnriched] = useState(false);
+
+  useEffect(() => {
+    if (!isEdit || isLoadingGR || !existingGR) return;
+    if (existingGR.source === "MARKETPLACE" && existingGR.status === "DRAFT") {
+      toast.error(
+        "GR marketplace tidak dapat diedit. Konfirmasi di halaman detail lalu lanjut ke Barang Masuk.",
+      );
+      navigate(`/inventory/goods-receipts/${id}`, { replace: true });
+    }
+  }, [isEdit, isLoadingGR, existingGR, id, navigate, toast]);
 
   // Update mutation
   const updateGR = useMutation({
