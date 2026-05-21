@@ -608,6 +608,7 @@ export default function PurchaseInvoiceFormPage() {
                   Tanggal Invoice
                 </label>
                 <input
+                  required
                   type="date"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
