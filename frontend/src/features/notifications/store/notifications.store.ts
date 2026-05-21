@@ -4,9 +4,11 @@ import { parseApiError } from '@/lib/errorParser'
 import {
   connectSocket,
   getActiveSocket,
+  getSocket,
   disconnectSocket as disconnectSocketClient,
   SOCKET_NOTIFICATION_EVENT,
 } from '@/lib/socket'
+
 
 interface NotificationToast {
   info: (message: string) => void
@@ -50,38 +52,49 @@ interface NotificationsState {
 
 let socketNotificationHandler: ((payload: Notification) => void) | null = null
 let socketToastRef: NotificationToast | undefined
+let socketConnectHandler: (() => void) | null = null
 
 const playNotificationSound = () => {
   try {
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext
     if (!AudioContextClass) return
     const ctx = new AudioContextClass()
-    const now = ctx.currentTime
 
-    const osc1 = ctx.createOscillator()
-    const osc2 = ctx.createOscillator()
-    const gain1 = ctx.createGain()
-    const gain2 = ctx.createGain()
+    // Resume context to satisfy browser autoplay policy
+    const play = () => {
+      // Read fresh timestamp AFTER resume so oscillators don't start in the past
+      const now = ctx.currentTime
+      const osc1 = ctx.createOscillator()
+      const osc2 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      const gain2 = ctx.createGain()
 
-    osc1.frequency.setValueAtTime(880, now)
-    osc2.frequency.setValueAtTime(1109, now)
-    osc1.type = 'sine'
-    osc2.type = 'sine'
+      osc1.frequency.setValueAtTime(880, now)
+      osc2.frequency.setValueAtTime(1109, now)
+      osc1.type = 'sine'
+      osc2.type = 'sine'
 
-    gain1.gain.setValueAtTime(0.12, now)
-    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.6)
-    gain2.gain.setValueAtTime(0.06, now)
-    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.35)
+      gain1.gain.setValueAtTime(0.12, now)
+      gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.6)
+      gain2.gain.setValueAtTime(0.06, now)
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.35)
 
-    osc1.connect(gain1)
-    gain1.connect(ctx.destination)
-    osc2.connect(gain2)
-    gain2.connect(ctx.destination)
+      osc1.connect(gain1)
+      gain1.connect(ctx.destination)
+      osc2.connect(gain2)
+      gain2.connect(ctx.destination)
 
-    osc1.start(now)
-    osc2.start(now)
-    osc1.stop(now + 0.6)
-    osc2.stop(now + 0.35)
+      osc1.start(now)
+      osc2.start(now)
+      osc1.stop(now + 0.6)
+      osc2.stop(now + 0.35)
+    }
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(play).catch(() => {})
+    } else {
+      play()
+    }
   } catch (error) {
     console.warn('Audio chime play failed:', error)
   }
@@ -233,23 +246,42 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
   initializeSocket: (toast) => {
     socketToastRef = toast
-    connectSocket()
-    const s = getActiveSocket()
-    if (!s) return
+    const s = getSocket()
 
+    // Remove any previously-registered handlers
     if (socketNotificationHandler) {
       s.off(SOCKET_NOTIFICATION_EVENT, socketNotificationHandler)
     }
+    if (socketConnectHandler) {
+      s.off('connect', socketConnectHandler)
+    }
 
     socketNotificationHandler = handleSocketNotification
-    s.on(SOCKET_NOTIFICATION_EVENT, socketNotificationHandler)
+
+    socketConnectHandler = () => {
+      s.off(SOCKET_NOTIFICATION_EVENT, socketNotificationHandler!)
+      s.on(SOCKET_NOTIFICATION_EVENT, socketNotificationHandler!)
+    }
+
+    // Attach now if already connected, and re-attach on every (re)connect
+    if (s.connected) socketConnectHandler()
+    s.on('connect', socketConnectHandler)
+
+    connectSocket()
   },
 
   teardownSocket: () => {
+    // Use getActiveSocket() to avoid instantiating a new socket if it's already null/disposed
     const s = getActiveSocket()
-    if (s && socketNotificationHandler) {
-      s.off(SOCKET_NOTIFICATION_EVENT, socketNotificationHandler)
+    if (s) {
+      if (socketNotificationHandler) {
+        s.off(SOCKET_NOTIFICATION_EVENT, socketNotificationHandler)
+      }
+      if (socketConnectHandler) {
+        s.off('connect', socketConnectHandler)
+      }
     }
+    socketConnectHandler = null
     socketNotificationHandler = null
     socketToastRef = undefined
     disconnectSocketClient()

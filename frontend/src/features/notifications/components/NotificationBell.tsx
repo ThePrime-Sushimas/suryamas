@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Bell, Check, ArrowRight, Sparkles, Trash2, Volume2, VolumeX } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useNotificationsStore, type Notification } from '../store/notifications.store'
@@ -15,6 +15,8 @@ export function NotificationBell() {
 
   const navigate = useNavigate()
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
 
   const {
     notifications,
@@ -29,10 +31,12 @@ export function NotificationBell() {
 
   // Fallback sync (Socket.IO handles real-time)
   useEffect(() => {
-    fetchNotifications(toast)
-    const interval = setInterval(() => fetchNotifications(toast), POLL_INTERVAL_MS)
+    fetchNotifications(toastRef.current)
+    const interval = setInterval(() => fetchNotifications(toastRef.current), POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [fetchNotifications, toast])
+  // fetchNotifications is stable (zustand action), toastRef never changes identity
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchNotifications])
 
   useEffect(() => {
     if (unreadCount > 0) {

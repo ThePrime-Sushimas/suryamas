@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import {
@@ -58,14 +58,20 @@ export default function Layout() {
 
   const { initializeSocket, teardownSocket } = useNotificationsStore();
   const toast = useToast();
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const userInitial = user?.full_name?.charAt(0).toUpperCase() || "U";
 
+  const stableInitSocket = useCallback(() => {
+    initializeSocket(toastRef.current)
+  }, [initializeSocket])
+
   useEffect(() => {
-    initializeSocket(toast);
+    stableInitSocket();
     return () => {
       teardownSocket();
     };
-  }, [initializeSocket, teardownSocket, toast]);
+  }, [stableInitSocket, teardownSocket]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-black">
