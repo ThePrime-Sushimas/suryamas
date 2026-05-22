@@ -27,6 +27,9 @@ export interface ApPaymentDB {
   rejection_reason: string | null
   status: ApPaymentStatus
 
+  // Bulk payment
+  bulk_payment_batch_id: string | null
+
   // Bukti bayar
   proof_url: string | null
   proof_uploaded_at: string | null
@@ -260,4 +263,72 @@ export interface ApPaymentListFilter {
   search?: string              // payment_number
   page?: number
   limit?: number
+  bulk_only?: boolean
+}
+
+// ── Bulk Payment DTOs ─────────────────────────────────────────
+export interface BulkCreateApPaymentDto {
+  batch_notes?: string | null  // max 500 chars
+  payments: Array<{
+    supplier_id: string
+    bank_account_id: number
+    payment_method: ApPaymentMethod // default TRANSFER
+    invoice_lines: Array<{
+      purchase_invoice_id: string
+      amount_paid: number
+    }>
+    notes?: string | null // from supplier group notes
+  }>
+}
+
+export interface BulkCreateApPaymentResponse {
+  batch_id: string
+  total_payments: number
+  total_amount: number
+  payments: Array<{
+    id: string
+    payment_number: string
+    supplier_name: string
+    total_amount: number
+  }>
+}
+
+// ── Outstanding Invoices ──────────────────────────────────────
+export interface OutstandingInvoicesQuery {
+  supplier_id?: string
+  branch_id?: string
+  date_from?: string
+  date_to?: string
+  search?: string
+  page?: number
+  limit?: number
+}
+
+export interface OutstandingInvoiceRow {
+  id: string
+  invoice_number: string
+  invoice_date: string
+  supplier_id: string
+  supplier_name: string
+  branch_id: string
+  branch_name: string
+  total_amount: number
+  remaining_amount: number
+  due_date: string | null
+  aging_days: number | null
+  invoice_status: 'APPROVED' | 'POSTED'
+  supplier_bank_accounts: Array<{
+    bank_name: string
+    account_number: string
+  }>
+}
+
+export interface OutstandingInvoicesResponse {
+  data: OutstandingInvoiceRow[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
 }

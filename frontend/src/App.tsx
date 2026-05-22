@@ -515,6 +515,7 @@ const ApDashboardPage = lazy(() => import('./features/ap-payments/pages/ApDashbo
 const ApPaymentsPage = lazy(() => import('./features/ap-payments/pages/ApPaymentsPage'))
 const ApPaymentFormPage = lazy(() => import('./features/ap-payments/pages/ApPaymentFormPage'))
 const ApPaymentDetailPage = lazy(() => import('./features/ap-payments/pages/ApPaymentDetailPage'))
+const BulkCreatePage = lazy(() => import('./features/ap-payments/pages/BulkCreatePage'))
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -1702,6 +1703,16 @@ function App() {
                       <RequirePermission module="ap_payments">
                         <Suspense fallback={<LoadingFallback />}>
                           <ApPaymentsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/ap-payments/bulk-create"
+                    element={
+                      <RequirePermission module="ap_payments">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <BulkCreatePage />
                         </Suspense>
                       </RequirePermission>
                     }

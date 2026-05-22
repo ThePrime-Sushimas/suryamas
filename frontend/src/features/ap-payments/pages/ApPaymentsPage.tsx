@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
-import { Wallet, Search, Plus, X, LayoutDashboard } from 'lucide-react'
+import { Wallet, Search, Plus, X, LayoutDashboard, Download, Loader2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -16,11 +16,14 @@ import {
   AP_PAYMENT_METHOD_LABELS,
   AP_STATUS_CONFIG,
 } from '../constants'
-import { isApListTabActive } from '../utils/apPaymentFilters.url'
+import { isApListTabActive, isDateRangeInvalid } from '../utils/apPaymentFilters.url'
 import { useApPayments, useDeleteApPayment, type ApPayment } from '../api/apPayments.api'
 import { useApPaymentFilters } from '../hooks/useApPaymentFilters'
 import { ApPaymentsShell } from '../components/ApPaymentsShell'
+import { BulkBadge } from '../components/BulkBadge'
+import { OutstandingInvoicesTab } from '../components/OutstandingInvoicesTab'
 import { apTheme } from '../ap-payments.theme'
+import { exportApPaymentsExcel } from '../utils/apPaymentsExport'
 import type { ApPaymentStatus } from '../api/apPayments.api'
 
 const fmtCurrency = (v: number) =>
@@ -57,6 +60,7 @@ export default function ApPaymentsPage() {
   } = useApPaymentFilters()
 
   const [deleteTarget, setDeleteTarget] = useState<ApPayment | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const { data: suppliersData } = useSuppliers({ limit: 100, is_active: true })
   const { data: branchesData } = useBranches({ limit: 100 })
@@ -65,6 +69,20 @@ export default function ApPaymentsPage() {
 
   const payments = data?.data ?? []
   const pagination = data?.pagination
+
+  const handleExport = async () => {
+    setIsExporting(true)
+    try {
+      await exportApPaymentsExcel(apiQuery)
+    } catch (err: unknown) {
+      const message = err instanceof Error && err.message === 'NO_DATA'
+        ? 'Tidak ada data untuk diekspor'
+        : parseApiError(err, 'Gagal mengekspor data')
+      toast.error(message)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -103,6 +121,19 @@ export default function ApPaymentsPage() {
               <LayoutDashboard className="w-4 h-4" />
               Dashboard
             </Link>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={isExporting || (!isLoading && payments.length === 0)}
+              className={apTheme.btnSecondary}
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              {isExporting ? 'Mengekspor...' : 'Export'}
+            </button>
             {canInsert && (
               <Link
                 to={`${AP_PAYMENTS_LIST_PATH}/new`}
@@ -194,9 +225,41 @@ export default function ApPaymentsPage() {
               </option>
             ))}
           </select>
+          <input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => setFilters({ dateFrom: e.target.value })}
+            className={apTheme.select}
+            aria-label="Tanggal dari"
+          />
+          <input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => setFilters({ dateTo: e.target.value })}
+            className={apTheme.select}
+            aria-label="Tanggal sampai"
+          />
+          <label className="inline-flex items-center gap-2 px-3 py-2.5 rounded-2xl border border-rose-200/90 dark:border-gray-600 bg-[#fff9f7] dark:bg-gray-700 text-sm cursor-pointer select-none whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={filters.bulkOnly}
+              onChange={(e) => setFilters({ bulkOnly: e.target.checked })}
+              className="rounded border-rose-300 dark:border-gray-500 text-violet-600 focus:ring-violet-500"
+            />
+            <span className="text-rose-950 dark:text-white">Bulk saja</span>
+          </label>
         </div>
+        {isDateRangeInvalid(filters.dateFrom, filters.dateTo) && (
+          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+            Tanggal awal harus sebelum tanggal akhir
+          </p>
+        )}
       </div>
 
+      {filters.tab === 'outstanding' ? (
+        <OutstandingInvoicesTab filters={filters} />
+      ) : (
+      <>
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {isLoading ? (
           <div className="space-y-3">
@@ -240,6 +303,9 @@ export default function ApPaymentsPage() {
                         <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>
                           {st.label}
                         </span>
+                        {p.bulk_payment_batch_id && (
+                          <BulkBadge batchId={p.bulk_payment_batch_id} />
+                        )}
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
                         {p.supplier_name} · {p.branch_name}
@@ -296,6 +362,8 @@ export default function ApPaymentsPage() {
             loading={isLoading}
           />
         </div>
+      )}
+      </>
       )}
 
       <ConfirmModal

@@ -11,6 +11,8 @@ import type {
   UpdateApPaymentDto,
   ApDashboardInvoiceRow,
   ApDueDatePivotRow,
+  OutstandingInvoicesQuery,
+  OutstandingInvoiceRow,
 } from './ap-payments.types'
 
 type PayableInvoiceRow = {
@@ -219,6 +221,9 @@ export class ApPaymentsRepository {
     if (filter.search) {
       conditions.push(`ap.payment_number ILIKE $${idx++}`)
       params.push(`%${filter.search}%`)
+    }
+    if (filter.bulk_only) {
+      conditions.push('ap.bulk_payment_batch_id IS NOT NULL')
     }
 
     const where = conditions.join(' AND ')
@@ -543,6 +548,85 @@ export class ApPaymentsRepository {
     return rows
   }
 
+  // ── Assign bank account to outstanding invoice ─────────────
+  async assignBankAccount(
+    invoiceId: string,
+    bankAccountId: number | null,
+    companyId: string,
+    userId: string,
+  ): Promise<void> {
+    const now = new Date().toISOString()
+    await pool.query(
+      `UPDATE purchase_invoices
+       SET assigned_bank_account_id = $1,
+           assigned_bank_account_by = $2,
+           assigned_bank_account_at = $3,
+           updated_at = $3,
+           updated_by = $2
+       WHERE id = $4
+         AND company_id = $5
+         AND deleted_at IS NULL`,
+      [bankAccountId, userId, now, invoiceId, companyId],
+    )
+  }
+
+  // ── Fetch outstanding invoices by specific IDs (fast PK lookup) ──
+  async findOutstandingByIds(
+    companyId: string,
+    invoiceIds: string[],
+  ): Promise<OutstandingInvoiceRow[]> {
+    const { rows } = await pool.query(
+      `SELECT
+         pi.id,
+         pi.invoice_number,
+         pi.invoice_date,
+         pi.supplier_id,
+         s.supplier_name,
+         pi.branch_id,
+         b.branch_name,
+         pi.total_amount::float                                   AS total_amount,
+         (pi.total_amount - COALESCE(paid.total_paid, 0))::float  AS remaining_amount,
+         pi.due_date,
+         CASE
+           WHEN pi.due_date IS NULL THEN NULL
+           ELSE (CURRENT_DATE - pi.due_date)
+         END                                                      AS aging_days,
+         pi.status                                                AS invoice_status,
+         pi.assigned_bank_account_id,
+         COALESCE(
+           (SELECT json_agg(json_build_object(
+             'bank_name', bk.bank_name,
+             'account_number', ba.account_number
+           ))
+           FROM bank_accounts ba
+           LEFT JOIN banks bk ON bk.id = ba.bank_id
+           WHERE ba.owner_type = 'supplier'
+             AND ba.owner_id = pi.supplier_id::text
+             AND ba.is_active = true
+             AND ba.deleted_at IS NULL
+           ), '[]'::json
+         )                                                        AS supplier_bank_accounts
+       FROM purchase_invoices pi
+       JOIN suppliers s ON s.id = pi.supplier_id
+       JOIN branches b ON b.id = pi.branch_id
+       LEFT JOIN (
+         SELECT l.purchase_invoice_id, SUM(l.amount_paid) AS total_paid
+         FROM ap_payment_invoice_lines l
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         WHERE p.status IN ('PAID', 'RECONCILED')
+           AND p.deleted_at IS NULL
+         GROUP BY l.purchase_invoice_id
+       ) paid ON paid.purchase_invoice_id = pi.id
+       WHERE pi.company_id = $1
+         AND pi.id = ANY($2::uuid[])
+         AND pi.deleted_at IS NULL
+         AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0.01
+       ORDER BY pi.due_date ASC NULLS LAST`,
+      [companyId, invoiceIds],
+    )
+    return rows as OutstandingInvoiceRow[]
+  }
+
   // ── Sum paid per invoice (untuk validasi outstanding) ─────
   async sumPaidByInvoice(
     invoiceId: string,
@@ -670,6 +754,288 @@ export class ApPaymentsRepository {
       params,
     )
     return rows[0]
+  }
+
+  // ── Outstanding invoices paginated (for bulk payment tab) ──
+  async findOutstandingPaginated(
+    companyId: string,
+    query: OutstandingInvoicesQuery,
+    branchIds?: string[],
+  ): Promise<{ data: OutstandingInvoiceRow[]; total: number }> {
+    const conditions: string[] = [
+      'pi.company_id = $1',
+      "pi.status IN ('APPROVED', 'POSTED')",
+      'pi.deleted_at IS NULL',
+    ]
+    const params: unknown[] = [companyId]
+    let idx = 2
+
+    if (query.supplier_id) {
+      conditions.push(`pi.supplier_id = $${idx++}`)
+      params.push(query.supplier_id)
+    }
+    if (query.branch_id) {
+      conditions.push(`pi.branch_id = $${idx++}`)
+      params.push(query.branch_id)
+    } else if (branchIds && branchIds.length > 0) {
+      conditions.push(`pi.branch_id = ANY($${idx++}::uuid[])`)
+      params.push(branchIds)
+    }
+    if (query.date_from) {
+      conditions.push(`pi.invoice_date >= $${idx++}`)
+      params.push(query.date_from)
+    }
+    if (query.date_to) {
+      conditions.push(`pi.invoice_date <= $${idx++}`)
+      params.push(query.date_to)
+    }
+    if (query.search) {
+      conditions.push(`(pi.invoice_number ILIKE $${idx} OR s.supplier_name ILIKE $${idx})`)
+      params.push(`%${query.search}%`)
+      idx++
+    }
+
+    const where = conditions.join(' AND ')
+    const page = query.page ?? 1
+    const limit = query.limit ?? 20
+    const offset = (page - 1) * limit
+
+    // Count query
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM purchase_invoices pi
+       JOIN suppliers s ON s.id = pi.supplier_id
+       LEFT JOIN (
+         SELECT l.purchase_invoice_id, SUM(l.amount_paid) AS total_paid
+         FROM ap_payment_invoice_lines l
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         WHERE p.status IN ('PAID', 'RECONCILED')
+           AND p.deleted_at IS NULL
+         GROUP BY l.purchase_invoice_id
+       ) paid ON paid.purchase_invoice_id = pi.id
+       WHERE ${where}
+         AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0`,
+      params,
+    )
+    const total = parseInt(countResult.rows[0].count, 10)
+
+    // Data query
+    const { rows } = await pool.query(
+      `SELECT
+         pi.id,
+         pi.invoice_number,
+         pi.invoice_date,
+         pi.supplier_id,
+         s.supplier_name,
+         pi.branch_id,
+         b.branch_name,
+         pi.total_amount::float                                   AS total_amount,
+         (pi.total_amount - COALESCE(paid.total_paid, 0))::float  AS remaining_amount,
+         pi.due_date,
+         CASE
+           WHEN pi.due_date IS NULL THEN NULL
+           ELSE (CURRENT_DATE - pi.due_date)
+         END                                                      AS aging_days,
+         pi.status                                                AS invoice_status,
+         pi.assigned_bank_account_id,
+         COALESCE(
+           (SELECT json_agg(json_build_object(
+             'bank_name', bk.bank_name,
+             'account_number', ba.account_number
+           ))
+           FROM bank_accounts ba
+           LEFT JOIN banks bk ON bk.id = ba.bank_id
+           WHERE ba.owner_type = 'supplier'
+             AND ba.owner_id = pi.supplier_id::text
+             AND ba.is_active = true
+             AND ba.deleted_at IS NULL
+           ), '[]'::json
+         )                                                        AS supplier_bank_accounts
+       FROM purchase_invoices pi
+       JOIN suppliers s ON s.id = pi.supplier_id
+       JOIN branches b ON b.id = pi.branch_id
+       LEFT JOIN (
+         SELECT l.purchase_invoice_id, SUM(l.amount_paid) AS total_paid
+         FROM ap_payment_invoice_lines l
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         WHERE p.status IN ('PAID', 'RECONCILED')
+           AND p.deleted_at IS NULL
+         GROUP BY l.purchase_invoice_id
+       ) paid ON paid.purchase_invoice_id = pi.id
+       WHERE ${where}
+         AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0
+       ORDER BY pi.due_date ASC NULLS LAST
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, limit, offset],
+    )
+
+    return { data: rows as OutstandingInvoiceRow[], total }
+  }
+
+  // ── Bulk Payment Methods ─────────────────────────────────────
+
+  /**
+   * Insert a new batch record into ap_payment_batches.
+   * Returns the created batch row.
+   */
+  async createBatch(
+    client: PoolClient,
+    data: {
+      created_by: string
+      total_payments: number
+      total_amount: number
+      notes?: string | null
+    },
+  ): Promise<{ id: string; created_by: string; created_at: string; total_payments: number; total_amount: number; notes: string | null }> {
+    const { rows } = await client.query<{
+      id: string
+      created_by: string
+      created_at: string
+      total_payments: number
+      total_amount: number
+      notes: string | null
+    }>(
+      `INSERT INTO ap_payment_batches (created_by, total_payments, total_amount, notes)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [data.created_by, data.total_payments, data.total_amount, data.notes ?? null],
+    )
+    return rows[0]
+  }
+
+  /**
+   * Insert N ap_payments records linked to a bulk_payment_batch_id,
+   * along with their corresponding ap_payment_invoice_lines.
+   * Returns the array of created payment records.
+   */
+  async createBulkPayments(
+    client: PoolClient,
+    payments: Array<{
+      company_id: string
+      branch_id: string
+      supplier_id: string
+      bank_account_id: number
+      payment_method: string
+      total_amount: number
+      payment_number: string
+      bulk_payment_batch_id: string
+      created_by: string
+      notes?: string | null
+      status?: string
+      paid_at?: string | null
+      paid_by?: string | null
+      payment_date?: string | null
+      proof_url?: string | null
+      proof_uploaded_at?: string | null
+      proof_uploaded_by?: string | null
+      invoice_lines: Array<{
+        purchase_invoice_id: string
+        amount_paid: number
+      }>
+    }>,
+  ): Promise<ApPaymentDB[]> {
+    const results: ApPaymentDB[] = []
+
+    for (const payment of payments) {
+      const status = payment.status ?? 'DRAFT'
+      const { rows } = await client.query<ApPaymentDB>(
+        `INSERT INTO ap_payments (
+           company_id, branch_id, payment_number, supplier_id,
+           bank_account_id, payment_method, total_amount,
+           status, bulk_payment_batch_id, notes, created_by, updated_by,
+           paid_at, paid_by, payment_date,
+           proof_url, proof_uploaded_at, proof_uploaded_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$12,$13,$14,$15,$16,$17)
+         RETURNING *`,
+        [
+          payment.company_id,
+          payment.branch_id,
+          payment.payment_number,
+          payment.supplier_id,
+          payment.bank_account_id,
+          payment.payment_method,
+          payment.total_amount,
+          status,
+          payment.bulk_payment_batch_id,
+          payment.notes ?? null,
+          payment.created_by,
+          payment.paid_at ?? null,
+          payment.paid_by ?? null,
+          payment.payment_date ?? null,
+          payment.proof_url ?? null,
+          payment.proof_uploaded_at ?? null,
+          payment.proof_uploaded_by ?? null,
+        ],
+      )
+
+      const createdPayment = rows[0]
+      results.push(createdPayment)
+
+      // Insert invoice lines for this payment
+      for (const line of payment.invoice_lines) {
+        await client.query(
+          `INSERT INTO ap_payment_invoice_lines
+             (ap_payment_id, purchase_invoice_id, amount_paid)
+           VALUES ($1, $2, $3)`,
+          [createdPayment.id, line.purchase_invoice_id, line.amount_paid],
+        )
+      }
+    }
+
+    return results
+  }
+
+  /**
+   * Validate that all invoice IDs exist, are eligible for payment
+   * (status IN APPROVED, POSTED), and return their remaining amounts.
+   */
+  async validateInvoicesForBulk(
+    client: PoolClient,
+    invoiceIds: string[],
+    companyId: string,
+  ): Promise<Array<{
+    id: string
+    invoice_number: string
+    status: string
+    total_amount: number
+    remaining_amount: number
+    supplier_id: string
+    branch_id: string
+  }>> {
+    if (invoiceIds.length === 0) return []
+
+    const { rows } = await client.query<{
+      id: string
+      invoice_number: string
+      status: string
+      total_amount: number
+      remaining_amount: number
+      supplier_id: string
+      branch_id: string
+    }>(
+      `SELECT
+         pi.id,
+         pi.invoice_number,
+         pi.status,
+         pi.total_amount::float AS total_amount,
+         (pi.total_amount - COALESCE(paid.total_paid, 0))::float AS remaining_amount,
+         pi.supplier_id,
+         pi.branch_id
+       FROM purchase_invoices pi
+       LEFT JOIN (
+         SELECT l.purchase_invoice_id, SUM(l.amount_paid) AS total_paid
+         FROM ap_payment_invoice_lines l
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         WHERE p.status IN ('PAID', 'RECONCILED')
+           AND p.deleted_at IS NULL
+         GROUP BY l.purchase_invoice_id
+       ) paid ON paid.purchase_invoice_id = pi.id
+       WHERE pi.id = ANY($1::uuid[])
+         AND pi.company_id = $2
+         AND pi.deleted_at IS NULL`,
+      [invoiceIds, companyId],
+    )
+
+    return rows
   }
 
   // ── Soft delete ────────────────────────────────────────────

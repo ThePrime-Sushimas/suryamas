@@ -3,6 +3,7 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { storageService } from '../../services/storage.service'
 import { apPaymentsService } from './ap-payments.service'
+import { bulkCreateApPaymentSchema } from './ap-payments.schema'
 import type { ApPaymentListFilter } from './ap-payments.types'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 
@@ -24,6 +25,7 @@ export class ApPaymentsController {
         search:         q.search,
         page:           q.page  ? parseInt(q.page,  10) : 1,
         limit:          q.limit ? parseInt(q.limit, 10) : 20,
+        bulk_only:      q.bulk_only === 'true',
       }
 
       const result = await apPaymentsService.list(filter)
@@ -81,6 +83,61 @@ export class ApPaymentsController {
     }
   }
 
+  // GET /ap-payments/outstanding-invoices/paginated
+  async outstandingInvoicesPaginated(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const query = (req as any).validated?.query ?? {}
+
+      const branchIds = await getAccessibleBranchIds(userId)
+
+      const result = await apPaymentsService.getOutstandingInvoicesPaginated(
+        companyId,
+        query,
+        branchIds,
+      )
+
+      sendSuccess(res, result.data, 'Outstanding invoices retrieved', 200, result.pagination)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list outstanding invoices paginated' })
+    }
+  }
+
+  // PATCH /ap-payments/outstanding-invoices/:id/assign
+  async assignBankAccount(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const invoiceId = req.params.id as string
+      const { bank_account_id } = (req as any).validated?.body ?? req.body
+
+      await apPaymentsService.assignBankAccountToInvoice(
+        invoiceId,
+        bank_account_id,
+        companyId,
+        userId,
+      )
+
+      sendSuccess(res, { invoice_id: invoiceId, bank_account_id }, 'Bank account assigned')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'assign bank account to invoice', id: req.params.id })
+    }
+  }
+
+  // POST /ap-payments/outstanding-invoices/by-ids
+  async outstandingInvoicesByIds(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const { invoice_ids } = (req as any).validated?.body ?? req.body
+
+      const data = await apPaymentsService.getOutstandingInvoicesByIds(companyId, invoice_ids)
+      sendSuccess(res, data, 'Outstanding invoices retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get outstanding invoices by ids' })
+    }
+  }
+
   // GET /ap-payments/:id
   async getById(req: Request, res: Response): Promise<void> {
     try {
@@ -103,6 +160,57 @@ export class ApPaymentsController {
       sendSuccess(res, payment, 'AP payment created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create ap payment' })
+    }
+  }
+
+  // POST /ap-payments/bulk
+  async createBulk(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const branchId  = req.context?.branch_id  ?? ''
+      const userId    = req.user?.id             ?? ''
+
+      // Parse JSON payload from multipart field
+      const payloadRaw = req.body?.payload
+      if (!payloadRaw || typeof payloadRaw !== 'string') {
+        res.status(400).json({
+          success: false,
+          message: 'Missing payload field',
+        })
+        return
+      }
+
+      let parsedPayload: unknown
+      try {
+        parsedPayload = JSON.parse(payloadRaw)
+      } catch {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid JSON in payload field',
+        })
+        return
+      }
+
+      // Validate with Zod schema (extract body shape from the route-level schema)
+      const bodySchema = bulkCreateApPaymentSchema.shape.body
+      const validation = bodySchema.safeParse(parsedPayload)
+      if (!validation.success) {
+        res.status(400).json({
+          success: false,
+          message: 'Validation error',
+          validation_errors: validation.error.issues,
+        })
+        return
+      }
+
+      const body = validation.data
+
+      // Note: Proof file upload is handled separately on the payment detail page.
+      // The bulk create endpoint only creates DRAFT payments.
+      const result = await apPaymentsService.createBulk(body, companyId, branchId, userId)
+      sendSuccess(res, result, 'Bulk payments created', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create bulk ap payments' })
     }
   }
 

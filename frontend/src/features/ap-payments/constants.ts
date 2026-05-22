@@ -46,6 +46,7 @@ export const AP_LIST_TABS = [
   { id: 'pending', label: 'Approval' },
   { id: 'approved', label: 'Disetujui' },
   { id: 'rejected', label: 'Ditolak' },
+  { id: 'outstanding', label: 'Invoice Outstanding' },
 ] as const
 
 export type ApPaymentListTab = (typeof AP_LIST_TABS)[number]['id']
@@ -56,4 +57,5 @@ export const AP_LIST_TAB_STATUS: Record<ApPaymentListTab, ApPaymentStatus | ''> 
   pending: 'PENDING_APPROVAL',
   approved: 'APPROVED',
   rejected: 'REJECTED',
+  outstanding: '',
 }

@@ -1,4 +1,4 @@
-import { BusinessRuleError, NotFoundError, ConflictError } from '../../utils/errors.base'
+import { AppError, BusinessRuleError, ErrorCategory, NotFoundError, ConflictError } from '../../utils/errors.base'
 
 export class ApPaymentNotFoundError extends NotFoundError {
   constructor(id: string) {
@@ -69,5 +69,77 @@ export class ApPaymentProofRequiredError extends BusinessRuleError {
 export class ApPaymentEmptyLinesError extends BusinessRuleError {
   constructor() {
     super('AP payment must include at least one invoice line')
+  }
+}
+
+// ── Bulk Payment Errors ───────────────────────────────────────
+
+export class ApBulkInvoiceNotFoundError extends AppError {
+  constructor(invoiceIds: string[]) {
+    super(
+      `Invoice(s) not found: ${invoiceIds.join(', ')}`,
+      400,
+      'AP_BULK_INVOICE_NOT_FOUND',
+      { invoiceIds },
+      undefined,
+      ErrorCategory.VALIDATION,
+    )
+  }
+}
+
+export class ApBulkInvoiceNotEligibleError extends AppError {
+  constructor(invoiceIds: string[]) {
+    super(
+      `Invoice(s) not eligible for payment (already PAID or RECONCILED): ${invoiceIds.join(', ')}`,
+      400,
+      'AP_BULK_INVOICE_NOT_ELIGIBLE',
+      { invoiceIds },
+      undefined,
+      ErrorCategory.VALIDATION,
+    )
+  }
+}
+
+export class ApBulkOutstandingExceededError extends AppError {
+  constructor(details: Array<{ invoiceId: string; outstanding: number; requested: number }>) {
+    super(
+      `Amount paid exceeds outstanding balance for one or more invoices`,
+      400,
+      'AP_BULK_OUTSTANDING_EXCEEDED',
+      { details },
+      undefined,
+      ErrorCategory.VALIDATION,
+    )
+  }
+}
+
+export class ApBulkEmptyPaymentsError extends AppError {
+  constructor() {
+    super(
+      'Bulk payment request must include at least one payment',
+      400,
+      'AP_BULK_EMPTY_PAYMENTS',
+      undefined,
+      undefined,
+      ErrorCategory.VALIDATION,
+    )
+  }
+}
+
+export class ApBulkProofUploadFailedError extends AppError {
+  public readonly fileIndex: number
+  public readonly originalError: Error
+
+  constructor(fileIndex: number, originalError: Error) {
+    super(
+      `Proof file upload failed for payment group ${fileIndex}`,
+      500,
+      'PROOF_UPLOAD_FAILED',
+      { fileIndex, originalError: originalError.message },
+      originalError,
+      ErrorCategory.EXTERNAL_SERVICE,
+    )
+    this.fileIndex = fileIndex
+    this.originalError = originalError
   }
 }

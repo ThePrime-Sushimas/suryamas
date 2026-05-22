@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg'
 import { logInfo } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
+import { storageService } from '../../services/storage.service'
 import { apPaymentsRepository } from './ap-payments.repository'
 import type {
   ApPaymentDetail,
@@ -19,6 +20,11 @@ import type {
   ApAgingBucketKey,
   ApDueDatePivotRow,
   ApDueDatePivotGroup,
+  OutstandingInvoicesQuery,
+  OutstandingInvoicesResponse,
+  OutstandingInvoiceRow,
+  BulkCreateApPaymentDto,
+  BulkCreateApPaymentResponse,
 } from './ap-payments.types'
 import {
   ApPaymentNotFoundError,
@@ -30,6 +36,11 @@ import {
   ApPaymentProofRequiredError,
   ApPaymentEmptyLinesError,
   ApPaymentDuplicateInvoiceError,
+  ApBulkEmptyPaymentsError,
+  ApBulkInvoiceNotFoundError,
+  ApBulkInvoiceNotEligibleError,
+  ApBulkOutstandingExceededError,
+  ApBulkProofUploadFailedError,
 } from './ap-payments.errors'
 
 const AGING_BUCKET_DEFS: Array<{ bucket: ApAgingBucketKey; label: string }> = [
@@ -394,6 +405,53 @@ export class ApPaymentsService {
     )
   }
 
+  async getOutstandingInvoicesPaginated(
+    companyId: string,
+    query: OutstandingInvoicesQuery,
+    branchIds?: string[],
+  ): Promise<OutstandingInvoicesResponse> {
+    const { data, total } = await apPaymentsRepository.findOutstandingPaginated(
+      companyId,
+      query,
+      branchIds,
+    )
+    const page = query.page ?? 1
+    const limit = query.limit ?? 20
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    }
+  }
+
+  /**
+   * Assign (or clear) a bank account to an outstanding invoice.
+   * Finance uses this to indicate which company bank account should be used for payment.
+   */
+  async assignBankAccountToInvoice(
+    invoiceId: string,
+    bankAccountId: number | null,
+    companyId: string,
+    userId: string,
+  ): Promise<void> {
+    await apPaymentsRepository.assignBankAccount(invoiceId, bankAccountId, companyId, userId)
+  }
+
+  /**
+   * Fetch outstanding invoices by specific IDs (for bulk-create page).
+   * Much faster than paginated query since it uses primary key lookup.
+   */
+  async getOutstandingInvoicesByIds(
+    companyId: string,
+    invoiceIds: string[],
+  ): Promise<OutstandingInvoiceRow[]> {
+    return apPaymentsRepository.findOutstandingByIds(companyId, invoiceIds)
+  }
+
   async create(
     dto: CreateApPaymentDto,
     companyId: string,
@@ -644,6 +702,198 @@ export class ApPaymentsService {
 
     await AuditService.log('DELETE', 'ap_payments', id, userId, { payment_number: existing.payment_number }, null)
     logInfo('AP payment deleted', { id })
+  }
+
+  // ── Bulk Payment Creation ──────────────────────────────────
+  async createBulk(
+    dto: BulkCreateApPaymentDto,
+    companyId: string,
+    contextBranchId: string,
+    userId: string,
+  ): Promise<BulkCreateApPaymentResponse> {
+    // 1. Validate payments array is not empty
+    if (!dto.payments || dto.payments.length === 0) {
+      throw new ApBulkEmptyPaymentsError()
+    }
+
+    // 2. Collect all unique invoice IDs from all payments' invoice_lines
+    const allInvoiceIds = Array.from(
+      new Set(
+        dto.payments.flatMap((p) => p.invoice_lines.map((l) => l.purchase_invoice_id)),
+      ),
+    )
+
+    // 3–9. Execute within a single transaction
+    const result = await apPaymentsRepository.withTransaction(async (client) => {
+      // 4. Validate all invoices exist and are eligible
+      const invoiceRows = await apPaymentsRepository.validateInvoicesForBulk(
+        client,
+        allInvoiceIds,
+        companyId,
+      )
+
+      // Check all IDs were found
+      const foundIds = new Set(invoiceRows.map((r) => r.id))
+      const missingIds = allInvoiceIds.filter((id) => !foundIds.has(id))
+      if (missingIds.length > 0) {
+        throw new ApBulkInvoiceNotFoundError(missingIds)
+      }
+
+      // Check all have eligible status (APPROVED or POSTED)
+      const ineligibleIds = invoiceRows
+        .filter((r) => !['APPROVED', 'POSTED'].includes(r.status))
+        .map((r) => r.id)
+      if (ineligibleIds.length > 0) {
+        throw new ApBulkInvoiceNotEligibleError(ineligibleIds)
+      }
+
+      // Check amount_paid does not exceed remaining_amount (tolerance 0.01)
+      const invoiceMap = new Map(invoiceRows.map((r) => [r.id, r]))
+      const exceededDetails: Array<{ invoiceId: string; outstanding: number; requested: number }> = []
+
+      for (const payment of dto.payments) {
+        for (const line of payment.invoice_lines) {
+          const invoice = invoiceMap.get(line.purchase_invoice_id)
+          if (invoice && line.amount_paid > invoice.remaining_amount + 0.01) {
+            exceededDetails.push({
+              invoiceId: line.purchase_invoice_id,
+              outstanding: invoice.remaining_amount,
+              requested: line.amount_paid,
+            })
+          }
+        }
+      }
+      if (exceededDetails.length > 0) {
+        throw new ApBulkOutstandingExceededError(exceededDetails)
+      }
+
+      // Note: Proof upload is handled separately after payment creation (on detail page)
+
+      // 6. Calculate total_amount (sum of all invoice_lines amount_paid)
+      const totalAmount = dto.payments.reduce(
+        (sum, p) => sum + p.invoice_lines.reduce((s, l) => s + l.amount_paid, 0),
+        0,
+      )
+
+      // 7. Create batch record
+      const batch = await apPaymentsRepository.createBatch(client, {
+        created_by: userId,
+        total_payments: dto.payments.length,
+        total_amount: totalAmount,
+        notes: dto.batch_notes ?? null,
+      })
+
+      // 8. Generate payment_number for each payment and build payment records
+      const paymentsToCreate: Array<{
+        company_id: string
+        branch_id: string
+        supplier_id: string
+        bank_account_id: number
+        payment_method: string
+        total_amount: number
+        payment_number: string
+        bulk_payment_batch_id: string
+        created_by: string
+        notes?: string | null
+        status: string
+        paid_at: string | null
+        paid_by: string | null
+        payment_date: string | null
+        proof_url: string | null
+        proof_uploaded_at: string | null
+        proof_uploaded_by: string | null
+        invoice_lines: Array<{
+          purchase_invoice_id: string
+          amount_paid: number
+        }>
+      }> = []
+
+      for (let i = 0; i < dto.payments.length; i++) {
+        const payment = dto.payments[i]
+
+        // Determine branch_id from the first invoice in this payment group
+        const firstInvoice = invoiceMap.get(payment.invoice_lines[0].purchase_invoice_id)
+        const branchId = firstInvoice?.branch_id ?? contextBranchId
+
+        const branchCode = await apPaymentsRepository.findBranchCode(client, branchId)
+        const paymentNumber = await apPaymentsRepository.generateApPaymentNumber(
+          client,
+          companyId,
+          branchCode,
+        )
+
+        const paymentTotal = payment.invoice_lines.reduce((s, l) => s + l.amount_paid, 0)
+
+        paymentsToCreate.push({
+          company_id: companyId,
+          branch_id: branchId,
+          supplier_id: payment.supplier_id,
+          bank_account_id: payment.bank_account_id,
+          payment_method: payment.payment_method ?? 'TRANSFER',
+          total_amount: paymentTotal,
+          payment_number: paymentNumber,
+          bulk_payment_batch_id: batch.id,
+          created_by: userId,
+          notes: payment.notes ?? null,
+          status: 'DRAFT',
+          paid_at: null,
+          paid_by: null,
+          payment_date: null,
+          proof_url: null,
+          proof_uploaded_at: null,
+          proof_uploaded_by: null,
+          invoice_lines: payment.invoice_lines,
+        })
+      }
+
+      // 9. Create all payments with their invoice lines (status=DRAFT)
+      const createdPayments = await apPaymentsRepository.createBulkPayments(
+        client,
+        paymentsToCreate,
+      )
+
+      // Build supplier name lookup from validated invoices
+      const supplierNames = new Map<string, string>()
+      for (const payment of paymentsToCreate) {
+        if (!supplierNames.has(payment.supplier_id)) {
+          // Look up supplier name from the invoice rows
+          const invoiceForSupplier = invoiceRows.find(
+            (r) => r.supplier_id === payment.supplier_id,
+          )
+          if (invoiceForSupplier) {
+            // We need to get supplier name - query it
+            const { rows: supplierRows } = await client.query<{ supplier_name: string }>(
+              'SELECT supplier_name FROM suppliers WHERE id = $1',
+              [payment.supplier_id],
+            )
+            if (supplierRows.length > 0) {
+              supplierNames.set(payment.supplier_id, supplierRows[0].supplier_name)
+            }
+          }
+        }
+      }
+
+      // 10. Return response
+      return {
+        batch_id: batch.id,
+        total_payments: createdPayments.length,
+        total_amount: totalAmount,
+        payments: createdPayments.map((p, idx) => ({
+          id: p.id,
+          payment_number: p.payment_number,
+          supplier_name: supplierNames.get(paymentsToCreate[idx].supplier_id) ?? '',
+          total_amount: Number(p.total_amount),
+        })),
+      }
+    })
+
+    logInfo('Bulk AP payments created (DRAFT)', {
+      batch_id: result.batch_id,
+      total_payments: result.total_payments,
+      total_amount: result.total_amount,
+    })
+
+    return result
   }
 }
 

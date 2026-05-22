@@ -70,6 +70,7 @@ export const listApPaymentsSchema = z.object({
     search:         z.string().optional(),
     page:           z.coerce.number().int().positive().default(1),
     limit:          z.coerce.number().int().positive().max(100).default(20),
+    bulk_only:      z.enum(['true', 'false']).transform(v => v === 'true').optional(),
   }),
 })
 
@@ -80,7 +81,56 @@ export const apDashboardSchema = z.object({
   }),
 })
 
-// ── Outstanding invoices filter ───────────────────────────────
+// ── Bulk create ───────────────────────────────────────────────
+export const bulkCreateApPaymentSchema = z.object({
+  body: z.object({
+    batch_notes: z.string().max(500).nullable().optional(),
+    payments: z.array(
+      z.object({
+        supplier_id: z.string().uuid(),
+        bank_account_id: z.number().int().positive(),
+        payment_method: z.enum(paymentMethods).default('TRANSFER'),
+        invoice_lines: z.array(
+          z.object({
+            purchase_invoice_id: z.string().uuid(),
+            amount_paid: z.number().positive(),
+          }),
+        ).min(1, 'At least one invoice line is required'),
+        notes: z.string().max(500).nullable().optional(),
+      }),
+    ).min(1, 'At least one payment is required'),
+  }),
+})
+
+// ── Outstanding invoices (paginated) ──────────────────────────
+export const outstandingInvoicesQuerySchema = z.object({
+  query: z.object({
+    supplier_id: z.string().uuid().optional(),
+    branch_id:   z.string().uuid().optional(),
+    date_from:   z.string().date().optional(),
+    date_to:     z.string().date().optional(),
+    search:      z.string().max(100).optional(),
+    page:        z.coerce.number().int().min(1).default(1),
+    limit:       z.coerce.number().int().min(1).max(100).default(20),
+  }),
+})
+
+// ── Assign bank account to outstanding invoice ────────────────
+export const assignBankAccountSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    bank_account_id: z.number().int().positive().nullable(),
+  }),
+})
+
+// ── Fetch outstanding invoices by IDs (for bulk-create page) ──
+export const outstandingInvoicesByIdsSchema = z.object({
+  body: z.object({
+    invoice_ids: z.array(z.string().uuid()).min(1).max(50),
+  }),
+})
+
+// ── Outstanding invoices filter (legacy) ──────────────────────
 export const outstandingInvoicesSchema = z.object({
   query: z.object({
     supplier_id: z.string().uuid().optional(),

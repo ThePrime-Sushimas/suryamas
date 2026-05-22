@@ -10,12 +10,15 @@ import {
   canDelete,
 } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
-import { documentUploadSingle } from '../../middleware/upload-document.middleware'
+import { documentUpload, documentUploadSingle } from '../../middleware/upload-document.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { apPaymentsController } from './ap-payments.controller'
 import {
   listApPaymentsSchema,
   outstandingInvoicesSchema,
+  outstandingInvoicesQuerySchema,
+  outstandingInvoicesByIdsSchema,
+  assignBankAccountSchema,
   apDashboardSchema,
   apPaymentParamSchema,
   createApPaymentSchema,
@@ -48,6 +51,28 @@ router.get(
 )
 
 router.get(
+  '/outstanding-invoices/paginated',
+  canView(MODULE),
+  validateSchema(outstandingInvoicesQuerySchema),
+  (req, res) => apPaymentsController.outstandingInvoicesPaginated(req, res),
+)
+
+router.patch(
+  '/outstanding-invoices/:id/assign',
+  canInsert(MODULE),
+  requireWriteAccess,
+  validateSchema(assignBankAccountSchema),
+  (req, res) => apPaymentsController.assignBankAccount(req, res),
+)
+
+router.post(
+  '/outstanding-invoices/by-ids',
+  canView(MODULE),
+  validateSchema(outstandingInvoicesByIdsSchema),
+  (req, res) => apPaymentsController.outstandingInvoicesByIds(req, res),
+)
+
+router.get(
   '/',
   canView(MODULE),
   validateSchema(listApPaymentsSchema),
@@ -60,6 +85,14 @@ router.post(
   requireWriteAccess,
   validateSchema(createApPaymentSchema),
   (req, res) => apPaymentsController.create(req, res),
+)
+
+router.post(
+  '/bulk',
+  canInsert(MODULE),
+  requireWriteAccess,
+  documentUpload.any(),
+  (req, res) => apPaymentsController.createBulk(req, res),
 )
 
 router.get(

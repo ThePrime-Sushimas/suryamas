@@ -31,6 +31,7 @@ export const DEFAULT_AP_PAYMENT_FILTERS: ApPaymentFilters = {
   tab: 'all',
   dateFrom: '',
   dateTo: '',
+  bulkOnly: false,
 }
 
 const VALID_TABS = new Set<ApPaymentListTab>(AP_LIST_TABS.map((t) => t.id))
@@ -48,6 +49,7 @@ const FILTER_KEYS_RESET_PAGE: (keyof ApPaymentFilters)[] = [
   'tab',
   'dateFrom',
   'dateTo',
+  'bulkOnly',
   'limit',
 ]
 
@@ -64,6 +66,9 @@ export function parseApPaymentFilters(searchParams: URLSearchParams): ApPaymentF
       ? (methodRaw as ApPaymentMethod)
       : ''
 
+  const bulkOnlyRaw = searchParams.get('bulk_only')
+  const bulkOnly = bulkOnlyRaw === 'true'
+
   return {
     page: parsePositiveInt(searchParams.get('page'), DEFAULT_AP_PAYMENT_FILTERS.page),
     limit: parsePositiveInt(searchParams.get('limit'), DEFAULT_AP_PAYMENT_FILTERS.limit, MAX_LIST_LIMIT),
@@ -75,6 +80,7 @@ export function parseApPaymentFilters(searchParams: URLSearchParams): ApPaymentF
     tab: parseEnum(searchParams.get('tab'), VALID_TABS, DEFAULT_AP_PAYMENT_FILTERS.tab),
     dateFrom: parseString(searchParams.get('date_from')),
     dateTo: parseString(searchParams.get('date_to')),
+    bulkOnly,
   }
 }
 
@@ -101,6 +107,7 @@ export function stringifyApPaymentFilters(filters: ApPaymentFilters): URLSearchP
   if (dateFrom) params.set('date_from', dateFrom)
   const dateTo = serializeString(filters.dateTo)
   if (dateTo) params.set('date_to', dateTo)
+  if (filters.bulkOnly) params.set('bulk_only', 'true')
 
   return params
 }
@@ -138,12 +145,20 @@ export function isApListTabActive(tabId: ApPaymentListTab, filters: ApPaymentFil
   return filters.tab === tabId
 }
 
+/** Returns true when both dates are non-empty and dateFrom is after dateTo. */
+export function isDateRangeInvalid(dateFrom: string, dateTo: string): boolean {
+  return !!(dateFrom && dateTo && dateFrom > dateTo)
+}
+
 export function toApPaymentListQuery(
   filters: ApPaymentFilters,
   debouncedSearch?: string,
 ): ApPaymentListQuery {
   const search = (debouncedSearch ?? filters.search).trim()
   const status = resolveListStatus(filters)
+
+  // When date range is invalid, exclude both date params from the API request
+  const dateInvalid = isDateRangeInvalid(filters.dateFrom, filters.dateTo)
 
   return {
     page: filters.page,
@@ -153,8 +168,9 @@ export function toApPaymentListQuery(
     ...(filters.supplierId ? { supplier_id: filters.supplierId } : {}),
     ...(filters.branchId ? { branch_id: filters.branchId } : {}),
     ...(filters.paymentMethod ? { payment_method: filters.paymentMethod } : {}),
-    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
-    ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+    ...(!dateInvalid && filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(!dateInvalid && filters.dateTo ? { date_to: filters.dateTo } : {}),
+    ...(filters.bulkOnly ? { bulk_only: true } : {}),
   }
 }
 

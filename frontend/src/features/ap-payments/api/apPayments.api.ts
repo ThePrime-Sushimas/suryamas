@@ -43,6 +43,7 @@ export interface ApPayment {
   proof_uploaded_at: string | null
   bank_statement_id: number | null
   journal_id: string | null
+  bulk_payment_batch_id: string | null
   reconciled_at: string | null
   requested_at: string | null
   approved_at: string | null
@@ -190,12 +191,44 @@ interface PaginationMeta {
   hasPrev?: boolean
 }
 
+export interface OutstandingInvoicesQuery {
+  supplier_id?: string
+  branch_id?: string
+  date_from?: string
+  date_to?: string
+  search?: string
+  page?: number
+  limit?: number
+}
+
+export interface OutstandingInvoiceRow {
+  id: string
+  invoice_number: string
+  invoice_date: string
+  supplier_id: string
+  supplier_name: string
+  branch_id: string
+  branch_name: string
+  total_amount: number
+  remaining_amount: number
+  due_date: string | null
+  aging_days: number | null
+  invoice_status: 'APPROVED' | 'POSTED'
+  assigned_bank_account_id: number | null
+  supplier_bank_accounts: Array<{
+    bank_name: string
+    account_number: string
+  }>
+}
+
 const KEYS = {
   list: (params: ApPaymentListQuery) => ['ap-payments', params] as const,
   detail: (id: string) => ['ap-payments', id] as const,
   dashboard: (branchId?: string) => ['ap-payments', 'dashboard', branchId ?? 'all'] as const,
   outstanding: (params: Record<string, string | boolean | undefined>) =>
     ['ap-payments', 'outstanding', params] as const,
+  outstandingPaginated: (params: OutstandingInvoicesQuery) =>
+    ['ap-payments', 'outstanding-paginated', params] as const,
 }
 
 function toNumber(v: number | string | null | undefined): number {
@@ -273,6 +306,20 @@ export const useOutstandingInvoices = (params: {
       return (data.data ?? []) as ApOutstandingInvoice[]
     },
     enabled: !!params.supplier_id,
+  })
+
+export const useOutstandingInvoicesPaginated = (params: OutstandingInvoicesQuery) =>
+  useQuery({
+    queryKey: KEYS.outstandingPaginated(params),
+    queryFn: async () => {
+      const { data } = await api.get('/ap-payments/outstanding-invoices/paginated', {
+        params,
+      })
+      return {
+        data: (data.data ?? []) as OutstandingInvoiceRow[],
+        pagination: data.pagination as PaginationMeta,
+      }
+    },
   })
 
 export const useCreateApPayment = () => {
@@ -400,6 +447,82 @@ export const useReconcileApPayment = () => {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(v.id) })
+    },
+  })
+}
+
+// --- Bulk Payment ---
+
+export interface BulkCreateApPaymentDto {
+  batch_notes?: string | null
+  payments: Array<{
+    supplier_id: string
+    bank_account_id: number
+    payment_method: ApPaymentMethod
+    invoice_lines: Array<{
+      purchase_invoice_id: string
+      amount_paid: number
+    }>
+    notes?: string | null
+  }>
+}
+
+export interface BulkCreateApPaymentResponse {
+  batch_id: string
+  total_payments: number
+  total_amount: number
+  payments: Array<{
+    id: string
+    payment_number: string
+    supplier_name: string
+    total_amount: number
+  }>
+}
+
+export const useCreateBulkPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: BulkCreateApPaymentDto) => {
+      const { data } = await api.post('/ap-payments/bulk', body)
+      return data.data as BulkCreateApPaymentResponse
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ap-payments'] })
+    },
+  })
+}
+
+export const useCreateBulkPaymentV2 = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (formData: FormData) => {
+      const { data } = await api.post('/ap-payments/bulk', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000,
+      })
+      return data.data as BulkCreateApPaymentResponse
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ap-payments'] })
+    },
+  })
+}
+
+/**
+ * Assign (or clear) a bank account to an outstanding invoice.
+ * Used for inline auto-save in the Outstanding Invoices tab.
+ */
+export const useAssignBankAccount = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ invoiceId, bankAccountId }: { invoiceId: string; bankAccountId: number | null }) => {
+      const { data } = await api.patch(`/ap-payments/outstanding-invoices/${invoiceId}/assign`, {
+        bank_account_id: bankAccountId,
+      })
+      return data.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ap-payments', 'bulk-invoices'] })
     },
   })
 }
