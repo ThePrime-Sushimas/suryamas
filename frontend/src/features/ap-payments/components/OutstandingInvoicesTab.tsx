@@ -1,14 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
-import {
-  useOutstandingInvoicesPaginated,
-  useAssignBankAccount,
-  type OutstandingInvoiceRow,
-  type OutstandingInvoicesQuery,
-} from '../api/apPayments.api'
+import { useOutstandingInvoicesPaginated, useAssignBankAccount, type OutstandingInvoiceRow, type OutstandingInvoicesQuery } from '../api/apPayments.api'
 import { useCompanyBankAccounts } from '../hooks/useCompanyBankAccounts'
-import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { AgingBadge } from './AgingBadge'
 import { BankAccountSelector } from './BankAccountSelector'
 import { BulkSelectionBar } from './BulkSelectionBar'
@@ -53,13 +47,11 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
   const [bankAccountAssignments, setBankAccountAssignments] = useState<Map<string, number | null>>(new Map())
 
   // Fetch company bank accounts for the Rekening Bayar column
-  const hasPermission = usePermissionStore((s) => s.hasPermission)
-  const canViewBalance = hasPermission('bank_accounts', 'release')
   const {
     data: bankAccounts = [],
     isLoading: isBankAccountsLoading,
     isError: isBankAccountsError,
-  } = useCompanyBankAccounts({ includeBalance: canViewBalance })
+  } = useCompanyBankAccounts()
 
   // Mutation for auto-saving bank account assignment
   const assignMutation = useAssignBankAccount()
@@ -291,10 +283,16 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                     Sisa
                   </th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                    Tgl Terima
+                  </th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
                     Jatuh Tempo
                   </th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
                     Status
+                  </th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                    Pembayaran
                   </th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[200px]">
                     <div className="flex items-center gap-1.5">
@@ -321,7 +319,6 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                     onBankAccountChange={handleBankAccountChange}
                     isBankAccountsLoading={isBankAccountsLoading}
                     isBankAccountsError={isBankAccountsError}
-                    canViewBalance={canViewBalance}
                   />
                 ))}
               </tbody>
@@ -374,7 +371,6 @@ interface InvoiceRowProps {
   onBankAccountChange: (invoiceId: string, bankAccountId: number | null) => void
   isBankAccountsLoading: boolean
   isBankAccountsError: boolean
-  canViewBalance: boolean
 }
 
 function InvoiceRow({
@@ -387,17 +383,28 @@ function InvoiceRow({
   onBankAccountChange,
   isBankAccountsLoading,
   isBankAccountsError,
-  canViewBalance,
 }: InvoiceRowProps) {
-  const statusLabel =
-    invoice.invoice_status === 'APPROVED' ? 'Approved' : 'Posted'
-  const statusColor =
+  const isPartiallyPaid = invoice.remaining_amount < invoice.total_amount
+
+  // Invoice verification status (existing)
+  const invoiceStatusLabel =
+    invoice.invoice_status === 'APPROVED' ? 'Siap Bayar' : 'Sudah Posting'
+  const invoiceStatusColor =
     invoice.invoice_status === 'APPROVED'
       ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
       : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
 
-  // Dropdown is disabled when: bank accounts loading or bank accounts API failed
-  // Finance can assign rekening without checking the row (assignment is independent of selection)
+  // AP Payment flow status (new column)
+  let paymentFlowLabel: string
+  let paymentFlowColor: string
+  if (isPartiallyPaid) {
+    paymentFlowLabel = 'Partial Paid'
+    paymentFlowColor = 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+  } else {
+    paymentFlowLabel = 'Belum Dibayar'
+    paymentFlowColor = 'bg-gray-50 text-gray-600 dark:bg-gray-700/50 dark:text-gray-400'
+  }
+
   const isBankDropdownDisabled = isBankAccountsLoading || isBankAccountsError
 
   return (
@@ -412,21 +419,17 @@ function InvoiceRow({
           aria-label={`Pilih invoice ${invoice.invoice_number}`}
         />
       </td>
-      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
-        {invoice.invoice_number}
+      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white max-w-[140px]">
+        <span className="block truncate" title={invoice.invoice_number}>
+          {invoice.invoice_number}
+        </span>
       </td>
       <td className="px-3 py-3">
-        <div className="text-gray-900 dark:text-white">{invoice.supplier_name}</div>
-        {invoice.supplier_bank_accounts.length > 0 && (
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {invoice.supplier_bank_accounts.map((ba, i) => (
-              <span key={i}>
-                {i > 0 && ' · '}
-                {ba.bank_name} {ba.account_number}
-              </span>
-            ))}
-          </div>
-        )}
+        <div className="text-gray-900 dark:text-white" title={
+          invoice.supplier_bank_accounts.length > 0
+            ? invoice.supplier_bank_accounts.map(ba => `${ba.bank_name} ${ba.account_number}`).join(' · ')
+            : undefined
+        }>{invoice.supplier_name}</div>
       </td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
         {invoice.branch_name}
@@ -437,6 +440,9 @@ function InvoiceRow({
       <td className="px-3 py-3 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">
         {fmtCurrency(invoice.remaining_amount)}
       </td>
+      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+        {fmtDate(invoice.earliest_received_date)}
+      </td>
       <td className="px-3 py-3 whitespace-nowrap">
         <div className="flex items-center gap-2">
           <span className="text-gray-700 dark:text-gray-300">{fmtDate(invoice.due_date)}</span>
@@ -445,9 +451,16 @@ function InvoiceRow({
       </td>
       <td className="px-3 py-3">
         <span
-          className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${statusColor}`}
+          className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${invoiceStatusColor}`}
         >
-          {statusLabel}
+          {invoiceStatusLabel}
+        </span>
+      </td>
+      <td className="px-3 py-3">
+        <span
+          className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${paymentFlowColor}`}
+        >
+          {paymentFlowLabel}
         </span>
       </td>
       <td className="px-3 py-3">
@@ -456,8 +469,7 @@ function InvoiceRow({
           value={bankAccountId}
           onChange={(id) => onBankAccountChange(invoice.id, id)}
           disabled={isBankDropdownDisabled}
-          canViewBalance={canViewBalance}
-          totalAssigned={invoice.remaining_amount}
+          canViewBalance={false}
         />
       </td>
     </tr>

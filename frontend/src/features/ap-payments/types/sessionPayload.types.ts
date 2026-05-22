@@ -6,13 +6,13 @@ export interface SessionPayloadItem {
 
 /** State for proof file uploads on the Bulk Create page */
 export interface ProofFileState {
-  individualFiles: Map<number, File> // groupIndex → File
+  individualFiles: Map<string, File> // stable key (supplierId or supplierId:bankAccountId) → File
   batchFile: File | null
 }
 
 /** Resolved proof file for submission (individual overrides batch) */
 export interface ResolvedProof {
-  groupIndex: number
+  groupKey: string
   file: File
   source: 'individual' | 'batch'
 }

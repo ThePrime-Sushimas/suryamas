@@ -513,8 +513,8 @@ const PurchaseInvoiceDetailPage = lazy(() => import("./features/purchase-invoice
 // AP Payments
 const ApDashboardPage = lazy(() => import('./features/ap-payments/pages/ApDashboardPage'))
 const ApPaymentsPage = lazy(() => import('./features/ap-payments/pages/ApPaymentsPage'))
-const ApPaymentFormPage = lazy(() => import('./features/ap-payments/pages/ApPaymentFormPage'))
 const ApPaymentDetailPage = lazy(() => import('./features/ap-payments/pages/ApPaymentDetailPage'))
+const ApPaymentEditPage = lazy(() => import('./features/ap-payments/pages/ApPaymentEditPage'))
 const BulkCreatePage = lazy(() => import('./features/ap-payments/pages/BulkCreatePage'))
 
 const LoadingFallback = () => (
@@ -1718,16 +1718,6 @@ function App() {
                     }
                   />
                   <Route
-                    path="finance/ap-payments/new"
-                    element={
-                      <RequirePermission module="ap_payments" action="insert">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <ApPaymentFormPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
                     path="finance/ap-payments/:id"
                     element={
                       <RequirePermission module="ap_payments">
@@ -1742,7 +1732,7 @@ function App() {
                     element={
                       <RequirePermission module="ap_payments" action="update">
                         <Suspense fallback={<LoadingFallback />}>
-                          <ApPaymentFormPage />
+                          <ApPaymentEditPage />
                         </Suspense>
                       </RequirePermission>
                     }

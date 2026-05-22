@@ -215,6 +215,7 @@ export interface OutstandingInvoiceRow {
   aging_days: number | null
   invoice_status: 'APPROVED' | 'POSTED'
   assigned_bank_account_id: number | null
+  earliest_received_date: string | null
   supplier_bank_accounts: Array<{
     bank_name: string
     account_number: string

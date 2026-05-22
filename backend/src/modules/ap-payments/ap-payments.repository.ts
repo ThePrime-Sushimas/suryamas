@@ -813,7 +813,14 @@ export class ApPaymentsRepository {
          GROUP BY l.purchase_invoice_id
        ) paid ON paid.purchase_invoice_id = pi.id
        WHERE ${where}
-         AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0`,
+         AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0
+         AND NOT EXISTS (
+           SELECT 1 FROM ap_payment_invoice_lines pl
+           JOIN ap_payments ap ON ap.id = pl.ap_payment_id
+           WHERE pl.purchase_invoice_id = pi.id
+             AND ap.status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED')
+             AND ap.deleted_at IS NULL
+         )`,
       params,
     )
     const total = parseInt(countResult.rows[0].count, 10)
@@ -837,6 +844,7 @@ export class ApPaymentsRepository {
          END                                                      AS aging_days,
          pi.status                                                AS invoice_status,
          pi.assigned_bank_account_id,
+         gr_dates.earliest_received_date,
          COALESCE(
            (SELECT json_agg(json_build_object(
              'bank_name', bk.bank_name,
@@ -861,8 +869,22 @@ export class ApPaymentsRepository {
            AND p.deleted_at IS NULL
          GROUP BY l.purchase_invoice_id
        ) paid ON paid.purchase_invoice_id = pi.id
+       LEFT JOIN LATERAL (
+         SELECT MIN(gr.received_date) AS earliest_received_date
+         FROM purchase_invoice_gr_links pigl
+         JOIN goods_receipts gr ON gr.id = pigl.goods_receipt_id
+         WHERE pigl.purchase_invoice_id = pi.id
+           AND pigl.is_deleted = false
+       ) gr_dates ON true
        WHERE ${where}
          AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0
+         AND NOT EXISTS (
+           SELECT 1 FROM ap_payment_invoice_lines pl
+           JOIN ap_payments ap ON ap.id = pl.ap_payment_id
+           WHERE pl.purchase_invoice_id = pi.id
+             AND ap.status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED')
+             AND ap.deleted_at IS NULL
+         )
        ORDER BY pi.due_date ASC NULLS LAST
        LIMIT $${idx} OFFSET $${idx + 1}`,
       [...params, limit, offset],

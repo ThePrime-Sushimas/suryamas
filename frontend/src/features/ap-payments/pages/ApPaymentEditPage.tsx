@@ -9,7 +9,6 @@ import { bankAccountsApi } from '@/features/bank-accounts/api/bankAccounts.api'
 import type { BankAccount } from '@/features/bank-accounts/types'
 import {
   useApPayment,
-  useCreateApPayment,
   useUpdateApPayment,
   useOutstandingInvoices,
   type ApOutstandingInvoice,
@@ -36,18 +35,14 @@ type LineDraft = {
 
 const inputCls = apTheme.input
 
-export default function ApPaymentFormPage() {
+export default function ApPaymentEditPage() {
   const { id } = useParams<{ id: string }>()
-  const isEdit = Boolean(id)
   const navigate = useNavigate()
   const toast = useToast()
   const branch = useBranchContextStore((s) => s.currentBranch)
 
   const { data: existing, isLoading: loadingExisting } = useApPayment(id ?? '')
-  const createPayment = useCreateApPayment()
   const updatePayment = useUpdateApPayment()
-
-  const { data: suppliersData } = useSuppliers({ limit: 100, is_active: true })
 
   const [supplierId, setSupplierId] = useState('')
   const [bankAccountId, setBankAccountId] = useState<number | ''>('')
@@ -76,7 +71,7 @@ export default function ApPaymentFormPage() {
   }, [branch?.company_id])
 
   useEffect(() => {
-    if (!existing || !isEdit) return
+    if (!existing) return
     setSupplierId(existing.supplier_id)
     setBankAccountId(existing.bank_account_id)
     setPaymentMethod(existing.payment_method)
@@ -90,7 +85,7 @@ export default function ApPaymentFormPage() {
         notes: l.notes ?? '',
       })),
     )
-  }, [existing, isEdit])
+  }, [existing])
 
   const linesTotal = useMemo(
     () =>
@@ -105,10 +100,10 @@ export default function ApPaymentFormPage() {
     () =>
       outstanding.filter((inv) => {
         if (lines.some((l) => l.purchase_invoice_id === inv.id)) return false
-        if (inv.ap_payment_id && (!isEdit || inv.ap_payment_id !== id)) return false
+        if (inv.ap_payment_id && inv.ap_payment_id !== id) return false
         return true
       }),
-    [outstanding, lines, isEdit, id],
+    [outstanding, lines, id],
   )
 
   const addLine = (inv: ApOutstandingInvoice) => {
@@ -149,37 +144,24 @@ export default function ApPaymentFormPage() {
     }
 
     try {
-      if (isEdit && id) {
-        await updatePayment.mutateAsync({
-          id,
-          body: {
-            bank_account_id: Number(bankAccountId),
-            payment_method: paymentMethod,
-            total_amount: linesTotal,
-            notes: notes.trim() || null,
-            lines: payloadLines,
-          },
-        })
-        toast.success('Pembayaran diperbarui')
-        navigate(`${AP_PAYMENTS_LIST_PATH}/${id}`)
-      } else {
-        const created = await createPayment.mutateAsync({
-          supplier_id: supplierId,
+      await updatePayment.mutateAsync({
+        id: id!,
+        body: {
           bank_account_id: Number(bankAccountId),
           payment_method: paymentMethod,
           total_amount: linesTotal,
           notes: notes.trim() || null,
           lines: payloadLines,
-        })
-        toast.success('Pembayaran dibuat')
-        navigate(`${AP_PAYMENTS_LIST_PATH}/${created.id}`)
-      }
+        },
+      })
+      toast.success('Pembayaran diperbarui')
+      navigate(`${AP_PAYMENTS_LIST_PATH}/${id}`)
     } catch (err: unknown) {
       toast.error(parseApiError(err, 'Gagal menyimpan'))
     }
   }
 
-  if (isEdit && loadingExisting) {
+  if (loadingExisting) {
     return (
       <ApPaymentsShell className="min-h-screen flex items-center justify-center">
         <div className={`animate-pulse ${apTheme.muted}`}>Memuat...</div>
@@ -187,7 +169,7 @@ export default function ApPaymentFormPage() {
     )
   }
 
-  if (isEdit && existing && existing.status !== 'DRAFT') {
+  if (existing && existing.status !== 'DRAFT') {
     return (
       <ApPaymentsShell className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
         <AlertCircle className="w-10 h-10 text-amber-500" />
@@ -211,14 +193,12 @@ export default function ApPaymentFormPage() {
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
           <button
             type="button"
-            onClick={() => navigate(isEdit ? `${AP_PAYMENTS_LIST_PATH}/${id}` : AP_PAYMENTS_LIST_PATH)}
+            onClick={() => navigate(`${AP_PAYMENTS_LIST_PATH}/${id}`)}
             className={apTheme.btnGhost}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className={apTheme.titleSm}>
-            {isEdit ? 'Edit Pembayaran AP' : 'Buat Pembayaran AP'}
-          </h1>
+          <h1 className={apTheme.titleSm}>Edit Pembayaran AP</h1>
         </div>
       </div>
 
@@ -229,22 +209,9 @@ export default function ApPaymentFormPage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Supplier *</label>
-              <select
-                value={supplierId}
-                onChange={(e) => {
-                  setSupplierId(e.target.value)
-                  setLines([])
-                }}
-                disabled={isEdit}
-                className={inputCls}
-              >
-                <option value="">Pilih supplier</option>
-                {(suppliersData?.data ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.supplier_name}
-                  </option>
-                ))}
+              <label className="block text-xs text-gray-500 mb-1">Supplier</label>
+              <select value={supplierId} disabled className={inputCls}>
+                <option value={supplierId}>{existing?.supplier_name ?? '—'}</option>
               </select>
             </div>
             <div>
@@ -291,13 +258,11 @@ export default function ApPaymentFormPage() {
 
         <section className={`${apTheme.card} p-5 space-y-4`}>
           <h2 className={`${apTheme.sectionTitle} uppercase tracking-wide`}>
-            Invoice (APPROVED / POSTED)
+            Invoice
           </h2>
 
           {!outstandingSupplierId ? (
-            <p className="text-sm text-gray-500">Pilih supplier terlebih dahulu.</p>
-          ) : loadingOutstanding && lines.length === 0 ? (
-            <p className="text-sm text-gray-500 py-4 text-center">Memuat invoice outstanding...</p>
+            <p className="text-sm text-gray-500">Supplier tidak ditemukan.</p>
           ) : (
             <>
               <div className="flex flex-col sm:flex-row gap-2">
@@ -312,15 +277,11 @@ export default function ApPaymentFormPage() {
                       ? 'Memuat invoice...'
                       : availableToAdd.length === 0
                         ? 'Tidak ada invoice outstanding'
-                        : 'Pilih invoice'}
+                        : 'Tambah invoice'}
                   </option>
                   {availableToAdd.map((inv) => (
                     <option key={inv.id} value={inv.id}>
-                      {inv.invoice_number} [{inv.invoice_status}]
-                      {' '}
-                      — {fmtCurrency(parseFloat(String(inv.outstanding)))}
-                      {inv.is_overdue ? ' (overdue)' : ''}
-                      {!inv.can_pay ? ' · belum bisa bayar' : ''}
+                      {inv.invoice_number} — {fmtCurrency(parseFloat(String(inv.outstanding)))}
                     </option>
                   ))}
                 </select>
@@ -401,11 +362,11 @@ export default function ApPaymentFormPage() {
           <button
             type="button"
             onClick={() => void handleSave()}
-            disabled={createPayment.isPending || updatePayment.isPending}
+            disabled={updatePayment.isPending}
             className={apTheme.btnPrimaryLg}
           >
             <Save className="w-4 h-4" />
-            Simpan draft
+            Simpan
           </button>
         </div>
       </div>

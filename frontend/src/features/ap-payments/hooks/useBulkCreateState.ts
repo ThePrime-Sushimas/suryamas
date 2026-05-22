@@ -1,5 +1,6 @@
 import { useReducer, useMemo, useCallback, useEffect, useRef } from 'react'
 import type { OutstandingInvoiceRow } from '../api/apPayments.api'
+import type { ApPaymentMethod } from '../api/apPayments.api'
 
 // --- Types ---
 
@@ -9,6 +10,7 @@ export interface InvoiceAssignment {
   supplierName: string
   invoiceNumber: string
   remainingAmount: number
+  amountPaid: number
   dueDate: string | null
   checked: boolean
   bankAccountId: number | null
@@ -29,6 +31,7 @@ export interface BankAccountUsage {
 export interface BulkCreateState {
   invoices: Map<string, InvoiceAssignment>
   groupNotes: Map<string, string>
+  groupPaymentMethods: Map<string, ApPaymentMethod>
 }
 
 export interface BulkCreateDerived {
@@ -44,8 +47,10 @@ export interface BulkCreateDerived {
 type BulkCreateAction =
   | { type: 'TOGGLE_INVOICE'; invoiceId: string; checked: boolean }
   | { type: 'SET_BANK_ACCOUNT'; invoiceId: string; bankAccountId: number | null }
+  | { type: 'SET_AMOUNT_PAID'; invoiceId: string; amountPaid: number }
   | { type: 'APPLY_ALL_BANK_ACCOUNT'; supplierId: string; bankAccountId: number }
   | { type: 'SET_GROUP_NOTES'; supplierId: string; notes: string }
+  | { type: 'SET_GROUP_PAYMENT_METHOD'; supplierId: string; paymentMethod: ApPaymentMethod }
   | { type: 'REINITIALIZE'; state: BulkCreateState }
 
 // --- Reducer ---
@@ -60,7 +65,6 @@ function bulkCreateReducer(state: BulkCreateState, action: BulkCreateAction): Bu
       newInvoices.set(action.invoiceId, {
         ...invoice,
         checked: action.checked,
-        // When unchecking, reset bankAccountId to null
         bankAccountId: action.checked ? invoice.bankAccountId : null,
       })
       return { ...state, invoices: newInvoices }
@@ -74,6 +78,18 @@ function bulkCreateReducer(state: BulkCreateState, action: BulkCreateAction): Bu
       newInvoices.set(action.invoiceId, {
         ...invoice,
         bankAccountId: action.bankAccountId,
+      })
+      return { ...state, invoices: newInvoices }
+    }
+
+    case 'SET_AMOUNT_PAID': {
+      const invoice = state.invoices.get(action.invoiceId)
+      if (!invoice) return state
+
+      const newInvoices = new Map(state.invoices)
+      newInvoices.set(action.invoiceId, {
+        ...invoice,
+        amountPaid: action.amountPaid,
       })
       return { ...state, invoices: newInvoices }
     }
@@ -101,6 +117,12 @@ function bulkCreateReducer(state: BulkCreateState, action: BulkCreateAction): Bu
       return { ...state, groupNotes: newGroupNotes }
     }
 
+    case 'SET_GROUP_PAYMENT_METHOD': {
+      const newMethods = new Map(state.groupPaymentMethods)
+      newMethods.set(action.supplierId, action.paymentMethod)
+      return { ...state, groupPaymentMethods: newMethods }
+    }
+
     case 'REINITIALIZE':
       return action.state
 
@@ -120,7 +142,6 @@ function initializeState(
 
   for (const row of invoiceRows) {
     const prefilledBankId = initialAssignments.get(row.id) ?? null
-    // Validate that pre-filled bankAccountId exists in active accounts
     const validatedBankId = prefilledBankId && validBankAccountIds.has(prefilledBankId)
       ? prefilledBankId
       : null
@@ -131,8 +152,9 @@ function initializeState(
       supplierName: row.supplier_name,
       invoiceNumber: row.invoice_number,
       remainingAmount: row.remaining_amount,
+      amountPaid: row.remaining_amount, // Default: bayar penuh
       dueDate: row.due_date,
-      checked: true, // All invoices start checked (they were selected on the previous page)
+      checked: true,
       bankAccountId: validatedBankId,
     })
   }
@@ -140,6 +162,7 @@ function initializeState(
   return {
     invoices,
     groupNotes: new Map(),
+    groupPaymentMethods: new Map(),
   }
 }
 
@@ -178,12 +201,20 @@ export function useBulkCreateState(
     dispatch({ type: 'SET_BANK_ACCOUNT', invoiceId, bankAccountId })
   }, [])
 
+  const setAmountPaid = useCallback((invoiceId: string, amountPaid: number) => {
+    dispatch({ type: 'SET_AMOUNT_PAID', invoiceId, amountPaid })
+  }, [])
+
   const applyAllBankAccount = useCallback((supplierId: string, bankAccountId: number) => {
     dispatch({ type: 'APPLY_ALL_BANK_ACCOUNT', supplierId, bankAccountId })
   }, [])
 
   const setGroupNotes = useCallback((supplierId: string, notes: string) => {
     dispatch({ type: 'SET_GROUP_NOTES', supplierId, notes })
+  }, [])
+
+  const setGroupPaymentMethod = useCallback((supplierId: string, paymentMethod: ApPaymentMethod) => {
+    dispatch({ type: 'SET_GROUP_PAYMENT_METHOD', supplierId, paymentMethod })
   }, [])
 
   // --- Derived values ---
@@ -210,14 +241,12 @@ export function useBulkCreateState(
       const supplierName = invoices[0]?.supplierName ?? ''
       const subtotal = invoices
         .filter((inv) => inv.checked)
-        .reduce((sum, inv) => sum + inv.remainingAmount, 0)
+        .reduce((sum, inv) => sum + inv.amountPaid, 0)
 
       groups.push({ supplierId, supplierName, invoices, subtotal })
     }
 
-    // Sort alphabetically by supplier name
     groups.sort((a, b) => a.supplierName.localeCompare(b.supplierName))
-
     return groups
   }, [state.invoices])
 
@@ -227,7 +256,7 @@ export function useBulkCreateState(
     for (const invoice of checkedInvoices) {
       if (invoice.bankAccountId != null) {
         const current = usageMap.get(invoice.bankAccountId) ?? 0
-        usageMap.set(invoice.bankAccountId, current + invoice.remainingAmount)
+        usageMap.set(invoice.bankAccountId, current + invoice.amountPaid)
       }
     }
 
@@ -238,7 +267,7 @@ export function useBulkCreateState(
   }, [checkedInvoices])
 
   const grandTotal = useMemo(
-    () => checkedInvoices.reduce((sum, inv) => sum + inv.remainingAmount, 0),
+    () => checkedInvoices.reduce((sum, inv) => sum + inv.amountPaid, 0),
     [checkedInvoices],
   )
 
@@ -256,6 +285,7 @@ export function useBulkCreateState(
     // State
     invoices: state.invoices,
     groupNotes: state.groupNotes,
+    groupPaymentMethods: state.groupPaymentMethods,
 
     // Derived
     checkedInvoices,
@@ -267,7 +297,9 @@ export function useBulkCreateState(
     // Actions
     toggleInvoice,
     setBankAccount,
+    setAmountPaid,
     applyAllBankAccount,
     setGroupNotes,
+    setGroupPaymentMethod,
   }
 }

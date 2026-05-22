@@ -135,13 +135,14 @@ export default function ApPaymentsPage() {
               {isExporting ? 'Mengekspor...' : 'Export'}
             </button>
             {canInsert && (
-              <Link
-                to={`${AP_PAYMENTS_LIST_PATH}/new`}
+              <button
+                type="button"
+                onClick={() => setFilters({ tab: 'outstanding' })}
                 className={apTheme.btnPrimary}
               >
                 <Plus className="w-4 h-4" />
                 Buat Pembayaran
-              </Link>
+              </button>
             )}
           </div>
         </div>
@@ -275,12 +276,13 @@ export default function ApPaymentsPage() {
             <Wallet className="mx-auto w-12 h-12 text-rose-200 dark:text-gray-600 mb-4" />
             <p className={apTheme.muted}>Belum ada pembayaran AP</p>
             {canInsert && (
-              <Link
-                to={`${AP_PAYMENTS_LIST_PATH}/new`}
+              <button
+                type="button"
+                onClick={() => setFilters({ tab: 'outstanding' })}
                 className={`inline-block mt-4 text-sm font-medium ${apTheme.link}`}
               >
                 Buat pembayaran pertama
-              </Link>
+              </button>
             )}
           </div>
         ) : (

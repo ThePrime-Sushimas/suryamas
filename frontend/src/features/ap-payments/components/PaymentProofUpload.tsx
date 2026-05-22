@@ -16,7 +16,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ACCEPT_STRING = ACCEPTED_MIME_TYPES.join(',')
 
 export interface PaymentProofUploadProps {
-  groupIndex: number
+  groupKey: string
   file: File | null
   batchFile: File | null
   onFileChange: (file: File | null) => void
@@ -54,7 +54,7 @@ function validateFile(file: File): string | null {
  * - Displays inline error message for invalid files
  */
 export function PaymentProofUpload({
-  groupIndex,
+  groupKey,
   file,
   batchFile,
   onFileChange,
@@ -116,7 +116,7 @@ export function PaymentProofUpload({
   }
 
   const displayError = error ?? validationError
-  const inputId = `proof-upload-${groupIndex}`
+  const inputId = `proof-upload-${groupKey}`
 
   // Show file preview/info when a file is present
   if (displayFile) {
@@ -133,7 +133,7 @@ export function PaymentProofUpload({
           {isImageFile(displayFile) && activePreviewUrl ? (
             <img
               src={activePreviewUrl}
-              alt={`Bukti pembayaran grup ${groupIndex + 1}`}
+              alt={`Bukti pembayaran ${groupKey}`}
               className="max-h-[120px] w-auto rounded-xl border border-rose-100 dark:border-gray-600 object-contain"
             />
           ) : (
@@ -175,7 +175,7 @@ export function PaymentProofUpload({
               type="button"
               onClick={handleRemove}
               className="shrink-0 p-1.5 rounded-xl hover:bg-rose-100/80 dark:hover:bg-gray-600 transition-colors"
-              aria-label={`Hapus bukti pembayaran grup ${groupIndex + 1}`}
+              aria-label={`Hapus bukti pembayaran ${groupKey}`}
             >
               <X className="w-4 h-4 text-gray-400 hover:text-red-500" />
             </button>

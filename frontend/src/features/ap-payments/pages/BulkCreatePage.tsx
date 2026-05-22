@@ -4,7 +4,6 @@ import { ArrowLeft, AlertCircle, RefreshCw } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import api from '@/lib/axios'
-import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useBulkCreateState } from '../hooks/useBulkCreateState'
@@ -21,8 +20,6 @@ const SESSION_KEY = 'bulk_selected_invoices'
 export default function BulkCreatePage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const hasPermission = usePermissionStore((s) => s.hasPermission)
-  const canViewBalance = hasPermission('bank_accounts', 'release')
 
   // Read session payload from sessionStorage on mount (V2 format with bank account assignments)
   const [sessionPayload] = useState<SessionPayloadItem[] | null>(() => getStoredSessionPayload())
@@ -73,7 +70,7 @@ export default function BulkCreatePage() {
     data: companyBankAccounts = [],
     isLoading: bankAccountsLoading,
     isError: bankAccountsError,
-  } = useCompanyBankAccounts({ includeBalance: canViewBalance })
+  } = useCompanyBankAccounts()
 
   // Build initial bank account assignments from session payload
   const initialAssignments = useMemo(() => {
@@ -109,6 +106,23 @@ export default function BulkCreatePage() {
     return map
   }, [invoiceData])
 
+  // Track selected supplier bank account (tujuan) per supplier
+  const [supplierBankSelections, setSupplierBankSelections] = useState<Map<string, string>>(new Map())
+
+  // Auto-select when supplier has only 1 bank account
+  useEffect(() => {
+    if (!invoiceData || invoiceData.length === 0) return
+    setSupplierBankSelections((prev) => {
+      const next = new Map(prev)
+      for (const [supplierId, accounts] of supplierBankAccountsMap) {
+        if (!next.has(supplierId) && accounts.length === 1) {
+          next.set(supplierId, `${accounts[0].bank_name} ${accounts[0].account_number}`)
+        }
+      }
+      return next
+    })
+  }, [invoiceData, supplierBankAccountsMap])
+
   // Currency formatter for confirmation dialog
   const fmtCurrency = useCallback(
     (v: number) =>
@@ -120,15 +134,6 @@ export default function BulkCreatePage() {
       }).format(v),
     [],
   )
-
-  // Check if any bank account has insufficient balance
-  const hasInsufficientBalance = useMemo(() => {
-    if (!canViewBalance) return false
-    return bulkState.bankAccountUsage.some((usage) => {
-      const account = companyBankAccounts.find((a) => a.id === usage.bankAccountId)
-      return account?.balance != null && usage.usedAmount > account.balance
-    })
-  }, [canViewBalance, bulkState.bankAccountUsage, companyBankAccounts])
 
   // --- Submission flow ---
 
@@ -155,14 +160,9 @@ export default function BulkCreatePage() {
       return
     }
 
-    // 2. When canViewBalance: validate no account exceeds balance
-    if (canViewBalance && hasInsufficientBalance) {
-      return // Submit button should already be disabled, but guard here too
-    }
-
-    // 3. Show confirmation dialog
+    // 2. Show confirmation dialog
     setShowConfirmModal(true)
-  }, [bulkState.checkedInvoices, canViewBalance, hasInsufficientBalance])
+  }, [bulkState.checkedInvoices])
 
   const handleConfirmSubmit = useCallback(() => {
     setShowConfirmModal(false)
@@ -173,6 +173,7 @@ export default function BulkCreatePage() {
       {
         supplier_id: string
         bank_account_id: number
+        payment_method: string
         invoice_lines: Array<{ purchase_invoice_id: string; amount_paid: number }>
         notes: string | null
       }
@@ -187,19 +188,20 @@ export default function BulkCreatePage() {
       if (existing) {
         existing.invoice_lines.push({
           purchase_invoice_id: invoice.invoiceId,
-          amount_paid: invoice.remainingAmount,
+          amount_paid: invoice.amountPaid,
         })
       } else {
-        // Get group notes for this supplier
         const notes = bulkState.groupNotes.get(invoice.supplierId) || null
+        const paymentMethod = bulkState.groupPaymentMethods.get(invoice.supplierId) ?? 'TRANSFER'
 
         groupMap.set(key, {
           supplier_id: invoice.supplierId,
           bank_account_id: invoice.bankAccountId,
+          payment_method: paymentMethod,
           invoice_lines: [
             {
               purchase_invoice_id: invoice.invoiceId,
-              amount_paid: invoice.remainingAmount,
+              amount_paid: invoice.amountPaid,
             },
           ],
           notes,
@@ -212,7 +214,7 @@ export default function BulkCreatePage() {
       payments: Array.from(groupMap.values()).map((group) => ({
         supplier_id: group.supplier_id,
         bank_account_id: group.bank_account_id,
-        payment_method: 'TRANSFER' as const,
+        payment_method: group.payment_method as 'TRANSFER' | 'CASH' | 'CHECK' | 'GIRO',
         invoice_lines: group.invoice_lines,
         notes: group.notes,
       })),
@@ -366,20 +368,27 @@ export default function BulkCreatePage() {
               }}
               invoices={group.invoices}
               companyBankAccounts={bankAccountsError ? [] : companyBankAccounts}
-              canViewBalance={canViewBalance}
               groupNotes={bulkState.groupNotes.get(group.supplierId) ?? ''}
+              paymentMethod={bulkState.groupPaymentMethods.get(group.supplierId) ?? 'TRANSFER'}
+              selectedSupplierBank={supplierBankSelections.get(group.supplierId) ?? ''}
               onGroupNotesChange={(notes) =>
                 bulkState.setGroupNotes(group.supplierId, notes)
               }
-              onApplyAll={(bankAccountId) =>
-                bulkState.applyAllBankAccount(group.supplierId, bankAccountId)
+              onPaymentMethodChange={(method) =>
+                bulkState.setGroupPaymentMethod(group.supplierId, method)
+              }
+              onSupplierBankChange={(value) =>
+                setSupplierBankSelections((prev) => {
+                  const next = new Map(prev)
+                  next.set(group.supplierId, value)
+                  return next
+                })
               }
               onInvoiceToggle={(invoiceId, checked) =>
                 bulkState.toggleInvoice(invoiceId, checked)
               }
               onBankAccountChange={(invoiceId, bankAccountId) => {
                 bulkState.setBankAccount(invoiceId, bankAccountId)
-                // Clear validation error for this invoice when bank account is set
                 if (bankAccountId != null && validationErrors.has(invoiceId)) {
                   setValidationErrors((prev) => {
                     const next = new Set(prev)
@@ -388,6 +397,9 @@ export default function BulkCreatePage() {
                   })
                 }
               }}
+              onAmountPaidChange={(invoiceId, amount) =>
+                bulkState.setAmountPaid(invoiceId, amount)
+              }
               validationErrors={validationErrors}
             />
           ))}
@@ -413,12 +425,11 @@ export default function BulkCreatePage() {
                   bankName: account?.bank_name ?? '—',
                   accountNumber: account?.account_number ?? '—',
                   usedAmount: usage.usedAmount,
-                  balance: canViewBalance ? account?.balance : undefined,
                 }
               },
             )}
-            canViewBalance={canViewBalance}
-            hasInsufficientBalance={hasInsufficientBalance}
+            canViewBalance={false}
+            hasInsufficientBalance={false}
             onSubmit={handleSubmitClick}
             isSubmitting={bulkCreateMutation.isPending}
           />

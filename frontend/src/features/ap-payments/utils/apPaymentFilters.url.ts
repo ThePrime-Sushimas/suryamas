@@ -28,7 +28,7 @@ export const DEFAULT_AP_PAYMENT_FILTERS: ApPaymentFilters = {
   supplierId: '',
   branchId: '',
   paymentMethod: '',
-  tab: 'all',
+  tab: 'outstanding',
   dateFrom: '',
   dateTo: '',
   bulkOnly: false,

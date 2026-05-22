@@ -1,5 +1,4 @@
 export { default as ApDashboardPage } from './pages/ApDashboardPage'
 export { default as ApPaymentsPage } from './pages/ApPaymentsPage'
-export { default as ApPaymentFormPage } from './pages/ApPaymentFormPage'
 export { default as ApPaymentDetailPage } from './pages/ApPaymentDetailPage'
 export { AP_PAYMENTS_LIST_PATH, AP_DASHBOARD_PATH } from './constants'

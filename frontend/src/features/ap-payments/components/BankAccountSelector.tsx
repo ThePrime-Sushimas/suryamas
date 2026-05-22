@@ -77,11 +77,10 @@ export function BankAccountSelector({
         ))}
       </select>
 
-      {/* Balance / permission info below dropdown */}
-      {value != null && selectedAccount && (
+      {/* Balance info below dropdown (only when canViewBalance is enabled) */}
+      {canViewBalance && value != null && selectedAccount && (
         <BalanceInfo
           account={selectedAccount}
-          canViewBalance={canViewBalance}
           totalAssigned={totalAssigned}
         />
       )}
@@ -93,19 +92,10 @@ export function BankAccountSelector({
 
 interface BalanceInfoProps {
   account: CompanyBankAccount
-  canViewBalance: boolean
   totalAssigned: number
 }
 
-function BalanceInfo({ account, canViewBalance, totalAssigned }: BalanceInfoProps) {
-  if (!canViewBalance) {
-    return (
-      <span className="text-xs text-gray-400 dark:text-gray-500">
-        🔒 Saldo tidak ditampilkan
-      </span>
-    )
-  }
-
+function BalanceInfo({ account, totalAssigned }: BalanceInfoProps) {
   const balance = account.balance ?? 0
   const isSufficient = balance >= totalAssigned
 

@@ -41,21 +41,19 @@ export const AP_PAYMENT_METHOD_LABELS: Record<ApPaymentMethod, string> = {
 }
 
 export const AP_LIST_TABS = [
-  { id: 'all', label: 'Semua' },
+  { id: 'outstanding', label: 'Invoice Outstanding' },
   { id: 'draft', label: 'Draft' },
   { id: 'pending', label: 'Approval' },
-  { id: 'approved', label: 'Disetujui' },
-  { id: 'rejected', label: 'Ditolak' },
-  { id: 'outstanding', label: 'Invoice Outstanding' },
+  { id: 'paid', label: 'Paid' },
+  { id: 'all', label: 'Semua' },
 ] as const
 
 export type ApPaymentListTab = (typeof AP_LIST_TABS)[number]['id']
 
 export const AP_LIST_TAB_STATUS: Record<ApPaymentListTab, ApPaymentStatus | ''> = {
-  all: '',
+  outstanding: '',
   draft: 'DRAFT',
   pending: 'PENDING_APPROVAL',
-  approved: 'APPROVED',
-  rejected: 'REJECTED',
-  outstanding: '',
+  paid: 'PAID',
+  all: '',
 }
