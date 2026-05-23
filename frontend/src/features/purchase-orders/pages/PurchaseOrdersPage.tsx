@@ -183,9 +183,9 @@ export default function PurchaseOrdersPage() {
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{po.supplier_name}</td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{po.branch_name}</td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{fmtDate(po.order_date)}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{po.branch_name}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{fmtDate(po.order_date)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <span
                             className={`px-2 py-0.5 rounded text-xs font-medium ${
                               po.payment_type === 'CASH'
@@ -193,13 +193,13 @@ export default function PurchaseOrdersPage() {
                                 : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
                             }`}
                           >
-                            {po.payment_type === 'CASH' ? 'Cash' : `Tempo ${po.payment_terms_days ?? ''}hr`}
+                            {po.payment_term_name ?? (po.payment_type === 'CASH' ? 'Cash' : `Tempo ${po.payment_terms_days ?? ''}hr`)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
                           Rp {fmt(po.total_amount)}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.color}`}>
                             {statusCfg.label}
                           </span>

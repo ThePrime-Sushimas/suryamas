@@ -13,6 +13,7 @@ const HEADER_SELECT = `
   s.supplier_name, s.supplier_code, s.invoice_bypass_reason,
   pr.request_number,
   app_emp.full_name AS approved_by_name,
+  pt.term_name AS payment_term_name,
   COALESCE(lines_agg.line_count, 0)::int AS line_count
 `
 const HEADER_FROM = `
@@ -21,6 +22,7 @@ const HEADER_FROM = `
   JOIN suppliers s ON s.id = po.supplier_id
   JOIN purchase_requests pr ON pr.id = po.purchase_request_id
   LEFT JOIN employees app_emp ON app_emp.user_id = po.approved_by
+  LEFT JOIN payment_terms pt ON pt.id_payment_term = po.payment_term_id
   LEFT JOIN LATERAL (
     SELECT COUNT(*)::int AS line_count FROM purchase_order_lines pol WHERE pol.po_id = po.id
   ) lines_agg ON true
