@@ -798,11 +798,8 @@ export class PurchaseInvoicesService {
       }
     )
 
-    try {
-      await apPaymentsService.createDraftFromApprovedInvoice(id, companyId, userId)
-    } catch (err) {
-      logInfo('AP auto-draft failed after PI approve (non-blocking)', { id, err })
-    }
+    // AP Payment draft is NOT auto-created here.
+    // Invoice will appear in Outstanding tab for manual payment creation.
 
     return this.getById(id, companyId)
   }
