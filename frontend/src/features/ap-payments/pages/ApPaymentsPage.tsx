@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
-import { Wallet, Search, Plus, X, LayoutDashboard, Download, Loader2, Filter, ShieldCheck } from 'lucide-react'
+import { Wallet, Search, X, LayoutDashboard, Download, Loader2, Filter, ShieldCheck } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -126,11 +126,6 @@ export default function ApPaymentsPage() {
             <button type="button" onClick={() => setShowVerify(true)} className={apTheme.btnSecondary}>
               <ShieldCheck className="w-4 h-4" /> Verifikasi BCA
             </button>
-            {canInsert && (
-              <button type="button" onClick={() => setTab('outstanding')} className={apTheme.btnPrimary}>
-                <Plus className="w-4 h-4" /> Buat Pembayaran
-              </button>
-            )}
           </div>
         </div>
       </div>
