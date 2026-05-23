@@ -292,6 +292,7 @@ export default function ApPaymentsPage() {
                 <tr className="border-b border-rose-200/80 dark:border-gray-700">
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">No. Pembayaran</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tanggal</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tgl Bayar</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Supplier</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Cabang</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Metode / Rekening</th>
@@ -319,6 +320,9 @@ export default function ApPaymentsPage() {
                       </td>
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         {fmtDate(p.payment_date ?? p.created_at)}
+                      </td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                        {fmtDate(p.paid_at)}
                       </td>
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">
                         {p.supplier_name}
