@@ -50,21 +50,6 @@ export class AuthRepository {
     )
   }
 
-  async findRoleByName(name: string): Promise<{ id: string } | null> {
-    const { rows } = await pool.query(
-      'SELECT id FROM perm_roles WHERE name = $1',
-      [name]
-    )
-    return rows[0] ?? null
-  }
-
-  async createUserProfile(userId: string, roleId: string): Promise<void> {
-    await pool.query(
-      'INSERT INTO perm_user_profiles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [userId, roleId]
-    )
-  }
-
   async setResetToken(email: string, token: string, expiresAt: Date): Promise<boolean> {
     const { rowCount } = await pool.query(
       'UPDATE auth_users SET reset_token = $1, reset_token_expires_at = $2, updated_at = NOW() WHERE email = $3',

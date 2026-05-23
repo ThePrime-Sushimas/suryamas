@@ -54,6 +54,7 @@ router.get('/me/permissions', async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' })
 
     const roleId = req.query.roleId as string | undefined
+    // Prefer explicit roleId (branch context); fallback = primary employee_branches.role_id
     const permissions = roleId
       ? await PermissionService.getUserPermissionsByRole(roleId)
       : await PermissionService.getUserPermissions(userId)

@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import type { AuthRequest } from '../../types/common.types'
 import { goodsProcessingService } from './goods-processing.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
@@ -134,7 +135,8 @@ export class GoodsProcessingController {
       const companyId = getCompanyId(req)
       const userId    = getUserId(req)
       const { resolution } = req.body as { resolution: 'STOCK' | 'DISCARD' }
-      const result = await goodsProcessingService.resolveReturn(id, outputId, companyId, resolution, userId)
+      const permissions = (req as AuthRequest).permissions ?? {}
+      const result = await goodsProcessingService.resolveReturn(id, outputId, companyId, resolution, userId, permissions)
       sendSuccess(res, result, `Return resolved: ${resolution === 'STOCK' ? 'masuk gudang' : 'dibuang'}`)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'resolve_return_goods_processing' })

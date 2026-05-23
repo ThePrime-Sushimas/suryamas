@@ -12,8 +12,6 @@ if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is required')
 const JWT_SECRET_KEY: string = JWT_SECRET
 const JWT_EXPIRES_IN = Number(process.env.JWT_EXPIRES_IN_SECONDS) || 86400 // 24h in seconds
 const SALT_ROUNDS = 12
-const DEFAULT_ROLE = 'staff'
-
 export class AuthService {
   async register(email: string, password: string, employeeId: string): Promise<{ user: AuthUser; employeeName: string }> {
     const employee = await authRepository.findEmployeeByEmployeeId(employeeId)
@@ -31,11 +29,6 @@ export class AuthService {
 
     const authUser = await authRepository.createUser(userId, email, hashedPassword)
     await authRepository.linkEmployeeToUser(employeeId, userId)
-
-    const staffRole = await authRepository.findRoleByName(DEFAULT_ROLE)
-    if (staffRole) {
-      await authRepository.createUserProfile(userId, staffRole.id)
-    }
 
     logInfo('User registered successfully', { user_id: userId, employee_id: employeeId, email })
 

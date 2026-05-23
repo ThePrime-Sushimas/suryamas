@@ -1,125 +1,70 @@
 import { UsersRepository } from './users.repository'
-import { PermissionService as CorePermissionService } from '../../services/permission.service'
-import { logInfo, logError } from '../../config/logger'
 import { EmployeeRow, UserDTO } from './users.types'
 import { mapToUserDTO } from './users.mapper'
-import { AuditService } from '../monitoring/monitoring.service'
-import { UserErrors } from './users.errors'
+
+function rowToEmployee(row: Record<string, unknown>): EmployeeRow {
+  return {
+    employee_id: row.employee_id as string,
+    full_name: row.full_name as string,
+    job_position: row.job_position as string,
+    email: row.email as string,
+    user_id: row.user_id as string,
+    employee_branches: row.branch_id
+      ? [{
+          is_primary: row.is_primary as boolean,
+          branches: { id: row.branch_id as string, branch_name: row.branch_name as string },
+        }]
+      : null,
+  }
+}
+
+function rowToBranchRoleProfile(row: Record<string, unknown> | null | undefined) {
+  if (!row?.role_id) return undefined
+  return {
+    user_id: row.user_id as string | undefined,
+    role_id: row.role_id as string,
+    perm_roles: row.role_ref_id
+      ? {
+          id: row.role_ref_id as string,
+          name: row.role_name as string,
+          description: row.role_description as string,
+        }
+      : null,
+  }
+}
 
 export class UsersService {
-  private repository: UsersRepository
-
-  constructor() {
-    this.repository = new UsersRepository()
-  }
+  private repository = new UsersRepository()
 
   async getAllUsers(): Promise<UserDTO[]> {
-    const { employees, profiles } = await this.repository.getAllUsersWithEmployees()
-
-    return employees.map((emp: Record<string, unknown>) => {
-      const transformedEmp: EmployeeRow = {
-        employee_id: emp.employee_id as string,
-        full_name: emp.full_name as string,
-        job_position: emp.job_position as string,
-        email: emp.email as string,
-        user_id: emp.user_id as string,
-        employee_branches: emp.branch_id ? [{ is_primary: emp.is_primary as boolean, branches: { id: emp.branch_id as string, branch_name: emp.branch_name as string } }] : null,
-      }
-      const profile = profiles.find((p: { user_id: string }) => p.user_id === emp.user_id)
-      const mappedProfile = profile ? {
-        user_id: profile.user_id,
-        role_id: profile.role_id,
-        perm_roles: profile.role_ref_id ? { id: profile.role_ref_id, name: profile.role_name, description: profile.role_description } : null,
-      } : undefined
-      return mapToUserDTO(transformedEmp, mappedProfile)
-    })
+    const rows = await this.repository.getAllUsersWithEmployees()
+    return rows.map((row: Record<string, unknown>) =>
+      mapToUserDTO(rowToEmployee(row), rowToBranchRoleProfile(row)),
+    )
   }
 
   async getUserByEmployeeId(employeeId: string): Promise<UserDTO | null> {
-    const emp = await this.repository.getEmployeeWithBranchByEmployeeId(employeeId)
-    if (!emp) return null
-
-    let mappedProfile
-    if (emp.user_id) {
-      const profile = await this.repository.getProfileByUserId(emp.user_id)
-      if (profile) {
-        mappedProfile = {
-          user_id: profile.user_id,
-          role_id: profile.role_id,
-          perm_roles: profile.role_ref_id ? { id: profile.role_ref_id, name: profile.role_name, description: profile.role_description } : null,
-        }
-      }
-    }
-
-    const transformedEmp: EmployeeRow = {
-      employee_id: emp.employee_id,
-      full_name: emp.full_name,
-      job_position: emp.job_position,
-      email: emp.email,
-      user_id: emp.user_id,
-      employee_branches: emp.branch_id ? [{ is_primary: emp.is_primary, branches: { id: emp.branch_id, branch_name: emp.branch_name } }] : null,
-    }
-
-    return mapToUserDTO(transformedEmp, mappedProfile)
+    const row = await this.repository.getEmployeeWithBranchByEmployeeId(employeeId)
+    if (!row) return null
+    return mapToUserDTO(rowToEmployee(row), rowToBranchRoleProfile(row))
   }
 
+  /** Role from primary active branch assignment (not global perm_user_profiles). */
   async getUserRoleByEmployeeId(employeeId: string) {
     const userId = await this.repository.getUserIdByEmployeeId(employeeId)
     if (!userId) return null
-    return await this.repository.getUserRole(userId)
+    return this.getBranchRoleForUser(userId)
   }
 
-  async getUserRole(userId: string) {
-    return await this.repository.getUserRole(userId)
-  }
-
-  async assignRole(userId: string, roleId: string, changedBy?: string) {
-    try {
-      const result = await this.repository.assignRole(userId, roleId)
-      await this.repository.invalidatePermCache(userId)
-      await CorePermissionService.invalidateAllCache()
-
-      if (changedBy) {
-        await AuditService.log('UPDATE', 'user_role', userId, changedBy, { role_id: null }, { role_id: roleId })
-      }
-      logInfo('User role assigned', { userId, roleId, changedBy })
-      return result
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Unknown'
-      logError('Failed to assign role', { error: msg })
-      throw error
+  async getBranchRoleForUser(userId: string) {
+    const row = await this.repository.getBranchRoleByUserId(userId)
+    if (!row?.role_id) return null
+    return {
+      user_id: userId,
+      role_id: row.role_id,
+      perm_roles: row.role_ref_id
+        ? { id: row.role_ref_id, name: row.role_name, description: row.role_description }
+        : null,
     }
-  }
-
-  async removeRole(userId: string, changedBy?: string) {
-    try {
-      await this.repository.removeRole(userId)
-      await this.repository.invalidatePermCache(userId)
-      await CorePermissionService.invalidateAllCache()
-
-      if (changedBy) {
-        await AuditService.log('UPDATE', 'user_role', userId, changedBy, { role_id: 'existing' }, { role_id: null })
-      }
-      logInfo('User role removed', { userId, changedBy })
-      return true
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Unknown'
-      logError('Failed to remove role', { error: msg })
-      throw error
-    }
-  }
-
-  async assignRoleByEmployeeId(employeeId: string, roleId: string, changedBy?: string) {
-    const emp = await this.repository.getEmployeeUserIdByEmployeeId(employeeId)
-    if (!emp?.user_id) {
-      throw UserErrors.VALIDATION_ERROR(`Karyawan ${emp?.full_name || employeeId} belum terdaftar. Silakan daftarkan terlebih dahulu.`)
-    }
-    return this.assignRole(emp.user_id, roleId, changedBy)
-  }
-
-  async removeRoleByEmployeeId(employeeId: string, changedBy?: string) {
-    const userId = await this.repository.getUserIdByEmployeeId(employeeId)
-    if (!userId) throw UserErrors.NOT_FOUND(employeeId)
-    return this.removeRole(userId, changedBy)
   }
 }

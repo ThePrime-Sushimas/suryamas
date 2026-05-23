@@ -14,7 +14,7 @@ import {
   GoodsProcessingPostedInvoiceBlocksUnconfirmError,
 } from './goods-processing.errors'
 import { AuditService } from '../monitoring/monitoring.service'
-import { PermissionService } from '../../services/permission.service'
+import type { PermissionMatrix } from '../permissions/permissions.types'
 import {
   buildProductUomsMap,
   resolveBaseUom,
@@ -378,7 +378,14 @@ export class GoodsProcessingService {
     return updated!
   }
 
-  async resolveReturn(id: string, outputId: string, companyId: string, resolution: 'STOCK' | 'DISCARD', userId: string) {
+  async resolveReturn(
+    id: string,
+    outputId: string,
+    companyId: string,
+    resolution: 'STOCK' | 'DISCARD',
+    userId: string,
+    permissions: PermissionMatrix,
+  ) {
     const detail = await goodsProcessingRepository.findDetail(id, companyId)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
 
@@ -391,16 +398,14 @@ export class GoodsProcessingService {
       throw new GoodsProcessingReturnNotPendingError()
     }
 
+    // Same matrix as route middleware + frontend (role from employee_branches for active branch).
+    const gpPerms = permissions.goods_processing ?? {}
     if (resolution === 'DISCARD') {
-      const discardPerm = await PermissionService.hasPermission(userId, 'goods_processing', 'release')
-      if (!discardPerm.allowed) {
+      if (!gpPerms.release) {
         throw new GoodsProcessingReturnDiscardForbiddenError()
       }
-    } else {
-      const stockPerm = await PermissionService.hasPermission(userId, 'goods_processing', 'approve')
-      if (!stockPerm.allowed) {
-        throw new GoodsProcessingReturnStockForbiddenError()
-      }
+    } else if (!gpPerms.approve) {
+      throw new GoodsProcessingReturnStockForbiddenError()
     }
 
     const uomsMap = await buildUomsMap([output.product_id])

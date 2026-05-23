@@ -8,8 +8,8 @@ registry.registerPath({
   security: [{ bearerAuth: [] }],
   summary: 'List all users',
   responses: {
-    200: { description: 'Success' }
-  }
+    200: { description: 'Success' },
+  },
 })
 
 registry.registerPath({
@@ -18,10 +18,10 @@ registry.registerPath({
   tags: ['Users'],
   security: [{ bearerAuth: [] }],
   summary: 'Get user by ID',
-  request: { params: z.object({ userId: z.string().uuid() }) },
+  request: { params: z.object({ userId: z.string() }) },
   responses: {
-    200: { description: 'Success' }
-  }
+    200: { description: 'Success' },
+  },
 })
 
 registry.registerPath({
@@ -29,44 +29,9 @@ registry.registerPath({
   path: '/api/v1/users/{userId}/role',
   tags: ['Users'],
   security: [{ bearerAuth: [] }],
-  summary: 'Get user role',
-  request: { params: z.object({ userId: z.string().uuid() }) },
+  summary: 'Get user role from primary branch assignment',
+  request: { params: z.object({ userId: z.string() }) },
   responses: {
-    200: { description: 'Success' }
-  }
-})
-
-registry.registerPath({
-  method: 'put',
-  path: '/api/v1/users/{userId}/role',
-  tags: ['Users'],
-  security: [{ bearerAuth: [] }],
-  summary: 'Assign role to user',
-  request: {
-    params: z.object({ userId: z.string().uuid() }),
-    body: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            role_id: z.string().uuid()
-          })
-        }
-      }
-    }
+    200: { description: 'Success' },
   },
-  responses: {
-    200: { description: 'Role assigned' }
-  }
-})
-
-registry.registerPath({
-  method: 'delete',
-  path: '/api/v1/users/{userId}/role',
-  tags: ['Users'],
-  security: [{ bearerAuth: [] }],
-  summary: 'Remove role from user',
-  request: { params: z.object({ userId: z.string().uuid() }) },
-  responses: {
-    200: { description: 'Role removed' }
-  }
 })

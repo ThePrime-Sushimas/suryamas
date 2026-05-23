@@ -98,8 +98,15 @@ export class PermissionService {
       const cached = this.userPermissionsCache.get(userId)
       if (cached && cached.expiresAt > Date.now()) return cached.permissions
 
-      const { rows } = await pool.query('SELECT role_id FROM perm_user_profiles WHERE user_id = $1', [userId])
-      if (rows.length === 0) return {}
+      const { rows } = await pool.query(
+        `SELECT eb.role_id
+         FROM employees e
+         JOIN employee_branches eb ON eb.employee_id = e.id AND eb.is_primary = true AND eb.status = 'active'
+         WHERE e.user_id = $1
+         LIMIT 1`,
+        [userId],
+      )
+      if (rows.length === 0 || !rows[0].role_id) return {}
 
       return await this.getUserPermissionsByRole(rows[0].role_id)
     } catch (error: unknown) {

@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/features/users'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import type { User } from '@/features/users'
-import { Users, Search, X, Shield, UserCheck, UserX, Eye, Edit, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Users, Search, X, Shield, UserCheck, UserX, Eye, ChevronDown, ChevronRight } from 'lucide-react'
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -13,9 +12,8 @@ export default function UsersPage() {
   const [search, setSearch] = useState('')
   const [selectedBranch, setSelectedBranch] = useState('all')
   const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(new Set())
-  const [removeRoleTarget, setRemoveRoleTarget] = useState<string | null>(null)
   const navigate = useNavigate()
-  const { error: showError, success } = useToast()
+  const { error: showError } = useToast()
 
   const loadData = useCallback(async () => {
     try {
@@ -32,7 +30,7 @@ export default function UsersPage() {
 
   const branches = useMemo(() =>
     Array.from(new Set(users.map(u => u.branch))).sort(),
-    [users]
+    [users],
   )
 
   const filtered = useMemo(() => {
@@ -42,7 +40,7 @@ export default function UsersPage() {
       result = result.filter(u =>
         u.full_name.toLowerCase().includes(s) ||
         u.email?.toLowerCase().includes(s) ||
-        u.employee_id?.toLowerCase().includes(s)
+        u.employee_id?.toLowerCase().includes(s),
       )
     }
     if (selectedBranch !== 'all') {
@@ -63,7 +61,7 @@ export default function UsersPage() {
   const stats = useMemo(() => ({
     total: users.length,
     withAccount: users.filter(u => u.has_account).length,
-    withRole: users.filter(u => u.role_id).length,
+    withBranchRole: users.filter(u => u.role_id).length,
   }), [users])
 
   const toggleBranch = (branch: string) => {
@@ -74,22 +72,8 @@ export default function UsersPage() {
     })
   }
 
-  const confirmRemoveRole = async () => {
-    if (!removeRoleTarget) return
-    try {
-      await usersApi.removeRole(removeRoleTarget)
-      success('Role berhasil dihapus')
-      await loadData()
-    } catch (error: unknown) {
-      showError(parseApiError(error, 'Gagal menghapus role'))
-    } finally {
-      setRemoveRoleTarget(null)
-    }
-  }
-
   return (
     <div className="h-full bg-gray-50 dark:bg-gray-900 flex flex-col">
-      {/* Header */}
       <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -97,14 +81,19 @@ export default function UsersPage() {
             <div>
               <h1 className="text-lg font-bold text-gray-900 dark:text-white">Manajemen Pengguna</h1>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                {stats.total} karyawan · {stats.withAccount} punya akun · {stats.withRole} punya role
+                {stats.total} karyawan · {stats.withAccount} punya akun · {stats.withBranchRole} punya role cabang
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Search & Filter */}
+      <div className="shrink-0 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800 px-4 sm:px-6 py-2">
+        <p className="text-xs text-blue-800 dark:text-blue-200">
+          Role diatur per cabang di menu <strong>Penempatan Karyawan</strong> — bukan dari halaman ini.
+        </p>
+      </div>
+
       <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-2.5">
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -145,7 +134,6 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-auto min-h-0 p-4 sm:p-6">
         {loading ? (
           <div className="space-y-3">
@@ -164,7 +152,6 @@ export default function UsersPage() {
           <div className="space-y-3">
             {grouped.map(([branch, branchUsers]) => (
               <div key={branch} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-                {/* Branch header */}
                 <button
                   onClick={() => toggleBranch(branch)}
                   className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
@@ -172,8 +159,7 @@ export default function UsersPage() {
                   <div className="flex items-center gap-2">
                     {collapsedBranches.has(branch)
                       ? <ChevronRight className="w-4 h-4 text-gray-400" />
-                      : <ChevronDown className="w-4 h-4 text-gray-400" />
-                    }
+                      : <ChevronDown className="w-4 h-4 text-gray-400" />}
                     <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{branch}</span>
                     <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{branchUsers.length}</span>
                   </div>
@@ -183,7 +169,6 @@ export default function UsersPage() {
                   </div>
                 </button>
 
-                {/* Users table */}
                 {!collapsedBranches.has(branch) && (
                   <div className="border-t border-gray-100 dark:border-gray-700">
                     <table className="w-full text-xs">
@@ -192,7 +177,7 @@ export default function UsersPage() {
                           <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-gray-400">Nama</th>
                           <th className="px-4 py-2 text-left font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">Email</th>
                           <th className="px-4 py-2 text-center font-medium text-gray-500 dark:text-gray-400">Akun</th>
-                          <th className="px-4 py-2 text-center font-medium text-gray-500 dark:text-gray-400">Role</th>
+                          <th className="px-4 py-2 text-center font-medium text-gray-500 dark:text-gray-400">Role cabang</th>
                           <th className="px-4 py-2 text-right font-medium text-gray-500 dark:text-gray-400">Aksi</th>
                         </tr>
                       </thead>
@@ -225,21 +210,13 @@ export default function UsersPage() {
                               )}
                             </td>
                             <td className="px-4 py-2 text-right">
-                              <div className="flex items-center justify-end gap-0.5">
-                                <button onClick={() => navigate(`/users/${user.employee_id}`)} className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors" title="Lihat">
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                                {user.has_account && (
-                                  <button onClick={() => navigate(`/users/edit/${user.employee_id}`)} className="p-1 text-gray-400 hover:text-green-600 rounded transition-colors" title="Ubah">
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                {user.has_account && user.role_id && (
-                                  <button onClick={() => setRemoveRoleTarget(user.employee_id)} className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors" title="Hapus Role">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
+                              <button
+                                onClick={() => navigate(`/users/${user.employee_id}`)}
+                                className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                                title="Lihat"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -252,16 +229,6 @@ export default function UsersPage() {
           </div>
         )}
       </div>
-
-      <ConfirmModal
-        isOpen={!!removeRoleTarget}
-        onClose={() => setRemoveRoleTarget(null)}
-        onConfirm={confirmRemoveRole}
-        title="Hapus Role"
-        message="Hapus role dari karyawan ini? Karyawan tidak akan bisa login setelah role dihapus."
-        confirmText="Hapus"
-        variant="danger"
-      />
     </div>
   )
 }

@@ -70,9 +70,6 @@ const UsersPage = lazy(() =>
 const UserDetailPage = lazy(() =>
   import("./features/users").then((m) => ({ default: m.UserDetailPage })),
 );
-const UserEditPage = lazy(() =>
-  import("./features/users").then((m) => ({ default: m.UserEditPage })),
-);
 const CompaniesPage = lazy(() =>
   import("./features/companies").then((m) => ({ default: m.CompaniesPage })),
 );
@@ -763,16 +760,6 @@ function App() {
                       <RequirePermission module="users">
                         <Suspense fallback={<LoadingFallback />}>
                           <UserDetailPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="users/edit/:id"
-                    element={
-                      <RequirePermission module="users">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <UserEditPage />
                         </Suspense>
                       </RequirePermission>
                     }

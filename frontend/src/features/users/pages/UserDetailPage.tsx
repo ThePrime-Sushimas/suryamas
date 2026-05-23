@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { usersApi } from '@/features/users'
 import type { User } from '@/features/users'
 
@@ -34,7 +34,7 @@ export default function UserDetailPage() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4 sm:p-6 max-w-2xl">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-6">User Details</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-6">Detail Pengguna</h1>
 
         <div className="space-y-4">
           <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
@@ -42,11 +42,11 @@ export default function UserDetailPage() {
             <div className={infoCls}>{user.employee_id}</div>
           </div>
           <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
-            <label className={labelCls}>Full Name</label>
+            <label className={labelCls}>Nama</label>
             <div className={infoCls}>{user.full_name}</div>
           </div>
           <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
-            <label className={labelCls}>Job Position</label>
+            <label className={labelCls}>Jabatan</label>
             <div className={infoCls}>{user.job_position}</div>
           </div>
           <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
@@ -54,22 +54,38 @@ export default function UserDetailPage() {
             <div className={`${infoCls} break-all`}>{user.email}</div>
           </div>
           <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
-            <label className={labelCls}>Role</label>
+            <label className={labelCls}>Cabang utama</label>
+            <div className={infoCls}>{user.branch}</div>
+          </div>
+          <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
+            <label className={labelCls}>Role (cabang utama)</label>
             <div className="mt-1">
               <span className="px-3 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 text-sm font-medium">
-                {user.role_name || 'No Role'}
+                {user.role_name || 'Belum ada role di cabang utama'}
               </span>
             </div>
-            {user.role_description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{user.role_description}</p>}
+            {user.role_description && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{user.role_description}</p>
+            )}
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col sm:flex-row gap-3">
-          <button onClick={() => navigate(`/users/edit/${user.employee_id}`)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-            Edit Role
-          </button>
-          <button onClick={() => navigate('/users')} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-sm font-medium">
-            Back
+        <div className="mt-6 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Untuk mengubah role, buka{' '}
+            <Link to="/employee-branches" className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
+              Penempatan Karyawan
+            </Link>
+            {' '}dan edit assignment cabang karyawan ini.
+          </p>
+        </div>
+
+        <div className="mt-6">
+          <button
+            onClick={() => navigate('/users')}
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-sm font-medium"
+          >
+            Kembali ke daftar
           </button>
         </div>
       </div>

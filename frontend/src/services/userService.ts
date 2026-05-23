@@ -1,31 +1,13 @@
-import api from '../lib/axios'
-
-export interface User {
-  employee_id: string
-  email: string
-  job_position: string
-  full_name: string
-  branch: string
-  user_id: string | null
-  has_account: boolean
-  role_id: string | null
-  role_name: string | null
-  role_description: string | null
-}
+import api from '@/lib/axios'
 
 export const userService = {
   async getAll() {
-    const { data } = await api.get<{ data: User[] }>('/users')
+    const { data } = await api.get('/users')
     return data.data
   },
 
-  async assignRole(userId: string, roleId: string) {
-    const { data } = await api.put(`/users/${userId}/role`, { role_id: roleId })
-    return data
-  },
-
-  async removeRole(userId: string) {
-    const { data } = await api.delete(`/users/${userId}/role`)
-    return data
+  async getById(userId: string) {
+    const { data } = await api.get(`/users/${userId}`)
+    return data.data
   },
 }

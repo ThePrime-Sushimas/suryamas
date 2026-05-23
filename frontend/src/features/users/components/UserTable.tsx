@@ -4,13 +4,11 @@ import type { User } from '../types'
 interface UserTableProps {
   users: User[]
   onView: (id: string) => void
-  onEdit: (id: string) => void
-  onDelete: (id: string) => void
   loading?: boolean
 }
 
-export default function UserTable({ users, onView, onEdit, onDelete, loading }: UserTableProps) {
-  if (loading) return <TableSkeleton rows={6} columns={6} />
+export default function UserTable({ users, onView, loading }: UserTableProps) {
+  if (loading) return <TableSkeleton rows={6} columns={5} />
 
   if (users.length === 0) {
     return <div className="p-8 text-center text-gray-500 dark:text-gray-400">No employees found</div>
@@ -18,7 +16,6 @@ export default function UserTable({ users, onView, onEdit, onDelete, loading }: 
 
   return (
     <>
-      {/* Desktop table */}
       <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[700px]">
@@ -28,7 +25,7 @@ export default function UserTable({ users, onView, onEdit, onDelete, loading }: 
                 <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
                 <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
                 <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Role</th>
+                <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Role cabang</th>
                 <th className="px-4 lg:px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
               </tr>
             </thead>
@@ -54,17 +51,9 @@ export default function UserTable({ users, onView, onEdit, onDelete, loading }: 
                     </span>
                   </td>
                   <td className="px-4 lg:px-6 py-4 text-center">
-                    <div className="flex gap-1 justify-center">
-                      <button type="button" onClick={() => onView(user.employee_id)} className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">View</button>
-                      {user.has_account && (
-                        <>
-                          <button type="button" onClick={() => onEdit(user.employee_id)} className="px-3 py-1 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded">Edit</button>
-                          {user.role_id && (
-                            <button type="button" onClick={() => onDelete(user.employee_id)} className="px-3 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">Delete</button>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    <button type="button" onClick={() => onView(user.employee_id)} className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">
+                      View
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -73,7 +62,6 @@ export default function UserTable({ users, onView, onEdit, onDelete, loading }: 
         </div>
       </div>
 
-      {/* Mobile card layout */}
       <div className="md:hidden space-y-3">
         {users.map((user) => (
           <div key={user.employee_id} className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4">
@@ -93,15 +81,9 @@ export default function UserTable({ users, onView, onEdit, onDelete, loading }: 
               <span className="px-2 py-0.5 text-xs rounded bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400">
                 {user.role_name || 'No Role'}
               </span>
-              <div className="flex gap-2">
-                <button onClick={() => onView(user.employee_id)} className="text-xs text-blue-600 dark:text-blue-400 font-medium">View</button>
-                {user.has_account && (
-                  <button onClick={() => onEdit(user.employee_id)} className="text-xs text-green-600 dark:text-green-400 font-medium">Edit</button>
-                )}
-                {user.has_account && user.role_id && (
-                  <button onClick={() => onDelete(user.employee_id)} className="text-xs text-red-600 dark:text-red-400 font-medium">Delete</button>
-                )}
-              </div>
+              <button onClick={() => onView(user.employee_id)} className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                View
+              </button>
             </div>
           </div>
         ))}
