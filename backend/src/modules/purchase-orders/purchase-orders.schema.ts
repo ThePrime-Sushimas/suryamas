@@ -64,3 +64,22 @@ export const purchaseOrderListSchema = z.object({
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
 })
+
+const shortCloseReasons = [
+  'SUPPLIER_OUT_OF_STOCK',
+  'SUPPLIER_CANCELLED',
+  'SUBSTITUTE_UNAVAILABLE',
+  'OTHER',
+] as const
+
+export const shortCloseLinesSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    lines: z.array(z.object({
+      po_line_id: z.string().uuid(),
+      qty: z.number().positive(),
+      reason: z.enum(shortCloseReasons),
+      notes: z.string().max(500).nullable().optional(),
+    })).min(1),
+  }),
+})

@@ -24,7 +24,7 @@ export interface GoodsReceiptLine {
   notes?: string | null
 }
 
-export type GoodsReceiptSource = 'SUPPLIER' | 'MARKETPLACE'
+export type GoodsReceiptSource = 'SUPPLIER' | 'MARKETPLACE' | 'PO_PENDING'
 
 export interface GoodsReceipt {
   id: string

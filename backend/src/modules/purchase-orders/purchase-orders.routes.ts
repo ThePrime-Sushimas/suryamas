@@ -6,7 +6,7 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { purchaseOrdersController } from './purchase-orders.controller'
 import {
   updatePurchaseOrderSchema, purchaseOrderIdSchema,
-  cancelSchema, purchaseOrderListSchema, paymentDuePreviewSchema
+  cancelSchema, purchaseOrderListSchema, paymentDuePreviewSchema, shortCloseLinesSchema,
 } from './purchase-orders.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -33,6 +33,7 @@ router.post('/:id/submit', canUpdate('purchase_orders'), validateSchema(purchase
 router.post('/:id/approve', canApprove('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.approve(req, res))
 router.post('/:id/send', canUpdate('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.markSent(req, res))
 router.post('/:id/mark-ordered', canRelease('purchase_orders'), validateSchema(purchaseOrderIdSchema), (req, res) => purchaseOrdersController.markOrdered(req, res))
+router.post('/:id/short-close-lines', canRelease('purchase_orders'), validateSchema(shortCloseLinesSchema), (req, res) => purchaseOrdersController.shortCloseLines(req, res))
 router.post('/:id/cancel', canRelease('purchase_orders'), validateSchema(cancelSchema), (req, res) => purchaseOrdersController.cancel(req, res))
 
 export default router

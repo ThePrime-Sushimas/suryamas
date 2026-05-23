@@ -62,7 +62,7 @@ export default function GoodsReceiptsPage() {
           {canInsert && (
             <button onClick={() => navigate('/inventory/goods-receipts/new')}
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm shadow-teal-600/20">
-              <Plus className="w-4 h-4" /> <span>Terima Barang Baru</span>
+              <Plus className="w-4 h-4" /> <span>Catat Penerimaan</span>
             </button>
           )}
         </div>

@@ -4,12 +4,16 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import type { createPurchaseOrderSchema, updatePurchaseOrderSchema, purchaseOrderIdSchema, cancelSchema, paymentDuePreviewSchema } from './purchase-orders.schema'
+import type {
+  createPurchaseOrderSchema, updatePurchaseOrderSchema, purchaseOrderIdSchema, cancelSchema,
+  paymentDuePreviewSchema, shortCloseLinesSchema,
+} from './purchase-orders.schema'
 
 type CreateReq = ValidatedAuthRequest<typeof createPurchaseOrderSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updatePurchaseOrderSchema>
 type IdReq = ValidatedAuthRequest<typeof purchaseOrderIdSchema>
 type CancelReq = ValidatedAuthRequest<typeof cancelSchema>
+type ShortCloseReq = ValidatedAuthRequest<typeof shortCloseLinesSchema>
 type PaymentDuePreviewReq = ValidatedAuthRequest<typeof paymentDuePreviewSchema>
 
 export class PurchaseOrdersController {
@@ -137,6 +141,18 @@ export class PurchaseOrdersController {
       await handleError(res, error, req, { action: 'mark_ordered_purchase_order', id: req.params.id })
     }
   }
+  shortCloseLines = async (req: Request, res: Response) => {
+    try {
+      const { params, body } = (req as ShortCloseReq).validated
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const po = await purchaseOrdersService.shortCloseLines(params.id, companyId, userId, body.lines)
+      sendSuccess(res, po, 'Sisa PO berhasil ditutup')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'short_close_po_lines', id: req.params.id })
+    }
+  }
+
   cancel = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as CancelReq).validated

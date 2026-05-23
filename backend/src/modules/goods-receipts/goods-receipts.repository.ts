@@ -1,5 +1,6 @@
 import { pool } from "../../config/db";
 import type { PoolClient } from "pg";
+import { queryPoReceiptStatus, type PoReceiptFulfillmentStatus } from "../../utils/po-receipt-status.util";
 import type {
   GoodsReceipt,
   GoodsReceiptWithRelations,
@@ -505,8 +506,14 @@ export class GoodsReceiptsRepository {
   }
 
   /** Same audit fields as softDelete — used when PO is cancelled. */
-  async softDeleteDraftsByPoId(poId: string, companyId: string, userId: string): Promise<number> {
-    const { rowCount } = await pool.query(
+  async softDeleteDraftsByPoId(
+    poId: string,
+    companyId: string,
+    userId: string,
+    client?: PoolClient,
+  ): Promise<number> {
+    const db = client ?? pool;
+    const { rowCount } = await db.query(
       `UPDATE goods_receipts SET deleted_at = now(), is_deleted = true, updated_by = $1
        WHERE po_id = $2 AND company_id = $3 AND status = 'DRAFT' AND deleted_at IS NULL`,
       [userId, poId, companyId],
@@ -559,13 +566,14 @@ export class GoodsReceiptsRepository {
       product_id: string;
       qty: number;
       qty_received: number;
+      qty_short_closed: number;
       unit_price: number;
       uom: string;
       product_name: string;
     }>
   > {
     const { rows } = await pool.query(
-      `SELECT pol.id, pol.product_id, pol.qty::numeric AS qty, pol.qty_received::numeric AS qty_received, pol.unit_price::numeric AS unit_price, pol.uom, p.product_name
+      `SELECT pol.id, pol.product_id, pol.qty::numeric AS qty, pol.qty_received::numeric AS qty_received, pol.qty_short_closed::numeric AS qty_short_closed, pol.unit_price::numeric AS unit_price, pol.uom, p.product_name
        FROM purchase_order_lines pol
        JOIN products p ON p.id = pol.product_id
        WHERE pol.po_id = $1`,
@@ -575,50 +583,55 @@ export class GoodsReceiptsRepository {
       ...r,
       qty: Number(r.qty),
       qty_received: Number(r.qty_received),
+      qty_short_closed: Number(r.qty_short_closed),
       unit_price: Number(r.unit_price),
     }));
   }
 
   async findPoLinesBasic(
     poId: string,
-  ): Promise<Array<{ id: string; qty: number; qty_received: number }>> {
+  ): Promise<Array<{ id: string; qty: number; qty_received: number; qty_short_closed: number }>> {
     const { rows } = await pool.query(
-      "SELECT id, qty::numeric AS qty, qty_received::numeric AS qty_received FROM purchase_order_lines WHERE po_id = $1",
+      "SELECT id, qty::numeric AS qty, qty_received::numeric AS qty_received, qty_short_closed::numeric AS qty_short_closed FROM purchase_order_lines WHERE po_id = $1",
       [poId],
     );
     return rows.map((r) => ({
       ...r,
       qty: Number(r.qty),
       qty_received: Number(r.qty_received),
+      qty_short_closed: Number(r.qty_short_closed),
     }));
   }
 
   async findPoLinesForUpdate(
     client: PoolClient,
     poId: string,
-  ): Promise<Array<{ id: string; qty: number; qty_received: number }>> {
+  ): Promise<Array<{ id: string; qty: number; qty_received: number; qty_short_closed: number }>> {
     const { rows } = await client.query(
-      "SELECT id, qty::numeric AS qty, qty_received::numeric AS qty_received FROM purchase_order_lines WHERE po_id = $1 FOR UPDATE",
+      "SELECT id, qty::numeric AS qty, qty_received::numeric AS qty_received, qty_short_closed::numeric AS qty_short_closed FROM purchase_order_lines WHERE po_id = $1 FOR UPDATE",
       [poId],
     );
     return rows.map((r) => ({
       ...r,
       qty: Number(r.qty),
       qty_received: Number(r.qty_received),
+      qty_short_closed: Number(r.qty_short_closed),
     }));
   }
 
   async findPendingQtyByPo(
     poId: string,
     excludeGrId?: string,
+    client?: PoolClient,
   ): Promise<Map<string, number>> {
+    const db = client ?? pool;
     const params: unknown[] = [poId];
     let excludeClause = "";
     if (excludeGrId) {
       excludeClause = " AND gr.id != $2";
       params.push(excludeGrId);
     }
-    const { rows } = await pool.query(
+    const { rows } = await db.query(
       `SELECT grl.po_line_id, SUM(grl.qty_po_uom - COALESCE(grl.qty_rejected, 0))::numeric AS pending_qty
        FROM goods_receipt_lines grl
        JOIN goods_receipts gr ON gr.id = grl.gr_id
@@ -640,18 +653,43 @@ export class GoodsReceiptsRepository {
     );
   }
 
-  async resolvePoStatus(
+  async resolvePoStatus(client: PoolClient, poId: string): Promise<PoReceiptFulfillmentStatus> {
+    return queryPoReceiptStatus(poId, client);
+  }
+
+  async findOpenPendingDraftGrId(
     client: PoolClient,
+    companyId: string,
     poId: string,
-  ): Promise<"FULLY_RECEIVED" | "PARTIAL_RECEIVED"> {
-    const { rows } = await client.query(
-      "SELECT qty, qty_received FROM purchase_order_lines WHERE po_id = $1",
-      [poId],
+  ): Promise<string | null> {
+    const { rows } = await client.query<{ id: string }>(
+      `SELECT gr.id
+       FROM goods_receipts gr
+       WHERE gr.company_id = $1
+         AND gr.po_id = $2
+         AND gr.status = 'DRAFT'
+         AND gr.source = 'PO_PENDING'
+         AND gr.deleted_at IS NULL
+       ORDER BY gr.created_at DESC
+       LIMIT 1`,
+      [companyId, poId],
     );
-    const allReceived = rows.every(
-      (l) => Number(l.qty_received) >= Number(l.qty),
+    return rows[0]?.id ?? null;
+  }
+
+  async findMainWarehouseId(
+    client: PoolClient,
+    branchId: string,
+    companyId: string,
+  ): Promise<string | null> {
+    const { rows } = await client.query<{ id: string }>(
+      `SELECT id FROM warehouses
+       WHERE branch_id = $1 AND company_id = $2 AND deleted_at IS NULL
+       ORDER BY CASE WHEN warehouse_type = 'MAIN' THEN 0 ELSE 1 END, created_at ASC
+       LIMIT 1`,
+      [branchId, companyId],
     );
-    return allReceived ? "FULLY_RECEIVED" : "PARTIAL_RECEIVED";
+    return rows[0]?.id ?? null;
   }
 
   async updatePoStatus(

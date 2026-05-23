@@ -1,6 +1,6 @@
 import { isMarketplaceSupplier, type InvoiceBypassReason } from '@/lib/marketplaceSupplier'
 
-type GoodsReceiptSource = 'SUPPLIER' | 'MARKETPLACE' | null | undefined
+type GoodsReceiptSource = 'SUPPLIER' | 'MARKETPLACE' | 'PO_PENDING' | null | undefined
 
 interface GrSourceBadgeProps {
   source?: GoodsReceiptSource
@@ -20,6 +20,17 @@ export function GrSourceBadge({
     status === 'DRAFT' &&
     marketplaceSupplier &&
     source !== 'MARKETPLACE'
+
+  if (source === 'PO_PENDING') {
+    return (
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-700/50 ${className}`}
+        title="Draft otomatis — buka dan isi saat barang datang"
+      >
+        Menunggu barang
+      </span>
+    )
+  }
 
   if (source === 'MARKETPLACE') {
     return (

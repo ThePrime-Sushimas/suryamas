@@ -31,3 +31,17 @@ export class PurchaseOrderManualCreateDisabledError extends BusinessRuleError {
 export class PurchaseOrderHasReceiptsError extends BusinessRuleError {
   constructor() { super('Cannot cancel purchase order that already has goods receipts') }
 }
+
+export class PurchaseOrderShortCloseLineNotFoundError extends NotFoundError {
+  constructor(poLineId: string) {
+    super(`Purchase order line ${poLineId} not found on this PO`)
+  }
+}
+
+export class PurchaseOrderShortCloseQtyError extends BusinessRuleError {
+  constructor(productName: string, maxQty: number, requested: number) {
+    super(
+      `Qty tutup sisa untuk ${productName} melebihi sisa terbuka (${maxQty}). Diminta: ${requested}`,
+    )
+  }
+}

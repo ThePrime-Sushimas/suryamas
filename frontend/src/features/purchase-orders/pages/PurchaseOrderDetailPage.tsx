@@ -26,9 +26,13 @@ import {
   useCancelPurchaseOrder,
   useCheckDuplicatePO,
   usePaymentDuePreview,
+  useShortClosePoLines,
+  PO_SHORT_CLOSE_REASONS,
   type PoPaymentDueInfo,
+  type PurchaseOrderLine,
 } from '../api/purchaseOrders.api'
 import { PoWhatsAppModal } from '../components/PoWhatsAppModal'
+import { PoLineShortCloseModal } from '../components/PoLineShortCloseModal'
 import {
   exportPurchaseOrderPdf,
   openPurchaseOrderWhatsApp,
@@ -57,6 +61,21 @@ export default function PurchaseOrderDetailPage() {
   const markSent = useMarkSentPurchaseOrder()
   const markOrdered = useMarkOrderedPurchaseOrder()
   const cancelPO = useCancelPurchaseOrder()
+  const shortCloseLines = useShortClosePoLines()
+
+  const canShortClose =
+    canRelease && (po?.status === 'ORDERED' || po?.status === 'PARTIAL_RECEIVED')
+
+  /** Kolom sebelum Subtotal: #, Produk, Qty, Diterima, Ditutup, UOM, [Aksi], Harga/Unit */
+  const lineTableFooterColSpan = 7 + (canShortClose ? 1 : 0)
+
+  const [shortCloseLine, setShortCloseLine] = useState<PurchaseOrderLine | null>(null)
+
+  const lineOpenQty = (line: PurchaseOrderLine) =>
+    Math.max(
+      0,
+      Number(line.qty) - Number(line.qty_received ?? 0) - Number(line.qty_short_closed ?? 0),
+    )
 
   const isSent = po?.status === 'SENT'
   /** Purchasing edits payment terms after stock keeper sends PO */
@@ -486,9 +505,17 @@ export default function PurchaseOrderDetailPage() {
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         Diterima
                       </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                        Ditutup
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         UOM
                       </th>
+                      {canShortClose && (
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                          Aksi
+                        </th>
+                      )}
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                         Harga/Unit
                       </th>
@@ -498,7 +525,13 @@ export default function PurchaseOrderDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                    {(po.lines ?? []).map((line, idx) => (
+                    {(po.lines ?? []).map((line, idx) => {
+                      const open = lineOpenQty(line)
+                      const closed = Number(line.qty_short_closed ?? 0)
+                      const reasonLabel = line.short_close_reason
+                        ? PO_SHORT_CLOSE_REASONS.find((r) => r.value === line.short_close_reason)?.label
+                        : null
+                      return (
                       <tr key={line.id ?? idx}>
                         <td className="px-4 py-3 text-gray-500">{idx + 1}</td>
                         <td className="px-4 py-3">
@@ -513,7 +546,7 @@ export default function PurchaseOrderDetailPage() {
                         <td className="px-4 py-3 text-right font-mono">
                           <span
                             className={
-                              line.qty_received && line.qty_received >= line.qty
+                              line.qty_received && line.qty_received + closed >= line.qty
                                 ? 'text-green-600'
                                 : 'text-gray-500'
                             }
@@ -521,7 +554,29 @@ export default function PurchaseOrderDetailPage() {
                             {fmt(line.qty_received ?? 0)}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-right font-mono text-amber-700 dark:text-amber-400">
+                          {closed > 0 ? (
+                            <span title={reasonLabel ?? undefined}>{fmt(closed)}</span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{line.uom}</td>
+                        {canShortClose && (
+                          <td className="px-4 py-3 text-right">
+                            {open > 0 && line.id ? (
+                              <button
+                                type="button"
+                                onClick={() => setShortCloseLine(line)}
+                                className="text-xs font-medium text-amber-700 dark:text-amber-400 hover:underline"
+                              >
+                                Tutup sisa ({fmt(open)})
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">
                           Rp {fmt(line.unit_price)}
                         </td>
@@ -529,11 +584,12 @@ export default function PurchaseOrderDetailPage() {
                           Rp {fmt(line.total_price ?? line.qty * line.unit_price)}
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                   <tfoot className="bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
                     <tr>
-                      <td colSpan={6} className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
+                      <td colSpan={lineTableFooterColSpan} className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
                         Total:
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">
@@ -549,7 +605,9 @@ export default function PurchaseOrderDetailPage() {
                   <div className="px-4 py-12 text-center text-gray-400 text-sm">Tidak ada item</div>
                 ) : (
                   <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {(po.lines ?? []).map((line, idx) => (
+                    {(po.lines ?? []).map((line, idx) => {
+                      const open = lineOpenQty(line)
+                      return (
                       <div key={line.id ?? idx} className="p-4 space-y-1.5">
                         <div className="flex justify-between items-start">
                           <div className="min-w-0 flex-1">
@@ -584,14 +642,29 @@ export default function PurchaseOrderDetailPage() {
                             </p>
                           </div>
                           <div>
+                            <span className="text-gray-500">Ditutup</span>
+                            <p className="font-mono font-medium text-amber-700 dark:text-amber-400">
+                              {fmt(line.qty_short_closed ?? 0)}
+                            </p>
+                          </div>
+                          <div>
                             <span className="text-gray-500">Harga</span>
                             <p className="font-mono text-gray-600 dark:text-gray-400">
                               Rp {fmt(line.unit_price)}
                             </p>
                           </div>
                         </div>
+                        {canShortClose && open > 0 && line.id && (
+                          <button
+                            type="button"
+                            onClick={() => setShortCloseLine(line)}
+                            className="text-xs font-medium text-amber-700 dark:text-amber-400"
+                          >
+                            Tutup sisa ({fmt(open)} {line.uom})
+                          </button>
+                        )}
                       </div>
-                    ))}
+                    )})}
                     <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 flex justify-between">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total</span>
                       <span className="font-mono font-bold text-gray-900 dark:text-white">
@@ -604,6 +677,24 @@ export default function PurchaseOrderDetailPage() {
             </>
         </div>
       </div>
+
+      <PoLineShortCloseModal
+        open={!!shortCloseLine}
+        line={shortCloseLine}
+        openQty={shortCloseLine ? lineOpenQty(shortCloseLine) : 0}
+        isPending={shortCloseLines.isPending}
+        onClose={() => setShortCloseLine(null)}
+        onConfirm={async (payload) => {
+          if (!id) return
+          try {
+            await shortCloseLines.mutateAsync({ id, lines: [payload] })
+            toast.success('Sisa line PO berhasil ditutup')
+            setShortCloseLine(null)
+          } catch (err: unknown) {
+            toast.error(parseApiError(err, 'Gagal menutup sisa PO'))
+          }
+        }}
+      />
 
       <PoWhatsAppModal
         open={showWhatsAppModal}

@@ -52,6 +52,8 @@ export interface PurchaseOrderLine {
   supplier_product_id: string | null
   qty: number
   qty_received: number
+  qty_short_closed: number
+  short_close_reason: string | null
   uom: string
   unit_price: number
   total_price: number
@@ -103,4 +105,17 @@ export interface UpdatePurchaseOrderDto {
   notes?: string | null
   lines?: CreatePurchaseOrderLineDto[]
   updated_by?: string
+}
+
+export type PoShortCloseReason =
+  | 'SUPPLIER_OUT_OF_STOCK'
+  | 'SUPPLIER_CANCELLED'
+  | 'SUBSTITUTE_UNAVAILABLE'
+  | 'OTHER'
+
+export interface ShortClosePoLineDto {
+  po_line_id: string
+  qty: number
+  reason: PoShortCloseReason
+  notes?: string | null
 }

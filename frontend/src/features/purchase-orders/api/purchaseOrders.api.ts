@@ -11,6 +11,8 @@ export interface PurchaseOrderLine {
   supplier_product_id?: string | null
   qty: number
   qty_received?: number
+  qty_short_closed?: number
+  short_close_reason?: string | null
   uom: string
   unit_price: number
   total_price?: number
@@ -141,7 +143,45 @@ export const useMarkOrderedPurchaseOrder = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-orders/${id}/mark-ordered`) },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ['purchase-orders'] })
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: ['goods-receipts'] })
+    },
+  })
+}
+
+export type PoShortCloseReason =
+  | 'SUPPLIER_OUT_OF_STOCK'
+  | 'SUPPLIER_CANCELLED'
+  | 'SUBSTITUTE_UNAVAILABLE'
+  | 'OTHER'
+
+export const PO_SHORT_CLOSE_REASONS: { value: PoShortCloseReason; label: string }[] = [
+  { value: 'SUPPLIER_OUT_OF_STOCK', label: 'Stok habis di supplier' },
+  { value: 'SUPPLIER_CANCELLED', label: 'Dibatalkan supplier' },
+  { value: 'SUBSTITUTE_UNAVAILABLE', label: 'Substitusi tidak tersedia' },
+  { value: 'OTHER', label: 'Lainnya' },
+]
+
+export const useShortClosePoLines = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      lines,
+    }: {
+      id: string
+      lines: { po_line_id: string; qty: number; reason: PoShortCloseReason; notes?: string | null }[]
+    }) => {
+      const { data } = await api.post(`/purchase-orders/${id}/short-close-lines`, { lines })
+      return data.data as PurchaseOrder
+    },
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['purchase-orders'] })
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: ['goods-receipts'] })
+    },
   })
 }
 

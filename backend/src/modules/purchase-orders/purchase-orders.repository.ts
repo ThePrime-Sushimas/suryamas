@@ -1,5 +1,6 @@
 import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
+import { queryPoReceiptStatus, type PoReceiptFulfillmentStatus } from '../../utils/po-receipt-status.util'
 import type {
   PurchaseOrder, PurchaseOrderWithRelations, PurchaseOrderLine,
   PurchaseOrderLineWithRelations, PurchaseOrderWithLines,
@@ -354,6 +355,61 @@ export class PurchaseOrdersRepository {
       `UPDATE purchase_orders SET payment_due_date = $1, updated_at = now() WHERE id = $2`,
       [dueDate, poId]
     )
+  }
+
+  async findLinesForShortClose(
+    client: PoolClient,
+    poId: string,
+  ): Promise<Array<{
+    id: string
+    qty: number
+    qty_received: number
+    qty_short_closed: number
+    product_name: string
+  }>> {
+    const { rows } = await client.query(
+      `SELECT pol.id,
+              pol.qty::numeric AS qty,
+              pol.qty_received::numeric AS qty_received,
+              pol.qty_short_closed::numeric AS qty_short_closed,
+              p.product_name
+       FROM purchase_order_lines pol
+       JOIN products p ON p.id = pol.product_id
+       WHERE pol.po_id = $1
+       FOR UPDATE`,
+      [poId],
+    )
+    return rows.map((r) => ({
+      id: r.id,
+      qty: Number(r.qty),
+      qty_received: Number(r.qty_received),
+      qty_short_closed: Number(r.qty_short_closed),
+      product_name: r.product_name,
+    }))
+  }
+
+  async incrementLineShortClosed(
+    client: PoolClient,
+    poLineId: string,
+    qty: number,
+    reason: string,
+    notes: string | null,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE purchase_order_lines
+       SET qty_short_closed = qty_short_closed + $1,
+           short_close_reason = $2,
+           notes = COALESCE($3, notes)
+       WHERE id = $4`,
+      [qty, reason, notes, poLineId],
+    )
+  }
+
+  async resolvePoStatusAfterReceipt(
+    client: PoolClient,
+    poId: string,
+  ): Promise<PoReceiptFulfillmentStatus> {
+    return queryPoReceiptStatus(poId, client)
   }
 }
 

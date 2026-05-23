@@ -552,6 +552,18 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  PurchaseOrderShortCloseLineNotFoundError: {
+    name: 'PurchaseOrderShortCloseLineNotFoundError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 404,
+    category: 'purchase_order',
+  },
+  PurchaseOrderShortCloseQtyError: {
+    name: 'PurchaseOrderShortCloseQtyError',
+    importPath: '../modules/purchase-orders/purchase-orders.errors',
+    defaultStatusCode: 422,
+    category: 'purchase_order',
+  },
   PurchaseOrderHasReceiptsError: {
     name: 'PurchaseOrderHasReceiptsError',
     importPath: '../modules/purchase-orders/purchase-orders.errors',

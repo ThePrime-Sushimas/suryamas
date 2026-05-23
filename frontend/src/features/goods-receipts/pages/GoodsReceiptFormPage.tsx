@@ -37,6 +37,7 @@ interface POOption {
     product_name: string;
     qty: number;
     qty_received: number;
+    qty_short_closed?: number;
     uom: string;
     unit_price: number;
   }[];
@@ -52,6 +53,14 @@ export default function GoodsReceiptFormPage() {
   const queryClient = useQueryClient();
 
   const [searchParams] = useSearchParams();
+  const grIdFromUrl = searchParams.get("gr_id");
+
+  useEffect(() => {
+    if (!isEdit && grIdFromUrl) {
+      navigate(`/inventory/goods-receipts/${grIdFromUrl}`, { replace: true });
+    }
+  }, [isEdit, grIdFromUrl, navigate]);
+
   const [selectedPoId, setSelectedPoId] = useState(
     searchParams.get("po_id") || "",
   );
@@ -117,6 +126,25 @@ export default function GoodsReceiptFormPage() {
       ),
     [posData],
   );
+
+  const { data: pendingDraftGrs } = useQuery({
+    queryKey: ["goods-receipts", "po-pending-drafts"],
+    queryFn: async () => {
+      const { data } = await api.get("/goods-receipts", {
+        params: { status: "DRAFT", source: "PO_PENDING", limit: 50 },
+      });
+      return data.data as {
+        id: string;
+        gr_number: string;
+        po_number: string;
+        supplier_name: string;
+        branch_name: string;
+        line_count: number;
+        received_date: string;
+      }[];
+    },
+    enabled: !isEdit,
+  });
 
   // Fetch PO detail when selected
   const { data: selectedPO } = useQuery({
@@ -281,7 +309,10 @@ export default function GoodsReceiptFormPage() {
         const pendingAmt = pendingQty[l.id] ?? 0;
         const remaining = Math.max(
           0,
-          Number(l.qty) - Number(l.qty_received) - pendingAmt,
+          Number(l.qty) -
+            Number(l.qty_received) -
+            Number((l as { qty_short_closed?: number }).qty_short_closed ?? 0) -
+            pendingAmt,
         );
         // Price priority: pricelist > PO unit_price > 0
         const plPrice = priceMap[l.product_id]?.price;
@@ -452,7 +483,7 @@ export default function GoodsReceiptFormPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">
               {isEdit
                 ? "Perbarui data penerimaan barang"
-                : "Pilih PO dan catat penerimaan barang ke gudang"}
+                : "Buka draft menunggu barang, atau pilih PO manual di bawah"}
             </p>
           </div>
         </div>
@@ -460,6 +491,40 @@ export default function GoodsReceiptFormPage() {
 
       <div className="p-4 lg:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
+          {!isEdit && (pendingDraftGrs?.length ?? 0) > 0 && (
+            <div className="bg-sky-50/80 dark:bg-sky-900/20 rounded-2xl border-2 border-sky-200 dark:border-sky-800/60 p-6 space-y-4">
+              <div>
+                <h2 className="text-base font-bold text-sky-900 dark:text-sky-100">
+                  Menunggu barang datang
+                </h2>
+                <p className="text-sm text-sky-800/80 dark:text-sky-300/80 mt-1">
+                  Pilih penerimaan di bawah — PO sudah terhubung, tidak perlu cari di dropdown.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {pendingDraftGrs!.map((gr) => (
+                  <button
+                    key={gr.id}
+                    type="button"
+                    onClick={() => navigate(`/inventory/goods-receipts/${gr.id}`)}
+                    className="text-left p-4 rounded-xl bg-white dark:bg-gray-800 border border-sky-200 dark:border-sky-700/50 hover:border-teal-500 hover:shadow-md transition-all"
+                  >
+                    <p className="font-mono font-bold text-teal-700 dark:text-teal-400">
+                      {gr.gr_number}
+                    </p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
+                      {gr.po_number} · {gr.supplier_name}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {gr.branch_name}
+                      {gr.line_count === 0 ? " · belum diisi" : ` · ${gr.line_count} item`}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* General Information Card */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/80 flex items-center gap-2">
@@ -473,6 +538,9 @@ export default function GoodsReceiptFormPage() {
                 <div className="lg:col-span-1">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Purchase Order <span className="text-red-500">*</span>
+                    {(pendingDraftGrs?.length ?? 0) > 0 && (
+                      <span className="font-normal text-gray-400 ml-1">(manual / kedatangan tambahan)</span>
+                    )}
                   </label>
                   <div className="relative">
                     <ClipboardList className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

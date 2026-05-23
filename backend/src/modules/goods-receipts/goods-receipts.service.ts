@@ -71,7 +71,7 @@ export class GoodsReceiptsService {
     // Guard: hitung pending qty dari GR DRAFT yang belum confirm
     const pendingMap = await goodsReceiptsRepository.findPendingQtyByPo(dto.po_id)
 
-    const processedLines = dto.lines.map(line => {
+    const processedLines = (dto.lines ?? []).map(line => {
       const poLine = poLineMap.get(line.po_line_id)
       if (!poLine) throw new InvalidReferenceError(`PO line ${line.po_line_id} not found`)
 
@@ -81,7 +81,8 @@ export class GoodsReceiptsService {
 
       // Pending qty check uses qty_po_uom (PO unit)
       const pendingQty = pendingMap.get(line.po_line_id) ?? 0
-      const remaining = Number(poLine.qty) - Number(poLine.qty_received) - pendingQty
+      const remaining =
+        Number(poLine.qty) - Number(poLine.qty_received) - Number(poLine.qty_short_closed) - pendingQty
       const qtyAccepted = qtyPoUom - (line.qty_rejected ?? 0)
       if (qtyAccepted > remaining) {
         throw new GoodsReceiptExceedsOrderedError(
@@ -137,7 +138,9 @@ export class GoodsReceiptsService {
           notes: dto.notes,
           created_by: userId,
         })
-        await goodsReceiptsRepository.insertLines(client, created.id, processedLines)
+        if (processedLines.length > 0) {
+          await goodsReceiptsRepository.insertLines(client, created.id, processedLines)
+        }
         return created
       })
 
@@ -168,6 +171,16 @@ export class GoodsReceiptsService {
       assertManualGrAllowedForInvoiceBypass(gr.invoice_bypass_reason)
     }
 
+    if (gr.lines.length === 0) {
+      throw new BusinessRuleError('Tambahkan minimal 1 item barang sebelum konfirmasi penerimaan')
+    }
+    const hasAcceptedQty = gr.lines.some(
+      (l) => (Number(l.qty_po_uom) - Number(l.qty_rejected ?? 0)) > 0,
+    )
+    if (!hasAcceptedQty) {
+      throw new BusinessRuleError('Minimal 1 item harus memiliki qty diterima lebih dari 0')
+    }
+
     await goodsReceiptsRepository.withTransaction(async (client) => {
       const supplierId = await goodsReceiptsRepository.findPoSupplierId(client, gr.po_id)
 
@@ -178,11 +191,12 @@ export class GoodsReceiptsService {
       for (const line of gr.lines) {
         const poLine = poLineMap.get(line.po_line_id)
         if (!poLine) continue
-        const remaining = poLine.qty - poLine.qty_received
+        const remaining =
+          poLine.qty - poLine.qty_received - poLine.qty_short_closed
         const qtyAccepted = line.qty_po_uom - (line.qty_rejected ?? 0)
         if (qtyAccepted > remaining) {
           throw new GoodsReceiptExceedsOrderedError(
-            line.product_name ?? 'Unknown', poLine.qty, poLine.qty_received, qtyAccepted
+            line.product_name ?? 'Unknown', poLine.qty, poLine.qty_received + poLine.qty_short_closed, qtyAccepted
           )
         }
       }
@@ -318,8 +332,52 @@ export class GoodsReceiptsService {
           excludeUserIds: [userId],
         }
       )
+      if (confirmed.source !== 'MARKETPLACE') {
+        await this.ensurePendingGrDraft(confirmed.po_id, companyId, userId)
+      }
     }
     return confirmed
+  }
+
+  /**
+   * Satu draft GR kosong per PO (source PO_PENDING) agar cabang tidak perlu memilih PO dari dropdown.
+   * Dipanggil saat PO ORDERED dan setelah GR dikonfirmasi jika PO masih belum lunas.
+   */
+  async ensurePendingGrDraft(poId: string, companyId: string, userId: string): Promise<string | null> {
+    const po = await goodsReceiptsRepository.findPoForGr(poId, companyId)
+    if (!po) return null
+    if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)) return null
+    if (po.invoice_bypass_reason === 'marketplace') return null
+
+    return goodsReceiptsRepository.withTransaction(async (client) => {
+      const existingId = await goodsReceiptsRepository.findOpenPendingDraftGrId(client, companyId, poId)
+      if (existingId) return existingId
+
+      const warehouseId = await goodsReceiptsRepository.findMainWarehouseId(client, po.branch_id, companyId)
+      if (!warehouseId) return null
+
+      if (!po.branch_code?.trim()) {
+        throw new BusinessRuleError(
+          `Cabang PO tidak memiliki branch_code; tidak dapat membuat nomor GR untuk PO ${poId}`,
+        )
+      }
+      const grNumber = await goodsReceiptsRepository.generateGrNumber(client, companyId, po.branch_code)
+      const created = await goodsReceiptsRepository.create(client, companyId, {
+        branch_id: po.branch_id,
+        po_id: poId,
+        warehouse_id: warehouseId,
+        gr_number: grNumber,
+        notes: 'Menunggu kedatangan barang dari supplier',
+        created_by: userId,
+        source: 'PO_PENDING',
+        status: 'DRAFT',
+      })
+      await AuditService.log('CREATE', 'goods_receipt', created.id, userId, undefined, {
+        ...created,
+        auto: 'PO_PENDING',
+      })
+      return created.id
+    })
   }
 
   async update(id: string, companyId: string, dto: UpdateGoodsReceiptDto, userId: string) {

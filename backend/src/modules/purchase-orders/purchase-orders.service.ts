@@ -1,13 +1,17 @@
 import { purchaseOrdersRepository } from './purchase-orders.repository'
 import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
+import { goodsReceiptsService } from '../goods-receipts/goods-receipts.service'
 import {
   PurchaseOrderNotFoundError, PurchaseOrderDuplicateError, PurchaseOrderInvalidStatusError,
-  PurchaseOrderEmptyLinesError, PurchaseOrderManualCreateDisabledError, PurchaseOrderHasReceiptsError
+  PurchaseOrderEmptyLinesError, PurchaseOrderManualCreateDisabledError, PurchaseOrderHasReceiptsError,
+  PurchaseOrderShortCloseLineNotFoundError, PurchaseOrderShortCloseQtyError,
 } from './purchase-orders.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { InvalidReferenceError } from '../stock/stock.errors'
-import type { CreatePurchaseOrderDto, UpdatePurchaseOrderDto, PurchaseOrderDetail, PaymentType } from './purchase-orders.types'
+import type {
+  CreatePurchaseOrderDto, UpdatePurchaseOrderDto, PurchaseOrderDetail, PaymentType, ShortClosePoLineDto,
+} from './purchase-orders.types'
 import {
   buildPoPaymentDueInfo,
   type PoPaymentTermSnapshot,
@@ -219,6 +223,60 @@ export class PurchaseOrdersService {
         excludeUserIds: [userId],
       }
     )
+
+    await goodsReceiptsService.ensurePendingGrDraft(id, companyId, userId)
+  }
+
+  async shortCloseLines(id: string, companyId: string, userId: string, lines: ShortClosePoLineDto[]) {
+    const existing = await purchaseOrdersRepository.findById(id, companyId)
+    if (!existing) throw new PurchaseOrderNotFoundError(id)
+    if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(existing.status)) {
+      throw new PurchaseOrderInvalidStatusError(existing.status, 'ORDERED or PARTIAL_RECEIVED')
+    }
+
+    await purchaseOrdersRepository.withTransaction(async (client) => {
+      const locked = await purchaseOrdersRepository.lockStatusForUpdate(client, id, companyId)
+      if (!locked || !['ORDERED', 'PARTIAL_RECEIVED'].includes(locked)) {
+        throw new PurchaseOrderInvalidStatusError(locked ?? 'unknown', 'ORDERED or PARTIAL_RECEIVED')
+      }
+
+      const poLines = await purchaseOrdersRepository.findLinesForShortClose(client, id)
+      const poLineMap = new Map(poLines.map((l) => [l.id, l]))
+      const pendingMap = await goodsReceiptsRepository.findPendingQtyByPo(id, undefined, client)
+
+      for (const item of lines) {
+        const poLine = poLineMap.get(item.po_line_id)
+        if (!poLine) throw new PurchaseOrderShortCloseLineNotFoundError(item.po_line_id)
+
+        const pending = pendingMap.get(item.po_line_id) ?? 0
+        const openQty = poLine.qty - poLine.qty_received - poLine.qty_short_closed - pending
+        if (item.qty > openQty) {
+          throw new PurchaseOrderShortCloseQtyError(poLine.product_name, openQty, item.qty)
+        }
+
+        await purchaseOrdersRepository.incrementLineShortClosed(
+          client,
+          item.po_line_id,
+          item.qty,
+          item.reason,
+          item.notes ?? null,
+        )
+      }
+
+      const newStatus = await purchaseOrdersRepository.resolvePoStatusAfterReceipt(client, id)
+      await goodsReceiptsRepository.updatePoStatus(client, id, newStatus, userId)
+      if (newStatus === 'FULLY_RECEIVED') {
+        await goodsReceiptsRepository.softDeleteDraftsByPoId(id, companyId, userId, client)
+      }
+    })
+
+    const refreshed = await purchaseOrdersRepository.findById(id, companyId)
+    if (refreshed?.status !== 'FULLY_RECEIVED') {
+      await goodsReceiptsService.ensurePendingGrDraft(id, companyId, userId)
+    }
+
+    await AuditService.log('UPDATE', 'purchase_order', id, userId, { action: 'short_close_lines' }, { lines })
+    return this.getById(id, companyId)
   }
 
   async cancel(id: string, companyId: string, userId: string, reason: string) {
