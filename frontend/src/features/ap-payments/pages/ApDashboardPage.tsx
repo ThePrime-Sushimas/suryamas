@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   List,
-  Plus,
   ChevronDown,
   ChevronUp,
   Loader2,
@@ -16,7 +15,6 @@ import {
   Users,
 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
-import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 import {
   useApDashboard,
@@ -80,8 +78,6 @@ function todayKeyLocal(): string {
 export default function ApDashboardPage() {
   const toast = useToast()
   const branchOptions = useUserBranches()
-  const hasPermission = usePermissionStore((s) => s.hasPermission)
-  const canInsert = hasPermission('ap_payments', 'insert')
 
   const [branchFilter, setBranchFilter] = useState('')
 
