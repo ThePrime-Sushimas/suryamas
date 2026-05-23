@@ -19,6 +19,25 @@ export interface PurchaseOrderLine {
   notes?: string | null
 }
 
+/**
+ * Qty yang masih dihitung ke nilai PO (setelah tutup sisa).
+ * Payable aktual mengikuti GR/invoice — ini nilai komitmen PO internal.
+ */
+export function poLineCommittedQty(line: Pick<PurchaseOrderLine, 'qty' | 'qty_short_closed'>): number {
+  return Math.max(0, Number(line.qty) - Number(line.qty_short_closed ?? 0))
+}
+
+/** Selalu (qty - qty_short_closed) × unit_price — sama dengan backend recalculatePoAmounts. */
+export function poLineCommittedSubtotal(
+  line: Pick<PurchaseOrderLine, 'qty' | 'qty_short_closed' | 'unit_price'>,
+): number {
+  return poLineCommittedQty(line) * Number(line.unit_price)
+}
+
+export function poCommittedTotalAmount(lines: PurchaseOrderLine[] | undefined): number {
+  return (lines ?? []).reduce((sum, line) => sum + poLineCommittedSubtotal(line), 0)
+}
+
 export interface PoPaymentDueInfo {
   label: string
   date: string | null

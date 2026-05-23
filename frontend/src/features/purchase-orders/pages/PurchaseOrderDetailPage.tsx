@@ -28,6 +28,8 @@ import {
   usePaymentDuePreview,
   useShortClosePoLines,
   PO_SHORT_CLOSE_REASONS,
+  poLineCommittedSubtotal,
+  poCommittedTotalAmount,
   type PoPaymentDueInfo,
   type PurchaseOrderLine,
 } from '../api/purchaseOrders.api'
@@ -197,7 +199,8 @@ export default function PurchaseOrderDetailPage() {
 
   const statusCfg = PO_STATUS_CONFIG[po.status] ?? PO_STATUS_CONFIG.DRAFT
   const showForm = canEdit && isEditing
-  const displayTotal = po.total_amount
+  const displayTotal =
+    (po.lines?.length ?? 0) > 0 ? poCommittedTotalAmount(po.lines) : po.total_amount
   const paymentDueInfo: PoPaymentDueInfo | null = showForm
     ? (duePreview?.payment_due_info ?? po.payment_due_info)
     : po.payment_due_info
@@ -581,7 +584,12 @@ export default function PurchaseOrderDetailPage() {
                           Rp {fmt(line.unit_price)}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
-                          Rp {fmt(line.total_price ?? line.qty * line.unit_price)}
+                          Rp {fmt(poLineCommittedSubtotal(line))}
+                          {closed > 0 && closed < Number(line.qty) && (
+                            <div className="text-[10px] text-gray-400 line-through font-normal">
+                              Rp {fmt(Number(line.qty) * Number(line.unit_price))}
+                            </div>
+                          )}
                         </td>
                       </tr>
                       )
@@ -593,7 +601,7 @@ export default function PurchaseOrderDetailPage() {
                         Total:
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">
-                        Rp {fmt(po.total_amount)}
+                        Rp {fmt(displayTotal)}
                       </td>
                     </tr>
                   </tfoot>
@@ -619,7 +627,7 @@ export default function PurchaseOrderDetailPage() {
                             </p>
                           </div>
                           <p className="font-mono text-sm font-semibold text-gray-900 dark:text-white shrink-0 ml-2">
-                            Rp {fmt(line.total_price ?? line.qty * line.unit_price)}
+                            Rp {fmt(poLineCommittedSubtotal(line))}
                           </p>
                         </div>
                         <div className="flex gap-4 text-xs">
@@ -668,7 +676,7 @@ export default function PurchaseOrderDetailPage() {
                     <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 flex justify-between">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total</span>
                       <span className="font-mono font-bold text-gray-900 dark:text-white">
-                        Rp {fmt(po.total_amount)}
+                        Rp {fmt(displayTotal)}
                       </span>
                     </div>
                   </div>

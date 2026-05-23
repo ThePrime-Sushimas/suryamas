@@ -263,6 +263,8 @@ export class PurchaseOrdersService {
         )
       }
 
+      await purchaseOrdersRepository.recalculatePoAmounts(client, id, userId)
+
       const newStatus = await purchaseOrdersRepository.resolvePoStatusAfterReceipt(client, id)
       await goodsReceiptsRepository.updatePoStatus(client, id, newStatus, userId)
       if (newStatus === 'FULLY_RECEIVED') {

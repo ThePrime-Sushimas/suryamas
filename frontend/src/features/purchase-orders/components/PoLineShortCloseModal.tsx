@@ -75,8 +75,8 @@ export function PoLineShortCloseModal({
             <span className="font-bold text-amber-700 dark:text-amber-400">
               {fmt(openQty)} {line.uom}
             </span>
-            . Qty ini tidak akan masuk stok dan menandai line PO sebagai lunas untuk bagian yang tidak
-            dikirim supplier.
+            . Qty ini tidak akan masuk stok, subtotal & total PO disesuaikan (qty komitmen × harga),
+            dan line ditandai lunas untuk bagian yang tidak dikirim supplier.
           </p>
 
           <div>

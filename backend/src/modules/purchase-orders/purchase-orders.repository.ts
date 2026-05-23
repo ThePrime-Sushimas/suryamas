@@ -405,6 +405,34 @@ export class PurchaseOrdersRepository {
     )
   }
 
+  /**
+   * Nilai komitmen PO internal setelah short-close (qty - qty_short_closed) × harga.
+   * Payable supplier mengikuti GR/PI; ini bukan mengubah dokumen resmi ke supplier.
+   */
+  async recalculatePoAmounts(
+    client: PoolClient,
+    poId: string,
+    userId?: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE purchase_order_lines pol
+       SET total_price = GREATEST(0, (pol.qty - pol.qty_short_closed) * pol.unit_price)
+       WHERE pol.po_id = $1`,
+      [poId],
+    )
+    await client.query(
+      `UPDATE purchase_orders po
+       SET total_amount = COALESCE(
+             (SELECT SUM(total_price) FROM purchase_order_lines WHERE po_id = $1),
+             0
+           ),
+           updated_by = COALESCE($2, po.updated_by),
+           updated_at = now()
+       WHERE po.id = $1`,
+      [poId, userId ?? null],
+    )
+  }
+
   async resolvePoStatusAfterReceipt(
     client: PoolClient,
     poId: string,
