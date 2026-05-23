@@ -550,15 +550,17 @@ export class ApPaymentsService {
     }
 
     await apPaymentsRepository.withTransaction(async (client) => {
-      await apPaymentsRepository.updateStatus(client, id, 'PENDING_APPROVAL', {
+      await apPaymentsRepository.updateStatus(client, id, 'APPROVED', {
         requested_by: userId,
         requested_at: new Date().toISOString(),
+        approved_by: userId,
+        approved_at: new Date().toISOString(),
         updated_by: userId,
       })
     })
 
-    await AuditService.log('UPDATE', 'ap_payments', id, userId, { status: 'DRAFT' }, { status: 'PENDING_APPROVAL' })
-    logInfo('AP payment submitted', { id })
+    await AuditService.log('UPDATE', 'ap_payments', id, userId, { status: 'DRAFT' }, { status: 'APPROVED' })
+    logInfo('AP payment submitted → approved (skip approval)', { id })
     return this.getById(id, companyId)
   }
 
@@ -688,6 +690,18 @@ export class ApPaymentsService {
     })
     logInfo('AP payment reconciled', { id })
     return this.getById(id, companyId)
+  }
+
+  async getReconcileCandidates(
+    paymentId: string,
+    companyId: string,
+  ): Promise<Array<{ id: number; transaction_date: string; description: string; debit_amount: number; credit_amount: number; reference_number: string | null }>> {
+    const payment = await this.getById(paymentId, companyId)
+    return apPaymentsRepository.findReconcileCandidates(
+      payment.bank_account_id,
+      companyId,
+      Number(payment.total_amount),
+    )
   }
 
   async delete(id: string, companyId: string, userId: string): Promise<void> {

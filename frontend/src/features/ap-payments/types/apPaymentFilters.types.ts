@@ -12,7 +12,8 @@ export interface ApPaymentFilters {
   tab: ApPaymentListTab
   dateFrom: string
   dateTo: string
-  bulkOnly: boolean
+  dueDateFrom: string
+  dueDateTo: string
 }
 
 export type ApPaymentFilterPatch = Partial<ApPaymentFilters>
@@ -21,11 +22,12 @@ export interface ApPaymentListQuery {
   page?: number
   limit?: number
   search?: string
-  status?: ApPaymentStatus
+  status?: string
   supplier_id?: string
   branch_id?: string
   payment_method?: ApPaymentMethod
   date_from?: string
   date_to?: string
-  bulk_only?: boolean
+  due_date_from?: string
+  due_date_to?: string
 }

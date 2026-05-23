@@ -60,6 +60,7 @@ export interface ApPayment {
   branch_code: string
   bank_account_name: string
   bank_account_number: string
+  bank_name?: string
   invoice_count: number
   lines?: ApPaymentInvoiceLine[]
   // Employee names for timeline

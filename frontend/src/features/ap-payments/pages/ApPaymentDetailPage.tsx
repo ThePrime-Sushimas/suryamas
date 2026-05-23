@@ -5,8 +5,6 @@ import { useListNavigation } from '@/lib/urlFilters'
 import {
   ArrowLeft,
   Send,
-  CheckCircle2,
-  XCircle,
   Banknote,
   Upload,
   Pencil,
@@ -21,8 +19,6 @@ import { usePermissionStore } from '@/features/branch_context/store/permission.s
 import {
   useApPayment,
   useSubmitApPayment,
-  useApproveApPayment,
-  useRejectApPayment,
   useUploadApPaymentProof,
   useMarkApPaymentPaid,
   useReconcileApPayment,
@@ -34,7 +30,6 @@ import {
   AP_STATUS_CONFIG,
 } from '../constants'
 import { ApPaymentProofModal } from '../components/ApPaymentProofModal'
-import { ApPaymentRejectModal } from '../components/ApPaymentRejectModal'
 import { apTheme } from '../ap-payments.theme'
 
 const fmtCurrency = (v: number) =>
@@ -72,24 +67,20 @@ export default function ApPaymentDetailPage() {
   const hasPermission = usePermissionStore((s) => s.hasPermission)
 
   const canUpdate = hasPermission('ap_payments', 'update')
-  const canApprove = hasPermission('ap_payments', 'approve')
   const canDelete = hasPermission('ap_payments', 'delete')
 
   const { data: payment, isLoading } = useApPayment(id ?? '')
   const submit = useSubmitApPayment()
-  const approve = useApproveApPayment()
-  const reject = useRejectApPayment()
   const uploadProof = useUploadApPaymentProof()
   const markPaid = useMarkApPaymentPaid()
   const reconcile = useReconcileApPayment()
   const deletePayment = useDeleteApPayment()
 
-  const [showReject, setShowReject] = useState(false)
   const [showProof, setShowProof] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [showPayConfirm, setShowPayConfirm] = useState(false)
-  const [bankStatementId, setBankStatementId] = useState('')
   const [showReconcile, setShowReconcile] = useState(false)
+  const [paymentDateInput, setPaymentDateInput] = useState('')
   const [proofViewUrl, setProofViewUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -102,6 +93,13 @@ export default function ApPaymentDetailPage() {
       .catch(() => { if (!cancelled) setProofViewUrl(null) })
     return () => { cancelled = true }
   }, [payment?.proof_url])
+
+  // Initialize payment date input from existing data
+  useEffect(() => {
+    if (payment?.payment_date) {
+      setPaymentDateInput(String(payment.payment_date).slice(0, 10))
+    }
+  }, [payment?.payment_date])
 
   if (isLoading || !payment) {
     return (
@@ -117,15 +115,12 @@ export default function ApPaymentDetailPage() {
 
   const st = AP_STATUS_CONFIG[payment.status]
   const allLinesPosted = (payment.lines ?? []).every((l) => l.invoice_status === 'POSTED')
-  const canMarkPaid = payment.status === 'APPROVED' && payment.proof_url && allLinesPosted
+  const canMarkPaid = payment.status === 'APPROVED' && payment.proof_url && allLinesPosted && !!paymentDateInput
   const totalAllocated = (payment.lines ?? []).reduce((s, l) => s + Number(l.amount_paid), 0)
 
-  const handleSubmit = async () => { if (!id) return; try { await submit.mutateAsync(id); toast.success('Diajukan untuk approval') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal submit')) } }
-  const handleApprove = async () => { if (!id) return; try { await approve.mutateAsync(id); toast.success('Pembayaran disetujui') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal approve')) } }
-  const handleReject = async (reason: string) => { if (!id) return; try { await reject.mutateAsync({ id, rejection_reason: reason }); toast.success('Pembayaran ditolak') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal reject')); throw err } }
+  const handleSubmit = async () => { if (!id) return; try { await submit.mutateAsync(id); toast.success('Pembayaran diajukan') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal submit')) } }
   const handleProof = async (file: File) => { if (!id) return; try { await uploadProof.mutateAsync({ id, file }); toast.success('Bukti bayar disimpan') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal upload bukti')); throw err } }
-  const handleMarkPaid = async () => { if (!id) return; try { await markPaid.mutateAsync({ id, payment_date: new Date().toISOString().slice(0, 10) }); toast.success('Status: sudah dibayar'); setShowPayConfirm(false) } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menandai lunas')) } }
-  const handleReconcile = async () => { if (!id || !bankStatementId.trim()) return; try { await reconcile.mutateAsync({ id, bank_statement_id: Number(bankStatementId) }); toast.success('Reconciled'); setShowReconcile(false); setBankStatementId('') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal reconcile')) } }
+  const handleMarkPaid = async () => { if (!id) return; try { await markPaid.mutateAsync({ id, payment_date: paymentDateInput || new Date().toISOString().slice(0, 10) }); toast.success('Status: sudah dibayar'); setShowPayConfirm(false) } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menandai lunas')) } }
   const handleDelete = async () => { if (!id) return; try { await deletePayment.mutateAsync(id); toast.success('Pembayaran dihapus'); backToList() } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus')) } finally { setShowDelete(false) } }
 
   // Timeline steps
@@ -224,7 +219,11 @@ export default function ApPaymentDetailPage() {
                       const isOverdue = line.invoice_due_date && new Date(line.invoice_due_date) < new Date()
                       return (
                         <tr key={line.id} className={apTheme.hoverRow}>
-                          <td className="px-4 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">{line.invoice_number}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                            <div className="max-w-[180px] truncate whitespace-nowrap">
+                              {line.invoice_number}
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtDate(line.invoice_date)}</td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className="text-gray-600 dark:text-gray-300">{fmtDate(line.invoice_due_date)}</span>
@@ -345,18 +344,8 @@ export default function ApPaymentDetailPage() {
             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 space-y-2.5">
               {payment.status === 'DRAFT' && canUpdate && (
                 <button type="button" onClick={() => void handleSubmit()} disabled={submit.isPending} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  <Send className="w-4 h-4" /> Ajukan Approval
+                  <Send className="w-4 h-4" /> Ajukan Pembayaran
                 </button>
-              )}
-              {payment.status === 'PENDING_APPROVAL' && canApprove && (
-                <>
-                  <button type="button" onClick={() => void handleApprove()} disabled={approve.isPending} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-                    <CheckCircle2 className="w-4 h-4" /> Setujui
-                  </button>
-                  <button type="button" onClick={() => setShowReject(true)} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                    <XCircle className="w-4 h-4" /> Tolak
-                  </button>
-                </>
               )}
               {['APPROVED', 'PAID'].includes(payment.status) && canUpdate && (
                 <button type="button" onClick={() => setShowProof(true)} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
@@ -371,7 +360,17 @@ export default function ApPaymentDetailPage() {
                       Semua PI harus POSTED sebelum bisa ditandai lunas.
                     </p>
                   )}
-                  <button type="button" onClick={() => setShowPayConfirm(true)} disabled={!canMarkPaid} title={!payment.proof_url ? 'Upload bukti dulu' : !allLinesPosted ? 'Tunggu PI POSTED' : undefined} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Tanggal Bayar</label>
+                    <input
+                      type="date"
+                      value={paymentDateInput}
+                      onChange={(e) => setPaymentDateInput(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-rose-200/90 dark:border-gray-600 bg-[#fff9f7] dark:bg-gray-700 text-sm text-gray-900 dark:text-white"
+                      placeholder="Pilih tanggal bayar"
+                    />
+                  </div>
+                  <button type="button" onClick={() => setShowPayConfirm(true)} disabled={!canMarkPaid} title={!payment.proof_url ? 'Upload bukti dulu' : !allLinesPosted ? 'Tunggu PI POSTED' : !paymentDateInput ? 'Isi tanggal bayar dulu' : undefined} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
                     <Banknote className="w-4 h-4" /> Tandai Sudah Dibayar
                   </button>
                 </>
@@ -387,22 +386,24 @@ export default function ApPaymentDetailPage() {
       </div>
 
       {/* Modals */}
-      <ApPaymentRejectModal isOpen={showReject} onClose={() => setShowReject(false)} onSubmit={handleReject} isLoading={reject.isPending} />
       <ApPaymentProofModal isOpen={showProof} onClose={() => setShowProof(false)} onSubmit={handleProof} isLoading={uploadProof.isPending} />
       <ConfirmModal isOpen={showDelete} onClose={() => setShowDelete(false)} onConfirm={() => void handleDelete()} title="Hapus pembayaran?" message="Draft akan dihapus permanen." confirmText="Hapus" variant="danger" isLoading={deletePayment.isPending} />
       <ConfirmModal isOpen={showPayConfirm} onClose={() => setShowPayConfirm(false)} onConfirm={() => void handleMarkPaid()} title="Tandai sudah dibayar?" message="Pastikan dana sudah keluar dari rekening. Status akan berubah ke PAID." confirmText="Konfirmasi" variant="success" isLoading={markPaid.isPending} />
       {showReconcile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowReconcile(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full mx-4 p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Link Bank Statement</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Masukkan ID baris mutasi bank dari modul rekonsiliasi.</p>
-            <input type="number" value={bankStatementId} onChange={(e) => setBankStatementId(e.target.value)} placeholder="Bank statement ID" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm mb-4" />
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowReconcile(false)} className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium">Batal</button>
-              <button type="button" onClick={() => void handleReconcile()} disabled={reconcile.isPending || !bankStatementId.trim()} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:opacity-50">Simpan</button>
-            </div>
-          </div>
-        </div>
+        <ReconcileModal
+          paymentId={id!}
+          onClose={() => setShowReconcile(false)}
+          onConfirm={async (statementId: number) => {
+            try {
+              await reconcile.mutateAsync({ id: id!, bank_statement_id: statementId })
+              toast.success('Reconciled')
+              setShowReconcile(false)
+            } catch (err: unknown) {
+              toast.error(parseApiError(err, 'Gagal reconcile'))
+            }
+          }}
+          isLoading={reconcile.isPending}
+        />
       )}
     </div>
   )
@@ -415,6 +416,92 @@ function InfoField({ label, value, className = '' }: { label: string; value: str
     <div className={className}>
       <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
       <p className="text-sm text-gray-900 dark:text-white mt-0.5">{value}</p>
+    </div>
+  )
+}
+
+// --- Reconcile Modal with inline picker ---
+interface ReconcileModalProps {
+  paymentId: string
+  onClose: () => void
+  onConfirm: (statementId: number) => Promise<void>
+  isLoading: boolean
+}
+
+function ReconcileModal({ paymentId, onClose, onConfirm, isLoading }: ReconcileModalProps) {
+  const [candidates, setCandidates] = useState<Array<{ id: number; transaction_date: string; description: string; debit_amount: number; credit_amount: number; reference_number: string | null }>>([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+
+  useEffect(() => {
+    api.get(`/ap-payments/${paymentId}/reconcile-candidates`)
+      .then((res) => setCandidates(res.data?.data ?? []))
+      .catch(() => { setFetchError(true); setCandidates([]) })
+      .finally(() => setLoading(false))
+  }, [paymentId])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-rose-900/12 dark:bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-[#fff9f7] dark:bg-gray-800 rounded-2xl shadow-xl max-w-lg w-full mx-4 border border-rose-200/85 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-rose-200 dark:border-gray-700">
+          <h3 className="font-semibold text-rose-950 dark:text-white">Reconcile — Pilih Mutasi Bank</h3>
+          <p className="text-xs text-rose-700/65 dark:text-gray-400 mt-0.5">Pilih baris mutasi bank yang sesuai dengan pembayaran ini</p>
+        </div>
+        <div className="p-5 max-h-80 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-rose-400" />
+            </div>
+          ) : fetchError ? (
+            <p className="text-sm text-red-600 dark:text-red-400 text-center py-8">Gagal memuat data mutasi bank</p>
+          ) : candidates.length === 0 ? (
+            <p className="text-sm text-rose-700/65 dark:text-gray-400 text-center py-8">Tidak ada mutasi bank yang cocok</p>
+          ) : (
+            <div className="space-y-2">
+              {candidates.map((c) => {
+                const isSelected = selectedId === c.id
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelectedId(c.id)}
+                    className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                      isSelected
+                        ? 'border-rose-400 bg-rose-50 dark:border-blue-500 dark:bg-blue-900/20'
+                        : 'border-rose-200/80 dark:border-gray-600 hover:border-rose-300 dark:hover:border-gray-500'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{c.description || '—'}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {fmtDate(c.transaction_date)}
+                          {c.reference_number && ` · Ref: ${c.reference_number}`}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                        {fmtCurrency(c.debit_amount)}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t border-rose-200 dark:border-gray-700 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-2xl border border-rose-200 dark:border-gray-600 text-sm font-medium">Batal</button>
+          <button
+            type="button"
+            onClick={() => selectedId && void onConfirm(selectedId)}
+            disabled={!selectedId || isLoading}
+            className="px-4 py-2 rounded-2xl bg-gradient-to-r from-rose-400 to-pink-500 text-white text-sm font-medium disabled:opacity-50 dark:bg-blue-600 dark:from-blue-600 dark:to-blue-600"
+          >
+            {isLoading ? 'Menyimpan...' : 'Reconcile'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

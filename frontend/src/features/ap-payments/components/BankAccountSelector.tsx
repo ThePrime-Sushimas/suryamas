@@ -69,7 +69,7 @@ export function BankAccountSelector({
         <option value="">Pilih rekening...</option>
         {accounts.map((account) => (
           <option key={account.id} value={account.id}>
-            {account.bank_name} - {account.account_number}
+            {account.bank_name} {account.account_number} · {account.account_name}
             {canViewBalance && account.balance != null
               ? ` (${fmtCurrency(account.balance)})`
               : ''}

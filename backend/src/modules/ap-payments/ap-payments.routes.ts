@@ -165,4 +165,11 @@ router.post(
   (req, res) => apPaymentsController.reconcile(req, res),
 )
 
+router.get(
+  '/:id/reconcile-candidates',
+  canView(MODULE),
+  validateSchema(apPaymentParamSchema),
+  (req, res) => apPaymentsController.getReconcileCandidates(req, res),
+)
+
 export default router

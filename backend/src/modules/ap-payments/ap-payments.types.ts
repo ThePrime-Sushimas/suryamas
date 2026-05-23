@@ -265,14 +265,15 @@ export interface ApPaymentListFilter {
   company_id: string
   branch_id?: string
   supplier_id?: string
-  status?: ApPaymentStatus
+  status?: string
   payment_method?: ApPaymentMethod
   date_from?: string
   date_to?: string
-  search?: string              // payment_number
+  due_date_from?: string
+  due_date_to?: string
+  search?: string
   page?: number
   limit?: number
-  bulk_only?: boolean
 }
 
 // ── Bulk Payment DTOs ─────────────────────────────────────────

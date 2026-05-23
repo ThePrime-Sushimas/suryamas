@@ -226,33 +226,51 @@ export default function ApPaymentsPage() {
               </option>
             ))}
           </select>
-          <input
-            type="date"
-            value={filters.dateFrom}
-            onChange={(e) => setFilters({ dateFrom: e.target.value })}
-            className={apTheme.select}
-            aria-label="Tanggal dari"
-          />
-          <input
-            type="date"
-            value={filters.dateTo}
-            onChange={(e) => setFilters({ dateTo: e.target.value })}
-            className={apTheme.select}
-            aria-label="Tanggal sampai"
-          />
-          <label className="inline-flex items-center gap-2 px-3 py-2.5 rounded-2xl border border-rose-200/90 dark:border-gray-600 bg-[#fff9f7] dark:bg-gray-700 text-sm cursor-pointer select-none whitespace-nowrap">
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-rose-600/70 dark:text-gray-500">Tgl Bayar Dari</label>
             <input
-              type="checkbox"
-              checked={filters.bulkOnly}
-              onChange={(e) => setFilters({ bulkOnly: e.target.checked })}
-              className="rounded border-rose-300 dark:border-gray-500 text-violet-600 focus:ring-violet-500"
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters({ dateFrom: e.target.value })}
+              className={apTheme.select}
             />
-            <span className="text-rose-950 dark:text-white">Bulk saja</span>
-          </label>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-rose-600/70 dark:text-gray-500">Tgl Bayar Sampai</label>
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ dateTo: e.target.value })}
+              className={apTheme.select}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-rose-600/70 dark:text-gray-500">Jatuh Tempo Dari</label>
+            <input
+              type="date"
+              value={filters.dueDateFrom}
+              onChange={(e) => setFilters({ dueDateFrom: e.target.value })}
+              className={apTheme.select}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-rose-600/70 dark:text-gray-500">Jatuh Tempo Sampai</label>
+            <input
+              type="date"
+              value={filters.dueDateTo}
+              onChange={(e) => setFilters({ dueDateTo: e.target.value })}
+              className={apTheme.select}
+            />
+          </div>
         </div>
         {isDateRangeInvalid(filters.dateFrom, filters.dateTo) && (
           <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
-            Tanggal awal harus sebelum tanggal akhir
+            Tanggal bayar awal harus sebelum tanggal akhir
+          </p>
+        )}
+        {isDateRangeInvalid(filters.dueDateFrom, filters.dueDateTo) && (
+          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+            Jatuh tempo awal harus sebelum tanggal akhir
           </p>
         )}
       </div>
@@ -291,7 +309,7 @@ export default function ApPaymentsPage() {
               <thead>
                 <tr className="border-b border-rose-200/80 dark:border-gray-700">
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">No. Pembayaran</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tanggal</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tgl Dibuat</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tgl Bayar</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Supplier</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Cabang</th>
@@ -319,12 +337,12 @@ export default function ApPaymentsPage() {
                         </div>
                       </td>
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                        {fmtDate(p.payment_date ?? p.created_at)}
+                        {fmtDate(p.created_at)}
                       </td>
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         {fmtDate(p.paid_at)}
                       </td>
-                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300">
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         {p.supplier_name}
                       </td>
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
@@ -335,7 +353,7 @@ export default function ApPaymentsPage() {
                           <span>{AP_PAYMENT_METHOD_LABELS[p.payment_method]}</span>
                           {p.payment_method !== 'CASH' && p.bank_account_name && (
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                              {p.bank_account_name} · {p.bank_account_number}
+                              {p.bank_name ?? ''} {p.bank_account_number} · {p.bank_account_name}
                             </p>
                           )}
                         </div>
@@ -343,7 +361,7 @@ export default function ApPaymentsPage() {
                       <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                         {fmtCurrency(Number(p.total_amount))}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-3 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>
                           {st.label}
                         </span>

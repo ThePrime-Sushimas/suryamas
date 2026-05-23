@@ -9,7 +9,7 @@ import { BulkSelectionBar } from './BulkSelectionBar'
 import { apTheme } from '../ap-payments.theme'
 
 const MAX_SELECTION = 50
-const DEFAULT_PAGE_SIZE = 10
+const DEFAULT_PAGE_SIZE = 20
 
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -306,7 +306,7 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
+              <tbody className="divide-y divide-rose-100 dark:divide-gray-700 whitespace-nowrap">
                 {invoices.map((inv) => (
                   <InvoiceRow
                     key={inv.id}

@@ -150,6 +150,36 @@ export class ApPaymentsRepository {
     return rowCount ?? 0
   }
 
+  // ── Reconcile candidates (unreconciled bank statements for matching) ──
+  async findReconcileCandidates(
+    bankAccountId: number,
+    companyId: string,
+    paymentAmount: number,
+  ): Promise<Array<{ id: number; transaction_date: string; description: string; debit_amount: number; credit_amount: number; reference_number: string | null }>> {
+    const { rows } = await pool.query(
+      `SELECT
+         bs.id,
+         bs.transaction_date,
+         bs.description,
+         bs.debit_amount::float AS debit_amount,
+         bs.credit_amount::float AS credit_amount,
+         bs.reference_number
+       FROM bank_statements bs
+       WHERE bs.bank_account_id = $1
+         AND bs.company_id = $2
+         AND bs.is_reconciled = false
+         AND bs.is_pending = false
+         AND bs.deleted_at IS NULL
+         AND bs.debit_amount > 0
+       ORDER BY
+         ABS(bs.debit_amount - $3) ASC,
+         bs.transaction_date DESC
+       LIMIT 20`,
+      [bankAccountId, companyId, paymentAmount],
+    )
+    return rows
+  }
+
   // ── Number generation (mirror GR pattern) ──────────────────
   async generateApPaymentNumber(
     client: PoolClient,
@@ -211,19 +241,32 @@ export class ApPaymentsRepository {
       params.push(filter.payment_method)
     }
     if (filter.date_from) {
-      conditions.push(`ap.created_at::date >= $${idx++}`)
+      conditions.push(`ap.payment_date >= $${idx++}`)
       params.push(filter.date_from)
     }
     if (filter.date_to) {
-      conditions.push(`ap.created_at::date <= $${idx++}`)
+      conditions.push(`ap.payment_date <= $${idx++}`)
       params.push(filter.date_to)
+    }
+    if (filter.due_date_from) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM ap_payment_invoice_lines apl
+        JOIN purchase_invoices pi2 ON pi2.id = apl.purchase_invoice_id
+        WHERE apl.ap_payment_id = ap.id AND pi2.due_date >= $${idx++}
+      )`)
+      params.push(filter.due_date_from)
+    }
+    if (filter.due_date_to) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM ap_payment_invoice_lines apl
+        JOIN purchase_invoices pi2 ON pi2.id = apl.purchase_invoice_id
+        WHERE apl.ap_payment_id = ap.id AND pi2.due_date <= $${idx++}
+      )`)
+      params.push(filter.due_date_to)
     }
     if (filter.search) {
       conditions.push(`ap.payment_number ILIKE $${idx++}`)
       params.push(`%${filter.search}%`)
-    }
-    if (filter.bulk_only) {
-      conditions.push('ap.bulk_payment_batch_id IS NOT NULL')
     }
 
     const where = conditions.join(' AND ')
@@ -245,14 +288,16 @@ export class ApPaymentsRepository {
          b.branch_code,
          ba.account_name         AS bank_account_name,
          ba.account_number       AS bank_account_number,
+         bk.bank_name            AS bank_name,
          COUNT(l.id)::int        AS invoice_count
        FROM ap_payments ap
        JOIN suppliers s      ON s.id = ap.supplier_id
        JOIN branches b       ON b.id = ap.branch_id
        JOIN bank_accounts ba ON ba.id = ap.bank_account_id
+       LEFT JOIN banks bk    ON bk.id = ba.bank_id
        LEFT JOIN ap_payment_invoice_lines l ON l.ap_payment_id = ap.id
        WHERE ${where}
-       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number
+       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number, bk.bank_name
        ORDER BY ap.created_at DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
       [...params, limit, offset],

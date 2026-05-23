@@ -63,14 +63,15 @@ export const listApPaymentsSchema = z.object({
   query: z.object({
     branch_id:      z.string().uuid().optional(),
     supplier_id:    z.string().uuid().optional(),
-    status:         z.enum(paymentStatuses).optional(),
+    status:         z.string().regex(/^[A-Z_]+(,[A-Z_]+)*$/).optional(),
     payment_method: z.enum(paymentMethods).optional(),
     date_from:      z.string().date().optional(),
     date_to:        z.string().date().optional(),
+    due_date_from:  z.string().date().optional(),
+    due_date_to:    z.string().date().optional(),
     search:         z.string().optional(),
     page:           z.coerce.number().int().positive().default(1),
     limit:          z.coerce.number().int().positive().max(100).default(20),
-    bulk_only:      z.enum(['true', 'false']).transform(v => v === 'true').optional(),
   }),
 })
 

@@ -22,10 +22,11 @@ export class ApPaymentsController {
         payment_method: q.payment_method as ApPaymentListFilter['payment_method'],
         date_from:      q.date_from,
         date_to:        q.date_to,
+        due_date_from:  q.due_date_from,
+        due_date_to:    q.due_date_to,
         search:         q.search,
         page:           q.page  ? parseInt(q.page,  10) : 1,
         limit:          q.limit ? parseInt(q.limit, 10) : 20,
-        bulk_only:      q.bulk_only === 'true',
       }
 
       const result = await apPaymentsService.list(filter)
@@ -338,6 +339,18 @@ export class ApPaymentsController {
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reconcile ap payment', id: req.params.id })
+    }
+  }
+
+  // GET /ap-payments/:id/reconcile-candidates
+  async getReconcileCandidates(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const id = req.params.id as string
+      const candidates = await apPaymentsService.getReconcileCandidates(id, companyId)
+      sendSuccess(res, candidates)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get reconcile candidates', id: req.params.id })
     }
   }
 
