@@ -98,6 +98,7 @@ export default function ApPaymentsPage() {
 
   return (
     <ApPaymentsShell fullHeight className="flex flex-col">
+      {/* Header */}
       <div className={`${apTheme.header} px-4 sm:px-6 py-4`}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -114,40 +115,23 @@ export default function ApPaymentsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
-            <Link
-              to={AP_DASHBOARD_PATH}
-              className={apTheme.btnSecondary}
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
+            <Link to={AP_DASHBOARD_PATH} className={apTheme.btnSecondary}>
+              <LayoutDashboard className="w-4 h-4" /> Dashboard
             </Link>
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={isExporting || (!isLoading && payments.length === 0)}
-              className={apTheme.btnSecondary}
-            >
-              {isExporting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
+            <button type="button" onClick={handleExport} disabled={isExporting || (!isLoading && payments.length === 0)} className={apTheme.btnSecondary}>
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {isExporting ? 'Mengekspor...' : 'Export'}
             </button>
             {canInsert && (
-              <button
-                type="button"
-                onClick={() => setFilters({ tab: 'outstanding' })}
-                className={apTheme.btnPrimary}
-              >
-                <Plus className="w-4 h-4" />
-                Buat Pembayaran
+              <button type="button" onClick={() => setFilters({ tab: 'outstanding' })} className={apTheme.btnPrimary}>
+                <Plus className="w-4 h-4" /> Buat Pembayaran
               </button>
             )}
           </div>
         </div>
       </div>
 
+      {/* Tabs */}
       <div className={`${apTheme.header} px-4 sm:px-6`}>
         <div className="flex gap-1 overflow-x-auto py-2">
           {AP_LIST_TABS.map((tab) => (
@@ -155,11 +139,7 @@ export default function ApPaymentsPage() {
               key={tab.id}
               type="button"
               onClick={() => setFilters({ tab: tab.id, status: '' })}
-              className={`transition-colors ${
-                isApListTabActive(tab.id, filters)
-                  ? apTheme.listTabActive
-                  : apTheme.listTabInactive
-              }`}
+              className={`transition-colors ${isApListTabActive(tab.id, filters) ? apTheme.listTabActive : apTheme.listTabInactive}`}
             >
               {tab.label}
             </button>
@@ -167,9 +147,11 @@ export default function ApPaymentsPage() {
         </div>
       </div>
 
+      {/* Filters */}
       <div className={`${apTheme.header} px-4 sm:px-6 py-3`}>
-        <div className="flex flex-col lg:flex-row gap-2">
-          <div className="flex-1 relative">
+        {/* Row 1: Search + dropdowns */}
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="flex-1 min-w-[200px] relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
@@ -179,102 +161,57 @@ export default function ApPaymentsPage() {
               className={apTheme.inputSearch}
             />
             {searchInput && (
-              <button
-                type="button"
-                onClick={() => setSearchInput('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
+              <button type="button" onClick={() => setSearchInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
-          <select
-            value={filters.status}
-            onChange={(e) =>
-              setFilters({ status: (e.target.value || '') as ApPaymentStatus | '' })
-            }
-            className={apTheme.select}
-          >
-            <option value="">Semua status</option>
-            {(Object.keys(AP_STATUS_CONFIG) as ApPaymentStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {AP_STATUS_CONFIG[s].label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filters.supplierId}
-            onChange={(e) => setFilters({ supplierId: e.target.value })}
-            className={`${apTheme.select} min-w-40`}
-          >
+          <select value={filters.supplierId} onChange={(e) => setFilters({ supplierId: e.target.value })} className={apTheme.select}>
             <option value="">Semua supplier</option>
             {(suppliersData?.data ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.supplier_name}
-              </option>
+              <option key={s.id} value={s.id}>{s.supplier_name}</option>
             ))}
           </select>
-          <select
-            value={filters.branchId}
-            onChange={(e) => setFilters({ branchId: e.target.value })}
-            className={`${apTheme.select} min-w-[140px]`}
-          >
+          <select value={filters.branchId} onChange={(e) => setFilters({ branchId: e.target.value })} className={apTheme.select}>
             <option value="">Semua cabang</option>
             {(branchesData?.data ?? []).map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.branch_name}
-              </option>
+              <option key={b.id} value={b.id}>{b.branch_name}</option>
             ))}
           </select>
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] font-medium text-rose-600/70 dark:text-gray-500">Tgl Bayar Dari</label>
-            <input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(e) => setFilters({ dateFrom: e.target.value })}
-              className={apTheme.select}
-            />
+          <select value={filters.status} onChange={(e) => setFilters({ status: (e.target.value || '') as ApPaymentStatus | '' })} className={apTheme.select}>
+            <option value="">Semua status</option>
+            {(Object.keys(AP_STATUS_CONFIG) as ApPaymentStatus[]).map((s) => (
+              <option key={s} value={s}>{AP_STATUS_CONFIG[s].label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Row 2: Date filters */}
+        <div className="flex flex-wrap gap-3 mt-2 items-end">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-rose-600/80 dark:text-gray-400 whitespace-nowrap">Tgl Bayar:</span>
+            <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ dateFrom: e.target.value })} className={`${apTheme.select} text-xs`} />
+            <span className="text-xs text-gray-400">—</span>
+            <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ dateTo: e.target.value })} className={`${apTheme.select} text-xs`} />
           </div>
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] font-medium text-rose-600/70 dark:text-gray-500">Tgl Bayar Sampai</label>
-            <input
-              type="date"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({ dateTo: e.target.value })}
-              className={apTheme.select}
-            />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] font-medium text-rose-600/70 dark:text-gray-500">Jatuh Tempo Dari</label>
-            <input
-              type="date"
-              value={filters.dueDateFrom}
-              onChange={(e) => setFilters({ dueDateFrom: e.target.value })}
-              className={apTheme.select}
-            />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] font-medium text-rose-600/70 dark:text-gray-500">Jatuh Tempo Sampai</label>
-            <input
-              type="date"
-              value={filters.dueDateTo}
-              onChange={(e) => setFilters({ dueDateTo: e.target.value })}
-              className={apTheme.select}
-            />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-rose-600/80 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
+            <input type="date" value={filters.dueDateFrom} onChange={(e) => setFilters({ dueDateFrom: e.target.value })} className={`${apTheme.select} text-xs`} />
+            <span className="text-xs text-gray-400">—</span>
+            <input type="date" value={filters.dueDateTo} onChange={(e) => setFilters({ dueDateTo: e.target.value })} className={`${apTheme.select} text-xs`} />
           </div>
         </div>
+
+        {/* Validation messages */}
         {isDateRangeInvalid(filters.dateFrom, filters.dateTo) && (
-          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
-            Tanggal bayar awal harus sebelum tanggal akhir
-          </p>
+          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">Tanggal bayar awal harus sebelum tanggal akhir</p>
         )}
         {isDateRangeInvalid(filters.dueDateFrom, filters.dueDateTo) && (
-          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
-            Jatuh tempo awal harus sebelum tanggal akhir
-          </p>
+          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">Jatuh tempo awal harus sebelum tanggal akhir</p>
         )}
       </div>
 
+      {/* Content */}
       {filters.tab === 'outstanding' ? (
         <OutstandingInvoicesTab filters={filters} />
       ) : (
@@ -283,10 +220,7 @@ export default function ApPaymentsPage() {
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className={apTheme.skeleton}
-              />
+              <div key={i} className={apTheme.skeleton} />
             ))}
           </div>
         ) : payments.length === 0 ? (
@@ -294,11 +228,7 @@ export default function ApPaymentsPage() {
             <Wallet className="mx-auto w-12 h-12 text-rose-200 dark:text-gray-600 mb-4" />
             <p className={apTheme.muted}>Belum ada pembayaran AP</p>
             {canInsert && (
-              <button
-                type="button"
-                onClick={() => setFilters({ tab: 'outstanding' })}
-                className={`inline-block mt-4 text-sm font-medium ${apTheme.link}`}
-              >
+              <button type="button" onClick={() => setFilters({ tab: 'outstanding' })} className={`inline-block mt-4 text-sm font-medium ${apTheme.link}`}>
                 Buat pembayaran pertama
               </button>
             )}
@@ -316,38 +246,24 @@ export default function ApPaymentsPage() {
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Metode / Rekening</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Total</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
-                  {canDelete && <th className="px-3 py-3 text-left w-10" />}
+                  {canDelete && <th className="px-3 py-3 w-10" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
                 {payments.map((p) => {
                   const st = AP_STATUS_CONFIG[p.status]
                   return (
-                    <tr
-                      key={p.id}
-                      onClick={() => openDetail(`${AP_PAYMENTS_LIST_PATH}/${p.id}`)}
-                      className={`${apTheme.hoverRow} cursor-pointer`}
-                    >
+                    <tr key={p.id} onClick={() => openDetail(`${AP_PAYMENTS_LIST_PATH}/${p.id}`)} className={`${apTheme.hoverRow} cursor-pointer`}>
                       <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span>{p.payment_number}</span>
-                          {p.bulk_payment_batch_id && (
-                            <BulkBadge batchId={p.bulk_payment_batch_id} />
-                          )}
+                          {p.bulk_payment_batch_id && <BulkBadge batchId={p.bulk_payment_batch_id} />}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                        {fmtDate(p.created_at)}
-                      </td>
-                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                        {fmtDate(p.paid_at)}
-                      </td>
-                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                        {p.supplier_name}
-                      </td>
-                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                        {p.branch_name}
-                      </td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(p.created_at)}</td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(p.paid_at)}</td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{p.supplier_name}</td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{p.branch_name}</td>
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         <div>
                           <span>{AP_PAYMENT_METHOD_LABELS[p.payment_method]}</span>
@@ -358,25 +274,14 @@ export default function ApPaymentsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                        {fmtCurrency(Number(p.total_amount))}
-                      </td>
+                      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">{fmtCurrency(Number(p.total_amount))}</td>
                       <td className="px-3 py-3 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>
-                          {st.label}
-                        </span>
+                        <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>{st.label}</span>
                       </td>
                       {canDelete && (
                         <td className="px-3 py-3">
                           {p.status === 'DRAFT' && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setDeleteTarget(p)
-                              }}
-                              className="text-xs text-red-600 hover:underline whitespace-nowrap"
-                            >
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }} className="text-xs text-red-600 hover:underline whitespace-nowrap">
                               Hapus
                             </button>
                           )}
@@ -393,28 +298,13 @@ export default function ApPaymentsPage() {
 
       {pagination && pagination.total > 0 && (
         <div className={`border-t ${apTheme.divideBorder} bg-white/85 dark:bg-gray-800 backdrop-blur-md px-4 py-3`}>
-          <Pagination
-            pagination={pagination}
-            onPageChange={setPage}
-            onLimitChange={setLimit}
-            currentLength={payments.length}
-            loading={isLoading}
-          />
+          <Pagination pagination={pagination} onPageChange={setPage} onLimitChange={setLimit} currentLength={payments.length} loading={isLoading} />
         </div>
       )}
       </>
       )}
 
-      <ConfirmModal
-        isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title="Hapus pembayaran?"
-        message={`Draft ${deleteTarget?.payment_number} akan dihapus.`}
-        confirmText="Hapus"
-        variant="danger"
-        isLoading={deletePayment.isPending}
-      />
+      <ConfirmModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} title="Hapus pembayaran?" message={`Draft ${deleteTarget?.payment_number} akan dihapus.`} confirmText="Hapus" variant="danger" isLoading={deletePayment.isPending} />
     </ApPaymentsShell>
   )
 }

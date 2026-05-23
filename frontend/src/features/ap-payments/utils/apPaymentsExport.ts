@@ -20,7 +20,6 @@ const fmtDate = (d: string | null): string =>
 export async function exportApPaymentsExcel(
   apiQuery: ApPaymentListQuery,
 ): Promise<void> {
-  // Fetch all matching payments (override pagination with high limit)
   const params: ApPaymentListQuery = {
     ...apiQuery,
     page: 1,
@@ -34,24 +33,35 @@ export async function exportApPaymentsExcel(
     throw new Error('NO_DATA')
   }
 
-  // Build rows for the worksheet
   const rows = payments.map((p) => ({
     'No. Pembayaran': p.payment_number,
+    'Tgl Dibuat': fmtDate(p.created_at),
+    'Tgl Bayar': fmtDate(p.paid_at),
     Supplier: p.supplier_name,
     Cabang: p.branch_name,
     Metode: AP_PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method,
-    'Bank Account': p.bank_account_name,
+    'Nama Bank': p.bank_name ?? '',
+    'No. Rekening': p.bank_account_number,
+    'Nama Rekening': p.bank_account_name,
     Total: Number(p.total_amount),
     Status: AP_STATUS_CONFIG[p.status]?.label ?? p.status,
-    'Tanggal Bayar': fmtDate(p.payment_date ?? p.created_at),
   }))
 
-  // Generate workbook
   const ws = XLSX.utils.json_to_sheet(rows)
+
+  // Auto-width columns
+  const colWidths = Object.keys(rows[0]).map((key) => {
+    const maxLen = Math.max(
+      key.length,
+      ...rows.map((r) => String((r as Record<string, unknown>)[key] ?? '').length),
+    )
+    return { wch: Math.min(maxLen + 2, 40) }
+  })
+  ws['!cols'] = colWidths
+
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'AP Payments')
 
-  // Download file with date-stamped filename
   const dateStr = new Date().toISOString().slice(0, 10)
   XLSX.writeFile(wb, `ap-payments-${dateStr}.xlsx`)
 }

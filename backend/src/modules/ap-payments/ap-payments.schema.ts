@@ -61,17 +61,17 @@ export const reconcileApPaymentSchema = z.object({
 // ── List filter ───────────────────────────────────────────────
 export const listApPaymentsSchema = z.object({
   query: z.object({
-    branch_id:      z.string().uuid().optional(),
-    supplier_id:    z.string().uuid().optional(),
-    status:         z.string().regex(/^[A-Z_]+(,[A-Z_]+)*$/).optional(),
-    payment_method: z.enum(paymentMethods).optional(),
-    date_from:      z.string().date().optional(),
-    date_to:        z.string().date().optional(),
-    due_date_from:  z.string().date().optional(),
-    due_date_to:    z.string().date().optional(),
+    branch_id:      z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
+    supplier_id:    z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
+    status:         z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^[A-Z_]+(,[A-Z_]+)*$/).optional()),
+    payment_method: z.preprocess((v) => (v === '' ? undefined : v), z.enum(paymentMethods).optional()),
+    date_from:      z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
+    date_to:        z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
+    due_date_from:  z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
+    due_date_to:    z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
     search:         z.string().optional(),
     page:           z.coerce.number().int().positive().default(1),
-    limit:          z.coerce.number().int().positive().max(100).default(20),
+    limit:          z.coerce.number().int().positive().max(10000).default(20),
   }),
 })
 

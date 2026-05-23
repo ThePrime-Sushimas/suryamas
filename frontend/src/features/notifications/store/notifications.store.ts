@@ -143,6 +143,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
   fetchNotifications: async (toast) => {
     const now = Date.now()
+    // Skip if fetched less than 5 seconds ago (prevents duplicate calls from re-renders)
+    if (now - get()._lastFetchedAt < 5000) return
     set({ loading: true, error: null })
     try {
       const [listRes, countRes] = await Promise.all([
