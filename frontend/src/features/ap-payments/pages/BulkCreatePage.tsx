@@ -96,7 +96,7 @@ export default function BulkCreatePage() {
 
   // Build a map of supplier bank accounts from the original invoice data
   const supplierBankAccountsMap = useMemo(() => {
-    const map = new Map<string, Array<{ bank_name: string; account_number: string }>>()
+    const map = new Map<string, Array<{ bank_name: string; account_number: string; account_name: string }>>()
     if (!invoiceData) return map
     for (const inv of invoiceData) {
       if (!map.has(inv.supplier_id) && inv.supplier_bank_accounts?.length > 0) {

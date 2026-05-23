@@ -13,7 +13,6 @@ import {
   Trash2,
   ExternalLink,
   Loader2,
-  Circle,
 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -199,32 +198,32 @@ export default function ApPaymentDetailPage() {
             </section>
 
             {/* Payment Allocation Table */}
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-              <div className="px-5 py-3.5 border-b border-gray-100 dark:border-gray-700">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+            <section className={apTheme.cardOverflow}>
+              <div className={`px-5 py-3.5 border-b ${apTheme.divideBorder}`}>
+                <h2 className={apTheme.sectionTitle}>
                   Alokasi Invoice ({payment.lines?.length ?? 0})
                 </h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">No. Invoice</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">Tgl Invoice</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">Jatuh Tempo</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">GR</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">Subtotal</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">Pajak</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">Total</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">Dibayar</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
+                    <tr className={`border-b border-gray-100 dark:border-gray-700 ${apTheme.surface}`}>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">No. Invoice</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Tgl Invoice</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Jatuh Tempo</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">GR</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Subtotal</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Pajak</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Total</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Dibayar</th>
+                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {(payment.lines ?? []).map((line) => {
                       const isOverdue = line.invoice_due_date && new Date(line.invoice_due_date) < new Date()
                       return (
-                        <tr key={line.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+                        <tr key={line.id} className={apTheme.hoverRow}>
                           <td className="px-4 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">{line.invoice_number}</td>
                           <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtDate(line.invoice_date)}</td>
                           <td className="px-4 py-3 whitespace-nowrap">
