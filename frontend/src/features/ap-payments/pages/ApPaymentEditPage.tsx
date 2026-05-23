@@ -4,7 +4,6 @@ import { ArrowLeft, Save, Plus, Trash2, AlertCircle } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
-import { useSuppliers } from '@/features/suppliers/api/suppliers.api'
 import { bankAccountsApi } from '@/features/bank-accounts/api/bankAccounts.api'
 import type { BankAccount } from '@/features/bank-accounts/types'
 import {
