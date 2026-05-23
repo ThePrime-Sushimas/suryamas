@@ -58,7 +58,7 @@ interface LocalInput {
   qty_input: number;
   uom: string;
   requires_processing: boolean;
-  status: 'PENDING' | 'PROCESSING' | 'DONE';
+  status: 'PENDING' | 'PROCESSING' | 'DONE' | 'CONFIRMED' | 'QC_REVIEW' | 'REJECTED';
   output_template: OutputTemplateRow[];
   outputs: LocalOutput[];
   expanded: boolean;
@@ -761,12 +761,19 @@ function normalizeGpHeaderStatus(status: string): keyof typeof STATUS_CONFIG {
   return status === "QC_REVIEW" ? "PROCESSING" : status as keyof typeof STATUS_CONFIG
 }
 
-/** Baris selesai untuk progress UI — CONFIRMED mengunci hanya saat header GP final. */
+/** Baris selesai untuk progress UI — CONFIRMED = selesai setelah finalisasi GP. */
 function isGpInputLineComplete(lineStatus: string, gpHeaderStatus: string): boolean {
   if (gpHeaderStatus === 'CORRECTING') {
     return lineStatus === 'DONE'
   }
-  return lineStatus === 'DONE' || lineStatus === 'CONFIRMED'
+  if (lineStatus === 'DONE' || lineStatus === 'CONFIRMED') {
+    return true
+  }
+  // Header sudah final + ringkasan ada, baris tertinggal PROCESSING (bug finalize lama)
+  if (gpHeaderStatus === 'CONFIRMED' && lineStatus === 'PROCESSING') {
+    return true
+  }
+  return false
 }
 
 function resolveGpHeaderStatusConfig(
@@ -1561,10 +1568,16 @@ export default function GoodsProcessingDetailPage() {
     [canUpdate, gp?.status]
   )
 
-  // Progress counts
-  const doneCount = localInputs.filter(inp => isGpInputLineComplete(inp.status, status)).length
-  const totalCount = localInputs.length
-  const allDone = doneCount === totalCount && totalCount > 0
+  // Progress counts — pakai status dari API (bukan hanya local draft)
+  const lineStatuses = gp?.inputs ?? localInputs
+  const totalCount = lineStatuses.length
+  const doneCount = lineStatuses.filter((inp) =>
+    isGpInputLineComplete(inp.status ?? 'PENDING', status),
+  ).length
+  const headerFinalizedWithTotals =
+    status === 'CONFIRMED' && gp.total_input_qty != null && gp.yield_percentage != null
+  const effectiveDoneCount = headerFinalizedWithTotals ? totalCount : doneCount
+  const allDone = effectiveDoneCount === totalCount && totalCount > 0
 
   const pendingReturnCount = useMemo(() => {
     if (!gp) return 0
@@ -1577,7 +1590,9 @@ export default function GoodsProcessingDetailPage() {
   /** Semua baris input DONE + tidak ada retur yang belum masuk gudang/dibuang */
   const canFinalizeGp = allDone && !hasPendingReturns
 
-  const needsReopen = gp?.status === "CONFIRMED" && !allDone
+  /** Hanya jika GP final tanpa ringkasan lengkap DAN masih ada baris yang belum selesai per workflow. */
+  const needsReopen =
+    gp?.status === 'CONFIRMED' && !allDone && !headerFinalizedWithTotals
 
   const showMobileActionBar = useMemo(() => {
     if (!gp) return false
@@ -1749,7 +1764,7 @@ export default function GoodsProcessingDetailPage() {
   const status = gp.status
   const isInProgress = status === "PROCESSING" || status === "PARTIAL" || status === "CORRECTING"
   const canUnconfirmForCorrection = status === "CONFIRMED" && allDone && canApprove
-  const cfg = resolveGpHeaderStatusConfig(status, doneCount, totalCount)
+  const cfg = resolveGpHeaderStatusConfig(status, effectiveDoneCount, totalCount)
   const isBusy = startMut.isPending || confirmMut.isPending || reopenMut.isPending || unconfirmMut.isPending || resolveMut.isPending
   const resolvingOutputId = resolveMut.isPending ? (resolveMut.variables?.outputId ?? null) : null
   const resolvingResolution = resolveMut.isPending ? (resolveMut.variables?.resolution ?? null) : null
@@ -1779,8 +1794,8 @@ export default function GoodsProcessingDetailPage() {
           <div className="px-4 pb-3">
             <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="text-gray-500 dark:text-gray-400">Progress item</span>
-              <span className={`font-semibold ${doneCount > 0 ? "text-green-600" : "text-blue-600"}`}>
-                {doneCount} / {totalCount} item selesai
+              <span className={`font-semibold ${effectiveDoneCount > 0 ? "text-green-600" : "text-blue-600"}`}>
+                {effectiveDoneCount} / {totalCount} item selesai
               </span>
             </div>
             <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
@@ -1972,7 +1987,7 @@ export default function GoodsProcessingDetailPage() {
         {/* ── RIGHT PANEL — item cards ── */}
         <div className={`flex-1 px-4 py-4 space-y-3 max-w-2xl mx-auto lg:mx-0 lg:max-w-none ${showMobileActionBar ? "pb-32" : "pb-4"} lg:pb-8`}>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-0.5">
-            {totalCount} Item · {doneCount} selesai
+            {totalCount} Item · {effectiveDoneCount} selesai
           </p>
 
           {localInputs.map((inp, inputIndex) => {

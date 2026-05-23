@@ -52,7 +52,7 @@ export interface GoodsProcessingInputWithTemplate {
   requires_processing: boolean
   output_template: OutputTemplateRow[]
   outputs: GoodsProcessingOutputWithProduct[]
-  status?: 'PENDING' | 'PROCESSING' | 'DONE'
+  status?: 'PENDING' | 'PROCESSING' | 'DONE' | 'CONFIRMED' | 'QC_REVIEW' | 'REJECTED'
 }
 
 export interface GoodsProcessingDetail {

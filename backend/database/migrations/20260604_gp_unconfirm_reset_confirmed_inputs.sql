@@ -3,6 +3,18 @@
 
 BEGIN;
 
+-- GP finalized but input lines still PROCESSING/DONE (old finalize only updated status = DONE)
+UPDATE goods_processing_inputs gpi
+SET status = 'CONFIRMED',
+    qc_confirmed_by = COALESCE(gpi.qc_confirmed_by, gp.qc_confirmed_by),
+    qc_confirmed_at = COALESCE(gpi.qc_confirmed_at, gp.qc_confirmed_at),
+    updated_at = now()
+FROM goods_processing gp
+WHERE gp.id = gpi.goods_processing_id
+  AND gp.status = 'CONFIRMED'
+  AND gp.deleted_at IS NULL
+  AND gpi.status IN ('DONE', 'PROCESSING', 'PENDING');
+
 -- Fix GP already opened for correction but lines still CONFIRMED/DONE
 UPDATE goods_processing_inputs gpi
 SET status = 'PROCESSING',

@@ -354,7 +354,7 @@ async confirmGpWithStock(
       updated_by: userId,
     })
 
-    // Finalisasi GP: semua baris DONE → CONFIRMED (syarat post jurnal PI)
+    // Finalisasi GP: semua baris aktif → CONFIRMED (syarat post jurnal PI)
     await client.query(
       `UPDATE goods_processing_inputs
        SET status = 'CONFIRMED',
@@ -362,7 +362,7 @@ async confirmGpWithStock(
            qc_confirmed_at = $2,
            updated_at = now()
        WHERE goods_processing_id = $3
-         AND status = 'DONE'`,
+         AND status NOT IN ('REJECTED', 'CONFIRMED')`,
       [userId, qcConfirmedAt, id],
     )
 
@@ -453,6 +453,26 @@ async hasPostedPurchaseInvoice(gpId: string): Promise<boolean> {
     [gpId],
   )
   return Boolean(rows[0]?.exists)
+}
+
+/** GP header CONFIRMED but lines still PROCESSING/DONE — heal legacy finalize gap. */
+async syncInputLinesAfterFinalizedGp(gpId: string, userId?: string): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE goods_processing_inputs gpi
+     SET status = 'CONFIRMED',
+         qc_confirmed_by = COALESCE(gpi.qc_confirmed_by, gp.qc_confirmed_by),
+         qc_confirmed_at = COALESCE(gpi.qc_confirmed_at, gp.qc_confirmed_at),
+         updated_by = COALESCE($2, gpi.updated_by),
+         updated_at = now()
+     FROM goods_processing gp
+     WHERE gp.id = gpi.goods_processing_id
+       AND gp.id = $1
+       AND gp.status = 'CONFIRMED'
+       AND gp.deleted_at IS NULL
+       AND gpi.status IN ('DONE', 'PROCESSING', 'PENDING')`,
+    [gpId, userId ?? null],
+  )
+  return rowCount ?? 0
 }
 
 /** Revert stuck DONE/CONFIRMED lines so confirm-input works after unconfirm / correction. */

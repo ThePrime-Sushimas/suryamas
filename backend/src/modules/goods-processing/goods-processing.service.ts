@@ -129,8 +129,14 @@ export class GoodsProcessingService {
   }
 
   async getById(id: string, companyId: string): Promise<GoodsProcessingDetail> {
-    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+    let detail = await goodsProcessingRepository.findDetail(id, companyId)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
+    if (detail.status === 'CONFIRMED') {
+      const healed = await goodsProcessingRepository.syncInputLinesAfterFinalizedGp(id)
+      if (healed > 0) {
+        detail = (await goodsProcessingRepository.findDetail(id, companyId))!
+      }
+    }
     return detail
   }
 
@@ -211,7 +217,9 @@ export class GoodsProcessingService {
     }
 
     const totalInputs = detail.inputs.length
-    const doneInputs = detail.inputs.filter((inp) => inp.status === 'DONE').length
+    const doneInputs = detail.inputs.filter((inp) =>
+      inp.status === 'DONE' || inp.status === 'CONFIRMED',
+    ).length
     if (totalInputs > 0 && doneInputs < totalInputs) {
       throw new GoodsProcessingInputsNotCompleteError(doneInputs, totalInputs)
     }
