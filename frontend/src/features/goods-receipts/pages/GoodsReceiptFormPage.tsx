@@ -45,6 +45,50 @@ interface POOption {
 
 const emptyPendingQty: Record<string, number> = {};
 
+function buildReceivableLinesFromPO(
+  po: POOption,
+  pendingQty: Record<string, number>,
+  priceMap: Record<string, { price: number; uom_name: string }>,
+  productFlags: Record<string, { requires_processing: boolean }>,
+): GRLineData[] {
+  if (!po.lines?.length) return [];
+  return po.lines
+    .map((l) => {
+      const pendingAmt = pendingQty[l.id] ?? 0;
+      const remaining = Math.max(
+        0,
+        Number(l.qty) -
+          Number(l.qty_received) -
+          Number((l as { qty_short_closed?: number }).qty_short_closed ?? 0) -
+          pendingAmt,
+      );
+      const plPrice = priceMap[l.product_id]?.price;
+      const defaultPrice = plPrice ?? (Number(l.unit_price) || 0);
+      const reqProcessing =
+        productFlags[l.product_id]?.requires_processing ?? false;
+      return {
+        key: crypto.randomUUID(),
+        po_line_id: l.id,
+        product_id: l.product_id,
+        product_name: l.product_name ?? "",
+        product_code: l.product_code ?? "",
+        uom_po: l.uom,
+        qty_ordered: Number(l.qty),
+        qty_remaining: remaining,
+        qty_po_uom: remaining,
+        qty_received: remaining,
+        uom_received: l.uom,
+        conversion_factor: 1,
+        qty_rejected: 0,
+        reject_reason: "",
+        unit_price_invoice: defaultPrice,
+        unit_price_po: Number(l.unit_price),
+        requires_processing: reqProcessing,
+      } satisfies GRLineData;
+    })
+    .filter((l) => l.qty_remaining > 0);
+}
+
 export default function GoodsReceiptFormPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -135,12 +179,14 @@ export default function GoodsReceiptFormPage() {
       });
       return data.data as {
         id: string;
+        po_id: string;
         gr_number: string;
         po_number: string;
         supplier_name: string;
         branch_name: string;
         line_count: number;
         received_date: string;
+        source?: string;
       }[];
     },
     enabled: !isEdit,
@@ -304,43 +350,42 @@ export default function GoodsReceiptFormPage() {
 
   const computedLines = useMemo(() => {
     if (isEdit || !selectedPO?.lines) return null;
-    return selectedPO.lines
-      .map((l) => {
-        const pendingAmt = pendingQty[l.id] ?? 0;
-        const remaining = Math.max(
-          0,
-          Number(l.qty) -
-            Number(l.qty_received) -
-            Number((l as { qty_short_closed?: number }).qty_short_closed ?? 0) -
-            pendingAmt,
-        );
-        // Price priority: pricelist > PO unit_price > 0
-        const plPrice = priceMap[l.product_id]?.price;
-        const defaultPrice = plPrice ?? (Number(l.unit_price) || 0);
-        const reqProcessing =
-          productFlags[l.product_id]?.requires_processing ?? false;
-        return {
-          key: crypto.randomUUID(),
-          po_line_id: l.id,
-          product_id: l.product_id,
-          product_name: l.product_name ?? "",
-          product_code: l.product_code ?? "",
-          uom_po: l.uom,
-          qty_ordered: Number(l.qty),
-          qty_remaining: remaining,
-          qty_po_uom: remaining,
-          qty_received: remaining,
-          uom_received: l.uom,
-          conversion_factor: 1,
-          qty_rejected: 0,
-          reject_reason: "",
-          unit_price_invoice: defaultPrice,
-          unit_price_po: Number(l.unit_price),
-          requires_processing: reqProcessing,
-        } satisfies GRLineData;
-      })
-      .filter((l) => l.qty_remaining > 0);
+    return buildReceivableLinesFromPO(
+      selectedPO,
+      pendingQty,
+      priceMap,
+      productFlags,
+    );
   }, [isEdit, selectedPO, pendingQty, priceMap, productFlags]);
+
+  // Edit: draft PO_PENDING dibuat tanpa baris — isi dari PO setelah detail PO load
+  const editLinesSeededRef = useRef(false);
+  useEffect(() => {
+    if (!isEdit || !initialized || !selectedPO?.lines || editLinesSeededRef.current) return;
+    if (lines.length > 0) {
+      editLinesSeededRef.current = true;
+      return;
+    }
+    const built = buildReceivableLinesFromPO(
+      selectedPO,
+      pendingQty,
+      priceMap,
+      productFlags,
+    );
+    if (built.length > 0) {
+      setLines(built);
+      editLinesSeededRef.current = true;
+      setEnriched(true);
+    }
+  }, [
+    isEdit,
+    initialized,
+    selectedPO,
+    lines.length,
+    pendingQty,
+    priceMap,
+    productFlags,
+  ]);
 
   useEffect(() => {
     if (!computedLines) return;
@@ -361,6 +406,15 @@ export default function GoodsReceiptFormPage() {
       }),
     );
   }, [priceMap]);
+
+  // Buat mode: PO yang sudah punya draft PO_PENDING → arahkan ke edit draft itu
+  useEffect(() => {
+    if (isEdit || !selectedPoId || !pendingDraftGrs?.length) return;
+    const draft = pendingDraftGrs.find((gr) => gr.po_id === selectedPoId);
+    if (draft) {
+      navigate(`/inventory/goods-receipts/${draft.id}/edit`, { replace: true });
+    }
+  }, [isEdit, selectedPoId, pendingDraftGrs, navigate]);
 
   // Auto-set warehouse
   useEffect(() => {
@@ -506,7 +560,9 @@ export default function GoodsReceiptFormPage() {
                   <button
                     key={gr.id}
                     type="button"
-                    onClick={() => navigate(`/inventory/goods-receipts/${gr.id}`)}
+                    onClick={() =>
+                      navigate(`/inventory/goods-receipts/${gr.id}/edit`)
+                    }
                     className="text-left p-4 rounded-xl bg-white dark:bg-gray-800 border border-sky-200 dark:border-sky-700/50 hover:border-teal-500 hover:shadow-md transition-all"
                   >
                     <p className="font-mono font-bold text-teal-700 dark:text-teal-400">
@@ -665,11 +721,15 @@ export default function GoodsReceiptFormPage() {
                   Belum Ada Barang
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
-                  {selectedPoId &&
-                  selectedPO?.lines &&
-                  selectedPO.lines.length > 0
-                    ? "Semua item pada PO ini sudah diterima sepenuhnya."
-                    : "Pilih Purchase Order di atas untuk memuat daftar barang yang akan diterima."}
+                  {!isEdit && (pendingDraftGrs?.length ?? 0) > 0 && !selectedPoId
+                    ? "Klik kartu biru di atas (menunggu barang datang), atau pilih PO manual di bawah."
+                    : selectedPoId &&
+                        selectedPO?.lines &&
+                        selectedPO.lines.length > 0
+                      ? "Semua item pada PO ini sudah diterima sepenuhnya."
+                      : isEdit && existingGR?.source === "PO_PENDING"
+                        ? "Memuat barang dari PO… Jika tetap kosong, PO mungkin sudah lunas."
+                        : "Pilih Purchase Order di atas untuk memuat daftar barang yang akan diterima."}
                 </p>
               </div>
             ) : (
