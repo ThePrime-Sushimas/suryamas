@@ -195,16 +195,7 @@ export default function ApDashboardPage() {
             >
               <List className="w-4 h-4" />
               Daftar pembayaran
-            </Link>
-            {canInsert && (
-              <Link
-                to={`${AP_PAYMENTS_LIST_PATH}/new`}
-                className={apTheme.btnPrimary}
-              >
-                <Plus className="w-4 h-4" />
-                Buat pembayaran
-              </Link>
-            )}
+            </Link>            
           </div>
         </div>
       </div>
