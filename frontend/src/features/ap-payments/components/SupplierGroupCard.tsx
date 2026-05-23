@@ -11,7 +11,7 @@ export interface SupplierGroupCardProps {
   supplier: {
     id: string
     name: string
-    bankAccounts: Array<{ bank_name: string; account_number: string }>
+    bankAccounts: Array<{ bank_name: string; account_number: string; account_name: string }>
   }
   invoices: InvoiceAssignment[]
   companyBankAccounts: CompanyBankAccount[]
@@ -101,14 +101,14 @@ export function SupplierGroupCard({
             >
               {supplier.bankAccounts.length === 1 ? (
                 <option value={`${supplier.bankAccounts[0].bank_name} ${supplier.bankAccounts[0].account_number}`}>
-                  {supplier.bankAccounts[0].bank_name} — {supplier.bankAccounts[0].account_number}
+                  {supplier.bankAccounts[0].bank_name} — {supplier.bankAccounts[0].account_number} — {supplier.bankAccounts[0].account_name}
                 </option>
               ) : (
                 <>
                   <option value="">Pilih rekening tujuan...</option>
                   {supplier.bankAccounts.map((ba, i) => (
                     <option key={i} value={`${ba.bank_name} ${ba.account_number}`}>
-                      {ba.bank_name} — {ba.account_number}
+                      {ba.bank_name} — {ba.account_number} — {ba.account_name}
                     </option>
                   ))}
                 </>

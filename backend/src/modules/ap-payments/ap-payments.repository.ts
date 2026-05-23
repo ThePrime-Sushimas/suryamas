@@ -271,23 +271,34 @@ export class ApPaymentsRepository {
          b.branch_code,
          ba.account_name         AS bank_account_name,
          ba.account_number       AS bank_account_number,
-         COUNT(l.id)::int        AS invoice_count
+         COUNT(l.id)::int        AS invoice_count,
+         emp_created.full_name   AS created_by_name,
+         emp_requested.full_name AS requested_by_name,
+         emp_approved.full_name  AS approved_by_name,
+         emp_rejected.full_name  AS rejected_by_name,
+         emp_paid.full_name      AS paid_by_name
        FROM ap_payments ap
        JOIN suppliers s      ON s.id = ap.supplier_id
        JOIN branches b       ON b.id = ap.branch_id
        JOIN bank_accounts ba ON ba.id = ap.bank_account_id
        LEFT JOIN ap_payment_invoice_lines l ON l.ap_payment_id = ap.id
+       LEFT JOIN employees emp_created   ON emp_created.user_id = ap.created_by
+       LEFT JOIN employees emp_requested ON emp_requested.user_id = ap.requested_by
+       LEFT JOIN employees emp_approved  ON emp_approved.user_id = ap.approved_by
+       LEFT JOIN employees emp_rejected  ON emp_rejected.user_id = ap.rejected_by
+       LEFT JOIN employees emp_paid      ON emp_paid.user_id = ap.paid_by
        WHERE ap.id = $1
          AND ap.company_id = $2
          AND ap.deleted_at IS NULL
-       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number`,
+       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number,
+                emp_created.full_name, emp_requested.full_name, emp_approved.full_name, emp_rejected.full_name, emp_paid.full_name`,
       [id, companyId],
     )
 
     if (!rows[0]) return null
 
     const lines = await this.findLinesByPaymentId(id)
-    return { ...rows[0], lines }
+    return { ...rows[0], lines } as unknown as ApPaymentDetail
   }
 
   // ── Lines ──────────────────────────────────────────────────
@@ -297,7 +308,10 @@ export class ApPaymentsRepository {
          l.*,
          pi.invoice_number,
          pi.invoice_date,
+         pi.due_date              AS invoice_due_date,
          pi.status                AS invoice_status,
+         pi.subtotal::float       AS invoice_subtotal,
+         pi.total_tax::float      AS invoice_tax,
          pi.total_amount          AS invoice_total_amount,
          s.supplier_name,
          -- Outstanding: total_amount minus semua PAID/RECONCILED payments
@@ -310,10 +324,19 @@ export class ApPaymentsRepository {
                AND p2.status IN ('PAID', 'RECONCILED')
                AND p2.deleted_at IS NULL
            ), 0)
-         )                        AS invoice_outstanding
+         )                        AS invoice_outstanding,
+         -- GR info (linked GR numbers)
+         gr_info.gr_numbers
        FROM ap_payment_invoice_lines l
        JOIN purchase_invoices pi ON pi.id = l.purchase_invoice_id
        JOIN suppliers s          ON s.id  = pi.supplier_id
+       LEFT JOIN LATERAL (
+         SELECT string_agg(gr.gr_number, ', ' ORDER BY gr.received_date) AS gr_numbers
+         FROM purchase_invoice_gr_links pigl
+         JOIN goods_receipts gr ON gr.id = pigl.goods_receipt_id
+         WHERE pigl.purchase_invoice_id = pi.id
+           AND pigl.is_deleted = false
+       ) gr_info ON true
        WHERE l.ap_payment_id = $1
        ORDER BY l.created_at`,
       [paymentId],
@@ -596,7 +619,8 @@ export class ApPaymentsRepository {
          COALESCE(
            (SELECT json_agg(json_build_object(
              'bank_name', bk.bank_name,
-             'account_number', ba.account_number
+             'account_number', ba.account_number,
+             'account_name', ba.account_name
            ))
            FROM bank_accounts ba
            LEFT JOIN banks bk ON bk.id = ba.bank_id
@@ -848,7 +872,8 @@ export class ApPaymentsRepository {
          COALESCE(
            (SELECT json_agg(json_build_object(
              'bank_name', bk.bank_name,
-             'account_number', ba.account_number
+             'account_number', ba.account_number,
+             'account_name', ba.account_name
            ))
            FROM bank_accounts ba
            LEFT JOIN banks bk ON bk.id = ba.bank_id

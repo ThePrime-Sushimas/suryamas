@@ -20,10 +20,14 @@ export interface ApPaymentInvoiceLine {
   notes: string | null
   invoice_number: string
   invoice_date: string
+  invoice_due_date: string | null
   invoice_status?: string
+  invoice_subtotal: number | string
+  invoice_tax: number | string
   invoice_total_amount: number | string
   supplier_name: string
   invoice_outstanding: number | string
+  gr_numbers: string | null
 }
 
 export interface ApPayment {
@@ -58,6 +62,12 @@ export interface ApPayment {
   bank_account_number: string
   invoice_count: number
   lines?: ApPaymentInvoiceLine[]
+  // Employee names for timeline
+  created_by_name?: string | null
+  requested_by_name?: string | null
+  approved_by_name?: string | null
+  rejected_by_name?: string | null
+  paid_by_name?: string | null
 }
 
 export type PurchaseInvoicePayableStatus = 'APPROVED' | 'POSTED'
@@ -219,6 +229,7 @@ export interface OutstandingInvoiceRow {
   supplier_bank_accounts: Array<{
     bank_name: string
     account_number: string
+    account_name: string
   }>
 }
 

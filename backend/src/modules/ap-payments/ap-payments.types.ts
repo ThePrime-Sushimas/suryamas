@@ -85,14 +85,23 @@ export interface ApPaymentWithRelations extends ApPaymentDB {
 export interface ApPaymentInvoiceLine extends ApPaymentInvoiceLineDB {
   invoice_number: string
   invoice_date: string
+  invoice_due_date: string | null
   invoice_status: string
+  invoice_subtotal: number
+  invoice_tax: number
   invoice_total_amount: string
   supplier_name: string
   invoice_outstanding: string
+  gr_numbers: string | null
 }
 
 export interface ApPaymentDetail extends ApPaymentWithRelations {
   lines: ApPaymentInvoiceLine[]
+  created_by_name: string | null
+  requested_by_name: string | null
+  approved_by_name: string | null
+  rejected_by_name: string | null
+  paid_by_name: string | null
 }
 
 // ── Outstanding invoice (untuk selector saat buat payment) ───
@@ -321,6 +330,7 @@ export interface OutstandingInvoiceRow {
   supplier_bank_accounts: Array<{
     bank_name: string
     account_number: string
+    account_name: string
   }>
 }
 

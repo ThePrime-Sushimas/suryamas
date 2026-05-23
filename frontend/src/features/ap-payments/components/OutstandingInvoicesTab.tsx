@@ -276,10 +276,10 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
                     Cabang
                   </th>
-                  <th className="px-3 py-3 text-right font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
                     Total
                   </th>
-                  <th className="px-3 py-3 text-right font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
                     Sisa
                   </th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
@@ -434,10 +434,10 @@ function InvoiceRow({
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
         {invoice.branch_name}
       </td>
-      <td className="px-3 py-3 text-right text-gray-900 dark:text-white whitespace-nowrap">
+      <td className="px-3 py-3 text-gray-900 dark:text-white whitespace-nowrap">
         {fmtCurrency(invoice.total_amount)}
       </td>
-      <td className="px-3 py-3 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">
+      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
         {fmtCurrency(invoice.remaining_amount)}
       </td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">

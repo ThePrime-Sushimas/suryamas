@@ -286,70 +286,85 @@ export default function ApPaymentsPage() {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {payments.map((p) => {
-              const st = AP_STATUS_CONFIG[p.status]
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => openDetail(`${AP_PAYMENTS_LIST_PATH}/${p.id}`)}
-                  className={apTheme.listCard}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          {p.payment_number}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-rose-200/80 dark:border-gray-700">
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">No. Pembayaran</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tanggal</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Supplier</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Cabang</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Metode / Rekening</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Total</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
+                  {canDelete && <th className="px-3 py-3 text-left w-10" />}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
+                {payments.map((p) => {
+                  const st = AP_STATUS_CONFIG[p.status]
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => openDetail(`${AP_PAYMENTS_LIST_PATH}/${p.id}`)}
+                      className={`${apTheme.hoverRow} cursor-pointer`}
+                    >
+                      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span>{p.payment_number}</span>
+                          {p.bulk_payment_batch_id && (
+                            <BulkBadge batchId={p.bulk_payment_batch_id} />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                        {fmtDate(p.payment_date ?? p.created_at)}
+                      </td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300">
+                        {p.supplier_name}
+                      </td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                        {p.branch_name}
+                      </td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                        <div>
+                          <span>{AP_PAYMENT_METHOD_LABELS[p.payment_method]}</span>
+                          {p.payment_method !== 'CASH' && p.bank_account_name && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              {p.bank_account_name} · {p.bank_account_number}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                        {fmtCurrency(Number(p.total_amount))}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>
                           {st.label}
                         </span>
-                        {p.bulk_payment_batch_id && (
-                          <BulkBadge batchId={p.bulk_payment_batch_id} />
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                        {p.supplier_name} · {p.branch_name}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500">
-                        {AP_PAYMENT_METHOD_LABELS[p.payment_method]} ·{' '}
-                        {p.bank_account_name} · {p.invoice_count} invoice
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-lg font-bold text-gray-900 dark:text-white">
-                        {fmtCurrency(Number(p.total_amount))}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {fmtDate(p.payment_date ?? p.created_at)}
-                      </p>
-                    </div>
-                  </div>
-                  {p.status === 'DRAFT' && canDelete && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDeleteTarget(p)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.stopPropagation()
-                            setDeleteTarget(p)
-                          }
-                        }}
-                        className="text-xs text-red-600 hover:underline"
-                      >
-                        Hapus draft
-                      </span>
-                    </div>
-                  )}
-                </button>
-              )
-            })}
+                      </td>
+                      {canDelete && (
+                        <td className="px-3 py-3">
+                          {p.status === 'DRAFT' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDeleteTarget(p)
+                              }}
+                              className="text-xs text-red-600 hover:underline whitespace-nowrap"
+                            >
+                              Hapus
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
