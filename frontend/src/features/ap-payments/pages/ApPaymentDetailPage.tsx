@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '@/lib/axios'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
 import {
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   Trash2,
   ExternalLink,
   Loader2,
+  BookOpen,
 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -21,6 +22,8 @@ import {
   useSubmitApPayment,
   useUploadApPaymentProof,
   useMarkApPaymentPaid,
+  usePostApPaymentJournal,
+  useDeleteApPaymentJournal,
   useReconcileApPayment,
   useDeleteApPayment,
 } from '../api/apPayments.api'
@@ -28,6 +31,7 @@ import {
   AP_PAYMENTS_LIST_PATH,
   AP_PAYMENT_METHOD_LABELS,
   AP_STATUS_CONFIG,
+  AP_JOURNAL_STATUS_LABELS,
 } from '../constants'
 import { ApPaymentProofModal } from '../components/ApPaymentProofModal'
 import { apTheme } from '../ap-payments.theme'
@@ -68,17 +72,21 @@ export default function ApPaymentDetailPage() {
 
   const canUpdate = hasPermission('ap_payments', 'update')
   const canDelete = hasPermission('ap_payments', 'delete')
+  const canRelease = hasPermission('ap_payments', 'release')
 
   const { data: payment, isLoading } = useApPayment(id ?? '')
   const submit = useSubmitApPayment()
   const uploadProof = useUploadApPaymentProof()
   const markPaid = useMarkApPaymentPaid()
+  const postJournal = usePostApPaymentJournal()
+  const deleteJournal = useDeleteApPaymentJournal()
   const reconcile = useReconcileApPayment()
   const deletePayment = useDeleteApPayment()
 
   const [showProof, setShowProof] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [showPayConfirm, setShowPayConfirm] = useState(false)
+  const [showDeleteJournal, setShowDeleteJournal] = useState(false)
   const [showReconcile, setShowReconcile] = useState(false)
   const [paymentDateInput, setPaymentDateInput] = useState('')
   const [proofViewUrl, setProofViewUrl] = useState<string | null>(null)
@@ -117,10 +125,22 @@ export default function ApPaymentDetailPage() {
   const allLinesPosted = (payment.lines ?? []).every((l) => l.invoice_status === 'POSTED')
   const canMarkPaid = payment.status === 'APPROVED' && payment.proof_url && allLinesPosted && !!paymentDateInput
   const totalAllocated = (payment.lines ?? []).reduce((s, l) => s + Number(l.amount_paid), 0)
+  const journalPosted = payment.journal_status === 'POSTED'
+  const canPostJournal =
+    canUpdate &&
+    !!payment.journal_id &&
+    !journalPosted &&
+    ['PAID', 'RECONCILED'].includes(payment.status)
+  const canDeleteJournal =
+    canRelease &&
+    !!payment.journal_id &&
+    ['PAID', 'RECONCILED'].includes(payment.status)
 
   const handleSubmit = async () => { if (!id) return; try { await submit.mutateAsync(id); toast.success('Pembayaran diajukan') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal submit')) } }
   const handleProof = async (file: File) => { if (!id) return; try { await uploadProof.mutateAsync({ id, file }); toast.success('Bukti bayar disimpan') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal upload bukti')); throw err } }
-  const handleMarkPaid = async () => { if (!id) return; try { await markPaid.mutateAsync({ id, payment_date: paymentDateInput || new Date().toISOString().slice(0, 10) }); toast.success('Status: sudah dibayar'); setShowPayConfirm(false) } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menandai lunas')) } }
+  const handleMarkPaid = async () => { if (!id) return; try { await markPaid.mutateAsync({ id, payment_date: paymentDateInput || new Date().toISOString().slice(0, 10) }); toast.success('Status: sudah dibayar — journal draft dibuat'); setShowPayConfirm(false) } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menandai lunas')) } }
+  const handlePostJournal = async () => { if (!id) return; try { await postJournal.mutateAsync(id); toast.success('Journal berhasil di-post') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal post journal')) } }
+  const handleDeleteJournal = async () => { if (!id) return; try { await deleteJournal.mutateAsync(id); toast.success('Journal dihapus — status kembali ke Menunggu Pembayaran'); setShowDeleteJournal(false) } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal hapus journal')) } }
   const handleDelete = async () => { if (!id) return; try { await deletePayment.mutateAsync(id); toast.success('Pembayaran dihapus'); backToList() } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus')) } finally { setShowDelete(false) } }
 
   // Timeline steps
@@ -282,6 +302,38 @@ export default function ApPaymentDetailPage() {
                 </div>
               </section>
             )}
+
+            {payment.journal_id && (
+              <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                <div className="px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-violet-600" />
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Journal Pembayaran</h2>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">
+                      {payment.journal_number ?? payment.journal_id.slice(0, 8)}
+                    </span>
+                    {payment.journal_status && (
+                      <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${journalPosted ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300'}`}>
+                        {AP_JOURNAL_STATUS_LABELS[payment.journal_status] ?? payment.journal_status}
+                      </span>
+                    )}
+                  </div>
+                  <Link
+                    to={`/accounting/journals/${payment.journal_id}`}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400"
+                  >
+                    <ExternalLink className="w-4 h-4" /> Lihat journal
+                  </Link>
+                  {!journalPosted && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Journal dibuat otomatis saat ditandai dibayar. Post journal untuk mencatat ke buku besar.
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
           </div>
 
           {/* Right Column — Summary + Timeline + Actions */}
@@ -380,6 +432,16 @@ export default function ApPaymentDetailPage() {
                   Reconcile
                 </button>
               )}
+              {canPostJournal && (
+                <button type="button" onClick={() => void handlePostJournal()} disabled={postJournal.isPending} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                  <Send className="w-4 h-4" /> {postJournal.isPending ? 'Memproses...' : 'Post Journal'}
+                </button>
+              )}
+              {canDeleteJournal && (
+                <button type="button" onClick={() => setShowDeleteJournal(true)} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 text-red-700 text-sm font-medium hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30 transition-colors">
+                  <Trash2 className="w-4 h-4" /> Hapus Journal
+                </button>
+              )}
             </section>
           </div>
         </div>
@@ -388,7 +450,8 @@ export default function ApPaymentDetailPage() {
       {/* Modals */}
       <ApPaymentProofModal isOpen={showProof} onClose={() => setShowProof(false)} onSubmit={handleProof} isLoading={uploadProof.isPending} />
       <ConfirmModal isOpen={showDelete} onClose={() => setShowDelete(false)} onConfirm={() => void handleDelete()} title="Hapus pembayaran?" message="Draft akan dihapus permanen." confirmText="Hapus" variant="danger" isLoading={deletePayment.isPending} />
-      <ConfirmModal isOpen={showPayConfirm} onClose={() => setShowPayConfirm(false)} onConfirm={() => void handleMarkPaid()} title="Tandai sudah dibayar?" message="Pastikan dana sudah keluar dari rekening. Status akan berubah ke PAID." confirmText="Konfirmasi" variant="success" isLoading={markPaid.isPending} />
+      <ConfirmModal isOpen={showPayConfirm} onClose={() => setShowPayConfirm(false)} onConfirm={() => void handleMarkPaid()} title="Tandai sudah dibayar?" message="Pastikan dana sudah keluar dari rekening. Status akan berubah ke PAID dan journal draft otomatis dibuat." confirmText="Konfirmasi" variant="success" isLoading={markPaid.isPending} />
+      <ConfirmModal isOpen={showDeleteJournal} onClose={() => setShowDeleteJournal(false)} onConfirm={() => void handleDeleteJournal()} title="Hapus journal?" message="Journal akan dihapus permanen dan status pembayaran kembali ke Menunggu Pembayaran (APPROVED). Bukti bayar tetap tersimpan." confirmText="Hapus Journal" variant="danger" isLoading={deleteJournal.isPending} />
       {showReconcile && (
         <ReconcileModal
           paymentId={id!}

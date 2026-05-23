@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
-import { Wallet, Search, X, LayoutDashboard, Download, Loader2, Filter, ShieldCheck } from 'lucide-react'
+import { Wallet, Search, X, LayoutDashboard, Download, Loader2, Filter, ShieldCheck, Send } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -15,9 +15,10 @@ import {
   AP_DASHBOARD_PATH,
   AP_PAYMENT_METHOD_LABELS,
   AP_STATUS_CONFIG,
+  AP_JOURNAL_STATUS_LABELS,
 } from '../constants'
 import { isApListTabActive, isDateRangeInvalid } from '../utils/apPaymentFilters.url'
-import { useApPayments, useDeleteApPayment, type ApPayment } from '../api/apPayments.api'
+import { useApPayments, useDeleteApPayment, usePostApPaymentJournal, type ApPayment } from '../api/apPayments.api'
 import { useApPaymentFilters } from '../hooks/useApPaymentFilters'
 import { ApPaymentsShell } from '../components/ApPaymentsShell'
 import { BulkBadge } from '../components/BulkBadge'
@@ -49,6 +50,7 @@ export default function ApPaymentsPage() {
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('ap_payments', 'insert')
   const canDelete = hasPermission('ap_payments', 'delete')
+  const canUpdate = hasPermission('ap_payments', 'update')
 
   const {
     filters,
@@ -71,6 +73,9 @@ export default function ApPaymentsPage() {
   const { data: branchesData } = useBranches({ limit: 100 })
   const { data, isLoading } = useApPayments(apiQuery)
   const deletePayment = useDeleteApPayment()
+  const postJournal = usePostApPaymentJournal()
+
+  const isPaidTab = filters.tab === 'paid'
 
   const payments = data?.data ?? []
   const pagination = data?.pagination
@@ -247,6 +252,9 @@ export default function ApPaymentsPage() {
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Metode / Rekening</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Total</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
+                  {isPaidTab && canUpdate && (
+                    <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Journal</th>
+                  )}
                   {canDelete && <th className="px-3 py-3 w-10" />}
                 </tr>
               </thead>
@@ -277,6 +285,42 @@ export default function ApPaymentsPage() {
                       <td className="px-3 py-3 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>{st.label}</span>
                       </td>
+                      {isPaidTab && canUpdate && (
+                        <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          {p.journal_id ? (
+                            <div className="flex flex-col gap-1.5">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">
+                                {p.journal_number ?? '—'}
+                                {p.journal_status && (
+                                  <span className="ml-1.5 text-[10px] uppercase tracking-wide">
+                                    ({AP_JOURNAL_STATUS_LABELS[p.journal_status] ?? p.journal_status})
+                                  </span>
+                                )}
+                              </span>
+                              {p.journal_status !== 'POSTED' && (
+                                <button
+                                  type="button"
+                                  disabled={postJournal.isPending}
+                                  onClick={async () => {
+                                    try {
+                                      await postJournal.mutateAsync(p.id)
+                                      toast.success(`Journal ${p.payment_number} di-post`)
+                                    } catch (err: unknown) {
+                                      toast.error(parseApiError(err, 'Gagal post journal'))
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
+                                >
+                                  <Send className="w-3 h-3" />
+                                  Post Journal
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                      )}
                       {canDelete && (
                         <td className="px-3 py-3">
                           {p.status === 'DRAFT' && (

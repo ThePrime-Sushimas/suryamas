@@ -8,6 +8,7 @@ import { PaginatedResponse, createPaginatedResponse } from '../../../../utils/pa
 import { logInfo, logError, logWarn } from '../../../../config/logger'
 import { AuditService } from '../../../monitoring/monitoring.service'
 import { marketplacePoRepository } from '../../../marketplace-po/marketplace-po.repository'
+import { apPaymentsRepository } from '../../../ap-payments/ap-payments.repository'
 import { notificationDispatcher } from '../../../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../../../notifications/notification-events'
 
@@ -292,6 +293,12 @@ export class JournalHeadersService {
           })
         }
       }
+    } else if (
+      journal.reference_type === 'ap_payment' &&
+      journal.source_module === 'ap_payments' &&
+      journal.reference_id
+    ) {
+      await apPaymentsRepository.revertPaidAfterJournalDelete(journal.reference_id, userId)
     }
 
     await journalHeadersRepository.clearReversalReferences(id)

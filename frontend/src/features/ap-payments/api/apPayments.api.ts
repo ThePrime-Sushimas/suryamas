@@ -47,6 +47,8 @@ export interface ApPayment {
   proof_uploaded_at: string | null
   bank_statement_id: number | null
   journal_id: string | null
+  journal_number?: string | null
+  journal_status?: string | null
   bulk_payment_batch_id: string | null
   reconciled_at: string | null
   requested_at: string | null
@@ -440,6 +442,37 @@ export const useMarkApPaymentPaid = () => {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(v.id) })
+      qc.invalidateQueries({ queryKey: ['accounting', 'journals'] })
+    },
+  })
+}
+
+export const usePostApPaymentJournal = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/ap-payments/${id}/post-journal`)
+      return normalizeApPayment(data.data as ApPayment)
+    },
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['ap-payments'] })
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: ['accounting', 'journals'] })
+    },
+  })
+}
+
+export const useDeleteApPaymentJournal = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.delete(`/ap-payments/${id}/journal`)
+      return normalizeApPayment(data.data as ApPayment)
+    },
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['ap-payments'] })
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: ['accounting', 'journals'] })
     },
   })
 }

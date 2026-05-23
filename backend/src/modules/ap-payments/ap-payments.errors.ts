@@ -66,6 +66,30 @@ export class ApPaymentProofRequiredError extends BusinessRuleError {
   }
 }
 
+export class ApPaymentJournalCoaMissingError extends BusinessRuleError {
+  constructor(detail: string) {
+    super(`COA mapping untuk jurnal pembayaran tidak lengkap: ${detail}`)
+  }
+}
+
+export class ApPaymentNoJournalError extends BusinessRuleError {
+  constructor() {
+    super('AP payment belum memiliki journal')
+  }
+}
+
+export class ApPaymentJournalAlreadyPostedError extends BusinessRuleError {
+  constructor() {
+    super('Journal pembayaran sudah di-post')
+  }
+}
+
+export class ApPaymentJournalNotReadyError extends BusinessRuleError {
+  constructor(status: string) {
+    super(`Journal tidak dapat di-post dari status ${status}`)
+  }
+}
+
 export class ApPaymentEmptyLinesError extends BusinessRuleError {
   constructor() {
     super('AP payment must include at least one invoice line')

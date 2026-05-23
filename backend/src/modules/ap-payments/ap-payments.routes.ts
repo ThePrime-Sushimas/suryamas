@@ -8,6 +8,7 @@ import {
   canUpdate,
   canApprove,
   canDelete,
+  canRelease,
 } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { documentUpload, documentUploadSingle } from '../../middleware/upload-document.middleware'
@@ -163,6 +164,22 @@ router.post(
   requireWriteAccess,
   validateSchema(apPaymentParamSchema),
   (req, res) => apPaymentsController.markPaid(req, res),
+)
+
+router.post(
+  '/:id/post-journal',
+  canUpdate(MODULE),
+  requireWriteAccess,
+  validateSchema(apPaymentParamSchema),
+  (req, res) => apPaymentsController.postJournal(req, res),
+)
+
+router.delete(
+  '/:id/journal',
+  canRelease(MODULE),
+  requireWriteAccess,
+  validateSchema(apPaymentParamSchema),
+  (req, res) => apPaymentsController.deleteJournal(req, res),
 )
 
 router.post(

@@ -78,6 +78,8 @@ export interface ApPaymentWithRelations extends ApPaymentDB {
   bank_account_name: string
   bank_account_number: string
   invoice_count: number
+  journal_number?: string | null
+  journal_status?: string | null
   // Computed: sudah dibayar dari semua payment PAID/RECONCILED
   // (per-invoice — di detail saja)
 }

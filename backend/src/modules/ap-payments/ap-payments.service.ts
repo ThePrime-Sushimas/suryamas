@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg'
 import { logInfo } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
+import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { apPaymentsRepository } from './ap-payments.repository'
 import type {
   ApPaymentDetail,
@@ -35,6 +36,10 @@ import {
   ApPaymentProofRequiredError,
   ApPaymentEmptyLinesError,
   ApPaymentDuplicateInvoiceError,
+  ApPaymentJournalCoaMissingError,
+  ApPaymentNoJournalError,
+  ApPaymentJournalAlreadyPostedError,
+  ApPaymentJournalNotReadyError,
   ApBulkEmptyPaymentsError,
   ApBulkInvoiceNotFoundError,
   ApBulkInvoiceNotEligibleError,
@@ -634,11 +639,87 @@ export class ApPaymentsService {
     return this.getById(id, companyId)
   }
 
+  private async createPaymentJournal(
+    payment: ApPaymentDetail,
+    paymentDate: string,
+    companyId: string,
+    actorId: string,
+  ): Promise<{ id: string; journal_number: string }> {
+    const coa = await apPaymentsRepository.findPurPayJournalCoa(companyId, payment.bank_account_id)
+    if (!coa) {
+      throw new ApPaymentJournalCoaMissingError(
+        'pastikan purpose PUR-PAY aktif, akun hutang (DEBIT) ter-mapping, dan rekening bank punya COA',
+      )
+    }
+
+    const amount = Number(payment.total_amount)
+    const desc = `Pembayaran hutang ${payment.payment_number}${payment.supplier_name ? ` — ${payment.supplier_name}` : ''}`
+
+    const journal = await journalHeadersService.create(
+      {
+        company_id: companyId,
+        branch_id: payment.branch_id,
+        journal_date: paymentDate,
+        journal_type: 'PAYABLE',
+        description: desc,
+        source_module: 'ap_payments',
+        reference_type: 'ap_payment',
+        reference_id: payment.id,
+        reference_number: payment.payment_number,
+        currency: 'IDR',
+        exchange_rate: 1,
+        lines: [
+          {
+            line_number: 1,
+            account_id: coa.apAccountId,
+            description: desc,
+            debit_amount: amount,
+            credit_amount: 0,
+          },
+          {
+            line_number: 2,
+            account_id: coa.bankCoaId,
+            description: desc,
+            debit_amount: 0,
+            credit_amount: amount,
+          },
+        ],
+      },
+      actorId,
+    )
+
+    return { id: journal.id, journal_number: journal.journal_number }
+  }
+
+  private async postJournalWorkflow(
+    journalId: string,
+    actorId: string,
+    companyId: string,
+  ): Promise<void> {
+    const journal = await journalHeadersService.getById(journalId, companyId)
+    if (journal.status === 'POSTED') {
+      throw new ApPaymentJournalAlreadyPostedError()
+    }
+    if (journal.status === 'DRAFT') {
+      await journalHeadersService.submit(journalId, actorId, companyId)
+    }
+    const refreshed = await journalHeadersService.getById(journalId, companyId)
+    if (refreshed.status === 'SUBMITTED') {
+      await journalHeadersService.approve(journalId, actorId, companyId)
+    }
+    const beforePost = await journalHeadersService.getById(journalId, companyId)
+    if (beforePost.status !== 'APPROVED') {
+      throw new ApPaymentJournalNotReadyError(beforePost.status)
+    }
+    await journalHeadersService.post(journalId, actorId, companyId)
+  }
+
   async markPaid(
     id: string,
     paymentDate: string | undefined,
     companyId: string,
     userId: string,
+    employeeId?: string,
   ): Promise<ApPaymentDetail> {
     const existing = await this.getById(id, companyId)
     if (existing.status !== 'APPROVED') {
@@ -647,19 +728,91 @@ export class ApPaymentsService {
     if (!existing.proof_url) {
       throw new ApPaymentProofRequiredError()
     }
+    if (existing.journal_id) {
+      throw new ApPaymentInvalidStatusError('already has journal', 'no journal')
+    }
 
-    await apPaymentsRepository.withTransaction(async (client) => {
-      await this.assertAllLinesPostedForPaid(client, id, companyId)
-      await apPaymentsRepository.updateStatus(client, id, 'PAID', {
-        paid_by: userId,
-        paid_at: new Date().toISOString(),
-        payment_date: paymentDate ?? new Date().toISOString().slice(0, 10),
-        updated_by: userId,
+    const resolvedPaymentDate = paymentDate ?? new Date().toISOString().slice(0, 10)
+    const actorId = employeeId ?? userId
+
+    let journalId: string | null = null
+    try {
+      const journal = await this.createPaymentJournal(existing, resolvedPaymentDate, companyId, actorId)
+      journalId = journal.id
+
+      await apPaymentsRepository.withTransaction(async (client) => {
+        await this.assertAllLinesPostedForPaid(client, id, companyId)
+        await apPaymentsRepository.updateStatus(client, id, 'PAID', {
+          paid_by: userId,
+          paid_at: new Date().toISOString(),
+          payment_date: resolvedPaymentDate,
+          journal_id: journalId,
+          updated_by: userId,
+        })
       })
-    })
+    } catch (err) {
+      if (journalId) {
+        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
+      }
+      throw err
+    }
 
-    await AuditService.log('UPDATE', 'ap_payments', id, userId, { status: 'APPROVED' }, { status: 'PAID' })
-    logInfo('AP payment marked as paid', { id })
+    await AuditService.log('UPDATE', 'ap_payments', id, userId, { status: 'APPROVED' }, {
+      status: 'PAID',
+      journal_id: journalId,
+    })
+    logInfo('AP payment marked as paid with journal', { id, journal_id: journalId })
+    return this.getById(id, companyId)
+  }
+
+  async postJournal(
+    id: string,
+    companyId: string,
+    userId: string,
+    employeeId?: string,
+  ): Promise<ApPaymentDetail> {
+    const existing = await this.getById(id, companyId)
+    if (!['PAID', 'RECONCILED'].includes(existing.status)) {
+      throw new ApPaymentInvalidStatusError(existing.status, ['PAID', 'RECONCILED'])
+    }
+    if (!existing.journal_id) {
+      throw new ApPaymentNoJournalError()
+    }
+
+    const actorId = employeeId ?? userId
+    await this.postJournalWorkflow(existing.journal_id, actorId, companyId)
+
+    await AuditService.log('POST', 'ap_payments', id, userId, undefined, {
+      journal_id: existing.journal_id,
+    })
+    logInfo('AP payment journal posted', { id, journal_id: existing.journal_id })
+    return this.getById(id, companyId)
+  }
+
+  async deleteJournal(
+    id: string,
+    companyId: string,
+    userId: string,
+  ): Promise<ApPaymentDetail> {
+    const existing = await this.getById(id, companyId)
+    if (!existing.journal_id) {
+      throw new ApPaymentNoJournalError()
+    }
+    if (!['PAID', 'RECONCILED'].includes(existing.status)) {
+      throw new ApPaymentInvalidStatusError(existing.status, ['PAID', 'RECONCILED'])
+    }
+
+    const journalId = existing.journal_id
+    await journalHeadersService.forceDelete(journalId, userId, companyId)
+
+    await AuditService.log('DELETE', 'ap_payments', id, userId, {
+      status: existing.status,
+      journal_id: journalId,
+    }, {
+      status: 'APPROVED',
+      journal_id: null,
+    })
+    logInfo('AP payment journal deleted, reverted to APPROVED', { id, journal_id: journalId })
     return this.getById(id, companyId)
   }
 

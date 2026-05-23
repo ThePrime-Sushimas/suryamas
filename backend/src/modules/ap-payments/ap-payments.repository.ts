@@ -305,15 +305,18 @@ export class ApPaymentsRepository {
          ba.account_name         AS bank_account_name,
          ba.account_number       AS bank_account_number,
          bk.bank_name            AS bank_name,
-         COUNT(l.id)::int        AS invoice_count
+         COUNT(l.id)::int        AS invoice_count,
+         jh.journal_number       AS journal_number,
+         jh.status               AS journal_status
        FROM ap_payments ap
        JOIN suppliers s      ON s.id = ap.supplier_id
        JOIN branches b       ON b.id = ap.branch_id
        JOIN bank_accounts ba ON ba.id = ap.bank_account_id
        LEFT JOIN banks bk    ON bk.id = ba.bank_id
        LEFT JOIN ap_payment_invoice_lines l ON l.ap_payment_id = ap.id
+       LEFT JOIN journal_headers jh ON jh.id = ap.journal_id AND jh.deleted_at IS NULL
        WHERE ${where}
-       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number, bk.bank_name
+       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number, bk.bank_name, jh.journal_number, jh.status
        ORDER BY ap.created_at DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
       [...params, limit, offset],
@@ -337,7 +340,9 @@ export class ApPaymentsRepository {
          emp_requested.full_name AS requested_by_name,
          emp_approved.full_name  AS approved_by_name,
          emp_rejected.full_name  AS rejected_by_name,
-         emp_paid.full_name      AS paid_by_name
+         emp_paid.full_name      AS paid_by_name,
+         jh.journal_number       AS journal_number,
+         jh.status               AS journal_status
        FROM ap_payments ap
        JOIN suppliers s      ON s.id = ap.supplier_id
        JOIN branches b       ON b.id = ap.branch_id
@@ -348,11 +353,13 @@ export class ApPaymentsRepository {
        LEFT JOIN employees emp_approved  ON emp_approved.user_id = ap.approved_by
        LEFT JOIN employees emp_rejected  ON emp_rejected.user_id = ap.rejected_by
        LEFT JOIN employees emp_paid      ON emp_paid.user_id = ap.paid_by
+       LEFT JOIN journal_headers jh ON jh.id = ap.journal_id AND jh.deleted_at IS NULL
        WHERE ap.id = $1
          AND ap.company_id = $2
          AND ap.deleted_at IS NULL
        GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number,
-                emp_created.full_name, emp_requested.full_name, emp_approved.full_name, emp_rejected.full_name, emp_paid.full_name`,
+                emp_created.full_name, emp_requested.full_name, emp_approved.full_name, emp_rejected.full_name, emp_paid.full_name,
+                jh.journal_number, jh.status`,
       [id, companyId],
     )
 
@@ -1144,6 +1151,71 @@ export class ApPaymentsRepository {
     )
 
     return rows
+  }
+
+  // ── Journal COA (PUR-PAY purpose + bank account override) ──
+  async findPurPayJournalCoa(
+    companyId: string,
+    bankAccountId: number,
+  ): Promise<{ apAccountId: string; bankCoaId: string } | null> {
+    const { rows: purposeRows } = await pool.query<{ id: string }>(
+      `SELECT id FROM accounting_purposes
+       WHERE purpose_code = 'PUR-PAY' AND company_id = $1
+         AND (is_deleted IS NULL OR is_deleted = false)
+       LIMIT 1`,
+      [companyId],
+    )
+    if (!purposeRows[0]) return null
+
+    const { rows: mappings } = await pool.query<{ side: string; account_id: string }>(
+      `SELECT apa.side, apa.account_id
+       FROM accounting_purpose_accounts apa
+       JOIN chart_of_accounts coa ON coa.id = apa.account_id
+       WHERE apa.purpose_id = $1 AND apa.company_id = $2
+         AND apa.is_active = true AND apa.deleted_at IS NULL
+         AND coa.deleted_at IS NULL
+       ORDER BY apa.priority ASC`,
+      [purposeRows[0].id, companyId],
+    )
+
+    const debitRow = mappings.find((m) => m.side === 'DEBIT')
+    if (!debitRow) return null
+
+    const { rows: bankRows } = await pool.query<{ coa_account_id: string }>(
+      `SELECT ba.coa_account_id
+       FROM bank_accounts ba
+       JOIN chart_of_accounts coa ON coa.id = ba.coa_account_id
+       WHERE ba.id = $1 AND coa.company_id = $2
+         AND ba.coa_account_id IS NOT NULL AND ba.deleted_at IS NULL`,
+      [bankAccountId, companyId],
+    )
+    if (!bankRows[0]?.coa_account_id) return null
+
+    return {
+      apAccountId: debitRow.account_id,
+      bankCoaId: bankRows[0].coa_account_id,
+    }
+  }
+
+  /** Revert PAID/RECONCILED → APPROVED after journal hard-delete (keep proof upload). */
+  async revertPaidAfterJournalDelete(paymentId: string, userId: string): Promise<void> {
+    await pool.query(
+      `UPDATE ap_payments SET
+         status = 'APPROVED',
+         journal_id = NULL,
+         paid_at = NULL,
+         paid_by = NULL,
+         payment_date = NULL,
+         bank_statement_id = NULL,
+         reconciled_at = NULL,
+         reconciled_by = NULL,
+         updated_by = $2,
+         updated_at = now()
+       WHERE id = $1
+         AND status IN ('PAID', 'RECONCILED')
+         AND deleted_at IS NULL`,
+      [paymentId, userId],
+    )
   }
 
   // ── Soft delete ────────────────────────────────────────────

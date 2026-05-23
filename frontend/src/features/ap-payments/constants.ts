@@ -50,6 +50,15 @@ export const AP_LIST_TABS = [
 
 export type ApPaymentListTab = (typeof AP_LIST_TABS)[number]['id']
 
+export const AP_JOURNAL_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Draft',
+  SUBMITTED: 'Diajukan',
+  APPROVED: 'Disetujui',
+  POSTED: 'Posted',
+  REJECTED: 'Ditolak',
+  REVERSED: 'Reversed',
+}
+
 export const AP_LIST_TAB_STATUS: Record<ApPaymentListTab, ApPaymentStatus | ''> = {
   outstanding: '',
   draft: 'DRAFT',

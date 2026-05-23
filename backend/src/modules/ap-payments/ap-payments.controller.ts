@@ -320,12 +320,40 @@ export class ApPaymentsController {
     try {
       const companyId   = req.context?.company_id ?? ''
       const userId      = req.user?.id             ?? ''
+      const employeeId  = req.context?.employee_id
       const id = req.params.id as string
       const paymentDate = req.body?.payment_date
-      const payment     = await apPaymentsService.markPaid(id, paymentDate, companyId, userId)
+      const payment     = await apPaymentsService.markPaid(id, paymentDate, companyId, userId, employeeId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark paid ap payment', id: req.params.id })
+    }
+  }
+
+  // POST /ap-payments/:id/post-journal
+  async postJournal(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId  = req.context?.company_id ?? ''
+      const userId     = req.user?.id             ?? ''
+      const employeeId = req.context?.employee_id
+      const id = req.params.id as string
+      const payment    = await apPaymentsService.postJournal(id, companyId, userId, employeeId)
+      sendSuccess(res, payment)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'post ap payment journal', id: req.params.id })
+    }
+  }
+
+  // DELETE /ap-payments/:id/journal
+  async deleteJournal(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId    = req.user?.id             ?? ''
+      const id = req.params.id as string
+      const payment   = await apPaymentsService.deleteJournal(id, companyId, userId)
+      sendSuccess(res, payment)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete ap payment journal', id: req.params.id })
     }
   }
 
