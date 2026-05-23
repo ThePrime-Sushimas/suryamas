@@ -366,6 +366,27 @@ export class ApPaymentsController {
       await handleError(res, error, req, { action: 'delete ap payment', id: req.params.id })
     }
   }
+
+  // POST /ap-payments/verify-screenshot
+  async verifyScreenshot(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const { image, mime_type, payment_ids } = req.body as {
+        image: string
+        mime_type: string
+        payment_ids?: string[]
+      }
+      const result = await apPaymentsService.verifyScreenshot(
+        companyId,
+        image,
+        mime_type ?? 'image/jpeg',
+        payment_ids,
+      )
+      sendSuccess(res, result)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'verify screenshot' })
+    }
+  }
 }
 
 export const apPaymentsController = new ApPaymentsController()

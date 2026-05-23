@@ -26,6 +26,7 @@ import {
   rejectApPaymentSchema,
   uploadProofSchema,
   reconcileApPaymentSchema,
+  verifyScreenshotSchema,
 } from './ap-payments.schema'
 
 const MODULE = 'ap_payments'
@@ -93,6 +94,13 @@ router.post(
   requireWriteAccess,
   documentUpload.any(),
   (req, res) => apPaymentsController.createBulk(req, res),
+)
+
+router.post(
+  '/verify-screenshot',
+  canView(MODULE),
+  validateSchema(verifyScreenshotSchema),
+  (req, res) => apPaymentsController.verifyScreenshot(req, res),
 )
 
 router.get(

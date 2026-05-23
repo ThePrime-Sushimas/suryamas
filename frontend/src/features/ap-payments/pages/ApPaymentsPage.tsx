@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
-import { Wallet, Search, Plus, X, LayoutDashboard, Download, Loader2, Filter } from 'lucide-react'
+import { Wallet, Search, Plus, X, LayoutDashboard, Download, Loader2, Filter, ShieldCheck } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -22,6 +22,7 @@ import { useApPaymentFilters } from '../hooks/useApPaymentFilters'
 import { ApPaymentsShell } from '../components/ApPaymentsShell'
 import { BulkBadge } from '../components/BulkBadge'
 import { OutstandingInvoicesTab } from '../components/OutstandingInvoicesTab'
+import { VerifyScreenshotModal } from '../components/VerifyScreenshotModal'
 import { apTheme } from '../ap-payments.theme'
 import { exportApPaymentsExcel } from '../utils/apPaymentsExport'
 import type { ApPaymentStatus } from '../api/apPayments.api'
@@ -64,6 +65,7 @@ export default function ApPaymentsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<ApPayment | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [showVerify, setShowVerify] = useState(false)
 
   const { data: suppliersData } = useSuppliers({ limit: 100, is_active: true })
   const { data: branchesData } = useBranches({ limit: 100 })
@@ -120,6 +122,9 @@ export default function ApPaymentsPage() {
             <button type="button" onClick={handleExport} disabled={isExporting || isDirty || (!isLoading && payments.length === 0)} className={apTheme.btnSecondary} title={isDirty ? 'Terapkan filter dulu' : undefined}>
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {isExporting ? 'Mengekspor...' : 'Export'}
+            </button>
+            <button type="button" onClick={() => setShowVerify(true)} className={apTheme.btnSecondary}>
+              <ShieldCheck className="w-4 h-4" /> Verifikasi BCA
             </button>
             {canInsert && (
               <button type="button" onClick={() => setTab('outstanding')} className={apTheme.btnPrimary}>
@@ -302,6 +307,7 @@ export default function ApPaymentsPage() {
       )}
 
       <ConfirmModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} title="Hapus pembayaran?" message={`Draft ${deleteTarget?.payment_number} akan dihapus.`} confirmText="Hapus" variant="danger" isLoading={deletePayment.isPending} />
+      {showVerify && <VerifyScreenshotModal onClose={() => setShowVerify(false)} />}
     </ApPaymentsShell>
   )
 }

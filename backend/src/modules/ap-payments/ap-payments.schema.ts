@@ -144,3 +144,12 @@ export const outstandingInvoicesSchema = z.object({
 export const apPaymentParamSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
 })
+
+// ── Verify Screenshot (OCR cross-check) ───────────────────────
+export const verifyScreenshotSchema = z.object({
+  body: z.object({
+    image: z.string().min(100, 'Image tidak valid'),
+    mime_type: z.enum(['image/jpeg', 'image/png', 'image/webp']).default('image/jpeg'),
+    payment_ids: z.array(z.string().uuid()).optional(),
+  }),
+})

@@ -1,7 +1,6 @@
 import type { PoolClient } from 'pg'
 import { logInfo } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
-import { storageService } from '../../services/storage.service'
 import { apPaymentsRepository } from './ap-payments.repository'
 import type {
   ApPaymentDetail,
@@ -908,6 +907,159 @@ export class ApPaymentsService {
     })
 
     return result
+  }
+
+  // ── Verify Screenshot (OCR cross-check with Gemini) ─────────
+  async verifyScreenshot(
+    companyId: string,
+    image: string,
+    mimeType: string,
+    paymentIds?: string[],
+  ): Promise<import('./ap-payments.types').VerifyScreenshotResult> {
+    const geminiKey = process.env.GEMINI_API_KEY
+    if (!geminiKey) throw new Error('GEMINI_API_KEY tidak dikonfigurasi di server')
+
+    // 1. Call Gemini untuk OCR
+    const prompt = `Ini adalah screenshot halaman "Transaksi Yang Belum Diotorisasi" dari BCA Bisnis internet banking.
+Extract semua baris transaksi. Untuk setiap baris ambil:
+1. Nomor rekening tujuan atau BCA Virtual Account (kolom "Ke Rekening / No. BCA Virtual Account") — angka saja, tanpa spasi atau tanda hubung
+2. Jumlah/nominal (kolom "Jumlah") — angka saja, tanpa "Rp" dan tanpa titik pemisah ribuan
+3. Jenis transfer (BCA Virtual Account atau Rekening BCA)
+4. Nama tujuan jika ada
+
+Kembalikan HANYA JSON array, tanpa teks lain:
+[{"va":"07301060010003650","amount":305000,"type":"BCA Virtual Account","name":"SURYA MAS PRATAMA PT"},...]`
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+
+
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mimeType, data: image } },
+            ],
+          }],
+          generationConfig: { temperature: 0 },
+        }),
+      },
+    )
+
+    if (!geminiRes.ok) {
+      const errBody = await geminiRes.json().catch(() => ({})) as { error?: { message?: string } }
+      throw new Error(`Gemini API error: ${errBody.error?.message ?? geminiRes.statusText}`)
+    }
+
+    const geminiData = await geminiRes.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    }
+    const raw = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const clean = raw.replace(/```json|```/g, '').trim()
+
+    type BcaOcrRow = import('./ap-payments.types').BcaOcrRow
+    let ocrRows: BcaOcrRow[]
+    try {
+      ocrRows = JSON.parse(clean) as BcaOcrRow[]
+    } catch {
+      throw new Error('Gagal membaca hasil OCR dari Gemini. Coba lagi atau periksa kualitas screenshot.')
+    }
+
+    const ocrTotal = ocrRows.reduce((s, r) => s + Number(r.amount), 0)
+
+    // 2. Cross-check dengan AP Payments di DB
+    if (!paymentIds || paymentIds.length === 0) {
+      return { ocr_rows: ocrRows, ocr_total: ocrTotal, matches: [] }
+    }
+
+    const payments = await Promise.all(
+      paymentIds.map((id) => this.getById(id, companyId)),
+    )
+
+    const normalizeVa = (v: string) => v.replace(/\D/g, '')
+
+    // Build lookup: for each payment, get supplier bank accounts from invoice lines
+    const paymentSupplierBanks = new Map<string, string[]>()
+    for (const p of payments) {
+      const bankNumbers = await apPaymentsRepository.findSupplierBankNumbersForPayment(p.id)
+      paymentSupplierBanks.set(p.id, bankNumbers)
+    }
+
+    type MatchResult = import('./ap-payments.types').VerifyScreenshotResult['matches'][number]
+    const matches: MatchResult[] = []
+    const matchedOcrIndices = new Set<number>()
+
+    for (const p of payments) {
+      const supplierBanks = paymentSupplierBanks.get(p.id) ?? []
+      const systemAmount = Number(p.total_amount)
+
+      // Try to find OCR row matching by supplier bank number + amount
+      let foundIdx = -1
+      for (let i = 0; i < ocrRows.length; i++) {
+        if (matchedOcrIndices.has(i)) continue
+        const ocrVa = normalizeVa(ocrRows[i].va)
+        const ocrAmt = Number(ocrRows[i].amount)
+        const bankMatch = supplierBanks.some((b) => normalizeVa(b) === ocrVa || ocrVa.endsWith(normalizeVa(b)) || normalizeVa(b).endsWith(ocrVa))
+        if (bankMatch && ocrAmt === systemAmount) {
+          foundIdx = i
+          break
+        }
+      }
+
+      // If exact match not found, try by bank number only
+      if (foundIdx === -1) {
+        for (let i = 0; i < ocrRows.length; i++) {
+          if (matchedOcrIndices.has(i)) continue
+          const ocrVa = normalizeVa(ocrRows[i].va)
+          const bankMatch = supplierBanks.some((b) => normalizeVa(b) === ocrVa || ocrVa.endsWith(normalizeVa(b)) || normalizeVa(b).endsWith(ocrVa))
+          if (bankMatch) {
+            foundIdx = i
+            break
+          }
+        }
+      }
+
+      if (foundIdx === -1) {
+        matches.push({
+          payment_id: p.id,
+          payment_number: p.payment_number,
+          bank_account_number: supplierBanks[0] ?? '',
+          system_amount: systemAmount,
+          ocr_amount: null,
+          status: 'not_found_in_screenshot',
+        })
+      } else {
+        matchedOcrIndices.add(foundIdx)
+        const ocrAmount = Number(ocrRows[foundIdx].amount)
+        matches.push({
+          payment_id: p.id,
+          payment_number: p.payment_number,
+          bank_account_number: ocrRows[foundIdx].va,
+          system_amount: systemAmount,
+          ocr_amount: ocrAmount,
+          status: ocrAmount === systemAmount ? 'match' : 'amount_mismatch',
+        })
+      }
+    }
+
+    // Add OCR rows not matched to any payment
+    ocrRows.forEach((r, i) => {
+      if (!matchedOcrIndices.has(i)) {
+        matches.push({
+          payment_id: '',
+          payment_number: '',
+          bank_account_number: r.va,
+          system_amount: 0,
+          ocr_amount: Number(r.amount),
+          status: 'not_found_in_system',
+        })
+      }
+    })
+
+    return { ocr_rows: ocrRows, ocr_total: ocrTotal, matches }
   }
 }
 

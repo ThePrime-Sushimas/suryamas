@@ -344,3 +344,24 @@ export interface OutstandingInvoicesResponse {
     totalPages: number
   }
 }
+
+// ── Verify Screenshot (OCR) ───────────────────────────────────
+export interface BcaOcrRow {
+  va: string
+  amount: number
+  type: string
+  name: string
+}
+
+export interface VerifyScreenshotResult {
+  ocr_rows: BcaOcrRow[]
+  ocr_total: number
+  matches: Array<{
+    payment_id: string
+    payment_number: string
+    bank_account_number: string
+    system_amount: number
+    ocr_amount: number | null
+    status: 'match' | 'amount_mismatch' | 'not_found_in_screenshot' | 'not_found_in_system'
+  }>
+}

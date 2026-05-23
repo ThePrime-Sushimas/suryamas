@@ -150,6 +150,22 @@ export class ApPaymentsRepository {
     return rowCount ?? 0
   }
 
+  // ── Supplier bank accounts for a payment's invoices ─────────
+  async findSupplierBankNumbersForPayment(paymentId: string): Promise<string[]> {
+    const { rows } = await pool.query<{ account_number: string }>(
+      `SELECT DISTINCT ba.account_number
+       FROM ap_payment_invoice_lines apl
+       JOIN purchase_invoices pi ON pi.id = apl.purchase_invoice_id
+       JOIN bank_accounts ba ON ba.owner_type = 'supplier'
+         AND ba.owner_id = pi.supplier_id::text
+         AND ba.is_active = true
+         AND ba.deleted_at IS NULL
+       WHERE apl.ap_payment_id = $1`,
+      [paymentId],
+    )
+    return rows.map((r) => r.account_number)
+  }
+
   // ── Reconcile candidates (unreconciled bank statements for matching) ──
   async findReconcileCandidates(
     bankAccountId: number,
