@@ -1569,13 +1569,17 @@ export default function GoodsProcessingDetailPage() {
   )
 
   // Progress counts — pakai status dari API (bukan hanya local draft)
+  const gpStatus = gp?.status ?? 'DRAFT'
   const lineStatuses = gp?.inputs ?? localInputs
   const totalCount = lineStatuses.length
   const doneCount = lineStatuses.filter((inp) =>
-    isGpInputLineComplete(inp.status ?? 'PENDING', status),
+    isGpInputLineComplete(inp.status ?? 'PENDING', gpStatus),
   ).length
   const headerFinalizedWithTotals =
-    status === 'CONFIRMED' && gp.total_input_qty != null && gp.yield_percentage != null
+    gpStatus === 'CONFIRMED' &&
+    gp != null &&
+    gp.total_input_qty != null &&
+    gp.yield_percentage != null
   const effectiveDoneCount = headerFinalizedWithTotals ? totalCount : doneCount
   const allDone = effectiveDoneCount === totalCount && totalCount > 0
 
