@@ -455,8 +455,35 @@ async hasPostedPurchaseInvoice(gpId: string): Promise<boolean> {
   return Boolean(rows[0]?.exists)
 }
 
+/** Revert stuck DONE/CONFIRMED lines so confirm-input works after unconfirm / correction. */
+async resetStuckInputLinesForCorrection(
+  gpId: string,
+  userId: string,
+  inputId?: string,
+): Promise<number> {
+  const params: string[] = [gpId, userId]
+  let inputFilter = ''
+  if (inputId) {
+    params.push(inputId)
+    inputFilter = ' AND id = $3'
+  }
+  const { rowCount } = await pool.query(
+    `UPDATE goods_processing_inputs
+     SET status = 'PROCESSING',
+         qc_confirmed_by = NULL,
+         qc_confirmed_at = NULL,
+         updated_by = $2,
+         updated_at = now()
+     WHERE goods_processing_id = $1
+       AND status IN ('DONE', 'CONFIRMED')${inputFilter}`,
+    params,
+  )
+  return rowCount ?? 0
+}
+
 async unconfirmGp(id: string, userId: string): Promise<void> {
   await pool.query('SELECT unconfirm_goods_processing($1::uuid, $2::uuid)', [id, userId])
+  await this.resetStuckInputLinesForCorrection(id, userId)
 }
 
 /** Batalkan finalisasi QC — kembalikan ke PROCESSING/PARTIAL agar item belum DONE bisa dilanjutkan. */
@@ -469,7 +496,7 @@ async reopenProcessing(id: string, userId: string): Promise<'PROCESSING' | 'PART
       'SELECT status FROM goods_processing_inputs WHERE goods_processing_id = $1',
       [id],
     )
-    const anyDone = lineRows.some((r) => r.status === 'DONE')
+    const anyDone = lineRows.some((r) => r.status === 'DONE' || r.status === 'CONFIRMED')
     const newStatus = anyDone ? 'PARTIAL' : 'PROCESSING'
 
     await this.updateStatus(client, id, newStatus, {
@@ -477,6 +504,18 @@ async reopenProcessing(id: string, userId: string): Promise<'PROCESSING' | 'PART
       qc_confirmed_at: null,
       updated_by: userId,
     })
+
+    await client.query(
+      `UPDATE goods_processing_inputs
+       SET status = 'PROCESSING',
+           qc_confirmed_by = NULL,
+           qc_confirmed_at = NULL,
+           updated_by = $2,
+           updated_at = now()
+       WHERE goods_processing_id = $1
+         AND status IN ('CONFIRMED')`,
+      [id, userId],
+    )
 
     await client.query('COMMIT')
     return newStatus

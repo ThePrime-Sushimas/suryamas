@@ -174,7 +174,7 @@ function resolveInputOutputs(
   }
 
   // Setelah confirm: backend menyimpan baris terpisah (bagus / rusak-retur). Jangan di-collapse.
-  if (inp.status === 'DONE') {
+  if (inp.status === 'DONE' || inp.status === 'CONFIRMED') {
     return inp.outputs.map((o, i) => ({
       id: o.id,
       product_id: o.product_id,
@@ -761,6 +761,14 @@ function normalizeGpHeaderStatus(status: string): keyof typeof STATUS_CONFIG {
   return status === "QC_REVIEW" ? "PROCESSING" : status as keyof typeof STATUS_CONFIG
 }
 
+/** Baris selesai untuk progress UI — CONFIRMED mengunci hanya saat header GP final. */
+function isGpInputLineComplete(lineStatus: string, gpHeaderStatus: string): boolean {
+  if (gpHeaderStatus === 'CORRECTING') {
+    return lineStatus === 'DONE'
+  }
+  return lineStatus === 'DONE' || lineStatus === 'CONFIRMED'
+}
+
 function resolveGpHeaderStatusConfig(
   status: string,
   doneCount: number,
@@ -777,18 +785,19 @@ function resolveGpHeaderStatusConfig(
 // ── PassThroughCard ───────────────────────────────────────────────────────────
 
 function PassThroughCard({
-  input, output, isEditable, onChange, productUoms, grLine, onConfirmItem, isConfirming,
+  input, output, isEditable, gpHeaderStatus, onChange, productUoms, grLine, onConfirmItem, isConfirming,
 }: {
   input: LocalInput
   output: LocalOutput
   isEditable: boolean
+  gpHeaderStatus: string
   onChange: (updated: LocalOutput) => void
   productUoms: ProductUomRow[]
   grLine: { qty_received: number; uom_received: string; qty_po_uom?: number; uom_po?: string } | null
   onConfirmItem: () => void
   isConfirming: boolean
 }) {
-  const isDone = input.status === 'DONE'
+  const isDone = isGpInputLineComplete(input.status, gpHeaderStatus)
   const editOutput = input.outputs[0] ?? output
   const { totalBase, goodBase, damagedBase, baseUom, hasReturn, hasWaste } =
     summarizePassThroughOutputs(
@@ -1072,19 +1081,20 @@ function DisassemblyOutputRow({
 // ── DisassemblyCard ───────────────────────────────────────────────────────────
 
 function DisassemblyCard({
-  input, grLine, productUoms, uomMap, isEditable, onChange, onAddOutput, onConfirmItem, isConfirming,
+  input, grLine, productUoms, uomMap, isEditable, gpHeaderStatus, onChange, onAddOutput, onConfirmItem, isConfirming,
 }: {
   input: LocalInput
   grLine: { qty_received: number; uom_received: string; qty_po_uom?: number; uom_po?: string } | null
   productUoms: ProductUomRow[]
   uomMap: UomMap
   isEditable: boolean
+  gpHeaderStatus: string
   onChange: (outputIndex: number, updated: LocalOutput) => void
   onAddOutput: () => void
   onConfirmItem: () => void
   isConfirming: boolean
 }) {
-  const isDone = input.status === 'DONE'
+  const isDone = isGpInputLineComplete(input.status, gpHeaderStatus)
   const baseUom = resolveBaseUom(productUoms, input.uom)
   const totalBase = toBaseQty(input.qty_input, input.uom, productUoms)
   // Yield vs input: jumlahkan base unit tiap produk output (sama seperti validasi backend confirm).
@@ -1552,7 +1562,7 @@ export default function GoodsProcessingDetailPage() {
   )
 
   // Progress counts
-  const doneCount = localInputs.filter(inp => inp.status === 'DONE').length
+  const doneCount = localInputs.filter(inp => isGpInputLineComplete(inp.status, status)).length
   const totalCount = localInputs.length
   const allDone = doneCount === totalCount && totalCount > 0
 
@@ -1974,7 +1984,8 @@ export default function GoodsProcessingDetailPage() {
                 grLine={grLine}
                 productUoms={uomConversions?.[inp.product_id] ?? []}
                 uomMap={uomConversions ?? {}}
-                isEditable={isEditable && inp.status !== "DONE"}
+                gpHeaderStatus={status}
+                isEditable={isEditable && !isGpInputLineComplete(inp.status, status)}
                 onChange={(oi, updated) => updateDisassemblyOutput(inputIndex, oi, updated as LocalOutput & { _delete?: boolean })}
                 onAddOutput={() => setAddOutputFor(inp.id)}
                 onConfirmItem={() => handleConfirmItem(inp)}
@@ -1985,7 +1996,8 @@ export default function GoodsProcessingDetailPage() {
                 key={inp.id}
                 input={inp}
                 output={inp.outputs[0] ?? { id: '', product_id: '', product_name: '', product_code: '', qty_output: 0, uom: '', is_waste: false, waste_reason: null, condition_status: null, actual_qty: null, actual_uom: null, flagged_for_return: false, return_reason: null, sort_order: 0 }}
-                isEditable={isEditable && inp.status !== "DONE"}
+                gpHeaderStatus={status}
+                isEditable={isEditable && !isGpInputLineComplete(inp.status, status)}
                 onChange={(updated) => updatePassThroughOutput(inputIndex, updated)}
                 productUoms={uomConversions?.[inp.product_id] ?? []}
                 grLine={grLine}

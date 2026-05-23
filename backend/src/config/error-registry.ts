@@ -699,6 +699,18 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'inventory',
   },
+  GoodsProcessingInputNotConfirmableError: {
+    name: 'GoodsProcessingInputNotConfirmableError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  GoodsProcessingMustUnconfirmForEditError: {
+    name: 'GoodsProcessingMustUnconfirmForEditError',
+    importPath: '../modules/goods-processing/goods-processing.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
   GoodsProcessingPostedInvoiceBlocksUnconfirmError: {
     name: 'GoodsProcessingPostedInvoiceBlocksUnconfirmError',
     importPath: '../modules/goods-processing/goods-processing.errors',

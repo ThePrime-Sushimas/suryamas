@@ -87,3 +87,20 @@ export class GoodsProcessingPostedInvoiceBlocksUnconfirmError extends BusinessRu
     super('Tidak bisa dikoreksi: Purchase Invoice sudah POSTED untuk GP ini')
   }
 }
+
+export class GoodsProcessingInputNotConfirmableError extends BusinessRuleError {
+  constructor(current: string) {
+    super(
+      `Baris input tidak bisa dikonfirmasi (status: ${current}). ` +
+        'Selesaikan dari status PENDING/PROCESSING, atau buka GP untuk koreksi jika sudah difinalisasi.',
+    )
+  }
+}
+
+export class GoodsProcessingMustUnconfirmForEditError extends BusinessRuleError {
+  constructor() {
+    super(
+      'GP sudah difinalisasi. Gunakan tombol "Buka untuk koreksi" di sidebar sebelum mengubah item.',
+    )
+  }
+}

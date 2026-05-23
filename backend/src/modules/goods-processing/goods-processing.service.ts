@@ -12,6 +12,8 @@ import {
   GoodsProcessingNotReopenableError,
   GoodsProcessingReopenNotNeededError,
   GoodsProcessingPostedInvoiceBlocksUnconfirmError,
+  GoodsProcessingInputNotConfirmableError,
+  GoodsProcessingMustUnconfirmForEditError,
 } from './goods-processing.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import type { PermissionMatrix } from '../permissions/permissions.types'
@@ -338,13 +340,27 @@ export class GoodsProcessingService {
   }
 
   async confirmInput(id: string, inputId: string, companyId: string, outputs: any[], userId: string) {
-    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+    let detail = await goodsProcessingRepository.findDetail(id, companyId)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
 
-    const input = detail.inputs.find(i => i.id === inputId)
+    let input = detail.inputs.find(i => i.id === inputId)
     if (!input) throw new Error(`Input ${inputId} not found in GP ${id}`)
+
+    if (detail.status === 'CONFIRMED' && ['CONFIRMED', 'DONE'].includes(input.status)) {
+      throw new GoodsProcessingMustUnconfirmForEditError()
+    }
+
+    // Auto-heal lines left CONFIRMED after partial/broken unconfirm (header already CORRECTING or in progress).
+    if (['CORRECTING', 'PROCESSING', 'PARTIAL'].includes(detail.status)) {
+      if (['CONFIRMED', 'DONE'].includes(input.status)) {
+        await goodsProcessingRepository.resetStuckInputLinesForCorrection(id, userId, inputId)
+        detail = (await goodsProcessingRepository.findDetail(id, companyId))!
+        input = detail.inputs.find(i => i.id === inputId)!
+      }
+    }
+
     if (!['PENDING', 'PROCESSING'].includes(input.status)) {
-      throw new Error(`Input ${inputId} cannot be confirmed (current status: ${input.status})`)
+      throw new GoodsProcessingInputNotConfirmableError(input.status)
     }
 
     const auditBefore = formatInputLineForAudit(detail, input)
