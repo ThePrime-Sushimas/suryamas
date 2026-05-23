@@ -657,24 +657,37 @@ export class GoodsReceiptsRepository {
     return queryPoReceiptStatus(poId, client);
   }
 
-  async findOpenPendingDraftGrId(
-    client: PoolClient,
+  /**
+   * Satu draft GR aktif per PO (semua source).
+   * ORDER BY created_at DESC — draft terbaru yang dianggap kanonik (edge case: sisa draft lama).
+   */
+  async findOpenDraftForPo(
     companyId: string,
     poId: string,
-  ): Promise<string | null> {
-    const { rows } = await client.query<{ id: string }>(
-      `SELECT gr.id
+    client?: PoolClient,
+  ): Promise<{ id: string; gr_number: string; source: string } | null> {
+    const db = client ?? pool;
+    const { rows } = await db.query<{ id: string; gr_number: string; source: string }>(
+      `SELECT gr.id, gr.gr_number, gr.source
        FROM goods_receipts gr
        WHERE gr.company_id = $1
          AND gr.po_id = $2
          AND gr.status = 'DRAFT'
-         AND gr.source = 'PO_PENDING'
          AND gr.deleted_at IS NULL
        ORDER BY gr.created_at DESC
        LIMIT 1`,
       [companyId, poId],
     );
-    return rows[0]?.id ?? null;
+    return rows[0] ?? null;
+  }
+
+  async findOpenPendingDraftGrId(
+    client: PoolClient,
+    companyId: string,
+    poId: string,
+  ): Promise<string | null> {
+    const draft = await this.findOpenDraftForPo(companyId, poId, client);
+    return draft?.id ?? null;
   }
 
   async findMainWarehouseId(

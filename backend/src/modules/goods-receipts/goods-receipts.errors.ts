@@ -45,3 +45,11 @@ export class GoodsReceiptMarketplaceEditForbiddenError extends BusinessRuleError
     )
   }
 }
+
+export class GoodsReceiptPendingDraftExistsError extends BusinessRuleError {
+  constructor(grNumber: string) {
+    super(
+      `PO ini sudah memiliki draft penerimaan (${grNumber}). Buka draft tersebut — jangan buat GR baru untuk PO yang sama.`,
+    )
+  }
+}

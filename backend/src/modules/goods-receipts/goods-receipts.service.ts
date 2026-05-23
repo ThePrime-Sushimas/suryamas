@@ -7,8 +7,9 @@ import { BusinessRuleError } from '../../utils/errors.base'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
   GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError, GoodsReceiptMarketplaceSupplierError,
-  GoodsReceiptMarketplaceEditForbiddenError,
+  GoodsReceiptMarketplaceEditForbiddenError, GoodsReceiptPendingDraftExistsError,
 } from './goods-receipts.errors'
+import { queryPoReceiptStatus } from '../../utils/po-receipt-status.util'
 
 import { InvalidReferenceError } from '../stock/stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
@@ -61,6 +62,11 @@ export class GoodsReceiptsService {
       throw new GoodsReceiptInvalidPOStatusError(po.status)
     }
     assertManualGrAllowedForInvoiceBypass(po.invoice_bypass_reason)
+
+    const openDraft = await goodsReceiptsRepository.findOpenDraftForPo(companyId, dto.po_id)
+    if (openDraft) {
+      throw new GoodsReceiptPendingDraftExistsError(openDraft.gr_number)
+    }
 
     const wh = await goodsReceiptsRepository.findWarehouse(dto.warehouse_id, companyId)
     if (!wh) throw new InvalidReferenceError('warehouse not found or does not belong to your company')
@@ -210,6 +216,9 @@ export class GoodsReceiptsService {
       // 4. Update PO status
       const newPoStatus = await goodsReceiptsRepository.resolvePoStatus(client, gr.po_id)
       await goodsReceiptsRepository.updatePoStatus(client, gr.po_id, newPoStatus, userId)
+      if (newPoStatus === 'FULLY_RECEIVED') {
+        await goodsReceiptsRepository.softDeleteDraftsByPoId(gr.po_id, companyId, userId, client)
+      }
 
       // 4b. Calculate payment due date for from_delivery-based terms.
       // NOTE: from_invoice is intentionally excluded here — its due_date is calculated
@@ -350,8 +359,11 @@ export class GoodsReceiptsService {
     if (po.invoice_bypass_reason === 'marketplace') return null
 
     return goodsReceiptsRepository.withTransaction(async (client) => {
-      const existingId = await goodsReceiptsRepository.findOpenPendingDraftGrId(client, companyId, poId)
-      if (existingId) return existingId
+      const existing = await goodsReceiptsRepository.findOpenDraftForPo(companyId, poId, client)
+      if (existing) return existing.id
+
+      const fulfillment = await queryPoReceiptStatus(poId, client)
+      if (fulfillment === 'FULLY_RECEIVED') return null
 
       const warehouseId = await goodsReceiptsRepository.findMainWarehouseId(client, po.branch_id, companyId)
       if (!warehouseId) return null

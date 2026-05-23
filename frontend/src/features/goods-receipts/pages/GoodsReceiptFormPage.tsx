@@ -116,11 +116,21 @@ export default function GoodsReceiptFormPage() {
   const [invoiceDate, setInvoiceDate] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<GRLineData[]>([]);
+  const editLinesSeededRef = useRef(false);
+  const flagsEnrichedRef = useRef(false);
 
   // Fetch existing GR for edit mode
   const { data: existingGR, isLoading: isLoadingGR } = useGoodsReceipt(isEdit ? id : "");
   const [initialized, setInitialized] = useState(false);
   const [enriched, setEnriched] = useState(false);
+  /** false sampai seed dari PO selesai (untuk skeleton; ref saja tidak trigger re-render) */
+  const [poLinesSeedDone, setPoLinesSeedDone] = useState(false);
+
+  useEffect(() => {
+    editLinesSeededRef.current = false;
+    flagsEnrichedRef.current = false;
+    setPoLinesSeedDone(false);
+  }, [id]);
 
   useEffect(() => {
     if (!isEdit || isLoadingGR || !existingGR) return;
@@ -192,14 +202,30 @@ export default function GoodsReceiptFormPage() {
     enabled: !isEdit,
   });
 
-  // Fetch PO detail when selected
-  const { data: selectedPO } = useQuery({
-    queryKey: ["purchase-orders", selectedPoId, "detail-for-gr"],
+  const pendingDraftPoIds = useMemo(
+    () => new Set((pendingDraftGrs ?? []).map((gr) => gr.po_id)),
+    [pendingDraftGrs],
+  );
+
+  /** PO yang sudah punya draft "menunggu barang" tidak boleh dibuat GR manual lagi */
+  const receivablePOsForManualSelect = useMemo(
+    () => receivablePOs.filter((po) => !pendingDraftPoIds.has(po.id)),
+    [receivablePOs, pendingDraftPoIds],
+  );
+
+  // Edit: pakai po_id dari GR segera setelah header load (jangan tunggu effect initialize)
+  const poIdForQueries = useMemo(
+    () => selectedPoId || (isEdit ? (existingGR?.po_id ?? "") : ""),
+    [selectedPoId, isEdit, existingGR?.po_id],
+  );
+
+  const { data: selectedPO, isLoading: isLoadingPO } = useQuery({
+    queryKey: ["purchase-orders", poIdForQueries, "detail-for-gr"],
     queryFn: async () => {
-      const { data } = await api.get(`/purchase-orders/${selectedPoId}`);
+      const { data } = await api.get(`/purchase-orders/${poIdForQueries}`);
       return data.data as POOption;
     },
-    enabled: !!selectedPoId,
+    enabled: !!poIdForQueries,
   });
 
   // Fetch pricelist prices for supplier + products in PO
@@ -246,15 +272,15 @@ export default function GoodsReceiptFormPage() {
   const productFlags = productFlagsData ?? {};
 
   // Fetch pending qty from existing DRAFT GRs
-  const { data: pendingData } = useQuery({
-    queryKey: ["goods-receipts", "pending-qty", selectedPoId, id],
+  const { data: pendingData, isPending: isPendingPendingQty } = useQuery({
+    queryKey: ["goods-receipts", "pending-qty", poIdForQueries, id],
     queryFn: async () => {
-      const params: Record<string, string> = { po_id: selectedPoId };
+      const params: Record<string, string> = { po_id: poIdForQueries };
       if (isEdit && id) params.exclude_gr_id = id;
       const { data } = await api.get("/goods-receipts/pending-qty", { params });
       return data.data as Record<string, number>;
     },
-    enabled: !!selectedPoId,
+    enabled: !!poIdForQueries,
   });
   const pendingQty = pendingData ?? emptyPendingQty;
 
@@ -308,6 +334,8 @@ export default function GoodsReceiptFormPage() {
           };
         }),
       );
+      editLinesSeededRef.current = true;
+      setPoLinesSeedDone(true);
     }
     setInitialized(true);
   }, [existingGR, isEdit, initialized]);
@@ -358,12 +386,13 @@ export default function GoodsReceiptFormPage() {
     );
   }, [isEdit, selectedPO, pendingQty, priceMap, productFlags]);
 
-  // Edit: draft PO_PENDING dibuat tanpa baris — isi dari PO setelah detail PO load
-  const editLinesSeededRef = useRef(false);
+  // Edit: draft PO_PENDING dibuat tanpa baris — isi dari PO (tanpa tunggu pricelist/flags)
   useEffect(() => {
     if (!isEdit || !initialized || !selectedPO?.lines || editLinesSeededRef.current) return;
+    if (isPendingPendingQty) return;
     if (lines.length > 0) {
       editLinesSeededRef.current = true;
+      setPoLinesSeedDone(true);
       return;
     }
     const built = buildReceivableLinesFromPO(
@@ -374,18 +403,34 @@ export default function GoodsReceiptFormPage() {
     );
     if (built.length > 0) {
       setLines(built);
-      editLinesSeededRef.current = true;
       setEnriched(true);
     }
+    editLinesSeededRef.current = true;
+    setPoLinesSeedDone(true);
   }, [
     isEdit,
     initialized,
     selectedPO,
     lines.length,
     pendingQty,
-    priceMap,
-    productFlags,
+    isPendingPendingQty,
   ]);
+
+  /** Sekali saat flags API selesai — tidak re-run saat user tambah/hapus baris */
+  useEffect(() => {
+    if (!isEdit || flagsEnrichedRef.current) return;
+    if (!productFlagsData || Object.keys(productFlagsData).length === 0) return;
+    setLines((prev) => {
+      if (prev.length === 0) return prev;
+      flagsEnrichedRef.current = true;
+      return prev.map((l) => ({
+        ...l,
+        requires_processing:
+          productFlagsData[l.product_id]?.requires_processing ??
+          l.requires_processing,
+      }));
+    });
+  }, [isEdit, productFlagsData]);
 
   useEffect(() => {
     if (!computedLines) return;
@@ -438,6 +483,16 @@ export default function GoodsReceiptFormPage() {
 
   const handleSubmit = async () => {
     if (!isEdit && !selectedPoId) { toast.error('Pilih Purchase Order'); return }
+    if (!isEdit) {
+      const existingDraft = pendingDraftGrs?.find((gr) => gr.po_id === selectedPoId);
+      if (existingDraft) {
+        void queryClient.invalidateQueries({ queryKey: ["goods-receipts", "po-pending-drafts"] });
+        toast.error(
+          `PO ini sudah punya draft ${existingDraft.gr_number}. Buka dari kartu "Menunggu barang datang".`,
+        );
+        return;
+      }
+    }
     if (!warehouseId) { toast.error('Pilih Gudang'); return }
     if (lines.length === 0) { toast.error('Minimal 1 item'); return }
 
@@ -509,6 +564,15 @@ export default function GoodsReceiptFormPage() {
   }
 
   const isSaving = createGR.isPending || updateGR.isPending;
+
+  const isLinesSectionLoading =
+    isEdit &&
+    (isLoadingGR ||
+      (!!poIdForQueries && isLoadingPO) ||
+      (initialized &&
+        !poLinesSeedDone &&
+        lines.length === 0 &&
+        !!selectedPO?.lines?.length));
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900/50 pb-18">
@@ -595,7 +659,9 @@ export default function GoodsReceiptFormPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Purchase Order <span className="text-red-500">*</span>
                     {(pendingDraftGrs?.length ?? 0) > 0 && (
-                      <span className="font-normal text-gray-400 ml-1">(manual / kedatangan tambahan)</span>
+                      <span className="font-normal text-gray-400 ml-1">
+                        (hanya PO tanpa draft di atas)
+                      </span>
                     )}
                   </label>
                   <div className="relative">
@@ -607,7 +673,7 @@ export default function GoodsReceiptFormPage() {
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm disabled:opacity-60 disabled:bg-gray-50 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all appearance-none shadow-sm"
                     >
                       <option value="">Pilih Purchase Order...</option>
-                      {receivablePOs.map((po) => (
+                      {receivablePOsForManualSelect.map((po) => (
                         <option key={po.id} value={po.id}>
                           {po.po_number} — {po.supplier_name}
                         </option>
@@ -712,7 +778,19 @@ export default function GoodsReceiptFormPage() {
               )} */}
             </div>
 
-            {lines.length === 0 ? (
+            {isLinesSectionLoading ? (
+              <div className="px-6 py-16 space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-28 rounded-xl bg-gray-100 dark:bg-gray-700/50 animate-pulse"
+                  />
+                ))}
+                <p className="text-center text-sm text-gray-500 dark:text-gray-400 pt-2">
+                  Memuat daftar barang dari PO…
+                </p>
+              </div>
+            ) : lines.length === 0 ? (
               <div className="px-6 py-20 flex flex-col items-center justify-center text-center">
                 <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 border border-gray-100 dark:border-gray-700">
                   <PackageCheck className="w-8 h-8 text-gray-300 dark:text-gray-600" />
@@ -728,7 +806,7 @@ export default function GoodsReceiptFormPage() {
                         selectedPO.lines.length > 0
                       ? "Semua item pada PO ini sudah diterima sepenuhnya."
                       : isEdit && existingGR?.source === "PO_PENDING"
-                        ? "Memuat barang dari PO… Jika tetap kosong, PO mungkin sudah lunas."
+                        ? "PO sudah lunas atau tidak ada sisa barang untuk diterima."
                         : "Pilih Purchase Order di atas untuk memuat daftar barang yang akan diterima."}
                 </p>
               </div>
