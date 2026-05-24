@@ -13,6 +13,7 @@ import type {
 export interface GoodsProcessingListParams {
   page?: number
   limit?: number
+  search?: string
   status?: string
   branch_id?: string
   date_from?: string

@@ -43,6 +43,7 @@ export const goodsReceiptListSchema = z.object({
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     invoice_number: z.string().optional(),
     source: z.string().optional(),
+    search: z.string().trim().max(100).optional(),
   }),
 })
 

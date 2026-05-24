@@ -238,6 +238,7 @@ export class GoodsReceiptsRepository {
       date_to?: string;
       invoice_number?: string;
       source?: string;
+      search?: string;
     },
   ): Promise<{ data: GoodsReceiptWithRelations[]; total: number }> {
     const conditions = ["gr.company_id = $1", "gr.deleted_at IS NULL"];
@@ -276,6 +277,15 @@ export class GoodsReceiptsRepository {
       conditions.push(`gr.source = $${idx++}`);
     }
 
+    const searchTerm = filter?.search?.trim();
+    if (searchTerm) {
+      params.push(`%${searchTerm}%`);
+      conditions.push(
+        `(gr.gr_number ILIKE $${idx} OR po.po_number ILIKE $${idx} OR s.supplier_name ILIKE $${idx} OR b.branch_name ILIKE $${idx})`,
+      );
+      idx++;
+    }
+
     const where = `WHERE ${conditions.join(" AND ")}`;
 
     const [dataRes, countRes] = await Promise.all([
@@ -284,7 +294,7 @@ export class GoodsReceiptsRepository {
         [...params, pagination.limit, pagination.offset],
       ),
       pool.query(
-        `SELECT COUNT(*)::int AS total FROM goods_receipts gr ${where}`,
+        `SELECT COUNT(*)::int AS total ${HEADER_FROM} ${where}`,
         params,
       ),
     ]);

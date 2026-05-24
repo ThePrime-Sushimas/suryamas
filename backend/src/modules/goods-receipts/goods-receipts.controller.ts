@@ -33,6 +33,7 @@ export class GoodsReceiptsController {
       if (req.query.date_to) filter.date_to = req.query.date_to as string
       if (req.query.invoice_number) filter.invoice_number = req.query.invoice_number as string
       if (req.query.source) filter.source = req.query.source as string
+      if (req.query.search) filter.search = req.query.search as string
 
       // Show GRs from all accessible branches (not just active branch)
       if (!filter.branch_id) {

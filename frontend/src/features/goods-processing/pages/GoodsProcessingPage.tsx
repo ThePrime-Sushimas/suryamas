@@ -1,8 +1,10 @@
-import { useState, useMemo } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { Package, ChevronRight, Clock, CheckCircle2, XCircle, Scale, LoaderCircle } from "lucide-react"
+import { Link } from "react-router-dom"
+import { Package, ChevronRight, Clock, CheckCircle2, XCircle, Scale, LoaderCircle, Search, X } from "lucide-react"
+import { useListNavigation } from "@/lib/urlFilters"
 import { Pagination } from "@/components/ui/Pagination"
 import { useGoodsProcessingList } from "../api/goodsProcessing.api"
+import { GP_LIST_STATUS_PRESETS, GOODS_PROCESSING_LIST_PATH } from "../constants"
+import { useGoodsProcessingFilters } from "../hooks/useGoodsProcessingFilters"
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString("id-ID", {
@@ -53,23 +55,19 @@ function WeighingSummary({ summary }: { summary?: string | null }) {
   return <span className="text-xs text-gray-400">—</span>
 }
 
-const FILTER_OPTS = [
-  { value: "",                          label: "Semua" },
-  { value: "DRAFT,PROCESSING,PARTIAL,REJECTED,CORRECTING", label: "Perlu diproses" },
-  { value: "CONFIRMED",                 label: "Selesai" },
-]
-
 export default function GoodsProcessingPage() {
-  const navigate = useNavigate()
-  const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState("")
+  const { openDetail } = useListNavigation(GOODS_PROCESSING_LIST_PATH)
+  const {
+    filters,
+    apiQuery,
+    setFilters,
+    setPage,
+    searchInput,
+    setSearchInput,
+    listSearchSuffix,
+  } = useGoodsProcessingFilters()
 
-  const queryParams = useMemo(() => ({
-    page, limit: 25,
-    status: statusFilter || undefined,
-  }), [page, statusFilter])
-
-  const { data, isLoading } = useGoodsProcessingList(queryParams)
+  const { data, isLoading } = useGoodsProcessingList(apiQuery)
   const items = data?.data ?? []
   const pagination = data?.pagination
 
@@ -89,12 +87,13 @@ export default function GoodsProcessingPage() {
 
           {/* Desktop filter — di header */}
           <div className="hidden lg:flex items-center gap-2">
-            {FILTER_OPTS.map(opt => (
+            {GP_LIST_STATUS_PRESETS.map(opt => (
               <button
-                key={opt.value}
-                onClick={() => { setStatusFilter(opt.value); setPage(1) }}
+                key={opt.value || "all"}
+                type="button"
+                onClick={() => setFilters({ status: opt.value })}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  statusFilter === opt.value
+                  filters.status === opt.value
                     ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                     : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
@@ -104,16 +103,39 @@ export default function GoodsProcessingPage() {
             ))}
           </div>
         </div>
+
+        {/* Search */}
+        <div className="mt-4 relative max-w-xl">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Cari nomor GP/GR, supplier, cabang, atau produk..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-9 pr-9 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-900/50 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 outline-none text-gray-900 dark:text-white"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setFilters({ search: "" })}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              aria-label="Hapus pencarian"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mobile filter chips */}
       <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2.5 flex gap-2 overflow-x-auto">
-        {FILTER_OPTS.map(opt => (
+        {GP_LIST_STATUS_PRESETS.map(opt => (
           <button
-            key={opt.value}
-            onClick={() => { setStatusFilter(opt.value); setPage(1) }}
+            key={opt.value || "all"}
+            type="button"
+            onClick={() => setFilters({ status: opt.value })}
             className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-              statusFilter === opt.value
+              filters.status === opt.value
                 ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                 : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200"
             }`}
@@ -121,6 +143,30 @@ export default function GoodsProcessingPage() {
             {opt.label}
           </button>
         ))}
+      </div>
+
+      {/* Mobile search */}
+      <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 pb-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Cari GP, GR, supplier, produk..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-9 pr-9 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-900/50 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 text-gray-900 dark:text-white"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setFilters({ search: "" })}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+              aria-label="Hapus pencarian"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Content ── */}
@@ -137,7 +183,7 @@ export default function GoodsProcessingPage() {
             <Package className="w-12 h-12 mb-3 opacity-30" />
             <p className="text-sm font-medium">Tidak ada data</p>
             <p className="text-xs mt-1 text-gray-300">
-              {statusFilter ? "Coba ubah filter" : "Belum ada goods processing"}
+              {filters.status || filters.search ? "Coba ubah filter atau kata kunci" : "Belum ada goods processing"}
             </p>
           </div>
         ) : (
@@ -151,6 +197,7 @@ export default function GoodsProcessingPage() {
                   <Link
                     key={gp.id}
                     to={`/inventory/goods-processing/${gp.id}`}
+                    state={listSearchSuffix ? { listSearch: listSearchSuffix } : undefined}
                     className="block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 cursor-pointer hover:border-blue-300 active:scale-[0.99] transition-all"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -215,7 +262,7 @@ export default function GoodsProcessingPage() {
                       return (
                         <tr
                           key={gp.id}
-                          onClick={() => navigate(`/inventory/goods-processing/${gp.id}`)}
+                          onClick={() => openDetail(`/inventory/goods-processing/${gp.id}`)}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer transition-colors group"
                         >
                           {/* No. GP / GR */}

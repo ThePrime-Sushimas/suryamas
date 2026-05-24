@@ -1,29 +1,31 @@
-import { useState, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { PackageCheck, Plus, Search, Filter, Scale } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { PackageCheck, Plus, Search, Filter, Scale, X } from 'lucide-react'
+import { useListNavigation } from '@/lib/urlFilters'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useGoodsReceipts } from '../api/goodsReceipts.api'
 import { GrSourceBadge } from '../components/GrSourceBadge'
+import { GR_STATUS_OPTIONS, GOODS_RECEIPTS_LIST_PATH } from '../constants'
+import { useGoodsReceiptFilters } from '../hooks/useGoodsReceiptFilters'
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 export default function GoodsReceiptsPage() {
-  const navigate = useNavigate()
+  const { openDetail } = useListNavigation(GOODS_RECEIPTS_LIST_PATH)
   const hasPermission = usePermissionStore(state => state.hasPermission)
   const canInsert = hasPermission('goods_receipts', 'insert')
 
-  const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
+  const {
+    filters,
+    apiQuery,
+    setFilters,
+    setPage,
+    searchInput,
+    setSearchInput,
+    listSearchSuffix,
+  } = useGoodsReceiptFilters()
 
-  const queryParams = useMemo(() => ({
-    page, limit: 25,
-    status: statusFilter || undefined,
-    search: searchQuery || undefined,
-  }), [page, statusFilter, searchQuery])
-
-  const { data, isLoading } = useGoodsReceipts(queryParams)
+  const { data, isLoading } = useGoodsReceipts(apiQuery)
 
   const receipts = data?.data ?? []
   const pagination = data?.pagination
@@ -43,10 +45,12 @@ export default function GoodsReceiptsPage() {
             </div>
           </div>
           {canInsert && (
-            <button onClick={() => navigate('/inventory/goods-receipts/new')}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm shadow-teal-600/20">
+            <Link
+              to="/inventory/goods-receipts/new"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm shadow-teal-600/20"
+            >
               <Plus className="w-4 h-4" /> <span>Catat Penerimaan</span>
-            </button>
+            </Link>
           )}
         </div>
       </div>
@@ -55,22 +59,37 @@ export default function GoodsReceiptsPage() {
       <div className="px-6 py-4 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white/50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700/60 backdrop-blur-sm">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input 
-            type="text" 
-            placeholder="Cari No. GR, PO, atau Supplier..." 
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all shadow-sm"
+          <input
+            type="text"
+            placeholder="Cari No. GR, PO, supplier, atau cabang..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-9 pr-9 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all shadow-sm text-gray-900 dark:text-white"
           />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setFilters({ search: '' })}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              aria-label="Hapus pencarian"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="relative w-full sm:w-48">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all appearance-none shadow-sm">
-              <option value="">Semua Status</option>
-              <option value="DRAFT">Draft</option>
-              <option value="CONFIRMED">Confirmed</option>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ status: e.target.value })}
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all appearance-none shadow-sm text-gray-900 dark:text-white"
+            >
+              {GR_STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -107,8 +126,11 @@ export default function GoodsReceiptsPage() {
                     </td>
                   </tr>
                 ) : receipts.map(gr => (
-                  <tr key={gr.id} onClick={() => navigate(`/inventory/goods-receipts/${gr.id}`)}
-                    className="hover:bg-teal-50/30 dark:hover:bg-teal-900/10 cursor-pointer transition-colors group">
+                  <tr
+                    key={gr.id}
+                    onClick={() => openDetail(`/inventory/goods-receipts/${gr.id}`)}
+                    className="hover:bg-teal-50/30 dark:hover:bg-teal-900/10 cursor-pointer transition-colors group"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <Link to={`/inventory/goods-receipts/${gr.id}`} className="font-mono font-bold text-teal-700 dark:text-teal-400 hover:underline" onClick={e => e.stopPropagation()}>
@@ -172,8 +194,12 @@ export default function GoodsReceiptsPage() {
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {receipts.map(gr => (
-                  <Link key={gr.id} to={`/inventory/goods-receipts/${gr.id}`}
-                    className="block p-4 hover:bg-teal-50/10 dark:hover:bg-teal-900/5 cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/50 transition-all border-b border-gray-100 dark:border-gray-700/50 last:border-b-0">
+                  <Link
+                    key={gr.id}
+                    to={`/inventory/goods-receipts/${gr.id}`}
+                    state={listSearchSuffix ? { listSearch: listSearchSuffix } : undefined}
+                    className="block p-4 hover:bg-teal-50/10 dark:hover:bg-teal-900/5 cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/50 transition-all border-b border-gray-100 dark:border-gray-700/50 last:border-b-0"
+                  >
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-0.5">
@@ -207,7 +233,7 @@ export default function GoodsReceiptsPage() {
               </div>
             )}
           </div>
-          
+
           {/* Footer Pagination */}
           {pagination && pagination.total > 0 && (
             <div className="border-t border-gray-200 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/50 p-4">

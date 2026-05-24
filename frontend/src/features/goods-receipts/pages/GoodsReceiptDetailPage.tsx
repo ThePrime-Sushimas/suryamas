@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useListNavigation } from "@/lib/urlFilters";
+import { GOODS_RECEIPTS_LIST_PATH } from "../constants";
 import {
   ArrowLeft,
   PackageCheck,
@@ -121,6 +123,7 @@ function AttachmentThumbnail({
 export default function GoodsReceiptDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { backToList } = useListNavigation(GOODS_RECEIPTS_LIST_PATH);
   const toast = useToast();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
   const canUpdate = hasPermission("goods_receipts", "update");
@@ -230,7 +233,7 @@ export default function GoodsReceiptDetailPage() {
         <div className="text-center">
           <PackageCheck className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 font-medium">Penerimaan barang tidak ditemukan</p>
-          <button onClick={() => navigate('/inventory/goods-receipts')} className="mt-4 text-teal-600 hover:underline text-sm font-medium">Kembali ke Daftar</button>
+          <button onClick={backToList} className="mt-4 text-teal-600 hover:underline text-sm font-medium">Kembali ke Daftar</button>
         </div>
       </div>
     );
@@ -253,7 +256,7 @@ export default function GoodsReceiptDetailPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-7xl mx-auto w-full">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate("/inventory/goods-receipts")}
+              onClick={backToList}
               className="p-2 -ml-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors shrink-0"
             >
               <ArrowLeft className="w-5 h-5" />

@@ -117,7 +117,7 @@ export class GoodsProcessingService {
   async list(
     companyId: string,
     pagination: { page: number; limit: number },
-    filter?: { status?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string }
+    filter?: { status?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string; search?: string }
   ) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await goodsProcessingRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)

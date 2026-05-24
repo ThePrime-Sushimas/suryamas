@@ -65,11 +65,12 @@ const KEYS = {
   detail: (id: string) => ['goods-receipts', id] as const,
 }
 
-export const useGoodsReceipts = (params: { page?: number; limit?: number; status?: string; po_id?: string; branch_id?: string; date_from?: string; date_to?: string }) =>
+export const useGoodsReceipts = (params: { page?: number; limit?: number; search?: string; status?: string; po_id?: string; branch_id?: string; date_from?: string; date_to?: string }) =>
   useQuery({
     queryKey: KEYS.list(params),
     queryFn: async () => {
       const queryParams: Record<string, unknown> = { page: params.page ?? 1, limit: params.limit ?? 25 }
+      if (params.search) queryParams.search = params.search
       if (params.status) queryParams.status = params.status
       if (params.po_id) queryParams.po_id = params.po_id
       if (params.branch_id) queryParams.branch_id = params.branch_id

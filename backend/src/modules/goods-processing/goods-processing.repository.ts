@@ -66,7 +66,7 @@ export class GoodsProcessingRepository {
   async findAll(
     companyId: string,
     pagination: { limit: number; offset: number },
-    filter?: { status?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string }
+    filter?: { status?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string; search?: string }
   ): Promise<{ data: GoodsProcessingWithRelations[]; total: number }> {
     const conditions: string[] = ['gp.company_id = $1', 'gp.deleted_at IS NULL']
     const params: unknown[] = [companyId]
@@ -92,6 +92,25 @@ export class GoodsProcessingRepository {
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`gp.processing_date >= $${idx++}::date`) }
     if (filter?.date_to)   { params.push(filter.date_to);   conditions.push(`gp.processing_date <= $${idx++}::date`) }
 
+    const searchTerm = filter?.search?.trim()
+    if (searchTerm) {
+      params.push(`%${searchTerm}%`)
+      conditions.push(`(
+        gp.processing_number ILIKE $${idx}
+        OR gr.gr_number ILIKE $${idx}
+        OR s.supplier_name ILIKE $${idx}
+        OR b.branch_name ILIKE $${idx}
+        OR EXISTS (
+          SELECT 1
+          FROM goods_processing_inputs gpi_s
+          JOIN products p_s ON p_s.id = gpi_s.product_id
+          WHERE gpi_s.goods_processing_id = gp.id
+            AND p_s.product_name ILIKE $${idx}
+        )
+      )`)
+      idx++
+    }
+
     const where = `WHERE ${conditions.join(' AND ')}`
 
     const [dataRes, countRes] = await Promise.all([
@@ -99,7 +118,7 @@ export class GoodsProcessingRepository {
         `SELECT ${HEADER_SELECT} ${HEADER_FROM} ${where} ORDER BY gp.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
         [...params, pagination.limit, pagination.offset]
       ),
-      pool.query(`SELECT COUNT(*)::int AS total FROM goods_processing gp ${where}`, params),
+      pool.query(`SELECT COUNT(*)::int AS total ${HEADER_FROM} ${where}`, params),
     ])
 
     return { data: dataRes.rows, total: countRes.rows[0].total }

@@ -19,13 +19,21 @@ export class GoodsProcessingController {
       const branchId = typeof req.query.branch_id === 'string' ? req.query.branch_id : undefined
       const dateFrom = typeof req.query.date_from === 'string' ? req.query.date_from : undefined
       const dateTo   = typeof req.query.date_to   === 'string' ? req.query.date_to   : undefined
+      const search   = typeof req.query.search   === 'string' ? req.query.search.trim()   : undefined
 
       const branchIds = branchId ? undefined : await getAccessibleBranchIds(userId)
 
       const result = await goodsProcessingService.list(
         companyId,
         { page: isNaN(page) ? 1 : page, limit: isNaN(limit) ? 20 : limit },
-        { status, branch_id: branchId, branch_ids: branchIds, date_from: dateFrom, date_to: dateTo }
+        {
+          status,
+          branch_id: branchId,
+          branch_ids: branchIds,
+          date_from: dateFrom,
+          date_to: dateTo,
+          ...(search ? { search } : {}),
+        }
       )
       sendSuccess(res, result.data, 'Goods processing list retrieved', 200, result.pagination)
     } catch (error: unknown) {

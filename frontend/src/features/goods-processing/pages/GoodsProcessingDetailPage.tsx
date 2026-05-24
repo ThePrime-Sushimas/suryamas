@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useListNavigation } from "@/lib/urlFilters";
+import { GOODS_PROCESSING_LIST_PATH } from "../constants";
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/axios';
 import {
@@ -1496,7 +1498,7 @@ function AddOutputModal({ template, onAdd, onCancel }: {
 
 export default function GoodsProcessingDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
+  const { backToList } = useListNavigation(GOODS_PROCESSING_LIST_PATH)
   const { addToast } = useToast()
   const hasPermission = usePermissionStore(s => s.hasPermission)
   const canUpdate = hasPermission("goods_processing", "update")
@@ -1760,7 +1762,7 @@ export default function GoodsProcessingDetailPage() {
       <div className="text-center space-y-3">
         <AlertTriangle size={40} className="mx-auto text-red-400" />
         <p className="text-gray-600 dark:text-gray-300">Gagal memuat data</p>
-        <button onClick={() => navigate(-1)} className="text-blue-600 text-sm">← Kembali</button>
+        <button onClick={backToList} className="text-blue-600 text-sm">← Kembali</button>
       </div>
     </div>
   )
@@ -1780,7 +1782,7 @@ export default function GoodsProcessingDetailPage() {
       {/* ── Header ── */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 sticky top-0 z-20">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => navigate(-1)} className="p-1.5 -ml-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">
+          <button onClick={backToList} className="p-1.5 -ml-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 min-w-0">
