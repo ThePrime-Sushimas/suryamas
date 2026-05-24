@@ -656,7 +656,7 @@ export default function PurchaseInvoiceFormPage() {
                   <option value="">Pilih rekening tujuan...</option>
                   {supplierBankAccounts.map((ba) => (
                     <option key={ba.id} value={ba.id}>
-                      {ba.bank_name} — {ba.account_number}
+                      {ba.bank_name} — {ba.account_number} - {ba.account_name}
                     </option>
                   ))}
                 </select>
