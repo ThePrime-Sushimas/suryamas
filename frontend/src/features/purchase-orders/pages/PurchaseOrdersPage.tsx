@@ -12,6 +12,7 @@ import { usePermissionStore } from '@/features/branch_context/store/permission.s
 import { usePurchaseOrders, useDeletePurchaseOrder } from '../api/purchaseOrders.api'
 import type { PurchaseOrder } from '../api/purchaseOrders.api'
 import { usePurchaseOrderFilters } from '../hooks/usePurchaseOrderFilters'
+import { OverdueWarning } from '../components/OverdueWarning'
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
@@ -178,9 +179,14 @@ export default function PurchaseOrdersPage() {
                         className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
                       >
                         <td className="px-4 py-3">
-                          <Link to={`${PURCHASE_ORDERS_LIST_PATH}/${po.id}`} className="font-mono font-semibold text-blue-600 dark:text-blue-400 hover:underline" onClick={e => e.stopPropagation()}>
-                            {po.po_number}
-                          </Link>
+                          <div className="flex items-center gap-1.5">
+                            <Link to={`${PURCHASE_ORDERS_LIST_PATH}/${po.id}`} className="font-mono font-semibold text-blue-600 dark:text-blue-400 hover:underline" onClick={e => e.stopPropagation()}>
+                              {po.po_number}
+                            </Link>
+                            {po.overdue_days != null && po.overdue_days > 0 && (
+                              <OverdueWarning overdueDays={po.overdue_days} triggerProduct={po.overdue_trigger_product ?? null} />
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{po.supplier_name}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{po.branch_name}</td>
@@ -244,7 +250,12 @@ export default function PurchaseOrdersPage() {
                     >
                       <div className="flex justify-between items-start">
                         <div className="min-w-0 flex-1">
-                          <p className="font-mono font-medium text-gray-900 dark:text-white text-sm">{po.po_number}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-mono font-medium text-gray-900 dark:text-white text-sm">{po.po_number}</p>
+                            {po.overdue_days != null && po.overdue_days > 0 && (
+                              <OverdueWarning overdueDays={po.overdue_days} triggerProduct={po.overdue_trigger_product ?? null} />
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500 truncate">
                             {po.supplier_name} · {po.branch_name}
                           </p>

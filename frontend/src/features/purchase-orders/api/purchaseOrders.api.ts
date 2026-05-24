@@ -76,6 +76,9 @@ export interface PurchaseOrder {
   line_count: number
   created_at: string
   lines?: PurchaseOrderLine[]
+  // Computed overdue fields
+  overdue_days: number | null
+  overdue_trigger_product: string | null
 }
 
 interface Pagination { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean }

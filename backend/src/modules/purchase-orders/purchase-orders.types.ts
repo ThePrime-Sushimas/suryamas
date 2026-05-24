@@ -42,6 +42,9 @@ export interface PurchaseOrderWithRelations extends PurchaseOrder {
   request_number: string
   approved_by_name: string | null
   line_count: number
+  // Computed overdue fields
+  overdue_days: number | null
+  overdue_trigger_product: string | null
 }
 
 export interface PurchaseOrderLine {

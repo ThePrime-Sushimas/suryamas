@@ -14,7 +14,9 @@ const HEADER_SELECT = `
   pr.request_number,
   app_emp.full_name AS approved_by_name,
   pt.term_name AS payment_term_name,
-  COALESCE(lines_agg.line_count, 0)::int AS line_count
+  COALESCE(lines_agg.line_count, 0)::int AS line_count,
+  NULLIF(overdue_calc.overdue_days, 0) AS overdue_days,
+  overdue_calc.overdue_trigger_product
 `
 const HEADER_FROM = `
   FROM purchase_orders po
@@ -26,6 +28,42 @@ const HEADER_FROM = `
   LEFT JOIN LATERAL (
     SELECT COUNT(*)::int AS line_count FROM purchase_order_lines pol WHERE pol.po_id = po.id
   ) lines_agg ON true
+  LEFT JOIN LATERAL (
+    SELECT
+      CASE
+        WHEN po.status NOT IN ('SENT', 'ORDERED', 'PARTIAL_RECEIVED') THEN NULL
+        WHEN po.status IN ('SENT', 'ORDERED') AND EXISTS (
+          SELECT 1 FROM goods_receipts gr
+          WHERE gr.po_id = po.id AND gr.deleted_at IS NULL AND gr.status = 'CONFIRMED'
+        ) THEN NULL
+        ELSE
+          GREATEST(0,
+            (CURRENT_DATE - (po.order_date + COALESCE(
+              (SELECT MIN(sp.lead_time_days)
+               FROM purchase_order_lines pol2
+               JOIN supplier_products sp ON sp.id = pol2.supplier_product_id
+               WHERE pol2.po_id = po.id AND sp.lead_time_days IS NOT NULL),
+              s.lead_time_days
+            )))
+          )::int
+      END AS overdue_days,
+      CASE
+        WHEN po.status NOT IN ('SENT', 'ORDERED', 'PARTIAL_RECEIVED') THEN NULL
+        WHEN po.status IN ('SENT', 'ORDERED') AND EXISTS (
+          SELECT 1 FROM goods_receipts gr
+          WHERE gr.po_id = po.id AND gr.deleted_at IS NULL AND gr.status = 'CONFIRMED'
+        ) THEN NULL
+        ELSE (
+          SELECT p.product_name
+          FROM purchase_order_lines pol3
+          JOIN supplier_products sp2 ON sp2.id = pol3.supplier_product_id
+          JOIN products p ON p.id = pol3.product_id
+          WHERE pol3.po_id = po.id AND sp2.lead_time_days IS NOT NULL
+          ORDER BY sp2.lead_time_days ASC
+          LIMIT 1
+        )
+      END AS overdue_trigger_product
+  ) overdue_calc ON true
 `
 
 const LINE_SELECT = `pol.*, p.product_code, p.product_name`
