@@ -273,7 +273,7 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
       )}
 
       {/* Table */}
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-auto p-2 sm:p-3">
         {isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -286,10 +286,10 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-rose-200/80 dark:border-gray-700">
-                  <th className="px-3 py-3 text-left w-10">
+                  <th className="px-2 py-2 text-left w-10">
                     <input
                       type="checkbox"
                       checked={allPageSelected}
@@ -302,37 +302,37 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                       aria-label="Pilih semua invoice di halaman ini"
                     />
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     No. Invoice
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Supplier
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Cabang
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Total
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Sisa
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Tgl Terima
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Jatuh Tempo
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Status
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Pembayaran
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[180px]">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[180px]">
                     Rek. Tujuan
                   </th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[200px]">
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[200px]">
                     <div className="flex items-center gap-1.5">
                       <span>Rekening Bayar</span>
                       {isBankAccountsError && (
@@ -453,7 +453,7 @@ function InvoiceRow({
 
   return (
     <tr className={`${apTheme.hoverRow} ${selected ? 'bg-rose-50/50 dark:bg-gray-700/40' : ''}`}>
-      <td className="px-3 py-3">
+      <td className="px-2 py-2">
         <input
           type="checkbox"
           checked={selected}
@@ -463,47 +463,47 @@ function InvoiceRow({
           aria-label={`Pilih invoice ${invoice.invoice_number}`}
         />
       </td>
-      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white max-w-[140px]">
+      <td className="px-2 py-2 font-medium text-gray-900 dark:text-white max-w-[140px]">
         <span className="block truncate" title={invoice.invoice_number}>
           {invoice.invoice_number}
         </span>
       </td>
-      <td className="px-3 py-3">
+      <td className="px-2 py-2">
         <div className="text-gray-900 dark:text-white">{invoice.supplier_name}</div>
       </td>
-      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
         {invoice.branch_name}
       </td>
-      <td className="px-3 py-3 text-gray-900 dark:text-white whitespace-nowrap">
+      <td className="px-2 py-2 text-gray-900 dark:text-white whitespace-nowrap">
         {fmtCurrency(invoice.total_amount)}
       </td>
-      <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+      <td className="px-2 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap">
         {fmtCurrency(invoice.remaining_amount)}
       </td>
-      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
         {fmtDate(invoice.earliest_received_date)}
       </td>
-      <td className="px-3 py-3 whitespace-nowrap">
+      <td className="px-2 py-2 whitespace-nowrap">
         <div className="flex items-center gap-2">
           <span className="text-gray-700 dark:text-gray-300">{fmtDate(invoice.due_date)}</span>
           <AgingBadge dueDate={invoice.due_date} />
         </div>
       </td>
-      <td className="px-3 py-3">
+      <td className="px-2 py-2">
         <span
           className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${invoiceStatusColor}`}
         >
           {invoiceStatusLabel}
         </span>
       </td>
-      <td className="px-3 py-3">
+      <td className="px-2 py-2">
         <span
           className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${paymentFlowColor}`}
         >
           {paymentFlowLabel}
         </span>
       </td>
-      <td className="px-3 py-3 min-w-[180px]">
+      <td className="px-2 py-2 min-w-[180px]">
         {invoice.supplier_bank_accounts.length === 0 ? (
           <span className="text-xs text-gray-400">—</span>
         ) : (
@@ -525,7 +525,7 @@ function InvoiceRow({
           </select>
         )}
       </td>
-      <td className="px-3 py-3">
+      <td className="px-2 py-2">
         <BankAccountSelector
           accounts={bankAccounts}
           value={bankAccountId}
