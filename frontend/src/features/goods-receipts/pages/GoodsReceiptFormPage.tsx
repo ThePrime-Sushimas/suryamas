@@ -303,7 +303,7 @@ export default function GoodsReceiptFormPage() {
     setInvoiceNumber(existingGR.invoice_number ?? "");
     setInvoiceDate(existingGR.invoice_date?.slice(0, 10) ?? "");
     setNotes(existingGR.notes ?? "");
-    if (existingGR.lines) {
+    if (existingGR.lines && existingGR.lines.length > 0) {
       setLines(
         existingGR.lines.map((l) => {
           const qtyPoUom = Number(l.qty_po_uom ?? l.qty_received);

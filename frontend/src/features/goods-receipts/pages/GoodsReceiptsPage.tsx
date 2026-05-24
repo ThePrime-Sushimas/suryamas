@@ -1,28 +1,21 @@
 import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PackageCheck, Plus, Search, Filter, Scale } from 'lucide-react'
-import { useToast } from '@/contexts/ToastContext'
-import { parseApiError } from '@/lib/errorParser'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { useGoodsReceipts, useDeleteGoodsReceipt } from '../api/goodsReceipts.api'
-import type { GoodsReceipt } from '../api/goodsReceipts.api'
+import { useGoodsReceipts } from '../api/goodsReceipts.api'
 import { GrSourceBadge } from '../components/GrSourceBadge'
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 export default function GoodsReceiptsPage() {
   const navigate = useNavigate()
-  const toast = useToast()
   const hasPermission = usePermissionStore(state => state.hasPermission)
   const canInsert = hasPermission('goods_receipts', 'insert')
-  const canDelete = hasPermission('goods_receipts', 'delete')
 
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<GoodsReceipt | null>(null)
 
   const queryParams = useMemo(() => ({
     page, limit: 25,
@@ -31,19 +24,9 @@ export default function GoodsReceiptsPage() {
   }), [page, statusFilter, searchQuery])
 
   const { data, isLoading } = useGoodsReceipts(queryParams)
-  const deleteGR = useDeleteGoodsReceipt()
 
   const receipts = data?.data ?? []
   const pagination = data?.pagination
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return
-    try {
-      await deleteGR.mutateAsync(deleteTarget.id)
-      toast.success('Penerimaan barang berhasil dihapus')
-    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus')) }
-    finally { setDeleteTarget(null) }
-  }
 
   return (
     <div className="h-screen flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
@@ -108,17 +91,16 @@ export default function GoodsReceiptsPage() {
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Hasil Timbang</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">PIC</th>
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}><td colSpan={8} className="px-6 py-5"><div className="h-5 bg-gray-100 dark:bg-gray-700/50 rounded-lg animate-pulse" /></td></tr>
+                    <tr key={i}><td colSpan={7} className="px-6 py-5"><div className="h-5 bg-gray-100 dark:bg-gray-700/50 rounded-lg animate-pulse" /></td></tr>
                   ))
                 ) : receipts.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-16 text-center">
+                    <td colSpan={7} className="px-6 py-16 text-center">
                       <PackageCheck className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                       <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">Tidak Ada Data</h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada penerimaan barang yang sesuai dengan kriteria pencarian.</p>
@@ -168,13 +150,6 @@ export default function GoodsReceiptsPage() {
                         {gr.status === 'CONFIRMED' ? 'Confirmed' : 'Draft'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
-                      {gr.status === 'DRAFT' && canDelete && (
-                        <button onClick={() => setDeleteTarget(gr)} className="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                          Hapus
-                        </button>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -223,17 +198,9 @@ export default function GoodsReceiptsPage() {
                         <span>{gr.weighing_summary}</span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs">
-                        <span className="text-gray-500 dark:text-gray-400">PIC: </span>
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{gr.created_by_name ?? '—'}</span>
-                      </div>
-                      {gr.status === 'DRAFT' && canDelete && (
-                        <button onClick={e => { e.stopPropagation(); e.preventDefault(); setDeleteTarget(gr) }}
-                          className="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400 p-2 -mr-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                          Hapus
-                        </button>
-                      )}
+                    <div className="text-xs">
+                      <span className="text-gray-500 dark:text-gray-400">PIC: </span>
+                      <span className="font-medium text-gray-700 dark:text-gray-300">{gr.created_by_name ?? '—'}</span>
                     </div>
                   </Link>
                 ))}
@@ -249,10 +216,6 @@ export default function GoodsReceiptsPage() {
           )}
         </div>
       </div>
-
-      <ConfirmModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete}
-        title="Hapus Penerimaan Barang" message={`Apakah Anda yakin ingin menghapus penerimaan barang "${deleteTarget?.gr_number}"? Tindakan ini tidak dapat dibatalkan.`}
-        confirmText="Hapus" variant="danger" isLoading={deleteGR.isPending} />
     </div>
   )
 }
