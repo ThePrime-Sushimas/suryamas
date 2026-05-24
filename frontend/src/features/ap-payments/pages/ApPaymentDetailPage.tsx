@@ -201,6 +201,14 @@ export default function ApPaymentDetailPage() {
                 <InfoField label="Supplier" value={payment.supplier_name} />
                 <InfoField label="Metode Bayar" value={AP_PAYMENT_METHOD_LABELS[payment.payment_method]} />
                 <InfoField label="Rekening Sumber" value={`${payment.bank_account_name} · ${payment.bank_account_number}`} />
+                <InfoField
+                  label="Rekening Tujuan"
+                  value={
+                    payment.supplier_bank_name && payment.supplier_bank_account_number
+                      ? `${payment.supplier_bank_name} · ${payment.supplier_bank_account_number}${payment.supplier_bank_account_name ? ` (${payment.supplier_bank_account_name})` : ''}`
+                      : '—'
+                  }
+                />
                 <InfoField label="Cabang" value={payment.branch_name} />
                 {payment.notes && <InfoField label="Catatan" value={payment.notes} className="sm:col-span-2 lg:col-span-3" />}
               </div>
@@ -559,7 +567,7 @@ function ReconcileModal({ paymentId, onClose, onConfirm, isLoading }: ReconcileM
             type="button"
             onClick={() => selectedId && void onConfirm(selectedId)}
             disabled={!selectedId || isLoading}
-            className="px-4 py-2 rounded-2xl bg-gradient-to-r from-rose-400 to-pink-500 text-white text-sm font-medium disabled:opacity-50 dark:bg-blue-600 dark:from-blue-600 dark:to-blue-600"
+            className="px-4 py-2 rounded-2xl bg-linear-to-r from-rose-400 to-pink-500 text-white text-sm font-medium disabled:opacity-50 dark:bg-blue-600 dark:from-blue-600 dark:to-blue-600"
           >
             {isLoading ? 'Menyimpan...' : 'Reconcile'}
           </button>

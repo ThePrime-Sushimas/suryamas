@@ -14,6 +14,7 @@ export interface InvoiceAssignment {
   dueDate: string | null
   checked: boolean
   bankAccountId: number | null
+  supplierBankAccountId: number | null
 }
 
 export interface SupplierGroup {
@@ -47,6 +48,7 @@ export interface BulkCreateDerived {
 type BulkCreateAction =
   | { type: 'TOGGLE_INVOICE'; invoiceId: string; checked: boolean }
   | { type: 'SET_BANK_ACCOUNT'; invoiceId: string; bankAccountId: number | null }
+  | { type: 'SET_SUPPLIER_BANK_ACCOUNT'; invoiceId: string; supplierBankAccountId: number | null }
   | { type: 'SET_AMOUNT_PAID'; invoiceId: string; amountPaid: number }
   | { type: 'APPLY_ALL_BANK_ACCOUNT'; supplierId: string; bankAccountId: number }
   | { type: 'SET_GROUP_NOTES'; supplierId: string; notes: string }
@@ -66,6 +68,7 @@ function bulkCreateReducer(state: BulkCreateState, action: BulkCreateAction): Bu
         ...invoice,
         checked: action.checked,
         bankAccountId: action.checked ? invoice.bankAccountId : null,
+        supplierBankAccountId: action.checked ? invoice.supplierBankAccountId : null,
       })
       return { ...state, invoices: newInvoices }
     }
@@ -78,6 +81,18 @@ function bulkCreateReducer(state: BulkCreateState, action: BulkCreateAction): Bu
       newInvoices.set(action.invoiceId, {
         ...invoice,
         bankAccountId: action.bankAccountId,
+      })
+      return { ...state, invoices: newInvoices }
+    }
+
+    case 'SET_SUPPLIER_BANK_ACCOUNT': {
+      const invoice = state.invoices.get(action.invoiceId)
+      if (!invoice) return state
+
+      const newInvoices = new Map(state.invoices)
+      newInvoices.set(action.invoiceId, {
+        ...invoice,
+        supplierBankAccountId: action.supplierBankAccountId,
       })
       return { ...state, invoices: newInvoices }
     }
@@ -146,6 +161,11 @@ function initializeState(
       ? prefilledBankId
       : null
 
+    const supplierBanks = row.supplier_bank_accounts ?? []
+    const defaultSupplierBankId =
+      row.supplier_bank_account_id ??
+      (supplierBanks.length === 1 ? supplierBanks[0].id : null)
+
     invoices.set(row.id, {
       invoiceId: row.id,
       supplierId: row.supplier_id,
@@ -156,6 +176,7 @@ function initializeState(
       dueDate: row.due_date,
       checked: true,
       bankAccountId: validatedBankId,
+      supplierBankAccountId: defaultSupplierBankId,
     })
   }
 
@@ -208,6 +229,13 @@ export function useBulkCreateState(
   const applyAllBankAccount = useCallback((supplierId: string, bankAccountId: number) => {
     dispatch({ type: 'APPLY_ALL_BANK_ACCOUNT', supplierId, bankAccountId })
   }, [])
+
+  const setSupplierBankAccount = useCallback(
+    (invoiceId: string, supplierBankAccountId: number | null) => {
+      dispatch({ type: 'SET_SUPPLIER_BANK_ACCOUNT', invoiceId, supplierBankAccountId })
+    },
+    [],
+  )
 
   const setGroupNotes = useCallback((supplierId: string, notes: string) => {
     dispatch({ type: 'SET_GROUP_NOTES', supplierId, notes })
@@ -275,11 +303,14 @@ export function useBulkCreateState(
     const combos = new Set<string>()
     for (const invoice of checkedInvoices) {
       if (invoice.bankAccountId != null) {
-        combos.add(`${invoice.supplierId}:${invoice.bankAccountId}`)
+        const method = state.groupPaymentMethods.get(invoice.supplierId) ?? 'TRANSFER'
+        combos.add(
+          `${invoice.supplierId}:${invoice.bankAccountId}:${invoice.supplierBankAccountId ?? ''}:${method}`,
+        )
       }
     }
     return combos.size
-  }, [checkedInvoices])
+  }, [checkedInvoices, state.groupPaymentMethods])
 
   return {
     // State
@@ -297,6 +328,7 @@ export function useBulkCreateState(
     // Actions
     toggleInvoice,
     setBankAccount,
+    setSupplierBankAccount,
     setAmountPaid,
     applyAllBankAccount,
     setGroupNotes,

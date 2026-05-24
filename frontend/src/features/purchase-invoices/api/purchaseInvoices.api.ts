@@ -61,6 +61,7 @@ export interface PurchaseInvoice {
   created_by: string | null
   updated_by: string | null
 
+  supplier_bank_account_id?: number | null
   supplier_name: string
   branch_name: string
   branch_code: string
@@ -382,6 +383,36 @@ export const useMergePurchaseInvoices = () => {
         invoice_ids: invoiceIds,
       })
       return data.data as PurchaseInvoice
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['purchase-invoices'] })
+    },
+  })
+}
+
+export interface SplitPurchaseInvoiceResult {
+  source_invoice_id: string
+  created_invoices: Array<{ id: string; invoice_number: string }>
+}
+
+export const useSplitPurchaseInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      splits,
+    }: {
+      id: string
+      splits: Array<{
+        invoice_number: string
+        invoice_date: string
+        notes: string | null
+        gr_line_ids: string[]
+        supplier_bank_account_id?: number | null
+      }>
+    }) => {
+      const { data } = await api.post(`/purchase-invoices/${id}/split`, { splits })
+      return data.data as SplitPurchaseInvoiceResult
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchase-invoices'] })

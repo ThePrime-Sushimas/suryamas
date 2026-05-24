@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
-import { useOutstandingInvoicesPaginated, useAssignBankAccount, type OutstandingInvoiceRow, type OutstandingInvoicesQuery } from '../api/apPayments.api'
+import { useOutstandingInvoicesPaginated, useAssignBankAccount, useAssignSupplierBankAccount, type OutstandingInvoiceRow, type OutstandingInvoicesQuery } from '../api/apPayments.api'
 import { useCompanyBankAccounts } from '../hooks/useCompanyBankAccounts'
 import { AgingBadge } from './AgingBadge'
 import { BankAccountSelector } from './BankAccountSelector'
@@ -45,6 +45,7 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
   const [selectedAmounts, setSelectedAmounts] = useState<Map<string, number>>(new Map())
   // V2: Track bank account assignments per invoice
   const [bankAccountAssignments, setBankAccountAssignments] = useState<Map<string, number | null>>(new Map())
+  const [supplierBankAssignments, setSupplierBankAssignments] = useState<Map<string, number | null>>(new Map())
 
   // Fetch company bank accounts for the Rekening Bayar column
   const {
@@ -55,6 +56,7 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
 
   // Mutation for auto-saving bank account assignment
   const assignMutation = useAssignBankAccount()
+  const assignSupplierBankMutation = useAssignSupplierBankAccount()
 
   const query: OutstandingInvoicesQuery = useMemo(
     () => ({
@@ -83,6 +85,20 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
         // Only set from API if not already locally overridden
         if (!next.has(inv.id) && inv.assigned_bank_account_id != null) {
           next.set(inv.id, inv.assigned_bank_account_id)
+        }
+      }
+      return next
+    })
+  }, [data])
+
+  // Sync supplierBankAssignments from API data
+  useEffect(() => {
+    if (!data?.data || data.data.length === 0) return
+    setSupplierBankAssignments((prev) => {
+      const next = new Map(prev)
+      for (const inv of data.data) {
+        if (!next.has(inv.id) && inv.supplier_bank_account_id != null) {
+          next.set(inv.id, inv.supplier_bank_account_id)
         }
       }
       return next
@@ -121,6 +137,11 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
         })
         // V2: Reset bank account assignment when unchecking
         setBankAccountAssignments((prev) => {
+          const next = new Map(prev)
+          next.delete(invoiceId)
+          return next
+        })
+        setSupplierBankAssignments((prev) => {
           const next = new Map(prev)
           next.delete(invoiceId)
           return next
@@ -187,6 +208,7 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
     setSelectedIds(new Set())
     setSelectedAmounts(new Map())
     setBankAccountAssignments(new Map())
+    setSupplierBankAssignments(new Map())
   }, [])
 
   // V2: Handle bank account assignment change per invoice (auto-save to DB)
@@ -201,6 +223,19 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
       assignMutation.mutate({ invoiceId, bankAccountId })
     },
     [assignMutation],
+  )
+
+
+  const handleSupplierBankAccountChange = useCallback(
+    (invoiceId: string, supplierBankAccountId: number | null) => {
+      setSupplierBankAssignments((prev) => {
+        const next = new Map(prev)
+        next.set(invoiceId, supplierBankAccountId)
+        return next
+      })
+      assignSupplierBankMutation.mutate({ invoiceId, supplierBankAccountId })
+    },
+    [assignSupplierBankMutation],
   )
 
   const totalRemainingAmount = useMemo(() => {
@@ -294,6 +329,9 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
                     Pembayaran
                   </th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[180px]">
+                    Rek. Tujuan
+                  </th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[200px]">
                     <div className="flex items-center gap-1.5">
                       <span>Rekening Bayar</span>
@@ -319,6 +357,8 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                     onBankAccountChange={handleBankAccountChange}
                     isBankAccountsLoading={isBankAccountsLoading}
                     isBankAccountsError={isBankAccountsError}
+                    supplierBankAccountId={supplierBankAssignments.get(inv.id) ?? null}
+                    onSupplierBankAccountChange={handleSupplierBankAccountChange}
                   />
                 ))}
               </tbody>
@@ -369,6 +409,8 @@ interface InvoiceRowProps {
   bankAccounts: import('../hooks/useCompanyBankAccounts').CompanyBankAccount[]
   bankAccountId: number | null
   onBankAccountChange: (invoiceId: string, bankAccountId: number | null) => void
+  supplierBankAccountId: number | null
+  onSupplierBankAccountChange: (invoiceId: string, supplierBankAccountId: number | null) => void
   isBankAccountsLoading: boolean
   isBankAccountsError: boolean
 }
@@ -381,6 +423,8 @@ function InvoiceRow({
   bankAccounts,
   bankAccountId,
   onBankAccountChange,
+  supplierBankAccountId,
+  onSupplierBankAccountChange,
   isBankAccountsLoading,
   isBankAccountsError,
 }: InvoiceRowProps) {
@@ -425,11 +469,7 @@ function InvoiceRow({
         </span>
       </td>
       <td className="px-3 py-3">
-        <div className="text-gray-900 dark:text-white" title={
-          invoice.supplier_bank_accounts.length > 0
-            ? invoice.supplier_bank_accounts.map(ba => `${ba.bank_name} ${ba.account_number}`).join(' · ')
-            : undefined
-        }>{invoice.supplier_name}</div>
+        <div className="text-gray-900 dark:text-white">{invoice.supplier_name}</div>
       </td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
         {invoice.branch_name}
@@ -462,6 +502,27 @@ function InvoiceRow({
         >
           {paymentFlowLabel}
         </span>
+      </td>
+      <td className="px-3 py-3 min-w-[180px]">
+        {invoice.supplier_bank_accounts.length === 0 ? (
+          <span className="text-xs text-gray-400">—</span>
+        ) : (
+          <select
+            value={supplierBankAccountId ?? ''}
+            onChange={(e) => {
+              const v = e.target.value
+              onSupplierBankAccountChange(invoice.id, v === '' ? null : Number(v))
+            }}
+            className={`${apTheme.select} w-full text-sm`}
+          >
+            <option value="">Pilih rekening...</option>
+            {invoice.supplier_bank_accounts.map((ba) => (
+              <option key={ba.id} value={ba.id}>
+                {ba.bank_name} — {ba.account_number}
+              </option>
+            ))}
+          </select>
+        )}
       </td>
       <td className="px-3 py-3">
         <BankAccountSelector

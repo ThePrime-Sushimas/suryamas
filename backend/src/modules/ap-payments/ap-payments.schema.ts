@@ -90,6 +90,7 @@ export const bulkCreateApPaymentSchema = z.object({
       z.object({
         supplier_id: z.string().uuid(),
         bank_account_id: z.number().int().positive(),
+        supplier_bank_account_id: z.number().int().positive().nullable().optional(),
         payment_method: z.enum(paymentMethods).default('TRANSFER'),
         invoice_lines: z.array(
           z.object({
@@ -116,11 +117,18 @@ export const outstandingInvoicesQuerySchema = z.object({
   }),
 })
 
-// ── Assign bank account to outstanding invoice ────────────────
+// ── Assign bank accounts to outstanding invoice ───────────────
 export const assignBankAccountSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
     bank_account_id: z.number().int().positive().nullable(),
+  }),
+})
+
+export const assignSupplierBankAccountSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    supplier_bank_account_id: z.number().int().positive().nullable(),
   }),
 })
 

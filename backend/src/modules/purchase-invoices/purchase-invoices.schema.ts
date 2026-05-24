@@ -92,6 +92,7 @@ export const createPurchaseInvoiceSchema = z.object({
     notes: z.string().nullable().optional(),
     lines: z.array(lineSchema).min(1),
     charges: z.array(chargeSchema).optional().default([]),
+    supplier_bank_account_id: z.number().int().positive().nullable().optional(),
   }),
 })
 
@@ -105,6 +106,7 @@ export const updatePurchaseInvoiceSchema = z.object({
     notes: z.string().nullable().optional(),
     lines: z.array(lineSchema).min(1),
     charges: z.array(chargeSchema).optional().default([]),
+    supplier_bank_account_id: z.number().int().positive().nullable().optional(),
   }),
 })
 
@@ -152,6 +154,31 @@ export const postPurchaseInvoiceSchema = z.object({
 export const unpostPurchaseInvoiceSchema = z.object({
   params: z.object({
     id: z.string().uuid(),
+  }),
+})
+
+const splitNotaSchema = z.object({
+  invoice_number: z.string().min(1).max(100),
+  invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  notes: z.string().max(500).nullable().optional(),
+  gr_line_ids: z.array(z.string().uuid()).min(1, 'Setiap nota wajib memiliki minimal 1 baris'),
+  supplier_bank_account_id: z.number().int().positive().nullable().optional(),
+})
+
+export const splitPurchaseInvoiceSchema = z.object({
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+  body: z.object({
+    splits: z
+      .array(splitNotaSchema)
+      .min(2, 'Minimal 2 nota — untuk 1 nota saja, edit invoice staging tanpa pecah'),
+  }),
+})
+
+export const mergePurchaseInvoicesSchema = z.object({
+  body: z.object({
+    invoice_ids: z.array(z.string().uuid()).min(2),
   }),
 })
 

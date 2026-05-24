@@ -632,6 +632,50 @@ export const ERROR_REGISTRY = {
     category: 'inventory',
   },
 
+  // ============ PURCHASE INVOICE MODULE ============
+  PurchaseInvoiceNotFoundError: {
+    name: 'PurchaseInvoiceNotFoundError',
+    importPath: '../modules/purchase-invoices/purchase-invoices.errors',
+    defaultStatusCode: 404,
+    category: 'inventory',
+  },
+  PurchaseInvoiceInvalidStatusError: {
+    name: 'PurchaseInvoiceInvalidStatusError',
+    importPath: '../modules/purchase-invoices/purchase-invoices.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  PurchaseInvoicePlaceholderNumberError: {
+    name: 'PurchaseInvoicePlaceholderNumberError',
+    importPath: '../modules/purchase-invoices/purchase-invoices.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  PurchaseInvoiceSplitValidationError: {
+    name: 'PurchaseInvoiceSplitValidationError',
+    importPath: '../modules/purchase-invoices/purchase-invoices.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  PurchaseInvoiceGrLineOverAllocatedError: {
+    name: 'PurchaseInvoiceGrLineOverAllocatedError',
+    importPath: '../modules/purchase-invoices/purchase-invoices.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+  PurchaseInvoiceDuplicateNumberError: {
+    name: 'PurchaseInvoiceDuplicateNumberError',
+    importPath: '../modules/purchase-invoices/purchase-invoices.errors',
+    defaultStatusCode: 409,
+    category: 'inventory',
+  },
+  PurchaseInvoiceHasChargesError: {
+    name: 'PurchaseInvoiceHasChargesError',
+    importPath: '../modules/purchase-invoices/purchase-invoices.errors',
+    defaultStatusCode: 422,
+    category: 'inventory',
+  },
+
   // ============ GOODS PROCESSING MODULE ============
   GoodsProcessingNotFoundError: {
     name: 'GoodsProcessingNotFoundError',

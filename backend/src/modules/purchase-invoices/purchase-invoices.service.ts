@@ -9,13 +9,18 @@ import { apPaymentsService } from '../ap-payments/ap-payments.service'
 import {
   PurchaseInvoiceCannotEditPostedError,
   PurchaseInvoiceChargesInvalidError,
+  PurchaseInvoiceDuplicateNumberError,
+  PurchaseInvoiceGrLineOverAllocatedError,
   PurchaseInvoiceGrNotEligibleError,
   PurchaseInvoiceGpNotConfirmedError,
+  PurchaseInvoiceHasChargesError,
   PurchaseInvoiceInvalidStatusError,
   PurchaseInvoiceJournalAlreadyExistsError,
   PurchaseInvoiceNoJournalError,
   PurchaseInvoiceNotFoundError,
   PurchaseInvoiceNotPostedError,
+  PurchaseInvoicePlaceholderNumberError,
+  PurchaseInvoiceSplitValidationError,
 } from './purchase-invoices.errors'
 import {
   buildPiPaymentDueInfo,
@@ -28,8 +33,11 @@ import type {
   PurchaseInvoiceDetail,
   PurchaseInvoiceLine,
   PurchaseInvoiceWithRelations,
+  SplitPurchaseInvoiceDto,
+  SplitPurchaseInvoiceResult,
   UpdatePurchaseInvoiceDto,
 } from './purchase-invoices.types'
+import { isStagingInvoiceNumber } from '../../utils/purchase-invoice-staging.util'
 import {
   defaultQtyInvoicedInInvoiceUom,
   mergePricelistUomForConversion,
@@ -461,6 +469,42 @@ export class PurchaseInvoicesService {
     }
   }
 
+  private assertRealInvoiceNumber(invoiceNumber: string): void {
+    if (isStagingInvoiceNumber(invoiceNumber)) {
+      throw new PurchaseInvoicePlaceholderNumberError()
+    }
+  }
+
+  private async assertGrLineAllocation(
+    client: PoolClient,
+    lines: Array<{ gr_line_id: string; qty_invoiced: number }>,
+    excludeInvoiceId?: string,
+  ): Promise<void> {
+    if (lines.length === 0) return
+
+    const grLineIds = lines.map((l) => l.gr_line_id)
+    const summaries = await purchaseInvoicesRepository.findGrLineAllocationSummary(
+      client,
+      grLineIds,
+      excludeInvoiceId,
+    )
+    const byId = new Map(summaries.map((s) => [s.gr_line_id, s]))
+
+    for (const line of lines) {
+      const summary = byId.get(line.gr_line_id)
+      if (!summary) {
+        throw new PurchaseInvoiceGrLineOverAllocatedError(line.gr_line_id, 'Baris GR tidak ditemukan.')
+      }
+      const nextTotal = summary.qty_allocated + line.qty_invoiced
+      if (nextTotal > summary.qty_received + 0.0001) {
+        throw new PurchaseInvoiceGrLineOverAllocatedError(
+          line.gr_line_id,
+          `Qty invoice melebihi qty diterima (tersedia: ${(summary.qty_received - summary.qty_allocated).toFixed(4)}, diminta: ${line.qty_invoiced}).`,
+        )
+      }
+    }
+  }
+
   async list(companyId: string, pagination: { page: number; limit: number }, filter?: any) {
     const offset = (pagination.page - 1) * pagination.limit
     const result = await purchaseInvoicesRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
@@ -636,6 +680,34 @@ export class PurchaseInvoicesService {
     }
   }
 
+  private async assertAndAssignSupplierBank(
+    client: PoolClient,
+    invoiceId: string,
+    companyId: string,
+    supplierId: string,
+    supplierBankAccountId: number | null | undefined,
+    userId: string,
+  ): Promise<void> {
+    if (supplierBankAccountId === undefined) return
+    if (supplierBankAccountId != null) {
+      const valid = await purchaseInvoicesRepository.validateSupplierBankForSupplier(
+        client,
+        supplierBankAccountId,
+        supplierId,
+      )
+      if (!valid) {
+        throw new PurchaseInvoiceSplitValidationError('Rekening supplier tidak valid.')
+      }
+    }
+    await purchaseInvoicesRepository.assignSupplierBankAccount(
+      client,
+      invoiceId,
+      companyId,
+      supplierBankAccountId,
+      userId,
+    )
+  }
+
   async create(companyId: string, dto: CreatePurchaseInvoiceDto, userId: string) {
     const invoice = await purchaseInvoicesRepository.withTransaction(async (client) => {
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
@@ -653,6 +725,7 @@ export class PurchaseInvoicesService {
       this.applyDppAdjustingDiscountToLineTax(enrichedLines, enrichedCharges)
       const hdr = this.computeHeaderTotalsFromLinesAndCharges(enrichedLines, enrichedCharges)
       this.assertHeaderInventoryNonNegative(hdr.subtotal, hdr.totalChargeAmount)
+      await this.assertGrLineAllocation(client, dto.lines)
 
       const invoiceDate = await this.resolveInvoiceDateForNewDraft(client, dto.invoice_date, grIds)
       const dueDate = await this.computeDraftDueDate(client, dto.supplier_id, invoiceDate, grIds)
@@ -675,6 +748,14 @@ export class PurchaseInvoicesService {
       await purchaseInvoicesRepository.replaceCharges(client, created.id, enrichedCharges)
       await purchaseInvoicesRepository.insertGrLinks(client, created.id, grIds)
       await purchaseInvoicesRepository.copyAttachmentsFromGrs(client, created.id, grIds)
+      await this.assertAndAssignSupplierBank(
+        client,
+        created.id,
+        companyId,
+        dto.supplier_id,
+        dto.supplier_bank_account_id,
+        userId,
+      )
       return created
     })
 
@@ -714,6 +795,7 @@ export class PurchaseInvoicesService {
       this.applyDppAdjustingDiscountToLineTax(enrichedLines, enrichedCharges)
       const hdr = this.computeHeaderTotalsFromLinesAndCharges(enrichedLines, enrichedCharges)
       this.assertHeaderInventoryNonNegative(hdr.subtotal, hdr.totalChargeAmount)
+      await this.assertGrLineAllocation(client, dto.lines, id)
 
       await purchaseInvoicesRepository.replaceLines(client, id, enrichedLines)
       await purchaseInvoicesRepository.replaceCharges(client, id, enrichedCharges)
@@ -730,6 +812,14 @@ export class PurchaseInvoicesService {
         updated_by: userId,
       })
       await this.syncDraftDueDate(client, id, existing.supplier_id, dto.invoice_date)
+      await this.assertAndAssignSupplierBank(
+        client,
+        id,
+        companyId,
+        existing.supplier_id,
+        dto.supplier_bank_account_id,
+        userId,
+      )
     })
 
     const refreshed = await purchaseInvoicesRepository.findById(id, companyId)
@@ -749,6 +839,7 @@ export class PurchaseInvoicesService {
     const detail = await purchaseInvoicesRepository.findById(id, companyId)
     if (!detail) throw new PurchaseInvoiceNotFoundError(id)
     if (detail.status !== 'DRAFT' && detail.status !== 'REJECTED') throw new PurchaseInvoiceInvalidStatusError(detail.status, 'DRAFT/REJECTED')
+    this.assertRealInvoiceNumber(detail.invoice_number)
 
     await purchaseInvoicesRepository.withTransaction(async (client) => {
       await purchaseInvoicesRepository.updateStatus(client, id, 'SUBMITTED', {
@@ -1173,6 +1264,16 @@ export class PurchaseInvoicesService {
   }
 
   async createDraftFromGr(client: PoolClient, companyId: string, grId: string, userId: string) {
+    const existingId = await purchaseInvoicesRepository.findActiveDraftInvoiceForGr(
+      client,
+      grId,
+      companyId,
+    )
+    if (existingId) {
+      const existing = await purchaseInvoicesRepository.findById(existingId, companyId, client)
+      if (existing) return existing
+    }
+
     const gr = await purchaseInvoicesRepository.findGrWithPoForDraft(client, grId, companyId)
     if (!gr) return
 
@@ -1352,6 +1453,187 @@ export class PurchaseInvoicesService {
 
     await AuditService.log('CREATE', 'purchase_invoices', master.id, userId, { merged_from: invoiceIds })
     return this.getById(master.id, companyId)
+  }
+
+  /**
+   * Pecah 1 PI DRAFT menjadi beberapa PI (1 nota supplier = 1 PI).
+   * Semua baris source wajib dialokasi tepat sekali; tidak boleh ada sisa di source.
+   */
+  async splitInvoice(
+    companyId: string,
+    sourceId: string,
+    dto: SplitPurchaseInvoiceDto,
+    userId: string,
+  ): Promise<SplitPurchaseInvoiceResult> {
+    if (dto.splits.length < 2) {
+      throw new PurchaseInvoiceSplitValidationError(
+        'Minimal 2 nota untuk pecah invoice. Jika hanya 1 nota, edit invoice staging dan isi nomor invoice supplier.',
+      )
+    }
+
+    const created = await purchaseInvoicesRepository.withTransaction(async (client) => {
+      const source = await purchaseInvoicesRepository.findById(sourceId, companyId, client)
+      if (!source) throw new PurchaseInvoiceNotFoundError(sourceId)
+      if (source.status !== 'DRAFT' && source.status !== 'REJECTED') {
+        throw new PurchaseInvoiceInvalidStatusError(source.status, 'DRAFT/REJECTED')
+      }
+
+      const chargeCount = await purchaseInvoicesRepository.countActiveCharges(client, sourceId)
+      if (chargeCount > 0) {
+        throw new PurchaseInvoiceHasChargesError()
+      }
+
+      const sourceLineIds = new Set(source.lines.map((l) => l.gr_line_id))
+      const lineByGrId = new Map(source.lines.map((l) => [l.gr_line_id, l]))
+      const allSplitGrLineIds = dto.splits.flatMap((s) => s.gr_line_ids)
+      const grLineDetails = await purchaseInvoicesRepository.findGrLineDetailsForInvoicing(
+        client,
+        allSplitGrLineIds,
+      )
+      const grIdByLineId = new Map(grLineDetails.map((g) => [g.id, g.gr_id]))
+
+      const allocated = new Set<string>()
+      const numbersInBatch = new Set<string>()
+
+      for (const split of dto.splits) {
+        const num = split.invoice_number.trim()
+        if (numbersInBatch.has(num.toLowerCase())) {
+          throw new PurchaseInvoiceSplitValidationError(
+            `Nomor invoice "${num}" duplikat dalam permintaan pecah.`,
+          )
+        }
+        numbersInBatch.add(num.toLowerCase())
+
+        if (split.gr_line_ids.length === 0) {
+          throw new PurchaseInvoiceSplitValidationError(
+            `Nota "${num}" harus memiliki minimal 1 baris item.`,
+          )
+        }
+
+        for (const grLineId of split.gr_line_ids) {
+          if (!sourceLineIds.has(grLineId)) {
+            throw new PurchaseInvoiceSplitValidationError(
+              `Baris GR tidak ada di invoice sumber: ${grLineId}`,
+            )
+          }
+          if (allocated.has(grLineId)) {
+            throw new PurchaseInvoiceSplitValidationError(
+              `Baris GR ${grLineId} dialokasi lebih dari sekali.`,
+            )
+          }
+          allocated.add(grLineId)
+        }
+
+        const duplicate = await purchaseInvoicesRepository.findDuplicateInvoiceNumber(
+          client,
+          companyId,
+          source.supplier_id,
+          num,
+          [sourceId],
+        )
+        if (duplicate) {
+          throw new PurchaseInvoiceDuplicateNumberError(num)
+        }
+      }
+
+      if (allocated.size !== sourceLineIds.size) {
+        const missing = [...sourceLineIds].filter((id) => !allocated.has(id))
+        throw new PurchaseInvoiceSplitValidationError(
+          `Semua baris wajib dialokasi ke nota (${missing.length} baris belum dipilih).`,
+        )
+      }
+
+      const createdInvoices: Array<{ id: string; invoice_number: string }> = []
+
+      for (const split of dto.splits) {
+        const piLineIds = split.gr_line_ids.map((gid) => lineByGrId.get(gid)!.id)
+        const grIds = [
+          ...new Set(
+            split.gr_line_ids
+              .map((gid) => grIdByLineId.get(gid))
+              .filter((x): x is string => x != null),
+          ),
+        ]
+
+        const movedLines = split.gr_line_ids.map((gid) => lineByGrId.get(gid)!)
+        const subtotal = movedLines.reduce((s, l) => s + Number(l.subtotal), 0)
+        const totalTax = movedLines.reduce((s, l) => s + Number(l.tax_amount), 0)
+        const totalAmount = movedLines.reduce((s, l) => s + Number(l.total), 0)
+
+        const dueDate = await this.computeDraftDueDate(
+          client,
+          source.supplier_id,
+          split.invoice_date,
+          grIds.length > 0 ? grIds : await purchaseInvoicesRepository.findGrIdsForInvoice(client, sourceId),
+        )
+
+        const header = await purchaseInvoicesRepository.create(client, companyId, {
+          supplier_id: source.supplier_id,
+          branch_id: source.branch_id,
+          invoice_number: split.invoice_number.trim(),
+          invoice_date: split.invoice_date,
+          notes: split.notes ?? null,
+          subtotal,
+          total_tax: totalTax,
+          total_charges: 0,
+          total_amount: totalAmount,
+          due_date: dueDate,
+          created_by: userId,
+        })
+
+        await purchaseInvoicesRepository.moveInvoiceLinesByIds(
+          client,
+          piLineIds,
+          header.id,
+          userId,
+        )
+
+        await purchaseInvoicesRepository.insertGrLinks(client, header.id, grIds)
+        await purchaseInvoicesRepository.copyAttachmentsFromGrs(client, header.id, grIds)
+
+        if (split.supplier_bank_account_id != null) {
+          const valid = await purchaseInvoicesRepository.validateSupplierBankForSupplier(
+            client,
+            split.supplier_bank_account_id,
+            source.supplier_id,
+          )
+          if (!valid) {
+            throw new PurchaseInvoiceSplitValidationError(
+              `Rekening supplier tidak valid untuk nota "${split.invoice_number.trim()}".`,
+            )
+          }
+          await purchaseInvoicesRepository.assignSupplierBankAccount(
+            client,
+            header.id,
+            companyId,
+            split.supplier_bank_account_id,
+            userId,
+          )
+        }
+
+        createdInvoices.push({ id: header.id, invoice_number: header.invoice_number })
+      }
+
+      await purchaseInvoicesRepository.softDelete(client, sourceId, companyId, userId)
+
+      return createdInvoices
+    })
+
+    await AuditService.log('UPDATE', 'purchase_invoices', sourceId, userId, null, {
+      action: 'split',
+      created_invoices: created,
+    })
+
+    for (const inv of created) {
+      await AuditService.log('CREATE', 'purchase_invoices', inv.id, userId, null, {
+        split_from: sourceId,
+      })
+    }
+
+    return {
+      source_invoice_id: sourceId,
+      created_invoices: created,
+    }
   }
 
   async getCounts(companyId: string) {

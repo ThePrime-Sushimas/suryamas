@@ -74,3 +74,40 @@ export class PurchaseInvoicePricelistSupersededError extends ConflictError {
     this.name = 'PurchaseInvoicePricelistSupersededError'
   }
 }
+
+export class PurchaseInvoicePlaceholderNumberError extends BusinessRuleError {
+  constructor() {
+    super(
+      'Nomor invoice masih placeholder staging. Isi nomor invoice supplier yang sebenarnya sebelum submit.',
+    )
+  }
+}
+
+export class PurchaseInvoiceSplitValidationError extends BusinessRuleError {
+  constructor(message: string) {
+    super(message)
+  }
+}
+
+export class PurchaseInvoiceGrLineOverAllocatedError extends BusinessRuleError {
+  constructor(grLineId: string, detail?: string) {
+    super(
+      detail ??
+        `Baris GR ${grLineId} melebihi qty yang tersedia untuk di-invoice (sudah dialokasi di invoice lain).`,
+    )
+  }
+}
+
+export class PurchaseInvoiceDuplicateNumberError extends ConflictError {
+  constructor(invoiceNumber: string) {
+    super(`Nomor invoice supplier "${invoiceNumber}" sudah digunakan untuk supplier ini.`)
+  }
+}
+
+export class PurchaseInvoiceHasChargesError extends BusinessRuleError {
+  constructor() {
+    super(
+      'Invoice masih memiliki baris charge (diskon/ongkir). Hapus atau alokasikan charge manual sebelum pecah invoice.',
+    )
+  }
+}

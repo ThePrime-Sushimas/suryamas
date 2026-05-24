@@ -168,6 +168,18 @@ export class PurchaseInvoicesController {
     }
   }
 
+  split = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const id = req.params.id as string
+      const result = await purchaseInvoicesService.splitInvoice(companyId, id, req.body, userId)
+      sendSuccess(res, result, 'Invoice berhasil dipecah')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'split_purchase_invoice', id: req.params.id })
+    }
+  }
+
   getCounts = async (req: Request, res: Response) => {
     try {
       const companyId = req.context?.company_id ?? ''

@@ -17,6 +17,7 @@ import {
   Undo2,
   Loader2,
   Package,
+  Scissors,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { PurchaseInvoicePaymentDue } from "../components/PurchaseInvoicePaymentDue";
@@ -32,7 +33,10 @@ import {
   useDeletePurchaseInvoice,
   useUnpostPurchaseInvoice,
   usePurchaseInvoiceAttachments,
+  useSplitPurchaseInvoice,
 } from "../api/purchaseInvoices.api";
+import { PurchaseInvoiceSplitModal } from "../components/PurchaseInvoiceSplitModal";
+import { isStagingInvoiceNumber } from "../utils/purchaseInvoiceStaging";
 import { useEffect } from "react";
 
 const fmtDate = (d: string) =>
@@ -182,8 +186,10 @@ export default function PurchaseInvoiceDetailPage() {
   const rejectPI = useRejectPurchaseInvoice();
   const deletePI = useDeletePurchaseInvoice();
   const unpostPI = useUnpostPurchaseInvoice();
+  const splitPI = useSplitPurchaseInvoice();
 
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showSplitModal, setShowSplitModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showUnpostModal, setShowUnpostModal] = useState(false);
@@ -200,6 +206,11 @@ export default function PurchaseInvoiceDetailPage() {
     );
 
   const hasOverQty = inv.lines.some((l: any) => l.match_status === "OVER");
+  const isStaging = isStagingInvoiceNumber(inv.invoice_number);
+  const canSplit =
+    (inv.status === "DRAFT" || inv.status === "REJECTED") &&
+    inv.lines.length >= 2 &&
+    (inv.charges?.length ?? 0) === 0;
 
   const gpLineAudits = inv.gp_line_audits;
   const gpAuditsByDoc = new Map<string, typeof gpLineAudits>();
@@ -304,6 +315,15 @@ export default function PurchaseInvoiceDetailPage() {
                 >
                   <Edit className="w-4 h-4" /> Edit
                 </button>
+                {canSplit && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSplitModal(true)}
+                    className="flex items-center gap-2 px-3 py-2 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm font-medium transition-colors"
+                  >
+                    <Scissors className="w-4 h-4" /> Pecah Invoice
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     if (isStatusBusy) return;
@@ -439,6 +459,30 @@ export default function PurchaseInvoiceDetailPage() {
 
         {inv.payment_due_info && (
           <PurchaseInvoicePaymentDue info={inv.payment_due_info} variant="card" />
+        )}
+
+        {(inv.status === "DRAFT" || inv.status === "REJECTED") && isStaging && (
+          <div className="p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/60 dark:bg-indigo-900/20">
+            <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
+              Invoice staging dari penerimaan barang
+            </p>
+            <p className="text-sm text-indigo-800/90 dark:text-indigo-300/90">
+              {canSplit ? (
+                <>
+                  Jika supplier mengirim <strong>satu nota</strong> untuk semua item: klik{" "}
+                  <strong>Edit</strong>, isi nomor invoice supplier, lalu <strong>Ajukan</strong> — tidak
+                  perlu pecah. Jika ada <strong>beberapa nota</strong> dengan rekening tujuan berbeda:
+                  gunakan <strong>Pecah Invoice</strong>.
+                </>
+              ) : (
+                <>
+                  Isi nomor invoice supplier yang sebenarnya (bukan placeholder{" "}
+                  <code className="text-xs">[INV] …</code>), lalu Ajukan. Pecah invoice hanya jika ada
+                  minimal 2 barang dan tidak ada baris charge.
+                </>
+              )}
+            </p>
+          </div>
         )}
 
         {inv.status === "DRAFT" && hasOverQty && (
@@ -1041,6 +1085,25 @@ export default function PurchaseInvoiceDetailPage() {
         confirmText="Tolak Invoice"
         variant="danger"
         isLoading={rejectPI.isPending}
+      />
+
+      <PurchaseInvoiceSplitModal
+        open={showSplitModal}
+        invoice={inv}
+        onClose={() => setShowSplitModal(false)}
+        isSubmitting={splitPI.isPending}
+        onSubmit={async (splits) => {
+          try {
+            const result = await splitPI.mutateAsync({ id: id!, splits })
+            setShowSplitModal(false)
+            toast.success(
+              `${result.created_invoices.length} invoice dibuat: ${result.created_invoices.map((i) => i.invoice_number).join(", ")}`,
+            )
+            navigate(`/inventory/purchase-invoices/${result.created_invoices[0].id}`)
+          } catch (err: unknown) {
+            toast.error(parseApiError(err, "Gagal memecah invoice"))
+          }
+        }}
       />
 
       {/* Image Preview Modal */}

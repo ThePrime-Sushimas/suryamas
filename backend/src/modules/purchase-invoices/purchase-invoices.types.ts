@@ -62,6 +62,7 @@ export interface PurchaseInvoice {
   updated_at: string
   created_by: string | null
   updated_by: string | null
+  supplier_bank_account_id?: number | null
 }
 
 export interface PurchaseInvoiceWithRelations extends PurchaseInvoice {
@@ -185,6 +186,7 @@ export interface CreatePurchaseInvoiceDto {
   notes: string | null
   lines: CreatePurchaseInvoiceLineDto[]
   charges?: CreatePurchaseInvoiceChargeDto[]
+  supplier_bank_account_id?: number | null
 }
 
 export interface UpdatePurchaseInvoiceDto {
@@ -193,5 +195,32 @@ export interface UpdatePurchaseInvoiceDto {
   notes?: string | null
   lines: CreatePurchaseInvoiceLineDto[]
   charges?: CreatePurchaseInvoiceChargeDto[]
+  supplier_bank_account_id?: number | null
+}
+
+export interface SplitPurchaseInvoiceNotaDto {
+  invoice_number: string
+  invoice_date: string
+  notes?: string | null
+  gr_line_ids: string[]
+  supplier_bank_account_id?: number | null
+}
+
+export interface SplitPurchaseInvoiceDto {
+  splits: SplitPurchaseInvoiceNotaDto[]
+}
+
+export interface SplitPurchaseInvoiceResult {
+  source_invoice_id: string
+  created_invoices: Array<{
+    id: string
+    invoice_number: string
+  }>
+}
+
+export interface GrLineAllocationSummary {
+  gr_line_id: string
+  qty_received: number
+  qty_allocated: number
 }
 

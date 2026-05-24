@@ -11,18 +11,17 @@ export interface SupplierGroupCardProps {
   supplier: {
     id: string
     name: string
-    bankAccounts: Array<{ bank_name: string; account_number: string; account_name: string }>
+    bankAccounts: Array<{ id: number; bank_name: string; account_number: string; account_name: string }>
   }
   invoices: InvoiceAssignment[]
   companyBankAccounts: CompanyBankAccount[]
   groupNotes: string
   paymentMethod: ApPaymentMethod
-  selectedSupplierBank: string
   onGroupNotesChange: (notes: string) => void
   onPaymentMethodChange: (method: ApPaymentMethod) => void
-  onSupplierBankChange: (value: string) => void
   onInvoiceToggle: (invoiceId: string, checked: boolean) => void
   onBankAccountChange: (invoiceId: string, bankAccountId: number | null) => void
+  onSupplierBankAccountChange: (invoiceId: string, supplierBankAccountId: number | null) => void
   onAmountPaidChange: (invoiceId: string, amount: number) => void
   validationErrors: Set<string>
 }
@@ -51,12 +50,11 @@ export function SupplierGroupCard({
   companyBankAccounts,
   groupNotes,
   paymentMethod,
-  selectedSupplierBank,
   onGroupNotesChange,
   onPaymentMethodChange,
-  onSupplierBankChange,
   onInvoiceToggle,
   onBankAccountChange,
+  onSupplierBankAccountChange,
   onAmountPaidChange,
   validationErrors,
 }: SupplierGroupCardProps) {
@@ -66,59 +64,25 @@ export function SupplierGroupCard({
 
   return (
     <div className={`${apTheme.card} p-5`}>
-      {/* Header: Supplier name */}
       <div className="mb-4">
         <h3 className={apTheme.sectionTitle}>{supplier.name}</h3>
       </div>
 
-      {/* Controls: Metode bayar + Rekening supplier tujuan */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        <div>
-          <label className={`block text-xs font-medium mb-1 ${apTheme.label}`}>
-            Metode Bayar
-          </label>
-          <select
-            value={paymentMethod}
-            onChange={(e) => onPaymentMethodChange(e.target.value as ApPaymentMethod)}
-            className={`${apTheme.select} w-full text-sm`}
-          >
-            {(Object.keys(AP_PAYMENT_METHOD_LABELS) as ApPaymentMethod[]).map((m) => (
-              <option key={m} value={m}>
-                {AP_PAYMENT_METHOD_LABELS[m]}
-              </option>
-            ))}
-          </select>
-        </div>
-        {supplier.bankAccounts.length > 0 && (
-          <div>
-            <label className={`block text-xs font-medium mb-1 ${apTheme.label}`}>
-              Rekening Supplier Tujuan
-            </label>
-            <select
-              value={selectedSupplierBank}
-              onChange={(e) => onSupplierBankChange(e.target.value)}
-              className={`${apTheme.select} w-full text-sm`}
-            >
-              {supplier.bankAccounts.length === 1 ? (
-                <option value={`${supplier.bankAccounts[0].bank_name} ${supplier.bankAccounts[0].account_number}`}>
-                  {supplier.bankAccounts[0].bank_name} — {supplier.bankAccounts[0].account_number} — {supplier.bankAccounts[0].account_name}
-                </option>
-              ) : (
-                <>
-                  <option value="">Pilih rekening tujuan...</option>
-                  {supplier.bankAccounts.map((ba, i) => (
-                    <option key={i} value={`${ba.bank_name} ${ba.account_number}`}>
-                      {ba.bank_name} — {ba.account_number} — {ba.account_name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
-          </div>
-        )}
+      <div className="mb-4 max-w-xs">
+        <label className={`block text-xs font-medium mb-1 ${apTheme.label}`}>Metode Bayar</label>
+        <select
+          value={paymentMethod}
+          onChange={(e) => onPaymentMethodChange(e.target.value as ApPaymentMethod)}
+          className={`${apTheme.select} w-full text-sm`}
+        >
+          {(Object.keys(AP_PAYMENT_METHOD_LABELS) as ApPaymentMethod[]).map((m) => (
+            <option key={m} value={m}>
+              {AP_PAYMENT_METHOD_LABELS[m]}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Invoice table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -129,6 +93,7 @@ export function SupplierGroupCard({
               <th className={`px-2 py-2 text-right ${apTheme.label}`}>Jumlah Bayar</th>
               <th className={`px-2 py-2 text-left ${apTheme.label}`}>Jatuh Tempo</th>
               <th className={`px-2 py-2 text-left ${apTheme.label}`}>Rek. Sumber</th>
+              <th className={`px-2 py-2 text-left ${apTheme.label}`}>Rek. Tujuan</th>
             </tr>
           </thead>
           <tbody className={apTheme.divide}>
@@ -136,10 +101,12 @@ export function SupplierGroupCard({
               <InvoiceLineRow
                 key={invoice.invoiceId}
                 invoice={invoice}
+                supplierBankAccounts={supplier.bankAccounts}
                 companyBankAccounts={companyBankAccounts}
                 hasError={validationErrors.has(invoice.invoiceId)}
                 onToggle={onInvoiceToggle}
                 onBankAccountChange={onBankAccountChange}
+                onSupplierBankAccountChange={onSupplierBankAccountChange}
                 onAmountPaidChange={onAmountPaidChange}
               />
             ))}
@@ -147,7 +114,6 @@ export function SupplierGroupCard({
         </table>
       </div>
 
-      {/* Footer: Subtotal + Notes */}
       <div className={`mt-4 pt-4 border-t ${apTheme.divideBorder}`}>
         <div className="flex items-center justify-between mb-3">
           <span className={`text-sm font-medium ${apTheme.label}`}>Subtotal</span>
@@ -182,23 +148,25 @@ export function SupplierGroupCard({
   )
 }
 
-// --- Invoice Line Row ---
-
 interface InvoiceLineRowProps {
   invoice: InvoiceAssignment
+  supplierBankAccounts: Array<{ id: number; bank_name: string; account_number: string; account_name: string }>
   companyBankAccounts: CompanyBankAccount[]
   hasError: boolean
   onToggle: (invoiceId: string, checked: boolean) => void
   onBankAccountChange: (invoiceId: string, bankAccountId: number | null) => void
+  onSupplierBankAccountChange: (invoiceId: string, supplierBankAccountId: number | null) => void
   onAmountPaidChange: (invoiceId: string, amount: number) => void
 }
 
 function InvoiceLineRow({
   invoice,
+  supplierBankAccounts,
   companyBankAccounts,
   hasError,
   onToggle,
   onBankAccountChange,
+  onSupplierBankAccountChange,
   onAmountPaidChange,
 }: InvoiceLineRowProps) {
   const [localAmount, setLocalAmount] = useState(String(invoice.amountPaid))
@@ -218,9 +186,7 @@ function InvoiceLineRow({
     }
   }
 
-  const rowClassName = hasError
-    ? 'border-red-300 bg-red-50/50 dark:bg-red-900/10'
-    : ''
+  const rowClassName = hasError ? 'border-red-300 bg-red-50/50 dark:bg-red-900/10' : ''
 
   return (
     <tr
@@ -238,9 +204,7 @@ function InvoiceLineRow({
       </td>
 
       <td className="px-2 py-2">
-        <span className="font-medium text-gray-900 dark:text-white">
-          {invoice.invoiceNumber}
-        </span>
+        <span className="font-medium text-gray-900 dark:text-white">{invoice.invoiceNumber}</span>
       </td>
 
       <td className="px-2 py-2 text-right whitespace-nowrap">
@@ -264,9 +228,7 @@ function InvoiceLineRow({
 
       <td className="px-2 py-2 whitespace-nowrap">
         <div className="flex items-center gap-2">
-          <span className="text-gray-700 dark:text-gray-300">
-            {fmtDate(invoice.dueDate)}
-          </span>
+          <span className="text-gray-700 dark:text-gray-300">{fmtDate(invoice.dueDate)}</span>
           <AgingBadge dueDate={invoice.dueDate} />
         </div>
       </td>
@@ -280,6 +242,32 @@ function InvoiceLineRow({
           canViewBalance={false}
           error={hasError}
         />
+      </td>
+
+      <td className="px-2 py-2 min-w-[180px]">
+        {supplierBankAccounts.length === 0 ? (
+          <span className="text-xs text-gray-400">—</span>
+        ) : (
+          <select
+            value={invoice.supplierBankAccountId ?? ''}
+            onChange={(e) => {
+              const v = e.target.value
+              onSupplierBankAccountChange(
+                invoice.invoiceId,
+                v === '' ? null : Number(v),
+              )
+            }}
+            disabled={!invoice.checked}
+            className={`${apTheme.select} w-full text-sm disabled:opacity-50`}
+          >
+            <option value="">Pilih rekening tujuan...</option>
+            {supplierBankAccounts.map((ba) => (
+              <option key={ba.id} value={ba.id}>
+                {ba.bank_name} — {ba.account_number}
+              </option>
+            ))}
+          </select>
+        )}
       </td>
     </tr>
   )

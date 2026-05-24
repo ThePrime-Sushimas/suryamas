@@ -8,6 +8,7 @@ import type {
   PurchaseInvoiceGpLineAudit,
   PurchaseInvoiceLine,
   PurchaseInvoiceWithRelations,
+  GrLineAllocationSummary,
 } from './purchase-invoices.types'
 
 type PostingRow = {
@@ -158,6 +159,136 @@ export class PurchaseInvoicesRepository {
       [grLineIds],
     )
     return rows
+  }
+
+  /** Qty already on non-rejected PIs (draft through posted), optionally excluding one invoice. */
+  async findGrLineAllocationSummary(
+    client: PoolClient,
+    grLineIds: string[],
+    excludeInvoiceId?: string,
+  ): Promise<GrLineAllocationSummary[]> {
+    if (grLineIds.length === 0) return []
+
+    const params: unknown[] = [grLineIds]
+    let excludeClause = ''
+    if (excludeInvoiceId) {
+      params.push(excludeInvoiceId)
+      excludeClause = `AND pil.purchase_invoice_id != $${params.length}`
+    }
+
+    const { rows } = await client.query<GrLineAllocationSummary>(
+      `SELECT
+         grl.id AS gr_line_id,
+         grl.qty_received::float AS qty_received,
+         COALESCE(SUM(pil.qty_invoiced), 0)::float AS qty_allocated
+       FROM goods_receipt_lines grl
+       LEFT JOIN purchase_invoice_lines pil
+         ON pil.gr_line_id = grl.id
+        AND pil.deleted_at IS NULL
+        ${excludeClause}
+       LEFT JOIN purchase_invoices pi
+         ON pi.id = pil.purchase_invoice_id
+        AND pi.deleted_at IS NULL
+        AND pi.status NOT IN ('REJECTED')
+       WHERE grl.id = ANY($1::uuid[])
+       GROUP BY grl.id, grl.qty_received`,
+      params,
+    )
+    return rows
+  }
+
+  async findActiveDraftInvoiceForGr(
+    client: PoolClient,
+    grId: string,
+    companyId: string,
+  ): Promise<string | null> {
+    const { rows } = await client.query<{ id: string }>(
+      `SELECT pi.id
+       FROM purchase_invoices pi
+       JOIN purchase_invoice_gr_links l ON l.purchase_invoice_id = pi.id
+       WHERE l.goods_receipt_id = $1
+         AND pi.company_id = $2
+         AND pi.deleted_at IS NULL
+         AND pi.status = 'DRAFT'
+       LIMIT 1`,
+      [grId, companyId],
+    )
+    return rows[0]?.id ?? null
+  }
+
+  async findDuplicateInvoiceNumber(
+    client: PoolClient,
+    companyId: string,
+    supplierId: string,
+    invoiceNumber: string,
+    excludeInvoiceIds: string[] = [],
+  ): Promise<boolean> {
+    const params: unknown[] = [companyId, supplierId, invoiceNumber.trim()]
+    let excludeClause = ''
+    if (excludeInvoiceIds.length > 0) {
+      params.push(excludeInvoiceIds)
+      excludeClause = `AND pi.id != ALL($${params.length}::uuid[])`
+    }
+
+    const { rows } = await client.query(
+      `SELECT 1
+       FROM purchase_invoices pi
+       WHERE pi.company_id = $1
+         AND pi.supplier_id = $2
+         AND pi.invoice_number = $3
+         AND pi.deleted_at IS NULL
+         ${excludeClause}
+       LIMIT 1`,
+      params,
+    )
+    return rows.length > 0
+  }
+
+  async countActiveCharges(client: PoolClient, invoiceId: string): Promise<number> {
+    const { rows } = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM purchase_invoice_charges
+       WHERE purchase_invoice_id = $1 AND deleted_at IS NULL`,
+      [invoiceId],
+    )
+    return Number(rows[0]?.count ?? 0)
+  }
+
+  async moveInvoiceLinesByIds(
+    client: PoolClient,
+    lineIds: string[],
+    targetInvoiceId: string,
+    userId: string,
+  ): Promise<void> {
+    if (lineIds.length === 0) return
+    await client.query(
+      `UPDATE purchase_invoice_lines
+       SET purchase_invoice_id = $1,
+           updated_by = $2,
+           updated_at = NOW()
+       WHERE id = ANY($3::uuid[])
+         AND deleted_at IS NULL`,
+      [targetInvoiceId, userId, lineIds],
+    )
+  }
+
+  async updateInvoiceHeaderTotals(
+    client: PoolClient,
+    invoiceId: string,
+    totals: { subtotal: number; total_tax: number; total_charges: number; total_amount: number },
+    userId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE purchase_invoices
+       SET subtotal = $1,
+           total_tax = $2,
+           total_charges = $3,
+           total_amount = $4,
+           updated_by = $5,
+           updated_at = NOW()
+       WHERE id = $6`,
+      [totals.subtotal, totals.total_tax, totals.total_charges, totals.total_amount, userId, invoiceId],
+    )
   }
 
   async copyAttachmentsFromGrs(client: PoolClient, invoiceId: string, grIds: string[]): Promise<void> {
@@ -1222,6 +1353,40 @@ export class PurchaseInvoicesRepository {
     await client.query(`UPDATE purchase_invoices SET ${fields.join(', ')} WHERE id = $${idx}`, params)
   }
 
+  async assignSupplierBankAccount(
+    client: PoolClient,
+    invoiceId: string,
+    companyId: string,
+    supplierBankAccountId: number | null,
+    userId: string,
+  ): Promise<void> {
+    const now = new Date().toISOString()
+    await client.query(
+      `UPDATE purchase_invoices
+       SET supplier_bank_account_id = $1,
+           supplier_bank_account_by = $2,
+           supplier_bank_account_at = $3,
+           updated_at = $3,
+           updated_by = $2
+       WHERE id = $4 AND company_id = $5 AND deleted_at IS NULL`,
+      [supplierBankAccountId, userId, now, invoiceId, companyId],
+    )
+  }
+
+  async validateSupplierBankForSupplier(
+    client: PoolClient,
+    supplierBankAccountId: number,
+    supplierId: string,
+  ): Promise<boolean> {
+    const { rows } = await client.query(
+      `SELECT 1 FROM bank_accounts
+       WHERE id = $1 AND owner_type = 'supplier' AND owner_id = $2
+         AND is_active = true AND deleted_at IS NULL LIMIT 1`,
+      [supplierBankAccountId, supplierId],
+    )
+    return rows.length > 0
+  }
+
   async softDelete(client: PoolClient, invoiceId: string, companyId: string, userId: string): Promise<void> {
     await client.query(
       `UPDATE purchase_invoices
@@ -1346,7 +1511,17 @@ export class PurchaseInvoicesRepository {
          AND gr.deleted_at IS NULL
          AND po.supplier_id = $2
          ${branchFilter}
-         AND grl.qty_invoiced < grl.qty_received
+         AND (
+           grl.qty_received - COALESCE((
+             SELECT SUM(pil.qty_invoiced)
+             FROM purchase_invoice_lines pil
+             JOIN purchase_invoices pi ON pi.id = pil.purchase_invoice_id
+             WHERE pil.gr_line_id = grl.id
+               AND pil.deleted_at IS NULL
+               AND pi.deleted_at IS NULL
+               AND pi.status NOT IN ('REJECTED')
+           ), 0)
+         ) > 0.01
          AND ${SQL_SUPPLIER_ELIGIBLE_FOR_PI}
        GROUP BY gr.id, gr.gr_number, gr.received_date, gr.branch_id, s.supplier_name
        ORDER BY gr.received_date DESC`,

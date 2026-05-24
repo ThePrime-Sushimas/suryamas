@@ -335,6 +335,9 @@ export class ApPaymentsRepository {
          b.branch_code,
          ba.account_name         AS bank_account_name,
          ba.account_number       AS bank_account_number,
+         sup_bk.bank_name        AS supplier_bank_name,
+         sup_ba.account_number   AS supplier_bank_account_number,
+         sup_ba.account_name     AS supplier_bank_account_name,
          COUNT(l.id)::int        AS invoice_count,
          emp_created.full_name   AS created_by_name,
          emp_requested.full_name AS requested_by_name,
@@ -347,6 +350,8 @@ export class ApPaymentsRepository {
        JOIN suppliers s      ON s.id = ap.supplier_id
        JOIN branches b       ON b.id = ap.branch_id
        JOIN bank_accounts ba ON ba.id = ap.bank_account_id
+       LEFT JOIN bank_accounts sup_ba ON sup_ba.id = ap.supplier_bank_account_id
+       LEFT JOIN banks sup_bk ON sup_bk.id = sup_ba.bank_id
        LEFT JOIN ap_payment_invoice_lines l ON l.ap_payment_id = ap.id
        LEFT JOIN employees emp_created   ON emp_created.user_id = ap.created_by
        LEFT JOIN employees emp_requested ON emp_requested.user_id = ap.requested_by
@@ -358,6 +363,7 @@ export class ApPaymentsRepository {
          AND ap.company_id = $2
          AND ap.deleted_at IS NULL
        GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number,
+                sup_bk.bank_name, sup_ba.account_number, sup_ba.account_name,
                 emp_created.full_name, emp_requested.full_name, emp_approved.full_name, emp_rejected.full_name, emp_paid.full_name,
                 jh.journal_number, jh.status`,
       [id, companyId],
@@ -661,6 +667,53 @@ export class ApPaymentsRepository {
     )
   }
 
+  async assignSupplierBankAccount(
+    invoiceId: string,
+    supplierBankAccountId: number | null,
+    companyId: string,
+    userId: string,
+  ): Promise<void> {
+    const now = new Date().toISOString()
+    await pool.query(
+      `UPDATE purchase_invoices
+       SET supplier_bank_account_id = $1,
+           supplier_bank_account_by = $2,
+           supplier_bank_account_at = $3,
+           updated_at = $3,
+           updated_by = $2
+       WHERE id = $4
+         AND company_id = $5
+         AND deleted_at IS NULL`,
+      [supplierBankAccountId, userId, now, invoiceId, companyId],
+    )
+  }
+
+  async validateSupplierBankAccount(
+    supplierBankAccountId: number,
+    supplierId: string,
+  ): Promise<boolean> {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM bank_accounts
+       WHERE id = $1
+         AND owner_type = 'supplier'
+         AND owner_id = $2
+         AND is_active = true
+         AND deleted_at IS NULL
+       LIMIT 1`,
+      [supplierBankAccountId, supplierId],
+    )
+    return rows.length > 0
+  }
+
+  async findInvoiceSupplierId(invoiceId: string, companyId: string): Promise<string | null> {
+    const { rows } = await pool.query<{ supplier_id: string }>(
+      `SELECT supplier_id FROM purchase_invoices
+       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+      [invoiceId, companyId],
+    )
+    return rows[0]?.supplier_id ?? null
+  }
+
   // ── Fetch outstanding invoices by specific IDs (fast PK lookup) ──
   async findOutstandingByIds(
     companyId: string,
@@ -684,8 +737,10 @@ export class ApPaymentsRepository {
          END                                                      AS aging_days,
          pi.status                                                AS invoice_status,
          pi.assigned_bank_account_id,
+         pi.supplier_bank_account_id,
          COALESCE(
            (SELECT json_agg(json_build_object(
+             'id', ba.id,
              'bank_name', bk.bank_name,
              'account_number', ba.account_number,
              'account_name', ba.account_name
@@ -936,9 +991,11 @@ export class ApPaymentsRepository {
          END                                                      AS aging_days,
          pi.status                                                AS invoice_status,
          pi.assigned_bank_account_id,
+         pi.supplier_bank_account_id,
          gr_dates.earliest_received_date,
          COALESCE(
            (SELECT json_agg(json_build_object(
+             'id', ba.id,
              'bank_name', bk.bank_name,
              'account_number', ba.account_number,
              'account_name', ba.account_name
@@ -1029,6 +1086,7 @@ export class ApPaymentsRepository {
       branch_id: string
       supplier_id: string
       bank_account_id: number
+      supplier_bank_account_id?: number | null
       payment_method: string
       total_amount: number
       payment_number: string
@@ -1055,11 +1113,11 @@ export class ApPaymentsRepository {
       const { rows } = await client.query<ApPaymentDB>(
         `INSERT INTO ap_payments (
            company_id, branch_id, payment_number, supplier_id,
-           bank_account_id, payment_method, total_amount,
+           bank_account_id, supplier_bank_account_id, payment_method, total_amount,
            status, bulk_payment_batch_id, notes, created_by, updated_by,
            paid_at, paid_by, payment_date,
            proof_url, proof_uploaded_at, proof_uploaded_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$12,$13,$14,$15,$16,$17)
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12,$13,$14,$15,$16,$17,$18)
          RETURNING *`,
         [
           payment.company_id,
@@ -1067,6 +1125,7 @@ export class ApPaymentsRepository {
           payment.payment_number,
           payment.supplier_id,
           payment.bank_account_id,
+          payment.supplier_bank_account_id ?? null,
           payment.payment_method,
           payment.total_amount,
           status,

@@ -21,6 +21,14 @@ export class ApPaymentInvoiceNotEligibleError extends BusinessRuleError {
   }
 }
 
+export class ApPaymentInvalidSupplierBankError extends BusinessRuleError {
+  constructor(bankAccountId: number) {
+    super(
+      `Rekening supplier (id ${bankAccountId}) tidak valid atau bukan milik supplier invoice ini.`,
+    )
+  }
+}
+
 export class ApPaymentInvoiceNotPostedForPaidError extends BusinessRuleError {
   constructor(invoiceNumber: string) {
     super(

@@ -126,6 +126,26 @@ export class ApPaymentsController {
     }
   }
 
+  async assignSupplierBankAccount(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const invoiceId = req.params.id as string
+      const { supplier_bank_account_id } = (req as any).validated?.body ?? req.body
+
+      await apPaymentsService.assignSupplierBankAccountToInvoice(
+        invoiceId,
+        supplier_bank_account_id,
+        companyId,
+        userId,
+      )
+
+      sendSuccess(res, { invoice_id: invoiceId, supplier_bank_account_id }, 'Supplier bank account assigned')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'assign supplier bank to invoice', id: req.params.id })
+    }
+  }
+
   // POST /ap-payments/outstanding-invoices/by-ids
   async outstandingInvoicesByIds(req: Request, res: Response): Promise<void> {
     try {

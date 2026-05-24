@@ -29,6 +29,7 @@ import type {
 import {
   ApPaymentNotFoundError,
   ApPaymentInvalidStatusError,
+  ApPaymentInvalidSupplierBankError,
   ApPaymentInvoiceNotEligibleError,
   ApPaymentInvoiceNotPostedForPaidError,
   ApPaymentOutstandingExceededError,
@@ -443,6 +444,31 @@ export class ApPaymentsService {
     userId: string,
   ): Promise<void> {
     await apPaymentsRepository.assignBankAccount(invoiceId, bankAccountId, companyId, userId)
+  }
+
+  async assignSupplierBankAccountToInvoice(
+    invoiceId: string,
+    supplierBankAccountId: number | null,
+    companyId: string,
+    userId: string,
+  ): Promise<void> {
+    if (supplierBankAccountId != null) {
+      const supplierId = await apPaymentsRepository.findInvoiceSupplierId(invoiceId, companyId)
+      if (!supplierId) {
+        throw new ApPaymentInvalidSupplierBankError(supplierBankAccountId)
+      }
+      const valid = await apPaymentsRepository.validateSupplierBankAccount(
+        supplierBankAccountId,
+        supplierId,
+      )
+      if (!valid) throw new ApPaymentInvalidSupplierBankError(supplierBankAccountId)
+    }
+    await apPaymentsRepository.assignSupplierBankAccount(
+      invoiceId,
+      supplierBankAccountId,
+      companyId,
+      userId,
+    )
   }
 
   /**
@@ -955,6 +981,7 @@ export class ApPaymentsService {
         branch_id: string
         supplier_id: string
         bank_account_id: number
+        supplier_bank_account_id?: number | null
         payment_method: string
         total_amount: number
         payment_number: string
@@ -995,6 +1022,7 @@ export class ApPaymentsService {
           branch_id: branchId,
           supplier_id: payment.supplier_id,
           bank_account_id: payment.bank_account_id,
+          supplier_bank_account_id: payment.supplier_bank_account_id ?? null,
           payment_method: payment.payment_method ?? 'TRANSFER',
           total_amount: paymentTotal,
           payment_number: paymentNumber,

@@ -63,6 +63,10 @@ export interface ApPayment {
   bank_account_name: string
   bank_account_number: string
   bank_name?: string
+  supplier_bank_account_id?: number | null
+  supplier_bank_name?: string | null
+  supplier_bank_account_number?: string | null
+  supplier_bank_account_name?: string | null
   invoice_count: number
   lines?: ApPaymentInvoiceLine[]
   // Employee names for timeline
@@ -228,8 +232,10 @@ export interface OutstandingInvoiceRow {
   aging_days: number | null
   invoice_status: 'APPROVED' | 'POSTED'
   assigned_bank_account_id: number | null
+  supplier_bank_account_id: number | null
   earliest_received_date: string | null
   supplier_bank_accounts: Array<{
+    id: number
     bank_name: string
     account_number: string
     account_name: string
@@ -504,6 +510,7 @@ export interface BulkCreateApPaymentDto {
   payments: Array<{
     supplier_id: string
     bank_account_id: number
+    supplier_bank_account_id?: number | null
     payment_method: ApPaymentMethod
     invoice_lines: Array<{
       purchase_invoice_id: string
@@ -569,6 +576,30 @@ export const useAssignBankAccount = () => {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ap-payments', 'bulk-invoices'] })
+      qc.invalidateQueries({ queryKey: ['ap-payments', 'outstanding-paginated'] })
+    },
+  })
+}
+
+export const useAssignSupplierBankAccount = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      invoiceId,
+      supplierBankAccountId,
+    }: {
+      invoiceId: string
+      supplierBankAccountId: number | null
+    }) => {
+      const { data } = await api.patch(
+        `/ap-payments/outstanding-invoices/${invoiceId}/assign-supplier-bank`,
+        { supplier_bank_account_id: supplierBankAccountId },
+      )
+      return data.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ap-payments', 'bulk-invoices'] })
+      qc.invalidateQueries({ queryKey: ['ap-payments', 'outstanding-paginated'] })
     },
   })
 }

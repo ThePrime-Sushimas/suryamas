@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Save, AlertCircle, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
@@ -11,6 +12,7 @@ import {
 } from "../api/purchaseInvoices.api";
 import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
+import { bankAccountsApi } from "@/features/bank-accounts/api/bankAccounts.api";
 import { isSupplierEligibleForPurchaseInvoice } from "@/lib/marketplaceSupplier";
 import api from "@/lib/axios";
 import {
@@ -114,6 +116,7 @@ export default function PurchaseInvoiceFormPage() {
     new Date().toISOString().slice(0, 10),
   );
   const [notes, setNotes] = useState("");
+  const [supplierBankAccountId, setSupplierBankAccountId] = useState<number | null>(null);
   const [selectedGrIds, setSelectedGrIds] = useState<string[]>([]);
   const [lines, setLines] = useState<PILine[]>([]);
   const [charges, setCharges] = useState<PIChargeRow[]>([]);
@@ -123,6 +126,13 @@ export default function PurchaseInvoiceFormPage() {
   );
   const { data: suppliersData } = useSuppliers({ limit: 100 });
   const { data: branchesData } = useBranches({ limit: 100 });
+
+  const { data: supplierBankAccounts = [] } = useQuery({
+    queryKey: ["bank-accounts", "supplier", supplierId],
+    queryFn: () => bankAccountsApi.getByOwner("supplier", supplierId),
+    enabled: !!supplierId,
+    staleTime: 60_000,
+  });
   const { data: availableGrs, isLoading: isFetchingGrs } = useAvailableGrs(
     supplierId,
     branchId,
@@ -162,6 +172,7 @@ export default function PurchaseInvoiceFormPage() {
       setInvoiceNumber(existingPI.invoice_number);
       setInvoiceDate(existingPI.invoice_date.slice(0, 10));
       setNotes(existingPI.notes ?? "");
+      setSupplierBankAccountId(existingPI.supplier_bank_account_id ?? null);
       setSelectedGrIds(existingPI.gr_links.map((l) => l.goods_receipt_id));
       setLines(
         existingPI.lines.map((l) => ({
@@ -202,6 +213,13 @@ export default function PurchaseInvoiceFormPage() {
       );
     }
   }, [isEdit, existingPI]);
+
+  useEffect(() => {
+    if (isEdit) return;
+    if (supplierBankAccounts.length === 1 && supplierBankAccountId == null) {
+      setSupplierBankAccountId(supplierBankAccounts[0].id);
+    }
+  }, [isEdit, supplierBankAccounts, supplierBankAccountId]);
 
   // Fetch GR lines when GRs are selected (only in create mode or when adding new GRs)
   const fetchGrLines = async (grId: string) => {
@@ -400,6 +418,7 @@ export default function PurchaseInvoiceFormPage() {
       invoice_number: invoiceNumber,
       invoice_date: invoiceDate,
       notes: notes || null,
+      supplier_bank_account_id: supplierBankAccountId,
       lines: lines.map((l, i) => ({
         gr_line_id: l.gr_line_id,
         qty_invoiced: l.qty_invoiced,
@@ -553,6 +572,7 @@ export default function PurchaseInvoiceFormPage() {
                   value={supplierId}
                   onChange={(e) => {
                     setSupplierId(e.target.value);
+                    setSupplierBankAccountId(null);
                     setSelectedGrIds([]);
                     setLines([]);
                   }}
@@ -620,6 +640,28 @@ export default function PurchaseInvoiceFormPage() {
                 </p>
               </div>
             </div>
+            {supplierId && supplierBankAccounts.length > 0 && (
+              <div>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                  Rekening Tujuan Supplier
+                </label>
+                <select
+                  value={supplierBankAccountId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSupplierBankAccountId(v === "" ? null : Number(v));
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="">Pilih rekening tujuan...</option>
+                  {supplierBankAccounts.map((ba) => (
+                    <option key={ba.id} value={ba.id}>
+                      {ba.bank_name} — {ba.account_number}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
                 Catatan

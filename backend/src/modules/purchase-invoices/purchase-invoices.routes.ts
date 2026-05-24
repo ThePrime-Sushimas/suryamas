@@ -23,6 +23,8 @@ import {
   approvePurchaseInvoiceSchema,
   submitPurchaseInvoiceSchema,
   updatePurchaseInvoiceSchema,
+  splitPurchaseInvoiceSchema,
+  mergePurchaseInvoicesSchema,
 } from "./purchase-invoices.schema";
 import { PermissionService } from "../../services/permission.service";
 
@@ -74,7 +76,14 @@ router.post(
 router.post(
   "/merge",
   canInsert("purchase_invoices"),
+  validateSchema(mergePurchaseInvoicesSchema),
   (req, res) => purchaseInvoicesController.merge(req, res),
+);
+router.post(
+  "/:id/split",
+  canUpdate("purchase_invoices"),
+  validateSchema(splitPurchaseInvoiceSchema),
+  (req, res) => purchaseInvoicesController.split(req, res),
 );
 router.put(
   "/:id",

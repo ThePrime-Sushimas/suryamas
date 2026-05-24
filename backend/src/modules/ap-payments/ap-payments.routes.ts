@@ -20,6 +20,7 @@ import {
   outstandingInvoicesQuerySchema,
   outstandingInvoicesByIdsSchema,
   assignBankAccountSchema,
+  assignSupplierBankAccountSchema,
   apDashboardSchema,
   apPaymentParamSchema,
   createApPaymentSchema,
@@ -65,6 +66,13 @@ router.patch(
   requireWriteAccess,
   validateSchema(assignBankAccountSchema),
   (req, res) => apPaymentsController.assignBankAccount(req, res),
+)
+router.patch(
+  '/outstanding-invoices/:id/assign-supplier-bank',
+  canInsert(MODULE),
+  requireWriteAccess,
+  validateSchema(assignSupplierBankAccountSchema),
+  (req, res) => apPaymentsController.assignSupplierBankAccount(req, res),
 )
 
 router.post(

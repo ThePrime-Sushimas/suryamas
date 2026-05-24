@@ -96,7 +96,10 @@ export default function BulkCreatePage() {
 
   // Build a map of supplier bank accounts from the original invoice data
   const supplierBankAccountsMap = useMemo(() => {
-    const map = new Map<string, Array<{ bank_name: string; account_number: string; account_name: string }>>()
+    const map = new Map<
+      string,
+      Array<{ id: number; bank_name: string; account_number: string; account_name: string }>
+    >()
     if (!invoiceData) return map
     for (const inv of invoiceData) {
       if (!map.has(inv.supplier_id) && inv.supplier_bank_accounts?.length > 0) {
@@ -105,23 +108,6 @@ export default function BulkCreatePage() {
     }
     return map
   }, [invoiceData])
-
-  // Track selected supplier bank account (tujuan) per supplier
-  const [supplierBankSelections, setSupplierBankSelections] = useState<Map<string, string>>(new Map())
-
-  // Auto-select when supplier has only 1 bank account
-  useEffect(() => {
-    if (!invoiceData || invoiceData.length === 0) return
-    setSupplierBankSelections((prev) => {
-      const next = new Map(prev)
-      for (const [supplierId, accounts] of supplierBankAccountsMap) {
-        if (!next.has(supplierId) && accounts.length === 1) {
-          next.set(supplierId, `${accounts[0].bank_name} ${accounts[0].account_number}`)
-        }
-      }
-      return next
-    })
-  }, [invoiceData, supplierBankAccountsMap])
 
   // Currency formatter for confirmation dialog
   const fmtCurrency = useCallback(
@@ -167,12 +153,13 @@ export default function BulkCreatePage() {
   const handleConfirmSubmit = useCallback(() => {
     setShowConfirmModal(false)
 
-    // Build payload grouped by (supplier_id, bank_account_id)
+    // Build payload grouped by (supplier, rek sumber, rek tujuan, metode bayar)
     const groupMap = new Map<
       string,
       {
         supplier_id: string
         bank_account_id: number
+        supplier_bank_account_id: number | null
         payment_method: string
         invoice_lines: Array<{ purchase_invoice_id: string; amount_paid: number }>
         notes: string | null
@@ -182,7 +169,8 @@ export default function BulkCreatePage() {
     for (const invoice of bulkState.checkedInvoices) {
       if (invoice.bankAccountId == null) continue
 
-      const key = `${invoice.supplierId}:${invoice.bankAccountId}`
+      const paymentMethod = bulkState.groupPaymentMethods.get(invoice.supplierId) ?? 'TRANSFER'
+      const key = `${invoice.supplierId}:${invoice.bankAccountId}:${invoice.supplierBankAccountId ?? ''}:${paymentMethod}`
       const existing = groupMap.get(key)
 
       if (existing) {
@@ -192,11 +180,11 @@ export default function BulkCreatePage() {
         })
       } else {
         const notes = bulkState.groupNotes.get(invoice.supplierId) || null
-        const paymentMethod = bulkState.groupPaymentMethods.get(invoice.supplierId) ?? 'TRANSFER'
 
         groupMap.set(key, {
           supplier_id: invoice.supplierId,
           bank_account_id: invoice.bankAccountId,
+          supplier_bank_account_id: invoice.supplierBankAccountId,
           payment_method: paymentMethod,
           invoice_lines: [
             {
@@ -214,6 +202,7 @@ export default function BulkCreatePage() {
       payments: Array.from(groupMap.values()).map((group) => ({
         supplier_id: group.supplier_id,
         bank_account_id: group.bank_account_id,
+        supplier_bank_account_id: group.supplier_bank_account_id,
         payment_method: group.payment_method as 'TRANSFER' | 'CASH' | 'CHECK' | 'GIRO',
         invoice_lines: group.invoice_lines,
         notes: group.notes,
@@ -259,7 +248,7 @@ export default function BulkCreatePage() {
         }
       },
     })
-  }, [bulkState.checkedInvoices, bulkState.groupNotes, bulkCreateMutation, navigate, toast])
+  }, [bulkState.checkedInvoices, bulkState.groupNotes, bulkState.groupPaymentMethods, bulkCreateMutation, navigate, toast])
 
   // Don't render if redirecting
   if (!sessionPayload) return null
@@ -326,7 +315,7 @@ export default function BulkCreatePage() {
       {/* Backend validation error banner */}
       {submissionError && (
         <div className="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-red-200 bg-red-50/70 dark:border-red-800 dark:bg-red-900/20">
-          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-red-800 dark:text-red-200">
               Gagal membuat pembayaran
@@ -345,7 +334,7 @@ export default function BulkCreatePage() {
           {/* Bank accounts API error */}
           {bankAccountsError && (
             <div className="flex items-center gap-3 p-4 rounded-2xl border border-red-200 bg-red-50/70 dark:border-red-800 dark:bg-red-900/20">
-              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+              <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
               <p className="text-sm text-red-700 dark:text-red-300">
                 Gagal memuat data rekening bank. Semua pemilihan rekening dinonaktifkan.
               </p>
@@ -370,19 +359,11 @@ export default function BulkCreatePage() {
               companyBankAccounts={bankAccountsError ? [] : companyBankAccounts}
               groupNotes={bulkState.groupNotes.get(group.supplierId) ?? ''}
               paymentMethod={bulkState.groupPaymentMethods.get(group.supplierId) ?? 'TRANSFER'}
-              selectedSupplierBank={supplierBankSelections.get(group.supplierId) ?? ''}
               onGroupNotesChange={(notes) =>
                 bulkState.setGroupNotes(group.supplierId, notes)
               }
               onPaymentMethodChange={(method) =>
                 bulkState.setGroupPaymentMethod(group.supplierId, method)
-              }
-              onSupplierBankChange={(value) =>
-                setSupplierBankSelections((prev) => {
-                  const next = new Map(prev)
-                  next.set(group.supplierId, value)
-                  return next
-                })
               }
               onInvoiceToggle={(invoiceId, checked) =>
                 bulkState.toggleInvoice(invoiceId, checked)
@@ -397,6 +378,9 @@ export default function BulkCreatePage() {
                   })
                 }
               }}
+              onSupplierBankAccountChange={(invoiceId, supplierBankAccountId) =>
+                bulkState.setSupplierBankAccount(invoiceId, supplierBankAccountId)
+              }
               onAmountPaidChange={(invoiceId, amount) =>
                 bulkState.setAmountPaid(invoiceId, amount)
               }

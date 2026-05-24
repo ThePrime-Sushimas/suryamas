@@ -20,6 +20,7 @@ export interface ApPaymentDB {
   payment_number: string
   supplier_id: string
   bank_account_id: number
+  supplier_bank_account_id?: number | null
   payment_method: ApPaymentMethod
   total_amount: string        // NUMERIC comes back as string from pg
   payment_date: string | null
@@ -77,6 +78,10 @@ export interface ApPaymentWithRelations extends ApPaymentDB {
   branch_code: string
   bank_account_name: string
   bank_account_number: string
+  supplier_bank_account_id?: number | null
+  supplier_bank_name?: string | null
+  supplier_bank_account_number?: string | null
+  supplier_bank_account_name?: string | null
   invoice_count: number
   journal_number?: string | null
   journal_status?: string | null
@@ -284,6 +289,7 @@ export interface BulkCreateApPaymentDto {
   payments: Array<{
     supplier_id: string
     bank_account_id: number
+    supplier_bank_account_id?: number | null
     payment_method: ApPaymentMethod // default TRANSFER
     invoice_lines: Array<{
       purchase_invoice_id: string
@@ -331,10 +337,13 @@ export interface OutstandingInvoiceRow {
   invoice_status: 'APPROVED' | 'POSTED'
   earliest_received_date: string | null
   supplier_bank_accounts: Array<{
+    id: number
     bank_name: string
     account_number: string
     account_name: string
   }>
+  supplier_bank_account_id?: number | null
+  assigned_bank_account_id?: number | null
 }
 
 export interface OutstandingInvoicesResponse {
