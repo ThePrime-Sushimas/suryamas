@@ -1,6 +1,6 @@
 import { goodsReceiptsRepository } from './goods-receipts.repository'
 import { goodsProcessingRepository } from '../goods-processing/goods-processing.repository'
-import { productOutputTemplateRepository } from '../products/product-output-template.repository'
+import { productOutputTemplateRepository } from '../product-output-template/product-output-template.repository'
 import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.repository'
 import { PAYMENT_DUE_AT_GR_CONFIRM_TYPES } from '../payment-terms/payment-terms.constants'
 import { BusinessRuleError } from '../../utils/errors.base'

@@ -17,6 +17,7 @@ export interface OutputTemplateRow {
   suggested_pct: number | null
   sort_order: number
   notes: string | null
+  bears_cost: boolean
 }
 
 // ── Detail response types ─────────────────────────────────────────────────────

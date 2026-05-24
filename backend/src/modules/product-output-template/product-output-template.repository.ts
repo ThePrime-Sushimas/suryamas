@@ -11,6 +11,7 @@ export interface OutputTemplateRow {
   suggested_pct: number | null
   sort_order: number
   notes: string | null
+  bears_cost: boolean
 }
 
 export interface UpsertOutputTemplateDto {
@@ -19,6 +20,7 @@ export interface UpsertOutputTemplateDto {
   suggested_pct?: number | null
   sort_order?: number
   notes?: string | null
+  bears_cost?: boolean
 }
 
 export class ProductOutputTemplateRepository {
@@ -49,7 +51,8 @@ export class ProductOutputTemplateRepository {
          pot.output_uom,
          pot.suggested_pct,
          pot.sort_order,
-         pot.notes
+         pot.notes,
+         pot.bears_cost
        FROM product_output_templates pot
        JOIN products p ON p.id = pot.output_product_id
        WHERE pot.product_id = $1
@@ -74,7 +77,8 @@ export class ProductOutputTemplateRepository {
          pot.output_uom,
          pot.suggested_pct,
          pot.sort_order,
-         pot.notes
+         pot.notes,
+         pot.bears_cost
        FROM product_output_templates pot
        JOIN products p ON p.id = pot.output_product_id
        WHERE pot.product_id = ANY($1::uuid[])
@@ -110,21 +114,22 @@ export class ProductOutputTemplateRepository {
     let idx = 1
 
     for (const [i, item] of items.entries()) {
-      valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5})`)
+      valueRows.push(`($${idx}, $${idx+1}, $${idx+2}, $${idx+3}, $${idx+4}, $${idx+5}, $${idx+6})`)
       params.push(
         productId,
         item.output_product_id,
         item.output_uom,
         item.suggested_pct ?? null,
         item.sort_order ?? i,
+        item.bears_cost ?? true,
         userId
       )
-      idx += 6
+      idx += 7
     }
 
     await client.query(
       `INSERT INTO product_output_templates
-         (product_id, output_product_id, output_uom, suggested_pct, sort_order, created_by)
+         (product_id, output_product_id, output_uom, suggested_pct, sort_order, bears_cost, created_by)
        VALUES ${valueRows.join(', ')}`,
       params
     )

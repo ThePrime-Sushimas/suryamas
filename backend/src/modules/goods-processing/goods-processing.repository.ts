@@ -7,7 +7,7 @@ import type {
   GoodsProcessingOutputWithProduct,
   ConditionStatus,
 } from './goods-processing.types'
-import { productOutputTemplateRepository } from '../products/product-output-template.repository'
+import { productOutputTemplateRepository } from '../product-output-template/product-output-template.repository'
 import { stockRepository } from '../stock/stock.repository'
 
 const HEADER_SELECT = `
@@ -162,6 +162,49 @@ async confirmInputWithStock(
     )
     const isPassThrough = gp?.processing_type === 'PASS_THROUGH'
 
+    // ─── Cost allocation ────────────────────────────────────────────────────
+    // Fetch input's GR line cost
+    const { rows: [inputRow] } = await client.query(
+      `SELECT gpi.product_id, gpi.qty_input, gpi.uom, grl.total_price_invoice, grl.unit_price_invoice
+       FROM goods_processing_inputs gpi
+       JOIN goods_receipt_lines grl ON grl.id = gpi.gr_line_id
+       WHERE gpi.id = $1`,
+      [inputId]
+    )
+    const totalInputCost = inputRow ? Number(inputRow.total_price_invoice) || 0 : 0
+
+    // Fetch template to determine bears_cost per output product
+    const inputProductId = inputRow?.product_id
+    let bearsCostMap = new Map<string, boolean>() // output_product_id → bears_cost
+    if (inputProductId) {
+      const templates = await productOutputTemplateRepository.findByProductId(inputProductId)
+      for (const t of templates) {
+        bearsCostMap.set(t.output_product_id, t.bears_cost)
+      }
+    }
+
+    // Calculate total base qty of cost-bearing outputs (non-waste, non-return)
+    let totalCostBearingBaseQty = 0
+    for (const out of freshOutputs) {
+      if (out.is_waste || out.flagged_for_return) continue
+      // Check bears_cost: default true if not in template
+      const bearsCost = bearsCostMap.get(out.product_id) ?? true
+      if (!bearsCost) continue
+
+      if (isPassThrough && out.condition_status === 'DAMAGED' && out.actual_qty !== null) {
+        const goodQty = toBaseQty(out.product_id, out.actual_uom ?? out.uom, Number(out.actual_qty), uomsMap)
+        totalCostBearingBaseQty += goodQty
+      } else {
+        const qty = out.actual_qty != null ? Number(out.actual_qty) : Number(out.qty_output)
+        const uom = out.actual_uom != null ? out.actual_uom : out.uom
+        totalCostBearingBaseQty += toBaseQty(out.product_id, uom, qty, uomsMap)
+      }
+    }
+
+    // Cost per base unit for cost-bearing outputs
+    const costPerBaseUnit = totalCostBearingBaseQty > 0 ? totalInputCost / totalCostBearingBaseQty : 0
+    // ─── End cost allocation ────────────────────────────────────────────────
+
     for (const out of freshOutputs) {
       if (isPassThrough && out.condition_status === 'DAMAGED' && out.actual_qty !== null) {
         const goodQty = toBaseQty(out.product_id, out.actual_uom ?? out.uom, Number(out.actual_qty), uomsMap)
@@ -169,25 +212,40 @@ async confirmInputWithStock(
         const wasteQty = Math.max(0, totalBase - goodQty)
 
         if (goodQty > 0) {
+          const bearsCost = bearsCostMap.get(out.product_id) ?? true
+          const outputCostPerUnit = bearsCost ? costPerBaseUnit : 0
+
           const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
           const currentQty = currentBalance ? Number(currentBalance.qty) : 0
           const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
           const newQty = currentQty + goodQty
+
+          // Weighted average cost
+          const newAvgCost = newQty > 0
+            ? ((currentQty * currentAvgCost) + (goodQty * outputCostPerUnit)) / newQty
+            : outputCostPerUnit
 
           const movement = await stockRepository.createMovement(client, {
             warehouse_id: warehouseId,
             product_id: out.product_id,
             movement_type: 'IN_PURCHASE',
             qty: goodQty,
-            cost_per_unit: 0,
+            cost_per_unit: outputCostPerUnit,
             reference_type: 'goods_processing',
             reference_id: gpId,
             notes: `GP ${processingNumber} - ${goodQty} bagus, ${wasteQty} waste`,
             created_by: userId,
           }, newQty)
 
-          await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, currentAvgCost)
+          await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, newAvgCost)
           await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
+
+          // Update allocated_cost on output row
+          const allocatedCost = goodQty * outputCostPerUnit
+          await client.query(
+            'UPDATE goods_processing_outputs SET unit_cost = $1, allocated_cost = $2 WHERE id = $3',
+            [outputCostPerUnit, allocatedCost, out.id]
+          )
         }
         continue
       }
@@ -198,25 +256,40 @@ async confirmInputWithStock(
       const uom = out.actual_uom != null ? out.actual_uom : out.uom
       const baseQty = toBaseQty(out.product_id, uom, qty, uomsMap)
 
+      const bearsCost = bearsCostMap.get(out.product_id) ?? true
+      const outputCostPerUnit = bearsCost ? costPerBaseUnit : 0
+
       const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
       const currentQty = currentBalance ? Number(currentBalance.qty) : 0
       const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
       const newQty = currentQty + baseQty
+
+      // Weighted average cost
+      const newAvgCost = newQty > 0
+        ? ((currentQty * currentAvgCost) + (baseQty * outputCostPerUnit)) / newQty
+        : outputCostPerUnit
 
       const movement = await stockRepository.createMovement(client, {
         warehouse_id: warehouseId,
         product_id: out.product_id,
         movement_type: 'IN_PURCHASE',
         qty: baseQty,
-        cost_per_unit: 0,
+        cost_per_unit: outputCostPerUnit,
         reference_type: 'goods_processing',
         reference_id: gpId,
         notes: `GP ${processingNumber} - item selesai`,
         created_by: userId,
       }, newQty)
 
-      await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, currentAvgCost)
+      await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, newAvgCost)
       await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
+
+      // Update allocated_cost on output row
+      const allocatedCost = baseQty * outputCostPerUnit
+      await client.query(
+        'UPDATE goods_processing_outputs SET unit_cost = $1, allocated_cost = $2 WHERE id = $3',
+        [outputCostPerUnit, allocatedCost, out.id]
+      )
     }
 
     await this.syncHeaderStatusFromLines(client, gpId)
@@ -284,6 +357,42 @@ async confirmGpWithStock(
       const baseInputQty = toBaseQty(inp.product_id, inp.uom, Number(inp.qty_input), uomsMap)
       totalInputQty += baseInputQty
 
+      // ─── Cost allocation per input ──────────────────────────────────────
+      const { rows: [grLine] } = await client.query(
+        `SELECT grl.total_price_invoice
+         FROM goods_processing_inputs gpi
+         JOIN goods_receipt_lines grl ON grl.id = gpi.gr_line_id
+         WHERE gpi.id = $1`,
+        [inp.id]
+      )
+      const totalInputCost = grLine ? Number(grLine.total_price_invoice) || 0 : 0
+
+      // Fetch template for bears_cost
+      const templates = await productOutputTemplateRepository.findByProductId(inp.product_id)
+      const bearsCostMap = new Map<string, boolean>()
+      for (const t of templates) {
+        bearsCostMap.set(t.output_product_id, t.bears_cost)
+      }
+
+      // Calculate total cost-bearing base qty for this input
+      let totalCostBearingBaseQty = 0
+      for (const out of inp.outputs) {
+        if (out.is_waste || out.flagged_for_return || out.stock_movement_id) continue
+        const bearsCost = bearsCostMap.get(out.product_id) ?? true
+        if (!bearsCost) continue
+
+        if (isPassThrough && out.condition_status === 'DAMAGED' && out.actual_qty !== null) {
+          totalCostBearingBaseQty += toBaseQty(out.product_id, out.actual_uom ?? out.uom, Number(out.actual_qty), uomsMap)
+        } else {
+          const qty = out.actual_qty !== null ? Number(out.actual_qty) : Number(out.qty_output)
+          const uom = out.actual_uom !== null ? out.actual_uom : out.uom
+          totalCostBearingBaseQty += toBaseQty(out.product_id, uom, qty, uomsMap)
+        }
+      }
+
+      const costPerBaseUnit = totalCostBearingBaseQty > 0 ? totalInputCost / totalCostBearingBaseQty : 0
+      // ─── End cost allocation ────────────────────────────────────────────
+
       for (const out of inp.outputs) {
         if (isPassThrough && out.condition_status === 'DAMAGED' && out.actual_qty !== null) {
           const goodQty = toBaseQty(out.product_id, out.actual_uom ?? out.uom, Number(out.actual_qty), uomsMap)
@@ -298,26 +407,39 @@ async confirmGpWithStock(
           }
 
           if (goodQty > 0) {
+            const bearsCost = bearsCostMap.get(out.product_id) ?? true
+            const outputCostPerUnit = bearsCost ? costPerBaseUnit : 0
+
             const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
             const currentQty = currentBalance ? Number(currentBalance.qty) : 0
             const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
             const newQty = currentQty + goodQty
             totalOutputQty += goodQty
 
+            const newAvgCost = newQty > 0
+              ? ((currentQty * currentAvgCost) + (goodQty * outputCostPerUnit)) / newQty
+              : outputCostPerUnit
+
             const movement = await stockRepository.createMovement(client, {
               warehouse_id: warehouseId,
               product_id: out.product_id,
               movement_type: 'IN_PURCHASE',
               qty: goodQty,
-              cost_per_unit: 0,
+              cost_per_unit: outputCostPerUnit,
               reference_type: 'goods_processing',
               reference_id: id,
               notes: `GP ${processingNumber} - ${goodQty} bagus, ${wasteQty} waste`,
               created_by: userId,
             }, newQty)
 
-            await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, currentAvgCost)
+            await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, newAvgCost)
             await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
+
+            const allocatedCost = goodQty * outputCostPerUnit
+            await client.query(
+              'UPDATE goods_processing_outputs SET unit_cost = $1, allocated_cost = $2 WHERE id = $3',
+              [outputCostPerUnit, allocatedCost, out.id]
+            )
           }
           continue
         }
@@ -335,6 +457,9 @@ async confirmGpWithStock(
           continue
         }
 
+        const bearsCost = bearsCostMap.get(out.product_id) ?? true
+        const outputCostPerUnit = bearsCost ? costPerBaseUnit : 0
+
         const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
         const currentQty = currentBalance ? Number(currentBalance.qty) : 0
         const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
@@ -342,20 +467,30 @@ async confirmGpWithStock(
         totalOutputQty += baseQty
         const newQty = currentQty + baseQty
 
+        const newAvgCost = newQty > 0
+          ? ((currentQty * currentAvgCost) + (baseQty * outputCostPerUnit)) / newQty
+          : outputCostPerUnit
+
         const movement = await stockRepository.createMovement(client, {
           warehouse_id: warehouseId,
           product_id: out.product_id,
           movement_type: 'IN_PURCHASE',
           qty: baseQty,
-          cost_per_unit: 0,
+          cost_per_unit: outputCostPerUnit,
           reference_type: 'goods_processing',
           reference_id: id,
           notes: `GP ${processingNumber}`,
           created_by: userId,
         }, newQty)
 
-        await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, currentAvgCost)
+        await stockRepository.upsertBalance(client, warehouseId, out.product_id, newQty, newAvgCost)
         await this.linkMovementToOutput(client, out.id, movement.id, warehouseId)
+
+        const allocatedCost = baseQty * outputCostPerUnit
+        await client.query(
+          'UPDATE goods_processing_outputs SET unit_cost = $1, allocated_cost = $2 WHERE id = $3',
+          [outputCostPerUnit, allocatedCost, out.id]
+        )
       }
     }
 
@@ -613,24 +748,52 @@ async rejectGp(id: string, rejection_reason: string, userId: string): Promise<vo
       }
 
       if (resolution === 'STOCK') {
+        // Fetch cost info: look up the input's GR line cost and template bears_cost
+        const { rows: [outputRow] } = await client.query(
+          `SELECT gpo.input_id, gpi.product_id AS input_product_id, grl.total_price_invoice
+           FROM goods_processing_outputs gpo
+           JOIN goods_processing_inputs gpi ON gpi.id = gpo.input_id
+           JOIN goods_receipt_lines grl ON grl.id = gpi.gr_line_id
+           WHERE gpo.id = $1`,
+          [outputId]
+        )
+
+        let costPerUnit = 0
+        if (outputRow) {
+          const templates = await productOutputTemplateRepository.findByProductId(outputRow.input_product_id)
+          const bearsCost = templates.find(t => t.output_product_id === output.product_id)?.bears_cost ?? true
+          if (bearsCost) {
+            // Use the unit_cost already calculated if available, otherwise estimate
+            const { rows: [existingCost] } = await client.query(
+              'SELECT unit_cost FROM goods_processing_outputs WHERE input_id = $1 AND product_id = $2 AND unit_cost IS NOT NULL LIMIT 1',
+              [outputRow.input_id, output.product_id]
+            )
+            costPerUnit = existingCost ? Number(existingCost.unit_cost) : 0
+          }
+        }
+
         const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, output.product_id)
         const currentQty = currentBalance ? Number(currentBalance.qty) : 0
         const currentAvgCost = currentBalance ? Number(currentBalance.avg_cost) : 0
         const newQty = currentQty + baseQty
+
+        const newAvgCost = newQty > 0
+          ? ((currentQty * currentAvgCost) + (baseQty * costPerUnit)) / newQty
+          : costPerUnit
 
         const movement = await stockRepository.createMovement(client, {
           warehouse_id: warehouseId,
           product_id: output.product_id,
           movement_type: 'IN_PURCHASE',
           qty: baseQty,
-          cost_per_unit: 0,
+          cost_per_unit: costPerUnit,
           reference_type: 'goods_processing',
           reference_id: gpId,
           notes: `GP ${processingNumber} — return resolved (STOCK)`,
           created_by: userId,
         }, newQty)
 
-        await stockRepository.upsertBalance(client, warehouseId, output.product_id, newQty, currentAvgCost)
+        await stockRepository.upsertBalance(client, warehouseId, output.product_id, newQty, newAvgCost)
         await this.linkMovementToOutput(client, outputId, movement.id, warehouseId)
       }
 
