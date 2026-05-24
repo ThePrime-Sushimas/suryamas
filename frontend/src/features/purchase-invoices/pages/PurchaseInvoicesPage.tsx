@@ -1,7 +1,7 @@
 import { useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useListNavigation } from "@/lib/urlFilters";
-import { FileText, Plus, Search, CheckSquare, Square, ClipboardCheck, Loader2, Undo2 } from "lucide-react";
+import { FileText, Plus, Search, X, CheckSquare, Square, ClipboardCheck, Loader2, Undo2 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -71,7 +71,14 @@ export default function PurchaseInvoicesPage() {
   const canRelease = hasPermission("purchase_invoices", "release");
   const canUpdate = hasPermission("purchase_invoices", "update");
 
-  const { filters, apiQuery, setFilters, setPage } = usePurchaseInvoiceFilters();
+  const {
+    filters,
+    apiQuery,
+    setFilters,
+    setPage,
+    searchInput,
+    setSearchInput,
+  } = usePurchaseInvoiceFilters();
 
   const [deleteTarget, setDeleteTarget] = useState<PurchaseInvoice | null>(
     null,
@@ -218,11 +225,23 @@ export default function PurchaseInvoicesPage() {
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input 
+            <input
               type="text"
-              placeholder="Cari nomor invoice..."
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              placeholder="Cari nomor invoice, supplier, atau cabang..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full pl-9 pr-9 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
             />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setFilters({ search: "" })}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                aria-label="Hapus pencarian"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
           
           <select

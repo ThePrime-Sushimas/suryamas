@@ -20,6 +20,7 @@ import type {
 export const DEFAULT_PURCHASE_INVOICE_FILTERS: PurchaseInvoiceFilters = {
   page: 1,
   limit: 25,
+  search: '',
   supplierId: '',
   branchId: '',
   tab: 'verify',
@@ -30,6 +31,7 @@ const VALID_TABS = new Set<PurchaseInvoiceListTab>(Object.keys(PI_LIST_TAB_STATU
 const MAX_LIST_LIMIT = 100
 
 const FILTER_KEYS_RESET_PAGE: (keyof PurchaseInvoiceFilters)[] = [
+  'search',
   'supplierId',
   'branchId',
   'tab',
@@ -44,6 +46,7 @@ export function parsePurchaseInvoiceFilters(searchParams: URLSearchParams): Purc
       DEFAULT_PURCHASE_INVOICE_FILTERS.limit,
       MAX_LIST_LIMIT,
     ),
+    search: parseString(searchParams.get('search') ?? searchParams.get('q')),
     supplierId: parseString(searchParams.get('supplier_id')),
     branchId: parseString(searchParams.get('branch_id')),
     tab: parseEnum(searchParams.get('tab'), VALID_TABS, DEFAULT_PURCHASE_INVOICE_FILTERS.tab),
@@ -58,6 +61,8 @@ export function stringifyPurchaseInvoiceFilters(filters: PurchaseInvoiceFilters)
   if (page) params.set('page', page)
   const limit = serializeNumber(filters.limit, d.limit)
   if (limit) params.set('limit', limit)
+  const search = serializeString(filters.search)
+  if (search) params.set('search', search)
   const supplierId = serializeString(filters.supplierId)
   if (supplierId) params.set('supplier_id', supplierId)
   const branchId = serializeString(filters.branchId)
@@ -89,11 +94,16 @@ export function resolveListStatus(filters: PurchaseInvoiceFilters): string {
   return PI_LIST_TAB_STATUS[filters.tab]
 }
 
-export function toPurchaseInvoiceListQuery(filters: PurchaseInvoiceFilters): PurchaseInvoiceListQuery {
+export function toPurchaseInvoiceListQuery(
+  filters: PurchaseInvoiceFilters,
+  debouncedSearch?: string,
+): PurchaseInvoiceListQuery {
+  const search = (debouncedSearch ?? filters.search).trim()
   return {
     page: filters.page,
     limit: Math.min(MAX_LIST_LIMIT, Math.max(1, filters.limit)),
     status: resolveListStatus(filters),
+    ...(search ? { search } : {}),
     ...(filters.supplierId ? { supplier_id: filters.supplierId } : {}),
     ...(filters.branchId ? { branch_id: filters.branchId } : {}),
   }

@@ -16,6 +16,7 @@ export class PurchaseInvoicesController {
       if (req.query.branch_id) filter.branch_id = req.query.branch_id as string
       if (req.query.date_from) filter.date_from = req.query.date_from as string
       if (req.query.date_to) filter.date_to = req.query.date_to as string
+      if (req.query.search) filter.search = req.query.search as string
 
       const result = await purchaseInvoicesService.list(companyId, { page, limit }, filter)
       sendSuccess(res, result.data, 'Purchase invoices retrieved', 200, result.pagination)

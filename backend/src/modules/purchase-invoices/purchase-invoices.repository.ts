@@ -978,7 +978,14 @@ export class PurchaseInvoicesRepository {
   async findAll(
     companyId: string,
     pagination: { limit: number; offset: number },
-    filter?: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string },
+    filter?: {
+      status?: string
+      supplier_id?: string
+      branch_id?: string
+      date_from?: string
+      date_to?: string
+      search?: string
+    },
   ): Promise<{ data: PurchaseInvoiceWithRelations[]; total: number }> {
 
     const conditions = [
@@ -1019,6 +1026,15 @@ export class PurchaseInvoicesRepository {
     if (filter?.date_to) {
       params.push(filter.date_to)
       conditions.push(`pi.invoice_date <= $${idx++}::date`)
+    }
+
+    const searchTerm = filter?.search?.trim()
+    if (searchTerm) {
+      params.push(`%${searchTerm}%`)
+      conditions.push(
+        `(pi.invoice_number ILIKE $${idx} OR s.supplier_name ILIKE $${idx} OR b.branch_name ILIKE $${idx})`,
+      )
+      idx++
     }
 
     const where = `WHERE ${conditions.join(' AND ')}`

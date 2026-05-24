@@ -22,13 +22,13 @@ const PI_FILTER_UTILS: UrlFilterUtils<PurchaseInvoiceFilters> = {
 export function usePurchaseInvoiceFilters() {
   const base = useUrlFilters<PurchaseInvoiceFilters>({
     ...PI_FILTER_UTILS,
-    searchField: undefined,
-    debounceMs: 0,
+    searchField: 'search',
+    debounceMs: 400,
   })
 
   const apiQuery: PurchaseInvoiceListQuery = useMemo(
-    () => toPurchaseInvoiceListQuery(base.filters),
-    [base.filters],
+    () => toPurchaseInvoiceListQuery(base.filters, base.debouncedSearch),
+    [base.filters, base.debouncedSearch],
   )
 
   return {

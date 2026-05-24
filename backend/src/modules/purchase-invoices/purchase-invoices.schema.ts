@@ -23,6 +23,7 @@ export const listPurchaseInvoicesSchema = z.object({
     branch_id: z.string().uuid().optional(),
     date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    search: z.string().trim().max(100).optional(),
   }),
 })
 

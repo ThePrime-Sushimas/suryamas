@@ -185,6 +185,7 @@ const KEYS = {
 export const usePurchaseInvoices = (params: {
   page?: number
   limit?: number
+  search?: string
   status?: string
   supplier_id?: string
   branch_id?: string
@@ -198,6 +199,7 @@ export const usePurchaseInvoices = (params: {
         page: params.page ?? 1,
         limit: params.limit ?? 25,
       }
+      if (params.search) queryParams.search = params.search
       if (params.status) queryParams.status = params.status
       if (params.supplier_id) queryParams.supplier_id = params.supplier_id
       if (params.branch_id) queryParams.branch_id = params.branch_id
