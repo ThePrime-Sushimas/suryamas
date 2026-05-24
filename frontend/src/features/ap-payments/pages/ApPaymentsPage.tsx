@@ -23,9 +23,10 @@ import { useApPaymentFilters } from '../hooks/useApPaymentFilters'
 import { ApPaymentsShell } from '../components/ApPaymentsShell'
 import { BulkBadge } from '../components/BulkBadge'
 import { OutstandingInvoicesTab } from '../components/OutstandingInvoicesTab'
+import { CombinedInvoicePaymentsTab } from '../components/CombinedInvoicePaymentsTab'
 import { VerifyScreenshotModal } from '../components/VerifyScreenshotModal'
 import { apTheme } from '../ap-payments.theme'
-import { exportApPaymentsExcel } from '../utils/apPaymentsExport'
+import { exportCombinedExcel } from '../utils/apPaymentsCombinedExport'
 import type { ApPaymentStatus } from '../api/apPayments.api'
 
 const fmtCurrency = (v: number) =>
@@ -80,10 +81,24 @@ export default function ApPaymentsPage() {
   const payments = data?.data ?? []
   const pagination = data?.pagination
 
+  // Export guard: at least one date range must be selected
+  const hasAnyDateFilter = !!(filters.dateFrom || filters.dateTo || filters.dueDateFrom || filters.dueDateTo || filters.receivedDateFrom || filters.receivedDateTo)
+
   const handleExport = async () => {
     setIsExporting(true)
     try {
-      await exportApPaymentsExcel(apiQuery)
+      await exportCombinedExcel({
+        ...(filters.supplierId ? { supplier_id: filters.supplierId } : {}),
+        ...(filters.branchId ? { branch_id: filters.branchId } : {}),
+        ...(filters.search ? { search: filters.search } : {}),
+        ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+        ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+        ...(filters.dueDateFrom ? { due_date_from: filters.dueDateFrom } : {}),
+        ...(filters.dueDateTo ? { due_date_to: filters.dueDateTo } : {}),
+        ...(filters.receivedDateFrom ? { received_date_from: filters.receivedDateFrom } : {}),
+        ...(filters.receivedDateTo ? { received_date_to: filters.receivedDateTo } : {}),
+        ...(filters.status ? { status: filters.status } : {}),
+      })
     } catch (err: unknown) {
       const message = err instanceof Error && err.message === 'NO_DATA'
         ? 'Tidak ada data untuk diekspor'
@@ -124,7 +139,7 @@ export default function ApPaymentsPage() {
             <Link to={AP_DASHBOARD_PATH} className={apTheme.btnSecondary}>
               <LayoutDashboard className="w-4 h-4" /> Dashboard
             </Link>
-            <button type="button" onClick={handleExport} disabled={isExporting || isDirty || (!isLoading && payments.length === 0)} className={apTheme.btnSecondary} title={isDirty ? 'Terapkan filter dulu' : undefined}>
+            <button type="button" onClick={handleExport} disabled={isExporting || isDirty || !hasAnyDateFilter} className={apTheme.btnSecondary} title={!hasAnyDateFilter ? 'Pilih minimal 1 rentang tanggal untuk export' : isDirty ? 'Terapkan filter dulu' : undefined}>
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {isExporting ? 'Mengekspor...' : 'Export'}
             </button>
@@ -187,10 +202,10 @@ export default function ApPaymentsPage() {
         {/* Date filters row */}
         <div className="flex flex-wrap gap-3 mt-2 items-end">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-medium text-rose-600/80 dark:text-gray-400 whitespace-nowrap">Tgl Bayar:</span>
-            <input type="date" value={draft.dateFrom} onChange={(e) => setDraft({ dateFrom: e.target.value })} className={`${apTheme.select} text-xs`} />
+            <span className="text-xs font-medium text-rose-600/80 dark:text-gray-400 whitespace-nowrap">Tgl Terima:</span>
+            <input type="date" value={draft.receivedDateFrom} onChange={(e) => setDraft({ receivedDateFrom: e.target.value })} className={`${apTheme.select} text-xs`} />
             <span className="text-xs text-gray-400">—</span>
-            <input type="date" value={draft.dateTo} onChange={(e) => setDraft({ dateTo: e.target.value })} className={`${apTheme.select} text-xs`} />
+            <input type="date" value={draft.receivedDateTo} onChange={(e) => setDraft({ receivedDateTo: e.target.value })} className={`${apTheme.select} text-xs`} />
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-medium text-rose-600/80 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
@@ -198,12 +213,18 @@ export default function ApPaymentsPage() {
             <span className="text-xs text-gray-400">—</span>
             <input type="date" value={draft.dueDateTo} onChange={(e) => setDraft({ dueDateTo: e.target.value })} className={`${apTheme.select} text-xs`} />
           </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-rose-600/80 dark:text-gray-400 whitespace-nowrap">Tgl Bayar:</span>
+            <input type="date" value={draft.dateFrom} onChange={(e) => setDraft({ dateFrom: e.target.value })} className={`${apTheme.select} text-xs`} />
+            <span className="text-xs text-gray-400">—</span>
+            <input type="date" value={draft.dateTo} onChange={(e) => setDraft({ dateTo: e.target.value })} className={`${apTheme.select} text-xs`} />
+          </div>
 
           {/* Apply button */}
           <button type="button" onClick={applyFilters} disabled={!isDirty} className={apTheme.btnPrimary}>
             <Filter className="w-4 h-4" /> Terapkan
           </button>
-          {(filters.search || filters.supplierId || filters.branchId || filters.status || filters.dateFrom || filters.dateTo || filters.dueDateFrom || filters.dueDateTo || draft.search || draft.supplierId || draft.branchId || draft.status || draft.dateFrom || draft.dateTo || draft.dueDateFrom || draft.dueDateTo) && (
+          {(filters.search || filters.supplierId || filters.branchId || filters.status || filters.dateFrom || filters.dateTo || filters.dueDateFrom || filters.dueDateTo || filters.receivedDateFrom || filters.receivedDateTo || draft.search || draft.supplierId || draft.branchId || draft.status || draft.dateFrom || draft.dateTo || draft.dueDateFrom || draft.dueDateTo || draft.receivedDateFrom || draft.receivedDateTo) && (
             <button type="button" onClick={resetFilters} className="text-xs text-rose-600 dark:text-gray-400 hover:underline">
               Reset filter
             </button>
@@ -211,17 +232,22 @@ export default function ApPaymentsPage() {
         </div>
 
         {/* Validation */}
-        {isDateRangeInvalid(draft.dateFrom, draft.dateTo) && (
-          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">Tanggal bayar awal harus sebelum tanggal akhir</p>
+        {isDateRangeInvalid(draft.receivedDateFrom, draft.receivedDateTo) && (
+          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">Tanggal terima awal harus sebelum tanggal akhir</p>
         )}
         {isDateRangeInvalid(draft.dueDateFrom, draft.dueDateTo) && (
           <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">Jatuh tempo awal harus sebelum tanggal akhir</p>
+        )}
+        {isDateRangeInvalid(draft.dateFrom, draft.dateTo) && (
+          <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">Tanggal bayar awal harus sebelum tanggal akhir</p>
         )}
       </div>
 
       {/* Content */}
       {filters.tab === 'outstanding' ? (
         <OutstandingInvoicesTab filters={filters} />
+      ) : filters.tab === 'combined' ? (
+        <CombinedInvoicePaymentsTab filters={filters} />
       ) : (
       <>
       <div className="flex-1 overflow-auto p-4 sm:p-6">

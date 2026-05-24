@@ -356,6 +356,67 @@ export interface OutstandingInvoicesResponse {
   }
 }
 
+// ── Combined (Invoice + Payment) ──────────────────────────────
+export interface CombinedInvoicePaymentQuery {
+  supplier_id?: string
+  branch_id?: string
+  date_from?: string
+  date_to?: string
+  due_date_from?: string
+  due_date_to?: string
+  received_date_from?: string
+  received_date_to?: string
+  search?: string
+  status?: string
+  page?: number
+  limit?: number
+}
+
+export interface CombinedInvoicePaymentRow {
+  // Invoice fields
+  invoice_id: string
+  invoice_number: string
+  invoice_date: string
+  invoice_due_date: string | null
+  invoice_status: string
+  invoice_total_amount: number
+  invoice_remaining_amount: number
+  supplier_id: string
+  supplier_name: string
+  branch_id: string
+  branch_name: string
+  // Payment fields (NULL if no payment linked)
+  payment_id: string | null
+  payment_number: string | null
+  payment_status: string | null
+  payment_method: string | null
+  payment_date: string | null
+  payment_amount: number | null
+  paid_at: string | null
+  // Bank info (source)
+  source_bank_name: string | null
+  source_account_number: string | null
+  source_account_name: string | null
+  // Bank info (destination / supplier)
+  dest_bank_name: string | null
+  dest_account_number: string | null
+  dest_account_name: string | null
+  // Extra
+  aging_days: number | null
+  is_overdue: boolean
+  earliest_received_date: string | null
+}
+
+export interface CombinedInvoicePaymentResponse {
+  data: CombinedInvoicePaymentRow[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+}
+
 // ── Verify Screenshot (OCR) ───────────────────────────────────
 export interface BcaOcrRow {
   va: string

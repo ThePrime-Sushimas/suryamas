@@ -14,6 +14,8 @@ export interface ApPaymentFilters {
   dateTo: string
   dueDateFrom: string
   dueDateTo: string
+  receivedDateFrom: string
+  receivedDateTo: string
 }
 
 export type ApPaymentFilterPatch = Partial<ApPaymentFilters>
@@ -30,4 +32,6 @@ export interface ApPaymentListQuery {
   date_to?: string
   due_date_from?: string
   due_date_to?: string
+  received_date_from?: string
+  received_date_to?: string
 }

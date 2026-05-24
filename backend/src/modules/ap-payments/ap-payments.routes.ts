@@ -83,6 +83,12 @@ router.post(
 )
 
 router.get(
+  '/combined',
+  canView(MODULE),
+  (req, res) => apPaymentsController.combined(req, res),
+)
+
+router.get(
   '/',
   canView(MODULE),
   validateSchema(listApPaymentsSchema),

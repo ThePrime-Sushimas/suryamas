@@ -13,6 +13,8 @@ import type {
   ApDueDatePivotRow,
   OutstandingInvoicesQuery,
   OutstandingInvoiceRow,
+  CombinedInvoicePaymentQuery,
+  CombinedInvoicePaymentRow,
 } from './ap-payments.types'
 
 type PayableInvoiceRow = {
@@ -1283,6 +1285,160 @@ export class ApPaymentsRepository {
          AND deleted_at IS NULL`,
       [paymentId, userId],
     )
+  }
+
+  // ── Combined Invoice + Payment (Gabungan tab) ──────────────
+  async findCombined(
+    companyId: string,
+    query: CombinedInvoicePaymentQuery,
+    branchIds?: string[],
+  ): Promise<{ data: CombinedInvoicePaymentRow[]; total: number }> {
+    const conditions: string[] = [
+      'pi.company_id = $1',
+      "pi.status IN ('APPROVED', 'POSTED')",
+      'pi.deleted_at IS NULL',
+    ]
+    const params: unknown[] = [companyId]
+    let idx = 2
+
+    if (query.supplier_id) {
+      conditions.push(`pi.supplier_id = $${idx++}`)
+      params.push(query.supplier_id)
+    }
+    if (query.branch_id) {
+      conditions.push(`pi.branch_id = $${idx++}`)
+      params.push(query.branch_id)
+    } else if (branchIds && branchIds.length > 0) {
+      conditions.push(`pi.branch_id = ANY($${idx++}::uuid[])`)
+      params.push(branchIds)
+    }
+    // Bug fix: date_from/date_to filter on ap.paid_at must allow NULL (invoice without payment)
+    if (query.date_from) {
+      conditions.push(`(ap.paid_at >= $${idx++} OR ap.id IS NULL)`)
+      params.push(query.date_from)
+    }
+    if (query.date_to) {
+      conditions.push(`(ap.paid_at <= ($${idx++}::date + interval '1 day') OR ap.id IS NULL)`)
+      params.push(query.date_to)
+    }
+    if (query.due_date_from) {
+      conditions.push(`pi.due_date >= $${idx++}`)
+      params.push(query.due_date_from)
+    }
+    if (query.due_date_to) {
+      conditions.push(`pi.due_date <= $${idx++}`)
+      params.push(query.due_date_to)
+    }
+    if (query.received_date_from) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM purchase_invoice_gr_links pigl
+        JOIN goods_receipts gr ON gr.id = pigl.goods_receipt_id
+        WHERE pigl.purchase_invoice_id = pi.id AND pigl.is_deleted = false
+          AND gr.received_date >= $${idx++}
+      )`)
+      params.push(query.received_date_from)
+    }
+    if (query.received_date_to) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM purchase_invoice_gr_links pigl
+        JOIN goods_receipts gr ON gr.id = pigl.goods_receipt_id
+        WHERE pigl.purchase_invoice_id = pi.id AND pigl.is_deleted = false
+          AND gr.received_date <= $${idx++}
+      )`)
+      params.push(query.received_date_to)
+    }
+    if (query.search) {
+      // Bug fix: search on ap.payment_number must allow NULL
+      conditions.push(`(pi.invoice_number ILIKE $${idx} OR s.supplier_name ILIKE $${idx} OR ap.payment_number ILIKE $${idx})`)
+      params.push(`%${query.search}%`)
+      idx++
+    }
+    // Bug fix: status filter must allow invoices without payment when no status filter
+    if (query.status) {
+      conditions.push(`(ap.status = $${idx++})`)
+      params.push(query.status)
+    }
+
+    const where = conditions.join(' AND ')
+    const page = query.page ?? 1
+    const limit = query.limit ?? 20
+    const offset = (page - 1) * limit
+
+    // Bug fix: Count query now uses same JOIN conditions as data query
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM purchase_invoices pi
+       JOIN suppliers s ON s.id = pi.supplier_id
+       LEFT JOIN ap_payment_invoice_lines apl ON apl.purchase_invoice_id = pi.id
+       LEFT JOIN ap_payments ap ON ap.id = apl.ap_payment_id AND ap.deleted_at IS NULL AND ap.status != 'REJECTED'
+       WHERE ${where}`,
+      params,
+    )
+    const total = parseInt(countResult.rows[0].count, 10)
+
+    // Data
+    const { rows } = await pool.query<CombinedInvoicePaymentRow>(
+      `SELECT
+         pi.id                                                    AS invoice_id,
+         pi.invoice_number,
+         pi.invoice_date,
+         pi.due_date                                              AS invoice_due_date,
+         pi.status                                                AS invoice_status,
+         pi.total_amount::float                                   AS invoice_total_amount,
+         (pi.total_amount - COALESCE(paid.total_paid, 0))::float  AS invoice_remaining_amount,
+         pi.supplier_id,
+         s.supplier_name,
+         pi.branch_id,
+         b.branch_name,
+         ap.id                                                    AS payment_id,
+         ap.payment_number,
+         ap.status                                                AS payment_status,
+         ap.payment_method,
+         ap.payment_date,
+         ap.total_amount::float                                   AS payment_amount,
+         ap.paid_at,
+         bk.bank_name                                             AS source_bank_name,
+         ba.account_number                                        AS source_account_number,
+         ba.account_name                                          AS source_account_name,
+         sup_bk.bank_name                                         AS dest_bank_name,
+         sup_ba.account_number                                    AS dest_account_number,
+         sup_ba.account_name                                      AS dest_account_name,
+         CASE
+           WHEN pi.due_date IS NULL THEN NULL
+           ELSE (CURRENT_DATE - pi.due_date)::int
+         END                                                      AS aging_days,
+         (pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE) AS is_overdue,
+         gr_dates.earliest_received_date
+       FROM purchase_invoices pi
+       JOIN suppliers s ON s.id = pi.supplier_id
+       JOIN branches b ON b.id = pi.branch_id
+       LEFT JOIN (
+         SELECT l.purchase_invoice_id, SUM(l.amount_paid) AS total_paid
+         FROM ap_payment_invoice_lines l
+         JOIN ap_payments p ON p.id = l.ap_payment_id
+         WHERE p.status IN ('PAID', 'RECONCILED')
+           AND p.deleted_at IS NULL
+         GROUP BY l.purchase_invoice_id
+       ) paid ON paid.purchase_invoice_id = pi.id
+       LEFT JOIN ap_payment_invoice_lines apl ON apl.purchase_invoice_id = pi.id
+       LEFT JOIN ap_payments ap ON ap.id = apl.ap_payment_id AND ap.deleted_at IS NULL AND ap.status != 'REJECTED'
+       LEFT JOIN bank_accounts ba ON ba.id = ap.bank_account_id
+       LEFT JOIN banks bk ON bk.id = ba.bank_id
+       LEFT JOIN bank_accounts sup_ba ON sup_ba.id = ap.supplier_bank_account_id
+       LEFT JOIN banks sup_bk ON sup_bk.id = sup_ba.bank_id
+       LEFT JOIN LATERAL (
+         SELECT MIN(gr.received_date) AS earliest_received_date
+         FROM purchase_invoice_gr_links pigl
+         JOIN goods_receipts gr ON gr.id = pigl.goods_receipt_id
+         WHERE pigl.purchase_invoice_id = pi.id
+           AND pigl.is_deleted = false
+       ) gr_dates ON true
+       WHERE ${where}
+       ORDER BY pi.due_date ASC NULLS LAST, pi.invoice_date ASC, ap.created_at DESC
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, limit, offset],
+    )
+
+    return { data: rows, total }
   }
 
   // ── Soft delete ────────────────────────────────────────────

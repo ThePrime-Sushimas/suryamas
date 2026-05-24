@@ -25,6 +25,8 @@ import type {
   OutstandingInvoiceRow,
   BulkCreateApPaymentDto,
   BulkCreateApPaymentResponse,
+  CombinedInvoicePaymentQuery,
+  CombinedInvoicePaymentResponse,
 } from './ap-payments.types'
 import {
   ApPaymentNotFoundError,
@@ -480,6 +482,29 @@ export class ApPaymentsService {
     invoiceIds: string[],
   ): Promise<OutstandingInvoiceRow[]> {
     return apPaymentsRepository.findOutstandingByIds(companyId, invoiceIds)
+  }
+
+  /**
+   * Combined view: purchase_invoices LEFT JOIN ap_payments.
+   * Shows all invoices with their payment info (if any).
+   */
+  async getCombined(
+    companyId: string,
+    query: CombinedInvoicePaymentQuery,
+    branchIds?: string[],
+  ): Promise<CombinedInvoicePaymentResponse> {
+    const { data, total } = await apPaymentsRepository.findCombined(companyId, query, branchIds)
+    const page = query.page ?? 1
+    const limit = query.limit ?? 20
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    }
   }
 
   async create(

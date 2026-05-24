@@ -159,6 +159,37 @@ export class ApPaymentsController {
     }
   }
 
+  // GET /ap-payments/combined
+  async combined(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const q = req.query as Record<string, string>
+
+      const branchIds = await getAccessibleBranchIds(userId)
+
+      const query = {
+        supplier_id: q.supplier_id,
+        branch_id: q.branch_id,
+        date_from: q.date_from,
+        date_to: q.date_to,
+        due_date_from: q.due_date_from,
+        due_date_to: q.due_date_to,
+        received_date_from: q.received_date_from,
+        received_date_to: q.received_date_to,
+        search: q.search,
+        status: q.status,
+        page: q.page ? parseInt(q.page, 10) : 1,
+        limit: q.limit ? parseInt(q.limit, 10) : 20,
+      }
+
+      const result = await apPaymentsService.getCombined(companyId, query, branchIds)
+      sendSuccess(res, result.data, 'Combined invoice+payment data retrieved', 200, result.pagination)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list combined invoice payments' })
+    }
+  }
+
   // GET /ap-payments/:id
   async getById(req: Request, res: Response): Promise<void> {
     try {
