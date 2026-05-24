@@ -45,7 +45,6 @@ export const AP_LIST_TABS = [
   { id: 'draft', label: 'Draft' },
   { id: 'pending', label: 'Menunggu Pembayaran' },
   { id: 'paid', label: 'Paid' },
-  { id: 'combined', label: 'Gabungan' },
   { id: 'all', label: 'Semua' },
 ] as const
 
@@ -65,6 +64,5 @@ export const AP_LIST_TAB_STATUS: Record<ApPaymentListTab, ApPaymentStatus | ''> 
   draft: 'DRAFT',
   pending: 'APPROVED',
   paid: 'PAID',
-  combined: '',
   all: '',
 }

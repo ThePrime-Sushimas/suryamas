@@ -33,8 +33,6 @@ export const DEFAULT_AP_PAYMENT_FILTERS: ApPaymentFilters = {
   dateTo: '',
   dueDateFrom: '',
   dueDateTo: '',
-  receivedDateFrom: '',
-  receivedDateTo: '',
 }
 
 const VALID_TABS = new Set<ApPaymentListTab>(AP_LIST_TABS.map((t) => t.id))
@@ -54,8 +52,6 @@ const FILTER_KEYS_RESET_PAGE: (keyof ApPaymentFilters)[] = [
   'dateTo',
   'dueDateFrom',
   'dueDateTo',
-  'receivedDateFrom',
-  'receivedDateTo',
   'limit',
 ]
 
@@ -85,8 +81,6 @@ export function parseApPaymentFilters(searchParams: URLSearchParams): ApPaymentF
     dateTo: parseString(searchParams.get('date_to')),
     dueDateFrom: parseString(searchParams.get('due_date_from')),
     dueDateTo: parseString(searchParams.get('due_date_to')),
-    receivedDateFrom: parseString(searchParams.get('received_date_from')),
-    receivedDateTo: parseString(searchParams.get('received_date_to')),
   }
 }
 
@@ -117,10 +111,6 @@ export function stringifyApPaymentFilters(filters: ApPaymentFilters): URLSearchP
   if (dueDateFrom) params.set('due_date_from', dueDateFrom)
   const dueDateTo = serializeString(filters.dueDateTo)
   if (dueDateTo) params.set('due_date_to', dueDateTo)
-  const receivedDateFrom = serializeString(filters.receivedDateFrom)
-  if (receivedDateFrom) params.set('received_date_from', receivedDateFrom)
-  const receivedDateTo = serializeString(filters.receivedDateTo)
-  if (receivedDateTo) params.set('received_date_to', receivedDateTo)
 
   return params
 }
@@ -173,7 +163,6 @@ export function toApPaymentListQuery(
 
   const dateInvalid = isDateRangeInvalid(filters.dateFrom, filters.dateTo)
   const dueDateInvalid = isDateRangeInvalid(filters.dueDateFrom, filters.dueDateTo)
-  const receivedDateInvalid = isDateRangeInvalid(filters.receivedDateFrom, filters.receivedDateTo)
 
   return {
     page: filters.page,
@@ -187,8 +176,6 @@ export function toApPaymentListQuery(
     ...(!dateInvalid && filters.dateTo ? { date_to: filters.dateTo } : {}),
     ...(!dueDateInvalid && filters.dueDateFrom ? { due_date_from: filters.dueDateFrom } : {}),
     ...(!dueDateInvalid && filters.dueDateTo ? { due_date_to: filters.dueDateTo } : {}),
-    ...(!receivedDateInvalid && filters.receivedDateFrom ? { received_date_from: filters.receivedDateFrom } : {}),
-    ...(!receivedDateInvalid && filters.receivedDateTo ? { received_date_to: filters.receivedDateTo } : {}),
   }
 }
 

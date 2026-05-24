@@ -510,6 +510,7 @@ const PurchaseInvoiceDetailPage = lazy(() => import("./features/purchase-invoice
 // AP Payments
 const ApDashboardPage = lazy(() => import('./features/ap-payments/pages/ApDashboardPage'))
 const ApPaymentsPage = lazy(() => import('./features/ap-payments/pages/ApPaymentsPage'))
+const ApPaymentReportPage = lazy(() => import('./features/ap-payments/pages/ApPaymentReportPage'))
 const ApPaymentDetailPage = lazy(() => import('./features/ap-payments/pages/ApPaymentDetailPage'))
 const ApPaymentEditPage = lazy(() => import('./features/ap-payments/pages/ApPaymentEditPage'))
 const BulkCreatePage = lazy(() => import('./features/ap-payments/pages/BulkCreatePage'))
@@ -1680,6 +1681,16 @@ function App() {
                       <RequirePermission module="ap_payments">
                         <Suspense fallback={<LoadingFallback />}>
                           <ApDashboardPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/ap-payments/report"
+                    element={
+                      <RequirePermission module="ap_payments">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ApPaymentReportPage />
                         </Suspense>
                       </RequirePermission>
                     }

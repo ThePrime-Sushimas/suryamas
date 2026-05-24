@@ -1312,13 +1312,13 @@ export class ApPaymentsRepository {
       conditions.push(`pi.branch_id = ANY($${idx++}::uuid[])`)
       params.push(branchIds)
     }
-    // Bug fix: date_from/date_to filter on ap.paid_at must allow NULL (invoice without payment)
+    // date_from/date_to filter on ap.paid_at — strict: only show invoices that have a payment in range
     if (query.date_from) {
-      conditions.push(`(ap.paid_at >= $${idx++} OR ap.id IS NULL)`)
+      conditions.push(`ap.paid_at >= $${idx++}`)
       params.push(query.date_from)
     }
     if (query.date_to) {
-      conditions.push(`(ap.paid_at <= ($${idx++}::date + interval '1 day') OR ap.id IS NULL)`)
+      conditions.push(`ap.paid_at <= ($${idx++}::date + interval '1 day')`)
       params.push(query.date_to)
     }
     if (query.due_date_from) {
