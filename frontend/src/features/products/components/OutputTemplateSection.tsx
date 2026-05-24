@@ -19,6 +19,7 @@ interface TemplateRow {
   suggested_pct: number | null
   sort_order: number
   notes: string | null
+  bears_cost: boolean
 }
 
 interface Props {
@@ -48,6 +49,7 @@ export function OutputTemplateSection({ productId, productName }: Props) {
           suggested_pct: t.suggested_pct,
           sort_order: i,
           notes: t.notes,
+          bears_cost: t.bears_cost ?? true,
         }))
       )
       setDirty(false)
@@ -65,6 +67,7 @@ export function OutputTemplateSection({ productId, productName }: Props) {
         suggested_pct: null,
         sort_order: prev.length,
         notes: null,
+        bears_cost: true,
       },
     ])
     setDirty(true)
@@ -98,6 +101,7 @@ export function OutputTemplateSection({ productId, productName }: Props) {
           suggested_pct: r.suggested_pct,
           sort_order: i,
           notes: r.notes,
+          bears_cost: r.bears_cost,
         })),
       })
       addToast('success', 'Template disimpan')
@@ -171,6 +175,7 @@ export function OutputTemplateSection({ productId, productName }: Props) {
                         <th className="text-left pb-2 pr-3">Product ID Output</th>
                         <th className="text-left pb-2 pr-3">UOM</th>
                         <th className="text-left pb-2 pr-3">Yield % (opsional)</th>
+                        <th className="text-center pb-2 pr-3">Tanggung Biaya</th>
                         <th className="text-left pb-2 pr-3">Catatan</th>
                         <th className="w-8" />
                       </tr>
@@ -229,6 +234,15 @@ export function OutputTemplateSection({ productId, productName }: Props) {
                               />
                               <span className="text-xs text-gray-400">%</span>
                             </div>
+                          </td>
+                          <td className="py-2 pr-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={row.bears_cost}
+                              onChange={(e) => updateRow(i, 'bears_cost', e.target.checked)}
+                              className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                              title="Jika dicentang, output ini menanggung biaya input (cost allocation)"
+                            />
                           </td>
                           <td className="py-2 pr-3">
                             <input
