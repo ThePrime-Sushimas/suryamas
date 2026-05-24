@@ -190,7 +190,7 @@ function CombinedRow({ row }: { row: CombinedInvoicePaymentRow }) {
       <td className="px-3 py-3">
         <div className="flex items-center gap-2">
           <span className="text-gray-700 dark:text-gray-300">{fmtDate(row.invoice_due_date)}</span>
-          <AgingBadge dueDate={row.invoice_due_date} />
+          {row.invoice_remaining_amount > 0 && <AgingBadge dueDate={row.invoice_due_date} />}
         </div>
       </td>
       <td className="px-3 py-3">

@@ -1406,7 +1406,8 @@ export class ApPaymentsRepository {
            WHEN pi.due_date IS NULL THEN NULL
            ELSE (CURRENT_DATE - pi.due_date)::int
          END                                                      AS aging_days,
-         (pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE) AS is_overdue,
+         (pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE
+           AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0.01) AS is_overdue,
          gr_dates.earliest_received_date
        FROM purchase_invoices pi
        JOIN suppliers s ON s.id = pi.supplier_id
