@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useListNavigation } from "@/lib/urlFilters";
+import { PURCHASE_INVOICES_LIST_PATH } from "../constants";
 import {
   ArrowLeft,
   FileText,
@@ -173,6 +175,7 @@ function AttachmentThumbnail({
 export default function PurchaseInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { backToList } = useListNavigation(PURCHASE_INVOICES_LIST_PATH);
   const toast = useToast();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
 
@@ -250,7 +253,7 @@ export default function PurchaseInvoiceDetailPage() {
     try {
       await deletePI.mutateAsync(id!);
       toast.success("Invoice dihapus");
-      navigate("/inventory/purchase-invoices");
+      backToList();
     } catch (err: unknown) {
       toast.error(parseApiError(err, "Gagal menghapus invoice"));
     }
@@ -273,7 +276,7 @@ export default function PurchaseInvoiceDetailPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => navigate("/inventory/purchase-invoices")}
+              onClick={backToList}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500"
             >
               <ArrowLeft className="w-5 h-5" />

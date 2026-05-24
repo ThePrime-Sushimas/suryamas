@@ -1,5 +1,6 @@
-import { useState, useMemo, type MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useListNavigation } from "@/lib/urlFilters";
 import { FileText, Plus, Search, CheckSquare, Square, ClipboardCheck, Loader2, Undo2 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
@@ -18,6 +19,8 @@ import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
 import type { PurchaseInvoice } from "../api/purchaseInvoices.api";
 import { PurchaseInvoicePaymentDue } from "../components/PurchaseInvoicePaymentDue";
+import { PI_LIST_TABS, PURCHASE_INVOICES_LIST_PATH } from "../constants";
+import { usePurchaseInvoiceFilters } from "../hooks/usePurchaseInvoiceFilters";
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString("id-ID", {
@@ -62,21 +65,18 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 
 export default function PurchaseInvoicesPage() {
   const navigate = useNavigate();
+  const { openDetail } = useListNavigation(PURCHASE_INVOICES_LIST_PATH);
   const toast = useToast();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
   const canRelease = hasPermission("purchase_invoices", "release");
   const canUpdate = hasPermission("purchase_invoices", "update");
 
-  const [page, setPage] = useState(1);
-  const [activeTab, setActiveTab] = useState<"VERIFY" | "APPROVAL" | "FINAL">(
-    "VERIFY",
-  );
+  const { filters, apiQuery, setFilters, setPage } = usePurchaseInvoiceFilters();
+
   const [deleteTarget, setDeleteTarget] = useState<PurchaseInvoice | null>(
     null,
   );
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [supplierId, setSupplierId] = useState("");
-  const [branchId, setBranchId] = useState("");
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [postingId, setPostingId] = useState<string | null>(null);
   const [unpostTarget, setUnpostTarget] = useState<PurchaseInvoice | null>(null);
@@ -86,22 +86,7 @@ export default function PurchaseInvoicesPage() {
   const { data: branchesData } = useBranches({ limit: 100 });
   const mergeInvoices = useMergePurchaseInvoices();
 
-  const queryParams = useMemo(() => {
-    let status = undefined;
-    if (activeTab === "VERIFY") status = "DRAFT,REJECTED";
-    if (activeTab === "APPROVAL") status = "SUBMITTED";
-    if (activeTab === "FINAL") status = "APPROVED,POSTED";
-
-    return {
-      page,
-      limit: 25,
-      status,
-      supplier_id: supplierId || undefined,
-      branch_id: branchId || undefined,
-    };
-  }, [page, activeTab, supplierId, branchId]);
-
-  const { data, isLoading } = usePurchaseInvoices(queryParams);
+  const { data, isLoading } = usePurchaseInvoices(apiQuery);
   const deleteInvoice = useDeletePurchaseInvoice();
   const postInvoice = usePostPurchaseInvoice();
   const unpostInvoice = useUnpostPurchaseInvoice();
@@ -165,7 +150,7 @@ export default function PurchaseInvoicesPage() {
       const result = await mergeInvoices.mutateAsync(selectedIds);
       toast.success("Invoice berhasil digabung");
       setSelectedIds([]);
-      navigate(`/inventory/purchase-invoices/${result.id}`);
+      openDetail(`/inventory/purchase-invoices/${result.id}`);
     } catch (err: unknown) {
       toast.error(parseApiError(err, "Gagal menggabungkan invoice"));
     }
@@ -196,7 +181,7 @@ export default function PurchaseInvoicesPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {activeTab === "VERIFY" && (
+            {filters.tab === "verify" && (
               <button
                 onClick={() => {
                   setIsSelectionMode(!isSelectionMode);
@@ -207,7 +192,7 @@ export default function PurchaseInvoicesPage() {
                 <CheckSquare className="w-5 h-5" />
               </button>
             )}
-            {activeTab === "VERIFY" && selectedIds.length >= 2 && (
+            {filters.tab === "verify" && selectedIds.length >= 2 && (
               <button
                 onClick={handleMerge}
                 disabled={mergeInvoices.isPending}
@@ -241,8 +226,8 @@ export default function PurchaseInvoicesPage() {
           </div>
           
           <select
-            value={supplierId}
-            onChange={e => { setSupplierId(e.target.value); setPage(1) }}
+            value={filters.supplierId}
+            onChange={(e) => setFilters({ supplierId: e.target.value })}
             className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-gray-700 dark:text-gray-300 min-w-[150px]"
           >
             <option value="">Semua Supplier</option>
@@ -254,11 +239,8 @@ export default function PurchaseInvoicesPage() {
           </select>
 
           <select
-            value={branchId}
-            onChange={(e) => {
-              setBranchId(e.target.value);
-              setPage(1);
-            }}
+            value={filters.branchId}
+            onChange={(e) => setFilters({ branchId: e.target.value })}
             className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-gray-700 dark:text-gray-300 min-w-[150px]"
           >
             <option value="">Semua Cabang</option>
@@ -274,53 +256,42 @@ export default function PurchaseInvoicesPage() {
       {/* Tabs */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6">
         <div className="flex items-center gap-6 lg:gap-8 overflow-x-auto no-scrollbar">
-          {[
-            {
-              id: "VERIFY",
-              label: "Antrean Verifikasi",
-              count: counts?.verify_count,
-              color: "indigo",
-            },
-            {
-              id: "APPROVAL",
-              label: "Menunggu Persetujuan",
-              count: counts?.approval_count,
-              color: "amber",
-            },
-            {
-              id: "FINAL",
-              label: "Selesai & Posting",
-              count: counts?.final_count,
-              color: "green",
-            },
-          ].map((tab) => (
+          {PI_LIST_TABS.map((tab) => {
+            const count =
+              tab.id === "verify"
+                ? counts?.verify_count
+                : tab.id === "approval"
+                  ? counts?.approval_count
+                  : counts?.final_count;
+            return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => {
-                setActiveTab(tab.id as any);
-                setPage(1);
+                setFilters({ tab: tab.id });
                 setSelectedIds([]);
               }}
               className={`py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-2 ${
-                activeTab === tab.id
+                filters.tab === tab.id
                   ? `border-${tab.color}-600 text-${tab.color}-600 dark:border-${tab.color}-400 dark:text-${tab.color}-400`
                   : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
               }`}
             >
               {tab.label}
-              {tab.count !== undefined && tab.count > 0 && (
+              {count !== undefined && count > 0 && (
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10px] ${
-                    activeTab === tab.id
+                    filters.tab === tab.id
                       ? `bg-${tab.color}-100 text-${tab.color}-700 dark:bg-${tab.color}-900/30`
                       : "bg-gray-100 text-gray-600 dark:bg-gray-700"
                   }`}
                 >
-                  {tab.count}
+                  {count}
                 </span>
               )}
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -332,7 +303,7 @@ export default function PurchaseInvoicesPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
                 <tr>
-                  {activeTab === "VERIFY" && (
+                  {filters.tab === "verify" && (
                     <th className="w-10 px-4 py-3">
                       <input type="checkbox" disabled />
                     </th>
@@ -386,11 +357,11 @@ export default function PurchaseInvoicesPage() {
                     <tr
                       key={inv.id}
                       onClick={() =>
-                        navigate(`/inventory/purchase-invoices/${inv.id}`)
+                        openDetail(`/inventory/purchase-invoices/${inv.id}`)
                       }
                       className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors group ${selectedIds.includes(inv.id) ? "bg-indigo-50/50 dark:bg-indigo-900/10" : ""}`}
                     >
-                      {activeTab === "VERIFY" && (
+                      {filters.tab === "verify" && (
                         <td
                           className="px-4 py-3"
                           onClick={(e) => e.stopPropagation()}
@@ -441,7 +412,7 @@ export default function PurchaseInvoicesPage() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex flex-wrap items-center justify-end gap-2">
-                          {activeTab === "FINAL" &&
+                          {filters.tab === "final" &&
                             inv.status === "POSTED" &&
                             canRelease && (
                               <button
@@ -457,7 +428,7 @@ export default function PurchaseInvoicesPage() {
                                 Batalkan Post
                               </button>
                             )}
-                          {activeTab === "FINAL" &&
+                          {filters.tab === "final" &&
                             inv.status === "APPROVED" &&
                             canUpdate && (
                               <button
@@ -528,7 +499,7 @@ export default function PurchaseInvoicesPage() {
                       if (isSelectionMode) {
                         toggleSelect(inv.id);
                       } else {
-                        navigate(`/inventory/purchase-invoices/${inv.id}`);
+                        openDetail(`/inventory/purchase-invoices/${inv.id}`);
                       }
                     }}
                     className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/50 transition-colors relative ${selectedIds.includes(inv.id) ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}
@@ -582,7 +553,7 @@ export default function PurchaseInvoicesPage() {
                       <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-medium mr-auto">
                         {inv.goods_receipt_count} Goods Receipt
                       </div>
-                      {activeTab === "FINAL" &&
+                      {filters.tab === "final" &&
                         inv.status === "POSTED" &&
                         canRelease && (
                           <button
@@ -598,7 +569,7 @@ export default function PurchaseInvoicesPage() {
                             Batalkan Post
                           </button>
                         )}
-                      {activeTab === "FINAL" &&
+                      {filters.tab === "final" &&
                         inv.status === "APPROVED" &&
                         canUpdate && (
                           <button
