@@ -216,6 +216,12 @@ export class GoodsReceiptsService {
       // 4. Update PO status
       const newPoStatus = await goodsReceiptsRepository.resolvePoStatus(client, gr.po_id)
       await goodsReceiptsRepository.updatePoStatus(client, gr.po_id, newPoStatus, userId)
+
+      // 5. Confirm current GR before cleaning up other draft GRs on the same PO.
+      await goodsReceiptsRepository.updateStatus(client, id, 'CONFIRMED', {
+        updated_by: userId,
+      })
+
       if (newPoStatus === 'FULLY_RECEIVED') {
         await goodsReceiptsRepository.softDeleteDraftsByPoId(gr.po_id, companyId, userId, client)
       }
@@ -241,10 +247,6 @@ export class GoodsReceiptsService {
         }
       }
 
-      // 5. Update GR status (no journal — journal created by Purchase Invoice module)
-      await goodsReceiptsRepository.updateStatus(client, id, 'CONFIRMED', {
-        updated_by: userId,
-      })
       // 5b. Kalau GR dari marketplace, session → RECEIVED hanya setelah semua GR session dikonfirmasi
       if (gr.source === 'MARKETPLACE') {
         const sessionStatus = await goodsReceiptsRepository.findMarketplaceSessionStatusForGr(client, id)

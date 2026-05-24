@@ -3,7 +3,7 @@ import type { UnpostPricelistBlockedItem } from '../pricelists/pricelists.types'
 
 export class PurchaseInvoiceNotFoundError extends NotFoundError {
   constructor(id: string) {
-    super(`Purchase invoice not found: ${id}`)
+    super('Purchase invoice', id)
   }
 }
 

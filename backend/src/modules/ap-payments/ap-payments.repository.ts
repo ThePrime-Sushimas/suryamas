@@ -305,6 +305,9 @@ export class ApPaymentsRepository {
          ba.account_name         AS bank_account_name,
          ba.account_number       AS bank_account_number,
          bk.bank_name            AS bank_name,
+         sup_bk.bank_name        AS supplier_bank_name,
+         sup_ba.account_number   AS supplier_bank_account_number,
+         sup_ba.account_name     AS supplier_bank_account_name,
          COUNT(l.id)::int        AS invoice_count,
          jh.journal_number       AS journal_number,
          jh.status               AS journal_status
@@ -313,10 +316,15 @@ export class ApPaymentsRepository {
        JOIN branches b       ON b.id = ap.branch_id
        JOIN bank_accounts ba ON ba.id = ap.bank_account_id
        LEFT JOIN banks bk    ON bk.id = ba.bank_id
+       LEFT JOIN bank_accounts sup_ba ON sup_ba.id = ap.supplier_bank_account_id
+       LEFT JOIN banks sup_bk ON sup_bk.id = sup_ba.bank_id
        LEFT JOIN ap_payment_invoice_lines l ON l.ap_payment_id = ap.id
        LEFT JOIN journal_headers jh ON jh.id = ap.journal_id AND jh.deleted_at IS NULL
        WHERE ${where}
-       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code, ba.account_name, ba.account_number, bk.bank_name, jh.journal_number, jh.status
+       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code,
+         ba.account_name, ba.account_number, bk.bank_name,
+         sup_bk.bank_name, sup_ba.account_number, sup_ba.account_name,
+         jh.journal_number, jh.status
        ORDER BY ap.created_at DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
       [...params, limit, offset],

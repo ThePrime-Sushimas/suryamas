@@ -264,6 +264,7 @@ function InvoiceLineRow({
             {supplierBankAccounts.map((ba) => (
               <option key={ba.id} value={ba.id}>
                 {ba.bank_name} — {ba.account_number}
+                {ba.account_name ? ` · ${ba.account_name}` : ''}
               </option>
             ))}
           </select>

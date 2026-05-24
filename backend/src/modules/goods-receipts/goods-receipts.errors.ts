@@ -1,7 +1,7 @@
 import { BusinessRuleError, NotFoundError, ConflictError } from '../../utils/errors.base'
 
 export class GoodsReceiptNotFoundError extends NotFoundError {
-  constructor(id?: string) { super(id ? `Goods receipt ${id} not found` : 'Goods receipt not found') }
+  constructor(id?: string) { super('Goods receipt', id) }
 }
 
 export class GoodsReceiptDuplicateError extends ConflictError {

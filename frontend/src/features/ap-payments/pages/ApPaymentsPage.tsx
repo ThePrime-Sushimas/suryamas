@@ -249,7 +249,8 @@ export default function ApPaymentsPage() {
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Tgl Bayar</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Supplier</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Cabang</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Metode / Rekening</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Metode / Rek. Sumber</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Rek. Tujuan</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Total</th>
                   <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
                   {isPaidTab && canUpdate && (
@@ -277,9 +278,25 @@ export default function ApPaymentsPage() {
                         <div>
                           <span>{AP_PAYMENT_METHOD_LABELS[p.payment_method]}</span>
                           {p.payment_method !== 'CASH' && p.bank_account_name && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{p.bank_name ?? ''} {p.bank_account_number} · {p.bank_account_name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              {[p.bank_name, p.bank_account_number, p.bank_account_name].filter(Boolean).join(' · ')}
+                            </p>
                           )}
                         </div>
+                      </td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                        {p.supplier_bank_name || p.supplier_bank_account_number || p.supplier_bank_account_name ? (
+                          <div>
+                            {p.supplier_bank_name && (
+                              <p className="font-medium text-gray-800 dark:text-gray-200">{p.supplier_bank_name}</p>
+                            )}
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              {[p.supplier_bank_account_number, p.supplier_bank_account_name].filter(Boolean).join(' · ') || '—'}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">{fmtCurrency(Number(p.total_amount))}</td>
                       <td className="px-3 py-3 whitespace-nowrap">
