@@ -2,7 +2,8 @@ import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
 import type {
   StockBalance, StockBalanceWithRelations, StockMovement, StockMovementWithRelations,
-  CreateMovementDto, StockBalanceFilter, StockMovementFilter
+  CreateMovementDto, StockBalanceFilter, StockMovementFilter,
+  ProductStockConfig, StockConfigGridRow, UpsertStockConfigDto, ReorderSuggestionItem
 } from './stock.types'
 
 const BALANCE_SELECT = `
@@ -208,6 +209,168 @@ export class StockRepository {
       ]
     )
     return rows[0]
+  }
+
+  // ─── STOCK CONFIG ─────────────────────────────────────────────────────────────
+
+  async findStockConfigGrid(companyId: string): Promise<StockConfigGridRow[]> {
+    const { rows } = await pool.query(
+      `SELECT
+        p.id AS product_id,
+        p.product_code,
+        p.product_name,
+        c.category_name,
+        mu.unit_name AS base_unit_name,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'branch_id', psc.branch_id,
+              'reorder_point', psc.reorder_point,
+              'safety_stock', psc.safety_stock
+            )
+          ) FILTER (WHERE psc.id IS NOT NULL),
+          '[]'
+        ) AS configs
+      FROM products p
+      JOIN categories c ON c.id = p.category_id
+      LEFT JOIN product_uoms pu ON pu.product_id = p.id AND pu.is_base_unit = true AND pu.is_deleted = false
+      LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
+      LEFT JOIN product_stock_configs psc ON psc.product_id = p.id AND psc.company_id = $1
+      WHERE p.is_deleted = false
+        AND p.status = 'ACTIVE'
+        AND p.is_purchasable = true
+      GROUP BY p.id, p.product_code, p.product_name, c.category_name, mu.unit_name
+      ORDER BY c.category_name, p.product_name`,
+      [companyId]
+    )
+    return rows
+  }
+
+  async upsertStockConfig(
+    companyId: string,
+    dto: UpsertStockConfigDto,
+    userId: string
+  ): Promise<ProductStockConfig> {
+    const { rows } = await pool.query(
+      `INSERT INTO product_stock_configs
+        (company_id, branch_id, product_id, reorder_point, safety_stock, notes, created_by, updated_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+      ON CONFLICT (branch_id, product_id) DO UPDATE SET
+        reorder_point = EXCLUDED.reorder_point,
+        safety_stock  = EXCLUDED.safety_stock,
+        notes         = EXCLUDED.notes,
+        updated_by    = EXCLUDED.updated_by,
+        updated_at    = now()
+      RETURNING *`,
+      [companyId, dto.branch_id, dto.product_id, dto.reorder_point ?? null, dto.safety_stock ?? null, dto.notes ?? null, userId]
+    )
+    return rows[0]
+  }
+
+  // ─── REORDER SUGGESTIONS ────────────────────────────────────────────────────
+
+  async findReorderSuggestions(companyId: string, branchIds?: string[]): Promise<ReorderSuggestionItem[]> {
+    const conditions = ['w.company_id = $1', 'w.deleted_at IS NULL', 'p.is_deleted = false', "p.status = 'ACTIVE'"]
+    const params: unknown[] = [companyId]
+    let idx = 2
+
+    if (branchIds && branchIds.length > 0) {
+      params.push(branchIds)
+      conditions.push(`w.branch_id = ANY($${idx++}::uuid[])`)
+    }
+
+    const where = conditions.join(' AND ')
+
+    const { rows } = await pool.query(
+      `SELECT
+        p.id                                            AS product_id,
+        p.product_code,
+        p.product_name,
+        COALESCE(mu.unit_name, '')                      AS base_unit_name,
+
+        b.id                                            AS branch_id,
+        b.branch_name,
+        w.id                                            AS warehouse_id,
+        w.warehouse_name,
+
+        COALESCE(sb.qty, 0)                             AS current_qty,
+        COALESCE(psc.reorder_point, p.reorder_point)    AS reorder_point,
+        COALESCE(psc.safety_stock,  p.safety_stock)     AS safety_stock,
+
+        -- Berapa kurangnya
+        GREATEST(0,
+          COALESCE(psc.reorder_point, p.reorder_point)
+          - COALESCE(sb.qty, 0)
+        )                                               AS shortage,
+
+        -- Critical: stok <= safety stock
+        CASE
+          WHEN COALESCE(psc.safety_stock, p.safety_stock) IS NOT NULL
+           AND COALESCE(sb.qty, 0) <= COALESCE(psc.safety_stock, p.safety_stock)
+          THEN true ELSE false
+        END                                             AS is_critical,
+
+        -- Qty on order dari PO aktif
+        COALESCE((
+          SELECT SUM(GREATEST(0, pol.qty - pol.qty_received))
+          FROM purchase_order_lines pol
+          JOIN purchase_orders po ON po.id = pol.po_id
+          WHERE pol.product_id = p.id
+            AND po.branch_id   = b.id
+            AND po.status      IN ('SENT', 'ORDERED', 'PARTIAL_RECEIVED')
+            AND po.deleted_at  IS NULL
+        ), 0)                                           AS qty_on_order,
+
+        -- Masih kurang walau on_order sudah diperhitungkan?
+        CASE
+          WHEN COALESCE(sb.qty, 0)
+            + COALESCE((
+                SELECT SUM(GREATEST(0, pol.qty - pol.qty_received))
+                FROM purchase_order_lines pol
+                JOIN purchase_orders po ON po.id = pol.po_id
+                WHERE pol.product_id = p.id
+                  AND po.branch_id   = b.id
+                  AND po.status      IN ('SENT', 'ORDERED', 'PARTIAL_RECEIVED')
+                  AND po.deleted_at  IS NULL
+              ), 0)
+            < COALESCE(psc.reorder_point, p.reorder_point)
+          THEN true ELSE false
+        END                                             AS still_short_after_order,
+
+        -- Preferred supplier
+        sp.supplier_id                                  AS preferred_supplier_id,
+        s.supplier_name                                 AS preferred_supplier_name,
+        sp.lead_time_days,
+        sp.price                                        AS last_purchase_price,
+
+        -- Config source
+        CASE WHEN psc.id IS NOT NULL THEN 'branch' ELSE 'product_default' END AS config_source
+
+      FROM products p
+      JOIN stock_balances sb ON sb.product_id = p.id
+      JOIN warehouses w      ON w.id = sb.warehouse_id
+      JOIN branches b        ON b.id = w.branch_id
+      LEFT JOIN product_uoms pu  ON pu.product_id = p.id AND pu.is_base_unit = true AND pu.is_deleted = false
+      LEFT JOIN metric_units mu  ON mu.id = pu.metric_unit_id
+      LEFT JOIN product_stock_configs psc
+                                ON psc.product_id = p.id
+                               AND psc.branch_id  = b.id
+                               AND psc.company_id = $1
+      LEFT JOIN supplier_products sp
+                                ON sp.product_id  = p.id
+                               AND sp.is_preferred = true
+                               AND sp.is_active    = true
+                               AND sp.deleted_at   IS NULL
+      LEFT JOIN suppliers s      ON s.id = sp.supplier_id AND s.deleted_at IS NULL
+      WHERE ${where}
+        -- Hanya yang punya config (branch atau product level)
+        AND COALESCE(psc.reorder_point, p.reorder_point) IS NOT NULL
+        -- Stok di bawah reorder point
+        AND COALESCE(sb.qty, 0) < COALESCE(psc.reorder_point, p.reorder_point)
+      ORDER BY is_critical DESC, shortage DESC, b.branch_name, p.product_name`,
+      params
+    )
+    return rows
   }
 }
 

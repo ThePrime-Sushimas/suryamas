@@ -82,3 +82,13 @@ export const stockMovementListSchema = z.object({
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
 })
+
+export const upsertStockConfigSchema = z.object({
+  body: z.object({
+    branch_id: z.string().uuid(),
+    product_id: z.string().uuid(),
+    reorder_point: z.number().min(0).nullable().optional(),
+    safety_stock: z.number().min(0).nullable().optional(),
+    notes: z.string().nullable().optional(),
+  }),
+})

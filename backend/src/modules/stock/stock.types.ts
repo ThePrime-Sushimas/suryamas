@@ -102,3 +102,75 @@ export interface StockMovementFilter {
   date_from?: string
   date_to?: string
 }
+
+// ─── STOCK CONFIG ─────────────────────────────────────────────────────────────
+
+export interface ProductStockConfig {
+  id: string
+  company_id: string
+  branch_id: string
+  product_id: string
+  warehouse_id: string | null
+  reorder_point: number | null
+  safety_stock: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface StockConfigGridRow {
+  product_id: string
+  product_code: string
+  product_name: string
+  category_name: string
+  base_unit_name: string | null
+  configs: {
+    branch_id: string
+    reorder_point: number | null
+    safety_stock: number | null
+  }[]
+}
+
+export interface UpsertStockConfigDto {
+  branch_id: string
+  product_id: string
+  reorder_point?: number | null
+  safety_stock?: number | null
+  notes?: string | null
+}
+
+// ─── REORDER SUGGESTIONS ──────────────────────────────────────────────────────
+
+export interface ReorderSuggestionItem {
+  // Produk
+  product_id: string
+  product_code: string
+  product_name: string
+  base_unit_name: string | null
+
+  // Lokasi
+  branch_id: string
+  branch_name: string
+  warehouse_id: string
+  warehouse_name: string
+
+  // Stok
+  current_qty: number
+  reorder_point: number
+  safety_stock: number | null
+  shortage: number
+  is_critical: boolean
+
+  // On order (PO aktif belum fully received)
+  qty_on_order: number
+  still_short_after_order: boolean
+
+  // Supplier
+  preferred_supplier_id: string | null
+  preferred_supplier_name: string | null
+  lead_time_days: number | null
+  last_purchase_price: number | null
+
+  // Config source
+  config_source: 'branch' | 'product_default'
+}

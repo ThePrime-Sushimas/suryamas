@@ -3,7 +3,7 @@ import { stockService } from './stock.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
-import type {
+import {
   createMovementSchema, createOpeningBalanceSchema, bulkOpeningBalanceSchema,
   adjustStockSchema
 } from './stock.schema'
@@ -122,6 +122,48 @@ export class StockController {
       sendSuccess(res, result, 'Stock adjusted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'adjust_stock' })
+    }
+  }
+
+  // ─── STOCK CONFIG ─────────────────────────────────────────────────────────────
+
+  getStockConfigGrid = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const result = await stockService.getStockConfigGrid(companyId)
+      sendSuccess(res, result, 'Stock config grid retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_stock_config_grid' })
+    }
+  }
+
+  upsertStockConfig = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const result = await stockService.upsertStockConfig(companyId, req.body, userId)
+      sendSuccess(res, result, 'Stock config saved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upsert_stock_config' })
+    }
+  }
+
+  // ─── REORDER SUGGESTIONS ────────────────────────────────────────────────────
+
+  getReorderSuggestions = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      // Support single branch_id atau comma-separated branch_ids
+      const branchIds = req.query.branch_ids
+        ? (req.query.branch_ids as string).split(',').filter(Boolean)
+        : req.query.branch_id
+          ? [req.query.branch_id as string]
+          : undefined
+
+      const result = await stockService.getReorderSuggestions(companyId, branchIds)
+      sendSuccess(res, result, 'Reorder suggestions retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_reorder_suggestions' })
     }
   }
 }

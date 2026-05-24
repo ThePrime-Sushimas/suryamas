@@ -475,6 +475,8 @@ const WarehousesPage = lazy(() => import('./features/inventory/pages/WarehousesP
 const StockBalancesPage = lazy(() => import('./features/inventory/pages/StockBalancesPage'))
 const StockMovementsPage = lazy(() => import('./features/inventory/pages/StockMovementsPage'))
 const OpeningBalancePage = lazy(() => import('./features/inventory/pages/OpeningBalancePage'))
+const StockConfigPage = lazy(() => import('./features/inventory/pages/StockConfigPage'))
+const ReorderSuggestionsPage = lazy(() => import('./features/inventory/pages/ReorderSuggestionsPage'))
 
 // Purchase Requests
 const PurchaseRequestsPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestsPage'))
@@ -1772,6 +1774,26 @@ function App() {
                       <RequirePermission module="stock">
                         <Suspense fallback={<LoadingFallback />}>
                           <OpeningBalancePage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/stock-config"
+                    element={
+                      <RequirePermission module="stock">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <StockConfigPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/reorder-suggestions"
+                    element={
+                      <RequirePermission module="stock">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ReorderSuggestionsPage />
                         </Suspense>
                       </RequirePermission>
                     }

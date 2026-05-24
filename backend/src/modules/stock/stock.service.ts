@@ -4,7 +4,8 @@ import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import type {
   CreateMovementDto, CreateOpeningBalanceDto, AdjustStockDto,
-  StockBalanceFilter, StockMovementFilter, MovementType, StockMovement
+  StockBalanceFilter, StockMovementFilter, MovementType, StockMovement,
+  UpsertStockConfigDto
 } from './stock.types'
 
 export class StockService {
@@ -204,6 +205,22 @@ export class StockService {
       notes: dto.reason,
       created_by: userId,
     }, userId, companyId)
+  }
+
+  // ─── STOCK CONFIG ─────────────────────────────────────────────────────────────
+
+  async getStockConfigGrid(companyId: string) {
+    return stockRepository.findStockConfigGrid(companyId)
+  }
+
+  async upsertStockConfig(companyId: string, dto: UpsertStockConfigDto, userId: string) {
+    return stockRepository.upsertStockConfig(companyId, dto, userId)
+  }
+
+  // ─── REORDER SUGGESTIONS ────────────────────────────────────────────────────
+
+  async getReorderSuggestions(companyId: string, branchIds?: string[]) {
+    return stockRepository.findReorderSuggestions(companyId, branchIds)
   }
 }
 

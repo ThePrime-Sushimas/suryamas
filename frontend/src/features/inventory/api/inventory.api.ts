@@ -160,3 +160,83 @@ export const useAdjustStock = () => {
     },
   })
 }
+
+// ─── STOCK CONFIG ───────────────────────────────────────────────────────────
+
+export interface StockConfigGridRow {
+  product_id: string
+  product_code: string
+  product_name: string
+  category_name: string
+  base_unit_name: string | null
+  configs: {
+    branch_id: string
+    reorder_point: number | null
+    safety_stock: number | null
+  }[]
+}
+
+export const useStockConfigGrid = () =>
+  useQuery({
+    queryKey: ['stock', 'config-grid'],
+    queryFn: async () => {
+      const { data } = await api.get('/stock/configs/grid')
+      return data.data as StockConfigGridRow[]
+    },
+    staleTime: 30_000,
+  })
+
+export const useUpsertStockConfig = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: {
+      branch_id: string
+      product_id: string
+      reorder_point?: number | null
+      safety_stock?: number | null
+    }) => {
+      const { data } = await api.put('/stock/configs', body)
+      return data.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stock', 'config-grid'] })
+    },
+  })
+}
+
+// ─── REORDER SUGGESTIONS ────────────────────────────────────────────────────
+
+export interface ReorderSuggestionItem {
+  product_id: string
+  product_code: string
+  product_name: string
+  base_unit_name: string | null
+  branch_id: string
+  branch_name: string
+  warehouse_id: string
+  warehouse_name: string
+  current_qty: number
+  reorder_point: number
+  safety_stock: number | null
+  shortage: number
+  is_critical: boolean
+  qty_on_order: number
+  still_short_after_order: boolean
+  preferred_supplier_id: string | null
+  preferred_supplier_name: string | null
+  lead_time_days: number | null
+  last_purchase_price: number | null
+  config_source: 'branch' | 'product_default'
+}
+
+export const useReorderSuggestions = (branchId?: string) =>
+  useQuery({
+    queryKey: ['stock', 'reorder-suggestions', branchId ?? 'all'],
+    queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (branchId) params.branch_id = branchId
+      const { data } = await api.get('/stock/reorder-suggestions', { params })
+      return data.data as ReorderSuggestionItem[]
+    },
+    staleTime: 60_000,
+  })

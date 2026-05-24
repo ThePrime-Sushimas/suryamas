@@ -338,6 +338,20 @@ export const menuItems: MenuItem[] = [
         module: "stock",
       },
       {
+        id: "inv-stock-config",
+        name: "Konfigurasi Stok",
+        href: "/inventory/stock-config",
+        icon: <Settings size={16} />,
+        module: "stock",
+      },
+      {
+        id: "inv-reorder-suggestions",
+        name: "Reorder Suggestions",
+        href: "/inventory/reorder-suggestions",
+        icon: <AlertTriangle size={16} />,
+        module: "stock",
+      },
+      {
         id: "inv-goods-receipts",
         name: "Penerimaan Barang",
         href: "/inventory/goods-receipts",
