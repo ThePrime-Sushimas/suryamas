@@ -370,6 +370,7 @@ export class GoodsReceiptsRepository {
       uom_po: string;
       conversion_factor: number;
       unit_price_po: number;
+      total_price_invoice?: number;
       price_variance: number;
       price_variance_pct: number;
       variance_status: string;
@@ -384,7 +385,10 @@ export class GoodsReceiptsRepository {
     for (const l of lines) {
       const qtyPoUom = l.qty_po_uom ?? l.qty_received;
       const qtyAccepted = qtyPoUom - (l.qty_rejected ?? 0);
-      const totalInvoice = qtyAccepted * l.unit_price_invoice;
+      const totalInvoice =
+        l.total_price_invoice != null
+          ? Number(l.total_price_invoice)
+          : qtyAccepted * l.unit_price_invoice;
       valueRows.push(
         `($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7}, $${idx + 8}, $${idx + 9}, $${idx + 10}, $${idx + 11}, $${idx + 12}, $${idx + 13}, $${idx + 14}, $${idx + 15}, $${idx + 16})`,
       );
@@ -785,6 +789,7 @@ export class GoodsReceiptsRepository {
       uom_received: string;
       conversion_factor: number;
       unit_price_invoice: number;
+      total_price_invoice?: number;
       unit_price_po: number;
       price_variance: number;
       price_variance_pct: number;
@@ -806,7 +811,10 @@ export class GoodsReceiptsRepository {
     for (const l of lines) {
       const qtyPoUom = l.qty_po_uom ?? l.qty_received;
       const qtyAccepted = qtyPoUom - (l.qty_rejected ?? 0);
-      const totalInvoice = qtyAccepted * l.unit_price_invoice;
+      const totalInvoice =
+        l.total_price_invoice != null
+          ? Number(l.total_price_invoice)
+          : qtyAccepted * l.unit_price_invoice;
       valueRows.push(
         `($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7}, $${idx + 8}, $${idx + 9}, $${idx + 10}, $${idx + 11}, $${idx + 12}, $${idx + 13}, $${idx + 14}, $${idx + 15}, $${idx + 16})`,
       );

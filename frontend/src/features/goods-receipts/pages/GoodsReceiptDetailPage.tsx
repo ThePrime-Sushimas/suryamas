@@ -512,24 +512,24 @@ export default function GoodsReceiptDetailPage() {
                             </div>
                           </div>
                         </div>
-                        {/* Harga & Subtotal */}
-                        {/* <div className="text-right shrink-0">
+                        <div className="text-right shrink-0">
                           <div className="font-mono font-bold text-gray-900 dark:text-gray-200">
-                            Rp {fmt(line.total_price_invoice ?? qtyDiterima * line.unit_price_invoice)}
+                            Rp {fmt(line.total_price_invoice ?? 0)}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                            Rp {fmt(line.unit_price_invoice)} /{uomPo}
+                            Rp {fmt(line.unit_price_invoice)} /
+                            {showWeighing ? ' Kilogram' : ` ${uomPo}`}
                           </div>
                           {(line.price_variance ?? 0) !== 0 && (
-                            <div className={`text-xs font-medium mt-1 ${VARIANCE_COLORS[line.variance_status ?? "OK"].split(' ')[0]}`}>
-                              {(line.price_variance ?? 0) > 0 ? "+" : ""}
-                              Rp {fmt(line.price_variance ?? 0)} 
+                            <div className={`text-xs font-medium mt-1 ${VARIANCE_COLORS[line.variance_status ?? 'OK'].split(' ')[0]}`}>
+                              {(line.price_variance ?? 0) > 0 ? '+' : ''}
+                              Rp {fmt(line.price_variance ?? 0)}
                               {(line.price_variance_pct ?? 0) !== 0 && (
                                 <span> ({fmt(line.price_variance_pct ?? 0)}%)</span>
                               )}
                             </div>
                           )}
-                        </div> */}
+                        </div>
                       </div>
 
                       {/* Summary auto-calculated style */}

@@ -62,7 +62,8 @@ function buildReceivableLinesFromPO(
           Number((l as { qty_short_closed?: number }).qty_short_closed ?? 0) -
           pendingAmt,
       );
-      const plPrice = priceMap[l.product_id]?.price;
+      const pl = priceMap[l.product_id];
+      const plPrice = pl?.price;
       const defaultPrice = plPrice ?? (Number(l.unit_price) || 0);
       const reqProcessing =
         productFlags[l.product_id]?.requires_processing ?? false;
@@ -83,6 +84,7 @@ function buildReceivableLinesFromPO(
         reject_reason: "",
         unit_price_invoice: defaultPrice,
         unit_price_po: Number(l.unit_price),
+        invoice_price_uom: pl?.uom_name ?? null,
         requires_processing: reqProcessing,
       } satisfies GRLineData;
     })
@@ -447,7 +449,11 @@ export default function GoodsReceiptFormPage() {
         const pl = priceMap[l.product_id];
         if (!pl || l.unit_price_invoice > 0) return l;
         // Pricelist price is always in purchase UOM — set directly
-        return { ...l, unit_price_invoice: pl.price };
+        return {
+          ...l,
+          unit_price_invoice: pl.price,
+          invoice_price_uom: pl.uom_name ?? l.invoice_price_uom,
+        };
       }),
     );
   }, [priceMap]);

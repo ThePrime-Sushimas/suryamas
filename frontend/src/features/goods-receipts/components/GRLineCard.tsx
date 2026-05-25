@@ -1,6 +1,11 @@
 import { useMemo, useRef, useEffect, useState } from 'react'
 import { Trash2, AlertTriangle, Scale, Package, XCircle, TruckIcon } from 'lucide-react'
 import { useProductUoms } from '@/features/product-uoms/api/productUoms.api'
+import {
+  computeGrLineInvoiceTotal,
+  invoiceUnitPriceLabel,
+  type ProductUomForInvoice,
+} from '@/utils/grLineInvoice.util'
 
 export interface GRLineData {
   key: string
@@ -19,6 +24,8 @@ export interface GRLineData {
   reject_reason: string
   unit_price_invoice: number
   unit_price_po: number
+  /** Satuan harga dari pricelist (mis. Kilogram) — untuk label dual UOM */
+  invoice_price_uom?: string | null
   requires_processing: boolean
 }
 
@@ -77,6 +84,41 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
     if (!estimatedCF || !line.conversion_factor || line.conversion_factor === 0) return null
     return Math.abs(line.conversion_factor - estimatedCF) / estimatedCF * 100
   }, [estimatedCF, line.conversion_factor])
+
+  const uomsForInvoice: ProductUomForInvoice[] = useMemo(
+    () =>
+      (productUoms ?? []).map((u) => ({
+        unit_name: u.metric_units?.unit_name ?? '',
+        conversion_factor: Number(u.conversion_factor),
+      })),
+    [productUoms],
+  )
+
+  const invoiceTotal = useMemo(
+    () =>
+      computeGrLineInvoiceTotal(
+        {
+          qty_po_uom: qtyDiterima,
+          qty_received: line.qty_received,
+          uom_po: line.uom_po,
+          uom_received: line.uom_received,
+          unit_price_invoice: line.unit_price_invoice,
+          qty_rejected: line.qty_rejected,
+        },
+        uomsForInvoice,
+      ),
+    [
+      qtyDiterima,
+      line.qty_received,
+      line.uom_po,
+      line.uom_received,
+      line.unit_price_invoice,
+      line.qty_rejected,
+      uomsForInvoice,
+    ],
+  )
+
+  const priceUomLabel = invoiceUnitPriceLabel(line, line.invoice_price_uom)
 
   /** Default stock UOM (e.g. Gram) when PO UOM differs — for warehouse entry without decimals. */
   const autoDetectedUom = useMemo(() => {
@@ -348,6 +390,26 @@ export function GRLineCard({ line, onChange, onRemove }: GRLineCardProps) {
               )}
             </p>
           )}
+        </div>
+      )}
+
+      {/* ── Nilai invoice (preview — disimpan saat submit) ── */}
+      {line.unit_price_invoice > 0 && qtyDiterima > 0 && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3 space-y-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Estimasi nilai invoice barang ini (harga tagihan per{' '}
+            <span className="font-semibold text-gray-700 dark:text-gray-300">{priceUomLabel}</span>
+            {needsConversion && (
+              <span className="text-gray-400">
+                {' '}
+                — dari berat gudang {fmt(line.qty_received)} {line.uom_received}, bukan × {fmt(qtyDiterima)}{' '}
+                {line.uom_po}
+              </span>
+            )}
+          </p>
+          <p className="text-lg font-mono font-bold text-gray-900 dark:text-white">
+            Rp {fmt(invoiceTotal)}
+          </p>
         </div>
       )}
 

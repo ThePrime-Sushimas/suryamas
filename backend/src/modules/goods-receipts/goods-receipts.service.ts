@@ -20,8 +20,11 @@ import { calculateDueDate } from '../../utils/due-date.util'
 import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import { buildProductUomsMap, toProductBaseQty } from '../../utils/product-uom.util'
+import type { ProductUomsMap } from '../../utils/product-uom.util'
+import { computeGrLineInvoiceTotal } from '../../utils/gp-cost-allocation.util'
 import type {
   CreateGoodsReceiptDto,
+  CreateGoodsReceiptLineDto,
   UpdateGoodsReceiptDto,
   GoodsReceiptWithLines,
   GoodsReceiptWithRelations,
@@ -39,6 +42,81 @@ function assertManualGrAllowedForInvoiceBypass(
 
 function supplierRequiresPurchaseInvoice(gr: Pick<GoodsReceiptWithRelations, 'requires_invoice'>): boolean {
   return gr.requires_invoice !== false
+}
+
+type ProcessedGrLine = {
+  po_line_id: string
+  product_id: string
+  qty_po_uom: number
+  uom_po: string
+  qty_received: number
+  uom_received: string
+  conversion_factor: number
+  unit_price_invoice: number
+  unit_price_po: number
+  total_price_invoice: number
+  price_variance: number
+  price_variance_pct: number
+  variance_status: VarianceStatus
+  qty_rejected?: number
+  reject_reason?: string | null
+  notes?: string | null
+}
+
+async function buildUomsMapForGrLines(lines: { product_id: string }[]): Promise<ProductUomsMap> {
+  const productIds = [...new Set(lines.map((l) => l.product_id))]
+  if (productIds.length === 0) return new Map()
+  return buildProductUomsMap(await productUomsRepository.findAllUomsBatch(productIds))
+}
+
+function buildProcessedGrLine(
+  line: CreateGoodsReceiptLineDto,
+  uomPo: string,
+  uomsMap: ProductUomsMap,
+  unitPricePo: number,
+): ProcessedGrLine {
+  const qtyPoUom = line.qty_po_uom ?? line.qty_received
+  const uomReceived = line.uom_received ?? uomPo
+  const conversionFactor = qtyPoUom > 0 ? line.qty_received / qtyPoUom : 1
+  const qtyAccepted = qtyPoUom - (line.qty_rejected ?? 0)
+
+  const totalInvoice = computeGrLineInvoiceTotal(
+    {
+      product_id: line.product_id,
+      qty_po_uom: qtyPoUom,
+      qty_received: line.qty_received,
+      uom_po: uomPo,
+      uom_received: uomReceived,
+      unit_price_invoice: line.unit_price_invoice,
+      qty_rejected: line.qty_rejected,
+    },
+    uomsMap,
+  )
+
+  const poTotal = qtyAccepted * unitPricePo
+  const variance = totalInvoice - poTotal
+  const variancePct = poTotal > 0 ? Math.abs(variance / poTotal) * 100 : 0
+  const varianceStatus: VarianceStatus =
+    variancePct <= 0.01 ? 'OK' : variancePct <= 15 ? 'NOTICE' : 'DISPUTED'
+
+  return {
+    po_line_id: line.po_line_id,
+    product_id: line.product_id,
+    qty_po_uom: qtyPoUom,
+    uom_po: uomPo,
+    qty_received: line.qty_received,
+    uom_received: uomReceived,
+    conversion_factor: conversionFactor,
+    unit_price_invoice: line.unit_price_invoice,
+    unit_price_po: unitPricePo,
+    total_price_invoice: totalInvoice,
+    price_variance: variance,
+    price_variance_pct: variancePct,
+    variance_status: varianceStatus,
+    qty_rejected: line.qty_rejected,
+    reject_reason: line.reject_reason,
+    notes: line.notes ?? null,
+  }
 }
 
 export class GoodsReceiptsService {
@@ -77,15 +155,14 @@ export class GoodsReceiptsService {
     // Guard: hitung pending qty dari GR DRAFT yang belum confirm
     const pendingMap = await goodsReceiptsRepository.findPendingQtyByPo(dto.po_id)
 
-    const processedLines = (dto.lines ?? []).map(line => {
+    const uomsMap = await buildUomsMapForGrLines(dto.lines ?? [])
+
+    const processedLines = (dto.lines ?? []).map((line) => {
       const poLine = poLineMap.get(line.po_line_id)
       if (!poLine) throw new InvalidReferenceError(`PO line ${line.po_line_id} not found`)
 
-      // Fallback: if frontend doesn't send qty_po_uom, assume same UOM (conversion = 1)
       const qtyPoUom = line.qty_po_uom ?? line.qty_received
-      const uomReceived = line.uom_received ?? poLine.uom
 
-      // Pending qty check uses qty_po_uom (PO unit)
       const pendingQty = pendingMap.get(line.po_line_id) ?? 0
       const remaining =
         Number(poLine.qty) - Number(poLine.qty_received) - Number(poLine.qty_short_closed) - pendingQty
@@ -100,31 +177,7 @@ export class GoodsReceiptsService {
         throw new BusinessRuleError(`Qty ditolak (${line.qty_rejected}) tidak boleh melebihi qty diterima (${qtyPoUom}) untuk ${poLine.product_name}`)
       }
 
-      // UOM snapshot from PO line
-      const uomPo = poLine.uom
-
-      // Calculate conversion factor
-      const conversionFactor = qtyPoUom > 0 ? line.qty_received / qtyPoUom : 1
-
-      // Variance: compare total method (both in PO UOM, only accepted qty)
-      const unitPricePo = Number(poLine.unit_price)
-      const poTotal = qtyAccepted * unitPricePo
-      const invoiceTotal = qtyAccepted * line.unit_price_invoice
-      const variance = invoiceTotal - poTotal
-      const variancePct = poTotal > 0 ? Math.abs(variance / poTotal) * 100 : 0
-      const varianceStatus: VarianceStatus = variancePct <= 0.01 ? 'OK' : variancePct <= 15 ? 'NOTICE' : 'DISPUTED'
-
-      return {
-        ...line,
-        qty_po_uom: qtyPoUom,
-        uom_received: uomReceived,
-        uom_po: uomPo,
-        conversion_factor: conversionFactor,
-        unit_price_po: unitPricePo,
-        price_variance: variance,
-        price_variance_pct: variancePct,
-        variance_status: varianceStatus,
-      }
+      return buildProcessedGrLine(line, poLine.uom, uomsMap, Number(poLine.unit_price))
     })
 
     const branchCode = po.branch_code ?? 'XXX'
@@ -423,37 +476,12 @@ export class GoodsReceiptsService {
         const poLines = await goodsReceiptsRepository.findPoLines(existing.po_id)
         const poLineMap = new Map(poLines.map(l => [l.id, l]))
 
-        const processedLines = dto.lines.map(line => {
+        const uomsMap = await buildUomsMapForGrLines(dto.lines)
+        const processedLines = dto.lines.map((line) => {
           const poLine = poLineMap.get(line.po_line_id)
           const uomPo = poLine?.uom ?? line.uom_received ?? 'Gram'
-          const qtyPoUom = line.qty_po_uom ?? line.qty_received
-          const uomReceived = line.uom_received ?? uomPo
-          const conversionFactor = qtyPoUom > 0 ? line.qty_received / qtyPoUom : 1
-
           const unitPricePo = poLinePriceMap.get(line.po_line_id) ?? line.unit_price_invoice
-          const qtyAccepted = qtyPoUom - (line.qty_rejected ?? 0)
-          const poTotal = qtyAccepted * unitPricePo
-          const invoiceTotal = qtyAccepted * line.unit_price_invoice
-          const variance = invoiceTotal - poTotal
-          const variancePct = poTotal > 0 ? Math.abs(variance / poTotal) * 100 : 0
-          const varianceStatus = variancePct > 15 ? 'DISPUTED' : variancePct > 5 ? 'NOTICE' : 'OK'
-          return {
-            po_line_id: line.po_line_id,
-            product_id: line.product_id,
-            qty_po_uom: qtyPoUom,
-            uom_po: uomPo,
-            qty_received: line.qty_received,
-            uom_received: uomReceived,
-            conversion_factor: conversionFactor,
-            unit_price_invoice: line.unit_price_invoice,
-            unit_price_po: unitPricePo,
-            price_variance: variance,
-            price_variance_pct: variancePct,
-            variance_status: varianceStatus,
-            qty_rejected: line.qty_rejected,
-            reject_reason: line.reject_reason,
-            notes: line.notes ?? null,
-          }
+          return buildProcessedGrLine(line, uomPo, uomsMap, unitPricePo)
         })
 
         await goodsReceiptsRepository.replaceLines(client, id, processedLines)

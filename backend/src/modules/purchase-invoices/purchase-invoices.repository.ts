@@ -15,15 +15,27 @@ type PostingRow = {
   purchase_invoice_line_id: string
   // goods_processing_output
   goods_processing_output_id: string
+  input_product_id: string
   product_id: string
   qty_output: number
+  uom: string
+  actual_qty: number | null
+  actual_uom: string | null
   output_sort_order: number
   is_waste: boolean
+  flagged_for_return: boolean
   // stock
   stock_movement_id: string | null
   warehouse_id: string
   // line subtotal (net of tax)
   line_subtotal: number
+  unit_price: number
+  qty_invoiced: number
+  qty_po_uom: number
+  qty_received: number
+  uom_po: string
+  uom_received: string
+  qty_rejected: number
 }
 
 type UpdateGpOutputCostAndLinkToInvoiceLineInput = {
@@ -578,22 +590,36 @@ export class PurchaseInvoicesRepository {
         pil.id AS purchase_invoice_line_id,
 
         gpo.id AS goods_processing_output_id,
+        gpi.product_id AS input_product_id,
         gpo.product_id,
 
         gpo.qty_output,
+        gpo.uom,
+        gpo.actual_qty,
+        gpo.actual_uom,
         gpo.sort_order AS output_sort_order,
         gpo.is_waste,
+        gpo.flagged_for_return,
 
         gpo.stock_movement_id,
         gpo.warehouse_id,
 
-        pil.subtotal AS line_subtotal
+        pil.subtotal AS line_subtotal,
+        pil.unit_price,
+        pil.qty_invoiced,
+        grl.qty_po_uom,
+        grl.qty_received,
+        grl.uom_po,
+        grl.uom_received,
+        grl.qty_rejected
       FROM purchase_invoice_lines pil
+      JOIN goods_receipt_lines grl ON grl.id = pil.gr_line_id
       JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
       JOIN goods_processing_outputs gpo
         ON gpo.goods_processing_id = gpi.goods_processing_id
        AND gpo.input_id = gpi.id
        AND gpo.is_waste = FALSE
+       AND gpo.flagged_for_return = FALSE
       WHERE pil.purchase_invoice_id = $1
         AND pil.deleted_at IS NULL
         AND gpi.status = 'CONFIRMED'

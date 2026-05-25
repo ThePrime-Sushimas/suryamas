@@ -52,6 +52,13 @@ import type { PiLineForPricelistSync, PricelistSyncResult } from '../pricelists/
 import { recipesRepository } from '../food-production/recipes/recipes.repository'
 import { logError, logInfo } from '../../config/logger'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
+import { productOutputTemplateRepository } from '../product-output-template/product-output-template.repository'
+import { buildProductUomsMap } from '../../utils/product-uom.util'
+import {
+  allocateLineCostToGpOutputs,
+  buildBearsCostMap,
+  resolveGpInputCostFromGrLine,
+} from '../../utils/gp-cost-allocation.util'
 import { suppliersRepository } from '../suppliers/suppliers.repository'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
 import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
@@ -962,31 +969,54 @@ export class PurchaseInvoicesService {
         rowsByLineId.set(key, arr)
       }
 
+      const productIds = [
+        ...new Set(postingRows.flatMap((r) => [r.product_id, r.input_product_id])),
+      ]
+      const uomsMap = buildProductUomsMap(await productUomsRepository.findAllUomsBatch(productIds))
+
+      const inputProductIds = [...new Set(postingRows.map((r) => r.input_product_id))]
+      const templatesByInput = await productOutputTemplateRepository.findByProductIds(inputProductIds)
+
       const recomputePairs: Array<{ product_id: string; warehouse_id: string }> = []
       const seenPairs = new Set<string>()
 
       for (const [purchase_invoice_line_id, lineRows] of rowsByLineId.entries()) {
-        const lineSubtotal = Number(lineRows[0].line_subtotal)
-        const totalAllocableQty = lineRows.reduce((s, r) => s + Number(r.qty_output), 0)
-        if (totalAllocableQty <= 0) continue
+        const head = lineRows[0]
+        const inputProductId = head.input_product_id
+        const lineSubtotal = resolveGpInputCostFromGrLine(
+          {
+            product_id: inputProductId,
+            total_price_invoice: Number(head.line_subtotal),
+            unit_price_invoice: Number(head.unit_price),
+            qty_po_uom: Number(head.qty_po_uom),
+            qty_received: Number(head.qty_received),
+            uom_po: head.uom_po,
+            uom_received: head.uom_received,
+            qty_rejected: Number(head.qty_rejected ?? 0),
+          },
+          uomsMap,
+        )
+        const bearsCostMap = buildBearsCostMap(
+          (templatesByInput[inputProductId] ?? []).map((t) => ({
+            output_product_id: t.output_product_id,
+            bears_cost: t.bears_cost,
+          })),
+        )
 
-        let allocated = 0
-        const sorted = [...lineRows].sort((a, b) => Number(a.output_sort_order) - Number(b.output_sort_order))
+        const allocations = allocateLineCostToGpOutputs(
+          lineSubtotal,
+          lineRows.map((r) => ({
+            ...r,
+            output_sort_order: Number(r.output_sort_order),
+          })),
+          bearsCostMap,
+          uomsMap,
+        )
 
-        for (let i = 0; i < sorted.length; i++) {
-          const out = sorted[i]
-          let allocatedCost: number
+        const hasCostBearingQty = allocations.some((a) => a.baseQty > 0 && a.allocatedCost > 0)
+        if (!hasCostBearingQty && lineSubtotal > 0) continue
 
-          if (i === sorted.length - 1) {
-            allocatedCost = lineSubtotal - allocated
-          } else {
-            const ratio = Number(out.qty_output) / totalAllocableQty
-            allocatedCost = Math.round(lineSubtotal * ratio)
-            allocated += allocatedCost
-          }
-
-          const unitCost = Number(out.qty_output) > 0 ? allocatedCost / Number(out.qty_output) : 0
-
+        for (const { output: out, allocatedCost, unitCost } of allocations) {
           await purchaseInvoicesRepository.updateGpOutputCostAndLinkToInvoiceLine(client, {
             goods_processing_output_id: out.goods_processing_output_id,
             purchase_invoice_line_id,

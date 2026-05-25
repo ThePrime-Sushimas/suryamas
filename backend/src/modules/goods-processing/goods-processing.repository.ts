@@ -9,6 +9,11 @@ import type {
 } from './goods-processing.types'
 import { productOutputTemplateRepository } from '../product-output-template/product-output-template.repository'
 import { stockRepository } from '../stock/stock.repository'
+import {
+  buildBearsCostMap,
+  outputBearsCost,
+  resolveGpInputCostFromGrLine,
+} from '../../utils/gp-cost-allocation.util'
 
 const HEADER_SELECT = `
   gp.*,
@@ -165,13 +170,30 @@ async confirmInputWithStock(
     // ─── Cost allocation ────────────────────────────────────────────────────
     // Fetch input's GR line cost
     const { rows: [inputRow] } = await client.query(
-      `SELECT gpi.product_id, gpi.qty_input, gpi.uom, grl.total_price_invoice, grl.unit_price_invoice
+      `SELECT gpi.product_id, gpi.qty_input, gpi.uom,
+              grl.total_price_invoice, grl.unit_price_invoice,
+              grl.qty_po_uom, grl.qty_received,
+              grl.uom_po, grl.uom_received, grl.qty_rejected
        FROM goods_processing_inputs gpi
        JOIN goods_receipt_lines grl ON grl.id = gpi.gr_line_id
        WHERE gpi.id = $1`,
       [inputId]
     )
-    const totalInputCost = inputRow ? Number(inputRow.total_price_invoice) || 0 : 0
+    const totalInputCost = inputRow
+      ? resolveGpInputCostFromGrLine(
+          {
+            product_id: inputRow.product_id,
+            total_price_invoice: Number(inputRow.total_price_invoice) || 0,
+            unit_price_invoice: Number(inputRow.unit_price_invoice) || 0,
+            qty_po_uom: Number(inputRow.qty_po_uom),
+            qty_received: Number(inputRow.qty_received),
+            uom_po: inputRow.uom_po,
+            uom_received: inputRow.uom_received,
+            qty_rejected: Number(inputRow.qty_rejected ?? 0),
+          },
+          uomsMap,
+        )
+      : 0
 
     // Fetch template to determine bears_cost per output product
     const inputProductId = inputRow?.product_id
@@ -188,7 +210,7 @@ async confirmInputWithStock(
     for (const out of freshOutputs) {
       if (out.is_waste || out.flagged_for_return) continue
       // Check bears_cost: default true if not in template
-      const bearsCost = bearsCostMap.get(out.product_id) ?? true
+      const bearsCost = outputBearsCost(bearsCostMap, out.product_id)
       if (!bearsCost) continue
 
       if (isPassThrough && out.condition_status === 'DAMAGED' && out.actual_qty !== null) {
@@ -212,7 +234,7 @@ async confirmInputWithStock(
         const wasteQty = Math.max(0, totalBase - goodQty)
 
         if (goodQty > 0) {
-          const bearsCost = bearsCostMap.get(out.product_id) ?? true
+          const bearsCost = outputBearsCost(bearsCostMap, out.product_id)
           const outputCostPerUnit = bearsCost ? costPerBaseUnit : 0
 
           const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
@@ -256,7 +278,7 @@ async confirmInputWithStock(
       const uom = out.actual_uom != null ? out.actual_uom : out.uom
       const baseQty = toBaseQty(out.product_id, uom, qty, uomsMap)
 
-      const bearsCost = bearsCostMap.get(out.product_id) ?? true
+      const bearsCost = outputBearsCost(bearsCostMap, out.product_id)
       const outputCostPerUnit = bearsCost ? costPerBaseUnit : 0
 
       const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
@@ -359,13 +381,28 @@ async confirmGpWithStock(
 
       // ─── Cost allocation per input ──────────────────────────────────────
       const { rows: [grLine] } = await client.query(
-        `SELECT grl.total_price_invoice
+        `SELECT grl.total_price_invoice, grl.unit_price_invoice, grl.qty_po_uom, grl.qty_received,
+                grl.uom_po, grl.uom_received, grl.qty_rejected
          FROM goods_processing_inputs gpi
          JOIN goods_receipt_lines grl ON grl.id = gpi.gr_line_id
          WHERE gpi.id = $1`,
         [inp.id]
       )
-      const totalInputCost = grLine ? Number(grLine.total_price_invoice) || 0 : 0
+      const totalInputCost = grLine
+        ? resolveGpInputCostFromGrLine(
+            {
+              product_id: inp.product_id,
+              total_price_invoice: Number(grLine.total_price_invoice) || 0,
+              unit_price_invoice: Number(grLine.unit_price_invoice) || 0,
+              qty_po_uom: Number(grLine.qty_po_uom),
+              qty_received: Number(grLine.qty_received),
+              uom_po: grLine.uom_po,
+              uom_received: grLine.uom_received,
+              qty_rejected: Number(grLine.qty_rejected ?? 0),
+            },
+            uomsMap,
+          )
+        : 0
 
       // Fetch template for bears_cost
       const templates = await productOutputTemplateRepository.findByProductId(inp.product_id)
@@ -378,7 +415,7 @@ async confirmGpWithStock(
       let totalCostBearingBaseQty = 0
       for (const out of inp.outputs) {
         if (out.is_waste || out.flagged_for_return || out.stock_movement_id) continue
-        const bearsCost = bearsCostMap.get(out.product_id) ?? true
+        const bearsCost = outputBearsCost(bearsCostMap, out.product_id)
         if (!bearsCost) continue
 
         if (isPassThrough && out.condition_status === 'DAMAGED' && out.actual_qty !== null) {
@@ -407,7 +444,7 @@ async confirmGpWithStock(
           }
 
           if (goodQty > 0) {
-            const bearsCost = bearsCostMap.get(out.product_id) ?? true
+            const bearsCost = outputBearsCost(bearsCostMap, out.product_id)
             const outputCostPerUnit = bearsCost ? costPerBaseUnit : 0
 
             const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
@@ -457,7 +494,7 @@ async confirmGpWithStock(
           continue
         }
 
-        const bearsCost = bearsCostMap.get(out.product_id) ?? true
+        const bearsCost = outputBearsCost(bearsCostMap, out.product_id)
         const outputCostPerUnit = bearsCost ? costPerBaseUnit : 0
 
         const currentBalance = await stockRepository.getBalanceForUpdate(client, warehouseId, out.product_id)
@@ -761,7 +798,10 @@ async rejectGp(id: string, rejection_reason: string, userId: string): Promise<vo
         let costPerUnit = 0
         if (outputRow) {
           const templates = await productOutputTemplateRepository.findByProductId(outputRow.input_product_id)
-          const bearsCost = templates.find(t => t.output_product_id === output.product_id)?.bears_cost ?? true
+          const bearsCostMap = buildBearsCostMap(
+            templates.map((t) => ({ output_product_id: t.output_product_id, bears_cost: t.bears_cost })),
+          )
+          const bearsCost = outputBearsCost(bearsCostMap, output.product_id)
           if (bearsCost) {
             // Use the unit_cost already calculated if available, otherwise estimate
             const { rows: [existingCost] } = await client.query(

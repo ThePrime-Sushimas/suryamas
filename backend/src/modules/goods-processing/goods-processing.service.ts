@@ -373,8 +373,10 @@ export class GoodsProcessingService {
 
     const auditBefore = formatInputLineForAudit(detail, input)
 
-    const outputProductIds = outputs.map((o: any) => o.product_id)
-    const uomsMap = await buildUomsMap([...new Set(outputProductIds)])
+    const outputProductIds = outputs.map((o: { product_id: string }) => o.product_id)
+    const uomsMap = await buildUomsMap([
+      ...new Set([input.product_id, ...outputProductIds]),
+    ])
 
     await goodsProcessingRepository.confirmInputWithStock(
       id,

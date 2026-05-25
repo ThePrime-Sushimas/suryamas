@@ -159,7 +159,9 @@ export function OutputTemplateSection({ productId, productName }: Props) {
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Template ini akan otomatis muncul saat{' '}
             <strong className="text-gray-700 dark:text-gray-300">{productName}</strong> diproses
-            sebagai input disassembly di Goods Processing.
+            sebagai input disassembly di Goods Processing. Hanya produk output yang ada di template
+            dan centang <strong>Tanggung Biaya</strong> yang menerima modal pembelian; output lain
+            (mis. tetelan) otomatis cost Rp 0.
           </p>
 
           {isLoading ? (
@@ -241,7 +243,7 @@ export function OutputTemplateSection({ productId, productName }: Props) {
                               checked={row.bears_cost}
                               onChange={(e) => updateRow(i, 'bears_cost', e.target.checked)}
                               className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                              title="Jika dicentang, output ini menanggung biaya input (cost allocation)"
+                              title="Centang hanya untuk produk utama (mis. badan). Output tidak ada di template tidak menanggung biaya."
                             />
                           </td>
                           <td className="py-2 pr-3">
