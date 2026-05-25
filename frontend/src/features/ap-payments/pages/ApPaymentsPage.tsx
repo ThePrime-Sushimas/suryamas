@@ -186,15 +186,15 @@ export default function ApPaymentsPage() {
               <div className="flex flex-wrap gap-2 mt-2">
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tgl Terima:</span>
-                  <input type="date" value={outReceivedFrom} onChange={(e) => setOutReceivedFrom(e.target.value)} className={`${apTheme.select} text-xs !py-1`} />
+                  <input type="date" value={outReceivedFrom} onChange={(e) => setOutReceivedFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={outReceivedTo} onChange={(e) => setOutReceivedTo(e.target.value)} className={`${apTheme.select} text-xs !py-1`} />
+                  <input type="date" value={outReceivedTo} onChange={(e) => setOutReceivedTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
-                  <input type="date" value={outDueFrom} onChange={(e) => setOutDueFrom(e.target.value)} className={`${apTheme.select} text-xs !py-1`} />
+                  <input type="date" value={outDueFrom} onChange={(e) => setOutDueFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={outDueTo} onChange={(e) => setOutDueTo(e.target.value)} className={`${apTheme.select} text-xs !py-1`} />
+                  <input type="date" value={outDueTo} onChange={(e) => setOutDueTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
                 </div>
               </div>
               {isDateRangeInvalid(outReceivedFrom, outReceivedTo) && (
@@ -234,15 +234,15 @@ export default function ApPaymentsPage() {
               <div className="flex flex-wrap gap-2 mt-2">
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tgl Bayar:</span>
-                  <input type="date" value={payDateFrom} onChange={(e) => setPayDateFrom(e.target.value)} className={`${apTheme.select} text-xs !py-1`} />
+                  <input type="date" value={payDateFrom} onChange={(e) => setPayDateFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={payDateTo} onChange={(e) => setPayDateTo(e.target.value)} className={`${apTheme.select} text-xs !py-1`} />
+                  <input type="date" value={payDateTo} onChange={(e) => setPayDateTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
-                  <input type="date" value={payDueFrom} onChange={(e) => setPayDueFrom(e.target.value)} className={`${apTheme.select} text-xs !py-1`} />
+                  <input type="date" value={payDueFrom} onChange={(e) => setPayDueFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={payDueTo} onChange={(e) => setPayDueTo(e.target.value)} className={`${apTheme.select} text-xs !py-1`} />
+                  <input type="date" value={payDueTo} onChange={(e) => setPayDueTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
                 </div>
               </div>
               {isDateRangeInvalid(payDateFrom, payDateTo) && (
