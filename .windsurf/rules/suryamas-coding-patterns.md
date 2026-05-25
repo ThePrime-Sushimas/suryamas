@@ -1,0 +1,84 @@
+---
+trigger: model_decision
+description: Suryamas ERP coding contracts — soft delete, transactions, SQL, multi-tenant
+globs: backend/**/*.ts
+---
+
+# Coding Patterns & Contracts
+
+Read before creating or modifying backend modules.
+
+## Soft delete
+
+```sql
+is_deleted BOOLEAN NOT NULL DEFAULT false,
+deleted_at TIMESTAMPTZ,
+```
+
+- `findById` / `findAll` / `search`: `deleted_at IS NULL` (unless `findByIdIncludeDeleted`)
+- `softDelete`: set both `deleted_at = now()`, `is_deleted = true`
+- `restore`: reset both to `NULL` / `false`
+
+## Delete guard
+
+Before `softDelete`, `hasChildren()` — throw `BusinessRuleError` if active children exist. Check deepest tables first.
+
+## Repository query matrix
+
+| Method | `deleted_at IS NULL` | `company_id` |
+|--------|---------------------|--------------|
+| findAll, findById, search, update, softDelete | ✅ | ✅ |
+| create | N/A | ✅ |
+| restore | `deleted_at IS NOT NULL` | ✅ |
+
+## Service contracts
+
+- `create`: duplicate check (23505 → ConflictError), audit log
+- `update`: fetch existing first (before/after audit)
+- `delete`: fetch → `hasChildren()` → softDelete → audit
+- Multi-table or multi-row writes: **transaction** with `client.query()`, not `pool.query()` inside tx
+
+## SQL schema (new tables)
+
+```sql
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+company_id UUID NOT NULL REFERENCES companies(id),
+is_active BOOLEAN NOT NULL DEFAULT true,
+is_deleted BOOLEAN NOT NULL DEFAULT false,
+created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+created_by UUID REFERENCES auth_users(id),
+updated_by UUID REFERENCES auth_users(id),
+deleted_at TIMESTAMPTZ,
+```
+
+Index: `CREATE INDEX idx_{table}_company ON {table}(company_id) WHERE deleted_at IS NULL;`  
+Unique: `UNIQUE(company_id, code_column)`
+
+## Multi-tenant
+
+Every query with `company_id` must filter `WHERE company_id = $N` — no exceptions.
+
+## N+1 prevention
+
+No `for...of` + `await query()` in loops. Use `WHERE id = ANY($1::uuid[])`, batch unnest, or chunks ≤50.
+
+## Other contracts
+
+- Compare by `code`, not `name` (categories, status, type)
+- Static imports for `pool` — no dynamic `import()` for DB
+- Fiscal journal ops: check open fiscal period first
+- UOM: `conversion_factor` = base units per 1 unit; `cost = average_cost × conversion_factor` (not divide)
+- Error messages must match what code actually checks
+- WIP access: `filterAccessibleWipIds()` from `wip/wip-access.util.ts`
+- Supersede pattern: set `superseded_by`, filter `superseded_by IS NULL` in lists
+
+## Naming
+
+| Item | Pattern |
+|------|---------|
+| Table | `snake_case` plural |
+| Module folder | kebab-case |
+| File | `{module}.{layer}.ts` |
+| API route | `/api/v1/kebab-case` |
+| Permission module | `snake_case` |

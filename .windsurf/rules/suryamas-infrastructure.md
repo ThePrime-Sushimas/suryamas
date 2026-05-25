@@ -1,0 +1,57 @@
+---
+trigger: model_decision
+description: Suryamas ERP infrastructure — server, tunnel, deploy, storage (no secrets)
+globs: "{.github/**,backend/.env*,deploy*}"
+---
+
+# Infrastructure & Deployment
+
+> Credentials live in `.env`, GitHub Secrets, and `.amazonq/rules/memory-bank/INFRASTRUCTURE.md` — never paste passwords or tokens into code or rules.
+
+## Server (Hetzner)
+
+- IP: `65.108.60.217` — SSH: `ssh root@65.108.60.217`
+- Stack: Node 22, PostgreSQL 17, Nginx, PM2, Certbot
+- Domain: `sushimas.duckdns.org`
+
+## Database
+
+- Production DB on VPS port 5432 (firewall **closed** externally)
+- Local access via SSH tunnel:
+
+```bash
+tunnel   # ~/.zshrc alias
+# or: ssh -f -N -L 5433:localhost:5432 -L 5050:localhost:5050 root@65.108.60.217
+```
+
+- Local `DATABASE_URL` uses `localhost:5433` (tunnel), not server IP
+
+## VPS paths
+
+| Path | Purpose |
+|------|---------|
+| `/var/www/suryamas` | Project root |
+| `/var/www/suryamas/backend` | API + `.env` |
+| `/var/www/suryamas/frontend` | Built SPA |
+| PM2 `suryamas-backend` | API process |
+
+## Storage (Cloudflare R2)
+
+- S3-compatible; env: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
+- **Required**: `forcePathStyle: true` on S3Client
+- Lazy init: `getS3()` getter pattern
+
+## Monitoring
+
+- Errors → `error_logs` table + Telegram alerts
+- Dashboard: `/monitoring` (local dev)
+
+## Deploy
+
+- Auto: push `main` → `.github/workflows/deploy.yml` → `/root/deploy.sh` on VPS
+- Manual: `ssh root@65.108.60.217` then `/root/deploy.sh`
+- After backend changes: `cd backend && npx tsc` before deploy
+
+## Migration note
+
+Supabase → Hetzner complete. `auth.users` → `public.auth_users`; FKs remapped.

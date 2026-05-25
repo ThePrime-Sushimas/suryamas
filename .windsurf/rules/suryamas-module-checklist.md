@@ -1,0 +1,52 @@
+---
+trigger: model_decision
+description: Checklist for creating a new Suryamas ERP backend module
+globs: backend/src/modules/**
+---
+
+# New Module Checklist
+
+All items **required** before the module is done.
+
+## Backend files
+
+- [ ] `*.types.ts` — Entity, WithRelation, CreateDto, UpdateDto
+- [ ] `*.errors.ts` — NotFound, Duplicate, InUse (if has children)
+- [ ] `*.schema.ts` — create, update, id, bulkDelete (z from `@/lib/openapi`)
+- [ ] `*.repository.ts` — findAll, findById, search, create, update, softDelete, restore, hasChildren
+- [ ] `*.service.ts` — list, search, getById, create, update, delete (guard), restore + audit
+- [ ] `*.controller.ts` — thin handlers, `await handleError`
+- [ ] `*.routes.ts` — `PermissionService.registerModule`, static routes before `/:id`
+
+## SQL / migration
+
+- [ ] Standard columns: `id`, `company_id`, timestamps, `created_by`/`updated_by`, soft-delete pair
+- [ ] Index: `(company_id) WHERE deleted_at IS NULL`
+- [ ] Unique: `UNIQUE(company_id, code_column)`
+
+## Consistency checks
+
+- [ ] `hasChildren()` before delete; parent checks include all child tables
+- [ ] All reads filter `deleted_at IS NULL` + `company_id`
+- [ ] `softDelete` sets both flags; `restore` clears both
+- [ ] `AuditService.log` on CREATE, UPDATE, DELETE, RESTORE
+- [ ] Catch: `error: unknown`; PG 23505 → DuplicateError
+- [ ] Register routes in `app.ts`: `app.use("/api/v1/{name}", routes)`
+- [ ] Middleware: `authenticate → resolveBranchContext → requireWriteAccess → permission → validateSchema`
+
+## Verify
+
+- [ ] `npx tsc --noEmit` — 0 errors
+- [ ] `npx tsc` — 0 errors
+- [ ] Smoke test: list, create, getById
+
+## Cross-reference
+
+| Check | How |
+|-------|-----|
+| SQL vs repository | INSERT/UPDATE columns match migration |
+| findById vs update/delete | Same `deleted_at` filter |
+| Parent hasChildren | All child tables included |
+| Error imports | From `errors.base`, not `error-registry` |
+
+Reference: `branches.controller.ts`, `products` feature page (pagination).
