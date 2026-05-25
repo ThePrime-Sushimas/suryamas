@@ -41,6 +41,31 @@ tunnel  # otomatis buat SSH tunnel DB + pgAdmin
 ```
 DATABASE_URL=postgresql://suryamas:Paulus20june@localhost:5433/suryamas_db
 ```
+(Port **5433** = tunnel dari Mac. Di VPS pakai **5432** — skrip backup otomatis normalisasi.)
+
+### Backup database (VPS)
+```bash
+mkdir -p /var/backups/suryamas
+cd /var/www/suryamas && git pull
+cp backend/database/scripts/backup-vps-database.sh /root/backup-suryamas-db.sh
+cp backend/database/scripts/vps-db-credentials.sh /root/vps-db-credentials.sh
+# Atau jalankan langsung dari repo:
+# /var/www/suryamas/backend/database/scripts/backup-vps-database.sh
+
+/root/backup-suryamas-db.sh
+ls -lh /var/backups/suryamas/
+```
+Kredensial: otomatis dari `backend/.env` atau fallback user/password di bagian Database di atas.
+
+Cron harian 02:00:
+```
+0 2 * * * /root/backup-suryamas-db.sh >> /var/log/suryamas-db-backup.log 2>&1
+```
+
+Download ke Mac (terminal lokal):
+```bash
+scp root@65.108.60.217:/var/backups/suryamas/suryamas_db_LATEST.sql.gz ~/Downloads/
+```
 
 ## Firewall (Hetzner)
 | Port | Protocol | Source | Keterangan |

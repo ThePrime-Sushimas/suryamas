@@ -3,12 +3,17 @@
 # PERINGATAN: Menimpa data di database target. Hentikan backend dulu (pm2 stop suryamas-backend).
 #
 # Usage:
-#   PGPASSWORD='...' ./restore-vps-database.sh /var/backups/suryamas/suryamas_db_20260525_020000.sql.gz
+#   ./restore-vps-database.sh /var/backups/suryamas/suryamas_db_20260525_020000.sql.gz
 
 set -euo pipefail
 
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./vps-db-credentials.sh
+source "${_script_dir}/vps-db-credentials.sh"
+load_vps_db_credentials
+
 if [[ $# -lt 1 ]]; then
-  echo "Usage: PGPASSWORD='...' $0 <backup.sql.gz>" >&2
+  echo "Usage: $0 <backup.sql.gz>" >&2
   exit 1
 fi
 
@@ -20,11 +25,6 @@ DB_PORT="${PGPORT:-5432}"
 
 if [[ ! -f "$BACKUP_FILE" ]]; then
   echo "File tidak ditemukan: $BACKUP_FILE" >&2
-  exit 1
-fi
-
-if [[ -z "${PGPASSWORD:-}" ]]; then
-  echo "ERROR: Set PGPASSWORD." >&2
   exit 1
 fi
 
