@@ -3,9 +3,11 @@ import { purchaseRequestsRepository } from '../purchase-requests/purchase-reques
 import { PrinterNotFoundError, PrinterConnectionError } from './printers.errors'
 import { PurchaseRequestNotFoundError } from '../purchase-requests/purchase-requests.errors'
 import { AuditService } from '../monitoring/monitoring.service'
-import { buildDocReceipt, buildGoodsReceiptReceipt, sendToPrinter, testPrinterConnection, fmt } from './printers.print'
+import { buildDocReceipt, buildGoodsReceiptReceipt, buildDailyPrepOrderReceipt, sendToPrinter, testPrinterConnection, fmt } from './printers.print'
 import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
 import { GoodsReceiptNotFoundError } from '../goods-receipts/goods-receipts.errors'
+import { dailyPrepOrdersRepository } from '../daily-prep-orders/daily-prep-orders.repository'
+import { DpoNotFoundError } from '../daily-prep-orders/daily-prep-orders.errors'
 import type { GoodsReceiptLineWithRelations } from '../goods-receipts/goods-receipts.types'
 import { BusinessRuleError } from '../../utils/errors.base'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
@@ -228,6 +230,64 @@ export class PrintersService {
 
     logInfo('GR printed', { gr_id: grId, printer_id: printerId, lines: lineIds.length })
     await AuditService.log('PRINT', 'goods_receipt', grId, userId, undefined, {
+      printer_id: printerId,
+      line_count: lineIds.length,
+    })
+  }
+
+  // ─── PRINT DAILY PREP ORDER ─────────────────────────────────────────────────
+
+  async printDailyPrepOrder(
+    printerId: string,
+    dpoId: string,
+    lineIds: string[],
+    companyId: string,
+    userId: string,
+  ): Promise<void> {
+    const dpo = await dailyPrepOrdersRepository.findDetail(dpoId, companyId)
+    if (!dpo) throw new DpoNotFoundError(dpoId)
+
+    const printer = await printersRepository.findById(printerId, companyId)
+    if (!printer) throw new PrinterNotFoundError(printerId)
+    if (!printer.is_active) {
+      throw new PrinterConnectionError(printer.ip_address, printer.port, 'Printer is inactive')
+    }
+    await this.assertPrintAccess(printer, userId, dpo.branch_id)
+
+    const selectedLines = dpo.lines.filter((l) => lineIds.includes(l.id))
+    if (selectedLines.length === 0) throw new BusinessRuleError('Tidak ada line yang dipilih untuk dicetak')
+
+    const printedByName = await printersRepository.getEmployeeName(userId)
+    const fmtDate = (d: string) =>
+      new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+
+    const header = [
+      { key: 'No DPO', value: dpo.dpo_number },
+      { key: 'Tgl Prep', value: fmtDate(dpo.prep_date) },
+      { key: 'Cabang', value: dpo.branch_name },
+      { key: 'Dari', value: dpo.source_warehouse_name },
+      { key: 'Ke', value: dpo.target_warehouse_name },
+      { key: 'Status', value: dpo.status },
+    ]
+    if (dpo.confirmed_by_name) header.push({ key: 'Konfirmasi', value: dpo.confirmed_by_name })
+
+    const formatQty = (n: number) => parseFloat(n.toFixed(4)).toString()
+    const items = selectedLines.map((l, idx) => ({
+      label: `${idx + 1}. ${l.product_name}`,
+      detail: `${formatQty(l.confirmed_qty ?? l.suggested_qty)} ${l.uom}`,
+    }))
+
+    const receipt = buildDailyPrepOrderReceipt({
+      paper_width: printer.paper_width,
+      header,
+      items,
+      footer: `Dicetak oleh: ${printedByName ?? '-'} · ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
+    })
+
+    await sendToPrinter(printer.ip_address, printer.port, receipt)
+
+    logInfo('DPO printed', { dpo_id: dpoId, printer_id: printerId, lines: lineIds.length })
+    await AuditService.log('PRINT', 'daily_prep_orders', dpoId, userId, undefined, {
       printer_id: printerId,
       line_count: lineIds.length,
     })

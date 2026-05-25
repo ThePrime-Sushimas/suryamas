@@ -504,6 +504,11 @@ const OwnerCreditCardSettingsPage = lazy(() => import('./features/settings/pages
 const GoodsProcessingPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingPage'))
 const GoodsProcessingDetailPage = lazy(() => import('./features/goods-processing/pages/GoodsProcessingDetailPage'))
 
+// Daily Prep Orders
+const DpoListPage = lazy(() => import('./features/daily-prep-orders/pages/DpoListPage'))
+const DpoConfigPage = lazy(() => import('./features/daily-prep-orders/pages/DpoConfigPage'))
+const DpoHolidaysPage = lazy(() => import('./features/daily-prep-orders/pages/DpoHolidaysPage'))
+
 // Purchase Invoices
 const PurchaseInvoicesPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoicesPage"))
 const PurchaseInvoiceFormPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceFormPage"))
@@ -1993,6 +1998,47 @@ function App() {
                       <RequirePermission module="goods_processing">
                         <Suspense fallback={<LoadingFallback />}>
                           <GoodsProcessingDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  {/* Daily Prep Orders — static routes first */}
+                  <Route
+                    path="daily-prep-orders/config"
+                    element={
+                      <RequirePermission module="daily_prep_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DpoConfigPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="daily-prep-orders/holidays"
+                    element={
+                      <RequirePermission module="daily_prep_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DpoHolidaysPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="daily-prep-orders"
+                    element={
+                      <RequirePermission module="daily_prep_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DpoListPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="daily-prep-orders/:id"
+                    element={
+                      <RequirePermission module="daily_prep_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DpoListPage />
                         </Suspense>
                       </RequirePermission>
                     }

@@ -114,3 +114,131 @@ npm run preview      # Preview production build
 - **Permission model**: `RequirePermission` component wraps protected routes
 - **Branch context**: All operations run within branch context with `BranchSelectionGuard`
 - **State management**: Zustand for global state, TanStack Query for server state
+- **URL State**: List page filters MUST be synced to URL search params via `useUrlFilters` hook
+
+## URL State Management (Frontend)
+
+All list/index pages MUST persist filter, pagination, and search state in URL search params. This enables shareable links, browser back/forward navigation, and page refresh without losing context.
+
+### Core Library: `@/lib/urlFilters`
+
+```typescript
+import {
+  useUrlFilters,
+  useListNavigation,
+  parsePositiveInt,
+  parseEnum,
+  parseString,
+  serializeString,
+  serializeNumber,
+  mergeWithPageReset,
+  type UrlFilterBase,
+  type UrlFilterUtils,
+} from '@/lib/urlFilters'
+```
+
+### Pattern: Feature Filter Config
+
+Each feature defines its own filter type and config in a dedicated file (e.g. `features/{feature}/utils/{feature}Filters.url.ts`):
+
+```typescript
+// features/daily-prep-orders/utils/dpoFilters.url.ts
+import {
+  parsePositiveInt, parseEnum, parseString,
+  serializeString, serializeNumber, mergeWithPageReset,
+  type UrlFilterBase, type UrlFilterUtils,
+} from '@/lib/urlFilters'
+
+type DpoStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | ''
+const VALID_STATUSES = new Set<DpoStatus>(['DRAFT', 'CONFIRMED', 'CANCELLED', ''])
+
+export type DpoFilters = UrlFilterBase & {
+  status: DpoStatus
+  branch_id: string
+  date_from: string
+  date_to: string
+  search: string
+}
+
+export const DPO_FILTER_DEFAULTS: DpoFilters = {
+  page: 1,
+  limit: 25,
+  status: '',
+  branch_id: '',
+  date_from: '',
+  date_to: '',
+  search: '',
+}
+
+export const dpoFilterConfig: UrlFilterUtils<DpoFilters> = {
+  defaults: DPO_FILTER_DEFAULTS,
+
+  parse: (sp) => ({
+    page: parsePositiveInt(sp.get('page'), 1),
+    limit: parsePositiveInt(sp.get('limit'), 25, 100),
+    status: parseEnum(sp.get('status'), VALID_STATUSES, ''),
+    branch_id: parseString(sp.get('branch_id')),
+    date_from: parseString(sp.get('date_from')),
+    date_to: parseString(sp.get('date_to')),
+    search: parseString(sp.get('search')),
+  }),
+
+  stringify: (f) => {
+    const sp = new URLSearchParams()
+    const s = (k: string, v: string | null) => { if (v) sp.set(k, v) }
+    s('page', serializeNumber(f.page, 1))
+    s('limit', serializeNumber(f.limit, 25))
+    s('status', serializeString(f.status))
+    s('branch_id', serializeString(f.branch_id))
+    s('date_from', serializeString(f.date_from))
+    s('date_to', serializeString(f.date_to))
+    s('search', serializeString(f.search))
+    return sp
+  },
+
+  merge: (current, patch) =>
+    mergeWithPageReset(current, patch, DPO_FILTER_DEFAULTS, ['status', 'branch_id', 'date_from', 'date_to', 'search']),
+}
+```
+
+### Pattern: Page Component Usage
+
+```typescript
+// features/daily-prep-orders/pages/DailyPrepOrdersPage.tsx
+import { useUrlFilters, useListNavigation } from '@/lib/urlFilters'
+import { dpoFilterConfig } from '../utils/dpoFilters.url'
+
+export default function DailyPrepOrdersPage() {
+  const { filters, searchInput, setSearchInput, setFilters, resetFilters, setPage } =
+    useUrlFilters({ ...dpoFilterConfig, searchField: 'search' })
+  const { openDetail } = useListNavigation('/daily-prep-orders')
+
+  // Pass filters directly to TanStack Query
+  const { data, isLoading } = useDpoList(filters)
+
+  return (
+    // UI uses filters for controlled inputs, setFilters for changes
+  )
+}
+```
+
+### Pattern: Detail Page Back Navigation
+
+```typescript
+// features/daily-prep-orders/pages/DpoDetailPage.tsx
+import { useListNavigation } from '@/lib/urlFilters'
+
+export default function DpoDetailPage() {
+  const { backToList } = useListNavigation('/daily-prep-orders')
+  // backToList() preserves the list's query string
+}
+```
+
+### Rules
+
+1. **No `useState` for list filters** — always use `useUrlFilters` for filter/pagination/search state on list pages
+2. **Default values are omitted from URL** — `stringify` returns `null` for default values to keep URLs clean
+3. **Page resets on filter change** — use `mergeWithPageReset` to auto-reset page to 1 when filters change
+4. **Search is debounced** — pass `searchField` to `useUrlFilters` for automatic debounce (400ms default)
+5. **Detail navigation preserves list state** — use `useListNavigation` for openDetail/backToList
+6. **Filter config lives in `utils/{feature}Filters.url.ts`** — keeps page component clean

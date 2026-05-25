@@ -365,6 +365,27 @@ export const menuItems: MenuItem[] = [
         icon: <Package size={16} />,
         module: "goods_processing",
       },
+      {
+        id: "inv-daily-prep-orders",
+        name: "Daily Prep Orders",
+        href: "/daily-prep-orders",
+        icon: <ClipboardList size={16} />,
+        module: "daily_prep_orders",
+      },
+      {
+        id: "inv-dpo-config",
+        name: "DPO Forecast Config",
+        href: "/daily-prep-orders/config",
+        icon: <Settings size={16} />,
+        module: "daily_prep_orders",
+      },
+      {
+        id: "inv-dpo-holidays",
+        name: "DPO Holidays",
+        href: "/daily-prep-orders/holidays",
+        icon: <CalendarDays size={16} />,
+        module: "daily_prep_orders",
+      },
     ],
   },
 
