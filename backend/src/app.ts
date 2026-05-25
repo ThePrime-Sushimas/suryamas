@@ -77,6 +77,7 @@ import marketplacePoRoutes from "./modules/marketplace-po/marketplace-po.routes"
 import printersRoutes from "./modules/printers/printers.routes";
 import storageRoutes from "./routes/storage.routes";
 import notificationsRoutes from "./modules/notifications/notifications.routes";
+import dailyPrepOrdersRouter from './modules/daily-prep-orders/daily-prep-orders.routes';
 import { pool } from "./config/db";
 
 const app = express();
@@ -186,7 +187,7 @@ app.use("/api/v1/goods-processing", goodsProcessingRoutes);
 app.use("/api/v1/purchase-invoices", purchaseInvoicesRoutes);
 app.use("/api/v1/ap-payments", apPaymentsRoutes);
 app.use("/api/v1", marketplacePoRoutes);
-
+app.use('/api/v1/daily-prep-orders', dailyPrepOrdersRouter);
 app.use("/api/v1/printers", printersRoutes);
 app.use("/api/v1/storage", storageRoutes);
 app.use("/api/v1/notifications", notificationsRoutes);
