@@ -190,6 +190,21 @@ export class ApPaymentsController {
     }
   }
 
+  // GET /ap-payments/batches/:batchId
+  async getBatchById(req: Request, res: Response): Promise<void> {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const batchId = req.params.batchId as string
+      const result = await apPaymentsService.getBatchById(batchId, companyId)
+      sendSuccess(res, result, 'Bulk payment batch retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, {
+        action: 'get ap payment batch',
+        id: req.params.batchId,
+      })
+    }
+  }
+
   // GET /ap-payments/:id
   async getById(req: Request, res: Response): Promise<void> {
     try {

@@ -23,6 +23,7 @@ import {
   assignSupplierBankAccountSchema,
   apDashboardSchema,
   apPaymentParamSchema,
+  apPaymentBatchParamSchema,
   createApPaymentSchema,
   updateApPaymentSchema,
   rejectApPaymentSchema,
@@ -116,6 +117,13 @@ router.post(
   canView(MODULE),
   validateSchema(verifyScreenshotSchema),
   (req, res) => apPaymentsController.verifyScreenshot(req, res),
+)
+
+router.get(
+  '/batches/:batchId',
+  canView(MODULE),
+  validateSchema(apPaymentBatchParamSchema),
+  (req, res) => apPaymentsController.getBatchById(req, res),
 )
 
 router.get(

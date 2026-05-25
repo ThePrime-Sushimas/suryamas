@@ -365,7 +365,8 @@ export class ApPaymentsRepository {
          ba.account_name, ba.account_number, bk.bank_name,
          sup_bk.bank_name, sup_ba.account_number, sup_ba.account_name,
          jh.journal_number, jh.status
-       ORDER BY ap.created_at DESC
+       ORDER BY ap.bulk_payment_batch_id DESC NULLS LAST,
+                ap.created_at DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
       [...params, limit, offset],
     )
@@ -1092,6 +1093,120 @@ export class ApPaymentsRepository {
   }
 
   // ── Bulk Payment Methods ─────────────────────────────────────
+
+  async findBatchMeta(
+    batchId: string,
+    companyId: string,
+  ): Promise<{
+    id: string
+    created_at: string
+    total_payments: number
+    total_amount: number
+    notes: string | null
+  } | null> {
+    const { rows } = await pool.query<{
+      id: string
+      created_at: string
+      total_payments: number
+      total_amount: number
+      notes: string | null
+    }>(
+      `SELECT b.id, b.created_at, b.total_payments, b.total_amount, b.notes
+       FROM ap_payment_batches b
+       WHERE b.id = $1
+         AND EXISTS (
+           SELECT 1 FROM ap_payments ap
+           WHERE ap.bulk_payment_batch_id = b.id
+             AND ap.company_id = $2
+             AND ap.deleted_at IS NULL
+         )`,
+      [batchId, companyId],
+    )
+    return rows[0] ?? null
+  }
+
+  async findPaymentsByBatchId(
+    batchId: string,
+    companyId: string,
+  ): Promise<ApPaymentWithRelations[]> {
+    const { rows } = await pool.query<ApPaymentWithRelations>(
+      `SELECT
+         ap.*,
+         s.supplier_name,
+         b.branch_name,
+         b.branch_code,
+         ba.account_name         AS bank_account_name,
+         ba.account_number       AS bank_account_number,
+         bk.bank_name            AS bank_name,
+         sup_bk.bank_name        AS supplier_bank_name,
+         sup_ba.account_number   AS supplier_bank_account_number,
+         sup_ba.account_name     AS supplier_bank_account_name,
+         COUNT(l.id)::int        AS invoice_count,
+         jh.journal_number       AS journal_number,
+         jh.status               AS journal_status
+       FROM ap_payments ap
+       JOIN suppliers s      ON s.id = ap.supplier_id
+       JOIN branches b       ON b.id = ap.branch_id
+       JOIN bank_accounts ba ON ba.id = ap.bank_account_id
+       LEFT JOIN banks bk    ON bk.id = ba.bank_id
+       LEFT JOIN bank_accounts sup_ba ON sup_ba.id = ap.supplier_bank_account_id
+       LEFT JOIN banks sup_bk ON sup_bk.id = sup_ba.bank_id
+       LEFT JOIN ap_payment_invoice_lines l ON l.ap_payment_id = ap.id
+       LEFT JOIN journal_headers jh ON jh.id = ap.journal_id AND jh.deleted_at IS NULL
+       WHERE ap.bulk_payment_batch_id = $1
+         AND ap.company_id = $2
+         AND ap.deleted_at IS NULL
+       GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code,
+         ba.account_name, ba.account_number, bk.bank_name,
+         sup_bk.bank_name, sup_ba.account_number, sup_ba.account_name,
+         jh.journal_number, jh.status
+       ORDER BY ap.created_at ASC`,
+      [batchId, companyId],
+    )
+    return rows
+  }
+
+  async findLinesByPaymentIds(paymentIds: string[]): Promise<ApPaymentInvoiceLine[]> {
+    if (paymentIds.length === 0) return []
+
+    const { rows } = await pool.query<ApPaymentInvoiceLine>(
+      `SELECT
+         l.*,
+         pi.invoice_number,
+         pi.invoice_date,
+         pi.due_date              AS invoice_due_date,
+         pi.status                AS invoice_status,
+         pi.subtotal::float       AS invoice_subtotal,
+         pi.total_tax::float      AS invoice_tax,
+         pi.total_amount          AS invoice_total_amount,
+         s.supplier_name,
+         (
+           pi.total_amount - COALESCE((
+             SELECT SUM(l2.amount_paid)
+             FROM ap_payment_invoice_lines l2
+             JOIN ap_payments p2 ON p2.id = l2.ap_payment_id
+             WHERE l2.purchase_invoice_id = pi.id
+               AND p2.status IN ('PAID', 'RECONCILED')
+               AND p2.deleted_at IS NULL
+           ), 0)
+         )                        AS invoice_outstanding,
+         gr_info.gr_numbers
+       FROM ap_payment_invoice_lines l
+       JOIN purchase_invoices pi ON pi.id = l.purchase_invoice_id
+       JOIN suppliers s          ON s.id  = pi.supplier_id
+       LEFT JOIN LATERAL (
+         SELECT string_agg(gr.gr_number, ', ' ORDER BY gr.received_date) AS gr_numbers
+         FROM purchase_invoice_gr_links pigl
+         JOIN goods_receipts gr ON gr.id = pigl.goods_receipt_id
+         WHERE pigl.purchase_invoice_id = pi.id
+           AND pigl.is_deleted = false
+       ) gr_info ON true
+       WHERE l.ap_payment_id = ANY($1::uuid[])
+       ORDER BY pi.invoice_number ASC`,
+      [paymentIds],
+    )
+    return rows
+  }
 
   /**
    * Insert a new batch record into ap_payment_batches.

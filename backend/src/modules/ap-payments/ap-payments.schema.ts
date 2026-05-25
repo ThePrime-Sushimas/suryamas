@@ -153,6 +153,10 @@ export const apPaymentParamSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
 })
 
+export const apPaymentBatchParamSchema = z.object({
+  params: z.object({ batchId: z.string().uuid() }),
+})
+
 // ── Verify Screenshot (OCR cross-check) ───────────────────────
 export const verifyScreenshotSchema = z.object({
   body: z.object({

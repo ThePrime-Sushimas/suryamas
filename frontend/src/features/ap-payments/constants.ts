@@ -3,6 +3,12 @@ import type { ApPaymentMethod, ApPaymentStatus } from './api/apPayments.api'
 export const AP_PAYMENTS_LIST_PATH = '/finance/ap-payments'
 export const AP_DASHBOARD_PATH = '/finance/ap-payments/dashboard'
 
+export function apPaymentBatchPath(batchId: string) {
+  return `/finance/ap-payments/batches/${batchId}`
+}
+/** sessionStorage key: after bulk create, open the payments panel on this tab */
+export const AP_PAYMENTS_PAY_TAB_KEY = 'ap_payments_pay_tab'
+
 export const AP_STATUS_CONFIG: Record<
   ApPaymentStatus,
   { label: string; color: string }

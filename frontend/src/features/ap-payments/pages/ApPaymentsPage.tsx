@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
-import { Wallet, Search, X, LayoutDashboard, ShieldCheck, Send, FileSpreadsheet } from 'lucide-react'
+import { Wallet, Search, X, LayoutDashboard, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -12,13 +12,20 @@ import { useBranches } from '@/features/branches/api/branches.api'
 import {
   AP_PAYMENTS_LIST_PATH,
   AP_DASHBOARD_PATH,
-  AP_STATUS_CONFIG,
-  AP_JOURNAL_STATUS_LABELS,
+  AP_PAYMENTS_PAY_TAB_KEY,
 } from '../constants'
 import { isDateRangeInvalid } from '../utils/apPaymentFilters.url'
-import { useApPayments, useDeleteApPayment, usePostApPaymentJournal, type ApPayment } from '../api/apPayments.api'
+import {
+  useApPayments,
+  useApPayment,
+  useDeleteApPayment,
+  usePostApPaymentJournal,
+  type ApPayment,
+} from '../api/apPayments.api'
+import { ApPaymentDeleteConfirmMessage } from '../components/ApPaymentDeleteConfirmMessage'
 import { ApPaymentsShell } from '../components/ApPaymentsShell'
-import { BulkBadge } from '../components/BulkBadge'
+import { BulkPaymentBatchRows, PaymentRow } from '../components/BulkPaymentBatchRows'
+import { groupApPaymentsForList } from '../utils/groupPaymentsByBatch'
 import { OutstandingInvoicesTab } from '../components/OutstandingInvoicesTab'
 import { VerifyScreenshotModal } from '../components/VerifyScreenshotModal'
 import { apTheme } from '../ap-payments.theme'
@@ -57,7 +64,17 @@ export default function ApPaymentsPage() {
   const [outDueTo, setOutDueTo] = useState('')
 
   // ── Right panel (Payments) filters ──
-  const [payTab, setPayTab] = useState<PaymentTabId>('all')
+  const [payTab, setPayTab] = useState<PaymentTabId>(() => {
+    const stored = sessionStorage.getItem(AP_PAYMENTS_PAY_TAB_KEY)
+    if (stored === 'draft' || stored === 'pending' || stored === 'paid' || stored === 'all') {
+      sessionStorage.removeItem(AP_PAYMENTS_PAY_TAB_KEY)
+      return stored
+    }
+    return 'all'
+  })
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(() => new Set())
+  /** Batch IDs already auto-expanded once; avoids re-opening on refetch after user collapses */
+  const autoExpandedBatchesRef = useRef<Set<string>>(new Set())
   const [payDateFrom, setPayDateFrom] = useState('')
   const [payDateTo, setPayDateTo] = useState('')
   const [payDueFrom, setPayDueFrom] = useState('')
@@ -87,10 +104,66 @@ export default function ApPaymentsPage() {
   })
   const deletePayment = useDeleteApPayment()
   const postJournal = usePostApPaymentJournal()
+  const deletePaymentId = deleteTarget?.id
+  const { data: deleteDetail, isLoading: deleteDetailLoading } = useApPayment(deletePaymentId ?? '')
+  const deleteInvoiceNumbers = deleteDetail?.lines?.map((l) => l.invoice_number)
+  const isDeleteDetailLoading = !!deletePaymentId && deleteDetailLoading && !deleteDetail
 
   const payments = payData?.data ?? []
   const payPagination = payData?.pagination
   const isPaidTab = payTab === 'paid'
+  const groupBulkRows = payTab === 'draft' || payTab === 'all'
+
+  const paymentGroups = useMemo(
+    () => (groupBulkRows ? groupApPaymentsForList(payments) : payments.map((p) => ({ kind: 'single' as const, payment: p }))),
+    [payments, groupBulkRows],
+  )
+
+  useEffect(() => {
+    if (!groupBulkRows) return
+    const newlySeen = [
+      ...new Set(
+        payments
+          .map((p) => p.bulk_payment_batch_id)
+          .filter((id): id is string => !!id && !autoExpandedBatchesRef.current.has(id)),
+      ),
+    ]
+    if (newlySeen.length === 0) return
+    for (const id of newlySeen) autoExpandedBatchesRef.current.add(id)
+    setExpandedBatches((prev) => {
+      const next = new Set(prev)
+      for (const id of newlySeen) next.add(id)
+      return next
+    })
+  }, [payments, groupBulkRows])
+
+  const toggleBatch = useCallback((batchId: string) => {
+    setExpandedBatches((prev) => {
+      const next = new Set(prev)
+      if (next.has(batchId)) next.delete(batchId)
+      else next.add(batchId)
+      return next
+    })
+  }, [])
+
+  const rowHandlers = {
+    isPaidTab,
+    canUpdate,
+    canDelete,
+    onOpen: (paymentId: string) => openDetail(`${AP_PAYMENTS_LIST_PATH}/${paymentId}`),
+    onDelete: setDeleteTarget,
+    onPostJournal: async (p: ApPayment) => {
+      try {
+        await postJournal.mutateAsync(p.id)
+        toast.success(`Journal ${p.payment_number} di-post`)
+      } catch (err: unknown) {
+        toast.error(parseApiError(err, 'Gagal post journal'))
+      }
+    },
+    postJournalPending: postJournal.isPending,
+    fmtCurrency,
+    fmtDate,
+  }
 
   // ── Outstanding filters object (passed to OutstandingInvoicesTab) ──
   const outstandingFilters = {
@@ -280,67 +353,20 @@ export default function ApPaymentsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
-                      {payments.map((p) => {
-                        const st = AP_STATUS_CONFIG[p.status]
-                        return (
-                          <tr key={p.id} onClick={() => openDetail(`${AP_PAYMENTS_LIST_PATH}/${p.id}`)} className={`${apTheme.hoverRow} cursor-pointer`}>
-                            <td className="px-2 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                              <div className="flex items-center gap-1">
-                                <span>{p.payment_number}</span>
-                                {p.bulk_payment_batch_id && <BulkBadge batchId={p.bulk_payment_batch_id} />}
-                              </div>
-                            </td>
-                            <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(p.paid_at)}</td>
-                            <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{p.supplier_name}</td>
-                            <td className="px-2 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap">{fmtCurrency(Number(p.total_amount))}</td>
-                            <td className="px-2 py-2 whitespace-nowrap">
-                              <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>{st.label}</span>
-                            </td>
-                            {isPaidTab && canUpdate && (
-                              <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                {p.journal_id ? (
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-gray-600 dark:text-gray-400">
-                                      {p.journal_number ?? '—'}
-                                      {p.journal_status && (
-                                        <span className="ml-1 uppercase tracking-wide">
-                                          ({AP_JOURNAL_STATUS_LABELS[p.journal_status] ?? p.journal_status})
-                                        </span>
-                                      )}
-                                    </span>
-                                    {p.journal_status !== 'POSTED' && (
-                                      <button
-                                        type="button"
-                                        disabled={postJournal.isPending}
-                                        onClick={async () => {
-                                          try {
-                                            await postJournal.mutateAsync(p.id)
-                                            toast.success(`Journal ${p.payment_number} di-post`)
-                                          } catch (err: unknown) {
-                                            toast.error(parseApiError(err, 'Gagal post journal'))
-                                          }
-                                        }}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
-                                      >
-                                        <Send className="w-3 h-3" /> Post
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-gray-400">—</span>
-                                )}
-                              </td>
-                            )}
-                            {canDelete && (
-                              <td className="px-2 py-2">
-                                {p.status === 'DRAFT' && (
-                                  <button type="button" onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }} className="text-[10px] text-red-600 hover:underline">Hapus</button>
-                                )}
-                              </td>
-                            )}
-                          </tr>
-                        )
-                      })}
+                      {paymentGroups.map((group) =>
+                        group.kind === 'batch' ? (
+                          <BulkPaymentBatchRows
+                            key={group.batchId}
+                            batchId={group.batchId}
+                            payments={group.payments}
+                            expanded={expandedBatches.has(group.batchId)}
+                            onToggle={() => toggleBatch(group.batchId)}
+                            {...rowHandlers}
+                          />
+                        ) : (
+                          <PaymentRow key={group.payment.id} payment={group.payment} {...rowHandlers} />
+                        ),
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -363,7 +389,27 @@ export default function ApPaymentsPage() {
         </div>
       </div>
 
-      <ConfirmModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} title="Hapus pembayaran?" message={`Draft ${deleteTarget?.payment_number} akan dihapus.`} confirmText="Hapus" variant="danger" isLoading={deletePayment.isPending} />
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Hapus pembayaran?"
+        message={
+          deleteTarget ? (
+            <ApPaymentDeleteConfirmMessage
+              paymentNumber={deleteTarget.payment_number}
+              invoiceNumbers={deleteInvoiceNumbers}
+              invoiceCount={deleteTarget.invoice_count}
+              isLoadingDetails={isDeleteDetailLoading}
+            />
+          ) : (
+            ''
+          )
+        }
+        confirmText="Hapus"
+        variant="danger"
+        isLoading={deletePayment.isPending}
+      />
       {showVerify && <VerifyScreenshotModal onClose={() => setShowVerify(false)} />}
     </ApPaymentsShell>
   )

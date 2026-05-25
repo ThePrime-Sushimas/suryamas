@@ -25,6 +25,7 @@ import type {
   OutstandingInvoiceRow,
   BulkCreateApPaymentDto,
   BulkCreateApPaymentResponse,
+  ApPaymentBatchDetailResponse,
   CombinedInvoicePaymentQuery,
   CombinedInvoicePaymentResponse,
 } from './ap-payments.types'
@@ -44,6 +45,7 @@ import {
   ApPaymentJournalAlreadyPostedError,
   ApPaymentJournalNotReadyError,
   ApBulkEmptyPaymentsError,
+  ApBulkBatchNotFoundError,
   ApBulkInvoiceNotFoundError,
   ApBulkInvoiceNotEligibleError,
   ApBulkOutstandingExceededError,
@@ -919,6 +921,31 @@ export class ApPaymentsService {
 
     await AuditService.log('DELETE', 'ap_payments', id, userId, { payment_number: existing.payment_number }, null)
     logInfo('AP payment deleted', { id })
+  }
+
+  async getBatchById(batchId: string, companyId: string): Promise<ApPaymentBatchDetailResponse> {
+    const batch = await apPaymentsRepository.findBatchMeta(batchId, companyId)
+    if (!batch) {
+      throw new ApBulkBatchNotFoundError(batchId)
+    }
+
+    const paymentRows = await apPaymentsRepository.findPaymentsByBatchId(batchId, companyId)
+    const paymentIds = paymentRows.map((p) => p.id)
+    const allLines = await apPaymentsRepository.findLinesByPaymentIds(paymentIds)
+
+    const linesByPayment = new Map<string, typeof allLines>()
+    for (const line of allLines) {
+      const list = linesByPayment.get(line.ap_payment_id) ?? []
+      list.push(line)
+      linesByPayment.set(line.ap_payment_id, list)
+    }
+
+    const payments = paymentRows.map((row) => ({
+      ...row,
+      lines: linesByPayment.get(row.id) ?? [],
+    })) as ApPaymentBatchDetailResponse['payments']
+
+    return { batch, payments }
   }
 
   // ── Bulk Payment Creation ──────────────────────────────────

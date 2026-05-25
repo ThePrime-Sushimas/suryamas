@@ -311,6 +311,19 @@ export interface BulkCreateApPaymentResponse {
   }>
 }
 
+export interface ApPaymentBatchMeta {
+  id: string
+  created_at: string
+  total_payments: number
+  total_amount: number
+  notes: string | null
+}
+
+export interface ApPaymentBatchDetailResponse {
+  batch: ApPaymentBatchMeta
+  payments: ApPaymentDetail[]
+}
+
 // ── Outstanding Invoices ──────────────────────────────────────
 export interface OutstandingInvoicesQuery {
   supplier_id?: string

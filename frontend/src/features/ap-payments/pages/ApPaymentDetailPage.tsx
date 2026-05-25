@@ -34,6 +34,7 @@ import {
   AP_JOURNAL_STATUS_LABELS,
 } from '../constants'
 import { ApPaymentProofModal } from '../components/ApPaymentProofModal'
+import { ApPaymentDeleteConfirmMessage } from '../components/ApPaymentDeleteConfirmMessage'
 import { apTheme } from '../ap-payments.theme'
 
 const fmtCurrency = (v: number) =>
@@ -457,7 +458,22 @@ export default function ApPaymentDetailPage() {
 
       {/* Modals */}
       <ApPaymentProofModal isOpen={showProof} onClose={() => setShowProof(false)} onSubmit={handleProof} isLoading={uploadProof.isPending} />
-      <ConfirmModal isOpen={showDelete} onClose={() => setShowDelete(false)} onConfirm={() => void handleDelete()} title="Hapus pembayaran?" message="Draft akan dihapus permanen." confirmText="Hapus" variant="danger" isLoading={deletePayment.isPending} />
+      <ConfirmModal
+        isOpen={showDelete}
+        onClose={() => setShowDelete(false)}
+        onConfirm={() => void handleDelete()}
+        title="Hapus pembayaran?"
+        message={
+          <ApPaymentDeleteConfirmMessage
+            paymentNumber={payment.payment_number}
+            invoiceNumbers={payment.lines?.map((l) => l.invoice_number)}
+            invoiceCount={payment.invoice_count}
+          />
+        }
+        confirmText="Hapus"
+        variant="danger"
+        isLoading={deletePayment.isPending}
+      />
       <ConfirmModal isOpen={showPayConfirm} onClose={() => setShowPayConfirm(false)} onConfirm={() => void handleMarkPaid()} title="Tandai sudah dibayar?" message="Pastikan dana sudah keluar dari rekening. Status akan berubah ke PAID dan journal draft otomatis dibuat." confirmText="Konfirmasi" variant="success" isLoading={markPaid.isPending} />
       <ConfirmModal isOpen={showDeleteJournal} onClose={() => setShowDeleteJournal(false)} onConfirm={() => void handleDeleteJournal()} title="Hapus journal?" message="Journal akan dihapus permanen dan status pembayaran kembali ke Menunggu Pembayaran (APPROVED). Bukti bayar tetap tersimpan." confirmText="Hapus Journal" variant="danger" isLoading={deleteJournal.isPending} />
       {showReconcile && (

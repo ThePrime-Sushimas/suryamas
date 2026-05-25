@@ -14,6 +14,7 @@ import { useCreateBulkPaymentV2 } from '../api/apPayments.api'
 import { getStoredSessionPayload } from '../utils/sessionPayload.utils'
 import type { SessionPayloadItem } from '../types/sessionPayload.types'
 import type { OutstandingInvoiceRow, BulkCreateApPaymentDto } from '../api/apPayments.api'
+import { apPaymentBatchPath } from '../constants'
 
 const SESSION_KEY = 'bulk_selected_invoices'
 
@@ -219,13 +220,11 @@ export default function BulkCreatePage() {
         // Clear sessionStorage
         sessionStorage.removeItem(SESSION_KEY)
 
-        // Navigate to AP payments list
-        navigate('/finance/ap-payments')
+        navigate(apPaymentBatchPath(data.batch_id))
 
-        // Show success toast
         const batchPrefix = data.batch_id.substring(0, 4)
         toast.success(
-          `${data.total_payments} pembayaran berhasil dibuat (Batch #${batchPrefix}). Upload bukti transfer di halaman detail.`,
+          `${data.total_payments} pembayaran dibuat (Batch #${batchPrefix}). Unggah bukti di halaman batch.`,
         )
       },
       onError: (err) => {

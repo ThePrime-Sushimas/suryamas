@@ -245,6 +245,7 @@ export interface OutstandingInvoiceRow {
 const KEYS = {
   list: (params: ApPaymentListQuery) => ['ap-payments', params] as const,
   detail: (id: string) => ['ap-payments', id] as const,
+  batch: (batchId: string) => ['ap-payments', 'batch', batchId] as const,
   dashboard: (branchId?: string) => ['ap-payments', 'dashboard', branchId ?? 'all'] as const,
   outstanding: (params: Record<string, string | boolean | undefined>) =>
     ['ap-payments', 'outstanding', params] as const,
@@ -297,6 +298,20 @@ export const useApPayment = (id: string) =>
       return normalizeApPayment(data.data as ApPayment)
     },
     enabled: !!id,
+  })
+
+export const useApPaymentBatch = (batchId: string) =>
+  useQuery({
+    queryKey: KEYS.batch(batchId),
+    queryFn: async () => {
+      const { data } = await api.get(`/ap-payments/batches/${batchId}`)
+      const raw = data.data as ApPaymentBatchDetail
+      return {
+        batch: raw.batch,
+        payments: (raw.payments ?? []).map((p) => normalizeApPayment(p)),
+      } satisfies ApPaymentBatchDetail
+    },
+    enabled: !!batchId,
   })
 
 export const useApDashboard = (branchId?: string) =>
@@ -434,6 +449,7 @@ export const useUploadApPaymentProof = () => {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(v.id) })
+      qc.invalidateQueries({ queryKey: ['ap-payments', 'batch'] })
     },
   })
 }
@@ -530,6 +546,19 @@ export interface BulkCreateApPaymentResponse {
     supplier_name: string
     total_amount: number
   }>
+}
+
+export interface ApPaymentBatchMeta {
+  id: string
+  created_at: string
+  total_payments: number
+  total_amount: number
+  notes: string | null
+}
+
+export interface ApPaymentBatchDetail {
+  batch: ApPaymentBatchMeta
+  payments: ApPayment[]
 }
 
 export const useCreateBulkPayment = () => {

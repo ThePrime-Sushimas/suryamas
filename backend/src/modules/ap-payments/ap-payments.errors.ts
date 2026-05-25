@@ -106,6 +106,12 @@ export class ApPaymentEmptyLinesError extends BusinessRuleError {
 
 // ── Bulk Payment Errors ───────────────────────────────────────
 
+export class ApBulkBatchNotFoundError extends NotFoundError {
+  constructor(batchId: string) {
+    super(`Bulk payment batch not found: ${batchId}`)
+  }
+}
+
 export class ApBulkInvoiceNotFoundError extends AppError {
   constructor(invoiceIds: string[]) {
     super(
