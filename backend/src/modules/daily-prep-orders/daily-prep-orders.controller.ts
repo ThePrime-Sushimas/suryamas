@@ -134,13 +134,11 @@ export class DailyPrepOrdersController {
 
   cancel = async (req: Request, res: Response) => {
     try {
-      const { params, body } = (req as CancelReq).validated
+      const { params } = (req as CancelReq).validated
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const result = await dailyPrepOrdersService.cancel(
-        params.id, companyId, userId, body.reason
-      )
-      sendSuccess(res, result, 'DPO cancelled')
+      const result = await dailyPrepOrdersService.cancel(params.id, companyId, userId)
+      sendSuccess(res, result, 'DPO deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_dpo', id: req.params.id })
     }

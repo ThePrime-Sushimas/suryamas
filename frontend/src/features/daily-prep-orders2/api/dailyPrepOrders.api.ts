@@ -29,6 +29,8 @@ export interface DailyPrepOrderLine {
   in_movement_id: string | null
   notes: string | null
   sort_order: number
+  transfer_conversion_factor?: number
+  transfer_unit_name?: string
 }
 
 export interface DailyPrepOrder {
@@ -187,8 +189,8 @@ export const useConfirmDpo = () => {
 export const useCancelDpo = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      await api.post(`/daily-prep-orders/${id}/cancel`, { reason })
+    mutationFn: async ({ id }: { id: string }) => {
+      await api.post(`/daily-prep-orders/${id}/cancel`)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['daily-prep-orders'] }),
   })

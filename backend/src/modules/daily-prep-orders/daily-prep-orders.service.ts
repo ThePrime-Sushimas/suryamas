@@ -99,24 +99,29 @@ export class DailyPrepOrdersService {
       dto.source_warehouse_id, dto.target_warehouse_id
     )
 
-    // 5. Apply holiday factor ke predicted_need dan suggested_qty
-    const forecastLines = rawLines.map(line => ({
-      ...line,
-      predicted_need: Math.round(line.predicted_need * holidayFactor * 10000) / 10000,
-      suggested_qty: Math.round(
-        Math.max(0, line.predicted_need * holidayFactor - line.current_ready_stock) * 10000
-      ) / 10000,
-    }))
+    // 5. Apply holiday factor ke predicted_need (semua dalam base unit)
+    const forecastLines = rawLines.map(line => {
+      const predictedNeedWithHoliday = line.predicted_need * holidayFactor
+      const rawNeed = Math.max(0, predictedNeedWithHoliday - line.current_ready_stock)
+      const packSize = line.transfer_conversion_factor > 0 ? line.transfer_conversion_factor : 1
+      
+      const suggestedQty = rawNeed > 0
+        ? Math.ceil(rawNeed / packSize) * packSize
+        : 0
+    
+      return {
+        ...line,
+        predicted_need: Math.round(predictedNeedWithHoliday * 10000) / 10000,
+        suggested_qty: suggestedQty, // sudah bulat kelipatan pack, no decimal needed
+      }
+    })
 
     // 6. Filter: hanya produk yang suggested_qty > 0 ATAU ada di ready stock
     const relevantLines = forecastLines.filter(l => l.suggested_qty > 0 || l.current_ready_stock > 0)
 
-    return stockRepository.withTransaction(async (client) => {
-      // 7. Cancel existing DRAFT untuk branch+date yang sama (re-generate)
-      const existing = await dailyPrepOrdersRepository.findExistingDraft(dto.branch_id, dto.prep_date)
-      if (existing) {
-        await dailyPrepOrdersRepository.cancelDraftByBranchDate(client, existing.id)
-      }
+    const newDpoId = await stockRepository.withTransaction(async (client) => {
+      // 7. Cancel SEMUA existing DPO untuk branch+date yang sama (re-generate)
+      await dailyPrepOrdersRepository.cancelAllForBranchDate(client, dto.branch_id, dto.prep_date)
 
       // 8. Ambil branch code untuk DPO number
       const branchCode = await dailyPrepOrdersRepository.getBranchCode(client, dto.branch_id)
@@ -147,8 +152,18 @@ export class DailyPrepOrdersService {
         line_count: relevantLines.length
       })
 
-      return dailyPrepOrdersRepository.findDetail(dpo.id, companyId)
+      return dpo.id
     })
+
+    // Fetch detail AFTER transaction commits — pool can now see the committed data
+    return this.fetchDetailAfterGenerate(newDpoId, companyId)
+  }
+
+  // helper: fetch detail after transaction commits
+  private async fetchDetailAfterGenerate(id: string, companyId: string) {
+    const detail = await dailyPrepOrdersRepository.findDetail(id, companyId)
+    if (!detail) throw new DpoNotFoundError(id)
+    return detail
   }
 
   // ─── UPDATE LINES ───────────────────────────────────────────────────────────
@@ -293,18 +308,18 @@ export class DailyPrepOrdersService {
     })
   }
 
-  // ─── CANCEL ─────────────────────────────────────────────────────────────────
+  // ─── CANCEL (hard delete) ────────────────────────────────────────────────────
 
-  async cancel(id: string, companyId: string, userId: string, reason: string) {
+  async cancel(id: string, companyId: string, userId: string) {
     const dpo = await dailyPrepOrdersRepository.findById(id, companyId)
     if (!dpo) throw new DpoNotFoundError(id)
     if (dpo.status !== 'DRAFT') throw new DpoInvalidStatusError(dpo.status, 'DRAFT')
 
-    const ok = await dailyPrepOrdersRepository.cancel(id, companyId, userId, reason)
+    const ok = await dailyPrepOrdersRepository.hardDelete(id, companyId)
     if (!ok) throw new DpoNotFoundError(id)
 
-    await AuditService.log('UPDATE', 'daily_prep_orders', id, userId, { status: 'DRAFT' }, { status: 'CANCELLED', reason })
-    return dailyPrepOrdersRepository.findById(id, companyId)
+    await AuditService.log('DELETE', 'daily_prep_orders', id, userId, { status: 'DRAFT', dpo_number: dpo.dpo_number }, null)
+    return { success: true }
   }
 
   // ─── SOFT DELETE ────────────────────────────────────────────────────────────

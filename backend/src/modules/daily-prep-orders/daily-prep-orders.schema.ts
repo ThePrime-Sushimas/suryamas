@@ -67,9 +67,7 @@ export const confirmDpoSchema = z.object({
 
 export const cancelDpoSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
-  body: z.object({
-    reason: z.string().min(1).max(255),
-  })
+  body: z.object({}).optional(),
 })
 
 // ─── FORECAST CONFIG ──────────────────────────────────────────────────────────

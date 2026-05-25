@@ -64,7 +64,7 @@ export class DailyPrepOrdersRepository {
   async cancelDraftByBranchDate(client: PoolClient, draftId: string): Promise<void> {
     await client.query(
       `UPDATE daily_prep_orders SET status = 'CANCELLED', cancelled_at = now(),
-       cancel_reason = 'Re-generated', updated_at = now()
+       cancel_reason = 'Re-generated', is_deleted = true, updated_at = now()
        WHERE id = $1`,
       [draftId]
     )
@@ -231,25 +231,26 @@ export class DailyPrepOrdersRepository {
       ),
       -- Avg 7 hari
       avg_7d AS (
-        SELECT product_id, uom, AVG(qty) AS avg_qty
+        SELECT product_id, AVG(qty) AS avg_qty
         FROM daily_total
         WHERE sales_date >= CURRENT_DATE - ($3 * INTERVAL '1 day')
-        GROUP BY product_id, uom
+        GROUP BY product_id
       ),
-      -- Avg 30 hari
+      -- avg_30d: sama
       avg_30d AS (
-        SELECT product_id, uom, AVG(qty) AS avg_qty
+        SELECT product_id, AVG(qty) AS avg_qty
         FROM daily_total
         WHERE sales_date >= CURRENT_DATE - ($2 * INTERVAL '1 day')
-        GROUP BY product_id, uom
+        GROUP BY product_id
       ),
-      -- Avg hari yang sama dalam seminggu (misal prep_date = Senin, avg semua Senin)
+      -- avg_dow: sama
       avg_dow AS (
-        SELECT product_id, uom, AVG(qty) AS avg_qty
+        SELECT product_id, AVG(qty) AS avg_qty
         FROM daily_total
         WHERE EXTRACT(DOW FROM sales_date) = EXTRACT(DOW FROM $4::date)
-        GROUP BY product_id, uom
+        GROUP BY product_id
       ),
+
       -- Stok READY saat ini
       ready_stock AS (
         SELECT product_id, COALESCE(qty, 0) AS qty
@@ -266,6 +267,7 @@ export class DailyPrepOrdersRepository {
       all_products AS (
         SELECT DISTINCT product_id, product_name, product_code, uom
         FROM daily_total
+        ORDER BY product_id
       )
       SELECT
         ap.product_id,
@@ -276,13 +278,30 @@ export class DailyPrepOrdersRepository {
         COALESCE(a30.avg_qty, 0)::numeric AS avg_sales_30d,
         COALESCE(adow.avg_qty, 0)::numeric AS avg_sales_dow,
         COALESCE(rs.qty, 0)::numeric AS current_ready_stock,
-        COALESCE(ms.qty, 0)::numeric AS current_main_stock
+        COALESCE(ms.qty, 0)::numeric AS current_main_stock,
+        COALESCE(tu.conversion_factor, 1)::numeric AS transfer_conversion_factor,
+        COALESCE(tu.unit_name, ap.uom) AS transfer_unit_name
       FROM all_products ap
       LEFT JOIN avg_7d a7 ON a7.product_id = ap.product_id
       LEFT JOIN avg_30d a30 ON a30.product_id = ap.product_id
       LEFT JOIN avg_dow adow ON adow.product_id = ap.product_id
       LEFT JOIN ready_stock rs ON rs.product_id = ap.product_id
       LEFT JOIN main_stock ms ON ms.product_id = ap.product_id
+      LEFT JOIN LATERAL (
+        SELECT
+          pu.conversion_factor,
+          mu.unit_name
+        FROM product_uoms pu
+        JOIN metric_units mu ON mu.id = pu.metric_unit_id
+        WHERE pu.product_id = ap.product_id
+          AND pu.is_deleted = false
+          AND pu.status_uom = 'ACTIVE'
+        ORDER BY
+          CASE WHEN pu.is_default_transfer_unit = true THEN 0 ELSE 1 END,
+          CASE WHEN pu.is_base_unit = true THEN 0 ELSE 1 END,
+          pu.conversion_factor ASC
+        LIMIT 1
+      ) tu ON true
       ORDER BY ap.product_name`,
       [branchPosId, longDays, shortDays, prepDate, targetWarehouseId, sourceWarehouseId]
     )
@@ -294,7 +313,7 @@ export class DailyPrepOrdersRepository {
       const readyStock = Number(r.current_ready_stock)
       const mainStock = Number(r.current_main_stock)
 
-      // Formula: weighted avg × coverage_days × holiday_factor
+      // Formula: weighted avg × coverage_days (semua dalam base unit)
       const weightedAvg =
         avg7 * config.weight_7d +
         avg30 * config.weight_30d +
@@ -315,6 +334,8 @@ export class DailyPrepOrdersRepository {
         current_ready_stock: readyStock,
         current_main_stock: mainStock,
         suggested_qty: Math.round(suggestedQty * 10000) / 10000,
+        transfer_conversion_factor: Number(r.transfer_conversion_factor || 1),
+        transfer_unit_name: r.transfer_unit_name || r.uom,
       }
     })
   }
@@ -366,11 +387,28 @@ export class DailyPrepOrdersRepository {
          p.product_code, p.product_name,
          COALESCE(mu.unit_name, '') AS base_unit_name,
          COALESCE(rs.qty, 0)::numeric AS live_ready_stock,
-         COALESCE(ms.qty, 0)::numeric AS live_main_stock
+         COALESCE(ms.qty, 0)::numeric AS live_main_stock,
+         COALESCE(tu.conversion_factor, 1)::numeric AS transfer_conversion_factor,
+         COALESCE(tu.unit_name, mu.unit_name) AS transfer_unit_name
        FROM daily_prep_order_lines l
        JOIN products p ON p.id = l.product_id
        LEFT JOIN product_uoms pu ON pu.product_id = p.id AND pu.is_base_unit = true AND pu.is_deleted = false
        LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       LEFT JOIN LATERAL (
+         SELECT
+           pu.conversion_factor,
+           mu.unit_name
+         FROM product_uoms pu
+         JOIN metric_units mu ON mu.id = pu.metric_unit_id
+         WHERE pu.product_id = p.id
+           AND pu.is_deleted = false
+           AND pu.status_uom = 'ACTIVE'
+         ORDER BY
+           CASE WHEN pu.is_default_transfer_unit = true THEN 0 ELSE 1 END,
+           CASE WHEN pu.is_base_unit = true THEN 0 ELSE 1 END,
+           pu.conversion_factor ASC
+         LIMIT 1
+       ) tu ON true
        LEFT JOIN stock_balances rs ON rs.product_id = l.product_id AND rs.warehouse_id = $2
        LEFT JOIN stock_balances ms ON ms.product_id = l.product_id AND ms.warehouse_id = $3
        WHERE l.dpo_id = $1
@@ -385,10 +423,25 @@ export class DailyPrepOrdersRepository {
     const { rows } = await pool.query(
       `SELECT * FROM daily_prep_orders
        WHERE branch_id = $1 AND prep_date = $2::date
-         AND status = 'DRAFT' AND is_deleted = false`,
+         AND is_deleted = false
+       ORDER BY created_at DESC
+       LIMIT 1`,
       [branchId, prepDate]
     )
     return rows[0] ?? null
+  }
+
+  async cancelAllForBranchDate(client: PoolClient, branchId: string, prepDate: string): Promise<void> {
+    await client.query(
+      `UPDATE daily_prep_orders 
+       SET status = 'CANCELLED', 
+           cancelled_at = now(),
+           cancel_reason = 'Re-generated', 
+           is_deleted = true, 
+           updated_at = now()
+       WHERE branch_id = $1 AND prep_date = $2::date AND is_deleted = false`,
+      [branchId, prepDate]
+    )
   }
 
   async createWithLines(
@@ -570,20 +623,12 @@ export class DailyPrepOrdersRepository {
     return rows[0] ?? null
   }
 
-  async cancel(id: string, companyId: string, userId: string, reason: string): Promise<boolean> {
+  async hardDelete(id: string, companyId: string): Promise<boolean> {
     const { rowCount } = await pool.query(
-      `UPDATE daily_prep_orders
-       SET status = 'CANCELLED',
-           cancelled_at = now(),
-           cancelled_by = $1,
-           cancel_reason = $2,
-           lock_token = NULL,
-           locked_at = NULL,
-           locked_by = NULL,
-           updated_at = now()
-       WHERE id = $3 AND company_id = $4
+      `DELETE FROM daily_prep_orders
+       WHERE id = $1 AND company_id = $2
          AND status = 'DRAFT' AND is_deleted = false`,
-      [userId, reason, id, companyId]
+      [id, companyId]
     )
     return (rowCount ?? 0) > 0
   }

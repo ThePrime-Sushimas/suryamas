@@ -157,4 +157,6 @@ export interface DpoForecastLine {
   current_ready_stock: number
   current_main_stock: number
   suggested_qty: number
+  transfer_conversion_factor: number
+  transfer_unit_name: string
 }

@@ -55,8 +55,13 @@ export function DpoGenerateModal({ onClose, onGenerated }: Props) {
         target_warehouse_id: targetWarehouseId,
         notes: notes || null,
       })
-      toast.success(`DPO ${result!.dpo_number} berhasil di-generate`)
-      onGenerated(result!)
+      if (!result?.id) {
+        toast.error('DPO berhasil dibuat tapi gagal membuka detail. Cek di daftar DPO.')
+        onClose()
+        return
+      }
+      toast.success(`DPO ${result.dpo_number} berhasil di-generate`)
+      onGenerated(result)
     } catch (err) {
       toast.error(parseApiError(err, 'Gagal generate DPO'))
     }

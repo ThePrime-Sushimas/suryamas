@@ -14,6 +14,18 @@ import { usePermissionStore } from '@/features/branch_context/store/permission.s
 
 const fmt = (n: number, unit?: string | null) =>
   `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(n)}${unit ? ` ${unit}` : ''}`
+
+// Konversi base qty ke transfer unit untuk display
+const fmtTransfer = (baseQty: number, transferUnit?: string | null, conversionFactor?: number | null, baseUnit?: string | null) => {
+  if (!transferUnit || !conversionFactor || conversionFactor <= 0) {
+    return fmt(baseQty, baseUnit)
+  }
+  const transferQty = baseQty / conversionFactor
+  const baseQtyFmt = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(baseQty)
+  const transferQtyFmt = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(transferQty)
+  return `${transferQtyFmt} ${transferUnit} (${baseQtyFmt} ${baseUnit ?? ''})`
+}
+
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
 
@@ -33,8 +45,6 @@ export default function DailyPrepOrderDetailPage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [showPrint, setShowPrint] = useState(false)
   const [editingQty, setEditingQty] = useState<Map<string, string>>(new Map())
-  const [cancelReason, setCancelReason] = useState('')
-  const [showCancelForm, setShowCancelForm] = useState(false)
 
   // Queue for blur saves — prevents concurrent mutateAsync calls
   const saveQueueRef = useRef<Map<string, number | null>>(new Map())
@@ -116,13 +126,13 @@ export default function DailyPrepOrderDetailPage() {
   }
 
   const handleCancel = async () => {
-    if (!cancelReason.trim()) { toast.error('Alasan wajib diisi'); return }
+    if (!confirm(`Hapus DPO ${dpo.dpo_number}? Tindakan ini tidak bisa dibatalkan.`)) return
     try {
-      await cancelDpo.mutateAsync({ id: dpo.id, reason: cancelReason })
-      toast.success('DPO dibatalkan')
-      setShowCancelForm(false)
+      await cancelDpo.mutateAsync({ id: dpo.id })
+      toast.success('DPO dihapus')
+      navigate('/inventory/daily-prep-orders')
     } catch (err) {
-      toast.error(parseApiError(err, 'Gagal membatalkan'))
+      toast.error(parseApiError(err, 'Gagal menghapus DPO'))
     }
   }
 
@@ -176,10 +186,11 @@ export default function DailyPrepOrderDetailPage() {
               <>
                 <button
                   type="button"
-                  onClick={() => setShowCancelForm(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 rounded-xl text-sm hover:bg-red-50 dark:hover:bg-red-900/20"
+                  onClick={handleCancel}
+                  disabled={cancelDpo.isPending}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 rounded-xl text-sm hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
                 >
-                  <XCircle className="w-4 h-4" /> Batalkan
+                  <XCircle className="w-4 h-4" /> Hapus
                 </button>
                 <button
                   type="button"
@@ -229,37 +240,6 @@ export default function DailyPrepOrderDetailPage() {
             </div>
           )}
         </div>
-
-        {/* Cancel form */}
-        {showCancelForm && (
-          <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-200 dark:border-red-800/50 p-4">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">Batalkan DPO ini?</p>
-            <input
-              type="text"
-              value={cancelReason}
-              onChange={e => setCancelReason(e.target.value)}
-              placeholder="Alasan pembatalan (wajib)"
-              className="w-full px-3 py-2 text-sm border border-red-200 dark:border-red-800/50 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-red-400/30 mb-2"
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={cancelDpo.isPending}
-                className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-              >
-                Ya, Batalkan
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowCancelForm(false); setCancelReason('') }}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl text-sm"
-              >
-                Tidak
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Lines */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
@@ -322,7 +302,7 @@ export default function DailyPrepOrderDetailPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-gray-400 font-mono">
-                        {fmt(line.suggested_qty, line.base_unit_name)}
+                      {fmtTransfer(line.suggested_qty, line.transfer_unit_name, line.transfer_conversion_factor, line.base_unit_name)}
                       </td>
                       <td className="px-4 py-3 text-right">
                         {isDraft && canUpdate ? (
@@ -338,7 +318,7 @@ export default function DailyPrepOrderDetailPage() {
                           />
                         ) : (
                           <span className="font-mono font-semibold text-gray-900 dark:text-white">
-                            {fmt(confirmedQty, line.base_unit_name)}
+                            {fmtTransfer(confirmedQty, line.transfer_unit_name, line.transfer_conversion_factor, line.base_unit_name)}                          
                           </span>
                         )}
                       </td>
@@ -392,7 +372,8 @@ export default function DailyPrepOrderDetailPage() {
                     </div>
                     <div>
                       <p className="text-gray-400">Suggested</p>
-                      <p className="font-mono text-gray-500">{fmt(line.suggested_qty, line.base_unit_name)}</p>
+                      <p className="font-mono text-gray-500">{fmtTransfer(confirmedQty, line.transfer_unit_name, line.transfer_conversion_factor, line.base_unit_name)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -409,7 +390,7 @@ export default function DailyPrepOrderDetailPage() {
                       />
                     ) : (
                       <span className="font-mono font-semibold text-gray-900 dark:text-white text-sm">
-                        {fmt(confirmedQty, line.base_unit_name)}
+                        {fmtTransfer(confirmedQty, line.transfer_unit_name, line.transfer_conversion_factor, line.base_unit_name)}
                       </span>
                     )}
                   </div>
