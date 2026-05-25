@@ -6,7 +6,7 @@ import { Settings, Save, Loader2 } from 'lucide-react'
 import { useBranches } from '@/features/branches/api/branches.api'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useForecastConfig, useUpsertForecastConfig } from '../api/dpo.queries'
+import { useDpoForecastConfig, useUpsertDpoForecastConfig } from '../api/dailyPrepOrders.api'
 
 const forecastConfigSchema = z.object({
   branch_id: z.string().uuid(),
@@ -31,8 +31,8 @@ export default function DpoConfigPage() {
   const { data: branchesData } = useBranches({ limit: 100 })
   const branches = branchesData?.data ?? []
 
-  const { data: config, isLoading: configLoading } = useForecastConfig(selectedBranch)
-  const upsertMutation = useUpsertForecastConfig(selectedBranch)
+  const { data: config, isLoading: configLoading } = useDpoForecastConfig(selectedBranch)
+  const upsertMutation = useUpsertDpoForecastConfig()
 
   const {
     register,
@@ -61,7 +61,6 @@ export default function DpoConfigPage() {
   const weightSum = (weight7d || 0) + (weight30d || 0) + (weightDow || 0)
   const isWeightValid = Math.abs(weightSum - 1.0) < 0.001
 
-  // Load config when branch changes
   useEffect(() => {
     if (config) {
       reset({
@@ -87,14 +86,12 @@ export default function DpoConfigPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      {/* Header */}
+    <div className="space-y-6 max-w-2xl mx-auto p-6">
       <div className="flex items-center gap-3">
         <Settings className="h-6 w-6 text-blue-600 dark:text-blue-400" />
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Forecast Config</h1>
       </div>
 
-      {/* Branch selector */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Branch</label>
         <select
@@ -109,7 +106,6 @@ export default function DpoConfigPage() {
         </select>
       </div>
 
-      {/* Form */}
       {selectedBranch && (
         configLoading ? (
           <div className="flex items-center gap-2 py-8">
@@ -118,7 +114,6 @@ export default function DpoConfigPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-            {/* Weight sum indicator */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600 dark:text-gray-300">Total bobot:</span>
               <span className={`text-sm font-mono font-bold ${isWeightValid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -127,14 +122,12 @@ export default function DpoConfigPage() {
               {!isWeightValid && <span className="text-xs text-red-500">(harus = 1.00)</span>}
             </div>
 
-            {/* Weights */}
             <div className="grid grid-cols-3 gap-4">
               <NumberField label="Weight 7d" error={errors.weight_7d?.message} {...register('weight_7d', { valueAsNumber: true })} step="0.01" min="0" max="1" />
               <NumberField label="Weight 30d" error={errors.weight_30d?.message} {...register('weight_30d', { valueAsNumber: true })} step="0.01" min="0" max="1" />
               <NumberField label="Weight DOW" error={errors.weight_dow?.message} {...register('weight_dow', { valueAsNumber: true })} step="0.01" min="0" max="1" />
             </div>
 
-            {/* Other fields */}
             <div className="grid grid-cols-2 gap-4">
               <NumberField label="Coverage Days" error={errors.coverage_days?.message} {...register('coverage_days', { valueAsNumber: true })} step="0.5" min="0.5" max="7" />
               <NumberField label="Holiday Factor" error={errors.holiday_factor?.message} {...register('holiday_factor', { valueAsNumber: true })} step="0.1" min="1" max="3" />

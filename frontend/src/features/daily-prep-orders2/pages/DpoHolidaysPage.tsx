@@ -1,24 +1,22 @@
 import { useState } from 'react'
-import { format } from 'date-fns'
 import { Calendar, Plus, Trash2, Loader2 } from 'lucide-react'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useHolidays, useUpsertHoliday, useDeleteHoliday } from '../api/dpo.queries'
+import { usePublicHolidays, useUpsertHoliday, useDeleteHoliday } from '../api/dailyPrepOrders.api'
+
+const fmtDate = (d: string) =>
+  new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 export default function DpoHolidaysPage() {
   const toast = useToast()
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
 
-  const from = `${year}-01-01`
-  const to = `${year}-12-31`
+  const { data: holidays = [], isLoading } = usePublicHolidays(year)
+  const upsertMutation = useUpsertHoliday()
+  const deleteMutation = useDeleteHoliday()
 
-  const { data: holidays = [], isLoading } = useHolidays({ from, to })
-  const upsertMutation = useUpsertHoliday(year)
-  const deleteMutation = useDeleteHoliday(year)
-
-  // Form state
   const [holidayDate, setHolidayDate] = useState('')
   const [holidayName, setHolidayName] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
@@ -53,14 +51,13 @@ export default function DpoHolidaysPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Header */}
+    <div className="space-y-6 max-w-3xl mx-auto p-6">
       <div className="flex items-center gap-3">
         <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Public Holidays</h1>
       </div>
 
-      {/* Year selector + Add form */}
+      {/* Add form */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -134,9 +131,7 @@ export default function DpoHolidaysPage() {
             ) : (
               holidays.map((h) => (
                 <tr key={h.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                  <td className="px-4 py-3 text-gray-900 dark:text-white">
-                    {format(new Date(h.holiday_date), 'dd MMM yyyy')}
-                  </td>
+                  <td className="px-4 py-3 text-gray-900 dark:text-white">{fmtDate(h.holiday_date)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{h.holiday_name}</td>
                   <td className="px-4 py-3 text-center">
                     <button
@@ -154,7 +149,6 @@ export default function DpoHolidaysPage() {
         </table>
       </div>
 
-      {/* Delete confirmation */}
       <ConfirmModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
