@@ -230,6 +230,44 @@ export class ApPaymentsRepository {
     return `${prefix}-${String(lastSeq + 1).padStart(3, '0')}`
   }
 
+  /**
+   * Generate multiple sequential payment numbers for the same prefix in one call.
+   * Prevents duplicate key when creating multiple payments for the same branch in one transaction.
+   */
+  async generateApPaymentNumbers(
+    client: PoolClient,
+    companyId: string,
+    branchCode: string,
+    count: number,
+  ): Promise<string[]> {
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const prefix = `AP-${branchCode}-${dateStr}`
+
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+      `${companyId}-${prefix}`,
+    ])
+
+    const { rows } = await client.query(
+      `SELECT payment_number
+       FROM ap_payments
+       WHERE company_id = $1
+         AND payment_number LIKE $2
+       ORDER BY payment_number DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [companyId, `${prefix}-%`],
+    )
+
+    const lastSeq =
+      rows.length > 0
+        ? parseInt(rows[0].payment_number.split('-').pop() || '0', 10)
+        : 0
+
+    return Array.from({ length: count }, (_, i) =>
+      `${prefix}-${String(lastSeq + 1 + i).padStart(3, '0')}`
+    )
+  }
+
   // ── List ───────────────────────────────────────────────────
   async findAll(filter: ApPaymentListFilter): Promise<{
     data: ApPaymentWithRelations[]

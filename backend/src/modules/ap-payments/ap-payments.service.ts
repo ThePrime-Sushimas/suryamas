@@ -1000,7 +1000,7 @@ export class ApPaymentsService {
         notes: dto.batch_notes ?? null,
       })
 
-      // 8. Generate payment_number for each payment and build payment records
+      // 8. Build payment records and generate sequential numbers per branch
       const paymentsToCreate: Array<{
         company_id: string
         branch_id: string
@@ -1026,21 +1026,19 @@ export class ApPaymentsService {
         }>
       }> = []
 
-      for (let i = 0; i < dto.payments.length; i++) {
-        const payment = dto.payments[i]
+      // Cache branchCode lookups
+      const branchCodeCache = new Map<string, string>()
+      const getBranchCode = async (branchId: string) => {
+        if (!branchCodeCache.has(branchId)) {
+          branchCodeCache.set(branchId, await apPaymentsRepository.findBranchCode(client, branchId))
+        }
+        return branchCodeCache.get(branchId)!
+      }
 
-        // Determine branch_id from the first invoice in this payment group
+      for (const payment of dto.payments) {
         const firstInvoice = invoiceMap.get(payment.invoice_lines[0].purchase_invoice_id)
         const branchId = firstInvoice?.branch_id ?? contextBranchId
-
-        const branchCode = await apPaymentsRepository.findBranchCode(client, branchId)
-        const paymentNumber = await apPaymentsRepository.generateApPaymentNumber(
-          client,
-          companyId,
-          branchCode,
-        )
-
-        const paymentTotal = payment.invoice_lines.reduce((s, l) => s + l.amount_paid, 0)
+        const lineTotal = payment.invoice_lines.reduce((s, l) => s + l.amount_paid, 0)
 
         paymentsToCreate.push({
           company_id: companyId,
@@ -1049,8 +1047,8 @@ export class ApPaymentsService {
           bank_account_id: payment.bank_account_id,
           supplier_bank_account_id: payment.supplier_bank_account_id ?? null,
           payment_method: payment.payment_method ?? 'TRANSFER',
-          total_amount: paymentTotal,
-          payment_number: paymentNumber,
+          total_amount: lineTotal,
+          payment_number: '', // assigned below after grouping
           bulk_payment_batch_id: batch.id,
           created_by: userId,
           notes: payment.notes ?? null,
@@ -1062,6 +1060,24 @@ export class ApPaymentsService {
           proof_uploaded_at: null,
           proof_uploaded_by: null,
           invoice_lines: payment.invoice_lines,
+        })
+      }
+
+      // Group by branch_id, generate sequential numbers per group in one lock
+      const branchGroups = new Map<string, number[]>()
+      for (let i = 0; i < paymentsToCreate.length; i++) {
+        const bid = paymentsToCreate[i].branch_id
+        if (!branchGroups.has(bid)) branchGroups.set(bid, [])
+        branchGroups.get(bid)!.push(i)
+      }
+
+      for (const [branchId, indices] of branchGroups) {
+        const branchCode = await getBranchCode(branchId)
+        const numbers = await apPaymentsRepository.generateApPaymentNumbers(
+          client, companyId, branchCode, indices.length,
+        )
+        indices.forEach((paymentIdx, numIdx) => {
+          paymentsToCreate[paymentIdx].payment_number = numbers[numIdx]
         })
       }
 
