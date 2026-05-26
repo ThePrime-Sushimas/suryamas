@@ -541,11 +541,13 @@ export const generalInvoiceRepository = {
     // Build base WHERE clause
     const { where, params } = buildDashboardWhereClause(companyId, branchIds, includeConfidential)
 
-    // Add date params with clear indexing
-    const todayIdx = params.length + 1
+    // Append date params first, then calculate final placeholder indexes based on actual params length
+    // This prevents pg from seeing mismatched placeholder counts.
     params.push(today)
-    const weekEndIdx = params.length + 1
     params.push(weekEnd)
+
+    const todayIdx = params.length - 1
+    const weekEndIdx = params.length
 
     // Summary query with properly parameterized dates
     const { rows: summaryRows } = await pool.query(
@@ -615,7 +617,9 @@ export const generalInvoiceRepository = {
       params,
     )
 
-    // Rebuild params for by_expense_type query
+    // by_expense_type query only needs the base where params,
+    // so slice out the appended date params.
+    const baseParams = params.slice(0, params.length - 2)
     const { rows: byTypeRows } = await pool.query<GeneralApDashboardByType>(
       `SELECT
          gi.expense_type,
@@ -634,7 +638,7 @@ export const generalInvoiceRepository = {
        WHERE ${where}
        GROUP BY gi.expense_type
        ORDER BY total_amount DESC`,
-      params,
+      baseParams,
     )
 
     const s = summaryRows[0]

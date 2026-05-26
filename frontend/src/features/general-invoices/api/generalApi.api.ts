@@ -1,0 +1,547 @@
+import api from '@/lib/axios'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+
+// ─── Types (mirror backend) ───────────────────────────────────
+export type VendorType = 'UTILITY' | 'RENT' | 'SERVICE' | 'SUBSCRIPTION' | 'OTHER'
+export type ExpenseType = 'UTILITY' | 'RENT' | 'SALARY_SUPPORT' | 'SUBSCRIPTION' | 'MAINTENANCE' | 'OTHER'
+export type GeneralInvoiceStatus = 'DRAFT' | 'POSTED' | 'CANCELLED'
+export type GeneralPaymentStatus = 'DRAFT' | 'APPROVED' | 'REJECTED' | 'PAID' | 'RECONCILED'
+export type RecurrenceType = 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
+export type PaymentMethod = 'TRANSFER' | 'CASH'
+
+export interface Vendor {
+  id: string
+  company_id: string
+  vendor_code: string
+  vendor_name: string
+  vendor_type: VendorType | null
+  phone: string | null
+  email: string | null
+  address: string | null
+  bank_name: string | null
+  bank_account_number: string | null
+  bank_account_name: string | null
+  notes: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface GeneralInvoiceLine {
+  id: string
+  general_invoice_id: string
+  line_number: number
+  account_id: string
+  account_code: string
+  account_name: string
+  description: string | null
+  amount: number
+  tax_amount: number
+  total_amount: number
+}
+
+export interface GeneralInvoice {
+  id: string
+  company_id: string
+  branch_id: string
+  invoice_number: string
+  vendor_id: string
+  vendor_name: string
+  vendor_type: VendorType | null
+  invoice_date: string
+  due_date: string | null
+  period_start: string | null
+  period_end: string | null
+  expense_type: ExpenseType
+  is_confidential: boolean
+  subtotal: number
+  total_tax: number
+  total_amount: number
+  notes: string | null
+  attachment_url: string | null
+  status: GeneralInvoiceStatus
+  journal_id: string | null
+  journal_number: string | null
+  template_id: string | null
+  posted_by: string | null
+  posted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GeneralInvoicePaymentSummary {
+  id: string
+  payment_number: string
+  status: GeneralPaymentStatus
+  total_amount: number
+  payment_date: string | null
+  paid_at: string | null
+}
+
+export interface GeneralInvoiceDetail extends GeneralInvoice {
+  lines: GeneralInvoiceLine[]
+  payment: GeneralInvoicePaymentSummary | null
+}
+
+export interface GeneralInvoicePayment {
+  id: string
+  company_id: string
+  branch_id: string
+  payment_number: string
+  general_invoice_id: string
+  invoice_number: string
+  vendor_name: string
+  bank_account_id: number
+  bank_account_name: string | null
+  payment_method: PaymentMethod
+  total_amount: number
+  payment_date: string | null
+  notes: string | null
+  proof_url: string | null
+  proof_uploaded_at: string | null
+  status: GeneralPaymentStatus
+  rejection_reason: string | null
+  approved_by: string | null
+  approved_at: string | null
+  paid_by: string | null
+  paid_at: string | null
+  journal_id: string | null
+  journal_number: string | null
+  reconciled_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GeneralApDashboard {
+  summary: {
+    total_unpaid: number
+    total_unpaid_count: number
+    overdue_amount: number
+    overdue_count: number
+    due_this_week: number
+    due_this_week_count: number
+    draft_count: number
+    posted_count: number
+  }
+  by_expense_type: Array<{
+    expense_type: ExpenseType
+    total_amount: number
+    invoice_count: number
+    unpaid_amount: number
+  }>
+}
+
+interface Pagination {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+
+
+// ─── Query Keys ───────────────────────────────────────────────
+const KEYS = {
+  vendors: ['general-ap', 'vendors'] as const,
+  vendorList: (params: Record<string, unknown>) => [...KEYS.vendors, 'list', params] as const,
+  vendorDetail: (id: string) => [...KEYS.vendors, id] as const,
+
+  invoices: ['general-ap', 'invoices'] as const,
+  invoiceList: (params: Record<string, unknown>) => [...KEYS.invoices, 'list', params] as const,
+  invoiceDetail: (id: string) => [...KEYS.invoices, id] as const,
+  invoiceDashboard: (params: Record<string, unknown>) => [...KEYS.invoices, 'dashboard', params] as const,
+
+  payments: ['general-ap', 'payments'] as const,
+  paymentList: (params: Record<string, unknown>) => [...KEYS.payments, 'list', params] as const,
+  paymentDetail: (id: string) => [...KEYS.payments, id] as const,
+}
+
+// ============================================================
+// VENDOR HOOKS
+// ============================================================
+export const useVendors = (params?: {
+  search?: string
+  vendor_type?: VendorType
+  is_active?: boolean
+  page?: number
+  limit?: number
+}) =>
+  useQuery({
+    queryKey: KEYS.vendorList(params ?? {}),
+    queryFn: async () => {
+      const { data } = await api.get('/vendors', { params })
+      return {
+        data: data.data as Vendor[],
+        pagination: data.pagination as Pagination,
+      }
+    },
+    staleTime: 30_000,
+  })
+
+export const useVendor = (id: string) =>
+  useQuery({
+    queryKey: KEYS.vendorDetail(id),
+    queryFn: async () => {
+      const { data } = await api.get(`/vendors/${id}`)
+      return data.data as Vendor
+    },
+    enabled: !!id,
+  })
+
+export const useCreateVendor = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: {
+      vendor_code: string
+      vendor_name: string
+      vendor_type?: VendorType
+      phone?: string
+      email?: string
+      address?: string
+      bank_name?: string
+      bank_account_number?: string
+      bank_account_name?: string
+      notes?: string
+    }) => {
+      const { data } = await api.post('/vendors', body)
+      return data.data as Vendor
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.vendors })
+    },
+  })
+}
+
+export const useUpdateVendor = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, body }: {
+      id: string
+      body: Partial<{
+        vendor_code: string
+        vendor_name: string
+        vendor_type: VendorType | null
+        phone: string | null
+        email: string | null
+        address: string | null
+        bank_name: string | null
+        bank_account_number: string | null
+        bank_account_name: string | null
+        notes: string | null
+        is_active: boolean
+      }>
+    }) => {
+      const { data } = await api.put(`/vendors/${id}`, body)
+      return data.data as Vendor
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.vendors })
+      qc.invalidateQueries({ queryKey: KEYS.vendorDetail(vars.id) })
+    },
+  })
+}
+
+export const useDeleteVendor = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/vendors/${id}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.vendors })
+    },
+  })
+}
+
+// ============================================================
+// GENERAL INVOICE HOOKS
+// ============================================================
+export const useGeneralInvoiceDashboard = (params?: { branch_id?: string }) =>
+  useQuery({
+    queryKey: KEYS.invoiceDashboard(params ?? {}),
+    queryFn: async () => {
+      const { data } = await api.get('/general-invoices/dashboard', { params })
+      return data.data as GeneralApDashboard
+    },
+    staleTime: 30_000,
+  })
+
+export const useGeneralInvoices = (params?: {
+  branch_id?: string
+  vendor_id?: string
+  status?: GeneralInvoiceStatus
+  expense_type?: ExpenseType
+  due_date_from?: string
+  due_date_to?: string
+  invoice_date_from?: string
+  invoice_date_to?: string
+  search?: string
+  page?: number
+  limit?: number
+}) =>
+  useQuery({
+    queryKey: KEYS.invoiceList(params ?? {}),
+    queryFn: async () => {
+      const { data } = await api.get('/general-invoices', { params })
+      return {
+        data: data.data as GeneralInvoice[],
+        pagination: data.pagination as Pagination,
+      }
+    },
+    staleTime: 30_000,
+  })
+
+export const useGeneralInvoice = (id: string) =>
+  useQuery({
+    queryKey: KEYS.invoiceDetail(id),
+    queryFn: async () => {
+      const { data } = await api.get(`/general-invoices/${id}`)
+      return data.data as GeneralInvoiceDetail
+    },
+    enabled: !!id,
+  })
+
+export const useCreateGeneralInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: {
+      vendor_id: string
+      invoice_date: string
+      due_date?: string | null
+      period_start?: string | null
+      period_end?: string | null
+      expense_type: ExpenseType
+      is_confidential?: boolean
+      notes?: string | null
+      attachment_url?: string | null
+      lines: Array<{
+        line_number: number
+        account_id: string
+        description?: string | null
+        amount: number
+        tax_amount?: number
+      }>
+    }) => {
+      const { data } = await api.post('/general-invoices', body)
+      return data.data as GeneralInvoiceDetail
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+    },
+  })
+}
+
+export const useUpdateGeneralInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, body }: {
+      id: string
+      body: {
+        vendor_id?: string
+        invoice_date?: string
+        due_date?: string | null
+        period_start?: string | null
+        period_end?: string | null
+        expense_type?: ExpenseType
+        is_confidential?: boolean
+        notes?: string | null
+        attachment_url?: string | null
+        lines?: Array<{
+          line_number: number
+          account_id: string
+          description?: string | null
+          amount: number
+          tax_amount?: number
+        }>
+      }
+    }) => {
+      const { data } = await api.put(`/general-invoices/${id}`, body)
+      return data.data as GeneralInvoiceDetail
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+      qc.invalidateQueries({ queryKey: KEYS.invoiceDetail(vars.id) })
+    },
+  })
+}
+
+export const usePostGeneralInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/general-invoices/${id}/post`)
+      return data.data as GeneralInvoiceDetail
+    },
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+      qc.invalidateQueries({ queryKey: KEYS.invoiceDetail(id) })
+      qc.invalidateQueries({ queryKey: ['general-ap', 'invoices', 'dashboard'] })
+    },
+  })
+}
+
+export const useCancelGeneralInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/general-invoices/${id}/cancel`)
+      return data.data as GeneralInvoiceDetail
+    },
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+      qc.invalidateQueries({ queryKey: KEYS.invoiceDetail(id) })
+    },
+  })
+}
+
+export const useDeleteGeneralInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/general-invoices/${id}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+    },
+  })
+}
+
+// ============================================================
+// PAYMENT HOOKS
+// ============================================================
+export const useGeneralPayments = (params?: {
+  branch_id?: string
+  vendor_id?: string
+  status?: GeneralPaymentStatus
+  payment_date_from?: string
+  payment_date_to?: string
+  search?: string
+  page?: number
+  limit?: number
+}) =>
+  useQuery({
+    queryKey: KEYS.paymentList(params ?? {}),
+    queryFn: async () => {
+      const { data } = await api.get('/general-invoice-payments', { params })
+      return {
+        data: data.data as GeneralInvoicePayment[],
+        pagination: data.pagination as Pagination,
+      }
+    },
+    staleTime: 30_000,
+  })
+
+export const useGeneralPayment = (id: string) =>
+  useQuery({
+    queryKey: KEYS.paymentDetail(id),
+    queryFn: async () => {
+      const { data } = await api.get(`/general-invoice-payments/${id}`)
+      return data.data as GeneralInvoicePayment
+    },
+    enabled: !!id,
+  })
+
+export const useCreateGeneralPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: {
+      general_invoice_id: string
+      bank_account_id: number
+      payment_method?: PaymentMethod
+      total_amount: number
+      payment_date?: string | null
+      notes?: string | null
+    }) => {
+      const { data } = await api.post('/general-invoice-payments', body)
+      return data.data as GeneralInvoicePayment
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.payments })
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+    },
+  })
+}
+
+export const useApproveGeneralPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/general-invoice-payments/${id}/approve`)
+      return data.data as GeneralInvoicePayment
+    },
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: KEYS.payments })
+      qc.invalidateQueries({ queryKey: KEYS.paymentDetail(id) })
+    },
+  })
+}
+
+export const useRejectGeneralPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { data } = await api.post(`/general-invoice-payments/${id}/reject`, { reason })
+      return data.data as GeneralInvoicePayment
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.payments })
+      qc.invalidateQueries({ queryKey: KEYS.paymentDetail(vars.id) })
+    },
+  })
+}
+
+export const useUploadProofGeneralPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, proof_url }: { id: string; proof_url: string }) => {
+      const { data } = await api.post(`/general-invoice-payments/${id}/upload-proof`, { proof_url })
+      return data.data as GeneralInvoicePayment
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.paymentDetail(vars.id) })
+    },
+  })
+}
+
+export const useMarkPaidGeneralPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, payment_date }: { id: string; payment_date?: string }) => {
+      const { data } = await api.post(`/general-invoice-payments/${id}/mark-paid`, { payment_date })
+      return data.data as GeneralInvoicePayment
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.payments })
+      qc.invalidateQueries({ queryKey: KEYS.paymentDetail(vars.id) })
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+    },
+  })
+}
+
+export const useDeleteGeneralPaymentJournal = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/general-invoice-payments/${id}/journal`)
+    },
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: KEYS.paymentDetail(id) })
+      qc.invalidateQueries({ queryKey: KEYS.payments })
+    },
+  })
+}
+
+export const useDeleteGeneralPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/general-invoice-payments/${id}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.payments })
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+    },
+  })
+}

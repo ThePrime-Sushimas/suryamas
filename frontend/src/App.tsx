@@ -422,12 +422,39 @@ const SettlementGroupDetailPage = lazy(() =>
     }),
   ),
 );
+const GeneralInvoicesDashboardPage = lazy(() =>
+  import("./features/general-invoices/pages/GeneralApDashboardPage").then(
+    (m) => ({ default: m.default }),
+  ),
+);
+const GeneralInvoicesPage = lazy(() =>
+  import("./features/general-invoices/pages/GeneralInvoicesPage").then(
+    (m) => ({ default: m.default }),
+  ),
+);
+const VendorsPage = lazy(() =>
+  import("./features/general-invoices/pages/VendorPage").then(
+    (m) => ({ default: m.default }),
+  ),
+);
+const GeneralPaymentsPage = lazy(() =>
+  import("./features/general-invoices/pages/PaymentModals").then(
+    (m) => ({ default: m.GeneralPaymentsPage }),
+  ),
+);
+const GeneralInvoiceTemplatesPage = lazy(() =>
+  import("./features/general-invoices/pages/GeneralInvoiceTemplatesPage").then(
+    (m) => ({ default: m.default }),
+  ),
+);
+
 const MonitoringPage = lazy(() =>
-  import("./features/monitoring").then((m) => ({ default: m.MonitoringPage })),
+import("./features/monitoring").then((m) => ({ default: m.MonitoringPage })),
 );
 const FeeDiscrepancyReviewPage = lazy(() =>
   import("./features/bank-reconciliation/fee-discrepancy-review").then((m) => ({ default: m.FeeDiscrepancyReviewPage })),
 );
+
 
 const PosSyncAggregatesPage = lazy(() =>
   import('./features/pos-sync-aggregates').then(m => ({ default: m.PosSyncAggregatesPage }))
@@ -1540,7 +1567,58 @@ function App() {
                       </RequirePermission>
                     }
                   />
+                  <Route
+                    path="finance/general-invoices/dashboard"
+                    element={
+                      <RequirePermission module="general_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GeneralInvoicesDashboardPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/general-invoices"
+                    element={
+                      <RequirePermission module="general_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GeneralInvoicesPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/general-invoices/vendors"
+                    element={
+                      <RequirePermission module="general_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <VendorsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/general-invoices/templates"
+                    element={
+                      <RequirePermission module="general_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GeneralInvoiceTemplatesPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/general-invoices/payments"
+                    element={
+                      <RequirePermission module="general_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GeneralPaymentsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
                   {/* Food Production */}
+
                   <Route
                     path="food-production/menus"
                     element={

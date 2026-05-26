@@ -500,12 +500,48 @@ export const menuItems: MenuItem[] = [
         module: "ap_payments",
       },
       {
+        id: "general-invoices-dashboard",
+        name: "General Invoices",
+        href: "/finance/general-invoices/dashboard",
+        icon: <Receipt size={16} />,
+        module: "general_invoices",
+      },
+      {
+        id: "general-invoices",
+        name: "All Invoices",
+        href: "/finance/general-invoices",
+        icon: <FileText size={16} />,
+        module: "general_invoices",
+      },
+      {
+        id: "general-invoice-payments",
+        name: "Payments",
+        href: "/finance/general-invoices/payments",
+        icon: <Banknote size={16} />,
+        module: "general_invoices",
+      },
+      {
+        id: "general-invoices-vendors",
+        name: "Vendors",
+        href: "/finance/general-invoices/vendors",
+        icon: <Building2 size={16} />,
+        module: "general_invoices",
+      },
+      {
+        id: "general-invoices-templates",
+        name: "Template & COA",
+        href: "/finance/general-invoices/templates",
+        icon: <RefreshCcw size={16} />,
+        module: "general_invoices",
+      },
+      {
         id: "expense-categorization",
         name: "Expense Categorization",
         href: "/expense-categorization",
         icon: <Tag size={16} />,
         module: "cash_flow",
       },
+
       {
         id: "cash-counts",
         name: "Cash Count",
