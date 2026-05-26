@@ -35,7 +35,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
     jam_tutup: initialData?.jam_tutup?.slice(0, 5) || '22:00',
     hari_operasional: initialData?.hari_operasional || [],
     status: initialData?.status || 'active',
-    manager_id: initialData?.manager_id || '',
+
     notes: initialData?.notes || ''
   })
 
@@ -62,13 +62,13 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           country: formData.country, phone: formData.phone || undefined, whatsapp: formData.whatsapp || undefined,
           email: formData.email || undefined, jam_buka: formData.jam_buka + ':00', jam_tutup: formData.jam_tutup + ':00',
           hari_operasional: formData.hari_operasional, status: formData.status as 'active' | 'inactive',
-          manager_id: formData.manager_id || undefined, notes: formData.notes || undefined
+          notes: formData.notes || undefined
         }
       : {
           ...formData, jam_buka: formData.jam_buka + ':00', jam_tutup: formData.jam_tutup + ':00',
           postal_code: formData.postal_code || undefined, phone: formData.phone || undefined,
           whatsapp: formData.whatsapp || undefined, email: formData.email || undefined,
-          manager_id: formData.manager_id || undefined, notes: formData.notes || undefined
+          notes: formData.notes || undefined
         }
     await onSubmit(submitData as CreateBranchDto | UpdateBranchDto)
   }
@@ -164,11 +164,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
         </div>
       </div>
 
-      <div>
-        <label className={labelCls}>PIC / Manager</label>
-        <input name="manager_id" value={formData.manager_id} onChange={handleChange} className={inputCls} placeholder="UUID manager" />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Jika ada pemilihan manager, bisa diganti jadi dropdown di versi berikutnya.</p>
-      </div>
+
 
       <div>
         <label className={labelCls}>Catatan</label>

@@ -15,7 +15,7 @@ export const CreateBranchSchema = z.object({
     branch_code: z.string().min(1).max(50),
     branch_name: z.string().min(1).max(255),
     status: z.enum(['active', 'inactive']).default('active'),
-    manager_id: z.string().uuid().nullable().optional(),
+
     address: z.string().min(1),
     city: z.string().min(1),
     province: z.string().nullable().optional(),

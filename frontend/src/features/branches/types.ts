@@ -25,7 +25,6 @@ export interface Branch {
   branch_code: string
   branch_name: string
   status: BranchStatus
-  manager_id: string | null
   address: string
   city: string
   province: string
@@ -60,7 +59,6 @@ export interface CreateBranchDto {
   jam_tutup?: string
   hari_operasional?: string[]
   status?: BranchStatus
-  manager_id?: string | null
   notes?: string
 }
 

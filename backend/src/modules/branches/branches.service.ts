@@ -70,7 +70,6 @@ export class BranchesService {
       phone: dto.phone ?? null,
       whatsapp: dto.whatsapp ?? null,
       email: dto.email ?? null,
-      manager_id: dto.manager_id ?? null,
       notes: dto.notes ?? null,
     }
 

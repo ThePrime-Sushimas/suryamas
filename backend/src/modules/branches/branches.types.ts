@@ -7,7 +7,7 @@ export interface Branch {
   branch_code: string
   branch_name: string
   status: BranchStatus
-  manager_id: string | null
+
   address: string
   city: string
   province: string
@@ -47,8 +47,8 @@ export interface CreateBranchDto {
   hari_operasional: HariOperasional
   notes?: string | null
   status?: BranchStatus
-  manager_id?: string | null
   created_by?: string | null
+
   updated_by?: string | null
 }
 
@@ -56,7 +56,7 @@ export interface UpdateBranchDto {
   company_id?: string        // ← tambah ini
   branch_name?: string
   status?: BranchStatus
-  manager_id?: string | null
+
   address?: string
   city?: string
   province?: string | null
