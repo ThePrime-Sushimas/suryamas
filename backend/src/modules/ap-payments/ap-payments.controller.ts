@@ -6,6 +6,7 @@ import { apPaymentsService } from './ap-payments.service'
 import { bulkCreateApPaymentSchema } from './ap-payments.schema'
 import type { ApPaymentListFilter } from './ap-payments.types'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
+import { DOCUMENT_UPLOAD_EXTENSIONS, resolveDocumentUploadExtension } from '../../utils/document-upload.util'
 
 export class ApPaymentsController {
   // GET /ap-payments
@@ -350,12 +351,11 @@ export class ApPaymentsController {
         return
       }
 
-      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
-      const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
-      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      const ext = resolveDocumentUploadExtension(file)
+      if (!ext) {
         res.status(400).json({
           success: false,
-          message: `Tipe file .${ext} tidak didukung. Gunakan: ${ALLOWED_EXTENSIONS.join(', ')}`,
+          message: `Tipe file tidak didukung. Gunakan: ${DOCUMENT_UPLOAD_EXTENSIONS.join(', ')}`,
         })
         return
       }

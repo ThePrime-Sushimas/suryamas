@@ -53,12 +53,12 @@ async function generateInvoiceNumber(
 
   await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey])
 
+  // Include soft-deleted rows: UNIQUE(company_id, invoice_number) still reserves the number
   const { rows } = await client.query<{ invoice_number: string }>(
     `SELECT invoice_number
      FROM general_invoices
      WHERE company_id = $1
        AND invoice_number LIKE $2
-       AND is_deleted = false
      ORDER BY invoice_number DESC
      LIMIT 1
      FOR UPDATE`,
@@ -84,12 +84,12 @@ async function generatePaymentNumber(
 
   await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey])
 
+  // Include soft-deleted rows: UNIQUE(company_id, payment_number) still reserves the number
   const { rows } = await client.query<{ payment_number: string }>(
     `SELECT payment_number
      FROM general_invoice_payments
      WHERE company_id = $1
        AND payment_number LIKE $2
-       AND is_deleted = false
      ORDER BY payment_number DESC
      LIMIT 1
      FOR UPDATE`,

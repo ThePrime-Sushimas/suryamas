@@ -1,7 +1,9 @@
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { AuditService } from '../monitoring/monitoring.service'
 import { storageService } from '../../services/storage.service'
+import { resolveDocumentUploadExtension } from '../../utils/document-upload.util'
 import { logInfo } from '../../config/logger'
+import { BusinessRuleError } from '../../utils/errors.base'
 import {
   generalInvoiceRepository,
   generalPaymentRepository,
@@ -303,10 +305,11 @@ export class GeneralInvoiceService {
       throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT')
     }
 
-    const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
-    const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      throw new GeneralInvoiceLineEmptyError()
+    const ext = resolveDocumentUploadExtension(file)
+    if (!ext) {
+      throw new BusinessRuleError(
+        'Format file tidak didukung. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+      )
     }
 
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
@@ -442,10 +445,11 @@ export class GeneralInvoicePaymentService {
     userId: string,
     file: Express.Multer.File,
   ): Promise<GeneralInvoicePayment> {
-    const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
-    const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      throw new GeneralPaymentProofRequiredError()
+    const ext = resolveDocumentUploadExtension(file)
+    if (!ext) {
+      throw new BusinessRuleError(
+        'Format file tidak didukung. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+      )
     }
 
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`

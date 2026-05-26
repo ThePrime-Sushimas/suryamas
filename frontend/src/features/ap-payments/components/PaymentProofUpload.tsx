@@ -1,19 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Upload, X, FileText, Image } from 'lucide-react'
+import { Upload, X, FileText, Image, ExternalLink } from 'lucide-react'
 import { apTheme } from '../ap-payments.theme'
-
-const ACCEPTED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/heic',
-  'image/heif',
-  'application/pdf',
-] as const
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-
-const ACCEPT_STRING = ACCEPTED_MIME_TYPES.join(',')
+import {
+  PROOF_ACCEPT_STRING,
+  formatProofFileSize,
+  isProofImageFile,
+  isProofImagePath,
+  validateProofFile,
+} from './proof-upload.utils'
 
 export interface PaymentProofUploadProps {
   groupKey: string
@@ -21,51 +15,38 @@ export interface PaymentProofUploadProps {
   batchFile: File | null
   onFileChange: (file: File | null) => void
   error: string | null
+  /** Already stored proof (R2 path) — e.g. General AP payment detail */
+  existingProofPath?: string | null
+  existingProofViewUrl?: string | null
+  loadingExistingProof?: boolean
+  onOpenExistingProof?: () => void
+  /** AP rose theme vs neutral (General AP modal) */
+  variant?: 'ap' | 'plain'
 }
 
-function isImageFile(file: File): boolean {
-  return file.type.startsWith('image/')
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function validateFile(file: File): string | null {
-  if (!ACCEPTED_MIME_TYPES.includes(file.type as (typeof ACCEPTED_MIME_TYPES)[number])) {
-    return 'Format file tidak didukung. Gunakan JPG, PNG, WEBP, HEIC, atau PDF.'
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    return 'Ukuran file melebihi 10MB.'
-  }
-  return null
-}
-
-/**
- * File upload area for payment proof per payment group.
- *
- * - Accepts image (JPG, PNG, WEBP, HEIC, HEIF) and PDF files up to 10MB
- * - Shows image preview thumbnail (max 120px height) for image files
- * - Shows filename + file size for PDF files
- * - Remove button to clear uploaded file
- * - Falls back to showing batch file info when no individual file is uploaded
- * - Displays inline error message for invalid files
- */
 export function PaymentProofUpload({
   groupKey,
   file,
   batchFile,
   onFileChange,
   error,
+  existingProofPath = null,
+  existingProofViewUrl = null,
+  loadingExistingProof = false,
+  onOpenExistingProof,
+  variant = 'ap',
 }: PaymentProofUploadProps) {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
-  // Generate preview URL for image files
+  const isPlain = variant === 'plain'
+  const filledBorder = isPlain
+    ? 'border-gray-200 bg-gray-50/80'
+    : 'border-rose-200/80 bg-[#fff9f7] dark:border-gray-600 dark:bg-gray-700/50'
+  const batchBorder = 'border-violet-200/80 bg-violet-50/40 dark:border-violet-700/50 dark:bg-violet-900/10'
+
   useEffect(() => {
-    if (file && isImageFile(file)) {
+    if (file && isProofImageFile(file)) {
       const url = URL.createObjectURL(file)
       setPreviewUrl(url)
       return () => URL.revokeObjectURL(url)
@@ -73,12 +54,11 @@ export function PaymentProofUpload({
     setPreviewUrl(null)
   }, [file])
 
-  // Determine which file to display (individual takes priority over batch)
   const displayFile = file ?? batchFile
   const isBatchFallback = !file && !!batchFile
 
   const batchPreviewUrl = useMemo(() => {
-    if (isBatchFallback && batchFile && isImageFile(batchFile)) {
+    if (isBatchFallback && batchFile && isProofImageFile(batchFile)) {
       return URL.createObjectURL(batchFile)
     }
     return null
@@ -96,11 +76,9 @@ export function PaymentProofUpload({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (!selectedFile) return
-
-    // Reset input so the same file can be re-selected
     e.target.value = ''
 
-    const validationResult = validateFile(selectedFile)
+    const validationResult = validateProofFile(selectedFile)
     if (validationResult) {
       setValidationError(validationResult)
       return
@@ -118,63 +96,62 @@ export function PaymentProofUpload({
   const displayError = error ?? validationError
   const inputId = `proof-upload-${groupKey}`
 
-  // Show file preview/info when a file is present
+  const renderImagePreview = (src: string, alt: string) => (
+    <img
+      src={src}
+      alt={alt}
+      className={`max-h-[120px] w-auto rounded-xl border object-contain shrink-0 ${
+        isPlain ? 'border-gray-200' : 'border-rose-100 dark:border-gray-600'
+      }`}
+    />
+  )
+
   if (displayFile) {
     return (
       <div className="space-y-2">
         <div
           className={`flex items-center gap-3 p-3 rounded-2xl border ${
-            isBatchFallback
-              ? 'border-violet-200/80 bg-violet-50/40 dark:border-violet-700/50 dark:bg-violet-900/10'
-              : 'border-rose-200/80 bg-[#fff9f7] dark:border-gray-600 dark:bg-gray-700/50'
+            isBatchFallback ? batchBorder : filledBorder
           }`}
         >
-          {/* Preview / icon */}
-          {isImageFile(displayFile) && activePreviewUrl ? (
-            <img
-              src={activePreviewUrl}
-              alt={`Bukti pembayaran ${groupKey}`}
-              className="max-h-[120px] w-auto rounded-xl border border-rose-100 dark:border-gray-600 object-contain"
-            />
+          {isProofImageFile(displayFile) && activePreviewUrl ? (
+            renderImagePreview(activePreviewUrl, `Bukti pembayaran ${groupKey}`)
           ) : (
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <FileText className="w-5 h-5 shrink-0 text-rose-500 dark:text-gray-400" />
+              <FileText className={`w-5 h-5 shrink-0 ${isPlain ? 'text-gray-400' : 'text-rose-500 dark:text-gray-400'}`} />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                   {displayFile.name}
                 </p>
-                <p className={`text-xs ${apTheme.muted}`}>
-                  {formatFileSize(displayFile.size)}
+                <p className={`text-xs ${isPlain ? 'text-gray-500' : apTheme.muted}`}>
+                  {formatProofFileSize(displayFile.size)}
                 </p>
               </div>
             </div>
           )}
 
-          {/* File info for images (shown beside thumbnail) */}
-          {isImageFile(displayFile) && activePreviewUrl && (
+          {isProofImageFile(displayFile) && activePreviewUrl && (
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {displayFile.name}
               </p>
-              <p className={`text-xs ${apTheme.muted}`}>
-                {formatFileSize(displayFile.size)}
+              <p className={`text-xs ${isPlain ? 'text-gray-500' : apTheme.muted}`}>
+                {formatProofFileSize(displayFile.size)}
               </p>
             </div>
           )}
 
-          {/* Batch indicator */}
           {isBatchFallback && (
             <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
               Batch
             </span>
           )}
 
-          {/* Remove button (only for individual files) */}
           {!isBatchFallback && (
             <button
               type="button"
               onClick={handleRemove}
-              className="shrink-0 p-1.5 rounded-xl hover:bg-rose-100/80 dark:hover:bg-gray-600 transition-colors"
+              className="shrink-0 p-1.5 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               aria-label={`Hapus bukti pembayaran ${groupKey}`}
             >
               <X className="w-4 h-4 text-gray-400 hover:text-red-500" />
@@ -182,7 +159,6 @@ export function PaymentProofUpload({
           )}
         </div>
 
-        {/* Allow uploading individual file even when batch is shown */}
         {isBatchFallback && (
           <label
             htmlFor={inputId}
@@ -193,14 +169,13 @@ export function PaymentProofUpload({
             <input
               id={inputId}
               type="file"
-              accept={ACCEPT_STRING}
+              accept={PROOF_ACCEPT_STRING}
               className="hidden"
               onChange={handleFileSelect}
             />
           </label>
         )}
 
-        {/* Error message */}
         {displayError && (
           <p className="text-xs text-red-600 dark:text-red-400" role="alert">
             {displayError}
@@ -210,27 +185,86 @@ export function PaymentProofUpload({
     )
   }
 
-  // Empty state — upload zone
+  if (existingProofPath) {
+    const labelName = existingProofPath.split('/').pop() ?? 'Bukti pembayaran'
+    const showExistingImage =
+      !!existingProofViewUrl && isProofImagePath(existingProofPath)
+
+    return (
+      <div className="space-y-2">
+        <div className={`flex items-start gap-3 p-3 rounded-2xl border ${filledBorder}`}>
+          {showExistingImage ? (
+            renderImagePreview(existingProofViewUrl!, 'Bukti pembayaran')
+          ) : (
+            <div className="flex h-[72px] w-[72px] items-center justify-center rounded-xl border border-gray-200 bg-white shrink-0">
+              <FileText className="w-8 h-8 text-gray-400" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-sm font-medium text-gray-900 truncate">{labelName}</p>
+            {loadingExistingProof && !existingProofViewUrl && (
+              <p className="text-xs text-gray-500">Memuat preview…</p>
+            )}
+            {onOpenExistingProof && (
+              <button
+                type="button"
+                onClick={onOpenExistingProof}
+                className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Buka file
+              </button>
+            )}
+          </div>
+        </div>
+        <label
+          htmlFor={inputId}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 cursor-pointer hover:underline"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          Ganti bukti
+          <input
+            id={inputId}
+            type="file"
+            accept={PROOF_ACCEPT_STRING}
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </label>
+        {displayError && (
+          <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+            {displayError}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-2">
-      <label htmlFor={inputId} className={apTheme.uploadZone}>
+      <label
+        htmlFor={inputId}
+        className={
+          isPlain
+            ? 'flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/50 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-colors'
+            : apTheme.uploadZone
+        }
+      >
         <Image className="w-6 h-6 text-gray-400 dark:text-gray-500" />
-        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+        <span className={`text-xs font-medium ${isPlain ? 'text-gray-700' : 'text-gray-600 dark:text-gray-400'}`}>
           Upload bukti bayar
         </span>
-        <span className={`text-xs ${apTheme.muted}`}>
+        <span className={`text-xs ${isPlain ? 'text-gray-500' : apTheme.muted}`}>
           JPG, PNG, WEBP, HEIC, PDF · Maks 10MB
         </span>
         <input
           id={inputId}
           type="file"
-          accept={ACCEPT_STRING}
+          accept={PROOF_ACCEPT_STRING}
           className="hidden"
           onChange={handleFileSelect}
         />
       </label>
-
-      {/* Error message */}
       {displayError && (
         <p className="text-xs text-red-600 dark:text-red-400" role="alert">
           {displayError}

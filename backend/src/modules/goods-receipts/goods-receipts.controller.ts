@@ -6,6 +6,7 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { GoodsReceiptNotFoundError, GoodsReceiptAttachmentNotFoundError } from './goods-receipts.errors'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
+import { DOCUMENT_UPLOAD_EXTENSIONS, resolveDocumentUploadExtension } from '../../utils/document-upload.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { createGoodsReceiptSchema, updateGoodsReceiptSchema, confirmGoodsReceiptSchema, goodsReceiptIdSchema, createAttachmentSchema, deleteAttachmentSchema, pendingQtySchema } from './goods-receipts.schema'
 
@@ -151,10 +152,12 @@ export class GoodsReceiptsController {
         return
       }
 
-      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
-      const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
-      if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        res.status(400).json({ success: false, message: `File type .${ext} not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` })
+      const ext = resolveDocumentUploadExtension(file)
+      if (!ext) {
+        res.status(400).json({
+          success: false,
+          message: `File type not allowed. Allowed: ${DOCUMENT_UPLOAD_EXTENSIONS.join(', ')}`,
+        })
         return
       }
       if (file.size > 10 * 1024 * 1024) {

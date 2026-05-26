@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
-import { X, Upload, CheckCircle, XCircle, Banknote, AlertCircle, Search } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, CheckCircle, XCircle, Banknote, AlertCircle, Search } from 'lucide-react'
 import { getSignedStorageUrl } from '@/lib/storage'
+import { PaymentProofUpload } from '@/features/ap-payments/components/PaymentProofUpload'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useGeneralPaymentFilters } from '../hooks/useGeneralPaymentFilters'
@@ -12,6 +13,7 @@ import {
   useMarkPaidGeneralPayment,
   useDeleteGeneralPayment,
   useGeneralPayments,
+  useGeneralPayment,
 } from '../api/generalApi.api'
 
 import {
@@ -219,7 +221,6 @@ interface PaymentActionsModalProps {
 
 export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsModalProps) {
   const toast = useToast()
-  const proofFileRef = useRef<HTMLInputElement>(null)
   const approveMutation = useApproveGeneralPayment()
   const rejectMutation = useRejectGeneralPayment()
   const uploadProofMutation = useUploadProofGeneralPayment()
@@ -227,7 +228,13 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
   const markPaidMutation = useMarkPaidGeneralPayment()
   const deleteMutation = useDeleteGeneralPayment()
 
+  const paymentId = payment?.id ?? ''
+  const { data: freshPayment } = useGeneralPayment(paymentId)
+  const displayPayment = (open && freshPayment) ? freshPayment : payment
+
   const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofViewUrl, setProofViewUrl] = useState<string | null>(null)
+  const [proofViewLoading, setProofViewLoading] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10))
   const [showRejectForm, setShowRejectForm] = useState(false)
@@ -244,7 +251,27 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
     }
   }, [open, payment])
 
-  if (!open || !payment) return null
+  useEffect(() => {
+    if (!open || !displayPayment?.proof_url) {
+      setProofViewUrl(null)
+      setProofViewLoading(false)
+      return
+    }
+    const raw = displayPayment.proof_url
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      setProofViewUrl(raw)
+      return
+    }
+    let cancelled = false
+    setProofViewLoading(true)
+    getSignedStorageUrl(raw, 'invoices')
+      .then((url) => { if (!cancelled) setProofViewUrl(url) })
+      .catch(() => { if (!cancelled) setProofViewUrl(null) })
+      .finally(() => { if (!cancelled) setProofViewLoading(false) })
+    return () => { cancelled = true }
+  }, [open, displayPayment?.proof_url])
+
+  if (!open || !payment || !displayPayment) return null
 
   const isPending =
     approveMutation.isPending ||
@@ -254,13 +281,13 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
     deleteMutation.isPending
 
   const handleApprove = async () => {
-    await approveMutation.mutateAsync(payment.id)
+    await approveMutation.mutateAsync(displayPayment.id)
     onClose()
   }
 
   const handleReject = async () => {
     if (!rejectReason.trim()) return
-    await rejectMutation.mutateAsync({ id: payment.id, reason: rejectReason })
+    await rejectMutation.mutateAsync({ id: displayPayment.id, reason: rejectReason })
     onClose()
   }
 
@@ -270,19 +297,18 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
       return
     }
     try {
-      await uploadProofMutation.mutateAsync({ id: payment.id, file: proofFile })
+      await uploadProofMutation.mutateAsync({ id: displayPayment.id, file: proofFile })
       toast.success('Bukti pembayaran diupload')
       setProofFile(null)
-      if (proofFileRef.current) proofFileRef.current.value = ''
     } catch (err: unknown) {
       toast.error(parseApiError(err, 'Gagal upload bukti'))
     }
   }
 
   const openProof = async () => {
-    if (!payment?.proof_url) return
+    if (!displayPayment.proof_url) return
     try {
-      const url = await getSignedStorageUrl(payment.proof_url)
+      const url = proofViewUrl ?? await getSignedStorageUrl(displayPayment.proof_url, 'invoices')
       window.open(url, '_blank', 'noopener,noreferrer')
     } catch {
       toast.error('Gagal membuka bukti')
@@ -290,18 +316,18 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
   }
 
   const handleMarkPaid = async () => {
-    await markPaidMutation.mutateAsync({ id: payment.id, payment_date: paidDate })
+    await markPaidMutation.mutateAsync({ id: displayPayment.id, payment_date: paidDate })
     onClose()
   }
 
   const handleDelete = async () => {
-    await deleteMutation.mutateAsync(payment.id)
+    await deleteMutation.mutateAsync(displayPayment.id)
     onClose()
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-base font-bold text-gray-900">Detail Payment</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X size={18} /></button>
@@ -311,89 +337,83 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
           {/* Payment info */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-gray-500">{payment.payment_number}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PAYMENT_STATUS_COLORS[payment.status]}`}>
-                {PAYMENT_STATUS_LABELS[payment.status]}
+              <span className="text-xs font-mono text-gray-500">{displayPayment.payment_number}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PAYMENT_STATUS_COLORS[displayPayment.status]}`}>
+                {PAYMENT_STATUS_LABELS[displayPayment.status]}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs text-gray-400">Vendor</p>
-                <p className="font-medium text-gray-900">{payment.vendor_name}</p>
+                <p className="font-medium text-gray-900">{displayPayment.vendor_name}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Nominal</p>
-                <p className="font-bold text-gray-900">{formatRupiah(payment.total_amount)}</p>
+                <p className="font-bold text-gray-900">{formatRupiah(displayPayment.total_amount)}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Metode</p>
-                <p className="text-gray-700">{payment.payment_method}</p>
+                <p className="text-gray-700">{displayPayment.payment_method}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Rekening</p>
-                <p className="text-gray-700">{payment.bank_account_name ?? '-'}</p>
+                <p className="text-gray-700">{displayPayment.bank_account_name ?? '-'}</p>
               </div>
-              {payment.paid_at && (
+              {displayPayment.paid_at && (
                 <div>
                   <p className="text-xs text-gray-400">Lunas pada</p>
-                  <p className="text-gray-700">{formatDate(payment.paid_at)}</p>
+                  <p className="text-gray-700">{formatDate(displayPayment.paid_at)}</p>
                 </div>
               )}
-              {payment.journal_number && (
+              {displayPayment.journal_number && (
                 <div>
                   <p className="text-xs text-gray-400">No. Jurnal</p>
-                  <p className="font-mono text-xs text-gray-700">{payment.journal_number}</p>
+                  <p className="font-mono text-xs text-gray-700">{displayPayment.journal_number}</p>
                 </div>
               )}
             </div>
 
-            {payment.rejection_reason && (
+            {displayPayment.rejection_reason && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex gap-2">
                 <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-red-700">{payment.rejection_reason}</p>
+                <p className="text-xs text-red-700">{displayPayment.rejection_reason}</p>
               </div>
             )}
           </div>
 
-          {/* Proof URL upload */}
-          {['APPROVED', 'PAID'].includes(payment.status) && (
-            <div className="space-y-2 border-t border-gray-100 pt-4">
-              <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
-                <Upload size={12} /> Bukti Pembayaran
-              </label>
-              {payment.proof_url && (
-                <button
-                  type="button"
-                  onClick={openProof}
-                  className="text-xs text-blue-600 hover:underline block text-left"
-                >
-                  Lihat bukti saat ini →
-                </button>
-              )}
-              <div className="flex gap-2 items-center">
-                <input
-                  ref={proofFileRef}
-                  type="file"
-                  accept="image/*,.pdf,.heic,.heif"
-                  onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
-                  className="flex-1 text-xs"
-                />
+          {/* Bukti pembayaran */}
+          {['APPROVED', 'PAID'].includes(displayPayment.status) && (
+            <div className="space-y-3 border-t border-gray-100 pt-4">
+              <p className="text-xs font-semibold text-gray-600">Bukti Pembayaran</p>
+              <PaymentProofUpload
+                groupKey={displayPayment.id}
+                file={proofFile}
+                batchFile={null}
+                onFileChange={setProofFile}
+                error={null}
+                variant="plain"
+                existingProofPath={displayPayment.proof_url}
+                existingProofViewUrl={proofViewUrl}
+                loadingExistingProof={proofViewLoading}
+                onOpenExistingProof={displayPayment.proof_url ? openProof : undefined}
+              />
+              {proofFile && (
                 <button
                   type="button"
                   onClick={handleUploadProof}
-                  disabled={!proofFile || uploadProofMutation.isPending}
-                  className="px-3 py-2 text-xs bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 shrink-0"
+                  disabled={uploadProofMutation.isPending}
+                  className="w-full py-2.5 text-sm bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 disabled:opacity-50"
                 >
-                  {uploadProofMutation.isPending ? '...' : 'Upload'}
+                  {uploadProofMutation.isPending ? 'Mengupload…' : 'Simpan bukti'}
                 </button>
-              </div>
+              )}
             </div>
           )}
 
           {/* Action buttons */}
           <div className="border-t border-gray-100 pt-4 space-y-3">
             {/* DRAFT actions */}
-            {payment.status === 'DRAFT' && (
+            {displayPayment.status === 'DRAFT' && (
               <>
                 {!showRejectForm ? (
                   <div className="flex gap-2">
@@ -446,7 +466,7 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
             )}
 
             {/* APPROVED actions */}
-            {payment.status === 'APPROVED' && (
+            {displayPayment.status === 'APPROVED' && (
               <>
                 {!showMarkPaidForm ? (
                   <button
@@ -476,7 +496,7 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
                         {markPaidMutation.isPending ? 'Memproses...' : 'Konfirmasi Lunas'}
                       </button>
                     </div>
-                    {!payment.proof_url && (
+                    {!displayPayment.proof_url && (
                       <p className="text-xs text-amber-600 flex items-center gap-1">
                         <AlertCircle size={12} /> Perlu upload bukti pembayaran terlebih dahulu
                       </p>

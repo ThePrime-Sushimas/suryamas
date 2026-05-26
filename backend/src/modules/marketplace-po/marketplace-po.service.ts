@@ -7,6 +7,7 @@
   import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
   import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
   import { storageService } from '../../services/storage.service'
+  import { DOCUMENT_UPLOAD_EXTENSIONS, resolveDocumentUploadExtension } from '../../utils/document-upload.util'
   import type {
     CancelSessionDto,
     CreateOwnerCreditCardDto,
@@ -545,10 +546,11 @@
         throw new BusinessRuleError('Attachment can only be uploaded for DRAFT or ORDERED sessions')
       }
 
-      const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
-      const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
-      if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        throw new BusinessRuleError(`File type .${ext} not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`)
+      const ext = resolveDocumentUploadExtension(file)
+      if (!ext) {
+        throw new BusinessRuleError(
+          `File type not allowed. Allowed: ${DOCUMENT_UPLOAD_EXTENSIONS.join(', ')}`,
+        )
       }
       if (file.size > 10 * 1024 * 1024) {
         throw new BusinessRuleError('File too large. Maximum 10MB.')
