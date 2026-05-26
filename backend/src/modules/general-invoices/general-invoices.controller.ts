@@ -7,6 +7,7 @@ import {
   generalInvoiceService,
   generalInvoicePaymentService,
   generalInvoiceTemplateService,
+  expenseCoaDefaultService,
 } from './general-invoices.service'
 import type {
   VendorListFilter,
@@ -138,6 +139,7 @@ export class GeneralInvoicesController {
         invoice_date_from:   q.invoice_date_from,
         invoice_date_to:     q.invoice_date_to,
         search:              q.search,
+        overdue:             q.overdue === 'true' || q.overdue === '1',
         include_confidential: canViewConfidential,
         page:                q.page  ? parseInt(q.page,  10) : 1,
         limit:               q.limit ? parseInt(q.limit, 10) : 20,
@@ -198,9 +200,10 @@ export class GeneralInvoicesController {
 
   post = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      const invoice   = await generalInvoiceService.post(req.params.id as string, companyId, userId)
+      const companyId  = req.context?.company_id  ?? ''
+      const userId     = req.user?.id              ?? ''
+      const employeeId = req.context?.employee_id
+      const invoice    = await generalInvoiceService.post(req.params.id as string, companyId, userId, employeeId)
       sendSuccess(res, invoice, 'Invoice berhasil diposting')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post_general_invoice', id: req.params.id })
@@ -209,9 +212,10 @@ export class GeneralInvoicesController {
 
   cancel = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      const invoice   = await generalInvoiceService.cancel(req.params.id as string, companyId, userId)
+      const companyId  = req.context?.company_id  ?? ''
+      const userId     = req.user?.id              ?? ''
+      const employeeId = req.context?.employee_id
+      const invoice    = await generalInvoiceService.cancel(req.params.id as string, companyId, userId, employeeId)
       sendSuccess(res, invoice, 'Invoice berhasil dibatalkan')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_general_invoice', id: req.params.id })
@@ -226,6 +230,31 @@ export class GeneralInvoicesController {
       sendSuccess(res, null, 'Invoice berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_general_invoice', id: req.params.id })
+    }
+  }
+
+  uploadAttachment = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const file = req.file
+      if (!file) {
+        res.status(400).json({
+          success: false,
+          message: 'File tidak diterima. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+        })
+        return
+      }
+
+      const invoice = await generalInvoiceService.uploadAttachment(
+        req.params.id as string,
+        companyId,
+        userId,
+        file,
+      )
+      sendSuccess(res, invoice, 'Lampiran tagihan berhasil diupload')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upload_general_invoice_attachment', id: req.params.id })
     }
   }
 }
@@ -318,8 +347,28 @@ export class GeneralInvoicePaymentsController {
     try {
       const companyId = req.context?.company_id ?? ''
       const userId    = req.user?.id             ?? ''
-      const { proof_url } = req.body
-      const payment   = await generalInvoicePaymentService.uploadProof(req.params.id as string, proof_url, companyId, userId)
+      const file = req.file
+      const proofUrlFromBody = typeof req.body?.proof_url === 'string' ? req.body.proof_url : undefined
+
+      if (!file && !proofUrlFromBody?.trim()) {
+        res.status(400).json({ success: false, message: 'File bukti pembayaran wajib diupload' })
+        return
+      }
+
+      const payment = file
+        ? await generalInvoicePaymentService.uploadProofFile(
+            req.params.id as string,
+            companyId,
+            userId,
+            file,
+          )
+        : await generalInvoicePaymentService.uploadProof(
+            req.params.id as string,
+            proofUrlFromBody!.trim(),
+            companyId,
+            userId,
+          )
+
       sendSuccess(res, payment, 'Bukti pembayaran berhasil diupload')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'upload_proof_general_payment', id: req.params.id })
@@ -330,8 +379,9 @@ export class GeneralInvoicePaymentsController {
     try {
       const companyId    = req.context?.company_id ?? ''
       const userId       = req.user?.id             ?? ''
+      const employeeId   = req.context?.employee_id
       const { payment_date } = req.body
-      const payment      = await generalInvoicePaymentService.markPaid(req.params.id as string, payment_date, companyId, userId)
+      const payment      = await generalInvoicePaymentService.markPaid(req.params.id as string, payment_date, companyId, userId, employeeId)
       sendSuccess(res, payment, 'Payment berhasil ditandai lunas')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark_paid_general_payment', id: req.params.id })
@@ -341,8 +391,9 @@ export class GeneralInvoicePaymentsController {
   deleteJournal = async (req: Request, res: Response): Promise<void> => {
     try {
       const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      const payment   = await generalInvoicePaymentService.deleteJournal(req.params.id as string, companyId, userId)
+      const userId     = req.user?.id              ?? ''
+      const employeeId = req.context?.employee_id
+      const payment    = await generalInvoicePaymentService.deleteJournal(req.params.id as string, companyId, userId, employeeId)
       sendSuccess(res, payment, 'Journal berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_general_payment_journal', id: req.params.id })
@@ -432,3 +483,49 @@ export const vendorsController                 = new VendorsController()
 export const generalInvoicesController         = new GeneralInvoicesController()
 export const generalInvoicePaymentsController  = new GeneralInvoicePaymentsController()
 export const generalInvoiceTemplatesController = new GeneralInvoiceTemplatesController()
+
+// ============================================================
+// EXPENSE COA DEFAULTS CONTROLLER
+// ============================================================
+export class ExpenseCoaDefaultsController {
+  list = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const data = await expenseCoaDefaultService.list(companyId)
+      sendSuccess(res, data, 'Expense COA defaults retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_expense_coa_defaults' })
+    }
+  }
+
+  upsert = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
+      const data = await expenseCoaDefaultService.upsert(req.body, companyId, userId)
+      sendSuccess(res, data, 'Default COA per kategori disimpan')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upsert_expense_coa_defaults' })
+    }
+  }
+
+  suggest = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const companyId = req.context?.company_id ?? ''
+      const expenseType = req.query.expense_type as string
+      if (!expenseType) {
+        res.status(400).json({ success: false, message: 'expense_type query required' })
+        return
+      }
+      const accountId = await expenseCoaDefaultService.getAccountIdForExpenseType(
+        companyId,
+        expenseType as import('./general-invoices.types').ExpenseType,
+      )
+      sendSuccess(res, { account_id: accountId })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'suggest_expense_coa' })
+    }
+  }
+}
+
+export const expenseCoaDefaultsController = new ExpenseCoaDefaultsController()

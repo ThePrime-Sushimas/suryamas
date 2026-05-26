@@ -8,7 +8,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 
 interface BankAccountTableProps {
-  ownerType: 'company' | 'supplier'
+  ownerType: 'company' | 'supplier' | 'vendor'
   ownerId: string
   onEdit: (id: number) => void
   loading?: boolean

@@ -19,7 +19,7 @@ import { AuditService } from '../monitoring/monitoring.service'
 
 export class BankAccountsService {
   private async validateOwner(ownerType: OwnerType, ownerId: string): Promise<void> {
-    if (!['company', 'supplier'].includes(ownerType)) throw new InvalidOwnerTypeError(ownerType, ['company', 'supplier'])
+    if (!['company', 'supplier', 'vendor'].includes(ownerType)) throw new InvalidOwnerTypeError(ownerType, ['company', 'supplier', 'vendor'])
     
     const data = await bankAccountsRepository.findOwner(ownerType, ownerId)
     if (!data) throw new InvalidOwnerError(ownerType, ownerId)
@@ -28,9 +28,13 @@ export class BankAccountsService {
       if ((data as { status?: string }).status === 'closed') {
         throw new OwnerClosedError('company', ownerId)
       }
-    } else {
+    } else if (ownerType === 'supplier') {
       if ((data as { deleted_at?: string }).deleted_at) {
         throw new OwnerDeletedError('supplier', ownerId)
+      }
+    } else if (ownerType === 'vendor') {
+      if ((data as { deleted_at?: string }).deleted_at) {
+        throw new OwnerDeletedError('vendor', ownerId)
       }
     }
   }

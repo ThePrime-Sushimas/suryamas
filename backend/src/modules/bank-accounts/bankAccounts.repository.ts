@@ -121,7 +121,7 @@ export class BankAccountsRepository {
   }
 
   async findOwner(ownerType: OwnerType, ownerId: string): Promise<{ id: string; status?: string; deleted_at?: string } | null> {
-    const table = ownerType === 'company' ? 'companies' : 'suppliers'
+    const table = ownerType === 'company' ? 'companies' : ownerType === 'supplier' ? 'suppliers' : 'vendors'
     const selectFields = ownerType === 'company' ? 'id, status' : 'id, deleted_at'
     const { rows } = await pool.query(`SELECT ${selectFields} FROM ${table} WHERE id = $1`, [ownerId])
     return rows[0] ?? null

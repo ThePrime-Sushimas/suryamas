@@ -1,11 +1,13 @@
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { AuditService } from '../monitoring/monitoring.service'
+import { storageService } from '../../services/storage.service'
 import { logInfo } from '../../config/logger'
 import {
   generalInvoiceRepository,
   generalPaymentRepository,
   generalTemplateRepository,
   vendorRepository,
+  expenseCoaDefaultRepository,
 } from './general-invoices.repository'
 import type {
   CreateVendorDto,
@@ -24,6 +26,9 @@ import type {
   GenerateFromTemplateDto,
   GeneralInvoiceTemplate,
   GeneralApDashboard,
+  ExpenseCoaDefault,
+  UpsertExpenseCoaDefaultsDto,
+  ExpenseType,
 } from './general-invoices.types'
 import {
   GeneralInvoiceNotFoundError,
@@ -158,12 +163,20 @@ export class GeneralInvoiceService {
    *   DR  Beban xxx (tiap line di invoice)   xxx
    *       CR  Hutang Usaha Umum (GEN-AP-LIABILITY)  xxx
    */
-  async post(id: string, companyId: string, userId: string): Promise<GeneralInvoiceDetail> {
+  async post(
+    id: string,
+    companyId: string,
+    userId: string,
+    employeeId?: string,
+  ): Promise<GeneralInvoiceDetail> {
     const existing = await this.getById(id, companyId)
     if (existing.status !== 'DRAFT') {
       throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT')
     }
     if (existing.lines.length === 0) throw new GeneralInvoiceLineEmptyError()
+
+    // journal_headers.created_by → employees.id (bukan auth_users.id)
+    const actorId = employeeId ?? userId
 
     // Ambil COA hutang usaha umum dari accounting_purposes
     const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId)
@@ -206,14 +219,14 @@ export class GeneralInvoiceService {
           exchange_rate: 1,
           lines: journalLines,
         },
-        userId,
+        actorId,
       )
       journalId = journal.id
 
       // Auto submit → approve → post journal
-      await journalHeadersService.submit(journalId, userId, companyId)
-      await journalHeadersService.approve(journalId, userId, companyId)
-      await journalHeadersService.post(journalId, userId, companyId)
+      await journalHeadersService.submit(journalId, actorId, companyId)
+      await journalHeadersService.approve(journalId, actorId, companyId)
+      await journalHeadersService.post(journalId, actorId, companyId)
 
       // Update invoice status
       await generalInvoiceRepository.withTransaction(async (client) => {
@@ -226,7 +239,7 @@ export class GeneralInvoiceService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
+        await journalHeadersService.forceDelete(journalId, actorId, companyId, userId).catch(() => undefined)
       }
       throw err
     }
@@ -236,27 +249,43 @@ export class GeneralInvoiceService {
     return this.getById(id, companyId)
   }
 
-  async cancel(id: string, companyId: string, userId: string): Promise<GeneralInvoiceDetail> {
+  async cancel(
+    id: string,
+    companyId: string,
+    userId: string,
+    employeeId?: string,
+  ): Promise<GeneralInvoiceDetail> {
     const existing = await this.getById(id, companyId)
     if (!['DRAFT', 'POSTED'].includes(existing.status)) {
       throw new GeneralInvoiceInvalidStatusError(existing.status, ['DRAFT', 'POSTED'])
     }
 
+    const actorId = employeeId ?? userId
+
     // Kalau sudah ada payment aktif, tidak bisa cancel
     const payment = await generalPaymentRepository.findByInvoiceId(id)
-    if (payment && ['APPROVED', 'PAID'].includes(payment.status)) {
-      throw new GeneralInvoiceAlreadyPaidError()
+    if (payment && ['APPROVED', 'PAID', 'RECONCILED'].includes(payment.status)) {
+      throw new GeneralInvoiceAlreadyPaidError(payment.payment_number, payment.status)
     }
 
-    // Reverse journal kalau sudah POSTED
+    // Hapus payment DRAFT agar tidak menggantung
+    if (payment?.status === 'DRAFT') {
+      await generalPaymentRepository.withTransaction(async (client) => {
+        await generalPaymentRepository.softDelete(client, payment.id, userId)
+      })
+    }
+
+    // Hard-delete jurnal posting (forceDelete null FK + revert POSTED→DRAFT)
     if (existing.status === 'POSTED' && existing.journal_id) {
-      await journalHeadersService.forceDelete(existing.journal_id, userId, companyId)
+      await journalHeadersService.forceDelete(existing.journal_id, actorId, companyId, userId)
     }
 
     await generalInvoiceRepository.withTransaction(async (client) => {
       await generalInvoiceRepository.updateStatus(client, id, 'CANCELLED', {
         updated_by: userId,
         journal_id: null,
+        posted_by: null,
+        posted_at: null,
       })
     })
 
@@ -276,6 +305,36 @@ export class GeneralInvoiceService {
 
     await AuditService.log('DELETE', 'general_invoices', id, userId, { invoice_number: existing.invoice_number }, null)
     logInfo('General invoice deleted', { id })
+  }
+
+  async uploadAttachment(
+    id: string,
+    companyId: string,
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<GeneralInvoiceDetail> {
+    const existing = await this.getById(id, companyId)
+    if (existing.status !== 'DRAFT') {
+      throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT')
+    }
+
+    const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
+    const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      throw new GeneralInvoiceLineEmptyError()
+    }
+
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const now = new Date()
+    const path = `${companyId}/general-ap-invoices/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
+
+    await storageService.uploadToPath(file.buffer, path, file.mimetype, 'invoices')
+
+    await generalInvoiceRepository.withTransaction(async (client) => {
+      await generalInvoiceRepository.updateAttachment(client, id, companyId, path, userId)
+    })
+
+    return this.getById(id, companyId)
   }
 }
 
@@ -314,7 +373,7 @@ export class GeneralInvoicePaymentService {
     // Cek belum ada payment aktif
     const existing = await generalPaymentRepository.findByInvoiceId(dto.general_invoice_id)
     if (existing && !['REJECTED'].includes(existing.status)) {
-      throw new GeneralInvoiceAlreadyPaidError()
+      throw new GeneralInvoiceAlreadyPaidError(existing.payment_number, existing.status)
     }
 
     const branchId = dto.branch_id ?? contextBranchId
@@ -392,6 +451,26 @@ export class GeneralInvoicePaymentService {
     return this.getById(id, companyId)
   }
 
+  async uploadProofFile(
+    id: string,
+    companyId: string,
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<GeneralInvoicePayment> {
+    const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'heic', 'heif']
+    const ext = (file.originalname.split('.').pop() ?? 'jpg').toLowerCase()
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      throw new GeneralPaymentProofRequiredError()
+    }
+
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const now = new Date()
+    const path = `${companyId}/general-ap-payments/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
+
+    await storageService.uploadToPath(file.buffer, path, file.mimetype, 'invoices')
+    return this.uploadProof(id, path, companyId, userId)
+  }
+
   /**
    * Mark as PAID → buat jurnal pembayaran
    *
@@ -404,6 +483,7 @@ export class GeneralInvoicePaymentService {
     paymentDate: string | undefined,
     companyId: string,
     userId: string,
+    employeeId?: string,
   ): Promise<GeneralInvoicePayment> {
     const existing = await this.getById(id, companyId)
     if (existing.status !== 'APPROVED') {
@@ -412,6 +492,8 @@ export class GeneralInvoicePaymentService {
     if (!existing.proof_url) {
       throw new GeneralPaymentProofRequiredError()
     }
+
+    const actorId = employeeId ?? userId
 
     // Ambil COA
     const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId)
@@ -457,13 +539,13 @@ export class GeneralInvoicePaymentService {
             },
           ],
         },
-        userId,
+        actorId,
       )
       journalId = journal.id
 
-      await journalHeadersService.submit(journalId, userId, companyId)
-      await journalHeadersService.approve(journalId, userId, companyId)
-      await journalHeadersService.post(journalId, userId, companyId)
+      await journalHeadersService.submit(journalId, actorId, companyId)
+      await journalHeadersService.approve(journalId, actorId, companyId)
+      await journalHeadersService.post(journalId, actorId, companyId)
 
       await generalPaymentRepository.withTransaction(async (client) => {
         await generalPaymentRepository.updateStatus(client, id, 'PAID', {
@@ -476,7 +558,7 @@ export class GeneralInvoicePaymentService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
+        await journalHeadersService.forceDelete(journalId, actorId, companyId, userId).catch(() => undefined)
       }
       throw err
     }
@@ -486,24 +568,21 @@ export class GeneralInvoicePaymentService {
     return this.getById(id, companyId)
   }
 
-  async deleteJournal(id: string, companyId: string, userId: string): Promise<GeneralInvoicePayment> {
+  async deleteJournal(
+    id: string,
+    companyId: string,
+    userId: string,
+    employeeId?: string,
+  ): Promise<GeneralInvoicePayment> {
     const existing = await this.getById(id, companyId)
     if (!existing.journal_id) throw new GeneralPaymentJournalMissingError()
     if (existing.status !== 'PAID') {
       throw new GeneralPaymentInvalidStatusError(existing.status, 'PAID')
     }
 
+    const actorId = employeeId ?? userId
     const journalId = existing.journal_id
-    await journalHeadersService.forceDelete(journalId, userId, companyId)
-
-    await generalPaymentRepository.withTransaction(async (client) => {
-      await generalPaymentRepository.updateStatus(client, id, 'APPROVED', {
-        journal_id: null,
-        paid_by: null,
-        paid_at: null,
-        updated_by: userId,
-      })
-    })
+    await journalHeadersService.forceDelete(journalId, actorId, companyId, userId)
 
     await AuditService.log('DELETE', 'general_invoice_payments', id, userId, { journal_id: journalId }, { journal_id: null })
     return this.getById(id, companyId)
@@ -589,10 +668,20 @@ export class GeneralInvoiceTemplateService {
       .toISOString()
       .slice(0, 10)
 
+    let invoiceNumber = dto.invoice_number
+    if (!invoiceNumber) {
+      const branchCode = await generalInvoiceRepository.withTransaction(async (client) =>
+        generalInvoiceRepository.findBranchCode(client, template.branch_id ?? contextBranchId),
+      )
+      invoiceNumber = await generalInvoiceRepository.withTransaction(async (client) =>
+        generalInvoiceRepository.generateInvoiceNumber(client, companyId, branchCode),
+      )
+    }
+
     const createDto: CreateGeneralInvoiceDto = {
       branch_id: template.branch_id ?? contextBranchId,
       vendor_id: template.vendor_id,
-      invoice_number: dto.invoice_number,
+      invoice_number: invoiceNumber,
       invoice_date: invoiceDate,
       due_date: dueDate,
       expense_type: template.expense_type,
@@ -621,8 +710,48 @@ export class GeneralInvoiceTemplateService {
   }
 }
 
+// ============================================================
+// EXPENSE COA DEFAULTS SERVICE
+// ============================================================
+export class ExpenseCoaDefaultService {
+  async list(companyId: string): Promise<ExpenseCoaDefault[]> {
+    const rows = await expenseCoaDefaultRepository.findAll(companyId)
+    return rows.map((r) => ({
+      expense_type: r.expense_type as ExpenseType,
+      account_id: r.account_id,
+      account_code: r.account_code,
+      account_name: r.account_name,
+    }))
+  }
+
+  async getAccountIdForExpenseType(companyId: string, expenseType: ExpenseType): Promise<string | null> {
+    return expenseCoaDefaultRepository.findAccountIdByExpenseType(companyId, expenseType)
+  }
+
+  async upsert(dto: UpsertExpenseCoaDefaultsDto, companyId: string, userId: string): Promise<ExpenseCoaDefault[]> {
+    await vendorRepository.withTransaction(async (client) => {
+      const toUpsert = dto.defaults.filter((d) => d.account_id)
+      if (toUpsert.length > 0) {
+        await expenseCoaDefaultRepository.upsertBatch(
+          client,
+          companyId,
+          toUpsert.map((d) => ({ expense_type: d.expense_type, account_id: d.account_id! })),
+          userId,
+        )
+      }
+      for (const d of dto.defaults) {
+        if (!d.account_id) {
+          await expenseCoaDefaultRepository.deleteByExpenseType(client, companyId, d.expense_type)
+        }
+      }
+    })
+    return this.list(companyId)
+  }
+}
+
 // Singleton exports
 export const vendorService = new VendorService()
+export const expenseCoaDefaultService = new ExpenseCoaDefaultService()
 export const generalInvoiceService = new GeneralInvoiceService()
 export const generalInvoicePaymentService = new GeneralInvoicePaymentService()
 export const generalInvoiceTemplateService = new GeneralInvoiceTemplateService()

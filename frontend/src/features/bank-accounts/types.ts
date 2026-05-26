@@ -3,7 +3,7 @@ export interface BankAccount {
   bank_id: number
   bank_code: string
   bank_name: string
-  owner_type: 'company' | 'supplier'
+  owner_type: 'company' | 'supplier' | 'vendor'
   owner_id: string // VARCHAR(50) - supports both UUID and integer as string
   account_name: string
   account_number: string
@@ -23,7 +23,7 @@ export interface BankAccount {
 
 export interface CreateBankAccountDto {
   bank_id: number
-  owner_type: 'company' | 'supplier'
+  owner_type: 'company' | 'supplier' | 'vendor'
   owner_id: string // VARCHAR(50) - supports both UUID and integer as string
   account_name: string
   account_number: string

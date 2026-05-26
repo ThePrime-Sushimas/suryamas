@@ -91,3 +91,18 @@ export const PAYMENT_METHOD_OPTIONS = [
   { value: 'TRANSFER', label: 'Transfer Bank' },
   { value: 'CASH', label: 'Tunai' },
 ]
+
+/** Penjelasan field tanggal di form invoice (ditampilkan di UI). */
+export const INVOICE_DATE_FIELD_HELP = {
+  invoiceDate:
+    'Tanggal yang tercantum di tagihan resmi dari vendor (tanggal invoice / faktur). Dipakai sebagai tanggal jurnal saat posting.',
+  dueDate:
+    'Tanggal batas pembayaran ke vendor (jatuh tempo). Bukan tanggal transfer — tanggal bayar aktual dicatat saat payment ditandai lunas.',
+  periodStart:
+    'Awal periode layanan yang ditagih (mis. 1 Jan untuk listrik Januari). Opsional; membantu laporan beban periode benar.',
+  periodEnd:
+    'Akhir periode layanan yang ditagih (mis. 31 Jan). Untuk tagihan bulanan biasanya sama dengan akhir bulan periode.',
+} as const
+
+export const EXPENSE_TYPE_FIELD_HELP =
+  'Klasifikasi laporan & dashboard (bukan akun jurnal). Akun beban sebenarnya dipilih per baris invoice (COA) — harus akun beban (expense) yang bisa diposting.'

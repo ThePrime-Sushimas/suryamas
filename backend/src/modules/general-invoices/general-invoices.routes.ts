@@ -10,12 +10,14 @@ import {
   canApprove,
 } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
+import { documentUploadSingle } from '../../middleware/upload-document.middleware'
 import { PermissionService } from '../../services/permission.service'
 import {
   vendorsController,
   generalInvoicesController,
   generalInvoicePaymentsController,
   generalInvoiceTemplatesController,
+  expenseCoaDefaultsController,
 } from './general-invoices.controller'
 import {
   listVendorsSchema,
@@ -36,6 +38,7 @@ import {
   generalTemplateParamSchema,
   createGeneralInvoiceTemplateSchema,
   generateFromTemplateSchema,
+  upsertExpenseCoaDefaultsSchema,
 } from './general-invoices.schema'
 
 // ─── Module registration ──────────────────────────────────────
@@ -70,6 +73,14 @@ router.post(   '/general-invoices',           requireWriteAccess, canInsert('gen
 router.put(    '/general-invoices/:id',       requireWriteAccess, canUpdate('general_invoices'), validateSchema(updateGeneralInvoiceSchema),   (req, res) => generalInvoicesController.update(req, res))
 router.post(   '/general-invoices/:id/post',   requireWriteAccess, canUpdate('general_invoices'), validateSchema(generalInvoiceParamSchema), (req, res) => generalInvoicesController.post(req, res))
 router.post(   '/general-invoices/:id/cancel', requireWriteAccess, canUpdate('general_invoices'), validateSchema(generalInvoiceParamSchema),   (req, res) => generalInvoicesController.cancel(req, res))
+router.post(
+  '/general-invoices/:id/attachment',
+  requireWriteAccess,
+  canUpdate('general_invoices'),
+  documentUploadSingle('file'),
+  validateSchema(generalInvoiceParamSchema),
+  (req, res) => generalInvoicesController.uploadAttachment(req, res),
+)
 router.delete( '/general-invoices/:id',        requireWriteAccess, canDelete('general_invoices'), validateSchema(generalInvoiceParamSchema),   (req, res) => generalInvoicesController.delete(req, res))
 
 // ============================================================
@@ -80,10 +91,38 @@ router.get(    '/general-invoice-payments/:id',              canView('general_in
 router.post(   '/general-invoice-payments',                  requireWriteAccess, canInsert('general_invoice_payments'), validateSchema(createGeneralInvoicePaymentSchema),    (req, res) => generalInvoicePaymentsController.create(req, res))
 router.post(   '/general-invoice-payments/:id/approve',      requireWriteAccess, canApprove('general_invoice_payments'), validateSchema(generalPaymentParamSchema),           (req, res) => generalInvoicePaymentsController.approve(req, res))
 router.post(   '/general-invoice-payments/:id/reject',       requireWriteAccess, canApprove('general_invoice_payments'), validateSchema(rejectGeneralPaymentSchema),          (req, res) => generalInvoicePaymentsController.reject(req, res))
-router.post(   '/general-invoice-payments/:id/upload-proof', requireWriteAccess, canUpdate('general_invoice_payments'), validateSchema(uploadProofGeneralPaymentSchema),      (req, res) => generalInvoicePaymentsController.uploadProof(req, res))
+router.post(
+  '/general-invoice-payments/:id/upload-proof',
+  requireWriteAccess,
+  canUpdate('general_invoice_payments'),
+  documentUploadSingle('file'),
+  validateSchema(generalPaymentParamSchema),
+  (req, res) => generalInvoicePaymentsController.uploadProof(req, res),
+)
 router.post(   '/general-invoice-payments/:id/mark-paid',    requireWriteAccess, canUpdate('general_invoice_payments'), validateSchema(markPaidGeneralPaymentSchema), (req, res) => generalInvoicePaymentsController.markPaid(req, res))
 router.delete( '/general-invoice-payments/:id/journal',      requireWriteAccess, canUpdate('general_invoice_payments'), validateSchema(generalPaymentParamSchema),            (req, res) => generalInvoicePaymentsController.deleteJournal(req, res))
 router.delete( '/general-invoice-payments/:id',              requireWriteAccess, canDelete('general_invoice_payments'), validateSchema(generalPaymentParamSchema),            (req, res) => generalInvoicePaymentsController.delete(req, res))
+
+// ============================================================
+// EXPENSE COA DEFAULTS  →  /api/v1/general-ap/expense-coa-defaults
+// ============================================================
+router.get(
+  '/general-ap/expense-coa-defaults/suggest',
+  canView('general_invoices'),
+  (req, res) => expenseCoaDefaultsController.suggest(req, res),
+)
+router.get(
+  '/general-ap/expense-coa-defaults',
+  canView('general_invoices'),
+  (req, res) => expenseCoaDefaultsController.list(req, res),
+)
+router.put(
+  '/general-ap/expense-coa-defaults',
+  requireWriteAccess,
+  canUpdate('general_invoices'),
+  validateSchema(upsertExpenseCoaDefaultsSchema),
+  (req, res) => expenseCoaDefaultsController.upsert(req, res),
+)
 
 // ============================================================
 // GENERAL INVOICE TEMPLATES  →  /api/v1/general-invoice-templates

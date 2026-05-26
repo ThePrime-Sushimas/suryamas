@@ -67,6 +67,7 @@ export interface GeneralInvoice {
   posted_at: string | null
   created_at: string
   updated_at: string
+  active_payment?: GeneralInvoicePaymentSummary | null
 }
 
 export interface GeneralInvoicePaymentSummary {
@@ -156,6 +157,49 @@ const KEYS = {
   payments: ['general-ap', 'payments'] as const,
   paymentList: (params: Record<string, unknown>) => [...KEYS.payments, 'list', params] as const,
   paymentDetail: (id: string) => [...KEYS.payments, id] as const,
+
+  templates: ['general-ap', 'templates'] as const,
+  templateDetail: (id: string) => [...KEYS.templates, id] as const,
+  expenseCoaDefaults: ['general-ap', 'expense-coa-defaults'] as const,
+  expenseCoaSuggest: (type: ExpenseType) => [...KEYS.expenseCoaDefaults, 'suggest', type] as const,
+}
+
+export interface GeneralInvoiceTemplateLine {
+  id: string
+  template_id: string
+  line_number: number
+  account_id: string
+  account_code: string
+  account_name: string
+  description: string | null
+  amount_ratio: number | null
+}
+
+export interface GeneralInvoiceTemplate {
+  id: string
+  company_id: string
+  branch_id: string
+  template_name: string
+  vendor_id: string
+  vendor_name: string
+  expense_type: ExpenseType
+  is_confidential: boolean
+  recurrence: RecurrenceType
+  default_amount: number | null
+  due_date_offset_days: number
+  notes: string | null
+  is_active: boolean
+  last_generated_at: string | null
+  lines: GeneralInvoiceTemplateLine[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ExpenseCoaDefault {
+  expense_type: ExpenseType
+  account_id: string
+  account_code: string
+  account_name: string
 }
 
 // ============================================================
@@ -273,6 +317,7 @@ export const useGeneralInvoices = (params?: {
   vendor_id?: string
   status?: GeneralInvoiceStatus
   expense_type?: ExpenseType
+  overdue?: boolean
   due_date_from?: string
   due_date_to?: string
   invoice_date_from?: string
@@ -495,13 +540,185 @@ export const useRejectGeneralPayment = () => {
 export const useUploadProofGeneralPayment = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, proof_url }: { id: string; proof_url: string }) => {
-      const { data } = await api.post(`/general-invoice-payments/${id}/upload-proof`, { proof_url })
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post(`/general-invoice-payments/${id}/upload-proof`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       return data.data as GeneralInvoicePayment
     },
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: KEYS.paymentDetail(vars.id) })
+      qc.invalidateQueries({ queryKey: KEYS.payments })
     },
+  })
+}
+
+export const useUploadGeneralInvoiceAttachment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post(`/general-invoices/${id}/attachment`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data.data as GeneralInvoiceDetail
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.invoiceDetail(vars.id) })
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+    },
+  })
+}
+
+export interface CompanyBankAccountOption {
+  id: number
+  account_name: string
+  account_number: string
+  bank_name?: string
+}
+
+// ============================================================
+// TEMPLATE HOOKS
+// ============================================================
+export const useGeneralInvoiceTemplates = () =>
+  useQuery({
+    queryKey: KEYS.templates,
+    queryFn: async () => {
+      const { data } = await api.get('/general-invoice-templates')
+      return data.data as GeneralInvoiceTemplate[]
+    },
+    staleTime: 30_000,
+  })
+
+export const useGeneralInvoiceTemplate = (id: string) =>
+  useQuery({
+    queryKey: KEYS.templateDetail(id),
+    queryFn: async () => {
+      const { data } = await api.get(`/general-invoice-templates/${id}`)
+      return data.data as GeneralInvoiceTemplate
+    },
+    enabled: !!id,
+  })
+
+export const useCreateGeneralInvoiceTemplate = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: {
+      template_name: string
+      vendor_id: string
+      expense_type: ExpenseType
+      is_confidential?: boolean
+      recurrence: RecurrenceType
+      default_amount?: number | null
+      due_date_offset_days?: number
+      notes?: string | null
+      lines: Array<{
+        line_number: number
+        account_id: string
+        description?: string | null
+        amount_ratio?: number | null
+      }>
+    }) => {
+      const { data } = await api.post('/general-invoice-templates', body)
+      return data.data as GeneralInvoiceTemplate
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.templates })
+    },
+  })
+}
+
+export const useDeleteGeneralInvoiceTemplate = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/general-invoice-templates/${id}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.templates })
+    },
+  })
+}
+
+export const useGenerateFromTemplate = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: {
+      template_id: string
+      invoice_date: string
+      invoice_number?: string
+      line_amounts?: Array<{ line_number: number; amount: number; tax_amount?: number }>
+      notes?: string | null
+    }) => {
+      const { data } = await api.post('/general-invoice-templates/generate', body)
+      return data.data as GeneralInvoiceDetail
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+      qc.invalidateQueries({ queryKey: KEYS.templates })
+    },
+  })
+}
+
+// ============================================================
+// EXPENSE COA DEFAULT HOOKS
+// ============================================================
+export const useExpenseCoaDefaults = () =>
+  useQuery({
+    queryKey: KEYS.expenseCoaDefaults,
+    queryFn: async () => {
+      const { data } = await api.get('/general-ap/expense-coa-defaults')
+      return data.data as ExpenseCoaDefault[]
+    },
+    staleTime: 60_000,
+  })
+
+export const useSuggestExpenseCoa = (expenseType: ExpenseType | '', enabled: boolean) =>
+  useQuery({
+    queryKey: KEYS.expenseCoaSuggest(expenseType || 'OTHER'),
+    queryFn: async () => {
+      const { data } = await api.get('/general-ap/expense-coa-defaults/suggest', {
+        params: { expense_type: expenseType },
+      })
+      return data.data as { account_id: string | null }
+    },
+    enabled: enabled && !!expenseType,
+    staleTime: 60_000,
+  })
+
+export const useUpsertExpenseCoaDefaults = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (defaults: Array<{ expense_type: ExpenseType; account_id: string | null }>) => {
+      const { data } = await api.put('/general-ap/expense-coa-defaults', { defaults })
+      return data.data as ExpenseCoaDefault[]
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.expenseCoaDefaults })
+      qc.invalidateQueries({ queryKey: ['general-ap', 'expense-coa-defaults', 'suggest'] })
+    },
+  })
+}
+
+export function useCompanyBankAccounts(companyId?: string) {
+  return useQuery({
+    queryKey: ['bank-accounts', 'company', companyId ?? 'ctx'],
+    queryFn: async () => {
+      const { data } = await api.get('/bank-accounts', {
+        params: {
+          owner_type: 'company',
+          owner_id: companyId,
+          is_active: true,
+          limit: 100,
+        },
+      })
+      return (data.data ?? []) as CompanyBankAccountOption[]
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
   })
 }
 

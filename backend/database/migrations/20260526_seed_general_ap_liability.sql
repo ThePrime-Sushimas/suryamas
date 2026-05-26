@@ -37,7 +37,5 @@ WHERE NOT EXISTS (
 )
 ON CONFLICT DO NOTHING;
 
--- Note: Each company needs to have a Liability/Payable account
--- mapped to this purpose via accounting_purpose_accounts table.
--- The mapping should be done through the accounting module UI or
--- a separate seed file specific to each company's COA setup.
+-- COA mapping (accounting_purpose_accounts) is in:
+-- 20260528_seed_general_ap_liability_coa_mapping.sql

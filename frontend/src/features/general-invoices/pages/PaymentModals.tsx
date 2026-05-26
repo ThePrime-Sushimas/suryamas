@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react'
-import { X, Upload, CheckCircle, XCircle, Banknote, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Upload, CheckCircle, XCircle, Banknote, AlertCircle, Search } from 'lucide-react'
+import { getSignedStorageUrl } from '@/lib/storage'
+import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
+import { useGeneralPaymentFilters } from '../hooks/useGeneralPaymentFilters'
 import {
   useCreateGeneralPayment,
   useApproveGeneralPayment,
@@ -56,6 +60,11 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
       setPaymentDate('')
       setNotes('')
       setErrors({})
+      if (invoice.active_payment && !['REJECTED', 'PAID', 'RECONCILED'].includes(invoice.active_payment.status)) {
+        setErrors({
+          form: `Payment ${invoice.active_payment.payment_number} sudah ada (status: ${PAYMENT_STATUS_LABELS[invoice.active_payment.status]}). Lanjutkan di halaman Payments.`,
+        })
+      }
     }
   }, [open, invoice])
 
@@ -69,6 +78,9 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
 
   const handleSubmit = async () => {
     if (!invoice || !validate()) return
+    if (invoice.active_payment && !['REJECTED', 'PAID', 'RECONCILED'].includes(invoice.active_payment.status)) {
+      return
+    }
     await createMutation.mutateAsync({
       general_invoice_id: invoice.id,
       bank_account_id: bankAccountId as number,
@@ -93,6 +105,13 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
         </div>
 
         <div className="p-6 space-y-4">
+          {errors.form && (
+            <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <span>{errors.form}</span>
+            </div>
+          )}
+
           {/* Invoice ref */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
             <p className="text-xs text-gray-500">Invoice</p>
@@ -179,7 +198,7 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
           <button onClick={onClose} disabled={createMutation.isPending} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
             Batal
           </button>
-          <button onClick={handleSubmit} disabled={createMutation.isPending}
+          <button onClick={handleSubmit} disabled={createMutation.isPending || !!errors.form}
             className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-60">
             {createMutation.isPending ? 'Membuat...' : 'Buat Payment'}
           </button>
@@ -199,6 +218,8 @@ interface PaymentActionsModalProps {
 }
 
 export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsModalProps) {
+  const toast = useToast()
+  const proofFileRef = useRef<HTMLInputElement>(null)
   const approveMutation = useApproveGeneralPayment()
   const rejectMutation = useRejectGeneralPayment()
   const uploadProofMutation = useUploadProofGeneralPayment()
@@ -206,7 +227,7 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
   const markPaidMutation = useMarkPaidGeneralPayment()
   const deleteMutation = useDeleteGeneralPayment()
 
-  const [proofUrl, setProofUrl] = useState('')
+  const [proofFile, setProofFile] = useState<File | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10))
   const [showRejectForm, setShowRejectForm] = useState(false)
@@ -215,7 +236,7 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
 
   useEffect(() => {
     if (open && payment) {
-      setProofUrl(payment.proof_url ?? '')
+      setProofFile(null)
       setRejectReason('')
       setShowRejectForm(false)
       setShowMarkPaidForm(false)
@@ -244,8 +265,28 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
   }
 
   const handleUploadProof = async () => {
-    if (!proofUrl.trim()) return
-    await uploadProofMutation.mutateAsync({ id: payment.id, proof_url: proofUrl })
+    if (!proofFile) {
+      toast.warning('Pilih file bukti pembayaran')
+      return
+    }
+    try {
+      await uploadProofMutation.mutateAsync({ id: payment.id, file: proofFile })
+      toast.success('Bukti pembayaran diupload')
+      setProofFile(null)
+      if (proofFileRef.current) proofFileRef.current.value = ''
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal upload bukti'))
+    }
+  }
+
+  const openProof = async () => {
+    if (!payment?.proof_url) return
+    try {
+      const url = await getSignedStorageUrl(payment.proof_url)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      toast.error('Gagal membuka bukti')
+    }
   }
 
   const handleMarkPaid = async () => {
@@ -321,23 +362,27 @@ export function PaymentActionsModal({ open, onClose, payment }: PaymentActionsMo
                 <Upload size={12} /> Bukti Pembayaran
               </label>
               {payment.proof_url && (
-                <a href={payment.proof_url} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline block">
+                <button
+                  type="button"
+                  onClick={openProof}
+                  className="text-xs text-blue-600 hover:underline block text-left"
+                >
                   Lihat bukti saat ini →
-                </a>
+                </button>
               )}
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <input
-                  type="url"
-                  value={proofUrl}
-                  onChange={(e) => setProofUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  ref={proofFileRef}
+                  type="file"
+                  accept="image/*,.pdf,.heic,.heif"
+                  onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+                  className="flex-1 text-xs"
                 />
                 <button
+                  type="button"
                   onClick={handleUploadProof}
-                  disabled={!proofUrl.trim() || uploadProofMutation.isPending}
-                  className="px-3 py-2 text-xs bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                  disabled={!proofFile || uploadProofMutation.isPending}
+                  className="px-3 py-2 text-xs bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 shrink-0"
                 >
                   {uploadProofMutation.isPending ? '...' : 'Upload'}
                 </button>
@@ -474,16 +519,17 @@ interface PaymentListPageProps {
 }
 
 export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
-  const [status, setStatus] = useState<GeneralPaymentStatus | ''>('')
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [selectedPayment, setSelectedPayment] = useState<GeneralInvoicePayment | null>(null)
+  const {
+    filters,
+    searchInput,
+    setSearchInput,
+    apiQuery,
+    setFilters,
+    setPage,
+  } = useGeneralPaymentFilters()
 
-  const { data, isLoading } = useGeneralPayments({
-    status: status || undefined,
-    search: search || undefined,
-    page,
-    limit: 20,
-  })
+  const { data, isLoading } = useGeneralPayments(apiQuery)
 
   const payments = data?.data ?? []
   const totalPages = data?.pagination?.totalPages ?? 1
@@ -499,17 +545,18 @@ export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
 
       <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="relative flex-1">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Cari no. payment, invoice, atau vendor..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="w-full pl-3 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <select
-          value={status}
-          onChange={(e) => { setStatus(e.target.value as GeneralPaymentStatus | ''); setPage(1) }}
+          value={filters.status}
+          onChange={(e) => setFilters({ status: e.target.value as GeneralPaymentStatus | '' })}
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">Semua Status</option>
@@ -532,7 +579,10 @@ export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
             {payments.map((pay) => (
               <div
                 key={pay.id}
-                onClick={() => onSelectPayment?.(pay)}
+                onClick={() => {
+                  onSelectPayment?.(pay)
+                  setSelectedPayment(pay)
+                }}
                 className="p-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors"
               >
                 <div className="space-y-0.5 min-w-0">
@@ -557,15 +607,21 @@ export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>Hal {page} dari {totalPages}</span>
+          <span>Hal {filters.page} dari {totalPages}</span>
           <div className="flex gap-2">
-            <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+            <button disabled={filters.page === 1} onClick={() => setPage(filters.page - 1)}
               className="px-3 py-1.5 border rounded-lg disabled:opacity-40 hover:bg-gray-50">← Prev</button>
-            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}
+            <button disabled={filters.page === totalPages} onClick={() => setPage(filters.page + 1)}
               className="px-3 py-1.5 border rounded-lg disabled:opacity-40 hover:bg-gray-50">Next →</button>
           </div>
         </div>
       )}
+
+      <PaymentActionsModal
+        open={!!selectedPayment}
+        payment={selectedPayment}
+        onClose={() => setSelectedPayment(null)}
+      />
     </div>
   )
 }

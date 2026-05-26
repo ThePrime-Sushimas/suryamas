@@ -10,7 +10,7 @@ import type { BankAccountFormData } from '../schemas/bankAccount.schema'
 import type { BankAccount } from '../types'
 
 interface BankAccountsSectionProps {
-  ownerType: 'company' | 'supplier'
+  ownerType: 'company' | 'supplier' | 'vendor'
   ownerId: string
   companyId?: string
 }

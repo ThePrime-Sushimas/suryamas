@@ -805,7 +805,7 @@ export class ApPaymentsService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
+        await journalHeadersService.forceDelete(journalId, actorId, companyId, userId).catch(() => undefined)
       }
       throw err
     }
@@ -856,7 +856,7 @@ export class ApPaymentsService {
     }
 
     const journalId = existing.journal_id
-    await journalHeadersService.forceDelete(journalId, userId, companyId)
+    await journalHeadersService.forceDelete(journalId, userId, companyId, userId)
 
     await AuditService.log('DELETE', 'ap_payments', id, userId, {
       status: existing.status,

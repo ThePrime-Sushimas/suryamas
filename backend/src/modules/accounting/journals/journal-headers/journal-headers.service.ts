@@ -9,6 +9,10 @@ import { logInfo, logError, logWarn } from '../../../../config/logger'
 import { AuditService } from '../../../monitoring/monitoring.service'
 import { marketplacePoRepository } from '../../../marketplace-po/marketplace-po.repository'
 import { apPaymentsRepository } from '../../../ap-payments/ap-payments.repository'
+import {
+  generalInvoiceRepository,
+  generalPaymentRepository,
+} from '../../../general-invoices/general-invoices.repository'
 import { notificationDispatcher } from '../../../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../../../notifications/notification-events'
 
@@ -255,7 +259,17 @@ export class JournalHeadersService {
     logInfo('Journal restored', { journal_id: id, user_id: userId })
   }
 
-  async forceDelete(id: string, userId: string, companyId: string): Promise<void> {
+  /**
+   * @param actorId - employees.id (journal_headers audit columns)
+   * @param authUserId - auth_users.id (general_invoices, ap_payments, dll.)
+   */
+  async forceDelete(
+    id: string,
+    actorId: string,
+    companyId: string,
+    authUserId?: string,
+  ): Promise<void> {
+    const authId = authUserId ?? actorId
     const journal = await this.getById(id, companyId)
     if (journal.source_module === 'FISCAL_CLOSING') {
       throw JournalErrors.CANNOT_DELETE_POSTED()
@@ -270,7 +284,7 @@ export class JournalHeadersService {
         await marketplacePoRepository.reverseSettledSession(
           journal.reference_id,
           id,
-          userId,
+          actorId,
         )
       }
     } else if (journal.reference_type === 'marketplace_bulk_settlement') {
@@ -279,7 +293,7 @@ export class JournalHeadersService {
         const allJournalIds = await marketplacePoRepository.reverseBulkSettledSessions(
           journal.reference_id,
           companyId,
-          userId,
+          actorId,
         )
 
         // Hapus sibling journals (selain yang sedang di-delete)
@@ -287,8 +301,8 @@ export class JournalHeadersService {
         for (const siblingId of siblingIds) {
           await journalHeadersRepository.clearReversalReferences(siblingId)
           await journalHeadersRepository.clearJournalReferences(siblingId)
-          await journalHeadersRepository.delete(siblingId, userId)
-          await AuditService.log('FORCE_DELETE', 'journal_header', siblingId, userId, {
+          await journalHeadersRepository.delete(siblingId, actorId)
+          await AuditService.log('FORCE_DELETE', 'journal_header', siblingId, actorId, {
             reason: `Sibling bulk settlement journal deleted with ${id}`,
           })
         }
@@ -298,17 +312,29 @@ export class JournalHeadersService {
       journal.source_module === 'ap_payments' &&
       journal.reference_id
     ) {
-      await apPaymentsRepository.revertPaidAfterJournalDelete(journal.reference_id, userId)
+      await apPaymentsRepository.revertPaidAfterJournalDelete(journal.reference_id, authId)
+    } else if (
+      journal.reference_type === 'general_invoice' &&
+      journal.source_module === 'general_invoices' &&
+      journal.reference_id
+    ) {
+      await generalInvoiceRepository.revertPostedAfterJournalDelete(journal.reference_id, authId)
+    } else if (
+      journal.reference_type === 'general_invoice_payment' &&
+      journal.source_module === 'general_invoice_payments' &&
+      journal.reference_id
+    ) {
+      await generalPaymentRepository.revertPaidAfterJournalDelete(journal.reference_id, authId)
     }
 
     await journalHeadersRepository.clearReversalReferences(id)
     await journalHeadersRepository.clearJournalReferences(id)
-    await journalHeadersRepository.delete(id, userId)
-    await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+    await journalHeadersRepository.delete(id, actorId)
+    await AuditService.log('FORCE_DELETE', 'journal_header', id, actorId, {
       journal_number: journal.journal_number,
       status: journal.status,
     })
-    logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+    logInfo('Journal force deleted', { journal_id: id, user_id: actorId, status: journal.status })
   }
   async getCompleteness(id: string, companyId: string): Promise<{
     is_complete: boolean; total_channels: number; reconciled_channels: number;

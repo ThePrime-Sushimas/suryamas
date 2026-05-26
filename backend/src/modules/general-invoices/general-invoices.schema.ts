@@ -84,7 +84,7 @@ export const createGeneralInvoiceSchema = z.object({
     expense_type:    z.enum(expenseTypes),
     is_confidential: z.boolean().default(false),
     notes:           z.string().max(1000).nullable().optional(),
-    attachment_url:  z.string().url().nullable().optional(),
+    attachment_url:  z.string().max(500).nullable().optional(),
     template_id:     z.string().uuid().nullable().optional(),
     lines:           z.array(invoiceLineSchema).min(1, 'Minimal 1 baris diperlukan'),
   }),
@@ -118,6 +118,7 @@ export const listGeneralInvoicesSchema = z.object({
     invoice_date_from:  z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
     invoice_date_to:    z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
     search:             z.string().max(100).optional(),
+    overdue:            z.preprocess((v) => v === 'true' || v === '1', z.boolean().optional()),
     page:               z.coerce.number().int().positive().default(1),
     limit:              z.coerce.number().int().positive().max(200).default(20),
   }),
@@ -165,7 +166,7 @@ export const markPaidGeneralPaymentSchema = z.object({
 export const uploadProofGeneralPaymentSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
-    proof_url: z.string().url().min(1),
+    proof_url: z.string().max(500).min(1).optional(),
   }),
 })
 
@@ -216,13 +217,22 @@ export const generateFromTemplateSchema = z.object({
   body: z.object({
     template_id:     z.string().uuid(),
     invoice_date:    z.string().date(),
-    invoice_number:  z.string().min(1).max(100),
+    invoice_number:  z.string().min(1).max(100).optional(),
     line_amounts: z.array(z.object({
       line_number: z.number().int().positive(),
       amount:      z.number().nonnegative(),
       tax_amount:  z.number().nonnegative().optional(),
     })).optional(),
     notes: z.string().max(1000).nullable().optional(),
+  }),
+})
+
+export const upsertExpenseCoaDefaultsSchema = z.object({
+  body: z.object({
+    defaults: z.array(z.object({
+      expense_type: z.enum(expenseTypes),
+      account_id:   z.string().uuid().nullable(),
+    })),
   }),
 })
 

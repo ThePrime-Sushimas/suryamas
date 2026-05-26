@@ -1,8 +1,19 @@
 import { useState, useCallback } from 'react'
-import { Plus, Search, Eye, Edit2, Trash2, Send, XCircle, Receipt } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Plus, Search, Edit2, Trash2, Send, XCircle, Receipt, RefreshCw, ArrowRight } from 'lucide-react'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
-import { useGeneralInvoices, usePostGeneralInvoice, useCancelGeneralInvoice, useDeleteGeneralInvoice } from '../api/generalApi.api'
+import {
+  useGeneralInvoices,
+  useGeneralInvoice,
+  usePostGeneralInvoice,
+  useCancelGeneralInvoice,
+  useDeleteGeneralInvoice,
+  useCompanyBankAccounts,
+} from '../api/generalApi.api'
+import { useGeneralInvoiceFilters } from '../hooks/useGeneralInvoiceFilters'
 import InvoiceFormModal from './InvoiceFormModal'
+import { CreatePaymentModal } from './PaymentModals'
 
 import {
   formatRupiah,
@@ -13,42 +24,31 @@ import {
   EXPENSE_TYPE_LABELS,
   INVOICE_STATUS_OPTIONS,
   EXPENSE_TYPE_OPTIONS,
+  PAYMENT_STATUS_LABELS,
 } from '../constants'
 import type { GeneralInvoice, GeneralInvoiceStatus, ExpenseType } from '../api/generalApi.api'
 
-interface Props {
-  onCreateInvoice?: () => void
-  onEditInvoice?: (invoice: GeneralInvoice) => void
-  onViewInvoice?: (invoice: GeneralInvoice) => void
-  onCreatePayment?: (invoice: GeneralInvoice) => void
-  initialStatus?: GeneralInvoiceStatus
-}
+export default function GeneralInvoicesPage() {
+  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
+  const {
+    filters,
+    searchInput,
+    setSearchInput,
+    apiQuery,
+    setFilters,
+    setPage,
+  } = useGeneralInvoiceFilters()
 
-export default function GeneralInvoicesPage({
-  onEditInvoice,
-
-  onViewInvoice,
-  onCreatePayment,
-  initialStatus,
-}: Props) {
   const [createOpen, setCreateOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<GeneralInvoiceStatus | ''>(initialStatus ?? '')
-  const [expenseType, setExpenseType] = useState<ExpenseType | ''>('')
-  const [page, setPage] = useState(1)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [paymentInvoice, setPaymentInvoice] = useState<GeneralInvoice | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<GeneralInvoice | null>(null)
   const [confirmPost, setConfirmPost] = useState<GeneralInvoice | null>(null)
   const [confirmCancel, setConfirmCancel] = useState<GeneralInvoice | null>(null)
 
-  const params = {
-    search: search || undefined,
-    status: status || undefined,
-    expense_type: expenseType || undefined,
-    page,
-    limit: 20,
-  }
-
-  const { data, isLoading } = useGeneralInvoices(params)
+  const { data, isLoading } = useGeneralInvoices(apiQuery)
+  const { data: editInvoice } = useGeneralInvoice(editId ?? '')
+  const { data: companyBanks = [] } = useCompanyBankAccounts(companyId)
 
   const postMutation = usePostGeneralInvoice()
   const cancelMutation = useCancelGeneralInvoice()
@@ -76,6 +76,12 @@ export default function GeneralInvoicesPage({
   const total = data?.pagination?.total ?? 0
   const totalPages = data?.pagination?.totalPages ?? 1
 
+  const hasActivePayment = (inv: GeneralInvoice) =>
+    !!inv.active_payment && !['PAID', 'RECONCILED'].includes(inv.active_payment.status)
+
+  const paymentsHref = (inv: GeneralInvoice) =>
+    `/finance/general-invoices/payments?search=${encodeURIComponent(inv.invoice_number)}`
+
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
@@ -85,14 +91,23 @@ export default function GeneralInvoicesPage({
           <h1 className="text-lg font-bold text-gray-900">General Invoice</h1>
           <p className="text-sm text-gray-500">{total} total invoice</p>
         </div>
-        <button
-          type="button"
-          onClick={() => { setCreateOpen(true) }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-blue-700"
-        >
-          <Plus size={16} />
-          Buat Invoice
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/finance/general-invoices/templates"
+            className="flex items-center gap-2 border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+          >
+            <RefreshCw size={16} />
+            Template
+          </Link>
+          <button
+            type="button"
+            onClick={() => { setCreateOpen(true) }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-blue-700"
+          >
+            <Plus size={16} />
+            Buat Invoice
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -102,14 +117,14 @@ export default function GeneralInvoicesPage({
           <input
             type="text"
             placeholder="Cari nomor invoice atau vendor..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <select
-          value={status}
-          onChange={(e) => { setStatus(e.target.value as GeneralInvoiceStatus | ''); setPage(1) }}
+          value={filters.status}
+          onChange={(e) => setFilters({ status: e.target.value as GeneralInvoiceStatus | '' })}
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">Semua Status</option>
@@ -118,8 +133,8 @@ export default function GeneralInvoicesPage({
           ))}
         </select>
         <select
-          value={expenseType}
-          onChange={(e) => { setExpenseType(e.target.value as ExpenseType | ''); setPage(1) }}
+          value={filters.expenseType}
+          onChange={(e) => setFilters({ expenseType: e.target.value as ExpenseType | '' })}
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">Semua Kategori</option>
@@ -127,6 +142,15 @@ export default function GeneralInvoicesPage({
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
+        <label className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg whitespace-nowrap cursor-pointer hover:bg-gray-50">
+          <input
+            type="checkbox"
+            checked={filters.overdue}
+            onChange={(e) => setFilters({ overdue: e.target.checked })}
+            className="rounded border-gray-300"
+          />
+          Jatuh tempo lewat
+        </label>
       </div>
 
       {/* Table */}
@@ -189,17 +213,12 @@ export default function GeneralInvoicesPage({
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            <ActionButton
-                              icon={<Eye size={13} />}
-                              tooltip="Lihat"
-                              onClick={() => onViewInvoice?.(inv)}
-                            />
                             {inv.status === 'DRAFT' && (
                               <>
                                 <ActionButton
                                   icon={<Edit2 size={13} />}
                                   tooltip="Edit"
-                                  onClick={() => onEditInvoice?.(inv)}
+                                  onClick={() => setEditId(inv.id)}
                                 />
                                 <ActionButton
                                   icon={<Send size={13} />}
@@ -217,12 +236,27 @@ export default function GeneralInvoicesPage({
                             )}
                             {inv.status === 'POSTED' && (
                               <>
-                                <ActionButton
-                                  icon={<Receipt size={13} />}
-                                  tooltip="Buat Payment"
-                                  className="text-green-600 hover:bg-green-50"
-                                  onClick={() => onCreatePayment?.(inv)}
-                                />
+                                {inv.active_payment?.status === 'PAID' || inv.active_payment?.status === 'RECONCILED' ? (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">
+                                    Lunas
+                                  </span>
+                                ) : hasActivePayment(inv) ? (
+                                  <Link
+                                    to={paymentsHref(inv)}
+                                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 font-medium"
+                                    title={`Payment ${inv.active_payment!.payment_number} — ${PAYMENT_STATUS_LABELS[inv.active_payment!.status]}`}
+                                  >
+                                    Lanjut Payment
+                                    <ArrowRight size={12} />
+                                  </Link>
+                                ) : (
+                                  <ActionButton
+                                    icon={<Receipt size={13} />}
+                                    tooltip="Buat Payment"
+                                    className="text-green-600 hover:bg-green-50"
+                                    onClick={() => setPaymentInvoice(inv)}
+                                  />
+                                )}
                                 <ActionButton
                                   icon={<XCircle size={13} />}
                                   tooltip="Batalkan"
@@ -264,10 +298,12 @@ export default function GeneralInvoicesPage({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-gray-900">{formatRupiah(inv.total_amount)}</span>
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => onViewInvoice?.(inv)}
-                          className="text-xs text-blue-600 underline"
-                        >Lihat</button>
+                        {inv.status === 'DRAFT' && (
+                          <button
+                            onClick={() => setEditId(inv.id)}
+                            className="text-xs text-blue-600 underline"
+                          >Edit</button>
+                        )}
                         {inv.status === 'DRAFT' && (
                           <button
                             onClick={() => setConfirmPost(inv)}
@@ -275,10 +311,21 @@ export default function GeneralInvoicesPage({
                           >Posting</button>
                         )}
                         {inv.status === 'POSTED' && (
-                          <button
-                            onClick={() => onCreatePayment?.(inv)}
-                            className="text-xs text-green-600 underline"
-                          >Bayar</button>
+                          hasActivePayment(inv) ? (
+                            <Link
+                              to={paymentsHref(inv)}
+                              className="text-xs text-amber-700 underline font-medium"
+                            >
+                              Lanjut Payment ({PAYMENT_STATUS_LABELS[inv.active_payment!.status]})
+                            </Link>
+                          ) : inv.active_payment?.status === 'PAID' || inv.active_payment?.status === 'RECONCILED' ? (
+                            <span className="text-xs text-green-700 font-medium">Lunas</span>
+                          ) : (
+                            <button
+                              onClick={() => setPaymentInvoice(inv)}
+                              className="text-xs text-green-600 underline"
+                            >Bayar</button>
+                          )
                         )}
                       </div>
                     </div>
@@ -293,16 +340,16 @@ export default function GeneralInvoicesPage({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>Hal {page} dari {totalPages}</span>
+          <span>Hal {filters.page} dari {totalPages}</span>
           <div className="flex gap-2">
             <button
-              disabled={page === 1}
-              onClick={() => setPage(p => p - 1)}
+              disabled={filters.page === 1}
+              onClick={() => setPage(filters.page - 1)}
               className="px-3 py-1.5 border rounded-lg disabled:opacity-40 hover:bg-gray-50"
             >← Prev</button>
             <button
-              disabled={page === totalPages}
-              onClick={() => setPage(p => p + 1)}
+              disabled={filters.page === totalPages}
+              onClick={() => setPage(filters.page + 1)}
               className="px-3 py-1.5 border rounded-lg disabled:opacity-40 hover:bg-gray-50"
             >Next →</button>
           </div>
@@ -335,9 +382,21 @@ export default function GeneralInvoicesPage({
         />
       )}
 
+      <InvoiceFormModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <InvoiceFormModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        open={!!editId && !!editInvoice}
+        invoice={editInvoice ?? null}
+        onClose={() => setEditId(null)}
+      />
+      <CreatePaymentModal
+        open={!!paymentInvoice}
+        invoice={paymentInvoice}
+        onClose={() => setPaymentInvoice(null)}
+        bankAccounts={companyBanks.map((b) => ({
+          id: b.id,
+          account_name: b.account_name,
+          bank_name: b.bank_name,
+        }))}
       />
 
       {/* Confirm Delete Modal */}

@@ -11,7 +11,7 @@ interface BankAccountsState {
   mutationLoading: boolean
   error: string | null
   
-  fetchByOwner: (ownerType: 'company' | 'supplier', ownerId: string) => Promise<void>
+  fetchByOwner: (ownerType: 'company' | 'supplier' | 'vendor', ownerId: string) => Promise<void>
   fetchById: (id: number) => Promise<BankAccount>
   create: (data: CreateBankAccountDto) => Promise<BankAccount>
   update: (id: number, data: UpdateBankAccountDto) => Promise<BankAccount>

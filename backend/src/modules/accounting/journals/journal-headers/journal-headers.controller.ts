@@ -181,7 +181,7 @@ export class JournalHeadersController {
       const companyId = getCompanyId(req)
       const employeeId = getEmployeeId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
-      await journalHeadersService.forceDelete(id, employeeId, companyId)
+      await journalHeadersService.forceDelete(id, employeeId, companyId, req.user?.id)
       sendSuccess(res, null, 'Journal force deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'force_delete_journal', id: req.params.id })

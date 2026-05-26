@@ -1,4 +1,4 @@
-export type OwnerType = 'company' | 'supplier'
+export type OwnerType = 'company' | 'supplier' | 'vendor'
 
 export interface BankAccount {
   id: number

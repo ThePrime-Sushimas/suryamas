@@ -32,8 +32,12 @@ export class GeneralInvoiceInvalidStatusError extends BusinessRuleError {
 }
 
 export class GeneralInvoiceAlreadyPaidError extends BusinessRuleError {
-  constructor() {
-    super('Invoice sudah lunas atau dalam proses pembayaran')
+  constructor(paymentNumber?: string, status?: string) {
+    super(
+      paymentNumber && status
+        ? `Invoice sudah punya payment ${paymentNumber} (status: ${status}). Lanjutkan di halaman Payments.`
+        : 'Invoice sudah lunas atau dalam proses pembayaran',
+    )
   }
 }
 
@@ -41,7 +45,7 @@ export class GeneralInvoiceLiabilityCoaMissingError extends BusinessRuleError {
   constructor() {
     super(
       "COA untuk hutang usaha umum belum dikonfigurasi. " +
-      "Tambahkan accounting purpose dengan key 'GEN-AP-LIABILITY'.",
+      "Tambahkan accounting purpose dengan code 'GEN-AP-LIABILITY' dan map ke COA hutang.",
     )
   }
 }

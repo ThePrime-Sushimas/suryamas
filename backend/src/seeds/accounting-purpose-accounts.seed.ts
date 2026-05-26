@@ -50,6 +50,9 @@ const purposeAccountMappings: SeedPurposeAccount[] = [
   { purpose_code: 'EXP-UTL', account_code: '610305', side: 'DEBIT', priority: 3 },  // Gas Cost
   { purpose_code: 'EXP-UTL', account_code: '210302', side: 'CREDIT', priority: 1 }, // Utilities payable
 
+  // GEN-AP-LIABILITY: General AP — CR Hutang Usaha Umum (210315 under 210300)
+  { purpose_code: 'GEN-AP-LIABILITY', account_code: '210315', side: 'CREDIT', priority: 1 },
+
   // EXP-RNT: Rent Expense — DR Rent, CR Bank
   { purpose_code: 'EXP-RNT', account_code: '610301', side: 'DEBIT', priority: 1 },  // Eating House Rental
   { purpose_code: 'EXP-RNT', account_code: '110201', side: 'CREDIT', priority: 1 }, // Bank BCA

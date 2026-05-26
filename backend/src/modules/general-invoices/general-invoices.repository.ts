@@ -12,6 +12,7 @@ import type {
   UpdateGeneralInvoiceDto,
   GeneralInvoiceListFilter,
   GeneralInvoicePayment,
+  GeneralInvoicePaymentSummary,
   CreateGeneralInvoicePaymentDto,
   GeneralPaymentListFilter,
   GeneralInvoiceTemplate,
@@ -48,21 +49,26 @@ async function generateInvoiceNumber(
   const yy = String(now.getFullYear()).slice(2)
   const mm = String(now.getMonth() + 1).padStart(2, '0')
   const prefix = `GINV/${branchCode}/${yy}${mm}/`
+  const lockKey = `${companyId}-${prefix}`
 
-  // Use FOR UPDATE to prevent race conditions in concurrent transactions
-  const { rows } = await client.query<{ max_num: string | null }>(
-    `SELECT MAX(invoice_number) AS max_num
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey])
+
+  const { rows } = await client.query<{ invoice_number: string }>(
+    `SELECT invoice_number
      FROM general_invoices
      WHERE company_id = $1
        AND invoice_number LIKE $2
        AND is_deleted = false
+     ORDER BY invoice_number DESC
+     LIMIT 1
      FOR UPDATE`,
     [companyId, `${prefix}%`],
   )
 
-  const last = rows[0]?.max_num
-  const seq = last ? parseInt(last.split('/').pop() ?? '0', 10) + 1 : 1
-  return `${prefix}${String(seq).padStart(4, '0')}`
+  const lastSeq = rows.length > 0
+    ? parseInt(rows[0].invoice_number.split('/').pop() ?? '0', 10)
+    : 0
+  return `${prefix}${String(lastSeq + 1).padStart(4, '0')}`
 }
 
 async function generatePaymentNumber(
@@ -74,21 +80,26 @@ async function generatePaymentNumber(
   const yy = String(now.getFullYear()).slice(2)
   const mm = String(now.getMonth() + 1).padStart(2, '0')
   const prefix = `GPAY/${branchCode}/${yy}${mm}/`
+  const lockKey = `${companyId}-${prefix}`
 
-  // Use FOR UPDATE to prevent race conditions in concurrent transactions
-  const { rows } = await client.query<{ max_num: string | null }>(
-    `SELECT MAX(payment_number) AS max_num
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey])
+
+  const { rows } = await client.query<{ payment_number: string }>(
+    `SELECT payment_number
      FROM general_invoice_payments
      WHERE company_id = $1
        AND payment_number LIKE $2
        AND is_deleted = false
+     ORDER BY payment_number DESC
+     LIMIT 1
      FOR UPDATE`,
     [companyId, `${prefix}%`],
   )
 
-  const last = rows[0]?.max_num
-  const seq = last ? parseInt(last.split('/').pop() ?? '0', 10) + 1 : 1
-  return `${prefix}${String(seq).padStart(4, '0')}`
+  const lastSeq = rows.length > 0
+    ? parseInt(rows[0].payment_number.split('/').pop() ?? '0', 10)
+    : 0
+  return `${prefix}${String(lastSeq + 1).padStart(4, '0')}`
 }
 
 async function findBranchCode(client: PoolClient, branchId: string): Promise<string> {
@@ -307,6 +318,16 @@ export const generalInvoiceRepository = {
       params.push(`%${filter.search}%`)
       idx++
     }
+    if (filter.overdue) {
+      conditions.push(`gi.status = 'POSTED'`)
+      conditions.push(`gi.due_date IS NOT NULL AND gi.due_date < CURRENT_DATE`)
+      conditions.push(`NOT EXISTS (
+        SELECT 1 FROM general_invoice_payments gip
+        WHERE gip.general_invoice_id = gi.id
+          AND gip.is_deleted = false
+          AND gip.status IN ('PAID', 'RECONCILED')
+      )`)
+    }
 
     const where = conditions.join(' AND ')
     const page = filter.page ?? 1
@@ -318,10 +339,25 @@ export const generalInvoiceRepository = {
         gi.*,
         v.vendor_name,
         v.vendor_type,
-        jh.journal_number
+        jh.journal_number,
+        pay.id AS pay_id,
+        pay.payment_number AS pay_payment_number,
+        pay.status AS pay_status,
+        pay.total_amount AS pay_total_amount,
+        pay.payment_date AS pay_payment_date,
+        pay.paid_at AS pay_paid_at
       FROM general_invoices gi
       JOIN vendors v ON v.id = gi.vendor_id
       LEFT JOIN journal_headers jh ON jh.id = gi.journal_id
+      LEFT JOIN LATERAL (
+        SELECT gip.id, gip.payment_number, gip.status, gip.total_amount, gip.payment_date, gip.paid_at
+        FROM general_invoice_payments gip
+        WHERE gip.general_invoice_id = gi.id
+          AND gip.is_deleted = false
+          AND gip.status <> 'REJECTED'
+        ORDER BY gip.created_at DESC
+        LIMIT 1
+      ) pay ON true
       WHERE ${where}
       ORDER BY gi.invoice_date DESC, gi.created_at DESC
       LIMIT $${idx} OFFSET $${idx + 1}
@@ -333,10 +369,44 @@ export const generalInvoiceRepository = {
       WHERE ${where}
     `
 
-    const [{ rows: data }, { rows: countRows }] = await Promise.all([
-      pool.query<GeneralInvoice>(sql, [...params, limit, offset]),
+    const [{ rows: rawRows }, { rows: countRows }] = await Promise.all([
+      pool.query(sql, [...params, limit, offset]),
       pool.query<{ count: string }>(countSql, params),
     ])
+
+    type InvoiceListRow = GeneralInvoice & {
+      pay_id: string | null
+      pay_payment_number: string | null
+      pay_status: GeneralInvoicePaymentSummary['status'] | null
+      pay_total_amount: string | null
+      pay_payment_date: string | null
+      pay_paid_at: string | null
+    }
+
+    const data = (rawRows as InvoiceListRow[]).map((row) => {
+      const {
+        pay_id,
+        pay_payment_number,
+        pay_status,
+        pay_total_amount,
+        pay_payment_date,
+        pay_paid_at,
+        ...invoice
+      } = row
+
+      const active_payment: GeneralInvoicePaymentSummary | null = pay_id
+        ? {
+            id: pay_id,
+            payment_number: pay_payment_number!,
+            status: pay_status!,
+            total_amount: Number(pay_total_amount),
+            payment_date: pay_payment_date,
+            paid_at: pay_paid_at,
+          }
+        : null
+
+      return { ...invoice, active_payment }
+    })
 
     return { data, total: parseInt(countRows[0].count, 10) }
   },
@@ -513,6 +583,38 @@ export const generalInvoiceRepository = {
     )
   },
 
+  /** Setelah jurnal posting di-hard-delete dari halaman Journal → invoice kembali DRAFT. */
+  async revertPostedAfterJournalDelete(invoiceId: string, userId: string): Promise<void> {
+    await pool.query(
+      `UPDATE general_invoices SET
+         status = 'DRAFT',
+         journal_id = NULL,
+         posted_by = NULL,
+         posted_at = NULL,
+         updated_by = $2,
+         updated_at = now()
+       WHERE id = $1
+         AND status = 'POSTED'
+         AND is_deleted = false`,
+      [invoiceId, userId],
+    )
+  },
+
+  async updateAttachment(
+    client: PoolClient,
+    id: string,
+    companyId: string,
+    attachmentPath: string,
+    userId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE general_invoices
+       SET attachment_url = $1, updated_by = $2, updated_at = now()
+       WHERE id = $3 AND company_id = $4 AND is_deleted = false`,
+      [attachmentPath, userId, id, companyId],
+    )
+  },
+
   // ----------------------------------------------------------
   // COA untuk liability account (Hutang Usaha Umum)
   // Diambil dari accounting_purposes dengan key 'GEN-AP-LIABILITY'
@@ -522,9 +624,14 @@ export const generalInvoiceRepository = {
       `SELECT apa.account_id
        FROM accounting_purposes ap
        JOIN accounting_purpose_accounts apa ON apa.purpose_id = ap.id
+       JOIN chart_of_accounts coa ON coa.id = apa.account_id
        WHERE ap.company_id = $1
-         AND ap.purpose_key = 'GEN-AP-LIABILITY'
+         AND ap.purpose_code = 'GEN-AP-LIABILITY'
+         AND (ap.is_deleted IS NULL OR ap.is_deleted = false)
          AND apa.is_active = true
+         AND apa.deleted_at IS NULL
+         AND coa.deleted_at IS NULL
+       ORDER BY apa.priority ASC
        LIMIT 1`,
       [companyId],
     )
@@ -827,12 +934,87 @@ export const generalPaymentRepository = {
     )
   },
 
+  /** Setelah jurnal pembayaran di-hard-delete → payment kembali APPROVED (bukti tetap). */
+  async revertPaidAfterJournalDelete(paymentId: string, userId: string): Promise<void> {
+    await pool.query(
+      `UPDATE general_invoice_payments SET
+         status = 'APPROVED',
+         journal_id = NULL,
+         paid_at = NULL,
+         paid_by = NULL,
+         payment_date = NULL,
+         updated_by = $2,
+         updated_at = now()
+       WHERE id = $1
+         AND status IN ('PAID', 'RECONCILED')
+         AND is_deleted = false`,
+      [paymentId, userId],
+    )
+  },
+
   async findBankCoaId(bankAccountId: number): Promise<string | null> {
-    const { rows } = await pool.query<{ coa_id: string }>(
-      `SELECT coa_id FROM bank_accounts WHERE id = $1`,
+    const { rows } = await pool.query<{ coa_account_id: string | null }>(
+      `SELECT coa_account_id FROM bank_accounts WHERE id = $1 AND deleted_at IS NULL`,
       [bankAccountId],
     )
-    return rows[0]?.coa_id ?? null
+    return rows[0]?.coa_account_id ?? null
+  },
+}
+
+// ============================================================
+// EXPENSE TYPE → DEFAULT COA
+// ============================================================
+export interface ExpenseCoaDefaultRow {
+  expense_type: string
+  account_id: string
+  account_code: string
+  account_name: string
+}
+
+export const expenseCoaDefaultRepository = {
+  async findAll(companyId: string): Promise<ExpenseCoaDefaultRow[]> {
+    const { rows } = await pool.query<ExpenseCoaDefaultRow>(
+      `SELECT d.expense_type, d.account_id, coa.account_code, coa.account_name
+       FROM general_ap_expense_coa_defaults d
+       JOIN chart_of_accounts coa ON coa.id = d.account_id
+       WHERE d.company_id = $1
+       ORDER BY d.expense_type`,
+      [companyId],
+    )
+    return rows
+  },
+
+  async findAccountIdByExpenseType(companyId: string, expenseType: string): Promise<string | null> {
+    const { rows } = await pool.query<{ account_id: string }>(
+      `SELECT account_id FROM general_ap_expense_coa_defaults
+       WHERE company_id = $1 AND expense_type = $2`,
+      [companyId, expenseType],
+    )
+    return rows[0]?.account_id ?? null
+  },
+
+  async upsertBatch(
+    client: PoolClient,
+    companyId: string,
+    items: Array<{ expense_type: string; account_id: string }>,
+    userId: string,
+  ): Promise<void> {
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO general_ap_expense_coa_defaults (company_id, expense_type, account_id, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $4)
+         ON CONFLICT (company_id, expense_type)
+         DO UPDATE SET account_id = EXCLUDED.account_id, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+        [companyId, item.expense_type, item.account_id, userId],
+      )
+    }
+  },
+
+  async deleteByExpenseType(client: PoolClient, companyId: string, expenseType: string): Promise<void> {
+    await client.query(
+      `DELETE FROM general_ap_expense_coa_defaults WHERE company_id = $1 AND expense_type = $2`,
+      [companyId, expenseType],
+    )
   },
 }
 

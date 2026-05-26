@@ -122,6 +122,8 @@ export interface GeneralInvoice {
   created_at: string
   updated_at: string
   created_by: string | null
+  /** Payment aktif (bukan REJECTED) — diisi di list API */
+  active_payment?: GeneralInvoicePaymentSummary | null
 }
 
 export interface GeneralInvoiceDetail extends GeneralInvoice {
@@ -180,6 +182,7 @@ export interface GeneralInvoiceListFilter {
   invoice_date_from?: string
   invoice_date_to?: string
   search?: string
+  overdue?: boolean
   include_confidential?: boolean   // default false kecuali punya permission
   page?: number
   limit?: number
@@ -331,4 +334,21 @@ export interface GeneralApDashboardByType {
 export interface GeneralApDashboard {
   summary: GeneralApDashboardSummary
   by_expense_type: GeneralApDashboardByType[]
+}
+
+// ------------------------------------------------------------
+// EXPENSE TYPE → DEFAULT COA
+// ------------------------------------------------------------
+export interface ExpenseCoaDefault {
+  expense_type: ExpenseType
+  account_id: string
+  account_code: string
+  account_name: string
+}
+
+export interface UpsertExpenseCoaDefaultsDto {
+  defaults: Array<{
+    expense_type: ExpenseType
+    account_id: string | null
+  }>
 }
