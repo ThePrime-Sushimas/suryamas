@@ -22,7 +22,7 @@ export class PricelistsController {
   create = async (req: Request, res: Response) => {
     try {
       const { body } = (req as CreateReq).validated
-      const pricelist = await pricelistsService.createPricelist(body, req.context?.employee_id)
+      const pricelist = await pricelistsService.createPricelist(body, req.user?.id)
       sendSuccess(res, pricelist, 'Pricelist created successfully', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_pricelist' })
@@ -52,7 +52,7 @@ export class PricelistsController {
   update = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as UpdateReq).validated
-      const pricelist = await pricelistsService.updatePricelist(params.id, body, req.context?.employee_id)
+      const pricelist = await pricelistsService.updatePricelist(params.id, body, req.user?.id)
       sendSuccess(res, pricelist, 'Pricelist updated successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_pricelist', id: req.params.id })
@@ -62,7 +62,7 @@ export class PricelistsController {
   delete = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      await pricelistsService.deletePricelist(id, req.context?.employee_id)
+      await pricelistsService.deletePricelist(id, req.user?.id)
       sendSuccess(res, null, 'Pricelist deleted successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_pricelist', id: req.params.id })
@@ -72,7 +72,7 @@ export class PricelistsController {
   approve = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as ApprovalReq).validated
-      const pricelist = await pricelistsService.approvePricelist(params.id, body, req.context?.employee_id)
+      const pricelist = await pricelistsService.approvePricelist(params.id, body, req.user?.id)
       sendSuccess(res, pricelist, `Pricelist ${body.status.toLowerCase()} successfully`)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'approve_pricelist', id: req.params.id })
@@ -82,7 +82,7 @@ export class PricelistsController {
   restore = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const pricelist = await pricelistsService.restorePricelist(id, req.context?.employee_id)
+      const pricelist = await pricelistsService.restorePricelist(id, req.user?.id)
       sendSuccess(res, pricelist, 'Pricelist restored successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'restore_pricelist', id: req.params.id })

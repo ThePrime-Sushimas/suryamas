@@ -130,8 +130,7 @@ export class MarketplacePoController {
       const { body } = (req as CancelOrderedReq).validated
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const employeeId = req.context?.employee_id ?? ''
-      const detail = await marketplacePoService.cancelOrderedSession(companyId, userId, employeeId, id, body)
+      const detail = await marketplacePoService.cancelOrderedSession(companyId, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session cancelled (was ORDERED)')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_ordered_session', id: req.params.id })
@@ -143,8 +142,7 @@ export class MarketplacePoController {
       const body = (req as any).validated.body ?? {}
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const employeeId = req.context?.employee_id ?? ''
-      const detail = await marketplacePoService.postReceiveJournal(companyId, userId, employeeId, id, body)
+      const detail = await marketplacePoService.postReceiveJournal(companyId, userId, id, body)
       sendSuccess(res, detail, 'Journal receive berhasil di-post')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post_receive_journal', id: req.params.id })
@@ -156,8 +154,7 @@ export class MarketplacePoController {
       const { body } = (req as CancelShippedReq).validated
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const employeeId = req.context?.employee_id ?? ''
-      const detail = await marketplacePoService.cancelShippedSession(companyId, userId, employeeId, id, body)
+      const detail = await marketplacePoService.cancelShippedSession(companyId, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session cancelled (was SHIPPED)')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_shipped_session', id: req.params.id })
@@ -206,8 +203,7 @@ export class MarketplacePoController {
       const body = (req as OrderSessionReq).validated.body ?? {}
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const employeeId = req.context?.employee_id ?? ''
-      const detail = await marketplacePoService.orderSession(companyId, userId, employeeId, id, body)
+      const detail = await marketplacePoService.orderSession(companyId, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session ordered')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'order_marketplace_session', id: req.params.id })
@@ -233,8 +229,7 @@ export class MarketplacePoController {
       const body = (req as SettleSessionReq).validated.body
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const employeeId = req.context?.employee_id ?? ''
-      const detail = await marketplacePoService.settleSession(companyId, userId, employeeId, id, body)
+      const detail = await marketplacePoService.settleSession(companyId, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session settled')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'settle_marketplace_session', id: req.params.id })
@@ -344,8 +339,7 @@ export class MarketplacePoController {
       const { body } = (req as BulkSettleSessionReq).validated
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const employeeId = req.context?.employee_id ?? ''
-      const settlement = await marketplacePoService.createBulkSettlement(companyId, userId, employeeId, body)
+      const settlement = await marketplacePoService.createBulkSettlement(companyId, userId, body)
       sendSuccess(res, settlement, 'Bulk settlement created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_bulk_settlement' })

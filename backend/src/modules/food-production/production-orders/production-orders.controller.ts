@@ -75,8 +75,7 @@ class ProductionOrdersController {
       const { id } = (req as IdReq).validated.params
       const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const employeeId = req.context?.employee_id
-      const result = await productionOrdersService.generateJournal(id, companyId, userId, employeeId)
+      const result = await productionOrdersService.generateJournal(id, companyId, userId)
       sendSuccess(res, result, 'Journal generated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'generate_journal_production_order', id: req.params.id })

@@ -1,6 +1,11 @@
 import { AuthenticatedRequest } from '../types/request.types'
 
 /**
+ * employees.id — for branch/HR context only, NOT for created_by/updated_by audit FKs.
+ * Audit fields use auth_users.id via getAuthUserId() in auth-context.util.ts.
+ */
+
+/**
  * Get employee ID from authenticated request
  * Throws error if employee not found (user not linked to employee)
  */

@@ -808,7 +808,6 @@ export class FiscalPeriodsService {
     dto: ClosePeriodWithEntriesDto,
     userId: string,
     companyId: string,
-    employeeId?: string,
   ): Promise<ClosePeriodWithEntriesResult> {
     this.validateCompanyAccess(companyId)
     if (!id?.trim() || !userId?.trim()) {
@@ -890,7 +889,7 @@ export class FiscalPeriodsService {
       const seq = seqRes.rows[0].get_next_journal_sequence
       const journalNumber = `JG-${period.period}-${String(seq).padStart(4, '0')}`
 
-      // 2. Create journal header (created_by = employee ID from branch context)
+      // 2. Create journal header (created_by = auth_users.id)
       const headerRes = await client.query(
         `INSERT INTO journal_headers (
           company_id, branch_id, journal_number, sequence_number,
@@ -900,7 +899,7 @@ export class FiscalPeriodsService {
         ) VALUES ($1, NULL, $2, $3, 'GENERAL', $4, $5, $6, $7, $8, 'IDR', 1, 'POSTED', 'FISCAL_CLOSING', NOW(), $9, NOW(), NOW())
         RETURNING id, journal_number`,
         [companyId, journalNumber, seq, period.period_end, period.period,
-         `Closing Entry - ${period.period}`, totalAmount, totalAmount, employeeId || null]
+         `Closing Entry - ${period.period}`, totalAmount, totalAmount, userId]
       )
       const journalId = headerRes.rows[0].id
       const journalNum = headerRes.rows[0].journal_number

@@ -62,7 +62,7 @@ export class PosAggregatesController {
   delete = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      await posAggregatesService.deleteTransaction(id, req.context?.employee_id)
+      await posAggregatesService.deleteTransaction(id, req.user?.id)
       sendSuccess(res, null, 'Aggregated transaction deleted successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_aggregated_transaction', id: req.params.id })
@@ -82,8 +82,8 @@ export class PosAggregatesController {
   reconcile = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const reconciledBy = req.context?.employee_id || req.body.reconciled_by
-      if (!reconciledBy) throw new Error('reconciled_by is required')
+      const reconciledBy = req.user?.id
+      if (!reconciledBy) throw new Error('Authentication required')
       const reason = req.body.reason as string | undefined
       await posAggregatesService.reconcileTransaction(id, reconciledBy, reason)
       sendSuccess(res, null, 'Transaction reconciled successfully')
@@ -94,8 +94,10 @@ export class PosAggregatesController {
 
   batchReconcile = async (req: Request, res: Response) => {
     try {
-      const { transaction_ids, reconciled_by } = (req as BatchReconcileReq).validated.body
-      const count = await posAggregatesService.reconcileBatch(transaction_ids, reconciled_by)
+      const { transaction_ids } = (req as BatchReconcileReq).validated.body
+      const reconciledBy = req.user?.id
+      if (!reconciledBy) throw new Error('Authentication required')
+      const count = await posAggregatesService.reconcileBatch(transaction_ids, reconciledBy)
       sendSuccess(res, { reconciled_count: count }, `${count} transactions reconciled successfully`)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'batch_reconcile' })
@@ -232,7 +234,7 @@ export class PosAggregatesController {
   deleteFailed = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      await posAggregatesService.deleteFailedTransaction(id, req.context?.employee_id)
+      await posAggregatesService.deleteFailedTransaction(id, req.user?.id)
       sendSuccess(res, null, 'Failed transaction deleted permanently')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_failed_transaction', id: req.params.id })
@@ -242,7 +244,7 @@ export class PosAggregatesController {
   recalculateFee = async (req: Request, res: Response) => {
     try {
       const { body } = (req as RecalcFeeReq).validated
-      const result = await posAggregatesService.recalculateFeeByDate(body.transaction_date, req.context?.employee_id)
+      const result = await posAggregatesService.recalculateFeeByDate(body.transaction_date, req.user?.id)
       sendSuccess(res, result, `Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'recalculate_fee' })

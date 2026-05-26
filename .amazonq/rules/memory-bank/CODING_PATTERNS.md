@@ -160,6 +160,7 @@ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 created_by UUID REFERENCES auth_users(id),
 updated_by UUID REFERENCES auth_users(id),
+-- Termasuk journal_headers (migrasi 20260529_journal_headers_audit_auth_users.sql)
 deleted_at TIMESTAMPTZ,
 ```
 

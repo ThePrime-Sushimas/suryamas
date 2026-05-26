@@ -59,13 +59,13 @@
 
     private async postJournalWorkflow(
       journalCreateDto: any,
-      employeeId: string,
+      authUserId: string,
       companyId: string,
     ): Promise<{ id: string }> {
-      const journalHeader = await journalHeadersService.create(journalCreateDto, employeeId)
-      await journalHeadersService.submit(journalHeader.id, employeeId, companyId)
-      await journalHeadersService.approve(journalHeader.id, employeeId, companyId)
-      await journalHeadersService.post(journalHeader.id, employeeId, companyId)
+      const journalHeader = await journalHeadersService.create(journalCreateDto, authUserId)
+      await journalHeadersService.submit(journalHeader.id, authUserId, companyId)
+      await journalHeadersService.approve(journalHeader.id, authUserId, companyId)
+      await journalHeadersService.post(journalHeader.id, authUserId, companyId)
       return { id: journalHeader.id }
     }
     async list(companyId: string, filter: any, pagination: { page: number; limit: number }) {
@@ -220,9 +220,7 @@
       })
     }
 
-    async orderSession(companyId: string, userId: string, employeeId: string, id: string, dto: any) {
-      if (!employeeId) throw new BusinessRuleError('Employee context not found')
-
+    async orderSession(companyId: string, userId: string, id: string, dto: any) {
       const { session, ccCoaCode } = await marketplacePoRepository.withTransaction(async (client) => {
         const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!locked) throw new BusinessRuleError('Marketplace session not found')
@@ -279,7 +277,7 @@
 
       let journalId: string | null = null
       try {
-        const posted = await this.postJournalWorkflow(journalCreateDto, employeeId, companyId)
+        const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
         journalId = posted.id
 
         await marketplacePoRepository.withTransaction(async (client) => {
@@ -399,13 +397,10 @@
     async cancelOrderedSession(
       companyId: string,
       userId: string,
-      employeeId: string,
       id: string,
       dto: CancelSessionDto,
     ) {
       const journalOrderedId = await marketplacePoRepository.withTransaction(async (client) => {
-        if (!employeeId) throw new BusinessRuleError('Employee context not found')
-
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
         if (session.status !== 'ORDERED') throw new BusinessRuleError('Session harus ORDERED untuk dibatalkan')
@@ -430,13 +425,10 @@
     async cancelShippedSession(
       companyId: string,
       userId: string,
-      employeeId: string,
       id: string,
       dto: CancelSessionDto,
     ) {
       const journalOrderedId = await marketplacePoRepository.withTransaction(async (client) => {
-        if (!employeeId) throw new BusinessRuleError('Employee context not found')
-
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
         if (session.status !== 'SHIPPED') throw new BusinessRuleError('Session harus SHIPPED untuk dibatalkan')
@@ -461,12 +453,9 @@
     async postReceiveJournal(
       companyId: string,
       userId: string,
-      employeeId: string,
       id: string,
       dto: { journal_date?: string },
     ) {
-      if (!employeeId) throw new BusinessRuleError('Employee context not found')
-
       const detail = await marketplacePoRepository.findSessionDetail(id, companyId)
       if (!detail?.header) throw new BusinessRuleError('Marketplace session not found')
       const session = detail.header
@@ -514,7 +503,7 @@
 
       let journalId: string | null = null
       try {
-        const posted = await this.postJournalWorkflow(journalCreateDto, employeeId, companyId)
+        const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
         journalId = posted.id
 
         await marketplacePoRepository.withTransaction(async (client) => {
@@ -594,9 +583,7 @@
       if (!deleted) throw new BusinessRuleError('Attachment not found')
     }
 
-    async settleSession(companyId: string, userId: string, employeeId: string, id: string, dto: any) {
-      if (!employeeId) throw new BusinessRuleError('Employee context not found')
-
+    async settleSession(companyId: string, userId: string, id: string, dto: any) {
       const detail = await marketplacePoRepository.findSessionDetail(id, companyId)
       if (!detail?.header) throw new BusinessRuleError('Marketplace session not found')
       const session = detail.header
@@ -659,7 +646,7 @@
 
       let journalId: string | null = null
       try {
-        const posted = await this.postJournalWorkflow(journalCreateDto, employeeId, companyId)
+        const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
         journalId = posted.id
 
         await marketplacePoRepository.withTransaction(async (client) => {
@@ -709,11 +696,8 @@
     async createBulkSettlement(
       companyId: string,
       userId: string,
-      employeeId: string,
       dto: any,
     ): Promise<{ settled_count: number; journal_ids: string[] }> {
-      if (!employeeId) throw new BusinessRuleError('Employee context tidak ditemukan')
-
       const bulkId = randomUUID()
       const sessions = await marketplacePoRepository.findReceivedSessionsForBulkSettlement(
         companyId,
@@ -781,7 +765,7 @@
             ],
           }
 
-          const posted = await this.postJournalWorkflow(journalCreateDto, employeeId, companyId)
+          const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
           journalIdByCc.set(ccCoaCode, posted.id)
           journalIds.push(posted.id)
         }

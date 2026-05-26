@@ -386,10 +386,9 @@ export class ApPaymentsController {
     try {
       const companyId   = req.context?.company_id ?? ''
       const userId      = req.user?.id             ?? ''
-      const employeeId  = req.context?.employee_id
       const id = req.params.id as string
       const paymentDate = req.body?.payment_date
-      const payment     = await apPaymentsService.markPaid(id, paymentDate, companyId, userId, employeeId)
+      const payment     = await apPaymentsService.markPaid(id, paymentDate, companyId, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark paid ap payment', id: req.params.id })
@@ -401,9 +400,8 @@ export class ApPaymentsController {
     try {
       const companyId  = req.context?.company_id ?? ''
       const userId     = req.user?.id             ?? ''
-      const employeeId = req.context?.employee_id
       const id = req.params.id as string
-      const payment    = await apPaymentsService.postJournal(id, companyId, userId, employeeId)
+      const payment    = await apPaymentsService.postJournal(id, companyId, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post ap payment journal', id: req.params.id })

@@ -98,10 +98,10 @@ export class BankAccountsRepository {
     return full as BankAccount
   }
 
-  async softDelete(id: number, employeeId?: string): Promise<void> {
+  async softDelete(id: number, userId?: string): Promise<void> {
     await pool.query(
       'UPDATE bank_accounts SET deleted_at = NOW(), deleted_by = $1, is_active = false, is_primary = false, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL',
-      [employeeId || null, id]
+      [userId || null, id]
     )
   }
 

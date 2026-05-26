@@ -54,7 +54,8 @@ Static routes (`/search`, `/bulk/delete`, `/trash`) **before** `/:id`.
 ## Context & types
 
 - `company_id` from `req.context?.company_id` — **not** query param
-- `employee_id` from `req.context?.employee_id` for `employees` FK — **not** `req.user.id`
+- Audit (`created_by`, `updated_by`, `posted_by`, journal `*_by`): **`req.user.id`** (`auth_users`) — helper `getAuthUserId(req)`
+- `req.context?.employee_id` only for branch/HR context (`employees`), **not** audit FK columns
 - Express augmentation in `src/types/express.d.ts` — **no** `req as any`
 - DTOs include `created_by` / `updated_by`
 - After `.ts` changes: `cd backend && npx tsc`

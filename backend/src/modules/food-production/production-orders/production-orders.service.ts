@@ -176,7 +176,7 @@ class ProductionOrdersService {
     await AuditService.log('UPDATE', 'production_order', id, dto.user_id, { status: 'DRAFT' }, { status: 'COMPLETED', ...totals })
   }
 
-  async generateJournal(id: string, companyId: string, userId: string, employeeId?: string): Promise<{ journal_id: string }> {
+  async generateJournal(id: string, companyId: string, userId: string): Promise<{ journal_id: string }> {
     const order = await productionOrdersRepository.findById(id, companyId)
     if (!order) throw new ProductionOrderNotFoundError(id)
     if (order.status !== 'COMPLETED') throw new ProductionOrderNotCompletedError()
@@ -213,7 +213,7 @@ class ProductionOrdersService {
         totalAmount: totalDebit,
         referenceId: order.id,
         referenceNumber: order.order_number,
-        createdBy: employeeId || null,
+        createdBy: userId,
       })
 
       let lineNum = 1

@@ -36,7 +36,7 @@ export class CashCountsController {
     try {
       const { body } = (req as CreateReq).validated
       const companyId = req.context?.company_id ?? ''
-      const result = await cashCountsService.create(body, companyId, req.context?.employee_id)
+      const result = await cashCountsService.create(body, companyId, req.user?.id)
       sendSuccess(res, result, 'Cash count created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_cash_count' })
@@ -67,7 +67,7 @@ export class CashCountsController {
   updatePhysicalCount = async (req: Request, res: Response) => {
     try {
       const validated = (req as UpdateCountReq).validated
-      const result = await cashCountsService.updatePhysicalCount(validated.params.id, validated.body, req.context?.employee_id)
+      const result = await cashCountsService.updatePhysicalCount(validated.params.id, validated.body, req.user?.id)
       sendSuccess(res, result, 'Physical count updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_physical_count', id: req.params.id })
@@ -78,7 +78,7 @@ export class CashCountsController {
     try {
       const { body } = (req as CreateDepositReq).validated
       const companyId = req.context?.company_id ?? ''
-      const result = await cashCountsService.createDeposit(body, companyId, req.context?.employee_id)
+      const result = await cashCountsService.createDeposit(body, companyId, req.user?.id)
       sendSuccess(res, result, 'Deposit created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_deposit' })
@@ -98,7 +98,7 @@ export class CashCountsController {
 
       const rawDate = req.body?.deposited_at
       const depositedAt: string = (typeof rawDate === 'string' ? rawDate : null) || new Date().toISOString().split('T')[0]
-      const result = await cashCountsService.confirmDeposit(id, { proof_url: uploaded.path, deposited_at: depositedAt }, req.context?.employee_id)
+      const result = await cashCountsService.confirmDeposit(id, { proof_url: uploaded.path, deposited_at: depositedAt }, req.user?.id)
       sendSuccess(res, result, 'Deposit confirmed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'confirm_deposit', id: req.params.id })
@@ -108,7 +108,7 @@ export class CashCountsController {
   revertDeposit = async (req: Request, res: Response) => {
     try {
       const { id } = (req as DepositIdReq).validated.params
-      await cashCountsService.revertDeposit(id, req.context?.employee_id)
+      await cashCountsService.revertDeposit(id, req.user?.id)
       sendSuccess(res, null, 'Deposit deleted, cash counts reverted to COUNTED')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'revert_deposit', id: req.params.id })
@@ -139,7 +139,7 @@ export class CashCountsController {
   deleteDeposit = async (req: Request, res: Response) => {
     try {
       const { id } = (req as DepositIdReq).validated.params
-      await cashCountsService.deleteDeposit(id, req.context?.employee_id)
+      await cashCountsService.deleteDeposit(id, req.user?.id)
       sendSuccess(res, null, 'Deposit deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_deposit', id: req.params.id })
@@ -149,7 +149,7 @@ export class CashCountsController {
   close = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const result = await cashCountsService.close(id, req.context?.employee_id)
+      const result = await cashCountsService.close(id, req.user?.id)
       sendSuccess(res, result, 'Cash count closed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'close_cash_count', id: req.params.id })
@@ -159,7 +159,7 @@ export class CashCountsController {
   delete = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      await cashCountsService.delete(id, req.context?.employee_id)
+      await cashCountsService.delete(id, req.user?.id)
       sendSuccess(res, null, 'Cash count deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_cash_count', id: req.params.id })

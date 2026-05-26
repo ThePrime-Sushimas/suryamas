@@ -104,11 +104,11 @@ export class ExpenseCategorizationController {
   generateJournal = async (req: Request, res: Response) => {
     try {
       const { body } = (req as GenerateJournalReq).validated
-      const employeeId = req.context?.employee_id
-      if (!employeeId) throw new Error('Employee context required for journal generation')
+      const userId = req.user?.id
+      if (!userId) throw new Error('Authentication required')
 
       const result = await expenseCategorizationService.generateJournal(
-        req.context?.company_id ?? '', body.statement_ids, employeeId,
+        req.context?.company_id ?? '', body.statement_ids, userId,
         { journal_date: body.journal_date, description: body.description }
       )
       sendSuccess(res, result, `Journal ${result.journal_number} created with ${result.lines_count} lines`, 201)

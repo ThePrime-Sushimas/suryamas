@@ -14,7 +14,7 @@ export class BanksController {
   create = async (req: Request, res: Response) => {
     try {
       const { body } = (req as CreateReq).validated
-      const bank = await banksService.createBank(body, req.context?.employee_id)
+      const bank = await banksService.createBank(body, req.user?.id)
       sendSuccess(res, bank, 'Bank created successfully', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_bank' })
@@ -45,7 +45,7 @@ export class BanksController {
     try {
       const validated = (req as UpdateReq).validated
       const id = parseInt(validated.params.id)
-      const bank = await banksService.updateBank(id, validated.body, req.context?.employee_id)
+      const bank = await banksService.updateBank(id, validated.body, req.user?.id)
       sendSuccess(res, bank, 'Bank updated successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_bank', id: req.params.id })
@@ -55,7 +55,7 @@ export class BanksController {
   delete = async (req: Request, res: Response) => {
     try {
       const id = parseInt((req as IdReq).validated.params.id)
-      await banksService.deleteBank(id, req.context?.employee_id)
+      await banksService.deleteBank(id, req.user?.id)
       sendSuccess(res, null, 'Bank deleted successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_bank', id: req.params.id })

@@ -696,7 +696,7 @@ export class ApPaymentsService {
     payment: ApPaymentDetail,
     paymentDate: string,
     companyId: string,
-    actorId: string,
+    authUserId: string,
   ): Promise<{ id: string; journal_number: string }> {
     const coa = await apPaymentsRepository.findPurPayJournalCoa(companyId, payment.bank_account_id)
     if (!coa) {
@@ -738,7 +738,7 @@ export class ApPaymentsService {
           },
         ],
       },
-      actorId,
+      authUserId,
     )
 
     return { id: journal.id, journal_number: journal.journal_number }
@@ -746,7 +746,7 @@ export class ApPaymentsService {
 
   private async postJournalWorkflow(
     journalId: string,
-    actorId: string,
+    authUserId: string,
     companyId: string,
   ): Promise<void> {
     const journal = await journalHeadersService.getById(journalId, companyId)
@@ -754,17 +754,17 @@ export class ApPaymentsService {
       throw new ApPaymentJournalAlreadyPostedError()
     }
     if (journal.status === 'DRAFT') {
-      await journalHeadersService.submit(journalId, actorId, companyId)
+      await journalHeadersService.submit(journalId, authUserId, companyId)
     }
     const refreshed = await journalHeadersService.getById(journalId, companyId)
     if (refreshed.status === 'SUBMITTED') {
-      await journalHeadersService.approve(journalId, actorId, companyId)
+      await journalHeadersService.approve(journalId, authUserId, companyId)
     }
     const beforePost = await journalHeadersService.getById(journalId, companyId)
     if (beforePost.status !== 'APPROVED') {
       throw new ApPaymentJournalNotReadyError(beforePost.status)
     }
-    await journalHeadersService.post(journalId, actorId, companyId)
+    await journalHeadersService.post(journalId, authUserId, companyId)
   }
 
   async markPaid(
@@ -772,7 +772,6 @@ export class ApPaymentsService {
     paymentDate: string | undefined,
     companyId: string,
     userId: string,
-    employeeId?: string,
   ): Promise<ApPaymentDetail> {
     const existing = await this.getById(id, companyId)
     if (existing.status !== 'APPROVED') {
@@ -786,11 +785,10 @@ export class ApPaymentsService {
     }
 
     const resolvedPaymentDate = paymentDate ?? new Date().toISOString().slice(0, 10)
-    const actorId = employeeId ?? userId
 
     let journalId: string | null = null
     try {
-      const journal = await this.createPaymentJournal(existing, resolvedPaymentDate, companyId, actorId)
+      const journal = await this.createPaymentJournal(existing, resolvedPaymentDate, companyId, userId)
       journalId = journal.id
 
       await apPaymentsRepository.withTransaction(async (client) => {
@@ -805,7 +803,7 @@ export class ApPaymentsService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, actorId, companyId, userId).catch(() => undefined)
+        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
       }
       throw err
     }
@@ -822,7 +820,6 @@ export class ApPaymentsService {
     id: string,
     companyId: string,
     userId: string,
-    employeeId?: string,
   ): Promise<ApPaymentDetail> {
     const existing = await this.getById(id, companyId)
     if (!['PAID', 'RECONCILED'].includes(existing.status)) {
@@ -832,8 +829,7 @@ export class ApPaymentsService {
       throw new ApPaymentNoJournalError()
     }
 
-    const actorId = employeeId ?? userId
-    await this.postJournalWorkflow(existing.journal_id, actorId, companyId)
+    await this.postJournalWorkflow(existing.journal_id, userId, companyId)
 
     await AuditService.log('POST', 'ap_payments', id, userId, undefined, {
       journal_id: existing.journal_id,
@@ -856,7 +852,7 @@ export class ApPaymentsService {
     }
 
     const journalId = existing.journal_id
-    await journalHeadersService.forceDelete(journalId, userId, companyId, userId)
+    await journalHeadersService.forceDelete(journalId, userId, companyId)
 
     await AuditService.log('DELETE', 'ap_payments', id, userId, {
       status: existing.status,

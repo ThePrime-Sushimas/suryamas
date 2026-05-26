@@ -163,20 +163,12 @@ export class GeneralInvoiceService {
    *   DR  Beban xxx (tiap line di invoice)   xxx
    *       CR  Hutang Usaha Umum (GEN-AP-LIABILITY)  xxx
    */
-  async post(
-    id: string,
-    companyId: string,
-    userId: string,
-    employeeId?: string,
-  ): Promise<GeneralInvoiceDetail> {
+  async post(id: string, companyId: string, userId: string): Promise<GeneralInvoiceDetail> {
     const existing = await this.getById(id, companyId)
     if (existing.status !== 'DRAFT') {
       throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT')
     }
     if (existing.lines.length === 0) throw new GeneralInvoiceLineEmptyError()
-
-    // journal_headers.created_by → employees.id (bukan auth_users.id)
-    const actorId = employeeId ?? userId
 
     // Ambil COA hutang usaha umum dari accounting_purposes
     const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId)
@@ -219,14 +211,14 @@ export class GeneralInvoiceService {
           exchange_rate: 1,
           lines: journalLines,
         },
-        actorId,
+        userId,
       )
       journalId = journal.id
 
       // Auto submit → approve → post journal
-      await journalHeadersService.submit(journalId, actorId, companyId)
-      await journalHeadersService.approve(journalId, actorId, companyId)
-      await journalHeadersService.post(journalId, actorId, companyId)
+      await journalHeadersService.submit(journalId, userId, companyId)
+      await journalHeadersService.approve(journalId, userId, companyId)
+      await journalHeadersService.post(journalId, userId, companyId)
 
       // Update invoice status
       await generalInvoiceRepository.withTransaction(async (client) => {
@@ -239,7 +231,7 @@ export class GeneralInvoiceService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, actorId, companyId, userId).catch(() => undefined)
+        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
       }
       throw err
     }
@@ -249,18 +241,11 @@ export class GeneralInvoiceService {
     return this.getById(id, companyId)
   }
 
-  async cancel(
-    id: string,
-    companyId: string,
-    userId: string,
-    employeeId?: string,
-  ): Promise<GeneralInvoiceDetail> {
+  async cancel(id: string, companyId: string, userId: string): Promise<GeneralInvoiceDetail> {
     const existing = await this.getById(id, companyId)
     if (!['DRAFT', 'POSTED'].includes(existing.status)) {
       throw new GeneralInvoiceInvalidStatusError(existing.status, ['DRAFT', 'POSTED'])
     }
-
-    const actorId = employeeId ?? userId
 
     // Kalau sudah ada payment aktif, tidak bisa cancel
     const payment = await generalPaymentRepository.findByInvoiceId(id)
@@ -277,7 +262,7 @@ export class GeneralInvoiceService {
 
     // Hard-delete jurnal posting (forceDelete null FK + revert POSTED→DRAFT)
     if (existing.status === 'POSTED' && existing.journal_id) {
-      await journalHeadersService.forceDelete(existing.journal_id, actorId, companyId, userId)
+      await journalHeadersService.forceDelete(existing.journal_id, userId, companyId)
     }
 
     await generalInvoiceRepository.withTransaction(async (client) => {
@@ -483,7 +468,6 @@ export class GeneralInvoicePaymentService {
     paymentDate: string | undefined,
     companyId: string,
     userId: string,
-    employeeId?: string,
   ): Promise<GeneralInvoicePayment> {
     const existing = await this.getById(id, companyId)
     if (existing.status !== 'APPROVED') {
@@ -492,8 +476,6 @@ export class GeneralInvoicePaymentService {
     if (!existing.proof_url) {
       throw new GeneralPaymentProofRequiredError()
     }
-
-    const actorId = employeeId ?? userId
 
     // Ambil COA
     const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId)
@@ -539,13 +521,13 @@ export class GeneralInvoicePaymentService {
             },
           ],
         },
-        actorId,
+        userId,
       )
       journalId = journal.id
 
-      await journalHeadersService.submit(journalId, actorId, companyId)
-      await journalHeadersService.approve(journalId, actorId, companyId)
-      await journalHeadersService.post(journalId, actorId, companyId)
+      await journalHeadersService.submit(journalId, userId, companyId)
+      await journalHeadersService.approve(journalId, userId, companyId)
+      await journalHeadersService.post(journalId, userId, companyId)
 
       await generalPaymentRepository.withTransaction(async (client) => {
         await generalPaymentRepository.updateStatus(client, id, 'PAID', {
@@ -558,7 +540,7 @@ export class GeneralInvoicePaymentService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, actorId, companyId, userId).catch(() => undefined)
+        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
       }
       throw err
     }
@@ -568,21 +550,15 @@ export class GeneralInvoicePaymentService {
     return this.getById(id, companyId)
   }
 
-  async deleteJournal(
-    id: string,
-    companyId: string,
-    userId: string,
-    employeeId?: string,
-  ): Promise<GeneralInvoicePayment> {
+  async deleteJournal(id: string, companyId: string, userId: string): Promise<GeneralInvoicePayment> {
     const existing = await this.getById(id, companyId)
     if (!existing.journal_id) throw new GeneralPaymentJournalMissingError()
     if (existing.status !== 'PAID') {
       throw new GeneralPaymentInvalidStatusError(existing.status, 'PAID')
     }
 
-    const actorId = employeeId ?? userId
     const journalId = existing.journal_id
-    await journalHeadersService.forceDelete(journalId, actorId, companyId, userId)
+    await journalHeadersService.forceDelete(journalId, userId, companyId)
 
     await AuditService.log('DELETE', 'general_invoice_payments', id, userId, { journal_id: journalId }, { journal_id: null })
     return this.getById(id, companyId)

@@ -3,6 +3,7 @@ import { journalHeadersService } from './journal-headers.service'
 import { sendSuccess } from '../../../../utils/response.util'
 import { handleError } from '../../../../utils/error-handler.util'
 import { getPaginationParams } from '../../../../utils/pagination.util'
+import { getAuthUserId } from '../../../../utils/auth-context.util'
 import type { ValidatedAuthRequest } from '../../../../middleware/validation.middleware'
 import {
   createJournalSchema, updateJournalSchema, rejectJournalSchema, reverseJournalSchema, journalIdSchema,
@@ -12,12 +13,6 @@ function getCompanyId(req: Request): string {
   const companyId = req.context?.company_id
   if (!companyId) throw new Error('Branch context required - no company access')
   return companyId
-}
-
-function getEmployeeId(req: Request): string {
-  const employeeId = req.context?.employee_id
-  if (!employeeId) throw new Error('Employee context required')
-  return employeeId
 }
 
 export class JournalHeadersController {
@@ -48,7 +43,7 @@ export class JournalHeadersController {
       const companyId = getCompanyId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
       const journal = await journalHeadersService.getById(id, companyId)
-      sendSuccess(res, journal)
+      sendSuccess(res, journal, 'Journal retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_journal', id: req.params.id })
     }
@@ -59,7 +54,7 @@ export class JournalHeadersController {
       const companyId = getCompanyId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
       const result = await journalHeadersService.getCompleteness(id, companyId)
-      sendSuccess(res, result)
+      sendSuccess(res, result, 'Journal completeness retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_journal_completeness', id: req.params.id })
     }
@@ -68,10 +63,10 @@ export class JournalHeadersController {
   create = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { body } = (req as ValidatedAuthRequest<typeof createJournalSchema>).validated
-      const branchId = body.branch_id || req.context?.branch_id || undefined
-      const journal = await journalHeadersService.create({ ...body, company_id: companyId, branch_id: branchId }, employeeId)
+      const branchId = req.context?.branch_id
+      const journal = await journalHeadersService.create({ ...body, company_id: companyId, branch_id: branchId }, userId)
       sendSuccess(res, journal, 'Journal created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_journal' })
@@ -81,9 +76,9 @@ export class JournalHeadersController {
   update = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { params, body } = (req as ValidatedAuthRequest<typeof updateJournalSchema>).validated
-      const journal = await journalHeadersService.update(params.id, body, employeeId, companyId)
+      const journal = await journalHeadersService.update(params.id, body, userId, companyId)
       sendSuccess(res, journal, 'Journal updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_journal', id: req.params.id })
@@ -93,9 +88,9 @@ export class JournalHeadersController {
   delete = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
-      await journalHeadersService.delete(id, employeeId, companyId)
+      await journalHeadersService.delete(id, userId, companyId)
       sendSuccess(res, null, 'Journal deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_journal', id: req.params.id })
@@ -105,10 +100,10 @@ export class JournalHeadersController {
   submit = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
-      await journalHeadersService.submit(id, employeeId, companyId)
-      sendSuccess(res, null, 'Journal submitted for approval')
+      await journalHeadersService.submit(id, userId, companyId)
+      sendSuccess(res, null, 'Journal submitted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'submit_journal', id: req.params.id })
     }
@@ -117,9 +112,9 @@ export class JournalHeadersController {
   approve = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
-      await journalHeadersService.approve(id, employeeId, companyId)
+      await journalHeadersService.approve(id, userId, companyId)
       sendSuccess(res, null, 'Journal approved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'approve_journal', id: req.params.id })
@@ -129,9 +124,9 @@ export class JournalHeadersController {
   reject = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { params, body } = (req as ValidatedAuthRequest<typeof rejectJournalSchema>).validated
-      await journalHeadersService.reject(params.id, body.rejection_reason, employeeId, companyId)
+      await journalHeadersService.reject(params.id, body.rejection_reason, userId, companyId)
       sendSuccess(res, null, 'Journal rejected')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reject_journal', id: req.params.id })
@@ -141,10 +136,10 @@ export class JournalHeadersController {
   post = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
-      await journalHeadersService.post(id, employeeId, companyId)
-      sendSuccess(res, null, 'Journal posted to ledger')
+      await journalHeadersService.post(id, userId, companyId)
+      sendSuccess(res, null, 'Journal posted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post_journal', id: req.params.id })
     }
@@ -153,12 +148,10 @@ export class JournalHeadersController {
   reverse = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { params, body } = (req as ValidatedAuthRequest<typeof reverseJournalSchema>).validated
-      const journal = await journalHeadersService.getById(params.id, companyId)
-      if (journal.status !== 'POSTED' || journal.is_reversed) throw new Error('Cannot reverse this journal')
-      const reversal = await journalHeadersService.reverse(params.id, body.reversal_reason, employeeId, companyId)
-      sendSuccess(res, reversal, 'Journal reversed')
+      const reversal = await journalHeadersService.reverse(params.id, body.reversal_reason, userId, companyId)
+      sendSuccess(res, reversal, 'Journal reversed', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reverse_journal', id: req.params.id })
     }
@@ -167,9 +160,9 @@ export class JournalHeadersController {
   restore = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
-      await journalHeadersService.restore(id, employeeId, companyId)
+      await journalHeadersService.restore(id, userId, companyId)
       sendSuccess(res, null, 'Journal restored')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'restore_journal', id: req.params.id })
@@ -179,9 +172,9 @@ export class JournalHeadersController {
   forceDelete = async (req: Request, res: Response) => {
     try {
       const companyId = getCompanyId(req)
-      const employeeId = getEmployeeId(req)
+      const userId = getAuthUserId(req)
       const { id } = (req as ValidatedAuthRequest<typeof journalIdSchema>).validated.params
-      await journalHeadersService.forceDelete(id, employeeId, companyId, req.user?.id)
+      await journalHeadersService.forceDelete(id, userId, companyId)
       sendSuccess(res, null, 'Journal force deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'force_delete_journal', id: req.params.id })

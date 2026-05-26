@@ -167,7 +167,7 @@ export const batchReconcileSchema = z.object({
     transaction_ids: z.array(z.string().uuid(), {
       message: 'Transaction IDs must be valid UUIDs',
     }).min(1, 'At least one transaction ID is required'),
-    reconciled_by: z.string().min(1, 'Reconciled by is required'),
+    reconciled_by: z.string().uuid().optional(),
   }),
 })
 

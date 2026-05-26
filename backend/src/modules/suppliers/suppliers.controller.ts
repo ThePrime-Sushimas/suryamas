@@ -21,7 +21,7 @@ export class SuppliersController {
         ...body,
         supplier_type: body.supplier_type as SupplierType,
         invoice_bypass_reason: (body.invoice_bypass_reason ?? undefined) as InvoiceBypassReason | undefined,
-      }, req.context?.employee_id)
+      }, req.user?.id)
       sendSuccess(res, supplier, 'Supplier created successfully', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_supplier' })
@@ -58,7 +58,7 @@ export class SuppliersController {
         ...body,
         supplier_type: body.supplier_type as SupplierType | undefined,
         invoice_bypass_reason: body.invoice_bypass_reason as InvoiceBypassReason | null | undefined,
-      }, req.context?.employee_id)
+      }, req.user?.id)
       sendSuccess(res, supplier, 'Supplier updated successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_supplier', id: req.params.id })
@@ -68,7 +68,7 @@ export class SuppliersController {
   delete = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      await suppliersService.deleteSupplier(id, req.context?.employee_id)
+      await suppliersService.deleteSupplier(id, req.user?.id)
       sendSuccess(res, null, 'Supplier deleted successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_supplier', id: req.params.id })
@@ -87,7 +87,7 @@ export class SuppliersController {
   restore = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const supplier = await suppliersService.restoreSupplier(id, req.context?.employee_id)
+      const supplier = await suppliersService.restoreSupplier(id, req.user?.id)
       sendSuccess(res, supplier, 'Supplier restored successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'restore_supplier', id: req.params.id })

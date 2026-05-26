@@ -19,7 +19,7 @@ class PaymentMethodAlertsController {
   async create(req: Request, res: Response) {
     try {
       const companyId = req.context?.company_id
-      const userId = req.context?.employee_id || req.user?.id
+      const userId = req.user?.id
       if (!companyId || !userId) { res.status(400).json({ success: false, message: 'Context required' }); return }
       
       const alert = await paymentMethodAlertsService.create(companyId, (req as any).validated.body, userId)
@@ -32,7 +32,7 @@ class PaymentMethodAlertsController {
   async update(req: Request, res: Response) {
     try {
       const companyId = req.context?.company_id
-      const userId = req.context?.employee_id || req.user?.id
+      const userId = req.user?.id
       if (!companyId || !userId) { res.status(400).json({ success: false, message: 'Context required' }); return }
       const { id } = (req as any).validated.params
       const alert = await paymentMethodAlertsService.update(id, companyId, (req as any).validated.body, userId)
@@ -45,7 +45,7 @@ class PaymentMethodAlertsController {
   async delete(req: Request, res: Response) {
     try {
       const companyId = req.context?.company_id
-      const userId = req.context?.employee_id || req.user?.id
+      const userId = req.user?.id
       if (!companyId || !userId) { res.status(400).json({ success: false, message: 'Context required' }); return }
       const { id } = (req as any).validated.params
       await paymentMethodAlertsService.delete(id, companyId, userId)

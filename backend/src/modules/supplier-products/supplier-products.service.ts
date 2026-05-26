@@ -104,7 +104,7 @@ export class SupplierProductsService {
   /**
    * Create new supplier product
    */
-  async create(dto: CreateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string, employeeId?: string): Promise<SupplierProduct> {
+  async create(dto: CreateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string): Promise<SupplierProduct> {
     // Validate supplier exists and is active
     await this.validateSupplier(dto.supplier_id)
     
@@ -185,7 +185,7 @@ export class SupplierProductsService {
             currency: dto.currency || 'IDR',
             valid_from: new Date().toISOString().split('T')[0],
             is_active: true,
-            created_by: employeeId,
+            created_by: userId,
           })
 
           const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(dto.product_id)
@@ -217,7 +217,7 @@ export class SupplierProductsService {
   /**
    * Update supplier product
    */
-  async update(id: string, dto: UpdateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string, employeeId?: string): Promise<SupplierProduct> {
+  async update(id: string, dto: UpdateSupplierProductDto & { purchase_unit_id?: string; conversion_factor?: number }, userId?: string, companyId?: string): Promise<SupplierProduct> {
     const existing = await this.repository.findById(id, true) as SupplierProductWithRelations | null
     if (!existing) {
       throw new SupplierProductNotFoundError(id)
@@ -282,7 +282,7 @@ export class SupplierProductsService {
             currency: dto.currency || existing.currency || 'IDR',
             valid_from: new Date().toISOString().split('T')[0],
             is_active: true,
-            created_by: employeeId,
+            created_by: userId,
           })
 
           const costPerBaseUnit = await pricelistsRepository.getLatestCostPerBaseUnit(existing.product_id)

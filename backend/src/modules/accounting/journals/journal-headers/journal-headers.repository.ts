@@ -115,14 +115,15 @@ export class JournalHeadersRepository {
     const idList = Array.from(ids).filter(Boolean)
     if (!idList.length) return data
 
-    const [byIdRes, byUserIdRes] = await Promise.all([
-      pool.query('SELECT id, full_name FROM employees WHERE id = ANY($1::uuid[])', [idList]),
-      pool.query('SELECT user_id, full_name FROM employees WHERE user_id = ANY($1::uuid[])', [idList]),
-    ])
+    const { rows: employeeRows } = await pool.query<{ user_id: string; full_name: string }>(
+      'SELECT user_id, full_name FROM employees WHERE user_id = ANY($1::uuid[])',
+      [idList],
+    )
 
     const nameMap = new Map<string, string>()
-    byIdRes.rows.forEach((r: { id: string; full_name: string }) => nameMap.set(r.id, r.full_name))
-    byUserIdRes.rows.forEach((r: { user_id: string; full_name: string }) => { if (r.user_id) nameMap.set(r.user_id, r.full_name) })
+    employeeRows.forEach((r) => {
+      if (r.user_id) nameMap.set(r.user_id, r.full_name)
+    })
 
     return data.map(item => {
       const result = { ...item }

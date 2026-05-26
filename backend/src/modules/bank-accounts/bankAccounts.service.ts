@@ -119,7 +119,7 @@ export class BankAccountsService {
     return account
   }
 
-  async deleteBankAccount(id: number, employeeId?: string): Promise<void> {
+  async deleteBankAccount(id: number, userId?: string): Promise<void> {
     const account = await bankAccountsRepository.findById(id)
     if (!account) throw new BankAccountNotFoundError(id.toString())
 
@@ -127,13 +127,13 @@ export class BankAccountsService {
       account_id: id,
       owner_type: account.owner_type,
       owner_id: account.owner_id,
-      deleted_by: employeeId
+      deleted_by: userId
     })
 
-    await bankAccountsRepository.softDelete(id, employeeId)
+    await bankAccountsRepository.softDelete(id, userId)
 
-    if (employeeId) {
-      await AuditService.log('DELETE', 'bank_account', id.toString(), employeeId, {
+    if (userId) {
+      await AuditService.log('DELETE', 'bank_account', id.toString(), userId, {
         account_number: account.account_number,
         owner_type: account.owner_type,
         owner_id: account.owner_id

@@ -93,7 +93,7 @@
 4. `error: unknown` di semua catch blocks
 5. Custom error class dari `*.errors.ts`, daftarkan di `ERROR_REGISTRY`. Jangan `throw new Error()`
 6. `company_id` dari `req.context?.company_id`, BUKAN dari query param
-7. `employee_id` dari `req.context?.employee_id` untuk FK ke `employees` table (misal `created_by` di `journal_headers`). BUKAN `req.user.id` (itu auth_users ID)
+7. Audit fields (`created_by`, `updated_by`, `posted_by`, journal `*_by`) → **`req.user.id`** (`auth_users`). `req.context?.employee_id` hanya konteks cabang/HR. Helper: `getAuthUserId(req)` di `backend/src/utils/auth-context.util.ts`
 8. Express global augmentation (`backend/src/types/express.d.ts`): `user`, `validated`, `sort`, `filterParams`, `queryFilter`, `context`, `permissions`
 9. `isPostgresError(error, code)` dari `src/utils/postgres-error.util.ts` untuk cek PG error code
 10. DTO audit fields: `created_by`/`updated_by` WAJIB di DTO

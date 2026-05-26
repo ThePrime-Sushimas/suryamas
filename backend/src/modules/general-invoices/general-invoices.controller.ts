@@ -201,9 +201,8 @@ export class GeneralInvoicesController {
   post = async (req: Request, res: Response): Promise<void> => {
     try {
       const companyId  = req.context?.company_id  ?? ''
-      const userId     = req.user?.id              ?? ''
-      const employeeId = req.context?.employee_id
-      const invoice    = await generalInvoiceService.post(req.params.id as string, companyId, userId, employeeId)
+      const userId  = req.user?.id ?? ''
+      const invoice = await generalInvoiceService.post(req.params.id as string, companyId, userId)
       sendSuccess(res, invoice, 'Invoice berhasil diposting')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post_general_invoice', id: req.params.id })
@@ -213,9 +212,8 @@ export class GeneralInvoicesController {
   cancel = async (req: Request, res: Response): Promise<void> => {
     try {
       const companyId  = req.context?.company_id  ?? ''
-      const userId     = req.user?.id              ?? ''
-      const employeeId = req.context?.employee_id
-      const invoice    = await generalInvoiceService.cancel(req.params.id as string, companyId, userId, employeeId)
+      const userId  = req.user?.id ?? ''
+      const invoice = await generalInvoiceService.cancel(req.params.id as string, companyId, userId)
       sendSuccess(res, invoice, 'Invoice berhasil dibatalkan')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_general_invoice', id: req.params.id })
@@ -379,9 +377,8 @@ export class GeneralInvoicePaymentsController {
     try {
       const companyId    = req.context?.company_id ?? ''
       const userId       = req.user?.id             ?? ''
-      const employeeId   = req.context?.employee_id
       const { payment_date } = req.body
-      const payment      = await generalInvoicePaymentService.markPaid(req.params.id as string, payment_date, companyId, userId, employeeId)
+      const payment      = await generalInvoicePaymentService.markPaid(req.params.id as string, payment_date, companyId, userId)
       sendSuccess(res, payment, 'Payment berhasil ditandai lunas')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark_paid_general_payment', id: req.params.id })
@@ -391,9 +388,8 @@ export class GeneralInvoicePaymentsController {
   deleteJournal = async (req: Request, res: Response): Promise<void> => {
     try {
       const companyId = req.context?.company_id ?? ''
-      const userId     = req.user?.id              ?? ''
-      const employeeId = req.context?.employee_id
-      const payment    = await generalInvoicePaymentService.deleteJournal(req.params.id as string, companyId, userId, employeeId)
+      const userId  = req.user?.id ?? ''
+      const payment = await generalInvoicePaymentService.deleteJournal(req.params.id as string, companyId, userId)
       sendSuccess(res, payment, 'Journal berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_general_payment_journal', id: req.params.id })
