@@ -53,6 +53,7 @@ export interface CreateBranchDto {
 }
 
 export interface UpdateBranchDto {
+  company_id?: string        // ← tambah ini
   branch_name?: string
   status?: BranchStatus
   manager_id?: string | null

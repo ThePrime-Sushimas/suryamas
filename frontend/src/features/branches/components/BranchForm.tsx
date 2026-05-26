@@ -56,6 +56,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
     e.preventDefault()
     const submitData = isEdit
       ? {
+          company_id: formData.company_id,
           branch_name: formData.branch_name, address: formData.address, city: formData.city,
           province: formData.province, postal_code: formData.postal_code || undefined,
           country: formData.country, phone: formData.phone || undefined, whatsapp: formData.whatsapp || undefined,
@@ -76,21 +77,20 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {!isEdit && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Perusahaan *</label>
-            <select name="company_id" value={formData.company_id} onChange={handleChange} className={inputCls} required>
-              <option value="">Pilih Perusahaan</option>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.company_name} ({c.company_code})</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Kode Branch *</label>
-            <input name="branch_code" value={formData.branch_code} onChange={handleChange} className={inputCls} required />
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className={labelCls}>Perusahaan *</label>
+          <select name="company_id" value={formData.company_id} onChange={handleChange} className={inputCls} required>
+            <option value="">Pilih Perusahaan</option>
+            {companies.map(c => <option key={c.id} value={c.id}>{c.company_name} ({c.company_code})</option>)}
+          </select>
         </div>
-      )}
+        <div>
+          <label className={labelCls}>Kode Branch *</label>
+          <input name="branch_code" value={formData.branch_code} onChange={handleChange}
+                className={inputCls} required disabled={isEdit} />
+        </div>
+      </div>
 
       <div>
         <label className={labelCls}>Nama Branch *</label>
@@ -113,14 +113,30 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
         </div>
       </div>
 
+      <div>
+        <label className={labelCls}>Negara</label>
+        <input name="country" value={formData.country} onChange={handleChange} className={inputCls} />
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>Telepon</label>
           <input name="phone" value={formData.phone} onChange={handleChange} className={inputCls} />
         </div>
         <div>
+          <label className={labelCls}>WhatsApp</label>
+          <input name="whatsapp" value={formData.whatsapp} onChange={handleChange} className={inputCls} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
           <label className={labelCls}>Email</label>
           <input type="email" name="email" value={formData.email} onChange={handleChange} className={inputCls} />
+        </div>
+        <div>
+          <label className={labelCls}>Kode Pos</label>
+          <input name="postal_code" value={formData.postal_code} onChange={handleChange} className={inputCls} />
         </div>
       </div>
 
@@ -137,7 +153,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
 
       <div>
         <label className={labelCls}>Hari Operasional *</label>
-        <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {days.map(day => (
             <label key={day} className="flex items-center text-sm text-gray-700 dark:text-gray-300">
               <input type="checkbox" checked={formData.hari_operasional.includes(day)} onChange={() => handleDayToggle(day)}
@@ -146,6 +162,17 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
             </label>
           ))}
         </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>PIC / Manager</label>
+        <input name="manager_id" value={formData.manager_id} onChange={handleChange} className={inputCls} placeholder="UUID manager" />
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Jika ada pemilihan manager, bisa diganti jadi dropdown di versi berikutnya.</p>
+      </div>
+
+      <div>
+        <label className={labelCls}>Catatan</label>
+        <textarea name="notes" value={formData.notes} onChange={handleChange} className={inputCls} rows={3} />
       </div>
 
       <div>

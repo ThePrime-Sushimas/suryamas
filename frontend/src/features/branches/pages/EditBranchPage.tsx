@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, MapPin, Clock } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { FormSkeleton } from '@/components/ui/Skeleton'
-import { useBranch, useUpdateBranch } from '../api/branches.api'
+import { useBranch, useUpdateBranch, useCloseBranch } from '../api/branches.api'
 import { BranchForm } from '../components/BranchForm'
+import { CloseBranchModal } from '../components/CloseBranchModal'
 import type { UpdateBranchDto } from '../types'
 
 export default function EditBranchPage() {
@@ -13,6 +15,10 @@ export default function EditBranchPage() {
   const toast = useToast()
   const branch = useBranch(id || '')
   const updateBranch = useUpdateBranch()
+  const closeBranch = useCloseBranch()
+
+  const [isCloseModalOpen, setIsCloseModalOpen] = useState(false)
+
 
   const handleSubmit = async (data: UpdateBranchDto) => {
     if (!id) return
@@ -100,10 +106,35 @@ export default function EditBranchPage() {
           </div>
         </div>
 
+        {/* Actions */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setIsCloseModalOpen(true)}
+            className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+            disabled={b.status === 'closed'}
+          >
+            Tutup Cabang
+          </button>
+        </div>
+
         {/* Form */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
           <BranchForm initialData={b} isEdit onSubmit={handleSubmit} isLoading={updateBranch.isPending} />
         </div>
+
+        <CloseBranchModal
+          branchName={b.branch_name}
+          isOpen={isCloseModalOpen}
+          onClose={() => setIsCloseModalOpen(false)}
+          onConfirm={async (reason, closedDate) => {
+            if (!b.id) return
+            await closeBranch.mutateAsync({ id: b.id, reason, closed_date: closedDate })
+            toast.success('Cabang berhasil ditutup')
+            setIsCloseModalOpen(false)
+            navigate('/branches')
+          }}
+        />
       </div>
     </div>
   )
