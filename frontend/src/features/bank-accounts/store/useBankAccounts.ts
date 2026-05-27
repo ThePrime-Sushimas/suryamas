@@ -33,7 +33,7 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
     set({ fetchLoading: true, error: null })
     try {
       const result = await bankAccountsApi.list()
-      set({ accounts: result.data ?? result, fetchLoading: false })
+      set({ accounts: result, fetchLoading: false })
     } catch (error: unknown) {
       set({ error: parseApiError(error, 'Gagal memuat rekening bank'), fetchLoading: false })
     }

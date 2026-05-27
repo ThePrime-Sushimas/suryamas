@@ -208,7 +208,7 @@ export const AccountingPurposeForm = ({
         >
           <option value="">Semua Cabang</option>
           {branches.map(branch => (
-            <option key={branch.id} value={branch.id}>
+            <option key={branch.branch_id} value={branch.branch_id}>
               {branch.branch_name}
             </option>
           ))}

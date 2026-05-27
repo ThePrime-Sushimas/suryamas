@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Upload, AlertCircle, Search, X } from 'lucide-react'
 import { usePosImportsStore } from '../store/pos-imports.store'
 import { UploadModal } from '../components/UploadModal'
@@ -8,7 +8,6 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { PosImportsErrorBoundary } from '../components/PosImportsErrorBoundary'
 import BulkActionBar from '@/components/BulkActionBar'
 import { Pagination } from '@/components/ui/Pagination'
-import { useBranchContextStore } from '@/features/branch_context'
 import { useAuthStore } from '@/features/auth'
 import { useToast } from '@/contexts/ToastContext'
 import { POS_IMPORTS_MESSAGES } from '@/utils/messages'
@@ -17,10 +16,8 @@ function PosImportsPageContent() {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; fileName: string } | null>(null)
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
-  const currentBranch = useBranchContextStore(s => s.currentBranch)
   const user = useAuthStore(s => s.user)
   const toast = useToast()
-  const prevCompanyIdRef = useRef<string | undefined>(undefined)
 
   const {
     imports,
@@ -81,11 +78,8 @@ function PosImportsPageContent() {
   const uploadProgress = activeUpload?.progress || 0
 
   useEffect(() => {
-    if (currentBranch?.company_id && currentBranch.company_id !== prevCompanyIdRef.current) {
-      fetchImports()
-      prevCompanyIdRef.current = currentBranch.company_id
-    }
-  }, [currentBranch?.company_id, fetchImports])
+    fetchImports()
+  }, [fetchImports])
 
   useEffect(() => {
     const handleOpenUpload = () => setShowUploadModal(true)
@@ -183,24 +177,6 @@ function PosImportsPageContent() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : POS_IMPORTS_MESSAGES.EXPORT_JOB_FAILED)
     }
-  }
-
-  if (!currentBranch?.company_id) {
-    return (
-      <div className="p-6">
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-yellow-500 shrink-0 mt-0.5" size={20} />
-            <div>
-              <h3 className="font-medium text-yellow-900 dark:text-yellow-300">Branch Required</h3>
-              <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
-                Please select a branch to manage POS imports
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (

@@ -46,7 +46,7 @@ export const processPosImportsExport: JobProcessor<PosImportsExportMetadata> = a
     for (let i = 0; i < importIds.length; i++) {
       const importId = importIds[i]
       try {
-        const posImport = await posImportsService.getById(importId, companyId)
+        const posImport = await posImportsService.getById(importId, [companyId])
         const lines = await posImportLinesRepository.findByImportId(importId, 1, 10000)
         imports.push({
           import: posImport,

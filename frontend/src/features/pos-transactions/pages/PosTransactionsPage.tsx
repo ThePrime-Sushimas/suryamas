@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { Filter, X, Download, ChevronDown, AlertCircle } from 'lucide-react'
 import { posTransactionsApi, type PosTransactionFilters } from '../api/pos-transactions.api'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
-import { useBranchesStore } from '@/features/branches/store/branches.store'
 import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
 import { usePermission } from '@/features/branch_context/hooks/usePermission'
 import { useJobsStore } from '@/features/jobs'
@@ -107,8 +106,7 @@ export function PosTransactionsPage() {
 function PosTransactionsContent() {
   const { hasPermission, isLoaded } = usePermission('pos_imports', 'view')
   
-  const currentBranch = useBranchContextStore(s => s.currentBranch)
-  const { branches, fetchPage: fetchBranches } = useBranchesStore()
+  const accessibleBranches = useBranchContextStore(s => s.branches)
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
   const { fetchRecentJobs } = useJobsStore()
   const toast = useToast()
@@ -137,7 +135,7 @@ function PosTransactionsContent() {
 
   // Effect to fetch data when limit changes (without requiring Apply Filters)
   useEffect(() => {
-    if (hasAppliedFilters && currentBranch?.company_id && hasPermission) {
+    if (hasAppliedFilters && hasPermission) {
       fetchTransactions(1)
     }
   }, [pagination.limit, hasPermission])
@@ -157,15 +155,13 @@ function PosTransactionsContent() {
   }, [])
 
   useEffect(() => {
-    if (currentBranch?.company_id && hasPermission) {
-      fetchBranches(1, PAGINATION_CONFIG.BRANCHES_PAGE_SIZE, null, { status: 'active' })
+    if (hasPermission) {
       fetchPaymentMethods(1, PAGINATION_CONFIG.PAYMENT_METHODS_PAGE_SIZE)
-      // Don't set default date - let user choose
     }
-  }, [currentBranch?.company_id, fetchBranches, fetchPaymentMethods, hasPermission])
+  }, [fetchPaymentMethods, hasPermission])
 
   const fetchTransactions = useCallback(async (pageOverride?: number) => {
-    if (!currentBranch?.company_id || !hasPermission) return
+    if (!hasPermission) return
     
     const abortController = new AbortController()
     setLoading(true)
@@ -216,7 +212,7 @@ function PosTransactionsContent() {
     }
     
     return () => abortController.abort()
-  }, [currentBranch?.company_id, pagination.limit, filters, selectedBranches, selectedPayments, hasPermission])
+  }, [pagination.limit, filters, selectedBranches, selectedPayments, hasPermission])
 
   const handleFilterChange = (key: keyof PosTransactionFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value || undefined }))
@@ -342,16 +338,6 @@ function PosTransactionsContent() {
     )
   }
 
-  if (!currentBranch?.company_id) {
-    return (
-      <div className="p-6">
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <p className="text-yellow-800 dark:text-yellow-300">{MESSAGE_CONFIG.NO_BRANCH_SELECTED}</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -469,8 +455,8 @@ function PosTransactionsContent() {
               </button>
               {showBranchDropdown && (
                 <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shadow-lg max-h-60 overflow-y-auto">
-                  {branches.map(b => (
-                    <label key={b.id} className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
+                  {accessibleBranches.map(b => (
+                    <label key={b.branch_id} className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedBranches.includes(b.branch_name)}

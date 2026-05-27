@@ -5,7 +5,6 @@ import {
   TrendingUp, TrendingDown, Settings2, Plus, Calendar, Loader2
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useBankAccountsStore } from '@/features/bank-accounts/store/useBankAccounts'
 import {
   useListPeriods,
@@ -379,8 +378,7 @@ const RunningBalanceTable = ({ rows, isLoading }: { rows: RunningBalanceRow[]; i
 // ============================================================
 export const CashFlowPage = () => {
   const toast = useToast()
-  const currentBranch = useBranchContextStore(s => s.currentBranch)
-  const { accounts, fetchByOwner } = useBankAccountsStore()
+  const { accounts, fetchAll } = useBankAccountsStore()
 
   const [selectedBankId, setSelectedBankId] = useState<number | null>(null)
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0)
@@ -388,10 +386,10 @@ export const CashFlowPage = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
 
-  // Fetch accounts
+  // Fetch accounts across all accessible companies
   useEffect(() => {
-    if (currentBranch?.company_id) fetchByOwner('company', currentBranch.company_id)
-  }, [currentBranch?.company_id])
+    fetchAll()
+  }, [fetchAll])
 
   useEffect(() => {
     if (accounts.length > 0 && !selectedBankId) setSelectedBankId(accounts[0].id)

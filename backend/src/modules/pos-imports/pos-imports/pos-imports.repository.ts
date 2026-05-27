@@ -29,13 +29,13 @@ function escapeSearch(s: string): string {
 export class PosImportsRepository {
 
   async findAll(
-    companyId: string,
+    companyIds: string[],
     pagination: PaginationParams,
     sort?: SortParams,
     filter?: PosImportFilter
   ): Promise<{ data: PosImport[]; total: number }> {
-    const conditions: string[] = ['company_id = $1', 'is_deleted = false']
-    const values: unknown[] = [companyId]
+    const conditions: string[] = ['company_id = ANY($1::uuid[])', 'is_deleted = false']
+    const values: unknown[] = [companyIds]
     let idx = 2
 
     if (filter?.branch_id) {
@@ -85,6 +85,15 @@ export class PosImportsRepository {
     const { rows } = await pool.query(
       `SELECT * FROM pos_imports WHERE id = $1 AND company_id = $2 AND is_deleted = false`,
       [id, companyId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<PosImport | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      `SELECT * FROM pos_imports WHERE id = $1 AND company_id = ANY($2::uuid[]) AND is_deleted = false`,
+      [id, companyIds]
     )
     return rows[0] ?? null
   }

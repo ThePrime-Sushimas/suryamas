@@ -101,18 +101,26 @@ class PosImportsService {
    * List POS imports with filters
    */
   async list(
-    companyId: string,
+    companyIds: string[],
     pagination: PaginationParams,
     sort?: SortParams,
     filter?: PosImportFilter,
   ) {
-    return posImportsRepository.findAll(companyId, pagination, sort, filter);
+    return posImportsRepository.findAll(companyIds, pagination, sort, filter);
   }
 
   /**
-   * Get POS import by ID
+   * Get POS import by ID (accessible companies)
    */
-  async getById(id: string, companyId: string): Promise<PosImport> {
+  async getById(id: string, companyIds: string[]): Promise<PosImport> {
+    const posImport = await posImportsRepository.findByIdAccessible(id, companyIds);
+    if (!posImport) {
+      throw PosImportErrors.NOT_FOUND();
+    }
+    return posImport;
+  }
+
+  private async getByCompanyId(id: string, companyId: string): Promise<PosImport> {
     const posImport = await posImportsRepository.findById(id, companyId);
     if (!posImport) {
       throw PosImportErrors.NOT_FOUND();
@@ -585,7 +593,7 @@ class PosImportsService {
     skipDuplicates: boolean,
     userId: string,
   ): Promise<{ posImport: PosImport; job_id: string }> {
-    const posImport = await this.getById(id, companyId);
+    const posImport = await this.getByCompanyId(id, companyId);
 
     if (!canTransition(posImport.status, "IMPORTED")) {
       throw PosImportErrors.INVALID_STATUS_TRANSITION(
@@ -771,7 +779,7 @@ class PosImportsService {
         blocked: blockedBillKeys.size,
       });
 
-      return this.getById(id, companyId);
+      return this.getByCompanyId(id, companyId);
     } catch (error) {
       await posImportsRepository.update(id, companyId, {
         status: 'FAILED',
@@ -826,7 +834,7 @@ class PosImportsService {
     errorMessage: string | undefined,
     userId: string,
   ): Promise<PosImport> {
-    const posImport = await this.getById(id, companyId);
+    const posImport = await this.getByCompanyId(id, companyId);
 
     if (!canTransition(posImport.status, status)) {
       throw PosImportErrors.INVALID_STATUS_TRANSITION(posImport.status, status);
@@ -851,14 +859,14 @@ class PosImportsService {
       );
     }
 
-    return this.getById(id, companyId);
+    return this.getByCompanyId(id, companyId);
   }
 
   /**
    * Delete POS import
    */
   async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const posImport = await this.getById(id, companyId);
+    const posImport = await this.getByCompanyId(id, companyId);
 
     if (posImport.status === "POSTED") {
       throw PosImportErrors.CANNOT_DELETE_POSTED();
@@ -918,7 +926,7 @@ class PosImportsService {
    * Export POS import to Excel
    */
   async exportToExcel(id: string, companyId: string): Promise<Buffer> {
-    const posImport = await this.getById(id, companyId);
+    const posImport = await this.getByCompanyId(id, companyId);
     const allLines = await posImportLinesRepository.findAllByImportId(id);
 
     // Create workbook

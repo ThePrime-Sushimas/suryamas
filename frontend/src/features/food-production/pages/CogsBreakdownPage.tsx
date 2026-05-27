@@ -195,8 +195,7 @@ function HierarchyTable({ categories, groups, menus }: {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CogsBreakdownPage() {
-  const { currentBranch, branches } = useBranchContextStore()
-  const companyBranches = branches.filter(b => b.company_id === currentBranch?.company_id)
+  const { branches } = useBranchContextStore()
 
   const today = new Date()
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
@@ -236,7 +235,7 @@ export default function CogsBreakdownPage() {
           <select value={branchId} onChange={e => setBranchId(e.target.value)}
             className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
             <option value="">Semua Cabang</option>
-            {companyBranches.map(b => <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>)}
+            {branches.map(b => <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>)}
           </select>
         </div>
       </div>
