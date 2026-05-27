@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Upload, X, Loader2, ArrowRight } from 'lucide-react'
 import { bankAccountsApi } from '../../bank-accounts/api/bankAccounts.api'
-import { useBranchContextStore } from '../../branch_context'
 import { UploadDropzone } from './upload-modal/UploadDropzone'
 import { BankAccountSelect } from './upload-modal/BankAccountSelect'
 import axios from 'axios'
@@ -39,38 +38,24 @@ export function UploadModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const toast = useToast()
 
-  // Use branch context untuk company_id
-  const currentBranch = useBranchContextStore((state) => state.currentBranch)
-  const companyId = currentBranch?.company_id
-
   const fetchBankAccounts = useCallback(async () => {
-    if (!companyId) {
-      setBankAccounts([])
-      return
-    }
-
     setLoadingAccounts(true)
     try {
-      const accounts = await bankAccountsApi.getByOwner('company', companyId)
+      const accounts = await bankAccountsApi.list()
       setBankAccounts(accounts || [])
     } catch {
       setBankAccounts([])
     } finally {
       setLoadingAccounts(false)
     }
-  }, [companyId])
+  }, [])
 
-  // Fetch bank accounts when modal opens or company changes
+  // Fetch bank accounts when modal opens
   useEffect(() => {
     if (isOpen) {
-      if (companyId) {
-        fetchBankAccounts()
-      } else {
-        setLoadingAccounts(false)
-        setBankAccounts([])
-      }
+      fetchBankAccounts()
     }
-  }, [isOpen, companyId, fetchBankAccounts])
+  }, [isOpen, fetchBankAccounts])
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -255,20 +240,10 @@ export function UploadModal({
               value={bankAccountId}
               onChange={setBankAccountId}
               disabled={isLoading}
-              error={!companyId ? 'Company belum dipilih' : undefined}
             />
           </div>
 
-          {!companyId && (
-            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl flex gap-3">
-              <div className="text-amber-500 mt-0.5">⚠️</div>
-              <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
-                Silakan pilih branch terlebih dahulu untuk mengakses akun bank.
-              </p>
-            </div>
-          )}
-
-          {companyId && !loadingAccounts && bankAccounts.length === 0 && (
+          {!loadingAccounts && bankAccounts.length === 0 && (
             <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl flex gap-3">
               <div className="text-amber-500 mt-0.5">⚠️</div>
               <div>

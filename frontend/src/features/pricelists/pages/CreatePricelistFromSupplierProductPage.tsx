@@ -22,6 +22,8 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
   const toast = useToast()
 
   const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const branches = useBranchContextStore(s => s.branches)
+  const writeCompanyId = currentBranch?.company_id || branches.find(b => b.company_id)?.company_id || ''
   const createPL = useCreatePricelist()
 
   const [supplierProduct, setSupplierProduct] = useState<SupplierProductContext | null>(null)
@@ -33,7 +35,6 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
 
     const fetchContext = async () => {
       if (!supplierProductId) { setContextError('Invalid supplier product ID'); setContextLoading(false); return }
-      if (!currentBranch) { setContextError('No branch context available'); setContextLoading(false); return }
 
       try {
         const data = await supplierProductsApi.getById(supplierProductId, true, false, controller.signal)
@@ -47,16 +48,17 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
 
     fetchContext()
     return () => controller.abort()
-  }, [supplierProductId, currentBranch])
+  }, [supplierProductId])
 
   const handleSubmit = useCallback(async (data: CreatePricelistDto | UpdatePricelistDto) => {
-    if (!supplierProduct || !currentBranch) { toast.error('Missing required context'); return }
+    if (!supplierProduct) { toast.error('Missing required context'); return }
+    if (!writeCompanyId) { toast.error('Pilih cabang di header untuk menentukan perusahaan'); return }
     try {
-      await createPL.mutateAsync(data as CreatePricelistDto)
+      await createPL.mutateAsync({ ...(data as CreatePricelistDto), company_id: writeCompanyId })
       toast.success('Pricelist berhasil dibuat')
       navigate(`/supplier-products/${supplierProductId}/pricelists`)
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal membuat pricelist')) }
-  }, [createPL, supplierProduct, currentBranch, toast, navigate, supplierProductId])
+  }, [createPL, supplierProduct, writeCompanyId, toast, navigate, supplierProductId])
 
   const handleCancel = useCallback(() => {
     navigate(`/supplier-products/${supplierProductId}/pricelists`)
@@ -100,12 +102,12 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
     )
   }
 
-  if (!currentBranch?.company_id) {
+  if (!writeCompanyId) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Branch Required</h2>
-          <p className="text-yellow-600 dark:text-yellow-400 mb-4">Pilih branch terlebih dahulu</p>
+          <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Cabang diperlukan</h2>
+          <p className="text-yellow-600 dark:text-yellow-400 mb-4">Pilih cabang di header untuk membuat pricelist (operasi tulis).</p>
           <button onClick={() => navigate('/')} className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700">Pilih Branch</button>
         </div>
       </div>
@@ -137,7 +139,7 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
           onCancel={handleCancel}
           submitLabel="Buat Pricelist"
           submitting={createPL.isPending}
-          companyId={currentBranch.company_id}
+          companyId={writeCompanyId}
           supplierId={supplierProduct.supplier_id}
           productId={supplierProduct.product_id}
           supplierName={supplierProduct.supplier?.supplier_name}

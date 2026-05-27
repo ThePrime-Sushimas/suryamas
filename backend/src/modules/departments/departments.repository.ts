@@ -3,15 +3,25 @@ import type { Department, DepartmentWithCount, CreateDepartmentDto, UpdateDepart
 
 class DepartmentsRepository {
 
-  async findAll(companyId: string): Promise<DepartmentWithCount[]> {
+  async findAll(companyIds: string[]): Promise<DepartmentWithCount[]> {
+    if (!companyIds.length) return []
     const { rows } = await pool.query(`
       SELECT d.*,
         (SELECT COUNT(*)::int FROM positions p WHERE p.department_id = d.id AND p.is_deleted = false) AS position_count
       FROM departments d
-      WHERE d.company_id = $1 AND d.is_deleted = false
+      WHERE d.company_id = ANY($1::uuid[]) AND d.is_deleted = false
       ORDER BY d.sort_order, d.department_name
-    `, [companyId])
+    `, [companyIds])
     return rows
+  }
+
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<Department | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      `SELECT * FROM departments WHERE id = $1 AND company_id = ANY($2::uuid[]) AND is_deleted = false`,
+      [id, companyIds]
+    )
+    return rows[0] ?? null
   }
 
   async findById(id: string, companyId: string): Promise<Department | null> {

@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react'
 import { useToast } from '@/contexts/ToastContext'
 import { bankStatementImportApi } from '../api/bank-statement-import.api'
 import { bankAccountsApi } from '../../bank-accounts/api/bankAccounts.api'
-import { useBranchContextStore } from '../../branch_context'
 import { formatCurrency } from '../utils/format'
 
 interface DbEntry {
@@ -79,9 +78,6 @@ function emptyDraft(month: string): DraftRow {
 }
 
 export function ManualEntryPanel() {
-  const currentBranch = useBranchContextStore(s => s.currentBranch)
-  const companyId = currentBranch?.company_id
-
   const [bankAccountId, setBankAccountId] = useState('')
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [loadingAccounts, setLoadingAccounts] = useState(false)
@@ -95,13 +91,12 @@ export function ManualEntryPanel() {
   const globalToast = useToast()
 
   useEffect(() => {
-    if (!companyId) return
     setLoadingAccounts(true)
-    bankAccountsApi.getByOwner('company', companyId)
+    bankAccountsApi.list()
       .then(accs => setBankAccounts(accs || []))
       .catch(() => setBankAccounts([]))
       .finally(() => setLoadingAccounts(false))
-  }, [companyId])
+  }, [])
 
   const fetchEntries = useCallback(async (baId: string) => {
     if (!baId) { setMonths([]); return undefined }

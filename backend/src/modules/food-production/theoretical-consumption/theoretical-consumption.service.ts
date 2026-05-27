@@ -93,8 +93,8 @@ export class TheoreticalConsumptionService {
     }))
   }
 
-  async getCostTrend(companyId: string, query: TheoreticalConsumptionQuery): Promise<CostTrendItem[]> {
-    if (!companyId) throw new BusinessRuleError('Company context tidak tersedia. Pastikan branch sudah dipilih.')
+  async getCostTrend(companyIds: string[], query: TheoreticalConsumptionQuery): Promise<CostTrendItem[]> {
+    if (!companyIds.length) throw new BusinessRuleError('Company context tidak tersedia. Pastikan branch sudah dipilih.')
 
     let branchPosId: number | undefined
     if (query.branch_id) {
@@ -102,7 +102,7 @@ export class TheoreticalConsumptionService {
       branchPosId = resolved.branchPosId
     }
 
-    return theoreticalConsumptionRepository.getCostTrend(companyId, query.period_start, query.period_end, branchPosId)
+    return theoreticalConsumptionRepository.getCostTrend(companyIds, query.period_start, query.period_end, branchPosId)
   }
 
   async getWasteSummary(query: TheoreticalConsumptionQuery): Promise<{ items: WasteSummaryItem[]; totals: { total_waste_cost: number; total_used_cost: number; overall_waste_pct: number } }> {

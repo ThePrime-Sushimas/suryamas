@@ -239,12 +239,12 @@ export class ProductionOrdersRepository {
   // ─── List ───
 
   async findAll(
-    companyId: string,
+    companyIds: string[],
     pagination: { limit: number; offset: number },
     filter?: { branch_id?: string; status?: string; date_from?: string; date_to?: string }
   ): Promise<{ data: ProductionOrderWithBranch[]; total: number }> {
-    const conditions = ['po.company_id = $1', 'po.is_deleted = false']
-    const params: unknown[] = [companyId]
+    const conditions = ['po.company_id = ANY($1::uuid[])', 'po.is_deleted = false']
+    const params: unknown[] = [companyIds]
     let idx = 2
 
     if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`po.branch_id = $${idx++}`) }
@@ -272,6 +272,19 @@ export class ProductionOrdersRepository {
 
   // ─── Get by ID (with details) ───
 
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<ProductionOrderWithDetails | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      `SELECT po.*, b.branch_name
+       FROM production_orders po
+       JOIN branches b ON b.id = po.branch_id
+       WHERE po.id = $1 AND po.company_id = ANY($2::uuid[]) AND po.is_deleted = false`,
+      [id, companyIds]
+    )
+    if (!rows[0]) return null
+    return this.loadOrderDetails(rows[0] as ProductionOrderWithDetails, id)
+  }
+
   async findById(id: string, companyId: string): Promise<ProductionOrderWithDetails | null> {
     const { rows } = await pool.query(
       `SELECT po.*, b.branch_name
@@ -281,8 +294,10 @@ export class ProductionOrdersRepository {
       [id, companyId]
     )
     if (!rows[0]) return null
+    return this.loadOrderDetails(rows[0] as ProductionOrderWithDetails, id)
+  }
 
-    const order = rows[0] as ProductionOrderWithDetails
+  private async loadOrderDetails(order: ProductionOrderWithDetails, id: string): Promise<ProductionOrderWithDetails> {
 
     const linesRes = await pool.query(
       `SELECT * FROM production_order_lines WHERE production_order_id = $1 ORDER BY sort_order, created_at`,
@@ -425,9 +440,9 @@ export class ProductionOrdersRepository {
 
   // ─── Reports ───
 
-  async getDailySummary(companyId: string, dateFrom: string, dateTo: string, branchId?: string): Promise<DailySummary[]> {
-    const conditions = ['po.company_id = $1', 'po.production_date BETWEEN $2 AND $3', "po.status IN ('COMPLETED', 'JOURNALED')", 'po.is_deleted = false']
-    const params: unknown[] = [companyId, dateFrom, dateTo]
+  async getDailySummary(companyIds: string[], dateFrom: string, dateTo: string, branchId?: string): Promise<DailySummary[]> {
+    const conditions = ['po.company_id = ANY($1::uuid[])', 'po.production_date BETWEEN $2 AND $3', "po.status IN ('COMPLETED', 'JOURNALED')", 'po.is_deleted = false']
+    const params: unknown[] = [companyIds, dateFrom, dateTo]
 
     if (branchId) { params.push(branchId); conditions.push(`po.branch_id = $${params.length}`) }
 
@@ -454,9 +469,9 @@ export class ProductionOrdersRepository {
     return rows
   }
 
-  async getMaterialsReport(companyId: string, dateFrom: string, dateTo: string, branchId?: string): Promise<MaterialUsageSummary[]> {
-    const conditions = ['po.company_id = $1', 'po.production_date BETWEEN $2 AND $3', "po.status IN ('COMPLETED', 'JOURNALED')", 'po.is_deleted = false']
-    const params: unknown[] = [companyId, dateFrom, dateTo]
+  async getMaterialsReport(companyIds: string[], dateFrom: string, dateTo: string, branchId?: string): Promise<MaterialUsageSummary[]> {
+    const conditions = ['po.company_id = ANY($1::uuid[])', 'po.production_date BETWEEN $2 AND $3', "po.status IN ('COMPLETED', 'JOURNALED')", 'po.is_deleted = false']
+    const params: unknown[] = [companyIds, dateFrom, dateTo]
 
     if (branchId) { params.push(branchId); conditions.push(`po.branch_id = $${params.length}`) }
 

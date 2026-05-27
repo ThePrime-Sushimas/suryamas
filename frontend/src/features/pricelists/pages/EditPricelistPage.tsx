@@ -16,7 +16,6 @@ export const EditPricelistPage = function EditPricelistPage() {
 
   const actualId = pricelistId || id || ''
   const backPath = supplierProductId ? `/supplier-products/${supplierProductId}/pricelists` : '/pricelists'
-  const currentBranch = useBranchContextStore(s => s.currentBranch)
 
   const pricelist = usePricelist(actualId)
   const updatePL = useUpdatePricelist()
@@ -89,7 +88,7 @@ export const EditPricelistPage = function EditPricelistPage() {
           submitLabel="Simpan Perubahan"
           isEdit={true}
           submitting={updatePL.isPending}
-          companyId={currentBranch?.company_id || ''}
+          companyId={p.company_id}
           supplierId={p.supplier_id}
           productId={p.product_id}
           supplierName={p.supplier?.supplier_name}

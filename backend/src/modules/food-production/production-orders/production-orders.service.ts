@@ -20,15 +20,15 @@ const wipRepository = new WipRepository()
 
 class ProductionOrdersService {
 
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: {
+  async list(companyIds: string[], pagination: { page: number; limit: number }, filter?: {
     branch_id?: string; status?: string; date_from?: string; date_to?: string
   }): Promise<{ data: ProductionOrderWithBranch[]; total: number }> {
     const offset = (pagination.page - 1) * pagination.limit
-    return productionOrdersRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
+    return productionOrdersRepository.findAll(companyIds, { limit: pagination.limit, offset }, filter)
   }
 
-  async getById(id: string, companyId: string): Promise<ProductionOrderWithDetails> {
-    const order = await productionOrdersRepository.findById(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<ProductionOrderWithDetails> {
+    const order = await productionOrdersRepository.findByIdAccessible(id, companyIds)
     if (!order) throw new ProductionOrderNotFoundError(id)
     return order
   }
@@ -323,12 +323,12 @@ class ProductionOrdersService {
     await AuditService.log('DELETE', 'production_order', id, userId)
   }
 
-  async getSummary(companyId: string, dateFrom: string, dateTo: string, branchId?: string): Promise<DailySummary[]> {
-    return productionOrdersRepository.getDailySummary(companyId, dateFrom, dateTo, branchId)
+  async getSummary(companyIds: string[], dateFrom: string, dateTo: string, branchId?: string): Promise<DailySummary[]> {
+    return productionOrdersRepository.getDailySummary(companyIds, dateFrom, dateTo, branchId)
   }
 
-  async getMaterialsReport(companyId: string, dateFrom: string, dateTo: string, branchId?: string): Promise<MaterialUsageSummary[]> {
-    return productionOrdersRepository.getMaterialsReport(companyId, dateFrom, dateTo, branchId)
+  async getMaterialsReport(companyIds: string[], dateFrom: string, dateTo: string, branchId?: string): Promise<MaterialUsageSummary[]> {
+    return productionOrdersRepository.getMaterialsReport(companyIds, dateFrom, dateTo, branchId)
   }
 
   private async generateOrderNumber(

@@ -4,6 +4,7 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { createDepartmentSchema, updateDepartmentSchema, departmentIdSchema } from './departments.schema'
+import { getReadScope, getWriteScope } from '../../utils/branch-access.util'
 
 type CreateReq = ValidatedAuthRequest<typeof createDepartmentSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updateDepartmentSchema>
@@ -13,8 +14,8 @@ class DepartmentsController {
 
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const data = await departmentsService.list(companyId)
+      const { companyIds } = await getReadScope(req)
+      const data = await departmentsService.list(companyIds)
       sendSuccess(res, data, 'Departments retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_departments' })
@@ -23,9 +24,9 @@ class DepartmentsController {
 
   getById = async (req: Request, res: Response) => {
     try {
+      const { companyIds } = await getReadScope(req)
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const data = await departmentsService.getById(id, companyId)
+      const data = await departmentsService.getById(id, companyIds)
       sendSuccess(res, data, 'Department retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_department', id: req.params.id })
@@ -34,8 +35,7 @@ class DepartmentsController {
 
   create = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await getWriteScope(req)
       const { body } = (req as CreateReq).validated
       const data = await departmentsService.create(companyId, { ...body, created_by: userId })
       sendSuccess(res, data, 'Department created', 201)
@@ -46,10 +46,10 @@ class DepartmentsController {
 
   update = async (req: Request, res: Response) => {
     try {
+      const { companyIds, userId } = await getReadScope(req)
       const { params, body } = (req as UpdateReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const data = await departmentsService.update(params.id, companyId, { ...body, updated_by: userId })
+      const existing = await departmentsService.getById(params.id, companyIds)
+      const data = await departmentsService.update(params.id, existing.company_id, { ...body, updated_by: userId }, existing)
       sendSuccess(res, data, 'Department updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_department', id: req.params.id })
@@ -58,10 +58,10 @@ class DepartmentsController {
 
   delete = async (req: Request, res: Response) => {
     try {
+      const { companyIds, userId } = await getReadScope(req)
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      await departmentsService.delete(id, companyId, userId)
+      const existing = await departmentsService.getById(id, companyIds)
+      await departmentsService.delete(id, existing.company_id, userId, existing)
       sendSuccess(res, null, 'Department deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_department', id: req.params.id })

@@ -8,6 +8,7 @@ import type {
   voidProductionOrderSchema, listProductionOrdersSchema,
   summarySchema, materialsReportSchema, idParamSchema
 } from './production-orders.schema'
+import { getBranchReadScope, getReadScope, getWriteScope, requireBranchAccess } from '../../../utils/branch-access.util'
 
 type CreateReq = ValidatedAuthRequest<typeof createProductionOrderSchema>
 type CompleteReq = ValidatedAuthRequest<typeof completeProductionOrderSchema>
@@ -21,9 +22,18 @@ class ProductionOrdersController {
 
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const { page, limit, branch_id, status, date_from, date_to } = (req as ListReq).validated.query
-      const result = await productionOrdersService.list(companyId, { page, limit }, { branch_id, status, date_from, date_to })
+      const { branch_id, status, date_from, date_to, page, limit } = (req as ListReq).validated.query
+      let companyIds: string[]
+
+      if (branch_id) {
+        const scope = await getBranchReadScope(req)
+        companyIds = scope.companyIds
+        requireBranchAccess(branch_id, scope.branchIds)
+      } else {
+        ({ companyIds } = await getReadScope(req))
+      }
+
+      const result = await productionOrdersService.list(companyIds, { page, limit }, { branch_id, status, date_from, date_to })
       const totalPages = Math.ceil(result.total / limit)
       sendSuccess(res, result.data, 'Production orders retrieved', 200, { page, limit, total: result.total, totalPages })
     } catch (error: unknown) {
@@ -33,9 +43,9 @@ class ProductionOrdersController {
 
   getById = async (req: Request, res: Response) => {
     try {
+      const { companyIds } = await getReadScope(req)
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const order = await productionOrdersService.getById(id, companyId)
+      const order = await productionOrdersService.getById(id, companyIds)
       sendSuccess(res, order, 'Production order retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_production_order', id: req.params.id })
@@ -44,8 +54,7 @@ class ProductionOrdersController {
 
   create = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await getWriteScope(req)
       const { body } = (req as CreateReq).validated
       const order = await productionOrdersService.create({
         ...body,
@@ -60,9 +69,8 @@ class ProductionOrdersController {
 
   complete = async (req: Request, res: Response) => {
     try {
+      const { companyId, userId } = await getWriteScope(req)
       const { params, body } = (req as CompleteReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
       await productionOrdersService.complete(params.id, companyId, { ...body, user_id: userId })
       sendSuccess(res, null, 'Production order completed')
     } catch (error: unknown) {
@@ -72,9 +80,8 @@ class ProductionOrdersController {
 
   generateJournal = async (req: Request, res: Response) => {
     try {
+      const { companyId, userId } = await getWriteScope(req)
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
       const result = await productionOrdersService.generateJournal(id, companyId, userId)
       sendSuccess(res, result, 'Journal generated')
     } catch (error: unknown) {
@@ -84,9 +91,8 @@ class ProductionOrdersController {
 
   voidOrder = async (req: Request, res: Response) => {
     try {
+      const { companyId, userId } = await getWriteScope(req)
       const { params, body } = (req as VoidReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
       await productionOrdersService.voidOrder(params.id, companyId, { user_id: userId, reason: body.reason })
       sendSuccess(res, null, 'Production order voided')
     } catch (error: unknown) {
@@ -96,9 +102,8 @@ class ProductionOrdersController {
 
   delete = async (req: Request, res: Response) => {
     try {
+      const { companyId, userId } = await getWriteScope(req)
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
       await productionOrdersService.delete(id, companyId, userId)
       sendSuccess(res, null, 'Production order deleted')
     } catch (error: unknown) {
@@ -108,9 +113,18 @@ class ProductionOrdersController {
 
   summary = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
       const { date_from, date_to, branch_id } = (req as SummaryReq).validated.query
-      const data = await productionOrdersService.getSummary(companyId, date_from, date_to, branch_id)
+      let companyIds: string[]
+
+      if (branch_id) {
+        const scope = await getBranchReadScope(req)
+        companyIds = scope.companyIds
+        requireBranchAccess(branch_id, scope.branchIds)
+      } else {
+        ({ companyIds } = await getReadScope(req))
+      }
+
+      const data = await productionOrdersService.getSummary(companyIds, date_from, date_to, branch_id)
       sendSuccess(res, data, 'Summary retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'production_order_summary' })
@@ -119,9 +133,18 @@ class ProductionOrdersController {
 
   materialsReport = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
       const { date_from, date_to, branch_id } = (req as MaterialsReq).validated.query
-      const data = await productionOrdersService.getMaterialsReport(companyId, date_from, date_to, branch_id)
+      let companyIds: string[]
+
+      if (branch_id) {
+        const scope = await getBranchReadScope(req)
+        companyIds = scope.companyIds
+        requireBranchAccess(branch_id, scope.branchIds)
+      } else {
+        ({ companyIds } = await getReadScope(req))
+      }
+
+      const data = await productionOrdersService.getMaterialsReport(companyIds, date_from, date_to, branch_id)
       sendSuccess(res, data, 'Materials report retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'production_order_materials_report' })

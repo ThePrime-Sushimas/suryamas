@@ -3,9 +3,9 @@ import type { PoolClient } from 'pg'
 import type { WipItem, WipItemWithIngredients, WipIngredientWithProduct, CreateWipItemDto, UpdateWipItemDto, CreateWipIngredientDto } from './wip.types'
 
 export class WipRepository {
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean }): Promise<{ data: WipItem[]; total: number }> {
-    const conditions = ['w.company_id = $1', 'w.deleted_at IS NULL']
-    const params: unknown[] = [companyId]
+  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean }): Promise<{ data: WipItem[]; total: number }> {
+    const conditions = ['w.company_id = ANY($1::uuid[])', 'w.deleted_at IS NULL']
+    const params: unknown[] = [companyIds]
     let idx = 2
 
     if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`w.is_active = $${idx++}`) }
@@ -28,9 +28,9 @@ export class WipRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async search(companyId: string, q: string, pagination: { limit: number; offset: number }): Promise<{ data: WipItem[]; total: number }> {
-    const params = [companyId, `%${q}%`]
-    const where = `WHERE w.company_id = $1 AND w.deleted_at IS NULL AND (w.wip_name ILIKE $2 OR w.wip_code ILIKE $2)`
+  async search(companyIds: string[], q: string, pagination: { limit: number; offset: number }): Promise<{ data: WipItem[]; total: number }> {
+    const params = [companyIds, `%${q}%`]
+    const where = `WHERE w.company_id = ANY($1::uuid[]) AND w.deleted_at IS NULL AND (w.wip_name ILIKE $2 OR w.wip_code ILIKE $2)`
     const [dataRes, countRes] = await Promise.all([
       pool.query(`SELECT w.* FROM wip_items w ${where} ORDER BY w.wip_name ASC LIMIT $3 OFFSET $4`, [...params, pagination.limit, pagination.offset]),
       pool.query(`SELECT COUNT(*)::int AS total FROM wip_items w ${where}`, params),
@@ -38,9 +38,30 @@ export class WipRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<WipItem | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query('SELECT * FROM wip_items WHERE id = $1 AND company_id = ANY($2::uuid[]) AND deleted_at IS NULL', [id, companyIds])
+    return rows[0] ?? null
+  }
+
   async findById(id: string, companyId: string): Promise<WipItem | null> {
     const { rows } = await pool.query('SELECT * FROM wip_items WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL', [id, companyId])
     return rows[0] ?? null
+  }
+
+  async findByIdWithIngredientsAccessible(id: string, companyIds: string[]): Promise<WipItemWithIngredients | null> {
+    const item = await this.findByIdAccessible(id, companyIds)
+    if (!item) return null
+
+    const { rows: ingredients } = await pool.query(
+      `SELECT wi.*, p.product_code, p.product_name
+       FROM wip_ingredients wi
+       JOIN products p ON p.id = wi.product_id
+       WHERE wi.wip_id = $1
+       ORDER BY wi.sort_order ASC, p.product_name ASC`,
+      [id]
+    )
+    return { ...item, ingredients }
   }
 
   async findByIdWithIngredients(id: string, companyId: string): Promise<WipItemWithIngredients | null> {

@@ -4,6 +4,12 @@ import { AuditService } from '../../monitoring/monitoring.service'
 import type { CreateMenuBranchPriceDto, UpdateMenuBranchPriceDto, MenuBranchPriceWithBranch, MenuBranchPrice, SyncFromPosResult } from './menu-branch-prices.types'
 
 export class MenuBranchPricesService {
+  async getById(id: string, companyIds: string[]): Promise<MenuBranchPrice> {
+    const record = await menuBranchPricesRepository.findByIdAccessible(id, companyIds)
+    if (!record) throw new MenuBranchPriceNotFoundError(id)
+    return record
+  }
+
   async listByMenu(menuId: string, companyId: string): Promise<MenuBranchPriceWithBranch[]> {
     return menuBranchPricesRepository.findByMenuId(menuId, companyId)
   }
@@ -14,23 +20,23 @@ export class MenuBranchPricesService {
     return result
   }
 
-  async update(id: string, companyId: string, dto: UpdateMenuBranchPriceDto, userId: string): Promise<MenuBranchPrice> {
-    const existing = await menuBranchPricesRepository.findById(id, companyId)
-    if (!existing) throw new MenuBranchPriceNotFoundError(id)
+  async update(id: string, companyId: string, dto: UpdateMenuBranchPriceDto, userId: string, existing?: MenuBranchPrice): Promise<MenuBranchPrice> {
+    const record = existing ?? await menuBranchPricesRepository.findById(id, companyId)
+    if (!record) throw new MenuBranchPriceNotFoundError(id)
 
     const updated = await menuBranchPricesRepository.update(id, companyId, { ...dto, updated_by: userId })
     if (!updated) throw new MenuBranchPriceNotFoundError(id)
 
-    await AuditService.log('UPDATE', 'menu_branch_price', id, userId, existing, updated)
+    await AuditService.log('UPDATE', 'menu_branch_price', id, userId, record, updated)
     return updated
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const existing = await menuBranchPricesRepository.findById(id, companyId)
-    if (!existing) throw new MenuBranchPriceNotFoundError(id)
+  async delete(id: string, companyId: string, userId: string, existing?: MenuBranchPrice): Promise<void> {
+    const record = existing ?? await menuBranchPricesRepository.findById(id, companyId)
+    if (!record) throw new MenuBranchPriceNotFoundError(id)
 
     await menuBranchPricesRepository.softDelete(id, companyId, userId)
-    await AuditService.log('DELETE', 'menu_branch_price', id, userId, existing)
+    await AuditService.log('DELETE', 'menu_branch_price', id, userId, record)
   }
 
   async syncFromPos(companyId: string, userId: string, menuId?: string): Promise<SyncFromPosResult> {

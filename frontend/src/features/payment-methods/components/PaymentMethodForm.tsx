@@ -133,7 +133,7 @@ export const PaymentMethodForm = ({
     }
     
     fetchOptions()
-  }, [currentBranch?.company_id])
+  }, [])
 
   useEffect(() => {
     if (paymentMethod) {

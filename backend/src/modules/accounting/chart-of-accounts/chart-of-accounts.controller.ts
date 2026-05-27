@@ -6,20 +6,14 @@ import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../../utils/export.util'
 import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import { createChartOfAccountSchema, updateChartOfAccountSchema, bulkUpdateStatusSchema, bulkDeleteSchema, chartOfAccountIdSchema } from './chart-of-accounts.schema'
-import { getAccessibleBranchIds, getAccessibleCompanyIds } from '../../../utils/branch-access.util'
+import { getBranchReadScope, getWriteScope } from '../../../utils/branch-access.util'
 
 async function getAccess(req: Request) {
-  const userId = req.user?.id ?? ''
-  const [branchIds, companyIds] = await Promise.all([
-    getAccessibleBranchIds(userId),
-    getAccessibleCompanyIds(userId),
-  ])
-  return { branchIds, companyIds }
+  return getBranchReadScope(req)
 }
 
-function getCompanyId(req: Request): string {
-  const companyId = req.context?.company_id
-  if (!companyId) throw new Error('Branch context required - no company access')
+async function getWriteCompanyId(req: Request): Promise<string> {
+  const { companyId } = await getWriteScope(req)
   return companyId
 }
 
@@ -66,7 +60,7 @@ export class ChartOfAccountsController {
 
   create = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       const { body } = (req as ValidatedAuthRequest<typeof createChartOfAccountSchema>).validated
       const account = await chartOfAccountsService.create({ ...body, company_id: companyId }, req.user?.id ?? '')
       sendSuccess(res, account, 'Chart of account created', 201)
@@ -88,7 +82,7 @@ export class ChartOfAccountsController {
 
   update = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       const { params, body } = (req as ValidatedAuthRequest<typeof updateChartOfAccountSchema>).validated
       const account = await chartOfAccountsService.update(params.id, body, req.user?.id ?? '', companyId)
       sendSuccess(res, account, 'Chart of account updated')
@@ -99,7 +93,7 @@ export class ChartOfAccountsController {
 
   delete = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       const { id } = (req as ValidatedAuthRequest<typeof chartOfAccountIdSchema>).validated.params
       await chartOfAccountsService.delete(id, req.user?.id ?? '', companyId)
       sendSuccess(res, null, 'Chart of account deleted')
@@ -110,7 +104,7 @@ export class ChartOfAccountsController {
 
   getFilterOptions = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       const options = await chartOfAccountsService.getFilterOptions(companyId)
       sendSuccess(res, options)
     } catch (error: unknown) {
@@ -124,7 +118,7 @@ export class ChartOfAccountsController {
 
   exportData = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       return handleExport(req, res, (filter) => chartOfAccountsService.exportToExcel(companyId, filter), 'chart-of-accounts')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'export_coa' })
@@ -141,7 +135,7 @@ export class ChartOfAccountsController {
 
   importData = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       return handleImport(req, res, (buffer, skip) => chartOfAccountsService.importFromExcel(buffer, skip, companyId, req.user?.id ?? ''))
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'import_coa' })
@@ -150,7 +144,7 @@ export class ChartOfAccountsController {
 
   bulkUpdateStatus = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       const { ids, is_active } = (req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>).validated.body
       if (ids.length > 1000) throw new Error('Cannot update more than 1000 records at once')
       await chartOfAccountsService.bulkUpdateStatus(ids, is_active, req.user?.id ?? '', companyId)
@@ -162,7 +156,7 @@ export class ChartOfAccountsController {
 
   bulkDelete = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       const { ids } = (req as ValidatedAuthRequest<typeof bulkDeleteSchema>).validated.body
       if (ids.length > 100) throw new Error('Cannot delete more than 100 records at once')
       await chartOfAccountsService.bulkDelete(ids, req.user?.id ?? '', companyId)
@@ -174,7 +168,7 @@ export class ChartOfAccountsController {
 
   restore = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       const { id } = (req as ValidatedAuthRequest<typeof chartOfAccountIdSchema>).validated.params
       await chartOfAccountsService.restore(id, req.user?.id ?? '', companyId)
       sendSuccess(res, null, 'Chart of account restored')
@@ -185,7 +179,7 @@ export class ChartOfAccountsController {
 
   bulkRestore = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const companyId = await getWriteCompanyId(req)
       const { ids } = (req as ValidatedAuthRequest<typeof bulkDeleteSchema>).validated.body
       if (ids.length > 100) throw new Error('Cannot restore more than 100 records at once')
       await chartOfAccountsService.bulkRestore(ids, req.user?.id ?? '', companyId)

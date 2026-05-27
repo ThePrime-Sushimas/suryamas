@@ -19,6 +19,15 @@ export class MenuBranchPricesRepository {
     return rows
   }
 
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<MenuBranchPrice | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      'SELECT * FROM menu_branch_prices WHERE id = $1 AND company_id = ANY($2::uuid[]) AND is_deleted = false',
+      [id, companyIds]
+    )
+    return rows[0] ?? null
+  }
+
   async findById(id: string, companyId: string): Promise<MenuBranchPrice | null> {
     const { rows } = await pool.query(
       'SELECT * FROM menu_branch_prices WHERE id = $1 AND company_id = $2 AND is_deleted = false',

@@ -8,7 +8,7 @@ import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../../utils/export.util'
 import { AccountingPurposeErrors } from './accounting-purposes.errors'
 import { defaultConfig } from './accounting-purposes.config'
-import { getAccessibleCompanyIds } from '../../../utils/branch-access.util'
+import { getAccessibleCompanyIds, getWriteScope } from '../../../utils/branch-access.util'
 import type {
   createAccountingPurposeSchema,
   updateAccountingPurposeSchema,
@@ -17,14 +17,6 @@ import type {
 } from './accounting-purposes.schema'
 
 export class AccountingPurposesController {
-  private getCompanyId(req: Request): string {
-    const companyId = req.context?.company_id
-    if (!companyId) {
-      throw AccountingPurposeErrors.VALIDATION_ERROR('company_id', 'Branch context required - no company access')
-    }
-    return companyId
-  }
-
   async list(req: Request, res: Response) {
     try {
       const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
@@ -76,7 +68,7 @@ export class AccountingPurposesController {
   async create(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createAccountingPurposeSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const { companyId } = await getWriteScope(req)
 
       const createData = {
         ...body,
@@ -178,7 +170,7 @@ export class AccountingPurposesController {
 
   async importData(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const { companyId } = await getWriteScope(req)
       return handleImport(
         req, res,
         (buffer, skip) => accountingPurposesService.importFromExcel(buffer, skip, companyId, req.user!.id)

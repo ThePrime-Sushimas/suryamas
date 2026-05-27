@@ -6,12 +6,12 @@ import type { Department, DepartmentWithCount, CreateDepartmentDto, UpdateDepart
 
 class DepartmentsService {
 
-  async list(companyId: string): Promise<DepartmentWithCount[]> {
-    return departmentsRepository.findAll(companyId)
+  async list(companyIds: string[]): Promise<DepartmentWithCount[]> {
+    return departmentsRepository.findAll(companyIds)
   }
 
-  async getById(id: string, companyId: string): Promise<Department> {
-    const dept = await departmentsRepository.findById(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<Department> {
+    const dept = await departmentsRepository.findByIdAccessible(id, companyIds)
     if (!dept) throw new DepartmentNotFoundError(id)
     return dept
   }
@@ -27,26 +27,26 @@ class DepartmentsService {
     }
   }
 
-  async update(id: string, companyId: string, dto: UpdateDepartmentDto): Promise<Department> {
-    const existing = await departmentsRepository.findById(id, companyId)
-    if (!existing) throw new DepartmentNotFoundError(id)
+  async update(id: string, companyId: string, dto: UpdateDepartmentDto, existing?: Department): Promise<Department> {
+    const record = existing ?? await departmentsRepository.findById(id, companyId)
+    if (!record) throw new DepartmentNotFoundError(id)
 
     const updated = await departmentsRepository.update(id, companyId, dto)
     if (!updated) throw new DepartmentNotFoundError(id)
 
-    await AuditService.log('UPDATE', 'department', id, dto.updated_by || '', existing, updated)
+    await AuditService.log('UPDATE', 'department', id, dto.updated_by || '', record, updated)
     return updated
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const existing = await departmentsRepository.findById(id, companyId)
-    if (!existing) throw new DepartmentNotFoundError(id)
+  async delete(id: string, companyId: string, userId: string, existing?: Department): Promise<void> {
+    const record = existing ?? await departmentsRepository.findById(id, companyId)
+    if (!record) throw new DepartmentNotFoundError(id)
 
     const hasChildren = await departmentsRepository.hasChildren(id)
     if (hasChildren) throw new DepartmentInUseError()
 
     await departmentsRepository.softDelete(id, companyId, userId)
-    await AuditService.log('DELETE', 'department', id, userId, existing)
+    await AuditService.log('DELETE', 'department', id, userId, record)
   }
 }
 

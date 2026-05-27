@@ -3,6 +3,7 @@ import { theoreticalConsumptionService } from './theoretical-consumption.service
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
+import { getBranchReadScope, getReadScope, requireBranchAccess } from '../../../utils/branch-access.util'
 import type { theoreticalConsumptionQuerySchema } from './theoretical-consumption.schema'
 
 type QueryReq = ValidatedAuthRequest<typeof theoreticalConsumptionQuerySchema>
@@ -51,8 +52,17 @@ export class TheoreticalConsumptionController {
   getCostTrend = async (req: Request, res: Response) => {
     try {
       const { query } = (req as QueryReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const result = await theoreticalConsumptionService.getCostTrend(companyId, query)
+      let companyIds: string[]
+
+      if (query.branch_id) {
+        const scope = await getBranchReadScope(req)
+        companyIds = scope.companyIds
+        requireBranchAccess(query.branch_id, scope.branchIds)
+      } else {
+        ({ companyIds } = await getReadScope(req))
+      }
+
+      const result = await theoreticalConsumptionService.getCostTrend(companyIds, query)
       sendSuccess(res, result, 'Cost trend retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_cost_trend' })

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Building2, Loader2, ChevronDown, Search, CheckCircle, Banknote, CreditCard, X } from 'lucide-react'
 import { bankAccountsApi } from '../../../bank-accounts/api/bankAccounts.api'
-import { useBranchContextStore } from '../../../branch_context'
 
 interface BankAccount {
   id: number
@@ -30,33 +29,24 @@ export function BankAccountSelect({
   const [search, setSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  
-  const currentBranch = useBranchContextStore((state) => state.currentBranch)
-  const companyId = currentBranch?.company_id
 
   const fetchBankAccounts = useCallback(async () => {
-    if (!companyId) {
-      setBankAccounts([])
-      return
-    }
-
     setLoading(true)
     try {
-      const accounts = await bankAccountsApi.getByOwner('company', companyId)
+      const accounts = await bankAccountsApi.list()
       setBankAccounts(accounts || [])
     } catch {
-      // Error handled silently - UI will show empty state
       setBankAccounts([])
     } finally {
       setLoading(false)
     }
-  }, [companyId])
+  }, [])
 
   useEffect(() => {
-    if (isOpen && companyId) {
+    if (isOpen) {
       fetchBankAccounts()
     }
-  }, [isOpen, companyId, fetchBankAccounts])
+  }, [isOpen, fetchBankAccounts])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -109,7 +99,7 @@ export function BankAccountSelect({
         <button
           type="button"
           onClick={handleToggleDropdown}
-          disabled={disabled || !companyId}
+          disabled={disabled}
           className={`
             w-full flex items-center justify-between px-4 py-3.5 rounded-xl border text-left
             transition-all duration-200 outline-none cursor-pointer
@@ -214,19 +204,7 @@ export function BankAccountSelect({
 
               {/* Options */}
               <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 p-1.5">
-                {!companyId ? (
-                  <div className="p-8 text-center">
-                    <div className="inline-flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full mb-3">
-                      <Building2 className="w-6 h-6 text-amber-500" />
-                    </div>
-                    <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
-                      Company belum dipilih
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Silakan pilih branch terlebih dahulu
-                    </p>
-                  </div>
-                ) : loading ? (
+                {loading ? (
                   <div className="p-8 text-center">
                     <div className="relative inline-block">
                       <div className="w-10 h-10 border-3 border-blue-100 dark:border-blue-900/30 rounded-full animate-spin" />
@@ -318,7 +296,7 @@ export function BankAccountSelect({
               </div>
 
               {/* Footer dengan Stats */}
-              {companyId && bankAccounts.length > 0 && !loading && (
+              {bankAccounts.length > 0 && !loading && (
                 <div className="px-4 py-3 bg-gray-50/80 dark:bg-gray-700/30 border-t border-gray-100 dark:border-gray-700/50">
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -359,18 +337,11 @@ export function BankAccountSelectSimple({
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [loading, setLoading] = useState(false)
   
-  const currentBranch = useBranchContextStore((s) => s.currentBranch)
-  const companyId = currentBranch?.company_id
-
   useEffect(() => {
     const fetchAccounts = async () => {
-      if (!companyId) {
-        setBankAccounts([])
-        return
-      }
       setLoading(true)
       try {
-        const accounts = await bankAccountsApi.getByOwner('company', companyId)
+        const accounts = await bankAccountsApi.list()
         setBankAccounts(accounts || [])
       } catch {
         setBankAccounts([])
@@ -379,7 +350,7 @@ export function BankAccountSelectSimple({
       }
     }
     fetchAccounts()
-  }, [companyId])
+  }, [])
 
   if (loading) {
     return (
@@ -394,7 +365,7 @@ export function BankAccountSelectSimple({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      disabled={disabled || !companyId}
+      disabled={disabled}
       className="select select-bordered w-full"
     >
       <option value="">-- Pilih Akun Bank --</option>

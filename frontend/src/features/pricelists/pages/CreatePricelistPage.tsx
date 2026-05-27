@@ -45,15 +45,26 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
   const navigate = useNavigate()
   const toast = useToast()
 
-  // Branch context
+  // Branch context — write default from header; user can pick company
   const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const branches = useBranchContextStore(s => s.branches)
+
+  const companyOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const b of branches) {
+      if (b.company_id) map.set(b.company_id, b.company_name || b.branch_name || b.company_id)
+    }
+    return Array.from(map, ([id, name]) => ({ id, name }))
+  }, [branches])
+
+  const writeCompanyId = currentBranch?.company_id || companyOptions[0]?.id || ''
 
   // React Query mutation
   const createPL = useCreatePricelist()
 
   // Form state
   const [formData, setFormData] = useState<CreatePricelistDto>({
-    company_id: currentBranch?.company_id || '',
+    company_id: writeCompanyId,
     supplier_id: '',
     product_id: '',
     uom_id: '',
@@ -78,12 +89,12 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
   // UOM search hook
   const uomSearch = useUomSearch(formData.product_id)
 
-  // Update company_id when branch changes
+  // Sync write company when header branch or options change
   useEffect(() => {
-    if (currentBranch?.company_id) {
-      setFormData(prev => ({ ...prev, company_id: currentBranch.company_id }))
+    if (writeCompanyId) {
+      setFormData(prev => ({ ...prev, company_id: writeCompanyId }))
     }
-  }, [currentBranch?.company_id])
+  }, [writeCompanyId])
 
   // Fetch suppliers
   useEffect(() => {
@@ -203,6 +214,10 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
   // Form submission
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!formData.company_id) {
+      toast.error('Pilih cabang di header untuk menentukan perusahaan')
+      return
+    }
     
     // Mark all fields as touched
     const allTouched = Object.keys(formData).reduce((acc, key) => {
@@ -237,24 +252,6 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
     navigate('/pricelists')
   }, [navigate])
 
-  // Branch context validation
-  if (!currentBranch?.company_id) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Branch Required</h2>
-          <p className="text-yellow-600 dark:text-yellow-400 mb-4">Please select a valid branch to continue</p>
-          <button
-            onClick={() => navigate('/')}
-            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-          >
-            Select Branch
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   const isFormDisabled = createPL.isPending
 
   return (
@@ -284,6 +281,25 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
       {/* Form */}
       <div className="max-w-4xl">
         <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-6" noValidate>
+          {companyOptions.length > 1 && (
+            <div>
+              <label htmlFor="company_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Perusahaan
+              </label>
+              <select
+                id="company_id"
+                name="company_id"
+                value={formData.company_id}
+                onChange={handleChange}
+                disabled={isFormDisabled}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                {companyOptions.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {/* Supplier Selection */}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Supplier Selection</h3>

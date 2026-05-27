@@ -322,9 +322,10 @@ export class TheoreticalConsumptionRepository {
    * Cost Trend: monthly COGS % over time.
    * Uses period_start/period_end from query params.
    */
-  async getCostTrend(companyId: string, periodStart: string, periodEnd: string, branchPosId?: number): Promise<CostTrendItem[]> {
+  async getCostTrend(companyIds: string[], periodStart: string, periodEnd: string, branchPosId?: number): Promise<CostTrendItem[]> {
+    if (!companyIds.length) return []
     const branchFilter = branchPosId != null ? 'AND sh.branch_id = $4' : ''
-    const params: unknown[] = [companyId, periodStart, periodEnd]
+    const params: unknown[] = [companyIds, periodStart, periodEnd]
     if (branchPosId != null) params.push(branchPosId)
 
     const { rows } = await pool.query(
@@ -340,7 +341,7 @@ export class TheoreticalConsumptionRepository {
       FROM tr_salesmenu sm
       JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
       LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id
-        AND m.company_id = $1 AND m.deleted_at IS NULL
+        AND m.company_id = ANY($1::uuid[]) AND m.deleted_at IS NULL
       WHERE sm.status_id = 13
         AND sh.sales_date BETWEEN $2 AND $3
         ${branchFilter}

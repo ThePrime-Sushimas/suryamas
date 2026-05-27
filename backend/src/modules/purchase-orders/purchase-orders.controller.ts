@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import { purchaseOrdersService } from './purchase-orders.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { getAccessibleBranchIds, getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
+import { getAccessibleBranchIds, getCompanyIdForBranch, getWriteScope, requireBranchAccess } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type {
   createPurchaseOrderSchema, updatePurchaseOrderSchema, purchaseOrderIdSchema, cancelSchema,
@@ -28,7 +28,10 @@ export class PurchaseOrdersController {
       const filter: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string } = {}
       if (req.query.status) filter.status = req.query.status as string
       if (req.query.supplier_id) filter.supplier_id = req.query.supplier_id as string
-      if (req.query.branch_id) filter.branch_id = req.query.branch_id as string
+      if (req.query.branch_id) {
+        filter.branch_id = req.query.branch_id as string
+        requireBranchAccess(filter.branch_id, branchIds)
+      }
       if (req.query.date_from) filter.date_from = req.query.date_from as string
       if (req.query.date_to) filter.date_to = req.query.date_to as string
 
@@ -68,8 +71,9 @@ export class PurchaseOrdersController {
   create = async (req: Request, res: Response) => {
     try {
       const { body } = (req as CreateReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await getWriteScope(req)
+      const branchIds = await getAccessibleBranchIds(userId)
+      requireBranchAccess(body.branch_id, branchIds)
       const po = await purchaseOrdersService.create(companyId, body, userId)
       sendSuccess(res, po, 'Purchase order created', 201)
     } catch (error: unknown) {
@@ -183,6 +187,8 @@ export class PurchaseOrdersController {
         res.status(400).json({ success: false, message: 'supplier_id and branch_id required' })
         return
       }
+
+      requireBranchAccess(branch_id, branchIds)
 
       const result = await purchaseOrdersService.checkDuplicates(branchIds, supplier_id, branch_id, total_amount)
       sendSuccess(res, result, 'Duplicate check completed')
