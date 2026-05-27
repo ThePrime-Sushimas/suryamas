@@ -297,6 +297,6 @@ export const useBalanceSheetHealth = (asOfDate?: string) =>
         difference: Number(summary?.total_asset ?? 0) - Number(summary?.total_liability_equity ?? 0),
       }
     },
-    enabled: !!companyId,
+    enabled: true,
     staleTime: 5 * 60_000,
   })

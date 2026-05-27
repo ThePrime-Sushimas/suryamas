@@ -24,8 +24,9 @@ export interface TrialBalanceRow {
 }
 
 export interface TrialBalanceParams {
-  companyId: string
+  companyIds: string[]
   dateFrom: string
   dateTo: string
-  branchIds?: string[]
+  branchFilterIds: string[]
+  groupByBranch: boolean
 }

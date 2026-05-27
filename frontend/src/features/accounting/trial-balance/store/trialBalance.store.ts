@@ -20,7 +20,6 @@ interface TrialBalanceFilterState {
 
 export const useTrialBalanceStore = create<TrialBalanceFilterState>((set) => ({
   filter: {
-    company_id: '',
     date_from: firstDay,
     date_to: lastDay,
     branch_ids: [],

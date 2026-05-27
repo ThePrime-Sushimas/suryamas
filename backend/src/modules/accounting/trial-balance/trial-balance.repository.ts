@@ -5,14 +5,9 @@ import { TrialBalanceRow, TrialBalanceParams } from './trial-balance.types'
 export class TrialBalanceRepository {
   async getTrialBalance(params: TrialBalanceParams): Promise<TrialBalanceRow[]> {
     try {
-      const values: any[] = [params.companyId, params.dateFrom, params.dateTo]
-      const hasBranch = params.branchIds && params.branchIds.length > 0
-
-      let branchFilter = ''
-      if (hasBranch) {
-        values.push(params.branchIds)
-        branchFilter = `AND glv.branch_id = ANY($${values.length}::uuid[])`
-      }
+      const values: any[] = [params.companyIds, params.dateFrom, params.dateTo, params.branchFilterIds]
+      const hasBranch = params.groupByBranch
+      const branchFilter = `AND glv.branch_id = ANY($4::uuid[])`
 
       const branchCol = hasBranch ? 'glv.branch_id' : 'NULL::uuid AS branch_id'
       const groupCols = hasBranch ? 'account_id, branch_id' : 'account_id'
@@ -31,8 +26,8 @@ export class TrialBalanceRepository {
             glv.debit_amount, glv.credit_amount, glv.source_module
           FROM general_ledger_view glv
           JOIN chart_of_accounts coa_check ON coa_check.id = glv.account_id
-          WHERE glv.company_id = $1::uuid
-            AND coa_check.company_id = $1::uuid
+          WHERE glv.company_id = ANY($1::uuid[])
+            AND coa_check.company_id = ANY($1::uuid[])
             ${branchFilter}
         ),
         opening AS (

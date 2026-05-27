@@ -35,6 +35,6 @@ export const useTrialBalance = (filter: TrialBalanceFilter, enabled: boolean, fe
         other_credit: Number(row.other_credit ?? 0),
       })) as TrialBalanceRow[]
     },
-    enabled: enabled && !!filter.company_id && !!filter.date_from && !!filter.date_to,
+    enabled: enabled && !!filter.date_from && !!filter.date_to,
     staleTime: 60_000,
   })

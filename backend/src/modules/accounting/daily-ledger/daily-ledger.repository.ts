@@ -6,20 +6,18 @@ export class DailyLedgerRepository {
    * Get daily movements grouped by account + date
    */
   async getDailyMovements(
-    companyId: string,
+    companyIds: string[],
     dateFrom: string,
     dateTo: string,
-    branchIds?: string[],
+    branchIds: string[],
   ): Promise<DailyLedgerMovement[]> {
-    const conditions = ['glv.company_id = $1', 'glv.journal_date >= $2::date', 'glv.journal_date <= $3::date']
-    const params: unknown[] = [companyId, dateFrom, dateTo]
-    let idx = 4
-
-    if (branchIds && branchIds.length > 0) {
-      conditions.push(`glv.branch_id = ANY($${idx}::uuid[])`)
-      params.push(branchIds)
-      idx++
-    }
+    const conditions = [
+      'glv.company_id = ANY($1::uuid[])',
+      'glv.journal_date >= $2::date',
+      'glv.journal_date <= $3::date',
+      'glv.branch_id = ANY($4::uuid[])',
+    ]
+    const params: unknown[] = [companyIds, dateFrom, dateTo, branchIds]
 
     const { rows } = await pool.query(
       `SELECT
@@ -60,19 +58,16 @@ export class DailyLedgerRepository {
    * Get opening balance (all movements before date_from)
    */
   async getOpeningBalances(
-    companyId: string,
+    companyIds: string[],
     dateFrom: string,
-    branchIds?: string[],
+    branchIds: string[],
   ): Promise<DailyLedgerOpening[]> {
-    const conditions = ['glv.company_id = $1', 'glv.journal_date < $2::date']
-    const params: unknown[] = [companyId, dateFrom]
-    let idx = 3
-
-    if (branchIds && branchIds.length > 0) {
-      conditions.push(`glv.branch_id = ANY($${idx}::uuid[])`)
-      params.push(branchIds)
-      idx++
-    }
+    const conditions = [
+      'glv.company_id = ANY($1::uuid[])',
+      'glv.journal_date < $2::date',
+      'glv.branch_id = ANY($3::uuid[])',
+    ]
+    const params: unknown[] = [companyIds, dateFrom, branchIds]
 
     const { rows } = await pool.query(
       `SELECT

@@ -85,22 +85,13 @@ function exportCsv(rows: TrialBalanceRow[], dateFrom: string, dateTo: string) {
 }
 
 export default function TrialBalancePage() {
-  const { branches, currentBranch } = useBranchContextStore()
+  const { branches } = useBranchContextStore()
   const { filter, setFilter } = useTrialBalanceStore()
   const [fetchKey, setFetchKey] = useState(0)
   const [sourceView, setSourceView] = useState<SourceView>('combined')
   const [isStale, setIsStale] = useState(false)
 
-  const companyId = currentBranch?.company_id ?? ''
-  const companyBranches = useMemo(
-    () => branches.filter(b => b.company_id === companyId),
-    [branches, companyId]
-  )
-
-  const activeFilter = useMemo(
-    () => ({ ...filter, company_id: companyId }),
-    [filter, companyId]
-  )
+  const activeFilter = useMemo(() => ({ ...filter }), [filter])
 
   const [appliedFilter, setAppliedFilter] = useState(activeFilter)
 
@@ -195,7 +186,7 @@ export default function TrialBalancePage() {
             Branch {filter.branch_ids.length > 0 ? `(${filter.branch_ids.length} selected)` : '(All)'}
           </label>
           <div className="flex flex-wrap gap-2">
-            {companyBranches.map(b => {
+            {branches.map(b => {
               const selected = filter.branch_ids.includes(b.branch_id)
               return (
                 <button key={b.branch_id} onClick={() => toggleBranch(b.branch_id)}

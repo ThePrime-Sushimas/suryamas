@@ -76,9 +76,7 @@ function getLocalMonth(): { first: string; last: string } {
 }
 
 export default function DailyLedgerPage() {
-  const { branches, currentBranch } = useBranchContextStore()
-  const companyId = currentBranch?.company_id ?? ''
-  const companyBranches = useMemo(() => branches.filter(b => b.company_id === companyId), [branches, companyId])
+  const { branches } = useBranchContextStore()
 
   const { first, last } = useMemo(() => getLocalMonth(), [])
   const [dateFrom, setDateFrom] = useState(first)
@@ -253,7 +251,7 @@ export default function DailyLedgerPage() {
 
         {/* Branch filter */}
         <div className="flex flex-wrap gap-1.5">
-          {companyBranches.map(b => (
+          {branches.map(b => (
             <button key={b.branch_id} onClick={() => toggleBranch(b.branch_id)}
               className={`px-2.5 py-1 rounded-md text-[10px] font-medium border transition-colors ${
                 branchIds.includes(b.branch_id)

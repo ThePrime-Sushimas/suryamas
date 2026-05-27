@@ -5,10 +5,11 @@ import { logInfo } from '../../../config/logger'
 export class TrialBalanceService {
   async getTrialBalance(params: TrialBalanceParams): Promise<TrialBalanceRow[]> {
     logInfo('Fetching trial balance', {
-      company_id: params.companyId,
+      company_ids: params.companyIds,
       date_from: params.dateFrom,
       date_to: params.dateTo,
-      branch_count: params.branchIds?.length ?? 0,
+      group_by_branch: params.groupByBranch,
+      branch_filter_count: params.branchFilterIds.length,
     })
 
     const rows = await trialBalanceRepository.getTrialBalance(params)

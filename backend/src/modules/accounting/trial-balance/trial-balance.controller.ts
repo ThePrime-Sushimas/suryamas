@@ -4,25 +4,37 @@ import { trialBalanceService } from './trial-balance.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import type { trialBalanceQuerySchema } from './trial-balance.schema'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, requireBranchAccess } from '../../../utils/branch-access.util'
 
 export class TrialBalanceController {
   async get(req: Request, res: Response) {
     try {
-      const companyId = req.context?.company_id
-      if (!companyId) throw new Error('Branch context required - no company access')
+      const userId = req.user?.id ?? ''
+      const [companyIds, accessibleBranchIds] = await Promise.all([
+        getAccessibleCompanyIds(userId),
+        getAccessibleBranchIds(userId),
+      ])
 
       const { query } = (req as ValidatedAuthRequest<typeof trialBalanceQuerySchema>).validated
       const { date_from, date_to, branch_ids } = query
 
-      const branchIds = branch_ids
-        ? branch_ids.split(',').map(s => s.trim()).filter(Boolean)
-        : undefined
+      let branchFilterIds: string[]
+      let groupByBranch: boolean
+      if (branch_ids) {
+        branchFilterIds = branch_ids.split(',').map(s => s.trim()).filter(Boolean)
+        for (const id of branchFilterIds) requireBranchAccess(id, accessibleBranchIds)
+        groupByBranch = branchFilterIds.length > 0
+      } else {
+        branchFilterIds = accessibleBranchIds
+        groupByBranch = false
+      }
 
       const rows = await trialBalanceService.getTrialBalance({
-        companyId,
+        companyIds,
         dateFrom: date_from,
         dateTo: date_to,
-        branchIds,
+        branchFilterIds,
+        groupByBranch,
       })
 
       sendSuccess(res, rows, 'Trial balance retrieved', 200)
