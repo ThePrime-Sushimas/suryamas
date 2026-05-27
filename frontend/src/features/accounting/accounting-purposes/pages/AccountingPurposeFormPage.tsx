@@ -26,12 +26,12 @@ export const AccountingPurposeFormPage = ({
   const { createPurpose, updatePurpose, loading, error, clearError } = useAccountingPurposesStore()
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  if (!currentBranch?.company_id) {
+  if (!isEdit && !currentBranch?.company_id) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Belum Ada Perusahaan</h2>
-          <p className="text-gray-600 dark:text-gray-400">Silakan pilih cabang untuk melanjutkan.</p>
+          <p className="text-gray-600 dark:text-gray-400">Pilih cabang di header untuk membuat purpose baru.</p>
         </div>
       </div>
     )

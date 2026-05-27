@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useBranchContext } from '@/features/branch_context'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useChartOfAccountsStore } from '../store/chartOfAccounts.store'
 import { ChartOfAccountForm } from '../components/ChartOfAccountForm'
 import { useToast } from '@/contexts/ToastContext'
@@ -28,7 +29,12 @@ export default function CreateChartOfAccountPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const currentBranch = useBranchContext()
+  const branches = useBranchContextStore(s => s.branches)
   const { tree, loading, createAccount, fetchTree } = useChartOfAccountsStore()
+  const companyId =
+    currentBranch?.company_id ||
+    branches.find(b => b.company_id)?.company_id ||
+    ''
   const { success, error } = useToast()
   
   const [parentAccounts, setParentAccounts] = useState<ChartOfAccount[]>([])
@@ -38,11 +44,10 @@ export default function CreateChartOfAccountPage() {
   const parentId = searchParams.get('parent')
 
   useEffect(() => {
-    // Load tree data for parent selection
-    if (currentBranch?.company_id) {
-      fetchTree()
+    if (companyId) {
+      fetchTree(undefined, { company_id: companyId })
     }
-  }, [currentBranch?.company_id, fetchTree])
+  }, [companyId, fetchTree])
 
   useEffect(() => {
     // Convert tree to flat array for parent selection

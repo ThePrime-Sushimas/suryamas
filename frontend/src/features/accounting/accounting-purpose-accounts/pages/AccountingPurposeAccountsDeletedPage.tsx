@@ -5,15 +5,12 @@ import { AccountingPurposeAccountFilters } from '../components/AccountingPurpose
 import { Pagination } from '@/components/ui/Pagination'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
-import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
 import type { AccountingPurposeAccountFilter, AccountingPurposeAccountWithDetails } from '../types/accounting-purpose-account.types'
 import { DEFAULT_PAGE_SIZE } from '../constants/accounting-purpose-account.constants'
 
 export const AccountingPurposeAccountsDeletedPage = () => {
   const navigate = useNavigate()
   const { success, error } = useToast()
-  const branchContext = useBranchContext()
-  
   const {
     deletedAccounts,
     loading,
@@ -32,10 +29,8 @@ export const AccountingPurposeAccountsDeletedPage = () => {
   const [accountToRestore, setAccountToRestore] = useState<AccountingPurposeAccountWithDetails | null>(null)
 
   useEffect(() => {
-    if (branchContext?.company_id) {
-      fetchDeletedAccounts(1, DEFAULT_PAGE_SIZE, sort, filter)
-    }
-  }, [branchContext?.company_id, fetchDeletedAccounts, sort, filter])
+    fetchDeletedAccounts(1, DEFAULT_PAGE_SIZE, sort, filter)
+  }, [fetchDeletedAccounts, sort, filter])
 
   useEffect(() => {
     if (storeError) {

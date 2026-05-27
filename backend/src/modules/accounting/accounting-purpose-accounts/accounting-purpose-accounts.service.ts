@@ -13,8 +13,14 @@ import { logInfo, logError } from '../../../config/logger'
 export class AccountingPurposeAccountsService {
   constructor(private repository: AccountingPurposeAccountsRepository = accountingPurposeAccountsRepository) {}
 
-  async list(companyId: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: Record<string, unknown>): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
-    const { data, total } = await this.repository.findAll(companyId, pagination, sort, filter as Parameters<typeof this.repository.findAll>[3])
+  private assertAccessibleCompany(recordCompanyId: string, accessibleCompanyIds: string[]): void {
+    if (!accessibleCompanyIds.includes(recordCompanyId)) {
+      throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(recordCompanyId)
+    }
+  }
+
+  async list(companyIds: string[], pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: Record<string, unknown>): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
+    const { data, total } = await this.repository.findAll(companyIds, pagination, sort, filter as Parameters<typeof this.repository.findAll>[3])
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
@@ -39,19 +45,19 @@ export class AccountingPurposeAccountsService {
     return purposeAccount
   }
 
-  async getById(id: string, companyId?: string): Promise<AccountingPurposeAccount> {
+  async getById(id: string, accessibleCompanyIds: string[]): Promise<AccountingPurposeAccount> {
     const pa = await this.repository.findById(id)
     if (!pa) throw AccountingPurposeAccountErrors.NOT_FOUND(id)
-    if (companyId && pa.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    this.assertAccessibleCompany(pa.company_id, accessibleCompanyIds)
     return pa
   }
 
-  async update(id: string, data: UpdateAccountingPurposeAccountDTO, userId: string, companyId?: string): Promise<AccountingPurposeAccount> {
+  async update(id: string, data: UpdateAccountingPurposeAccountDTO, userId: string, accessibleCompanyIds: string[]): Promise<AccountingPurposeAccount> {
     logInfo('Updating purpose account mapping', { id, user: userId })
 
     const existing = await this.repository.findById(id)
     if (!existing) throw AccountingPurposeAccountErrors.NOT_FOUND(id)
-    if (companyId && existing.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    this.assertAccessibleCompany(existing.company_id, accessibleCompanyIds)
 
     if (data.side && data.side !== existing.side) {
       const account = await this.repository.findCoaAccountById(existing.account_id)
@@ -65,10 +71,10 @@ export class AccountingPurposeAccountsService {
     return purposeAccount
   }
 
-  async delete(id: string, userId: string, companyId?: string): Promise<void> {
+  async delete(id: string, userId: string, accessibleCompanyIds: string[]): Promise<void> {
     const pa = await this.repository.findById(id)
     if (!pa) throw AccountingPurposeAccountErrors.NOT_FOUND(id)
-    if (companyId && pa.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    this.assertAccessibleCompany(pa.company_id, accessibleCompanyIds)
 
     await this.repository.delete(id, userId)
     await AuditService.log('DELETE', 'accounting_purpose_account', id, userId, pa, null)
@@ -96,32 +102,28 @@ export class AccountingPurposeAccountsService {
     return result
   }
 
-  async bulkRemove(data: BulkRemoveAccountingPurposeAccountDTO, userId: string, companyId?: string): Promise<void> {
+  async bulkRemove(data: BulkRemoveAccountingPurposeAccountDTO, userId: string, accessibleCompanyIds: string[]): Promise<void> {
     logInfo('Bulk removing purpose account mappings', { purpose_id: data.purpose_id, count: data.account_ids.length })
 
-    if (companyId) {
-      const purposeExists = await this.repository.purposeExists(data.purpose_id, companyId)
-      if (!purposeExists) throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(data.purpose_id)
-    }
+    const purposeExists = await this.repository.purposeExistsInCompanies(data.purpose_id, accessibleCompanyIds)
+    if (!purposeExists) throw AccountingPurposeAccountErrors.PURPOSE_NOT_FOUND(data.purpose_id)
 
     await this.repository.bulkRemove(data.purpose_id, data.account_ids, userId)
     await AuditService.log('BULK_REMOVE', 'accounting_purpose_account', data.purpose_id, userId, null, { count: data.account_ids.length })
   }
 
-  async bulkUpdateStatus(ids: string[], isActive: boolean, userId: string, companyId?: string): Promise<void> {
-    if (companyId) {
-      for (const id of ids) {
-        const pa = await this.repository.findById(id)
-        if (pa && pa.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
-      }
+  async bulkUpdateStatus(ids: string[], isActive: boolean, userId: string, accessibleCompanyIds: string[]): Promise<void> {
+    for (const id of ids) {
+      const pa = await this.repository.findById(id)
+      if (pa) this.assertAccessibleCompany(pa.company_id, accessibleCompanyIds)
     }
 
     await this.repository.bulkUpdateStatus(ids, isActive)
     await AuditService.log('BULK_UPDATE_STATUS', 'accounting_purpose_account', ids.join(','), userId, null, { is_active: isActive })
   }
 
-  async exportToExcel(companyId: string, filter?: Record<string, unknown>): Promise<Buffer> {
-    const data = await this.repository.exportData(companyId, filter as Parameters<typeof this.repository.exportData>[1], AccountingPurposeAccountsConfig.EXPORT.MAX_ROWS)
+  async exportToExcel(companyIds: string[], filter?: Record<string, unknown>): Promise<Buffer> {
+    const data = await this.repository.exportData(companyIds, filter as Parameters<typeof this.repository.exportData>[1], AccountingPurposeAccountsConfig.EXPORT.MAX_ROWS)
     const columns = [
       { header: 'Purpose Code', key: 'purpose_code', width: 15 },
       { header: 'Purpose Name', key: 'purpose_name', width: 30 },
@@ -136,15 +138,15 @@ export class AccountingPurposeAccountsService {
     return await ExportService.generateExcel(data, columns)
   }
 
-  async listDeleted(companyId: string, pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: Record<string, unknown>): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
-    const { data, total } = await this.repository.findDeleted(companyId, pagination, sort, filter as Parameters<typeof this.repository.findDeleted>[3])
+  async listDeleted(companyIds: string[], pagination: { page: number; limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: Record<string, unknown>): Promise<PaginatedResponse<AccountingPurposeAccountWithDetails>> {
+    const { data, total } = await this.repository.findDeleted(companyIds, pagination, sort, filter as Parameters<typeof this.repository.findDeleted>[3])
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
-  async restore(id: string, userId: string, companyId?: string): Promise<void> {
+  async restore(id: string, userId: string, accessibleCompanyIds: string[]): Promise<void> {
     const pa = await this.repository.findById(id)
     if (!pa) throw AccountingPurposeAccountErrors.NOT_FOUND(id)
-    if (companyId && pa.company_id !== companyId) throw AccountingPurposeAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    this.assertAccessibleCompany(pa.company_id, accessibleCompanyIds)
     if (!pa.deleted_at) throw new Error('This record has not been deleted and cannot be restored')
 
     await this.repository.restore(id, userId)

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBranchContext } from '@/features/branch_context'
-import { useCompaniesStore } from '@/features/companies'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useChartOfAccountsStore } from '../store/chartOfAccounts.store'
 import { ChartOfAccountTable } from '../components/ChartOfAccountTable'
 import { ChartOfAccountTree } from '../components/ChartOfAccountTree'
@@ -61,7 +61,7 @@ const filterTree = (tree: ChartOfAccountTreeNode[], searchTerm: string): ChartOf
 export default function ChartOfAccountsPage() {
   const navigate = useNavigate()
   const currentBranch = useBranchContext()
-  const { companies, fetchPage } = useCompaniesStore()
+  const branches = useBranchContextStore(s => s.branches)
   const { 
     tree, 
     loading, 
@@ -103,15 +103,27 @@ export default function ChartOfAccountsPage() {
     variant: 'danger'
   })
   
-  // Use company from branch context only
-  const selectedCompanyId = currentBranch?.company_id || ''
-  
-  // Get company name from companies store
-  const currentCompany = useMemo(() => {
-    return companies.find(c => c.id === selectedCompanyId)
-  }, [companies, selectedCompanyId])
-  
-  const companyName = currentCompany?.company_name || currentBranch?.branch_name || 'Loading...'
+  const companyOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const b of branches) {
+      if (b.company_id) {
+        map.set(b.company_id, b.company_name || b.branch_name || b.company_id)
+      }
+    }
+    return Array.from(map, ([id, name]) => ({ id, name }))
+  }, [branches])
+
+  const [selectedCompanyId, setSelectedCompanyId] = useState('')
+
+  useEffect(() => {
+    if (selectedCompanyId) return
+    const defaultId = currentBranch?.company_id && companyOptions.some(c => c.id === currentBranch.company_id)
+      ? currentBranch.company_id
+      : companyOptions[0]?.id
+    if (defaultId) setSelectedCompanyId(defaultId)
+  }, [companyOptions, currentBranch?.company_id, selectedCompanyId])
+
+  const companyName = companyOptions.find(c => c.id === selectedCompanyId)?.name || 'Pilih perusahaan'
 
   const { error: showError, success } = useToast()
   const debouncedSearch = useDebounce(search, 500)
@@ -120,17 +132,8 @@ export default function ChartOfAccountsPage() {
 
   const loadData = useCallback(() => {
     if (!selectedCompanyId) return
-    return fetchTree()
+    return fetchTree(undefined, { company_id: selectedCompanyId })
   }, [selectedCompanyId, fetchTree])
-
-
-
-  useEffect(() => {
-    // Only fetch if companies list is empty
-    if (companies.length === 0) {
-      fetchPage(1, 100) // Load companies to get company name
-    }
-  }, [fetchPage, companies.length])
 
   useEffect(() => {
     return () => {
@@ -250,11 +253,25 @@ export default function ChartOfAccountsPage() {
             <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Daftar Akun</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                <span className="font-medium">{companyName}</span>
-                <span className="mx-2">•</span>
-                {viewMode === 'tree' ? `${tree.length} akun induk` : `${debouncedSearch ? filterTree(tree, debouncedSearch).length : flattenTree(tree).length} akun`}
-              </p>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                {companyOptions.length > 1 ? (
+                  <select
+                    value={selectedCompanyId}
+                    onChange={e => setSelectedCompanyId(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm font-medium text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  >
+                    {companyOptions.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="font-medium">{companyName}</span>
+                )}
+                <span>•</span>
+                <span>
+                  {viewMode === 'tree' ? `${tree.length} akun induk` : `${debouncedSearch ? filterTree(tree, debouncedSearch).length : flattenTree(tree).length} akun`}
+                </span>
+              </div>
             </div>
           </div>
           

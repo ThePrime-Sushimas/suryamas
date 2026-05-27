@@ -7,14 +7,11 @@ import { Pagination } from '@/components/ui/Pagination'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import ExportButton from '@/components/ExportButton'
 import { useToast } from '@/contexts/ToastContext'
-import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
 import type { AccountingPurposeAccountFilter, AccountingPurposeAccountWithDetails } from '../types/accounting-purpose-account.types'
 
 export const AccountingPurposeAccountsListPage = () => {
   const navigate = useNavigate()
   const { success, error } = useToast()
-  const branchContext = useBranchContext()
-  
   const {
     accounts,
     loading,
@@ -40,15 +37,11 @@ export const AccountingPurposeAccountsListPage = () => {
   const [bulkActionIds, setBulkActionIds] = useState<string[]>([])
   const [bulkActionType, setBulkActionType] = useState<'activate' | 'deactivate' | 'delete'>('delete')
 
-  // Reload data when company changes
   useEffect(() => {
-    if (branchContext?.company_id) {
-      fetchPostableAccounts()
-      fetchActivePurposes()
-      // Fetch all data for buku besar pembantu view (no pagination limit)
-      fetchAccounts(1, 1000, sort, filter)
-    }
-  }, [branchContext?.company_id, fetchPostableAccounts, fetchActivePurposes, fetchAccounts, sort, filter])
+    fetchPostableAccounts()
+    fetchActivePurposes()
+    fetchAccounts(1, 1000, sort, filter)
+  }, [fetchPostableAccounts, fetchActivePurposes, fetchAccounts, sort, filter])
 
   useEffect(() => {
     if (storeError) {

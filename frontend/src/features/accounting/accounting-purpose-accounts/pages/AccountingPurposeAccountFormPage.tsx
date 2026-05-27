@@ -3,15 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAccountingPurposeAccountsStore } from '../store/accountingPurposeAccounts.store'
 import { AccountingPurposeAccountForm } from '../components/AccountingPurposeAccountForm'
 import { useToast } from '@/contexts/ToastContext'
-import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
 import type { CreateAccountingPurposeAccountDto, UpdateAccountingPurposeAccountDto } from '../types/accounting-purpose-account.types'
 
 export const AccountingPurposeAccountFormPage = () => {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { success, error } = useToast()
-  const branchContext = useBranchContext()
-  
   const {
     selectedAccount,
     postableAccounts,
@@ -28,20 +25,17 @@ export const AccountingPurposeAccountFormPage = () => {
 
   const isEdit = Boolean(id)
 
-  // Reload data when company changes
   useEffect(() => {
-    if (branchContext?.company_id) {
-      fetchPostableAccounts()
-      fetchActivePurposes()
-      
-      if (isEdit && id) {
-        getAccountById(id).catch(() => {
-          error('Account mapping not found')
-          navigate('/accounting-purpose-accounts')
-        })
-      }
+    fetchPostableAccounts()
+    fetchActivePurposes()
+
+    if (isEdit && id) {
+      getAccountById(id).catch(() => {
+        error('Account mapping not found')
+        navigate('/accounting-purpose-accounts')
+      })
     }
-  }, [branchContext?.company_id, id, isEdit, fetchPostableAccounts, fetchActivePurposes, getAccountById, error, navigate])
+  }, [id, isEdit, fetchPostableAccounts, fetchActivePurposes, getAccountById, error, navigate])
 
   useEffect(() => {
     if (storeError) {

@@ -29,9 +29,9 @@ export class AccountingPurposeAccountsRepository {
   private setCache<T>(key: string, data: T, ttl = this.CACHE_TTL): void { this.cache.set(key, { data, timestamp: Date.now(), ttl }) }
   private invalidateCache(): void { this.cache.clear() }
 
-  private buildConditions(companyId: string, filter?: FilterParams, deleted = false) {
-    const conditions: string[] = ['apa.company_id = $1']
-    const params: (string | boolean)[] = [companyId]
+  private buildConditions(companyIds: string[], filter?: FilterParams, deleted = false) {
+    const conditions: string[] = ['apa.company_id = ANY($1::uuid[])']
+    const params: unknown[] = [companyIds]
     let idx = 2
 
     if (deleted) conditions.push('apa.deleted_at IS NOT NULL')
@@ -46,8 +46,8 @@ export class AccountingPurposeAccountsRepository {
     return { where: `WHERE ${conditions.join(' AND ')}`, params, idx }
   }
 
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: FilterParams): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
-    const { where, params, idx } = this.buildConditions(companyId, filter)
+  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: FilterParams): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
+    const { where, params, idx } = this.buildConditions(companyIds, filter)
     const sortField = sort?.field && VALID_SORT_FIELDS.includes(sort.field) ? `apa.${sort.field}` : 'apa.priority'
     const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
     const extraOrder = sortField === 'apa.priority' ? ', apa.side ASC' : ''
@@ -60,8 +60,8 @@ export class AccountingPurposeAccountsRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async findDeleted(companyId: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: FilterParams): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
-    const { where, params, idx } = this.buildConditions(companyId, filter, true)
+  async findDeleted(companyIds: string[], pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: FilterParams): Promise<{ data: AccountingPurposeAccountWithDetails[]; total: number }> {
+    const { where, params, idx } = this.buildConditions(companyIds, filter, true)
     const validDeletedSort = ['deleted_at', 'priority', 'side', 'created_at']
     const sortField = sort?.field && validDeletedSort.includes(sort.field) ? `apa.${sort.field}` : 'apa.deleted_at'
     const sortOrder = sort?.order === 'asc' ? 'ASC' : 'DESC'
@@ -168,8 +168,8 @@ export class AccountingPurposeAccountsRepository {
     this.invalidateCache()
   }
 
-  async exportData(companyId: string, filter?: FilterParams, limit = 10000): Promise<AccountingPurposeAccountWithDetails[]> {
-    const { where, params } = this.buildConditions(companyId, filter)
+  async exportData(companyIds: string[], filter?: FilterParams, limit = 10000): Promise<AccountingPurposeAccountWithDetails[]> {
+    const { where, params } = this.buildConditions(companyIds, filter)
     const { rows } = await pool.query(
       `SELECT ${DETAIL_SELECT} ${DETAIL_FROM} ${where} ORDER BY apa.priority ASC LIMIT $${params.length + 1}`,
       [...params, limit]
@@ -199,6 +199,14 @@ export class AccountingPurposeAccountsRepository {
     const { rows } = await pool.query(
       "SELECT COUNT(*)::int AS cnt FROM accounting_purposes WHERE id = $1 AND company_id = $2 AND (is_deleted IS NULL OR is_deleted = false)",
       [purposeId, companyId]
+    )
+    return rows[0].cnt > 0
+  }
+
+  async purposeExistsInCompanies(purposeId: string, companyIds: string[]): Promise<boolean> {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM accounting_purposes WHERE id = $1 AND company_id = ANY($2::uuid[]) AND (is_deleted IS NULL OR is_deleted = false)`,
+      [purposeId, companyIds]
     )
     return rows[0].cnt > 0
   }

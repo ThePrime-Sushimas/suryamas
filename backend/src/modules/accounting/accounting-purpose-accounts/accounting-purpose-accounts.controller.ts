@@ -6,6 +6,7 @@ import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
+import { getAccessibleCompanyIds } from '../../../utils/branch-access.util'
 import type {
   createAccountingPurposeAccountSchema,
   updateAccountingPurposeAccountSchema,
@@ -23,7 +24,7 @@ export class AccountingPurposeAccountsController {
 
   async list(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       const { offset } = getPaginationParams(req.query)
 
       if (req.pagination!.limit > 1000) {
@@ -31,7 +32,7 @@ export class AccountingPurposeAccountsController {
       }
 
       const result = await accountingPurposeAccountsService.list(
-        companyId, { ...req.pagination!, offset }, req.sort, req.filterParams
+        companyIds, { ...req.pagination!, offset }, req.sort, req.filterParams
       )
       sendSuccess(res, result.data, 'Purpose account mappings retrieved', 200, result.pagination)
     } catch (error: unknown) {
@@ -53,8 +54,8 @@ export class AccountingPurposeAccountsController {
 
   async getById(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
-      const purposeAccount = await accountingPurposeAccountsService.getById(req.params.id as string, companyId)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const purposeAccount = await accountingPurposeAccountsService.getById(req.params.id as string, companyIds)
       sendSuccess(res, purposeAccount)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_purpose_account' })
@@ -64,9 +65,9 @@ export class AccountingPurposeAccountsController {
   async update(req: Request, res: Response) {
     try {
       const { body, params } = (req as ValidatedAuthRequest<typeof updateAccountingPurposeAccountSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
 
-      const purposeAccount = await accountingPurposeAccountsService.update(params.id, body, req.user!.id, companyId)
+      const purposeAccount = await accountingPurposeAccountsService.update(params.id, body, req.user!.id, companyIds)
 
       logInfo('Purpose account mapping updated', { id: params.id, user: req.user!.id })
       sendSuccess(res, purposeAccount, 'Purpose account mapping updated')
@@ -77,8 +78,8 @@ export class AccountingPurposeAccountsController {
 
   async delete(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
-      await accountingPurposeAccountsService.delete(req.params.id as string, req.user!.id, companyId)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      await accountingPurposeAccountsService.delete(req.params.id as string, req.user!.id, companyIds)
 
       logInfo('Purpose account mapping deleted', { id: req.params.id, user: req.user!.id })
       sendSuccess(res, null, 'Purpose account mapping deleted')
@@ -102,9 +103,9 @@ export class AccountingPurposeAccountsController {
   async bulkRemove(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof bulkRemoveAccountingPurposeAccountSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
 
-      await accountingPurposeAccountsService.bulkRemove(body, req.user!.id, companyId)
+      await accountingPurposeAccountsService.bulkRemove(body, req.user!.id, companyIds)
       sendSuccess(res, null, 'Bulk remove completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_remove_purpose_accounts' })
@@ -114,13 +115,13 @@ export class AccountingPurposeAccountsController {
   async bulkUpdateStatus(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
 
       if (body.ids.length > 100) {
         throw new Error('Cannot update more than 100 records at once')
       }
 
-      await accountingPurposeAccountsService.bulkUpdateStatus(body.ids, body.is_active, req.user!.id, companyId)
+      await accountingPurposeAccountsService.bulkUpdateStatus(body.ids, body.is_active, req.user!.id, companyIds)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_update_status_purpose_accounts' })
@@ -133,10 +134,10 @@ export class AccountingPurposeAccountsController {
 
   async exportData(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       return handleExport(
         req, res,
-        (filter) => accountingPurposeAccountsService.exportToExcel(companyId, filter),
+        (filter) => accountingPurposeAccountsService.exportToExcel(companyIds, filter),
         'accounting-purpose-accounts'
       )
     } catch (error: unknown) {
@@ -146,11 +147,11 @@ export class AccountingPurposeAccountsController {
 
   async listDeleted(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       const { offset } = getPaginationParams(req.query)
 
       const result = await accountingPurposeAccountsService.listDeleted(
-        companyId, { ...req.pagination!, offset }, req.sort, req.filterParams
+        companyIds, { ...req.pagination!, offset }, req.sort, req.filterParams
       )
       sendSuccess(res, result.data, 'Deleted purpose account mappings retrieved', 200, result.pagination)
     } catch (error: unknown) {
@@ -160,8 +161,8 @@ export class AccountingPurposeAccountsController {
 
   async restore(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
-      await accountingPurposeAccountsService.restore(req.params.id as string, req.user!.id, companyId)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      await accountingPurposeAccountsService.restore(req.params.id as string, req.user!.id, companyIds)
 
       logInfo('Purpose account mapping restored', { id: req.params.id, user: req.user!.id })
       sendSuccess(res, null, 'Purpose account mapping restored')

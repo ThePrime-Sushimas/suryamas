@@ -31,20 +31,11 @@ export const AccountingPurposesPage = () => {
     }
   }, [id])
 
-  if (!currentBranch?.company_id) {
-    return (
-      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Company Selected</h2>
-            <p className="text-gray-600 dark:text-gray-400">Please select a branch to continue.</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const handleCreateNew = () => {
+    if (!currentBranch?.company_id) {
+      toast.error('Pilih cabang di header untuk membuat purpose baru')
+      return
+    }
     setSelectedPurposeId(null)
     setSelectedPurpose(null)
     setCurrentView('create')

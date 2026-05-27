@@ -36,6 +36,7 @@ export type UpdateChartOfAccountDto = Partial<
 >
 
 export interface ChartOfAccountFilter {
+  company_id?: string
   account_type?: AccountType
   account_subtype?: string
   is_header?: boolean
