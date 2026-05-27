@@ -35,6 +35,14 @@ export class MarketplacePoRepository {
     }
   }
 
+  async getBankAccountCompanyId(bankAccountId: number): Promise<string | null> {
+    const { rows } = await pool.query(
+      `SELECT owner_id AS company_id FROM bank_accounts WHERE id = $1 AND deleted_at IS NULL`,
+      [bankAccountId],
+    )
+    return (rows[0]?.company_id as string) ?? null
+  }
+
   async findCompanySettlementBankAccount(companyId: string, bankAccountId: number): Promise<boolean> {
     const { rows } = await pool.query(
       `SELECT id FROM bank_accounts
@@ -185,7 +193,7 @@ export class MarketplacePoRepository {
     )
   }
 
-  async findSettlementSummary(companyId: string): Promise<{
+  async findSettlementSummary(companyIds: string[]): Promise<{
     total_pending: number
     total_this_month: number
     history: unknown[]
@@ -193,8 +201,8 @@ export class MarketplacePoRepository {
     const { rows: pendingRows } = await pool.query(
       `SELECT COALESCE(SUM(total_amount), 0)::numeric AS total
        FROM marketplace_checkout_sessions
-       WHERE company_id = $1 AND status = 'RECEIVED' AND deleted_at IS NULL`,
-      [companyId],
+       WHERE company_id = ANY($1::uuid[]) AND status = 'RECEIVED' AND deleted_at IS NULL`,
+      [companyIds],
     )
     const totalPending = Number(pendingRows[0]?.total ?? 0)
 
@@ -206,9 +214,9 @@ export class MarketplacePoRepository {
       `SELECT COALESCE(SUM(ms.amount), 0)::numeric AS total
        FROM marketplace_settlements ms
        JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
-       WHERE mcs.company_id = $1
+       WHERE mcs.company_id = ANY($1::uuid[])
          AND ms.settled_date >= $2::date`,
-      [companyId, firstDayOfMonth.toISOString().slice(0, 10)],
+      [companyIds, firstDayOfMonth.toISOString().slice(0, 10)],
     )
     const totalThisMonth = Number(thisMonthRows[0]?.total ?? 0)
 
@@ -217,10 +225,10 @@ export class MarketplacePoRepository {
        FROM marketplace_settlements ms
        JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
        JOIN bank_accounts ba ON ba.id = ms.bank_account_id
-       WHERE mcs.company_id = $1
+       WHERE mcs.company_id = ANY($1::uuid[])
        ORDER BY ms.settled_date DESC
        LIMIT 100`,
-      [companyId],
+      [companyIds],
     )
 
     return {
@@ -231,14 +239,14 @@ export class MarketplacePoRepository {
   }
 
   async listUnreconciledBankStatements(
-    companyId: string,
+    companyIds: string[],
     bankAccountId: number,
     filter: { date_from?: string; date_to?: string } = {},
   ) {
-    const params: unknown[] = [companyId, bankAccountId]
+    const params: unknown[] = [companyIds, bankAccountId]
     let idx = 3
     const conditions = [
-      'company_id = $1',
+      'company_id = ANY($1::uuid[])',
       'bank_account_id = $2',
       'is_reconciled = false',
       'journal_id IS NULL',
@@ -397,9 +405,9 @@ export class MarketplacePoRepository {
     return rows as OwnerCreditCardWithSettlement[]
   }
 
-  async listOwnerCreditCards(companyId: string, filter?: { is_active?: boolean }): Promise<OwnerCreditCardWithSettlement[]> {
-    const params: unknown[] = [companyId]
-    let sql = `SELECT ${OWNER_CC_SELECT} ${OWNER_CC_FROM} WHERE occ.company_id = $1`
+  async listOwnerCreditCards(companyIds: string[], filter?: { is_active?: boolean }): Promise<OwnerCreditCardWithSettlement[]> {
+    const params: unknown[] = [companyIds]
+    let sql = `SELECT ${OWNER_CC_SELECT} ${OWNER_CC_FROM} WHERE occ.company_id = ANY($1::uuid[])`
     if (filter?.is_active !== undefined) {
       params.push(filter.is_active)
       sql += ` AND occ.is_active = $2`
@@ -647,14 +655,14 @@ export class MarketplacePoRepository {
     // Return sibling journal ids (untuk di-delete oleh caller)
     return allJournalIds
   }
-  async findSessionDetail(id: string, companyId: string) {
+  async findSessionDetail(id: string, companyIds: string[]) {
     const headerRes = await pool.query(
       `SELECT mcs.*, o.card_label, o.coa_code, o.bank_name, o.last4,
               o.settlement_bank_account_id AS cc_settlement_bank_account_id
        FROM marketplace_checkout_sessions mcs
        JOIN owner_credit_cards o ON o.id = mcs.cc_id
-       WHERE mcs.id = $1 AND mcs.company_id = $2 AND mcs.deleted_at IS NULL`,
-      [id, companyId],
+       WHERE mcs.id = $1 AND mcs.company_id = ANY($2::uuid[]) AND mcs.deleted_at IS NULL`,
+      [id, companyIds],
     )
     if (!headerRes.rows[0]) return null
 

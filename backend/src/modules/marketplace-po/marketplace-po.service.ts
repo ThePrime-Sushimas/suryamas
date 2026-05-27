@@ -14,8 +14,17 @@
     OwnerCreditCardWithSettlement,
     UpdateOwnerCreditCardDto,
   } from './marketplace-po.types'
+  import { requireBranchAccess, requireCompanyAccess, getCompanyIdForBranch } from '../../utils/branch-access.util'
 
   export class MarketplacePoService {
+    private async requireSessionDetail(id: string, companyIds: string[], branchIds: string[]) {
+      const detail = await marketplacePoRepository.findSessionDetail(id, companyIds)
+      if (!detail) throw new BusinessRuleError('Marketplace session not found')
+      for (const line of detail.lines ?? []) {
+        if (line.branch_id) requireBranchAccess(line.branch_id, branchIds)
+      }
+      return detail
+    }
     /** After session cancel COMMIT — journal cleanup is best-effort (see log on failure). */
     private async cleanupOrderedJournalAfterCancel(
       sessionId: string,
@@ -74,16 +83,15 @@
       return marketplacePoRepository.listSessions(companyIds, filter, { limit: pagination.limit, offset })
     }
 
-    async getSessionDetail(id: string, companyId: string) {
-      const detail = await marketplacePoRepository.findSessionDetail(id, companyId)
-      return detail
+    async getSessionDetail(id: string, companyIds: string[], branchIds: string[]) {
+      return this.requireSessionDetail(id, companyIds, branchIds)
     }
 
     async listOwnerCreditCards(
-      companyId: string,
+      companyIds: string[],
       filter: { is_active?: boolean } = {},
     ): Promise<OwnerCreditCardWithSettlement[]> {
-      return marketplacePoRepository.listOwnerCreditCards(companyId, filter)
+      return marketplacePoRepository.listOwnerCreditCards(companyIds, filter)
     }
 
     private async assertSettlementBankAccount(
@@ -103,9 +111,11 @@
 
     async createOwnerCreditCard(
       companyId: string,
+      companyIds: string[],
       userId: string,
       dto: CreateOwnerCreditCardDto,
     ): Promise<OwnerCreditCardWithSettlement> {
+      requireCompanyAccess(companyId, companyIds)
       return marketplacePoRepository.withTransaction(async (client) => {
         if (dto.coa_code) {
           const coa = await chartOfAccountsRepository.findByCode(companyId, dto.coa_code)
@@ -129,10 +139,12 @@
 
     async updateOwnerCreditCard(
       companyId: string,
+      companyIds: string[],
       userId: string,
       id: string,
       dto: UpdateOwnerCreditCardDto,
     ): Promise<OwnerCreditCardWithSettlement> {
+      requireCompanyAccess(companyId, companyIds)
       return marketplacePoRepository.withTransaction(async (client) => {
         if (dto.coa_code) {
           const coa = await chartOfAccountsRepository.findByCode(companyId, dto.coa_code)
@@ -155,7 +167,8 @@
       })
     }
 
-    async deleteOwnerCreditCard(companyId: string, userId: string, id: string) {
+    async deleteOwnerCreditCard(companyId: string, companyIds: string[], userId: string, id: string) {
+      requireCompanyAccess(companyId, companyIds)
       return marketplacePoRepository.withTransaction(async (client) => {
         const deleted = await marketplacePoRepository.softDeleteOwnerCreditCard(client, id, companyId, userId)
         if (!deleted) throw new BusinessRuleError('Owner credit card not found')
@@ -163,13 +176,19 @@
       })
     }
 
-    async createSession(companyId: string, userId: string, dto: any) {
+    async createSession(companyIds: string[], branchIds: string[], userId: string, dto: any) {
+      const lines = dto.lines
+      if (!Array.isArray(lines) || lines.length === 0) throw new BusinessRuleError('At least 1 line is required')
+      for (const l of lines) {
+        requireBranchAccess(l.branch_id, branchIds)
+      }
+      const companyId = await getCompanyIdForBranch(lines[0].branch_id)
+      if (!companyId) throw new BusinessRuleError('Branch not found')
+      requireCompanyAccess(companyId, companyIds)
+
       const session = await marketplacePoRepository.withTransaction(async (client) => {
         const sessionNumber = await marketplacePoRepository.generateSessionNumber(client, companyId, dto.platform)
         if (!sessionNumber) throw new BusinessRuleError('Failed to generate session number')
-
-        const lines = dto.lines
-        if (!Array.isArray(lines) || lines.length === 0) throw new BusinessRuleError('At least 1 line is required')
 
         const totalAmount = lines.reduce((sum: number, l: any) => sum + Number(l.unit_price_netto) * Number(l.qty), 0)
 
@@ -195,12 +214,14 @@
         })
       })
 
-      const fullDetail = await marketplacePoRepository.findSessionDetail(session.id, companyId)
+      const fullDetail = await marketplacePoRepository.findSessionDetail(session.id, companyIds)
       await AuditService.log('CREATE', 'marketplace_checkout_session', session.id, userId, undefined, fullDetail ?? session)
       return session
     }
 
-    async updateSessionHeader(companyId: string, userId: string, id: string, dto: any) {
+    async updateSessionHeader(companyIds: string[], branchIds: string[], userId: string, id: string, dto: any) {
+      const { header } = await this.requireSessionDetail(id, companyIds, branchIds)
+      const companyId = header.company_id as string
       return marketplacePoRepository.withTransaction(async (client) => {
         const updated = await marketplacePoRepository.updateSessionHeader(client, id, companyId, userId, {
           platform: dto.platform,
@@ -213,7 +234,9 @@
       })
     }
 
-    async cancelSession(companyId: string, userId: string, id: string) {
+    async cancelSession(companyIds: string[], branchIds: string[], userId: string, id: string) {
+      const { header } = await this.requireSessionDetail(id, companyIds, branchIds)
+      const companyId = header.company_id as string
       return marketplacePoRepository.withTransaction(async (client) => {
         const cancelled = await marketplacePoRepository.cancelSession(client, id, companyId, userId)
         if (!cancelled) throw new BusinessRuleError('Session not found or not in DRAFT')
@@ -221,7 +244,9 @@
       })
     }
 
-    async orderSession(companyId: string, userId: string, id: string, dto: any) {
+    async orderSession(companyIds: string[], branchIds: string[], userId: string, id: string, dto: any) {
+      const { header } = await this.requireSessionDetail(id, companyIds, branchIds)
+      const companyId = header.company_id as string
       const { session, ccCoaCode } = await marketplacePoRepository.withTransaction(async (client) => {
         const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!locked) throw new BusinessRuleError('Marketplace session not found')
@@ -305,10 +330,12 @@
         throw e
       }
 
-      return marketplacePoRepository.findSessionDetail(id, companyId)
+      return marketplacePoRepository.findSessionDetail(id, companyIds)
     }
 
-    async shipSession(companyId: string, userId: string, id: string, dto: any) {
+    async shipSession(companyIds: string[], branchIds: string[], userId: string, id: string, dto: any) {
+      const { header } = await this.requireSessionDetail(id, companyIds, branchIds)
+      const companyId = header.company_id as string
       await marketplacePoRepository.withTransaction(async (client) => {
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
@@ -392,15 +419,18 @@
         await marketplacePoRepository.markSessionShipped(client, id, companyId, userId, firstGrId)
       })
 
-      return marketplacePoRepository.findSessionDetail(id, companyId)
+      return marketplacePoRepository.findSessionDetail(id, companyIds)
     }
 
     async cancelOrderedSession(
-      companyId: string,
+      companyIds: string[],
+      branchIds: string[],
       userId: string,
       id: string,
       dto: CancelSessionDto,
     ) {
+      const { header } = await this.requireSessionDetail(id, companyIds, branchIds)
+      const companyId = header.company_id as string
       const journalOrderedId = await marketplacePoRepository.withTransaction(async (client) => {
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
@@ -420,15 +450,18 @@
         { status: 'ORDERED', journal_ordered_id: journalOrderedId },
         { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
       )
-      return marketplacePoRepository.findSessionDetail(id, companyId)
+      return marketplacePoRepository.findSessionDetail(id, companyIds)
     }
     
     async cancelShippedSession(
-      companyId: string,
+      companyIds: string[],
+      branchIds: string[],
       userId: string,
       id: string,
       dto: CancelSessionDto,
     ) {
+      const { header } = await this.requireSessionDetail(id, companyIds, branchIds)
+      const companyId = header.company_id as string
       const journalOrderedId = await marketplacePoRepository.withTransaction(async (client) => {
         const session = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
         if (!session) throw new BusinessRuleError('Marketplace session not found')
@@ -448,17 +481,18 @@
         { status: 'SHIPPED', journal_ordered_id: journalOrderedId },
         { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
       )
-      return marketplacePoRepository.findSessionDetail(id, companyId)
+      return marketplacePoRepository.findSessionDetail(id, companyIds)
     }
 
     async postReceiveJournal(
-      companyId: string,
+      companyIds: string[],
+      branchIds: string[],
       userId: string,
       id: string,
       dto: { journal_date?: string },
     ) {
-      const detail = await marketplacePoRepository.findSessionDetail(id, companyId)
-      if (!detail?.header) throw new BusinessRuleError('Marketplace session not found')
+      const detail = await this.requireSessionDetail(id, companyIds, branchIds)
+      const companyId = detail.header.company_id as string
       const session = detail.header
       if (session.status !== 'RECEIVED') throw new BusinessRuleError('Session harus RECEIVED untuk post journal')
       if (session.journal_received_id) throw new BusinessRuleError('Journal receive sudah pernah di-post')
@@ -530,16 +564,19 @@
         { journal_received_id: null },
         { journal_received_id: journalId },
       )
-      return marketplacePoRepository.findSessionDetail(id, companyId)
+      return marketplacePoRepository.findSessionDetail(id, companyIds)
     }
 
     async uploadAttachment(
-      companyId: string,
+      companyIds: string[],
+      branchIds: string[],
       userId: string,
       sessionId: string,
       file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
       fileType: string,
     ) {
+      const { header } = await this.requireSessionDetail(sessionId, companyIds, branchIds)
+      const companyId = header.company_id as string
       const session = await marketplacePoRepository.getSessionStatus(sessionId, companyId)
       if (!session) throw new BusinessRuleError('Marketplace session not found')
       if (!['DRAFT', 'ORDERED'].includes(session.status)) {
@@ -572,9 +609,10 @@
       )
     }
 
-    async deleteAttachment(companyId: string, sessionId: string, attachmentId: string) {
+    async deleteAttachment(companyIds: string[], branchIds: string[], sessionId: string, attachmentId: string) {
+      await this.requireSessionDetail(sessionId, companyIds, branchIds)
       const attachment = await marketplacePoRepository.findAttachment(sessionId, attachmentId)
-      if (!attachment || attachment.company_id !== companyId) {
+      if (!attachment || !companyIds.includes(attachment.company_id)) {
         throw new BusinessRuleError('Attachment not found')
       }
       if (!['DRAFT', 'ORDERED'].includes(attachment.session_status)) {
@@ -585,9 +623,9 @@
       if (!deleted) throw new BusinessRuleError('Attachment not found')
     }
 
-    async settleSession(companyId: string, userId: string, id: string, dto: any) {
-      const detail = await marketplacePoRepository.findSessionDetail(id, companyId)
-      if (!detail?.header) throw new BusinessRuleError('Marketplace session not found')
+    async settleSession(companyIds: string[], branchIds: string[], userId: string, id: string, dto: any) {
+      const detail = await this.requireSessionDetail(id, companyIds, branchIds)
+      const companyId = detail.header.company_id as string
       const session = detail.header
       if (session.status !== 'RECEIVED') throw new BusinessRuleError('Session must be RECEIVED to SETTLED')
       if (session.journal_settled_id) throw new BusinessRuleError('Session sudah di-settle')
@@ -680,26 +718,34 @@
         throw e
       }
 
-      return marketplacePoRepository.findSessionDetail(id, companyId)
+      return marketplacePoRepository.findSessionDetail(id, companyIds)
     }
 
-    async getSettlementSummary(companyId: string) {
-      return marketplacePoRepository.findSettlementSummary(companyId)
+    async getSettlementSummary(companyIds: string[]) {
+      return marketplacePoRepository.findSettlementSummary(companyIds)
     }
 
     async listUnreconciledStatements(
-      companyId: string,
+      companyIds: string[],
       bankAccountId: number,
       filter: { date_from?: string; date_to?: string } = {},
     ) {
-      return marketplacePoRepository.listUnreconciledBankStatements(companyId, bankAccountId, filter)
+      const bankCompanyId = await marketplacePoRepository.getBankAccountCompanyId(bankAccountId)
+      if (!bankCompanyId) throw new BusinessRuleError('Bank account not found')
+      requireCompanyAccess(bankCompanyId, companyIds)
+      return marketplacePoRepository.listUnreconciledBankStatements(companyIds, bankAccountId, filter)
     }
 
     async createBulkSettlement(
-      companyId: string,
+      companyIds: string[],
+      branchIds: string[],
       userId: string,
       dto: any,
     ): Promise<{ settled_count: number; journal_ids: string[] }> {
+      for (const sessionId of dto.session_ids as string[]) {
+        await this.requireSessionDetail(sessionId, companyIds, branchIds)
+      }
+      const companyId = (await this.requireSessionDetail(dto.session_ids[0], companyIds, branchIds)).header.company_id as string
       const bulkId = randomUUID()
       const sessions = await marketplacePoRepository.findReceivedSessionsForBulkSettlement(
         companyId,

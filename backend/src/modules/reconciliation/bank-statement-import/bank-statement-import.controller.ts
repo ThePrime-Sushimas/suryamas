@@ -68,7 +68,7 @@ export class BankStatementImportController {
       const result = await this.service.analyzeFile(
         fileResult,
         body.bank_account_id,
-        companyId,
+        companyIds,
         userId
       )
 
@@ -339,7 +339,7 @@ export class BankStatementImportController {
       const result = await this.service.createManualEntry(
         body.bank_account_id,
         { transaction_date: body.transaction_date, description: body.description, debit_amount: body.debit_amount, credit_amount: body.credit_amount, reference_number: body.reference_number, balance: body.balance },
-        companyId,
+        companyIds,
         userId,
       )
 
@@ -361,7 +361,7 @@ export class BankStatementImportController {
       const result = await this.service.createManualBulkEntries(
         body.bank_account_id,
         body.entries,
-        companyId,
+        companyIds,
         userId,
       )
 
@@ -383,7 +383,7 @@ export class BankStatementImportController {
       const statementId = parseInt(params.id, 10)
       const { companyId, companyIds, userId } = await bankImportScope(req)
 
-      await this.service.hardDeleteStatement(statementId, companyId, userId)
+      await this.service.hardDeleteStatement(statementId, companyIds, userId)
 
       sendSuccess(res, null, 'Statement berhasil dihapus permanen', 200)
     } catch (error: unknown) {
@@ -400,7 +400,7 @@ export class BankStatementImportController {
       const { body } = (req as ValidatedAuthRequest<typeof hardDeleteBulkStatementsSchema>).validated
       const { companyId, companyIds, userId } = await bankImportScope(req)
 
-      const result = await this.service.hardDeleteStatements(body.ids, companyId, userId)
+      const result = await this.service.hardDeleteStatements(body.ids, companyIds, userId)
 
       sendSuccess(res, result, `${result.deleted} statement berhasil dihapus permanen`, 200)
     } catch (error: unknown) {

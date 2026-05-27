@@ -10,6 +10,7 @@ import {
 } from './cash-counts.errors'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 import { AuditService } from '../monitoring/monitoring.service'
+import { requireCompanyAccess } from '../../utils/branch-access.util'
 
 export class CashCountsService {
   private assertBranchNameAccess(branchName: string | null | undefined, accessibleBranchNames: string[]): void {
@@ -68,9 +69,10 @@ export class CashCountsService {
   }
 
   // ── Update physical count (OPEN → COUNTED) ──
-  async updatePhysicalCount(id: string, dto: UpdatePhysicalCountDto, userId?: string): Promise<CashCountWithRelations> {
+  async updatePhysicalCount(id: string, dto: UpdatePhysicalCountDto, accessibleBranchNames: string[], userId?: string): Promise<CashCountWithRelations> {
     const existing = await cashCountsRepository.findById(id)
     if (!existing) throw new CashCountNotFoundError(id)
+    this.assertBranchNameAccess(existing.branch_name, accessibleBranchNames)
     if (existing.status !== 'OPEN' && existing.status !== 'COUNTED') {
       throw new CashCountInvalidStatusError(existing.status, 'OPEN atau COUNTED')
     }
@@ -101,7 +103,8 @@ export class CashCountsService {
   }
 
   // ── Create deposit (COUNTED → DEPOSITED) ──
-  async createDeposit(dto: CreateDepositDto, companyId: string, userId?: string): Promise<CashDepositWithRelations> {
+  async createDeposit(dto: CreateDepositDto, companyId: string, companyIds: string[], accessibleBranchNames: string[], userId?: string): Promise<CashDepositWithRelations> {
+    requireCompanyAccess(companyId, companyIds)
     // Validate all cash counts (batch fetch instead of N individual queries)
     const allCashCounts = await cashCountsRepository.findByIds(dto.cash_count_ids)
     const cashCountMap = new Map(allCashCounts.map((cc) => [cc.id, cc]))
@@ -109,6 +112,8 @@ export class CashCountsService {
     for (let i = 0; i < cashCounts.length; i++) {
       const cc = cashCounts[i]
       if (!cc) throw new CashCountNotFoundError(dto.cash_count_ids[i])
+      this.assertBranchNameAccess(cc.branch_name, accessibleBranchNames)
+      requireCompanyAccess(cc.company_id, companyIds)
       if (cc.status !== 'COUNTED') throw new CashCountInvalidStatusError(cc.status, 'COUNTED')
       if (cc.cash_deposit_id) throw new CashCountOperationError('deposit', `Cash count ${cc.id} sudah ada deposit`)
     }
@@ -167,9 +172,11 @@ export class CashCountsService {
   }
 
   // ── Confirm deposit (PENDING → DEPOSITED) ──
-  async confirmDeposit(id: string, dto: ConfirmDepositDto, userId?: string): Promise<CashDepositWithRelations> {
+  async confirmDeposit(id: string, dto: ConfirmDepositDto, companyIds: string[], accessibleBranchNames: string[], userId?: string): Promise<CashDepositWithRelations> {
     const dep = await cashCountsRepository.findDepositById(id)
     if (!dep) throw new CashCountNotFoundError(id)
+    requireCompanyAccess(dep.company_id, companyIds)
+    this.assertBranchNameAccess(dep.branch_name, accessibleBranchNames)
     if (dep.status !== 'PENDING') throw new CashCountOperationError('confirm_deposit', `Deposit status ${dep.status}, harus PENDING`)
 
     const depositedAt = dto.deposited_at || new Date().toISOString()
@@ -185,9 +192,11 @@ export class CashCountsService {
   }
 
   // ── Revert deposit (DEPOSITED → PENDING) ──
-  async revertDeposit(id: string, userId?: string): Promise<void> {
+  async revertDeposit(id: string, companyIds: string[], accessibleBranchNames: string[], userId?: string): Promise<void> {
     const dep = await cashCountsRepository.findDepositById(id)
     if (!dep) throw new CashCountNotFoundError(id)
+    requireCompanyAccess(dep.company_id, companyIds)
+    this.assertBranchNameAccess(dep.branch_name, accessibleBranchNames)
     if (dep.status !== 'DEPOSITED') throw new CashCountOperationError('revert_deposit', `Deposit status ${dep.status}, harus DEPOSITED`)
 
     await cashCountsRepository.revertDepositToPending(id)
@@ -201,9 +210,10 @@ export class CashCountsService {
   }
 
   // ── Close (DEPOSITED → CLOSED) ──
-  async close(id: string, userId?: string): Promise<CashCountWithRelations> {
+  async close(id: string, accessibleBranchNames: string[], userId?: string): Promise<CashCountWithRelations> {
     const existing = await cashCountsRepository.findById(id)
     if (!existing) throw new CashCountNotFoundError(id)
+    this.assertBranchNameAccess(existing.branch_name, accessibleBranchNames)
     if (existing.status !== 'DEPOSITED') throw new CashCountInvalidStatusError(existing.status, 'DEPOSITED')
 
     await cashCountsRepository.close(id, userId)
@@ -227,18 +237,21 @@ export class CashCountsService {
   }
 
   // ── Delete (only OPEN) ──
-  async delete(id: string, userId?: string): Promise<void> {
+  async delete(id: string, accessibleBranchNames: string[], userId?: string): Promise<void> {
     const existing = await cashCountsRepository.findById(id)
     if (!existing) throw new CashCountNotFoundError(id)
+    this.assertBranchNameAccess(existing.branch_name, accessibleBranchNames)
     if (existing.status !== 'OPEN') throw new CashCountInvalidStatusError(existing.status, 'OPEN')
     await cashCountsRepository.softDelete(id)
     if (userId) await AuditService.log('DELETE', 'cash_count', id, userId, existing, null)
   }
 
   // ── Deposit CRUD ──
-  async getDeposit(id: string): Promise<CashDepositWithRelations> {
+  async getDeposit(id: string, companyIds: string[], accessibleBranchNames: string[]): Promise<CashDepositWithRelations> {
     const dep = await cashCountsRepository.findDepositById(id)
     if (!dep) throw new CashCountNotFoundError(id)
+    requireCompanyAccess(dep.company_id, companyIds)
+    this.assertBranchNameAccess(dep.branch_name, accessibleBranchNames)
     return dep
   }
 
@@ -260,9 +273,11 @@ export class CashCountsService {
     return { data: mapped, pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasNext: page * limit < total, hasPrev: page > 1 } }
   }
 
-  async deleteDeposit(id: string, userId?: string): Promise<void> {
+  async deleteDeposit(id: string, companyIds: string[], accessibleBranchNames: string[], userId?: string): Promise<void> {
     const dep = await cashCountsRepository.findDepositById(id)
     if (!dep) throw new CashCountNotFoundError(id)
+    requireCompanyAccess(dep.company_id, companyIds)
+    this.assertBranchNameAccess(dep.branch_name, accessibleBranchNames)
     if (dep.status === 'RECONCILED') throw new CashCountOperationError('delete_deposit', 'Deposit sudah reconciled')
     await cashCountsRepository.deleteDeposit(id)
     if (userId) await AuditService.log('DELETE', 'cash_deposit', id, userId, dep, null)

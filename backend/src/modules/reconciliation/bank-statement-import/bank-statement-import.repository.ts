@@ -1258,6 +1258,35 @@ export class BankStatementImportRepository {
     }
   }
 
+  async getBankAccountCompanyId(bankAccountId: number): Promise<string | null> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT owner_id AS company_id FROM bank_accounts WHERE id = $1 AND deleted_at IS NULL",
+        [bankAccountId],
+      );
+      return (rows[0]?.company_id as string) ?? null;
+    } catch (error: any) {
+      logError("getBankAccountCompanyId error", { bankAccountId, error: error.message });
+      return null;
+    }
+  }
+
+  async findStatementByIdInCompanies(
+    id: number,
+    companyIds: string[],
+  ): Promise<BankStatement | null> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM bank_statements WHERE id = $1 AND company_id = ANY($2::uuid[]) AND deleted_at IS NULL",
+        [id, companyIds],
+      );
+      return (rows[0] as BankStatement) || null;
+    } catch (error: any) {
+      logError("findStatementByIdInCompanies error", { id, error: error.message });
+      return null;
+    }
+  }
+
   /**
    * Find single bank statement
    */
@@ -1332,6 +1361,39 @@ export class BankStatementImportRepository {
     } catch (error: any) {
       logError("findStatementsByIds error", { error: error.message });
       return [];
+    }
+  }
+
+  async findStatementsByIdsInCompanies(
+    ids: number[],
+    companyIds: string[],
+  ): Promise<BankStatement[]> {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM bank_statements WHERE id = ANY($1) AND company_id = ANY($2::uuid[]) AND deleted_at IS NULL",
+        [ids, companyIds],
+      );
+      return rows as BankStatement[];
+    } catch (error: any) {
+      logError("findStatementsByIdsInCompanies error", { error: error.message });
+      return [];
+    }
+  }
+
+  async hardDeleteStatementsInCompanies(
+    ids: number[],
+    companyIds: string[],
+  ): Promise<number> {
+    if (ids.length === 0) return 0;
+    try {
+      const { rows } = await pool.query(
+        "DELETE FROM bank_statements WHERE id = ANY($1) AND company_id = ANY($2::uuid[]) RETURNING id",
+        [ids, companyIds],
+      );
+      return rows.length;
+    } catch (error: any) {
+      logError("hardDeleteStatementsInCompanies error", { ids, error: error.message });
+      throw error;
     }
   }
 

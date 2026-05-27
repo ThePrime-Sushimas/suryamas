@@ -80,10 +80,10 @@ export class MarketplacePoController {
   }
   listUnreconciledStatements = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyIds } = await mpScope(req)
       const { query } = (req as UnreconciledStatementsReq).validated
       const rows = await marketplacePoService.listUnreconciledStatements(
-        companyId,
+        companyIds,
         query.bank_account_id,
         { date_from: query.date_from, date_to: query.date_to },
       )
@@ -132,8 +132,8 @@ export class MarketplacePoController {
   getSessionDetail = async (req: Request, res: Response) => {
     try {
       const { id } = (req as SessionIdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const detail = await marketplacePoService.getSessionDetail(id, companyId)
+      const { companyIds, branchIds } = await mpScope(req)
+      const detail = await marketplacePoService.getSessionDetail(id, companyIds, branchIds)
       sendSuccess(res, detail, 'Marketplace session detail')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_marketplace_session', id: req.params.id })
@@ -143,9 +143,8 @@ export class MarketplacePoController {
     try {
       const { id } = (req as CancelOrderedReq).validated.params
       const { body } = (req as CancelOrderedReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.cancelOrderedSession(companyId, userId, id, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const detail = await marketplacePoService.cancelOrderedSession(companyIds, branchIds, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session cancelled (was ORDERED)')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_ordered_session', id: req.params.id })
@@ -155,9 +154,8 @@ export class MarketplacePoController {
     try {
       const { id } = (req as any).validated.params
       const body = (req as any).validated.body ?? {}
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.postReceiveJournal(companyId, userId, id, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const detail = await marketplacePoService.postReceiveJournal(companyIds, branchIds, userId, id, body)
       sendSuccess(res, detail, 'Journal receive berhasil di-post')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post_receive_journal', id: req.params.id })
@@ -167,9 +165,8 @@ export class MarketplacePoController {
     try {
       const { id } = (req as CancelShippedReq).validated.params
       const { body } = (req as CancelShippedReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.cancelShippedSession(companyId, userId, id, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const detail = await marketplacePoService.cancelShippedSession(companyIds, branchIds, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session cancelled (was SHIPPED)')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_shipped_session', id: req.params.id })
@@ -178,9 +175,8 @@ export class MarketplacePoController {
   createSession = async (req: Request, res: Response) => {
     try {
       const { body } = (req as CreateSessionReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const session = await marketplacePoService.createSession(companyId, userId, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const session = await marketplacePoService.createSession(companyIds, branchIds, userId, body)
       sendSuccess(res, session, 'Marketplace session created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_marketplace_session' })
@@ -191,9 +187,8 @@ export class MarketplacePoController {
     try {
       const { id } = (req as UpdateSessionReq).validated.params
       const { body } = (req as UpdateSessionReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const session = await marketplacePoService.updateSessionHeader(companyId, userId, id, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const session = await marketplacePoService.updateSessionHeader(companyIds, branchIds, userId, id, body)
       sendSuccess(res, session, 'Marketplace session updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_marketplace_session', id: req.params.id })
@@ -203,9 +198,8 @@ export class MarketplacePoController {
   cancelSession = async (req: Request, res: Response) => {
     try {
       const { id } = (req as CancelSessionReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const session = await marketplacePoService.cancelSession(companyId, userId, id)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const session = await marketplacePoService.cancelSession(companyIds, branchIds, userId, id)
       sendSuccess(res, session, 'Marketplace session cancelled')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_marketplace_session', id: req.params.id })
@@ -216,9 +210,8 @@ export class MarketplacePoController {
     try {
       const { id } = (req as OrderSessionReq).validated.params
       const body = (req as OrderSessionReq).validated.body ?? {}
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.orderSession(companyId, userId, id, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const detail = await marketplacePoService.orderSession(companyIds, branchIds, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session ordered')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'order_marketplace_session', id: req.params.id })
@@ -229,9 +222,8 @@ export class MarketplacePoController {
     try {
       const { id } = (req as ShipSessionReq).validated.params
       const body = (req as ShipSessionReq).validated.body
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.shipSession(companyId, userId, id, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const detail = await marketplacePoService.shipSession(companyIds, branchIds, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session shipped')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'ship_marketplace_session', id: req.params.id })
@@ -242,9 +234,8 @@ export class MarketplacePoController {
     try {
       const { id } = (req as SettleSessionReq).validated.params
       const body = (req as SettleSessionReq).validated.body
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const detail = await marketplacePoService.settleSession(companyId, userId, id, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const detail = await marketplacePoService.settleSession(companyIds, branchIds, userId, id, body)
       sendSuccess(res, detail, 'Marketplace session settled')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'settle_marketplace_session', id: req.params.id })
@@ -253,9 +244,9 @@ export class MarketplacePoController {
 
   listOwnerCreditCards = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyIds } = await mpScope(req)
       const { query } = (req as ListCcReq).validated
-      const rows: OwnerCreditCardWithSettlement[] = await marketplacePoService.listOwnerCreditCards(companyId, query)
+      const rows: OwnerCreditCardWithSettlement[] = await marketplacePoService.listOwnerCreditCards(companyIds, query)
       sendSuccess(res, rows, 'Owner credit cards retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_owner_credit_cards' })
@@ -264,10 +255,9 @@ export class MarketplacePoController {
 
   createOwnerCreditCard = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, companyIds, userId } = await mpScope(req)
       const { body } = (req as CreateCcReq).validated
-      const row: OwnerCreditCardWithSettlement = await marketplacePoService.createOwnerCreditCard(companyId, userId, body)
+      const row: OwnerCreditCardWithSettlement = await marketplacePoService.createOwnerCreditCard(companyId, companyIds, userId, body)
       sendSuccess(res, row, 'Owner credit card created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_owner_credit_card' })
@@ -276,11 +266,10 @@ export class MarketplacePoController {
 
   updateOwnerCreditCard = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, companyIds, userId } = await mpScope(req)
       const { id } = (req as CcIdReq).validated.params
       const { body } = (req as UpdateCcReq).validated
-      const row: OwnerCreditCardWithSettlement = await marketplacePoService.updateOwnerCreditCard(companyId, userId, id, body)
+      const row: OwnerCreditCardWithSettlement = await marketplacePoService.updateOwnerCreditCard(companyId, companyIds, userId, id, body)
       sendSuccess(res, row, 'Owner credit card updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_owner_credit_card', id: req.params.id })
@@ -289,10 +278,9 @@ export class MarketplacePoController {
 
   deleteOwnerCreditCard = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, companyIds, userId } = await mpScope(req)
       const { id } = (req as CcIdReq).validated.params
-      const row = await marketplacePoService.deleteOwnerCreditCard(companyId, userId, id)
+      const row = await marketplacePoService.deleteOwnerCreditCard(companyId, companyIds, userId, id)
       sendSuccess(res, row, 'Owner credit card deactivated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_owner_credit_card', id: req.params.id })
@@ -302,8 +290,7 @@ export class MarketplacePoController {
   uploadAttachment = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as UploadAttachmentReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyIds, branchIds, userId } = await mpScope(req)
 
       const file = req.file
       if (!file) {
@@ -316,7 +303,8 @@ export class MarketplacePoController {
       }
 
       const attachment = await marketplacePoService.uploadAttachment(
-        companyId,
+        companyIds,
+        branchIds,
         userId,
         params.id,
         file,
@@ -331,8 +319,8 @@ export class MarketplacePoController {
   deleteAttachment = async (req: Request, res: Response) => {
     try {
       const { params } = (req as DeleteAttachmentReq).validated
-      const companyId = req.context?.company_id ?? ''
-      await marketplacePoService.deleteAttachment(companyId, params.id, params.attachmentId)
+      const { companyIds, branchIds } = await mpScope(req)
+      await marketplacePoService.deleteAttachment(companyIds, branchIds, params.id, params.attachmentId)
       sendSuccess(res, null, 'Attachment deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_marketplace_attachment', id: req.params.id })
@@ -341,8 +329,8 @@ export class MarketplacePoController {
 
   getSettlementSummary = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const summary = await marketplacePoService.getSettlementSummary(companyId)
+      const { companyIds } = await mpScope(req)
+      const summary = await marketplacePoService.getSettlementSummary(companyIds)
       sendSuccess(res, summary, 'Settlement summary fetched')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_settlement_summary' })
@@ -352,9 +340,8 @@ export class MarketplacePoController {
   createBulkSettlement = async (req: Request, res: Response) => {
     try {
       const { body } = (req as BulkSettleSessionReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const settlement = await marketplacePoService.createBulkSettlement(companyId, userId, body)
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const settlement = await marketplacePoService.createBulkSettlement(companyIds, branchIds, userId, body)
       sendSuccess(res, settlement, 'Bulk settlement created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_bulk_settlement' })

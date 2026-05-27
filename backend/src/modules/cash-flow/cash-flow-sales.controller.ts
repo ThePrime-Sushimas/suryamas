@@ -143,7 +143,7 @@ export class CashFlowSalesController {
 
   reorderGroups = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyId } = await cashFlowScope(req)
       const { body } = (req as ReorderReq).validated
       await cashFlowSalesService.reorderGroups(companyId, body.ordered_ids)
       sendSuccess(res, null, 'Groups reordered successfully', 200)

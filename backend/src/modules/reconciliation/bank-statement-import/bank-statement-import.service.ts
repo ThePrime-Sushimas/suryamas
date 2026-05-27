@@ -36,6 +36,7 @@ import {
   PENDING_TRANSACTION,
 } from "./bank-statement-import.constants";
 import { AuditService } from "../../monitoring/monitoring.service";
+import { requireCompanyAccess } from "../../../utils/branch-access.util";
 import * as XLSX from "xlsx";
 import fs from "fs/promises";
 import path from "path";
@@ -105,15 +106,29 @@ export class BankStatementImportService {
     }
   }
 
+  private async resolveBankAccountCompanyId(
+    bankAccountId: number,
+    companyIds: string[],
+  ): Promise<string> {
+    const bankCompanyId = await this.repository.getBankAccountCompanyId(bankAccountId);
+    if (!bankCompanyId) {
+      throw BankStatementImportErrors.BANK_ACCOUNT_NOT_FOUND(bankAccountId);
+    }
+    requireCompanyAccess(bankCompanyId, companyIds);
+    return bankCompanyId;
+  }
+
   /**
    * Analyze uploaded file - parse, validate, and generate preview
    */
   async analyzeFile(
     fileResult: FileUploadResult,
     bankAccountId: number,
-    companyId: string,
+    companyIds: string[],
     userId?: string,
   ): Promise<UploadAnalysisResult> {
+    const companyId = await this.resolveBankAccountCompanyId(bankAccountId, companyIds);
+
     logInfo("BankStatementImport: Starting file analysis", {
       file_name: fileResult.file_name,
       bank_account_id: bankAccountId,
@@ -1136,7 +1151,7 @@ export class BankStatementImportService {
     bankAccountId: number,
     companyIds: string[],
   ): Promise<{ month: string; entries: BankStatement[]; suggestions: Array<{ transaction_date: string; description: string; credit_amount: number; debit_amount: number; payment_method_id: number }> }[]> {
-    const companyId = companyIds[0] ?? ''
+    const companyId = await this.resolveBankAccountCompanyId(bankAccountId, companyIds)
     const [entries, paymentMethods, branchIds] = await Promise.all([
       this.repository.listManualEntries(companyId, bankAccountId),
       this.repository.getPaymentMethodsByBankAccount(companyId, bankAccountId),
@@ -1240,9 +1255,10 @@ export class BankStatementImportService {
       reference_number?: string
       balance?: number
     },
-    companyId: string,
+    companyIds: string[],
     userId?: string,
   ): Promise<BankStatement> {
+    const companyId = await this.resolveBankAccountCompanyId(bankAccountId, companyIds)
     logInfo('BankStatementImport: Creating manual entry', {
       bank_account_id: bankAccountId,
       transaction_date: entry.transaction_date,
@@ -1292,9 +1308,10 @@ export class BankStatementImportService {
       reference_number?: string
       balance?: number
     }>,
-    companyId: string,
+    companyIds: string[],
     userId?: string,
   ): Promise<{ inserted: number; ids: number[] }> {
+    const companyId = await this.resolveBankAccountCompanyId(bankAccountId, companyIds)
     logInfo('BankStatementImport: Creating bulk manual entries', {
       bank_account_id: bankAccountId,
       count: entries.length,
@@ -1345,10 +1362,10 @@ export class BankStatementImportService {
    */
   async hardDeleteStatement(
     statementId: number,
-    companyId: string,
+    companyIds: string[],
     userId?: string,
   ): Promise<void> {
-    const statement = await this.repository.findStatementById(statementId, companyId)
+    const statement = await this.repository.findStatementByIdInCompanies(statementId, companyIds)
     if (!statement) {
       throw new Error(`Bank statement dengan ID ${statementId} tidak ditemukan`)
     }
@@ -1357,7 +1374,7 @@ export class BankStatementImportService {
       throw new Error('Statement sudah ter-reconcile. Undo reconciliation terlebih dahulu sebelum menghapus.')
     }
 
-    await this.repository.hardDeleteStatement(statementId, companyId)
+    await this.repository.hardDeleteStatement(statementId, statement.company_id)
 
     await AuditService.log(
       'DELETE',
@@ -1386,10 +1403,10 @@ export class BankStatementImportService {
    */
   async hardDeleteStatements(
     statementIds: number[],
-    companyId: string,
+    companyIds: string[],
     userId?: string,
   ): Promise<{ deleted: number; skipped: number; errors: Array<{ id: number; reason: string }> }> {
-    const statements = await this.repository.findStatementsByIds(statementIds, companyId)
+    const statements = await this.repository.findStatementsByIdsInCompanies(statementIds, companyIds)
 
     const toDelete: number[] = []
     const errors: Array<{ id: number; reason: string }> = []
@@ -1407,7 +1424,7 @@ export class BankStatementImportService {
 
     let deleted = 0
     if (toDelete.length > 0) {
-      deleted = await this.repository.hardDeleteStatements(toDelete, companyId)
+      deleted = await this.repository.hardDeleteStatementsInCompanies(toDelete, companyIds)
 
       await AuditService.log(
         'DELETE',
