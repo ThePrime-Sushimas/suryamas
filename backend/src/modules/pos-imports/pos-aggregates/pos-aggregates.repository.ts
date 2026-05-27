@@ -719,7 +719,8 @@ export class PosAggregatesRepository {
   async findUnreconciled(
     dateFrom?: string,
     dateTo?: string,
-    branchName?: string
+    branchName?: string,
+    accessibleBranchIds?: string[],
   ): Promise<AggregatedTransaction[]> {
     const conditions: string[] = ['is_reconciled = false', 'deleted_at IS NULL', 'superseded_by IS NULL']
     const params: any[] = []
@@ -736,6 +737,8 @@ export class PosAggregatesRepository {
       params.push(branchName)
       conditions.push(`branch_name = $${params.length}`)
     }
+
+    appendAccessibleBranchScope(conditions, params, accessibleBranchIds)
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
     try {
@@ -1112,11 +1115,23 @@ export class PosAggregatesRepository {
     }
   }
 
-  async findForFeeRecalculation(transactionDate: string): Promise<any[]> {
+  async findForFeeRecalculation(
+    transactionDate: string,
+    accessibleBranchIds?: string[],
+  ): Promise<any[]> {
+    const conditions: string[] = [
+      'transaction_date = $1::date',
+      "source_type = 'POS'",
+      'deleted_at IS NULL',
+      'superseded_by IS NULL',
+    ]
+    const params: unknown[] = [transactionDate]
+    appendAccessibleBranchScope(conditions, params, accessibleBranchIds)
+    const where = conditions.join(' AND ')
     try {
       const { rows } = await pool.query(
-        'SELECT id, payment_method_id, gross_amount, bill_after_discount, is_reconciled, source_type FROM aggregated_transactions WHERE transaction_date = $1::date AND source_type = \'POS\' AND deleted_at IS NULL AND superseded_by IS NULL',
-        [transactionDate]
+        `SELECT id, payment_method_id, gross_amount, bill_after_discount, is_reconciled, source_type FROM aggregated_transactions WHERE ${where}`,
+        params
       )
       return rows
     } catch (error: any) {

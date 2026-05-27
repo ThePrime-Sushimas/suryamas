@@ -22,11 +22,16 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
   const hasLoadedDraft = useRef(false)
 
   const accessibleBranches = branches
+  const defaultBranchId =
+    initialData?.branch_id ||
+    currentBranch?.branch_id ||
+    branches[0]?.branch_id ||
+    ''
 
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [journalDate, setJournalDate] = useState(initialData?.journal_date || new Date().toISOString().split('T')[0])
   const [journalType, setJournalType] = useState(initialData?.journal_type || 'GENERAL')
-  const [branchId, setBranchId] = useState(initialData?.branch_id || currentBranch?.branch_id || '')
+  const [branchId, setBranchId] = useState(defaultBranchId)
   const [description, setDescription] = useState(initialData?.description || '')
   const [lines, setLines] = useState<JournalLine[]>(
     initialData?.lines?.map(l => ({
@@ -186,7 +191,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
             lines: linesForSubmit,
           }
         : {
-            branch_id: branchId || currentBranch?.branch_id,
+            branch_id: branchId || defaultBranchId,
             journal_date: journalDate,
             journal_type: journalType as JournalType,
             description,

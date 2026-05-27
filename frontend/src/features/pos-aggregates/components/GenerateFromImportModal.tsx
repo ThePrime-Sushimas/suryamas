@@ -207,7 +207,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
         return
       }
       const branchName =
-        branches.find((b) => b.id === imp.branch_id)?.branch_name ?? currentBranch?.branch_name
+        branches.find((b) => b.branch_id === imp.branch_id)?.branch_name ?? currentBranch?.branch_name
 
       const jobId = await generateFromImportWithJob(importId, imp.company_id, branchName)
       

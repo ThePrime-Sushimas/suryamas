@@ -272,8 +272,13 @@ export class PosAggregatesService {
   async createTransaction(
     data: CreateAggregatedTransactionDto,
     skipPaymentMethodValidation = false,
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<AggregatedTransaction> {
     const resolvedBranch = await this.resolveBranch(data.branch_id, data.branch_name)
+    this.assertAccess(
+      { branch_id: resolvedBranch.branch_id, branch_name: resolvedBranch.branch_name },
+      access,
+    )
 
     let resolvedPaymentMethodId: number;
     if (data.payment_method_id === null) {
@@ -353,6 +358,7 @@ export class PosAggregatesService {
    */
   async createBatch(
     transactions: CreateAggregatedTransactionDto[],
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<AggregatedTransactionBatchResult> {
     const results: AggregatedTransactionBatchResult = {
       success: [],
@@ -362,7 +368,7 @@ export class PosAggregatesService {
 
     for (const tx of transactions) {
       try {
-        await this.createTransaction(tx);
+        await this.createTransaction(tx, false, access);
         results.success.push(tx.source_ref);
       } catch (err) {
         results.failed.push({
@@ -673,22 +679,29 @@ export class PosAggregatesService {
     dateFrom?: string,
     dateTo?: string,
     branchName?: string,
+    accessibleBranchIds?: string[],
   ): Promise<AggregatedTransaction[]> {
     return posAggregatesRepository.findUnreconciled(
       dateFrom,
       dateTo,
       branchName,
+      accessibleBranchIds,
     );
   }
 
   /**
    * Assign journal to transaction
    */
-  async assignJournal(id: string, journalId: string): Promise<void> {
+  async assignJournal(
+    id: string,
+    journalId: string,
+    access?: { branchIds: string[]; branchNames: string[] },
+  ): Promise<void> {
     const existing = await posAggregatesRepository.findById(id);
     if (!existing) {
       throw AggregatedTransactionErrors.NOT_FOUND(id);
     }
+    this.assertAccess(existing, access);
 
     if (existing.journal_id) {
       throw AggregatedTransactionErrors.JOURNAL_ALREADY_ASSIGNED(id);
@@ -704,6 +717,7 @@ export class PosAggregatesService {
   async assignJournalBatch(
     transactionIds: string[],
     journalId: string,
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<{ assigned: number; skipped: number }> {
     let assigned = 0;
     let skipped = 0;
@@ -711,7 +725,19 @@ export class PosAggregatesService {
     for (const id of transactionIds) {
       try {
         const existing = await posAggregatesRepository.findById(id);
-        if (existing && !existing.journal_id) {
+        if (!existing) {
+          skipped++;
+          continue;
+        }
+        if (access) {
+          try {
+            this.assertAccess(existing, access);
+          } catch {
+            skipped++;
+            continue;
+          }
+        }
+        if (!existing.journal_id) {
           await posAggregatesRepository.assignJournal(id, journalId);
           assigned++;
         } else {
@@ -804,6 +830,7 @@ export class PosAggregatesService {
    */
   async getFailedTransactionById(
     id: string,
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<AggregatedTransactionWithDetails> {
     const transaction = await posAggregatesRepository.findById(id);
     if (!transaction) {
@@ -812,6 +839,7 @@ export class PosAggregatesService {
     if (transaction.status !== "FAILED") {
       throw new Error("Transaction is not in FAILED status");
     }
+    this.assertAccess(transaction, access);
     return transaction;
   }
 
@@ -821,6 +849,7 @@ export class PosAggregatesService {
   async fixFailedTransaction(
     id: string,
     updates: UpdateAggregatedTransactionDto,
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<AggregatedTransaction> {
     const existing = await posAggregatesRepository.findById(id);
     if (!existing) {
@@ -829,6 +858,7 @@ export class PosAggregatesService {
     if (existing.status !== "FAILED") {
       throw new Error("Only FAILED transactions can be fixed");
     }
+    this.assertAccess(existing, access);
 
     if (typeof updates.payment_method_id === "string") {
       const resolvedId = await this.resolvePaymentMethodId(updates.payment_method_id);
@@ -865,6 +895,7 @@ export class PosAggregatesService {
   async batchFixFailedTransactions(
     ids: string[],
     updates: UpdateAggregatedTransactionDto,
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<{
     fixed: string[];
     failed: Array<{ id: string; error: string }>;
@@ -876,7 +907,7 @@ export class PosAggregatesService {
 
     for (const id of ids) {
       try {
-        await this.fixFailedTransaction(id, updates);
+        await this.fixFailedTransaction(id, updates, access);
         results.fixed.push(id);
       } catch (err) {
         results.failed.push({
@@ -892,7 +923,11 @@ export class PosAggregatesService {
   /**
    * Delete a failed transaction permanently
    */
-  async deleteFailedTransaction(id: string, deletedBy?: string): Promise<void> {
+  async deleteFailedTransaction(
+    id: string,
+    deletedBy?: string,
+    access?: { branchIds: string[]; branchNames: string[] },
+  ): Promise<void> {
     const existing = await posAggregatesRepository.findById(id);
     if (!existing) {
       throw AggregatedTransactionErrors.NOT_FOUND(id);
@@ -900,6 +935,7 @@ export class PosAggregatesService {
     if (existing.status !== "FAILED") {
       throw new Error("Only FAILED transactions can be deleted");
     }
+    this.assertAccess(existing, access);
 
     await posAggregatesRepository.hardDelete(id);
 
@@ -914,8 +950,12 @@ export class PosAggregatesService {
   async recalculateFeeByDate(
     transactionDate: string,
     userId?: string,
+    accessibleBranchIds?: string[],
   ): Promise<{ updated: number; skipped: number; errors: string[] }> {
-    const records = await posAggregatesRepository.findForFeeRecalculation(transactionDate);
+    const records = await posAggregatesRepository.findForFeeRecalculation(
+      transactionDate,
+      accessibleBranchIds,
+    );
     if (!records || records.length === 0) return { updated: 0, skipped: 0, errors: [] }
 
     const pmIds = [...new Set(records.map(r => r.payment_method_id).filter(Boolean))] as number[]
