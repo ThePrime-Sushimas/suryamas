@@ -5,7 +5,7 @@ import { Pagination } from '@/components/ui/Pagination'
 import { useProductionOrders, useProductionOrderSummary, useProductionOrderMaterials } from '../api/food-production.api'
 import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 
-import { PRODUCTION_STATUS_COLORS } from '../components/production-order.constants'
+import { PRODUCTION_STATUS_COLORS, getProductionOrderDisplayCost } from '../components/production-order.constants'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
 const today = () => new Date().toISOString().slice(0, 10)
@@ -148,7 +148,7 @@ export default function ProductionOrdersPage() {
                     <td className="px-3 py-2.5 text-center">
                       <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${PRODUCTION_STATUS_COLORS[o.status] || ''}`}>{o.status}</span>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono">{fmt(o.total_material_cost)}</td>
+                    <td className="px-3 py-2.5 text-right font-mono">{fmt(getProductionOrderDisplayCost(o))}</td>
                     <td className="px-3 py-2.5 text-right font-mono text-red-500">{o.total_waste_cost > 0 ? fmt(o.total_waste_cost) : '—'}</td>
                   </tr>
                 ))}

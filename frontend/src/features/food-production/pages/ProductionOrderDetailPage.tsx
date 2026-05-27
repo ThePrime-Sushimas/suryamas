@@ -9,7 +9,7 @@ import {
   useGenerateProductionJournal, useVoidProductionOrder,
   type ProductionOrderLine, type ProductionOrderMaterial
 } from '../api/food-production.api'
-import { PRODUCTION_STATUS_COLORS } from '../components/production-order.constants'
+import { PRODUCTION_STATUS_COLORS, getProductionOrderDisplayCost, getProductionOrderCostLabel } from '../components/production-order.constants'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
 
@@ -119,6 +119,8 @@ export default function ProductionOrderDetailPage() {
   if (!o) return <div className="p-6 text-center text-gray-400">Order tidak ditemukan</div>
 
   const isEditing = editLines !== null
+  const displayCost = getProductionOrderDisplayCost(o)
+  const costLabel = getProductionOrderCostLabel(o.status)
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-4xl mx-auto">
@@ -137,8 +139,8 @@ export default function ProductionOrderDetailPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-          <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">Material Cost</p>
-          <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">Rp {fmt(o.total_material_cost)}</p>
+          <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">{costLabel}</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">Rp {fmt(displayCost)}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
           <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">Waste Cost</p>

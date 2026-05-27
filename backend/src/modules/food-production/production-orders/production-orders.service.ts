@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg'
 import { BusinessRuleError } from '../../../utils/errors.base'
+import { getCompanyIdForBranch, requireBranchAccess, requireCompanyAccess } from '../../../utils/branch-access.util'
 import { AuditService } from '../../monitoring/monitoring.service'
 import { productionOrdersRepository } from './production-orders.repository'
 import { WipRepository } from '../wip/wip.repository'
@@ -8,7 +9,7 @@ import {
   ProductionOrderNotFoundError, ProductionOrderNotDraftError,
   ProductionOrderNotCompletedError, ProductionOrderNotVoidableError,
   WasteExceedsActualError, FiscalPeriodClosedError, COANotFoundError,
-  OrderNumberCollisionError
+  OrderNumberCollisionError, ProductionOrderWipNotFoundError
 } from './production-orders.errors'
 import type {
   ProductionOrder, ProductionOrderWithDetails,
@@ -33,38 +34,49 @@ class ProductionOrdersService {
     return order
   }
 
-  async create(dto: CreateProductionOrderDto): Promise<ProductionOrder> {
+  async create(dto: CreateProductionOrderDto, accessibleCompanyIds: string[]): Promise<ProductionOrderWithDetails> {
     if (!dto.created_by) {
       throw new BusinessRuleError('User tidak teridentifikasi')
     }
-    const hasAccess = await productionOrdersRepository.userHasBranchAccess(dto.created_by, dto.branch_id)
+
+    const companyId = await getCompanyIdForBranch(dto.branch_id)
+    if (!companyId) {
+      throw new BusinessRuleError('Cabang tidak ditemukan')
+    }
+    requireCompanyAccess(companyId, accessibleCompanyIds)
+    const resolvedDto = { ...dto, company_id: companyId }
+
+    const hasAccess = await productionOrdersRepository.userHasBranchAccess(resolvedDto.created_by!, resolvedDto.branch_id)
     if (!hasAccess) {
       throw new BusinessRuleError('Anda tidak memiliki akses ke cabang ini')
     }
 
-    const requestedWipIds = dto.lines.map(l => l.wip_id)
-    const allowedWipIds = await filterAccessibleWipIds(dto.created_by, requestedWipIds)
+    const requestedWipIds = resolvedDto.lines.map(l => l.wip_id)
+    const allowedWipIds = await filterAccessibleWipIds(resolvedDto.created_by!, requestedWipIds)
     const blockedWips = requestedWipIds.filter(id => !allowedWipIds.includes(id))
     if (blockedWips.length > 0) {
       throw new BusinessRuleError('Anda tidak memiliki akses posisi untuk memproduksi beberapa WIP yang dipilih')
     }
 
-    const order = await productionOrdersRepository.withTransaction(async (client) => {
-      const orderNumber = await this.generateOrderNumber(client, dto.company_id, dto.branch_id, dto.production_date)
+    const orderId = await productionOrdersRepository.withTransaction(async (client) => {
+      const orderNumber = await this.generateOrderNumber(client, resolvedDto.company_id, resolvedDto.branch_id, resolvedDto.production_date)
 
       const header = await productionOrdersRepository.insertHeader(client, {
-        company_id: dto.company_id,
-        branch_id: dto.branch_id,
+        company_id: resolvedDto.company_id,
+        branch_id: resolvedDto.branch_id,
         order_number: orderNumber,
-        production_date: dto.production_date,
-        notes: dto.notes,
-        created_by: dto.created_by,
+        production_date: resolvedDto.production_date,
+        notes: resolvedDto.notes,
+        created_by: resolvedDto.created_by,
       })
 
-      for (let i = 0; i < dto.lines.length; i++) {
-        const lineDto = dto.lines[i]
-        const wip = await wipRepository.findByIdWithIngredients(lineDto.wip_id, dto.company_id)
-        if (!wip) continue
+      for (let i = 0; i < resolvedDto.lines.length; i++) {
+        const lineDto = resolvedDto.lines[i]
+        const wip = await wipRepository.findByIdWithIngredientsAccessible(lineDto.wip_id, accessibleCompanyIds)
+        if (!wip) throw new ProductionOrderWipNotFoundError()
+        if (wip.company_id !== resolvedDto.company_id) {
+          throw new BusinessRuleError(`WIP ${wip.wip_code} tidak termasuk company cabang yang dipilih`)
+        }
 
         const line = await productionOrdersRepository.insertLine(client, {
           production_order_id: header.id,
@@ -108,16 +120,18 @@ class ProductionOrdersService {
         }
       }
 
-      return header
+      return header.id
     })
 
-    await AuditService.log('CREATE', 'production_order', order.id, dto.created_by || '', undefined, order)
+    const order = await productionOrdersRepository.findById(orderId, resolvedDto.company_id)
+    if (!order) throw new ProductionOrderNotFoundError(orderId)
+
+    await AuditService.log('CREATE', 'production_order', order.id, resolvedDto.created_by || '', undefined, order)
     return order
   }
 
-  async complete(id: string, companyId: string, dto: CompleteProductionOrderDto): Promise<void> {
-    const order = await productionOrdersRepository.findById(id, companyId)
-    if (!order) throw new ProductionOrderNotFoundError(id)
+  async complete(id: string, companyIds: string[], branchIds: string[], dto: CompleteProductionOrderDto): Promise<void> {
+    const order = await this.getOrderForMutation(id, companyIds, branchIds)
     if (order.status !== 'DRAFT') throw new ProductionOrderNotDraftError()
 
     const totals = await productionOrdersRepository.withTransaction(async (client) => {
@@ -176,11 +190,11 @@ class ProductionOrdersService {
     await AuditService.log('UPDATE', 'production_order', id, dto.user_id, { status: 'DRAFT' }, { status: 'COMPLETED', ...totals })
   }
 
-  async generateJournal(id: string, companyId: string, userId: string): Promise<{ journal_id: string }> {
-    const order = await productionOrdersRepository.findById(id, companyId)
-    if (!order) throw new ProductionOrderNotFoundError(id)
+  async generateJournal(id: string, companyIds: string[], branchIds: string[], userId: string): Promise<{ journal_id: string }> {
+    const order = await this.getOrderForMutation(id, companyIds, branchIds)
     if (order.status !== 'COMPLETED') throw new ProductionOrderNotCompletedError()
 
+    const companyId = order.company_id
     const fiscalPeriod = await productionOrdersRepository.findOpenFiscalPeriod(companyId, order.production_date)
     if (!fiscalPeriod) throw new FiscalPeriodClosedError()
 
@@ -262,11 +276,11 @@ class ProductionOrdersService {
     return { journal_id: journalId }
   }
 
-  async voidOrder(id: string, companyId: string, dto: VoidProductionOrderDto): Promise<void> {
-    const order = await productionOrdersRepository.findById(id, companyId)
-    if (!order) throw new ProductionOrderNotFoundError(id)
+  async voidOrder(id: string, companyIds: string[], branchIds: string[], dto: VoidProductionOrderDto): Promise<void> {
+    const order = await this.getOrderForMutation(id, companyIds, branchIds)
     if (order.status === 'VOID') throw new ProductionOrderNotVoidableError()
 
+    const companyId = order.company_id
     await productionOrdersRepository.withTransaction(async (client) => {
       if (order.status === 'JOURNALED' && order.journal_id) {
         const lines = await productionOrdersRepository.findJournalLinesByHeaderId(client, order.journal_id)
@@ -317,10 +331,22 @@ class ProductionOrdersService {
     await AuditService.log('UPDATE', 'production_order', id, dto.user_id, { status: order.status }, { status: 'VOID', reason: dto.reason })
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const deleted = await productionOrdersRepository.softDelete(id, companyId, userId)
+  async delete(id: string, companyIds: string[], branchIds: string[], userId: string): Promise<void> {
+    const order = await this.getOrderForMutation(id, companyIds, branchIds)
+    const deleted = await productionOrdersRepository.softDelete(id, order.company_id, userId)
     if (!deleted) throw new ProductionOrderNotFoundError(id)
     await AuditService.log('DELETE', 'production_order', id, userId)
+  }
+
+  private async getOrderForMutation(
+    id: string,
+    companyIds: string[],
+    branchIds: string[],
+  ): Promise<ProductionOrderWithDetails> {
+    const order = await productionOrdersRepository.findByIdAccessible(id, companyIds)
+    if (!order) throw new ProductionOrderNotFoundError(id)
+    requireBranchAccess(order.branch_id, branchIds)
+    return order
   }
 
   async getSummary(companyIds: string[], dateFrom: string, dateTo: string, branchId?: string): Promise<DailySummary[]> {

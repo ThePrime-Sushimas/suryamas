@@ -28,6 +28,8 @@ export interface ProductionOrder {
 export interface ProductionOrderWithBranch extends ProductionOrder {
   branch_name: string
   created_by_name: string | null
+  /** Sum of cost_per_batch × planned_batch_qty from lines (planned cost while DRAFT) */
+  total_estimated_cost: number
 }
 
 export interface ProductionOrderLine {
@@ -78,7 +80,7 @@ export interface CreateProductionOrderLineDto {
 }
 
 export interface CreateProductionOrderDto {
-  company_id: string
+  company_id?: string
   branch_id: string
   production_date: string
   notes?: string

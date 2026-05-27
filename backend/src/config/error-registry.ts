@@ -356,6 +356,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 422,
     category: 'food_production',
   },
+  ProductionOrderWipNotFoundError: {
+    name: 'ProductionOrderWipNotFoundError',
+    importPath: '../modules/food-production/production-orders/production-orders.errors',
+    defaultStatusCode: 404,
+    category: 'food_production',
+  },
   WasteExceedsActualError: {
     name: 'WasteExceedsActualError',
     importPath: '../modules/food-production/production-orders/production-orders.errors',

@@ -49,6 +49,7 @@ export interface Menu {
 // ── WIP ──
 export interface WipItem {
   id: string
+  company_id: string
   wip_code: string
   wip_name: string
   uom: string

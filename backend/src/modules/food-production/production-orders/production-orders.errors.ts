@@ -31,3 +31,7 @@ export class COANotFoundError extends BusinessRuleError {
 export class OrderNumberCollisionError extends BusinessRuleError {
   constructor() { super('Gagal generate order number setelah 3 percobaan') }
 }
+
+export class ProductionOrderWipNotFoundError extends NotFoundError {
+  constructor() { super('WIP tidak ditemukan atau tidak dapat diakses') }
+}

@@ -256,10 +256,16 @@ export class ProductionOrdersRepository {
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(
-        `SELECT po.*, b.branch_name, e.full_name AS created_by_name
+        `SELECT po.*, b.branch_name, e.full_name AS created_by_name,
+                COALESCE(est.total_estimated_cost, 0)::numeric AS total_estimated_cost
          FROM production_orders po
          JOIN branches b ON b.id = po.branch_id
          LEFT JOIN employees e ON e.user_id = po.created_by
+         LEFT JOIN LATERAL (
+           SELECT SUM(pol.cost_per_batch * pol.planned_batch_qty) AS total_estimated_cost
+           FROM production_order_lines pol
+           WHERE pol.production_order_id = po.id
+         ) est ON true
          ${where}
          ORDER BY po.production_date DESC, po.created_at DESC
          LIMIT $${idx} OFFSET $${idx + 1}`,

@@ -27,8 +27,25 @@ export default function ProductionOrderForm() {
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineInput[]>([{ wip_id: '', planned_batch_qty: 1 }])
 
-  const wipList = wipItems.data?.data || []
+  const branchCompanyId = availableBranches.find(b => b.id === branchId)?.company_id
+  const allWips = wipItems.data?.data || []
+  const wipList = branchCompanyId
+    ? allWips.filter(w => w.company_id === branchCompanyId)
+    : []
   const wipMap = new Map(wipList.map(w => [w.id, w]))
+
+  const handleBranchChange = (newBranchId: string) => {
+    setBranchId(newBranchId)
+    const newCompanyId = availableBranches.find(b => b.id === newBranchId)?.company_id
+    if (!newCompanyId) return
+    setLines(prev => prev.map(l => {
+      const wip = allWips.find(w => w.id === l.wip_id)
+      if (l.wip_id && wip && wip.company_id !== newCompanyId) {
+        return { ...l, wip_id: '' }
+      }
+      return l
+    }))
+  }
 
   const addLine = () => setLines([...lines, { wip_id: '', planned_batch_qty: 1 }])
   const removeLine = (idx: number) => setLines(lines.filter((_, i) => i !== idx))
@@ -75,7 +92,7 @@ export default function ProductionOrderForm() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Cabang *</label>
-            <select value={branchId} onChange={e => setBranchId(e.target.value)}
+            <select value={branchId} onChange={e => handleBranchChange(e.target.value)}
               className="w-full h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
               <option value="">Pilih cabang...</option>
               {availableBranches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
@@ -122,8 +139,9 @@ export default function ProductionOrderForm() {
                   <tr key={idx}>
                     <td className="px-3 py-2">
                       <select value={line.wip_id} onChange={e => { const updated = [...lines]; updated[idx] = { ...updated[idx], wip_id: e.target.value }; setLines(updated) }}
-                        className="w-full h-8 px-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        <option value="">Pilih WIP...</option>
+                        disabled={!branchId}
+                        className="w-full h-8 px-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                        <option value="">{branchId ? 'Pilih WIP...' : 'Pilih cabang dulu...'}</option>
                         {wipList.map(w => <option key={w.id} value={w.id}>{w.wip_code} — {w.wip_name}</option>)}
                       </select>
                       {wip && !hasIngredients && (

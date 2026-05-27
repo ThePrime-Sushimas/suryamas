@@ -449,6 +449,7 @@ export interface ProductionOrderListItem {
   status: 'DRAFT' | 'COMPLETED' | 'JOURNALED' | 'VOID'
   total_material_cost: number
   total_waste_cost: number
+  total_estimated_cost?: number
   notes: string | null
   created_at: string
   created_by_name: string | null
@@ -559,7 +560,7 @@ export const useCreateProductionOrder = () => {
   return useMutation({
     mutationFn: async (body: { branch_id: string; production_date: string; notes?: string; lines: { wip_id: string; planned_batch_qty: number }[] }) => {
       const { data } = await api.post('/production-orders', body)
-      return data.data as ProductionOrderListItem
+      return data.data as ProductionOrderDetail
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['production-orders'] }) },
   })
