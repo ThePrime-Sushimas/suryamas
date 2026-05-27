@@ -1002,7 +1002,7 @@ export class PurchaseInvoicesRepository {
   }
 
   async findAll(
-    companyId: string,
+    branchIds: string[],
     pagination: { limit: number; offset: number },
     filter?: {
       status?: string
@@ -1015,11 +1015,11 @@ export class PurchaseInvoicesRepository {
   ): Promise<{ data: PurchaseInvoiceWithRelations[]; total: number }> {
 
     const conditions = [
-      'pi.company_id = $1',
+      'pi.branch_id = ANY($1::uuid[])',
       'pi.deleted_at IS NULL',
       SQL_SUPPLIER_ELIGIBLE_FOR_PI,
     ]
-    const params: unknown[] = [companyId]
+    const params: unknown[] = [branchIds]
     let idx = 2
 
     if (filter?.status) {

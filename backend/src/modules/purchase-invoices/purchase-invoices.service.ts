@@ -512,9 +512,9 @@ export class PurchaseInvoicesService {
     }
   }
 
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: any) {
+  async list(branchIds: string[], pagination: { page: number; limit: number }, filter?: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string; search?: string }) {
     const offset = (pagination.page - 1) * pagination.limit
-    const result = await purchaseInvoicesRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
+    const result = await purchaseInvoicesRepository.findAll(branchIds, { limit: pagination.limit, offset }, filter)
     const data = await this.enrichListWithPaymentDue(result.data)
     const totalPages = Math.ceil(result.total / pagination.limit)
     return {

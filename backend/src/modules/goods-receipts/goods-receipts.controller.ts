@@ -21,12 +21,12 @@ type PendingQtyReq = ValidatedAuthRequest<typeof pendingQtySchema>
 export class GoodsReceiptsController {
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
       const page = parseInt(req.query.page as string) || 1
       const limit = parseInt(req.query.limit as string) || 25
 
-      const filter: Record<string, unknown> = {}
+      const branchIds = await getAccessibleBranchIds(userId)
+      const filter: { status?: string; po_id?: string; branch_id?: string; date_from?: string; date_to?: string; invoice_number?: string; source?: string; search?: string } = {}
       if (req.query.status) filter.status = req.query.status as string
       if (req.query.po_id) filter.po_id = req.query.po_id as string
       if (req.query.branch_id) filter.branch_id = req.query.branch_id as string
@@ -36,12 +36,7 @@ export class GoodsReceiptsController {
       if (req.query.source) filter.source = req.query.source as string
       if (req.query.search) filter.search = req.query.search as string
 
-      // Show GRs from all accessible branches (not just active branch)
-      if (!filter.branch_id) {
-        filter.branch_ids = await getAccessibleBranchIds(userId)
-      }
-
-      const result = await goodsReceiptsService.list(companyId, { page, limit }, filter as Record<string, string | string[] | undefined>)
+      const result = await goodsReceiptsService.list(branchIds, { page, limit }, filter)
       sendSuccess(res, result.data, 'Goods receipts retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_goods_receipts' })

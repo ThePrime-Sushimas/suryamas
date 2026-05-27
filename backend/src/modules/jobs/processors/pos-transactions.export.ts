@@ -14,12 +14,11 @@ export const processPosTransactionsExport: JobProcessor = async (
   try {
     logInfo('Processing POS transactions export', { job_id: jobId })
 
-    // VALIDASI MANUAL GANTIAN TYPE GUARD
-    const companyId = metadata.companyId as string
+    const branchIds = (metadata.branchIds as string[]) || []
     const filters = (metadata.filters as Record<string, unknown>) || {}
 
-    if (!companyId) {
-      throw new Error('Company ID is required in metadata')
+    if (!branchIds.length) {
+      throw new Error('Branch IDs are required in metadata')
     }
 
     // Update progress: 10%
@@ -27,7 +26,7 @@ export const processPosTransactionsExport: JobProcessor = async (
 
     // Fetch all data
     const result = await posImportLinesRepository.findAllWithFilters(
-      companyId,
+      branchIds,
       filters,
       { page: 1, limit: 100000 }
     )

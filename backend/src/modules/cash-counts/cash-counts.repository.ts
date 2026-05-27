@@ -161,9 +161,10 @@ export class CashCountsRepository {
   }
 
   // ── List ──
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, query?: CashCountListQuery) {
-    const conditions: string[] = ['company_id = $1', 'deleted_at IS NULL']
-    const values: unknown[] = [companyId]
+  async findAll(accessibleBranchNames: string[], pagination: { limit: number; offset: number }, query?: CashCountListQuery) {
+    // Scope to branches the user has access to (by name, since cash_counts stores branch_name not branch_id)
+    const conditions: string[] = ['branch_name = ANY($1::text[])', 'deleted_at IS NULL']
+    const values: unknown[] = [accessibleBranchNames.length > 0 ? accessibleBranchNames : ['\x00']]
     let idx = 2
 
     if (query?.branch_name) { conditions.push(`branch_name = $${idx++}`); values.push(query.branch_name) }

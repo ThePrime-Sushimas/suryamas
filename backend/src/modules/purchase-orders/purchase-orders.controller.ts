@@ -19,25 +19,20 @@ type PaymentDuePreviewReq = ValidatedAuthRequest<typeof paymentDuePreviewSchema>
 export class PurchaseOrdersController {
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
       const page = parseInt(req.query.page as string) || 1
       const limit = parseInt(req.query.limit as string) || 25
       const search = req.query.q as string | undefined
 
-      const filter: Record<string, unknown> = {}
+      const branchIds = await getAccessibleBranchIds(userId)
+      const filter: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string } = {}
       if (req.query.status) filter.status = req.query.status as string
       if (req.query.supplier_id) filter.supplier_id = req.query.supplier_id as string
       if (req.query.branch_id) filter.branch_id = req.query.branch_id as string
       if (req.query.date_from) filter.date_from = req.query.date_from as string
       if (req.query.date_to) filter.date_to = req.query.date_to as string
 
-      // Guard: only show POs from branches user has access to
-      if (!filter.branch_id) {
-        filter.branch_ids = await getAccessibleBranchIds(userId)
-      }
-
-      const result = await purchaseOrdersService.list(companyId, { page, limit }, filter, search)
+      const result = await purchaseOrdersService.list(branchIds, { page, limit }, filter, search)
       sendSuccess(res, result.data, 'Purchase orders retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_purchase_orders' })

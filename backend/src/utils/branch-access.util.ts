@@ -1,15 +1,21 @@
 import { pool } from '../config/db'
 
-const branchCache = new Map<string, { branches: string[]; expiresAt: number }>()
+const branchIdCache = new Map<string, { branches: string[]; expiresAt: number }>()
+const branchNameCache = new Map<string, { names: string[]; expiresAt: number }>()
 const CACHE_TTL = 30_000 // 30 seconds
 
 export function invalidateBranchCache(userId?: string): void {
-  if (userId) branchCache.delete(userId)
-  else branchCache.clear()
+  if (userId) {
+    branchIdCache.delete(userId)
+    branchNameCache.delete(userId)
+  } else {
+    branchIdCache.clear()
+    branchNameCache.clear()
+  }
 }
 
 export async function getAccessibleBranchIds(userId: string): Promise<string[]> {
-  const cached = branchCache.get(userId)
+  const cached = branchIdCache.get(userId)
   if (cached && cached.expiresAt > Date.now()) return cached.branches
 
   const { rows } = await pool.query(
@@ -24,6 +30,28 @@ export async function getAccessibleBranchIds(userId: string): Promise<string[]> 
   // If user has no branch assignment, return impossible UUID to block all data
   if (branches.length === 0) branches.push('00000000-0000-0000-0000-000000000000')
 
-  branchCache.set(userId, { branches, expiresAt: Date.now() + CACHE_TTL })
+  branchIdCache.set(userId, { branches, expiresAt: Date.now() + CACHE_TTL })
   return branches
+}
+
+/**
+ * Returns branch names for accessible branches.
+ * Used by modules that store branch_name (string) instead of branch_id (UUID),
+ * e.g. cash_counts, cash_deposits.
+ */
+export async function getAccessibleBranchNames(userId: string): Promise<string[]> {
+  const cached = branchNameCache.get(userId)
+  if (cached && cached.expiresAt > Date.now()) return cached.names
+
+  const { rows } = await pool.query(
+    `SELECT b.branch_name FROM employee_branches eb
+     JOIN employees e ON e.id = eb.employee_id
+     JOIN branches b ON b.id = eb.branch_id
+     WHERE e.user_id = $1 AND eb.status = 'active'`,
+    [userId]
+  )
+
+  const names = rows.map(r => r.branch_name as string)
+  branchNameCache.set(userId, { names, expiresAt: Date.now() + CACHE_TTL })
+  return names
 }

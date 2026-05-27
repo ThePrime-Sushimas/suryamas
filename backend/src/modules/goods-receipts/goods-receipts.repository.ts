@@ -227,13 +227,12 @@ export class GoodsReceiptsRepository {
   }
 
   async findAll(
-    companyId: string,
+    branchIds: string[],
     pagination: { limit: number; offset: number },
     filter?: {
       status?: string;
       po_id?: string;
       branch_id?: string;
-      branch_ids?: string[];
       date_from?: string;
       date_to?: string;
       invoice_number?: string;
@@ -241,8 +240,8 @@ export class GoodsReceiptsRepository {
       search?: string;
     },
   ): Promise<{ data: GoodsReceiptWithRelations[]; total: number }> {
-    const conditions = ["gr.company_id = $1", "gr.deleted_at IS NULL"];
-    const params: unknown[] = [companyId];
+    const conditions = ["gr.branch_id = ANY($1::uuid[])", "gr.deleted_at IS NULL"];
+    const params: unknown[] = [branchIds];
     let idx = 2;
 
     if (filter?.status) {
@@ -256,9 +255,6 @@ export class GoodsReceiptsRepository {
     if (filter?.branch_id) {
       params.push(filter.branch_id);
       conditions.push(`gr.branch_id = $${idx++}`);
-    } else if (filter?.branch_ids && filter.branch_ids.length > 0) {
-      params.push(filter.branch_ids);
-      conditions.push(`gr.branch_id = ANY($${idx++}::uuid[])`);
     }
     if (filter?.date_from) {
       params.push(filter.date_from);

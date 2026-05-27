@@ -88,18 +88,18 @@ export class PurchaseRequestsRepository {
   }
 
   async findAll(
-    companyId: string,
+    branchIds: string[],
     pagination: { limit: number; offset: number },
-    filter?: { status?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string },
+    filter?: { status?: string; branch_id?: string; date_from?: string; date_to?: string },
     search?: string
   ): Promise<{ data: PurchaseRequestWithRelations[]; total: number }> {
-    const conditions = ['pr.company_id = $1', 'pr.deleted_at IS NULL']
-    const params: unknown[] = [companyId]
+    // Security: scope to branches the user has access to (may span multiple companies)
+    const conditions = ['pr.branch_id = ANY($1::uuid[])', 'pr.deleted_at IS NULL']
+    const params: unknown[] = [branchIds]
     let idx = 2
 
     if (filter?.status) { params.push(filter.status); conditions.push(`pr.status = $${idx++}`) }
     if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`pr.branch_id = $${idx++}`) }
-    else if (filter?.branch_ids && (filter.branch_ids as string[]).length > 0) { params.push(filter.branch_ids); conditions.push(`pr.branch_id = ANY($${idx++}::uuid[])`) }
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`pr.request_date >= $${idx++}::date`) }
     if (filter?.date_to) { params.push(filter.date_to); conditions.push(`pr.request_date <= $${idx++}::date`) }
     if (search) { params.push(`%${search}%`); conditions.push(`(pr.request_number ILIKE $${idx} OR b.branch_name ILIKE $${idx})`); idx++ }

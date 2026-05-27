@@ -55,7 +55,7 @@ npm run seed         # Run database seeders
 - **Build Tool**: Vite 7.2+
 - **Language**: TypeScript 5.9+ with strict mode
 - **Routing**: React Router DOM 7.10+
-- **State Management**: Zustand for global state, TanStack Query for server state
+- **State Management**: TanStack Query for server state
 
 ### UI Stack
 - **Styling**: Tailwind CSS 4.1+ with PostCSS
@@ -96,7 +96,7 @@ npm run preview      # Preview production build
 
 - **PostgreSQL** as the sole database
 - **Migrations** stored in `backend/database/migrations/`
-- **Type parsers** configured to match Supabase client behavior (DATE as string, NUMERIC as number, BIGINT as number)
+- **Type parsers** configured to match client behavior (DATE as string, NUMERIC as number, BIGINT as number)
 - **Connection pooling** via `pg` pool with SSL for non-local connections
 
 ## Code Style & Conventions
@@ -113,7 +113,7 @@ npm run preview      # Preview production build
 - **Component pattern**: Feature-based organization with lazy loading
 - **Permission model**: `RequirePermission` component wraps protected routes
 - **Branch context**: All operations run within branch context with `BranchSelectionGuard`
-- **State management**: Zustand for global state, TanStack Query for server state
+- **State management**: TanStack Query for server state
 - **URL State**: List page filters MUST be synced to URL search params via `useUrlFilters` hook
 
 ## URL State Management (Frontend)

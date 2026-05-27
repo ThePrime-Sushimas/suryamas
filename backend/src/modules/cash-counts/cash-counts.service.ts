@@ -210,9 +210,9 @@ export class CashCountsService {
   }
 
   // ── List ──
-  async list(query: CashCountListQuery, companyId: string) {
+  async list(query: CashCountListQuery, accessibleBranchNames: string[]) {
     const { page, limit, offset } = getPaginationParams({ ...query })
-    const { data, total } = await cashCountsRepository.findAll(companyId, { limit, offset }, query)
+    const { data, total } = await cashCountsRepository.findAll(accessibleBranchNames, { limit, offset }, query)
     return createPaginatedResponse(data, total, page, limit)
   }
 

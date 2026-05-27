@@ -31,9 +31,9 @@ export class PurchaseOrdersService {
     if (!r.pr_ok) throw new InvalidReferenceError('purchase_request_id not found or does not belong to your company')
   }
 
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string }, search?: string) {
+  async list(branchIds: string[], pagination: { page: number; limit: number }, filter?: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string }, search?: string) {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await purchaseOrdersRepository.findAll(companyId, { limit: pagination.limit, offset }, filter, search)
+    const { data, total } = await purchaseOrdersRepository.findAll(branchIds, { limit: pagination.limit, offset }, filter, search)
     const totalPages = Math.ceil(total / pagination.limit)
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }

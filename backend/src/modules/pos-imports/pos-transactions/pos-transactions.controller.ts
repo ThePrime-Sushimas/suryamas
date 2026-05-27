@@ -8,23 +8,22 @@ import { sendSuccess, sendError } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { jobsService } from '../../jobs'
+import { getAccessibleBranchIds } from '../../../utils/branch-access.util'
 
 export const list = async (req: Request, res: Response) => {
   try {
-    const companyId = req.context?.company_id
-    if (!companyId) {
-      return sendError(res, 'Company ID required', 400)
-    }
-
+    const userId = req.user?.id ?? ''
     const page = parseInt(req.query.page as string) || 1
     const limit = parseInt(req.query.limit as string) || 50
+
+    const branchIds = await getAccessibleBranchIds(userId)
 
     const filters = {
       dateFrom: req.query.dateFrom as string,
       dateTo: req.query.dateTo as string,
       salesNumber: req.query.salesNumber as string,
       billNumber: req.query.billNumber as string,
-      branches: req.query.branches as string, // comma-separated
+      branches: req.query.branches as string, // comma-separated branch name filter (optional UI filter)
       area: req.query.area as string,
       brand: req.query.brand as string,
       city: req.query.city as string,
@@ -42,10 +41,10 @@ export const list = async (req: Request, res: Response) => {
       tableName: req.query.tableName as string
     }
 
-    const result = await posTransactionsService.list(companyId, { page, limit }, filters)
+    const result = await posTransactionsService.list(branchIds, { page, limit }, filters)
 
     logInfo('PosTransactionsController list success', { 
-      company_id: companyId, 
+      branch_count: branchIds.length,
       count: result.data.length,
       total: result.total 
     })
@@ -58,12 +57,14 @@ export const list = async (req: Request, res: Response) => {
 
 export const exportToExcel = async (req: Request, res: Response) => {
   try {
-    const companyId = req.context?.company_id
     const userId = req.user?.id
+    const companyId = req.context?.company_id
     
-    if (!companyId || !userId) {
-      return sendError(res, 'Company ID and User ID required', 400)
+    if (!userId) {
+      return sendError(res, 'User ID required', 400)
     }
+
+    const branchIds = await getAccessibleBranchIds(userId)
 
     const filters = {
       dateFrom: req.query.dateFrom as string,
@@ -91,11 +92,11 @@ export const exportToExcel = async (req: Request, res: Response) => {
     // Create job using new format (type + module)
     const job = await jobsService.createJob({
       user_id: userId,
-      company_id: companyId,
+      company_id: companyId ?? '',
       type: 'export',
       module: 'pos_transactions',
       name: 'POS Transactions Export',
-      metadata: { companyId, filters, module: 'pos_transactions', type: 'export' }
+      metadata: { branchIds, filters, module: 'pos_transactions', type: 'export' }
     })
 
     // Trigger processing in background

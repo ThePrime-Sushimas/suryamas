@@ -11,7 +11,7 @@ import { logInfo, logError } from '@/config/logger'
 import { jobsService } from '@/modules/jobs'
 
 export interface PosTransactionExportMetadata {
-  companyId: string
+  branchIds: string[]
   filters: {
     dateFrom?: string
     dateTo?: string
@@ -42,14 +42,14 @@ export async function processPosTransactionsExport(
   metadata: PosTransactionExportMetadata
 ): Promise<{ filePath: string; fileName: string }> {
   try {
-    logInfo('Processing POS transactions export', { job_id: jobId, company_id: metadata.companyId })
+    logInfo('Processing POS transactions export', { job_id: jobId, branch_count: metadata.branchIds?.length })
 
     // Update progress: 10%
     await jobsService.updateProgress(jobId, 10, userId)
 
     // Fetch all data
     const result = await posImportLinesRepository.findAllWithFilters(
-      metadata.companyId,
+      metadata.branchIds ?? [],
       metadata.filters,
       { page: 1, limit: 100000 }
     )

@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { cashCountsService } from './cash-counts.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
+import { getAccessibleBranchNames } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { storageService } from '../../services/storage.service'
 import {
@@ -46,8 +47,9 @@ export class CashCountsController {
   list = async (req: Request, res: Response) => {
     try {
       const { query } = (req as ListReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const result = await cashCountsService.list(query, companyId)
+      const userId = req.user?.id ?? ''
+      const accessibleBranchNames = await getAccessibleBranchNames(userId)
+      const result = await cashCountsService.list(query, accessibleBranchNames)
       sendSuccess(res, result.data, 'Cash counts retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_cash_counts' })

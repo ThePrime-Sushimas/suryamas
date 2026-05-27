@@ -120,9 +120,9 @@ function buildProcessedGrLine(
 }
 
 export class GoodsReceiptsService {
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string; invoice_number?: string; source?: string; search?: string }) {
+  async list(branchIds: string[], pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; date_from?: string; date_to?: string; invoice_number?: string; source?: string; search?: string }) {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await goodsReceiptsRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
+    const { data, total } = await goodsReceiptsRepository.findAll(branchIds, { limit: pagination.limit, offset }, filter)
     const totalPages = Math.ceil(total / pagination.limit)
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }

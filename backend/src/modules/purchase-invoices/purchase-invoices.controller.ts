@@ -2,15 +2,17 @@ import type { Request, Response } from 'express'
 import { purchaseInvoicesService } from './purchase-invoices.service'
 import { handleError } from '../../utils/error-handler.util'
 import { sendSuccess } from '../../utils/response.util'
+import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 
 export class PurchaseInvoicesController {
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const userId = req.user?.id ?? ''
       const page = parseInt((req.query.page as string) ?? '1', 10)
       const limit = parseInt((req.query.limit as string) ?? '25', 10)
 
-      const filter: any = {}
+      const branchIds = await getAccessibleBranchIds(userId)
+      const filter: { status?: string; supplier_id?: string; branch_id?: string; date_from?: string; date_to?: string; search?: string } = {}
       if (req.query.status) filter.status = req.query.status as string
       if (req.query.supplier_id) filter.supplier_id = req.query.supplier_id as string
       if (req.query.branch_id) filter.branch_id = req.query.branch_id as string
@@ -18,7 +20,7 @@ export class PurchaseInvoicesController {
       if (req.query.date_to) filter.date_to = req.query.date_to as string
       if (req.query.search) filter.search = req.query.search as string
 
-      const result = await purchaseInvoicesService.list(companyId, { page, limit }, filter)
+      const result = await purchaseInvoicesService.list(branchIds, { page, limit }, filter)
       sendSuccess(res, result.data, 'Purchase invoices retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_purchase_invoices' })

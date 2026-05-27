@@ -31,19 +31,19 @@ export interface PosTransactionFilters {
 
 class PosTransactionsService {
   async list(
-    companyId: string,
+    branchIds: string[],
     pagination: PaginationParams,
     filters: PosTransactionFilters
   ) {
-    return posImportLinesRepository.findAllWithFilters(companyId, filters, pagination)
+    return posImportLinesRepository.findAllWithFilters(branchIds, filters, pagination)
   }
 
   async exportToExcel(
-    companyId: string,
+    branchIds: string[],
     filters: PosTransactionFilters
   ) {
     // Export with high limit (10000 rows max for Excel)
-    return posImportLinesRepository.findAllWithFilters(companyId, filters, { page: 1, limit: 100000 })
+    return posImportLinesRepository.findAllWithFilters(branchIds, filters, { page: 1, limit: 100000 })
   }
 }
 

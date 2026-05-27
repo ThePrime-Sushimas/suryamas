@@ -18,22 +18,19 @@ type ApproveAndGenerateReq = ValidatedAuthRequest<typeof approveAndGenerateSchem
 export class PurchaseRequestsController {
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
       const page = parseInt(req.query.page as string) || 1
       const limit = parseInt(req.query.limit as string) || 25
       const search = req.query.q as string | undefined
 
-      const filter: Record<string, unknown> = {}
+      const branchIds = await getAccessibleBranchIds(userId)
+      const filter: { status?: string; branch_id?: string; date_from?: string; date_to?: string } = {}
       if (req.query.status) filter.status = req.query.status as string
       if (req.query.date_from) filter.date_from = req.query.date_from as string
       if (req.query.date_to) filter.date_to = req.query.date_to as string
       if (req.query.branch_id) filter.branch_id = req.query.branch_id as string
-      else {
-        filter.branch_ids = await getAccessibleBranchIds(userId)
-      }
 
-      const result = await purchaseRequestsService.list(companyId, { page, limit }, filter, search)
+      const result = await purchaseRequestsService.list(branchIds, { page, limit }, filter, search)
       sendSuccess(res, result.data, 'Purchase requests retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_purchase_requests' })

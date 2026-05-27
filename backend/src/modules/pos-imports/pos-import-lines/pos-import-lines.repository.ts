@@ -153,7 +153,7 @@ export class PosImportLinesRepository {
   }
 
   async findAllWithFilters(
-    companyId: string,
+    branchIds: string[],
     filters: {
       dateFrom?: string; dateTo?: string; salesNumber?: string; billNumber?: string;
       branches?: string; area?: string; brand?: string; city?: string; menuName?: string;
@@ -168,10 +168,10 @@ export class PosImportLinesRepository {
     summary: { totalAmount: number; totalTax: number; totalDiscount: number; totalBillDiscount: number; totalAfterBillDiscount: number; totalSubtotal: number; transactionCount: number }
   }> {
     const conditions: string[] = [
-      'pi.company_id = $1',
+      'pi.branch_id = ANY($1::uuid[])',
       'pi.is_deleted = false',
     ]
-    const values: unknown[] = [companyId]
+    const values: unknown[] = [branchIds]
     let idx = 2
 
     if (filters.dateFrom) { conditions.push(`pil.sales_date >= $${idx++}`); values.push(filters.dateFrom) }
