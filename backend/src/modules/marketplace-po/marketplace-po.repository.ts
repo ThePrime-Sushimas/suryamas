@@ -534,10 +534,10 @@ export class MarketplacePoRepository {
     return rows[0] ?? null
   }
 
-  async listSessions(companyId: string, filter: { platform?: string; status?: string; branch_id?: string; cc_id?: string; date_from?: string; date_to?: string; search?: string }, pagination: { limit: number; offset: number }) {
-    const params: unknown[] = [companyId]
+  async listSessions(companyIds: string[], filter: { platform?: string; status?: string; branch_id?: string; cc_id?: string; date_from?: string; date_to?: string; search?: string }, pagination: { limit: number; offset: number }) {
+    const params: unknown[] = [companyIds]
     let idx = 2
-    const conditions: string[] = ['mcs.company_id = $1', 'mcs.deleted_at IS NULL']
+    const conditions: string[] = ['mcs.company_id = ANY($1::uuid[])', 'mcs.deleted_at IS NULL']
 
     if (filter.platform) { params.push(filter.platform); conditions.push(`mcs.platform = $${idx}`); idx++ }
     if (filter.status) { params.push(filter.status); conditions.push(`mcs.status = $${idx}`); idx++ }
@@ -854,11 +854,11 @@ export class MarketplacePoRepository {
     return rows
   }
 
-  async findPendingPoLines(companyId: string, filter: { platform?: string; branch_id?: string }) {
-    const params: unknown[] = [companyId]
+  async findPendingPoLines(branchIds: string[], filter: { platform?: string; branch_id?: string }) {
+    const params: unknown[] = [branchIds]
     let idx = 2
     const conditions = [
-      'po.company_id = $1',
+      'po.branch_id = ANY($1::uuid[])',
       `po.status IN ('ORDERED', 'PARTIAL_RECEIVED')`,
       `s.invoice_bypass_reason = 'marketplace'`,
       'pol.qty_received < pol.qty',

@@ -101,6 +101,20 @@ export function isBranchAccessible(branchId: string | null | undefined, accessib
   return accessibleBranchIds.includes(branchId)
 }
 
+/** Active-branch company for writes (bank import, cash flow groups, etc.). */
+export function resolveContextCompanyId(contextCompanyId: string, companyIds: string[]): string {
+  if (contextCompanyId && companyIds.includes(contextCompanyId)) return contextCompanyId
+  return companyIds[0] ?? ''
+}
+
+export function requireCompanyAccess(companyId: string, accessibleCompanyIds: string[]): void {
+  if (!accessibleCompanyIds.includes(companyId)) {
+    const err = new Error('No access to this company') as Error & { statusCode?: number }
+    err.statusCode = 403
+    throw err
+  }
+}
+
 /** Branch + company scope for a user (list/detail/mutations). */
 export async function getAccessScope(userId: string): Promise<{ branchIds: string[]; companyIds: string[] }> {
   const [branchIds, companyIds] = await Promise.all([

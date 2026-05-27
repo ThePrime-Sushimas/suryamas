@@ -3,16 +3,20 @@ import type { AuthRequest } from '../../types/common.types'
 import { goodsProcessingService } from './goods-processing.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { getAccessibleBranchIds } from '../../utils/branch-access.util'
+import { getAccessibleBranchIds, requireBranchAccess } from '../../utils/branch-access.util'
 
-const getCompanyId = (req: Request): string => (req as any).context?.company_id ?? ''
-const getUserId   = (req: Request): string => String((req as any).user?.id ?? '')
+const getUserId = (req: Request): string => String((req as AuthRequest).user?.id ?? '')
+
+async function gpScope(req: Request) {
+  const userId = getUserId(req)
+  const branchIds = await getAccessibleBranchIds(userId)
+  return { userId, branchIds, contextBranchId: req.context?.branch_id ?? '' }
+}
 
 export class GoodsProcessingController {
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
-      const userId    = getUserId(req)
+      const { branchIds } = await gpScope(req)
       const page  = typeof req.query.page  === 'string' ? parseInt(req.query.page)  : 1
       const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit) : 20
       const status   = typeof req.query.status    === 'string' ? req.query.status    : undefined
@@ -21,15 +25,14 @@ export class GoodsProcessingController {
       const dateTo   = typeof req.query.date_to   === 'string' ? req.query.date_to   : undefined
       const search   = typeof req.query.search   === 'string' ? req.query.search.trim()   : undefined
 
-      const branchIds = branchId ? undefined : await getAccessibleBranchIds(userId)
+      if (branchId) requireBranchAccess(branchId, branchIds)
 
       const result = await goodsProcessingService.list(
-        companyId,
+        branchIds,
         { page: isNaN(page) ? 1 : page, limit: isNaN(limit) ? 20 : limit },
         {
           status,
           branch_id: branchId,
-          branch_ids: branchIds,
           date_from: dateFrom,
           date_to: dateTo,
           ...(search ? { search } : {}),
@@ -43,9 +46,9 @@ export class GoodsProcessingController {
 
   getById = async (req: Request, res: Response) => {
     try {
+      const { branchIds } = await gpScope(req)
       const id = req.params.id as string
-      const companyId = getCompanyId(req)
-      const result = await goodsProcessingService.getById(id, companyId)
+      const result = await goodsProcessingService.getById(id, branchIds)
       sendSuccess(res, result, 'Goods processing detail retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_goods_processing' })
@@ -54,10 +57,9 @@ export class GoodsProcessingController {
 
   update = async (req: Request, res: Response) => {
     try {
+      const { branchIds, userId } = await gpScope(req)
       const id = req.params.id as string
-      const companyId = getCompanyId(req)
-      const userId    = getUserId(req)
-      const result = await goodsProcessingService.update(id, companyId, req.body, userId)
+      const result = await goodsProcessingService.update(id, branchIds, req.body, userId)
       sendSuccess(res, result, 'Goods processing updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_goods_processing' })
@@ -66,10 +68,9 @@ export class GoodsProcessingController {
 
   start = async (req: Request, res: Response) => {
     try {
+      const { branchIds, userId } = await gpScope(req)
       const id = req.params.id as string
-      const companyId = getCompanyId(req)
-      const userId    = getUserId(req)
-      const result = await goodsProcessingService.start(id, companyId, userId)
+      const result = await goodsProcessingService.start(id, branchIds, userId)
       sendSuccess(res, result, 'Processing started')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'start_goods_processing' })
@@ -78,10 +79,9 @@ export class GoodsProcessingController {
 
   reopen = async (req: Request, res: Response) => {
     try {
+      const { branchIds, userId } = await gpScope(req)
       const id = req.params.id as string
-      const companyId = getCompanyId(req)
-      const userId = getUserId(req)
-      const result = await goodsProcessingService.reopen(id, companyId, userId)
+      const result = await goodsProcessingService.reopen(id, branchIds, userId)
       sendSuccess(res, result, 'Goods processing dibuka kembali untuk melanjutkan item')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reopen_goods_processing' })
@@ -90,10 +90,9 @@ export class GoodsProcessingController {
 
   unconfirm = async (req: Request, res: Response) => {
     try {
+      const { branchIds, userId } = await gpScope(req)
       const id = req.params.id as string
-      const companyId = getCompanyId(req)
-      const userId = getUserId(req)
-      const result = await goodsProcessingService.unconfirm(id, companyId, userId)
+      const result = await goodsProcessingService.unconfirm(id, branchIds, userId)
       sendSuccess(res, result, 'GP dibuka kembali untuk koreksi')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'unconfirm_goods_processing' })
@@ -102,10 +101,9 @@ export class GoodsProcessingController {
 
   confirm = async (req: Request, res: Response) => {
     try {
+      const { branchIds, userId } = await gpScope(req)
       const id = req.params.id as string
-      const companyId = getCompanyId(req)
-      const userId    = getUserId(req)
-      const result = await goodsProcessingService.confirm(id, companyId, userId)
+      const result = await goodsProcessingService.confirm(id, branchIds, userId)
       sendSuccess(res, result, 'Confirmed, stock updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'confirm_goods_processing' })
@@ -114,10 +112,9 @@ export class GoodsProcessingController {
 
   reject = async (req: Request, res: Response) => {
     try {
+      const { branchIds, userId } = await gpScope(req)
       const id = req.params.id as string
-      const companyId = getCompanyId(req)
-      const userId    = getUserId(req)
-      const result = await goodsProcessingService.reject(id, companyId, req.body, userId)
+      const result = await goodsProcessingService.reject(id, branchIds, req.body, userId)
       sendSuccess(res, result, 'Goods processing rejected')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reject_goods_processing' })
@@ -126,10 +123,9 @@ export class GoodsProcessingController {
 
   bulkConfirm = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
-      const userId    = getUserId(req)
+      const { branchIds, userId } = await gpScope(req)
       const { ids } = req.body as { ids: string[] }
-      const result = await goodsProcessingService.bulkConfirm(ids, companyId, userId)
+      const result = await goodsProcessingService.bulkConfirm(ids, branchIds, userId)
       sendSuccess(res, result, 'Bulk confirm completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_confirm_goods_processing' })
@@ -138,13 +134,12 @@ export class GoodsProcessingController {
 
   resolveReturn = async (req: Request, res: Response) => {
     try {
+      const { branchIds, userId } = await gpScope(req)
       const id = req.params.id as string
       const outputId = req.params.outputId as string
-      const companyId = getCompanyId(req)
-      const userId    = getUserId(req)
       const { resolution } = req.body as { resolution: 'STOCK' | 'DISCARD' }
       const permissions = (req as AuthRequest).permissions ?? {}
-      const result = await goodsProcessingService.resolveReturn(id, outputId, companyId, resolution, userId, permissions)
+      const result = await goodsProcessingService.resolveReturn(id, outputId, branchIds, resolution, userId, permissions)
       sendSuccess(res, result, `Return resolved: ${resolution === 'STOCK' ? 'masuk gudang' : 'dibuang'}`)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'resolve_return_goods_processing' })
@@ -153,12 +148,11 @@ export class GoodsProcessingController {
 
   confirmInput = async (req: Request, res: Response) => {
     try {
+      const { branchIds, userId } = await gpScope(req)
       const id = req.params.id as string
       const inputId = req.params.inputId as string
-      const companyId = getCompanyId(req)
-      const userId    = getUserId(req)
-      const { outputs } = req.body as { outputs: any[] }
-      const result = await goodsProcessingService.confirmInput(id, inputId, companyId, outputs, userId)
+      const { outputs } = req.body as { outputs: unknown[] }
+      const result = await goodsProcessingService.confirmInput(id, inputId, branchIds, outputs, userId)
       sendSuccess(res, result, 'Input confirmed, status updated to DONE')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'confirm_input_goods_processing' })

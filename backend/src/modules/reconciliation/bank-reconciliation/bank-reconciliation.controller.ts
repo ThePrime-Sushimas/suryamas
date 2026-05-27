@@ -16,6 +16,15 @@ import {
 import {
   ReconciliationError,
 } from "./bank-reconciliation.errors";
+import { getAccessibleCompanyIds, resolveContextCompanyId } from "../../../utils/branch-access.util";
+
+async function bankReconScope(req: Request) {
+  const companyIds = await getAccessibleCompanyIds(req.user?.id ?? "");
+  return {
+    companyIds,
+    companyId: resolveContextCompanyId(req.context?.company_id ?? "", companyIds),
+  };
+}
 
 export class BankReconciliationController {
   constructor(private readonly service: BankReconciliationService) {}
@@ -24,7 +33,7 @@ export class BankReconciliationController {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof manualReconcileCashDepositSchema>).validated;
       const userId = req.user?.id;
-      const companyId = req.context?.company_id;
+      const { companyId } = await bankReconScope(req);
 
       const result = await this.service.reconcileCashDeposit(
         body.cashDepositId,
@@ -44,7 +53,7 @@ export class BankReconciliationController {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof manualReconcileSchema>).validated;
       const userId = req.user?.id;
-      const companyId = req.context?.company_id;
+      const { companyId } = await bankReconScope(req);
 
       const result = await this.service.reconcile(
         body.aggregateId,
@@ -65,7 +74,7 @@ export class BankReconciliationController {
     try {
       const { statementId } = req.params;
       const userId = req.user?.id;
-      const companyId = req.context?.company_id;
+      const { companyId } = await bankReconScope(req);
 
       await this.service.undo(statementId as string, userId, companyId);
 
@@ -82,7 +91,7 @@ export class BankReconciliationController {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof autoMatchSchema>).validated;
       const userId = req.user?.id;
-      const companyId = req.context?.company_id;
+      const { companyId } = await bankReconScope(req);
 
       const result = await this.service.autoMatch(
         new Date(body.startDate),
@@ -120,7 +129,7 @@ export class BankReconciliationController {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof autoMatchConfirmSchema>).validated;
       const userId = req.user?.id;
-      const companyId = req.context?.company_id;
+      const { companyId } = await bankReconScope(req);
 
       const result = await this.service.confirmAutoMatch(
         body.statementIds,
@@ -282,7 +291,7 @@ export class BankReconciliationController {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof multiMatchSchema>).validated;
       const userId = req.user?.id;
-      const companyId = req.context?.company_id;
+      const { companyId } = await bankReconScope(req);
 
       const result = await this.service.createMultiMatch(
         body.aggregateId,
@@ -303,7 +312,7 @@ export class BankReconciliationController {
     try {
       const { groupId } = req.params;
       const userId = req.user?.id;
-      const companyId = req.context?.company_id;
+      const { companyId } = await bankReconScope(req);
 
       await this.service.undoMultiMatch(groupId as string, userId, companyId);
 

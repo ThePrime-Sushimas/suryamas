@@ -294,16 +294,16 @@ export class CashCountsRepository {
     return { ...dep, bank_account_name: bankName, items }
   }
 
-  async listDeposits(companyId: string, pagination: { limit: number; offset: number }) {
+  async listDeposits(companyIds: string[], pagination: { limit: number; offset: number }) {
     const [dataRes, countRes] = await Promise.all([
       pool.query(
-        `SELECT * FROM cash_deposits WHERE company_id = $1 AND deleted_at IS NULL
+        `SELECT * FROM cash_deposits WHERE company_id = ANY($1::uuid[]) AND deleted_at IS NULL
          ORDER BY deposit_date DESC LIMIT $2 OFFSET $3`,
-        [companyId, pagination.limit, pagination.offset]
+        [companyIds, pagination.limit, pagination.offset]
       ),
       pool.query(
-        `SELECT COUNT(*)::int AS total FROM cash_deposits WHERE company_id = $1 AND deleted_at IS NULL`,
-        [companyId]
+        `SELECT COUNT(*)::int AS total FROM cash_deposits WHERE company_id = ANY($1::uuid[]) AND deleted_at IS NULL`,
+        [companyIds]
       ),
     ])
     return { data: dataRes.rows, total: countRes.rows[0]?.total ?? 0 }

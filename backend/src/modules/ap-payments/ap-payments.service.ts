@@ -443,18 +443,22 @@ export class ApPaymentsService {
   async assignBankAccountToInvoice(
     invoiceId: string,
     bankAccountId: number | null,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<void> {
+    const companyId = await apPaymentsRepository.findInvoiceCompanyId(invoiceId, branchIds)
+    if (!companyId) throw new ApBulkInvoiceNotFoundError([invoiceId])
     await apPaymentsRepository.assignBankAccount(invoiceId, bankAccountId, companyId, userId)
   }
 
   async assignSupplierBankAccountToInvoice(
     invoiceId: string,
     supplierBankAccountId: number | null,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<void> {
+    const companyId = await apPaymentsRepository.findInvoiceCompanyId(invoiceId, branchIds)
+    if (!companyId) throw new ApBulkInvoiceNotFoundError([invoiceId])
     if (supplierBankAccountId != null) {
       const supplierId = await apPaymentsRepository.findInvoiceSupplierId(invoiceId, companyId)
       if (!supplierId) {
@@ -479,10 +483,10 @@ export class ApPaymentsService {
    * Much faster than paginated query since it uses primary key lookup.
    */
   async getOutstandingInvoicesByIds(
-    companyId: string,
+    branchIds: string[],
     invoiceIds: string[],
   ): Promise<OutstandingInvoiceRow[]> {
-    return apPaymentsRepository.findOutstandingByIds(companyId, invoiceIds)
+    return apPaymentsRepository.findOutstandingByIds(branchIds, invoiceIds)
   }
 
   /**
@@ -924,13 +928,13 @@ export class ApPaymentsService {
     logInfo('AP payment deleted', { id })
   }
 
-  async getBatchById(batchId: string, companyId: string): Promise<ApPaymentBatchDetailResponse> {
-    const batch = await apPaymentsRepository.findBatchMeta(batchId, companyId)
+  async getBatchById(batchId: string, branchIds: string[]): Promise<ApPaymentBatchDetailResponse> {
+    const batch = await apPaymentsRepository.findBatchMeta(batchId, branchIds)
     if (!batch) {
       throw new ApBulkBatchNotFoundError(batchId)
     }
 
-    const paymentRows = await apPaymentsRepository.findPaymentsByBatchId(batchId, companyId)
+    const paymentRows = await apPaymentsRepository.findPaymentsByBatchId(batchId, branchIds)
     const paymentIds = paymentRows.map((p) => p.id)
     const allLines = await apPaymentsRepository.findLinesByPaymentIds(paymentIds)
 
@@ -956,8 +960,12 @@ export class ApPaymentsService {
     contextBranchId: string,
     userId: string,
   ): Promise<BulkCreateApPaymentResponse> {
+    if (!contextBranchId) {
+      const err = new Error('Branch context is required for bulk AP payment') as Error & { statusCode?: number }
+      err.statusCode = 400
+      throw err
+    }
     requireBranchAccess(contextBranchId, branchIds)
-    const companyId = (await getCompanyIdForBranch(contextBranchId)) ?? ''
     // 1. Validate payments array is not empty
     if (!dto.payments || dto.payments.length === 0) {
       throw new ApBulkEmptyPaymentsError()
@@ -976,7 +984,7 @@ export class ApPaymentsService {
       const invoiceRows = await apPaymentsRepository.validateInvoicesForBulk(
         client,
         allInvoiceIds,
-        companyId,
+        branchIds,
       )
 
       // Check all IDs were found
@@ -1070,8 +1078,12 @@ export class ApPaymentsService {
         const branchId = firstInvoice?.branch_id ?? contextBranchId
         const lineTotal = payment.invoice_lines.reduce((s, l) => s + l.amount_paid, 0)
 
+        const paymentCompanyId = firstInvoice?.company_id
+          ?? (await getCompanyIdForBranch(branchId))
+          ?? ''
+
         paymentsToCreate.push({
-          company_id: companyId,
+          company_id: paymentCompanyId,
           branch_id: branchId,
           supplier_id: payment.supplier_id,
           bank_account_id: payment.bank_account_id,
@@ -1104,7 +1116,7 @@ export class ApPaymentsService {
       for (const [branchId, indices] of branchGroups) {
         const branchCode = await getBranchCode(branchId)
         const numbers = await apPaymentsRepository.generateApPaymentNumbers(
-          client, companyId, branchCode, indices.length,
+          client, paymentsToCreate[indices[0]].company_id, branchCode, indices.length,
         )
         indices.forEach((paymentIdx, numIdx) => {
           paymentsToCreate[paymentIdx].payment_number = numbers[numIdx]

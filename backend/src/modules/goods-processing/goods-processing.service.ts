@@ -115,12 +115,12 @@ const REJECTABLE_STATUSES = ['PROCESSING', 'PARTIAL', 'QC_REVIEW'] as const
 
 export class GoodsProcessingService {
   async list(
-    companyId: string,
+    branchIds: string[],
     pagination: { page: number; limit: number },
-    filter?: { status?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string; search?: string }
+    filter?: { status?: string; branch_id?: string; date_from?: string; date_to?: string; search?: string }
   ) {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await goodsProcessingRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
+    const { data, total } = await goodsProcessingRepository.findAll(branchIds, { limit: pagination.limit, offset }, filter)
     const totalPages = Math.ceil(total / pagination.limit)
     return {
       data,
@@ -128,31 +128,31 @@ export class GoodsProcessingService {
     }
   }
 
-  async getById(id: string, companyId: string): Promise<GoodsProcessingDetail> {
-    let detail = await goodsProcessingRepository.findDetail(id, companyId)
+  async getById(id: string, branchIds: string[]): Promise<GoodsProcessingDetail> {
+    let detail = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
     if (detail.status === 'CONFIRMED') {
       const healed = await goodsProcessingRepository.syncInputLinesAfterFinalizedGp(id)
       if (healed > 0) {
-        detail = (await goodsProcessingRepository.findDetail(id, companyId))!
+        detail = (await goodsProcessingRepository.findDetailAccessible(id, branchIds))!
       }
     }
     return detail
   }
 
-  async start(id: string, companyId: string, userId: string) {
-    const gp = await goodsProcessingRepository.findById(id, companyId)
+  async start(id: string, branchIds: string[], userId: string) {
+    const gp = await goodsProcessingRepository.findByIdAccessible(id, branchIds)
     if (!gp) throw new GoodsProcessingNotFoundError(id)
     if (gp.status !== 'DRAFT') throw new GoodsProcessingInvalidStatusError(gp.status, 'DRAFT')
 
     await goodsProcessingRepository.startProcessing(id, userId)
 
     await AuditService.log('UPDATE', 'goods_processing', id, userId, { status: 'DRAFT' }, { status: 'PROCESSING' })
-    return goodsProcessingRepository.findDetail(id, companyId)
+    return goodsProcessingRepository.findDetailAccessible(id, branchIds)
   }
 
-  async update(id: string, companyId: string, dto: UpdateGoodsProcessingDto, userId: string) {
-    const gp = await goodsProcessingRepository.findDetail(id, companyId)
+  async update(id: string, branchIds: string[], dto: UpdateGoodsProcessingDto, userId: string) {
+    const gp = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
     if (!gp) throw new GoodsProcessingNotFoundError(id)
     if (!['DRAFT', 'PROCESSING', 'PARTIAL', 'REJECTED', 'CORRECTING'].includes(gp.status)) {
       throw new GoodsProcessingInvalidStatusError(gp.status, 'DRAFT/PROCESSING/PARTIAL/REJECTED/CORRECTING')
@@ -177,7 +177,7 @@ export class GoodsProcessingService {
     )
 
     // Fetch fresh details after database modifications to construct new state
-    const updatedGp = await goodsProcessingRepository.findDetail(id, companyId)
+    const updatedGp = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
 
     const newOutputs = updatedGp!.inputs.map(inp => ({
       input_product_name: inp.product_name,
@@ -209,8 +209,8 @@ export class GoodsProcessingService {
     return updatedGp!
   }
 
-  async confirm(id: string, companyId: string, userId: string) {
-    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+  async confirm(id: string, branchIds: string[], userId: string) {
+    const detail = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
     if (!(CONFIRMABLE_STATUSES as readonly string[]).includes(detail.status)) {
       throw new GoodsProcessingInvalidStatusError(detail.status, CONFIRMABLE_STATUSES.join('/'))
@@ -272,7 +272,7 @@ export class GoodsProcessingService {
 
     await notificationDispatcher.dispatch(
       NOTIFICATION_EVENT_KEYS.GOODS_PROCESSING_CONFIRMED,
-      companyId,
+      detail.company_id,
       {
         entityId: id,
         variables: { processing_number: detail.processing_number },
@@ -280,11 +280,11 @@ export class GoodsProcessingService {
       }
     )
 
-    return goodsProcessingRepository.findDetail(id, companyId)
+    return goodsProcessingRepository.findDetailAccessible(id, branchIds)
   }
 
-  async unconfirm(id: string, companyId: string, userId: string) {
-    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+  async unconfirm(id: string, branchIds: string[], userId: string) {
+    const detail = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
     if (detail.status !== 'CONFIRMED') {
       throw new GoodsProcessingInvalidStatusError(detail.status, 'CONFIRMED')
@@ -305,11 +305,11 @@ export class GoodsProcessingService {
       { status: 'CONFIRMED' },
       { status: 'CORRECTING', reason: 'unconfirm_for_correction' },
     )
-    return goodsProcessingRepository.findDetail(id, companyId)
+    return goodsProcessingRepository.findDetailAccessible(id, branchIds)
   }
 
-  async reopen(id: string, companyId: string, userId: string) {
-    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+  async reopen(id: string, branchIds: string[], userId: string) {
+    const detail = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
     if (detail.status !== 'CONFIRMED') {
       throw new GoodsProcessingNotReopenableError(detail.status)
@@ -331,14 +331,14 @@ export class GoodsProcessingService {
       { status: 'CONFIRMED' },
       { status: newStatus, reason: 'reopen_incomplete_lines' },
     )
-    return goodsProcessingRepository.findDetail(id, companyId)
+    return goodsProcessingRepository.findDetailAccessible(id, branchIds)
   }
 
-  async bulkConfirm(ids: string[], companyId: string, userId: string) {
+  async bulkConfirm(ids: string[], branchIds: string[], userId: string) {
     const results: { success: string[]; failed: { id: string; reason: string }[] } = { success: [], failed: [] }
     for (const id of ids) {
       try {
-        await this.confirm(id, companyId, userId)
+        await this.confirm(id, branchIds, userId)
         results.success.push(id)
       } catch (e: unknown) {
         results.failed.push({ id, reason: e instanceof Error ? e.message : 'Unknown error' })
@@ -347,8 +347,8 @@ export class GoodsProcessingService {
     return results
   }
 
-  async confirmInput(id: string, inputId: string, companyId: string, outputs: any[], userId: string) {
-    let detail = await goodsProcessingRepository.findDetail(id, companyId)
+  async confirmInput(id: string, inputId: string, branchIds: string[], outputs: any[], userId: string) {
+    let detail = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
 
     let input = detail.inputs.find(i => i.id === inputId)
@@ -362,7 +362,7 @@ export class GoodsProcessingService {
     if (['CORRECTING', 'PROCESSING', 'PARTIAL'].includes(detail.status)) {
       if (['CONFIRMED', 'DONE'].includes(input.status)) {
         await goodsProcessingRepository.resetStuckInputLinesForCorrection(id, userId, inputId)
-        detail = (await goodsProcessingRepository.findDetail(id, companyId))!
+        detail = (await goodsProcessingRepository.findDetailAccessible(id, branchIds))!
         input = detail.inputs.find(i => i.id === inputId)!
       }
     }
@@ -389,7 +389,7 @@ export class GoodsProcessingService {
       strictToBaseQty
     )
 
-    const updated = await goodsProcessingRepository.findDetail(id, companyId)
+    const updated = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
     const confirmedInput = updated!.inputs.find(i => i.id === inputId)
     if (!confirmedInput) throw new Error(`Input ${inputId} not found after confirm`)
 
@@ -407,18 +407,18 @@ export class GoodsProcessingService {
   async resolveReturn(
     id: string,
     outputId: string,
-    companyId: string,
+    branchIds: string[],
     resolution: 'STOCK' | 'DISCARD',
     userId: string,
     permissions: PermissionMatrix,
   ) {
-    const detail = await goodsProcessingRepository.findDetail(id, companyId)
+    const detail = await goodsProcessingRepository.findDetailAccessible(id, branchIds)
     if (!detail) throw new GoodsProcessingNotFoundError(id)
 
     const output = detail.inputs.flatMap(i => i.outputs).find(o => o.id === outputId)
     if (!output) throw new GoodsProcessingNotFoundError(id)
     if (output.return_resolved_at) {
-      return goodsProcessingRepository.findDetail(id, companyId)
+      return goodsProcessingRepository.findDetailAccessible(id, branchIds)
     }
     if (!output.flagged_for_return) {
       throw new GoodsProcessingReturnNotPendingError()
@@ -451,15 +451,15 @@ export class GoodsProcessingService {
     )
 
     if (result === 'already_resolved') {
-      return goodsProcessingRepository.findDetail(id, companyId)
+      return goodsProcessingRepository.findDetailAccessible(id, branchIds)
     }
 
     await AuditService.log('UPDATE', 'goods_processing_outputs', outputId, userId, { flagged_for_return: true }, { flagged_for_return: false, resolution })
-    return goodsProcessingRepository.findDetail(id, companyId)
+    return goodsProcessingRepository.findDetailAccessible(id, branchIds)
   }
 
-  async reject(id: string, companyId: string, dto: RejectDto, userId: string) {
-    const gp = await goodsProcessingRepository.findById(id, companyId)
+  async reject(id: string, branchIds: string[], dto: RejectDto, userId: string) {
+    const gp = await goodsProcessingRepository.findByIdAccessible(id, branchIds)
     if (!gp) throw new GoodsProcessingNotFoundError(id)
     if (!(REJECTABLE_STATUSES as readonly string[]).includes(gp.status)) {
       throw new GoodsProcessingInvalidStatusError(gp.status, REJECTABLE_STATUSES.join('/'))
@@ -471,7 +471,7 @@ export class GoodsProcessingService {
 
     await notificationDispatcher.dispatch(
       NOTIFICATION_EVENT_KEYS.GOODS_PROCESSING_REJECTED,
-      companyId,
+      gp.company_id,
       {
         entityId: id,
         variables: {
@@ -484,7 +484,7 @@ export class GoodsProcessingService {
       }
     )
 
-    return goodsProcessingRepository.findDetail(id, companyId)
+    return goodsProcessingRepository.findDetailAccessible(id, branchIds)
   }
 }
 

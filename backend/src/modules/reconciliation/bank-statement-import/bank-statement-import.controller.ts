@@ -13,6 +13,7 @@ import crypto from 'crypto'
 import { createReadStream } from 'fs'
 import { validateUploadedFile } from './bank-statement-import.schema'
 import { BankStatementImportErrors } from './bank-statement-import.errors'
+import { getAccessibleCompanyIds, resolveContextCompanyId } from '../../../utils/branch-access.util'
 import type {
   uploadBankStatementSchema,
   confirmBankStatementImportSchema,
@@ -25,6 +26,15 @@ import type {
   hardDeleteBulkStatementsSchema,
 } from './bank-statement-import.schema'
 
+
+async function bankImportScope(req: Request) {
+  const companyIds = await getAccessibleCompanyIds(String(req.user?.id ?? ''))
+  return {
+    userId: String(req.user?.id ?? ''),
+    companyIds,
+    companyId: resolveContextCompanyId(String(req.context?.company_id ?? ''), companyIds),
+  }
+}
 
 export class BankStatementImportController {
   constructor(private readonly service: BankStatementImportService) {}
@@ -42,8 +52,7 @@ export class BankStatementImportController {
       validateUploadedFile(req.file)
 
       const { body } = (req as ValidatedAuthRequest<typeof uploadBankStatementSchema>).validated
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id)
+      const { companyId, companyIds, userId } = await bankImportScope(req)
 
       // Calculate file hash using streaming for better performance
       const fileHash = await this.calculateFileHash(req.file.path)
@@ -103,18 +112,17 @@ export class BankStatementImportController {
       const { params, body: validatedBody } = (req as ValidatedAuthRequest<typeof confirmBankStatementImportSchema>).validated
       const importId = parseInt(params.id, 10)
       const { skip_duplicates = false, dry_run = false } = validatedBody
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id)
+      const { companyId, companyIds, userId } = await bankImportScope(req)
 
       if (dry_run) {
-        const dryRunResult = await this.service.dryRunImport(importId, companyId)
+        const dryRunResult = await this.service.dryRunImport(importId, companyIds)
         sendSuccess(res, dryRunResult, 'Dry run completed', 200)
         return
       }
 
       const result = await this.service.confirmImport(
         importId,
-        companyId,
+        companyIds,
         skip_duplicates,
         userId
       )
@@ -134,7 +142,7 @@ export class BankStatementImportController {
    */
   list = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = String(req.context?.company_id)
+      const { companyIds } = await bankImportScope(req)
       
       const query = (req.validated as { query: Record<string, unknown> })?.query || {} as Record<string, unknown>
       
@@ -145,7 +153,7 @@ export class BankStatementImportController {
       const sortOrder = req.sort?.order || 'desc'
 
       const result = await this.service.listImports(
-        companyId,
+        companyIds,
         { page, limit },
         { field: sortField, order: sortOrder },
         {
@@ -171,9 +179,9 @@ export class BankStatementImportController {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof getImportByIdSchema>).validated
       const importId = parseInt(params.id, 10)
-      const companyId = String(req.context?.company_id)
+      const { companyIds } = await bankImportScope(req)
 
-      const importRecord = await this.service.getImportById(importId, companyId)
+      const importRecord = await this.service.getImportById(importId, companyIds)
 
       if (!importRecord) {
         return handleError(res, new Error(`Import with ID ${importId} not found`))
@@ -193,7 +201,7 @@ export class BankStatementImportController {
     try {
       const idParam = req.params.id
       const importId = parseInt(Array.isArray(idParam) ? idParam[0] : idParam, 10)
-      const companyId = String(req.context?.company_id)
+      const { companyIds } = await bankImportScope(req)
       
       const query = (req.validated as { query: Record<string, unknown> })?.query || {} as Record<string, unknown>
       
@@ -203,7 +211,7 @@ export class BankStatementImportController {
 
       const result = await this.service.getImportStatements(
         importId,
-        companyId,
+        companyIds,
         { page, limit }
       )
 
@@ -221,13 +229,13 @@ export class BankStatementImportController {
     try {
       const idParam = req.params.id
       const importId = parseInt(Array.isArray(idParam) ? idParam[0] : idParam, 10)
-      const companyId = String(req.context?.company_id)
+      const { companyIds } = await bankImportScope(req)
 
       if (isNaN(importId)) {
         return handleError(res, new Error('Invalid import ID'))
       }
 
-      const summary = await this.service.getImportSummary(importId, companyId)
+      const summary = await this.service.getImportSummary(importId, companyIds)
 
       sendSuccess(res, summary, 'Summary retrieved successfully', 200)
     } catch (error: unknown) {
@@ -243,14 +251,13 @@ export class BankStatementImportController {
     try {
       const idParam = req.params.id
       const importId = parseInt(Array.isArray(idParam) ? idParam[0] : idParam, 10)
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id)
+      const { companyId, companyIds, userId } = await bankImportScope(req)
 
       if (isNaN(importId)) {
         return handleError(res, new Error('Invalid import ID'))
       }
 
-      await this.service.cancelImport(importId, companyId, userId)
+      await this.service.cancelImport(importId, companyIds, userId)
 
       sendSuccess(res, null, 'Import cancelled successfully', 200)
     } catch (error: unknown) {
@@ -266,10 +273,9 @@ export class BankStatementImportController {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof deleteImportSchema>).validated
       const importId = parseInt(params.id, 10)
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id) || ''
+      const { companyIds, userId } = await bankImportScope(req)
 
-      await this.service.deleteImport(importId, companyId, userId)
+      await this.service.deleteImport(importId, companyIds, userId)
 
       sendSuccess(res, null, 'Import deleted successfully', 200)
     } catch (error: unknown) {
@@ -285,14 +291,13 @@ export class BankStatementImportController {
     try {
       const idParam = req.params.id
       const importId = parseInt(Array.isArray(idParam) ? idParam[0] : idParam, 10)
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id)
+      const { companyId, companyIds, userId } = await bankImportScope(req)
 
       if (isNaN(importId)) {
         return handleError(res, new Error('Invalid import ID'))
       }
 
-      const result = await this.service.retryImport(importId, companyId, userId)
+      const result = await this.service.retryImport(importId, companyIds, userId)
 
       sendSuccess(res, {
         import: result.import,
@@ -312,9 +317,9 @@ export class BankStatementImportController {
   listManualEntries = async (req: Request, res: Response): Promise<void> => {
     try {
       const { query } = (req as ValidatedAuthRequest<typeof listManualEntriesSchema>).validated
-      const companyId = String(req.context?.company_id)
+      const { companyIds } = await bankImportScope(req)
 
-      const result = await this.service.listManualEntries(query.bank_account_id, companyId)
+      const result = await this.service.listManualEntries(query.bank_account_id, companyIds)
 
       sendSuccess(res, result, 'Manual entries retrieved', 200)
     } catch (error: unknown) {
@@ -329,8 +334,7 @@ export class BankStatementImportController {
   manualEntry = async (req: Request, res: Response): Promise<void> => {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof manualEntrySchema>).validated
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id)
+      const { companyId, companyIds, userId } = await bankImportScope(req)
 
       const result = await this.service.createManualEntry(
         body.bank_account_id,
@@ -352,8 +356,7 @@ export class BankStatementImportController {
   manualBulkEntry = async (req: Request, res: Response): Promise<void> => {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof manualBulkEntrySchema>).validated
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id)
+      const { companyId, companyIds, userId } = await bankImportScope(req)
 
       const result = await this.service.createManualBulkEntries(
         body.bank_account_id,
@@ -378,8 +381,7 @@ export class BankStatementImportController {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof hardDeleteStatementSchema>).validated
       const statementId = parseInt(params.id, 10)
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id)
+      const { companyId, companyIds, userId } = await bankImportScope(req)
 
       await this.service.hardDeleteStatement(statementId, companyId, userId)
 
@@ -396,8 +398,7 @@ export class BankStatementImportController {
   hardDeleteBulkStatements = async (req: Request, res: Response): Promise<void> => {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof hardDeleteBulkStatementsSchema>).validated
-      const companyId = String(req.context?.company_id)
-      const userId = String(req.user?.id)
+      const { companyId, companyIds, userId } = await bankImportScope(req)
 
       const result = await this.service.hardDeleteStatements(body.ids, companyId, userId)
 
@@ -420,7 +421,7 @@ export class BankStatementImportController {
     try {
       const idParam = req.params.id
       const importId = parseInt(Array.isArray(idParam) ? idParam[0] : idParam, 10)
-      const companyId = String(req.context?.company_id)
+      const { companyIds } = await bankImportScope(req)
       const limitParam = req.query.limit 
         ? parseInt(String(req.query.limit), 10) 
         : 10
@@ -436,7 +437,7 @@ export class BankStatementImportController {
 
       const preview = await this.service.getImportPreview(
         importId,
-        companyId,
+        companyIds,
         limit
       )
 

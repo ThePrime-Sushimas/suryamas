@@ -763,6 +763,15 @@ export class ApPaymentsRepository {
     return rows.length > 0
   }
 
+  async findInvoiceCompanyId(invoiceId: string, branchIds: string[]): Promise<string | null> {
+    const { rows } = await pool.query<{ company_id: string }>(
+      `SELECT company_id FROM purchase_invoices
+       WHERE id = $1 AND branch_id = ANY($2::uuid[]) AND deleted_at IS NULL`,
+      [invoiceId, branchIds],
+    )
+    return rows[0]?.company_id ?? null
+  }
+
   async findInvoiceSupplierId(invoiceId: string, companyId: string): Promise<string | null> {
     const { rows } = await pool.query<{ supplier_id: string }>(
       `SELECT supplier_id FROM purchase_invoices
@@ -774,7 +783,7 @@ export class ApPaymentsRepository {
 
   // ── Fetch outstanding invoices by specific IDs (fast PK lookup) ──
   async findOutstandingByIds(
-    companyId: string,
+    branchIds: string[],
     invoiceIds: string[],
   ): Promise<OutstandingInvoiceRow[]> {
     const { rows } = await pool.query(
@@ -822,12 +831,12 @@ export class ApPaymentsRepository {
            AND p.deleted_at IS NULL
          GROUP BY l.purchase_invoice_id
        ) paid ON paid.purchase_invoice_id = pi.id
-       WHERE pi.company_id = $1
+       WHERE pi.branch_id = ANY($1::uuid[])
          AND pi.id = ANY($2::uuid[])
          AND pi.deleted_at IS NULL
          AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0.01
        ORDER BY pi.due_date ASC NULLS LAST`,
-      [companyId, invoiceIds],
+      [branchIds, invoiceIds],
     )
     return rows as OutstandingInvoiceRow[]
   }
@@ -1098,7 +1107,7 @@ export class ApPaymentsRepository {
 
   async findBatchMeta(
     batchId: string,
-    companyId: string,
+    branchIds: string[],
   ): Promise<{
     id: string
     created_at: string
@@ -1119,17 +1128,17 @@ export class ApPaymentsRepository {
          AND EXISTS (
            SELECT 1 FROM ap_payments ap
            WHERE ap.bulk_payment_batch_id = b.id
-             AND ap.company_id = $2
+             AND ap.branch_id = ANY($2::uuid[])
              AND ap.deleted_at IS NULL
          )`,
-      [batchId, companyId],
+      [batchId, branchIds],
     )
     return rows[0] ?? null
   }
 
   async findPaymentsByBatchId(
     batchId: string,
-    companyId: string,
+    branchIds: string[],
   ): Promise<ApPaymentWithRelations[]> {
     const { rows } = await pool.query<ApPaymentWithRelations>(
       `SELECT
@@ -1156,14 +1165,14 @@ export class ApPaymentsRepository {
        LEFT JOIN ap_payment_invoice_lines l ON l.ap_payment_id = ap.id
        LEFT JOIN journal_headers jh ON jh.id = ap.journal_id AND jh.deleted_at IS NULL
        WHERE ap.bulk_payment_batch_id = $1
-         AND ap.company_id = $2
+         AND ap.branch_id = ANY($2::uuid[])
          AND ap.deleted_at IS NULL
        GROUP BY ap.id, s.supplier_name, b.branch_name, b.branch_code,
          ba.account_name, ba.account_number, bk.bank_name,
          sup_bk.bank_name, sup_ba.account_number, sup_ba.account_name,
          jh.journal_number, jh.status
        ORDER BY ap.created_at ASC`,
-      [batchId, companyId],
+      [batchId, branchIds],
     )
     return rows
   }
@@ -1330,7 +1339,7 @@ export class ApPaymentsRepository {
   async validateInvoicesForBulk(
     client: PoolClient,
     invoiceIds: string[],
-    companyId: string,
+    branchIds: string[],
   ): Promise<Array<{
     id: string
     invoice_number: string
@@ -1339,6 +1348,7 @@ export class ApPaymentsRepository {
     remaining_amount: number
     supplier_id: string
     branch_id: string
+    company_id: string
   }>> {
     if (invoiceIds.length === 0) return []
 
@@ -1350,6 +1360,7 @@ export class ApPaymentsRepository {
       remaining_amount: number
       supplier_id: string
       branch_id: string
+      company_id: string
     }>(
       `SELECT
          pi.id,
@@ -1358,7 +1369,8 @@ export class ApPaymentsRepository {
          pi.total_amount::float AS total_amount,
          (pi.total_amount - COALESCE(paid.total_paid, 0))::float AS remaining_amount,
          pi.supplier_id,
-         pi.branch_id
+         pi.branch_id,
+         pi.company_id
        FROM purchase_invoices pi
        LEFT JOIN (
          SELECT l.purchase_invoice_id, SUM(l.amount_paid) AS total_paid
@@ -1369,9 +1381,9 @@ export class ApPaymentsRepository {
          GROUP BY l.purchase_invoice_id
        ) paid ON paid.purchase_invoice_id = pi.id
        WHERE pi.id = ANY($1::uuid[])
-         AND pi.company_id = $2
+         AND pi.branch_id = ANY($2::uuid[])
          AND pi.deleted_at IS NULL`,
-      [invoiceIds, companyId],
+      [invoiceIds, branchIds],
     )
 
     return rows

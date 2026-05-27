@@ -69,12 +69,15 @@ const HEADER_FROM = `
 
 export class GoodsProcessingRepository {
   async findAll(
-    companyId: string,
+    branchIds: string[],
     pagination: { limit: number; offset: number },
-    filter?: { status?: string; branch_id?: string; branch_ids?: string[]; date_from?: string; date_to?: string; search?: string }
+    filter?: { status?: string; branch_id?: string; date_from?: string; date_to?: string; search?: string }
   ): Promise<{ data: GoodsProcessingWithRelations[]; total: number }> {
-    const conditions: string[] = ['gp.company_id = $1', 'gp.deleted_at IS NULL']
-    const params: unknown[] = [companyId]
+    const scopedBranches = filter?.branch_id
+      ? branchIds.filter((id) => id === filter.branch_id)
+      : branchIds
+    const conditions: string[] = ['gp.branch_id = ANY($1::uuid[])', 'gp.deleted_at IS NULL']
+    const params: unknown[] = [scopedBranches]
     let idx = 2
 
     if (filter?.status) {
@@ -86,13 +89,6 @@ export class GoodsProcessingRepository {
         params.push(trimmed)
         conditions.push(`gp.status = $${idx++}`)
       }
-    }
-    if (filter?.branch_id) {
-      params.push(filter.branch_id)
-      conditions.push(`gp.branch_id = $${idx++}`)
-    } else if (filter?.branch_ids && filter.branch_ids.length > 0) {
-      params.push(filter.branch_ids)
-      conditions.push(`gp.branch_id = ANY($${idx++}::uuid[])`)
     }
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`gp.processing_date >= $${idx++}::date`) }
     if (filter?.date_to)   { params.push(filter.date_to);   conditions.push(`gp.processing_date <= $${idx++}::date`) }
@@ -133,6 +129,14 @@ export class GoodsProcessingRepository {
     const { rows } = await pool.query(
       `SELECT ${HEADER_SELECT} ${HEADER_FROM} WHERE gp.id = $1 AND gp.company_id = $2 AND gp.deleted_at IS NULL`,
       [id, companyId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findByIdAccessible(id: string, branchIds: string[]): Promise<GoodsProcessingWithRelations | null> {
+    const { rows } = await pool.query(
+      `SELECT ${HEADER_SELECT} ${HEADER_FROM} WHERE gp.id = $1 AND gp.branch_id = ANY($2::uuid[]) AND gp.deleted_at IS NULL`,
+      [id, branchIds],
     )
     return rows[0] ?? null
   }
@@ -890,6 +894,12 @@ async rejectGp(id: string, rejection_reason: string, userId: string): Promise<vo
         output_template: inp.requires_processing ? (templates[inp.product_id] ?? []) : [],
       })),
     }
+  }
+
+  async findDetailAccessible(id: string, branchIds: string[]): Promise<GoodsProcessingDetail | null> {
+    const header = await this.findByIdAccessible(id, branchIds)
+    if (!header) return null
+    return this.findDetail(id, header.company_id)
   }
 
   async findByGoodsReceiptId(grId: string, companyId: string): Promise<GoodsProcessingWithRelations | null> {

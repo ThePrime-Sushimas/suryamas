@@ -12,6 +12,15 @@ import { getPaginationParams, createPaginatedResponse } from '../../utils/pagina
 import { AuditService } from '../monitoring/monitoring.service'
 
 export class CashCountsService {
+  private assertBranchNameAccess(branchName: string | null | undefined, accessibleBranchNames: string[]): void {
+    if (!branchName || accessibleBranchNames.length === 0) return
+    if (!accessibleBranchNames.includes(branchName)) {
+      const err = new Error('No access to this branch') as Error & { statusCode?: number }
+      err.statusCode = 403
+      throw err
+    }
+  }
+
   // ── Preview ──
   async preview(startDate: string, endDate: string, paymentMethodId: number, companyId: string) {
     if (new Date(endDate) < new Date(startDate)) throw new CashCountInvalidDateRangeError()
@@ -203,9 +212,10 @@ export class CashCountsService {
   }
 
   // ── Get by ID ──
-  async getById(id: string): Promise<CashCountWithRelations> {
+  async getById(id: string, accessibleBranchNames: string[]): Promise<CashCountWithRelations> {
     const cc = await cashCountsRepository.findById(id)
     if (!cc) throw new CashCountNotFoundError(id)
+    this.assertBranchNameAccess(cc.branch_name, accessibleBranchNames)
     return cc
   }
 
@@ -232,9 +242,9 @@ export class CashCountsService {
     return dep
   }
 
-  async listDeposits(companyId: string, page: number = 1, limit: number = 20) {
+  async listDeposits(companyIds: string[], page: number = 1, limit: number = 20) {
     const offset = (page - 1) * limit
-    const { data, total } = await cashCountsRepository.listDeposits(companyId, { limit, offset })
+    const { data, total } = await cashCountsRepository.listDeposits(companyIds, { limit, offset })
 
     // Batch fetch bank account names
     const baIds = [...new Set(data.map((d: CashDeposit) => d.bank_account_id).filter(Boolean))]

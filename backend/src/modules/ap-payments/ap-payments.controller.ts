@@ -10,7 +10,7 @@ import { getAccessibleBranchIds, requireBranchAccess } from '../../utils/branch-
 async function apScope(req: Request) {
   const userId = req.user?.id ?? ''
   const branchIds = await getAccessibleBranchIds(userId)
-  const contextBranchId = req.context?.branch_id ?? branchIds[0] ?? ''
+  const contextBranchId = req.context?.branch_id ?? ''
   return { userId, branchIds, contextBranchId }
 }
 import { DOCUMENT_UPLOAD_EXTENSIONS, resolveDocumentUploadExtension } from '../../utils/document-upload.util'
@@ -104,15 +104,14 @@ export class ApPaymentsController {
   // PATCH /ap-payments/outstanding-invoices/:id/assign
   async assignBankAccount(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds, userId } = await apScope(req)
       const invoiceId = req.params.id as string
       const { bank_account_id } = (req as any).validated?.body ?? req.body
 
       await apPaymentsService.assignBankAccountToInvoice(
         invoiceId,
         bank_account_id,
-        companyId,
+        branchIds,
         userId,
       )
 
@@ -124,15 +123,14 @@ export class ApPaymentsController {
 
   async assignSupplierBankAccount(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds, userId } = await apScope(req)
       const invoiceId = req.params.id as string
       const { supplier_bank_account_id } = (req as any).validated?.body ?? req.body
 
       await apPaymentsService.assignSupplierBankAccountToInvoice(
         invoiceId,
         supplier_bank_account_id,
-        companyId,
+        branchIds,
         userId,
       )
 
@@ -145,10 +143,10 @@ export class ApPaymentsController {
   // POST /ap-payments/outstanding-invoices/by-ids
   async outstandingInvoicesByIds(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds } = await apScope(req)
       const { invoice_ids } = (req as any).validated?.body ?? req.body
 
-      const data = await apPaymentsService.getOutstandingInvoicesByIds(companyId, invoice_ids)
+      const data = await apPaymentsService.getOutstandingInvoicesByIds(branchIds, invoice_ids)
       sendSuccess(res, data, 'Outstanding invoices retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get outstanding invoices by ids' })
@@ -186,9 +184,9 @@ export class ApPaymentsController {
   // GET /ap-payments/batches/:batchId
   async getBatchById(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds } = await apScope(req)
       const batchId = req.params.batchId as string
-      const result = await apPaymentsService.getBatchById(batchId, companyId)
+      const result = await apPaymentsService.getBatchById(batchId, branchIds)
       sendSuccess(res, result, 'Bulk payment batch retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, {

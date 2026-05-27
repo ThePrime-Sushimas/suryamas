@@ -3,6 +3,21 @@ import { cashFlowSalesService } from './cash-flow-sales.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, requireBranchAccess, resolveContextCompanyId } from '../../utils/branch-access.util'
+
+async function cashFlowScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const [branchIds, companyIds] = await Promise.all([
+    getAccessibleBranchIds(userId),
+    getAccessibleCompanyIds(userId),
+  ])
+  return {
+    userId,
+    branchIds,
+    companyIds,
+    companyId: resolveContextCompanyId(req.context?.company_id ?? '', companyIds),
+  }
+}
 import {
   createGroupSchema, updateGroupSchema, deleteGroupSchema, reorderGroupsSchema,
   getCashFlowDailySchema, createPeriodBalanceSchema, updatePeriodBalanceSchema,
@@ -25,8 +40,7 @@ export class CashFlowSalesController {
 
   createPeriod = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await cashFlowScope(req)
       const { body } = (req as CreatePeriodReq).validated
       const result = await cashFlowSalesService.createPeriodBalance(
         { company_id: companyId, bank_account_id: body.bank_account_id, period_start: body.period_start, period_end: body.period_end, opening_balance: body.opening_balance, source: body.source, previous_period_id: body.previous_period_id, notes: body.notes, created_by: userId },
@@ -41,7 +55,8 @@ export class CashFlowSalesController {
   updatePeriod = async (req: Request, res: Response) => {
     try {
       const validated = (req as UpdatePeriodReq).validated
-      const result = await cashFlowSalesService.updatePeriodBalance(validated.params.id, req.context?.company_id ?? '', validated.body, req.user?.id)
+      const { companyId, userId } = await cashFlowScope(req)
+      const result = await cashFlowSalesService.updatePeriodBalance(validated.params.id, companyId, validated.body, userId)
       sendSuccess(res, result, 'Period updated', 200)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_period_balance', id: req.params.id })
@@ -51,7 +66,8 @@ export class CashFlowSalesController {
   deletePeriod = async (req: Request, res: Response) => {
     try {
       const { id } = (req as DeletePeriodReq).validated.params
-      await cashFlowSalesService.deletePeriodBalance(id, req.context?.company_id ?? '', req.user?.id)
+      const { companyId, userId } = await cashFlowScope(req)
+      await cashFlowSalesService.deletePeriodBalance(id, companyId, userId)
       sendSuccess(res, null, 'Period deleted', 200)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_period_balance', id: req.params.id })
@@ -61,7 +77,8 @@ export class CashFlowSalesController {
   listPeriods = async (req: Request, res: Response) => {
     try {
       const q = (req as ListPeriodsReq).validated.query
-      const result = await cashFlowSalesService.listPeriodBalances(q.bank_account_id, req.context?.company_id ?? '', q.page, q.limit)
+      const { companyId } = await cashFlowScope(req)
+      const result = await cashFlowSalesService.listPeriodBalances(q.bank_account_id, companyId, q.page, q.limit)
       sendSuccess(res, result.data, 'Periods retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_period_balances' })
@@ -71,7 +88,8 @@ export class CashFlowSalesController {
   getSuggestion = async (req: Request, res: Response) => {
     try {
       const q = (req as GetSuggestionReq).validated.query
-      const result = await cashFlowSalesService.getSuggestion(q.bank_account_id, req.context?.company_id ?? '', q.period_start)
+      const { companyId } = await cashFlowScope(req)
+      const result = await cashFlowSalesService.getSuggestion(q.bank_account_id, companyId, q.period_start)
       sendSuccess(res, result, 'Suggestion retrieved', 200)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_suggestion' })
@@ -82,7 +100,8 @@ export class CashFlowSalesController {
 
   listGroups = async (req: Request, res: Response) => {
     try {
-      const result = await cashFlowSalesService.listGroups(req.context?.company_id ?? '')
+      const { companyId } = await cashFlowScope(req)
+      const result = await cashFlowSalesService.listGroups(companyId)
       sendSuccess(res, result, 'Groups retrieved successfully', 200)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_groups' })
@@ -91,8 +110,7 @@ export class CashFlowSalesController {
 
   createGroup = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await cashFlowScope(req)
       const { body } = (req as CreateGroupReq).validated
       const result = await cashFlowSalesService.createGroup({ ...body, company_id: companyId }, userId)
       sendSuccess(res, result, 'Group created successfully', 201)
@@ -103,8 +121,7 @@ export class CashFlowSalesController {
 
   updateGroup = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await cashFlowScope(req)
       const { params, body } = (req as UpdateGroupReq).validated
       const result = await cashFlowSalesService.updateGroup(params.id, companyId, body, userId)
       sendSuccess(res, result, 'Group updated successfully', 200)
@@ -115,8 +132,7 @@ export class CashFlowSalesController {
 
   deleteGroup = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await cashFlowScope(req)
       const { params } = (req as DeleteGroupReq).validated
       await cashFlowSalesService.deleteGroup(params.id, companyId, userId)
       sendSuccess(res, null, 'Group deleted successfully', 200)
@@ -138,8 +154,9 @@ export class CashFlowSalesController {
 
   getCashFlowDaily = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyId, branchIds } = await cashFlowScope(req)
       const q = (req as GetDailyReq).validated.query
+      if (q.branch_id) requireBranchAccess(q.branch_id, branchIds)
       const result = await cashFlowSalesService.getCashFlowDaily(
         { bank_account_id: q.bank_account_id, company_id: companyId, date_from: q.date_from, date_to: q.date_to, branch_id: q.branch_id },
         q.page, q.limit
@@ -152,7 +169,8 @@ export class CashFlowSalesController {
 
   getBranches = async (req: Request, res: Response) => {
     try {
-      const result = await cashFlowSalesService.getBranches(req.context?.company_id ?? '')
+      const { branchIds } = await cashFlowScope(req)
+      const result = await cashFlowSalesService.getBranches(branchIds)
       sendSuccess(res, result, 'Branches retrieved successfully', 200)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_branches' })

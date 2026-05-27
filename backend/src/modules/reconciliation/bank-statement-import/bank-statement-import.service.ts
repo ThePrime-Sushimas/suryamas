@@ -361,9 +361,15 @@ export class BankStatementImportService {
   /**
    * Confirm import and create job for async processing
    */
+  private assertCompanyAccess(recordCompanyId: string, companyIds: string[]): void {
+    if (!companyIds.includes(recordCompanyId)) {
+      throw BankStatementImportErrors.COMPANY_ACCESS_DENIED(recordCompanyId);
+    }
+  }
+
   async confirmImport(
     importId: number,
-    companyId: string,
+    companyIds: string[],
     skipDuplicates: boolean,
     userId?: string,
   ): Promise<ConfirmImportResult> {
@@ -378,9 +384,7 @@ export class BankStatementImportService {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
     }
 
-    if (importRecord.company_id !== companyId) {
-      throw BankStatementImportErrors.COMPANY_ACCESS_DENIED(companyId);
-    }
+    this.assertCompanyAccess(importRecord.company_id, companyIds);
 
     if (importRecord.status !== IMPORT_STATUS.ANALYZED) {
       throw BankStatementImportErrors.INVALID_STATUS_TRANSITION(
@@ -394,7 +398,7 @@ export class BankStatementImportService {
       importId,
       fileName: importRecord.file_name,
       bankAccountId: importRecord.bank_account_id,
-      companyId,
+      companyId: importRecord.company_id,
       skipDuplicates,
       totalRows: importRecord.total_rows,
       userId,
@@ -662,12 +666,12 @@ export class BankStatementImportService {
    * List imports with pagination
    */
   async listImports(
-    companyId: string,
+    companyIds: string[],
     pagination: PaginationParams,
     _sort: SortParams,
     filter?: BankStatementImportFilterParams,
   ): Promise<PaginatedResponse<BankStatementImport>> {
-    const result = await this.repository.findAll(companyId, pagination, filter);
+    const result = await this.repository.findAll(companyIds, pagination, filter);
 
     const totalPages = Math.ceil(result.total / pagination.limit);
 
@@ -687,7 +691,7 @@ export class BankStatementImportService {
    */
   async getImportById(
     importId: number,
-    companyId: string,
+    companyIds: string[],
   ): Promise<BankStatementImport | null> {
     const importRecord = await this.repository.findById(importId);
 
@@ -695,9 +699,7 @@ export class BankStatementImportService {
       return null;
     }
 
-    if (importRecord.company_id !== companyId) {
-      throw BankStatementImportErrors.COMPANY_ACCESS_DENIED(companyId);
-    }
+    this.assertCompanyAccess(importRecord.company_id, companyIds);
 
     return importRecord;
   }
@@ -707,7 +709,7 @@ export class BankStatementImportService {
    */
   async getImportStatements(
     importId: number,
-    companyId: string,
+    companyIds: string[],
     pagination: PaginationParams,
   ): Promise<PaginatedResponse<BankStatement>> {
     const importRecord = await this.repository.findById(importId);
@@ -716,9 +718,7 @@ export class BankStatementImportService {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
     }
 
-    if (importRecord.company_id !== companyId) {
-      throw BankStatementImportErrors.COMPANY_ACCESS_DENIED(companyId);
-    }
+    this.assertCompanyAccess(importRecord.company_id, companyIds);
 
     const result = await this.repository.findByImportId(importId, pagination);
     const totalPages = Math.ceil(result.total / pagination.limit);
@@ -741,7 +741,7 @@ export class BankStatementImportService {
    */
   async getImportSummary(
     importId: number,
-    companyId: string,
+    companyIds: string[],
   ): Promise<{
     import: BankStatementImport;
     summary: {
@@ -753,7 +753,7 @@ export class BankStatementImportService {
       preview?: BankStatementPreviewRow[];
     } & { data_source: 'db' | 'temp' | 'analysis' };
   }> {
-    const importRecord = await this.getImportById(importId, companyId);
+    const importRecord = await this.getImportById(importId, companyIds);
 
     if (!importRecord) {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
@@ -811,11 +811,11 @@ export class BankStatementImportService {
         if (importRecord.status === 'ANALYZED') {
           const { validRows } = await this.validateRows(
             rows,
-            companyId,
+            importRecord.company_id,
             importRecord.bank_account_id,
             importId
           );
-          const duplicates = await this.detectDuplicates(validRows, companyId, importRecord.bank_account_id);
+          const duplicates = await this.detectDuplicates(validRows, importRecord.company_id, importRecord.bank_account_id);
           duplicateCount = duplicates.length;
         }
 
@@ -855,7 +855,7 @@ export class BankStatementImportService {
    */
   async cancelImport(
     importId: number,
-    companyId: string,
+    companyIds: string[],
     _userId?: string,
   ): Promise<void> {
     const importRecord = await this.repository.findById(importId);
@@ -864,9 +864,7 @@ export class BankStatementImportService {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
     }
 
-    if (importRecord.company_id !== companyId) {
-      throw BankStatementImportErrors.COMPANY_ACCESS_DENIED(companyId);
-    }
+    this.assertCompanyAccess(importRecord.company_id, companyIds);
 
     if (importRecord.status !== IMPORT_STATUS.IMPORTING) {
       throw BankStatementImportErrors.INVALID_STATUS_TRANSITION(
@@ -901,7 +899,7 @@ export class BankStatementImportService {
    */
   async deleteImport(
     importId: number,
-    companyId: string,
+    companyIds: string[],
     userId?: string,
   ): Promise<void> {
     const importRecord = await this.repository.findById(importId);
@@ -910,9 +908,7 @@ export class BankStatementImportService {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
     }
 
-    if (importRecord.company_id !== companyId) {
-      throw BankStatementImportErrors.COMPANY_ACCESS_DENIED(companyId);
-    }
+    this.assertCompanyAccess(importRecord.company_id, companyIds);
 
     if (importRecord.status === IMPORT_STATUS.IMPORTING) {
       // Allow delete if the linked job already failed (stuck import)
@@ -977,7 +973,7 @@ export class BankStatementImportService {
    */
   async retryImport(
     importId: number,
-    companyId: string,
+    companyIds: string[],
     userId?: string,
   ): Promise<ConfirmImportResult> {
     const importRecord = await this.repository.findById(importId);
@@ -986,9 +982,7 @@ export class BankStatementImportService {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
     }
 
-    if (importRecord.company_id !== companyId) {
-      throw BankStatementImportErrors.COMPANY_ACCESS_DENIED(companyId);
-    }
+    this.assertCompanyAccess(importRecord.company_id, companyIds);
 
     if (importRecord.status !== IMPORT_STATUS.FAILED) {
       throw BankStatementImportErrors.INVALID_STATUS_TRANSITION(
@@ -1006,7 +1000,7 @@ export class BankStatementImportService {
     });
 
     // Re-confirm (will create new job)
-    return this.confirmImport(importId, companyId, false, userId);
+    return this.confirmImport(importId, companyIds, false, userId);
   }
 
   /**
@@ -1014,7 +1008,7 @@ export class BankStatementImportService {
    */
   async dryRunImport(
     importId: number,
-    companyId: string,
+    companyIds: string[],
   ): Promise<{
     import: BankStatementImport;
     preview: {
@@ -1025,7 +1019,7 @@ export class BankStatementImportService {
       sample_statements: any[];
     };
   }> {
-    const importRecord = await this.getImportById(importId, companyId);
+    const importRecord = await this.getImportById(importId, companyIds);
 
     if (!importRecord) {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
@@ -1034,13 +1028,13 @@ export class BankStatementImportService {
     const rows = await this.retrieveTemporaryData(importId);
     const { validRows, invalidRows } = await this.validateRows(
       rows,
-      companyId,
+      importRecord.company_id,
       importRecord.bank_account_id,
       importId,
     );
     const duplicates = await this.detectDuplicates(
       validRows,
-      companyId,
+      importRecord.company_id,
       importRecord.bank_account_id,
     );
 
@@ -1065,7 +1059,7 @@ export class BankStatementImportService {
    */
   async getImportPreview(
     importId: number,
-    companyId: string,
+    companyIds: string[],
     limit: number = 10,
   ): Promise<{
     import: BankStatementImport;
@@ -1073,7 +1067,7 @@ export class BankStatementImportService {
     total_rows: number;
     data_source?: 'db' | 'temp' | 'analysis';
   }> {
-    const importRecord = await this.getImportById(importId, companyId);
+    const importRecord = await this.getImportById(importId, companyIds);
 
     if (!importRecord) {
       throw BankStatementImportErrors.IMPORT_NOT_FOUND(importId);
@@ -1140,8 +1134,9 @@ export class BankStatementImportService {
    */
   async listManualEntries(
     bankAccountId: number,
-    companyId: string,
+    companyIds: string[],
   ): Promise<{ month: string; entries: BankStatement[]; suggestions: Array<{ transaction_date: string; description: string; credit_amount: number; debit_amount: number; payment_method_id: number }> }[]> {
+    const companyId = companyIds[0] ?? ''
     const [entries, paymentMethods, branchIds] = await Promise.all([
       this.repository.listManualEntries(companyId, bankAccountId),
       this.repository.getPaymentMethodsByBankAccount(companyId, bankAccountId),

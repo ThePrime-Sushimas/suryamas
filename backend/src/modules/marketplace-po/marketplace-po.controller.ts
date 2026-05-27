@@ -4,6 +4,21 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { OwnerCreditCardWithSettlement } from './marketplace-po.types'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, resolveContextCompanyId } from '../../utils/branch-access.util'
+
+async function mpScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const [branchIds, companyIds] = await Promise.all([
+    getAccessibleBranchIds(userId),
+    getAccessibleCompanyIds(userId),
+  ])
+  return {
+    userId,
+    branchIds,
+    companyIds,
+    companyId: resolveContextCompanyId(req.context?.company_id ?? '', companyIds),
+  }
+}
 import type {
   ownerCreditCardListSchema,
   ownerCreditCardIdSchema,
@@ -52,9 +67,9 @@ type PendingPoLinesReq = ValidatedAuthRequest<typeof pendingPoLinesSchema>
 export class MarketplacePoController {
   listPendingPoLines = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds } = await mpScope(req)
       const { query } = (req as PendingPoLinesReq).validated
-      const rows = await marketplacePoService.listPendingPoLines(companyId, {
+      const rows = await marketplacePoService.listPendingPoLines(branchIds, {
         platform: query.platform,
         branch_id: query.branch_id,
       })
@@ -79,7 +94,7 @@ export class MarketplacePoController {
   }
   listSessions = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyIds } = await mpScope(req)
       const { query } = (req as ListSessionsReq).validated
       const page = query.page
       const limit = query.limit
@@ -94,7 +109,7 @@ export class MarketplacePoController {
         search: query.search,
       }
 
-      const result = await marketplacePoService.list(companyId, filter, { page, limit })
+      const result = await marketplacePoService.list(companyIds, filter, { page, limit })
       sendSuccess(
         res,
         result.data,

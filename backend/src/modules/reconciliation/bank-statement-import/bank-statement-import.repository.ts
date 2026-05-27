@@ -95,14 +95,14 @@ export class BankStatementImportRepository {
    * Find all imports dengan pagination
    */
   async findAll(
-    companyId: string,
+    companyIds: string[],
     pagination: { page: number; limit: number },
     filter?: BankStatementImportFilterParams,
   ): Promise<{ data: BankStatementImport[]; total: number }> {
     const offset = (pagination.page - 1) * pagination.limit;
-    const params: any[] = [companyId];
+    const params: any[] = [companyIds];
     const conditions: string[] = [
-      "bsi.company_id = $1",
+      "bsi.company_id = ANY($1::uuid[])",
       "bsi.deleted_at IS NULL",
     ];
 

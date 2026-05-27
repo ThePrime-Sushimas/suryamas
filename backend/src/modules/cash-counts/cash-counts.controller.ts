@@ -2,7 +2,21 @@ import { Request, Response } from 'express'
 import { cashCountsService } from './cash-counts.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { getAccessibleBranchNames } from '../../utils/branch-access.util'
+import { getAccessibleBranchNames, getAccessibleCompanyIds, resolveContextCompanyId } from '../../utils/branch-access.util'
+
+async function cashCountScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const [accessibleBranchNames, companyIds] = await Promise.all([
+    getAccessibleBranchNames(userId),
+    getAccessibleCompanyIds(userId),
+  ])
+  return {
+    userId,
+    accessibleBranchNames,
+    companyIds,
+    companyId: resolveContextCompanyId(req.context?.company_id ?? '', companyIds),
+  }
+}
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { storageService } from '../../services/storage.service'
 import {
@@ -25,7 +39,7 @@ export class CashCountsController {
   preview = async (req: Request, res: Response) => {
     try {
       const { start_date, end_date, payment_method_id } = (req as PreviewReq).validated.query
-      const companyId = req.context?.company_id ?? ''
+      const { companyId } = await cashCountScope(req)
       const result = await cashCountsService.preview(start_date, end_date, payment_method_id, companyId)
       sendSuccess(res, result, 'Preview loaded')
     } catch (error: unknown) {
@@ -36,8 +50,8 @@ export class CashCountsController {
   create = async (req: Request, res: Response) => {
     try {
       const { body } = (req as CreateReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const result = await cashCountsService.create(body, companyId, req.user?.id)
+      const { companyId, userId } = await cashCountScope(req)
+      const result = await cashCountsService.create(body, companyId, userId)
       sendSuccess(res, result, 'Cash count created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_cash_count' })
@@ -47,8 +61,7 @@ export class CashCountsController {
   list = async (req: Request, res: Response) => {
     try {
       const { query } = (req as ListReq).validated
-      const userId = req.user?.id ?? ''
-      const accessibleBranchNames = await getAccessibleBranchNames(userId)
+      const { accessibleBranchNames } = await cashCountScope(req)
       const result = await cashCountsService.list(query, accessibleBranchNames)
       sendSuccess(res, result.data, 'Cash counts retrieved', 200, result.pagination)
     } catch (error: unknown) {
@@ -59,7 +72,8 @@ export class CashCountsController {
   findById = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const result = await cashCountsService.getById(id)
+      const { accessibleBranchNames } = await cashCountScope(req)
+      const result = await cashCountsService.getById(id, accessibleBranchNames)
       sendSuccess(res, result, 'Cash count retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_cash_count', id: req.params.id })
@@ -79,8 +93,8 @@ export class CashCountsController {
   createDeposit = async (req: Request, res: Response) => {
     try {
       const { body } = (req as CreateDepositReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const result = await cashCountsService.createDeposit(body, companyId, req.user?.id)
+      const { companyId, userId } = await cashCountScope(req)
+      const result = await cashCountsService.createDeposit(body, companyId, userId)
       sendSuccess(res, result, 'Deposit created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_deposit' })
@@ -130,8 +144,8 @@ export class CashCountsController {
   listDeposits = async (req: Request, res: Response) => {
     try {
       const { page, limit } = (req as DepositListReq).validated.query
-      const companyId = req.context?.company_id ?? ''
-      const result = await cashCountsService.listDeposits(companyId, page, limit)
+      const { companyIds } = await cashCountScope(req)
+      const result = await cashCountsService.listDeposits(companyIds, page, limit)
       sendSuccess(res, result.data, 'Deposits retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_deposits' })
@@ -171,7 +185,7 @@ export class CashCountsController {
   capitalReport = async (req: Request, res: Response) => {
     try {
       const { start_date, end_date } = (req as CapitalReportReq).validated.query
-      const companyId = req.context?.company_id ?? ''
+      const { companyId } = await cashCountScope(req)
       const result = await cashCountsService.getCapitalTopUpReport(companyId, start_date, end_date)
       sendSuccess(res, result, 'Capital top up report')
     } catch (error: unknown) {

@@ -281,8 +281,8 @@ export class CashFlowSalesService {
     }
   }
 
-  async getBranches(companyId: string) {
-    return cashFlowSalesRepository.getBranches(companyId)
+  async getBranches(branchIds: string[]) {
+    return cashFlowSalesRepository.getBranches(branchIds)
   }
 
   private subtractOneDay(dateStr: string): string {

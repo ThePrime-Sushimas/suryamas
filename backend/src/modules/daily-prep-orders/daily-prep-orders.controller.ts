@@ -2,7 +2,22 @@ import type { Request, Response } from 'express'
 import { dailyPrepOrdersService } from './daily-prep-orders.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { getAccessibleBranchIds } from '../../utils/branch-access.util'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, getCompanyIdForBranch, requireBranchAccess, requireCompanyAccess, resolveContextCompanyId } from '../../utils/branch-access.util'
+
+async function dpoScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const [branchIds, companyIds] = await Promise.all([
+    getAccessibleBranchIds(userId),
+    getAccessibleCompanyIds(userId),
+  ])
+  return {
+    userId,
+    branchIds,
+    companyIds,
+    companyId: resolveContextCompanyId(req.context?.company_id ?? '', companyIds),
+    contextBranchId: req.context?.branch_id ?? '',
+  }
+}
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type {
   dpoIdSchema, dpoLineIdSchema, dpoListSchema, generateDpoSchema,
@@ -28,24 +43,21 @@ export class DailyPrepOrdersController {
 
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds } = await dpoScope(req)
       const { query } = (req as ListReq).validated
       const page = parseInt(query.page ?? '1') || 1
       const limit = parseInt(query.limit ?? '25') || 25
 
       const filter: Record<string, unknown> = {}
-      if (query.branch_id) filter.branch_id = query.branch_id
+      if (query.branch_id) {
+        requireBranchAccess(query.branch_id, branchIds)
+        filter.branch_id = query.branch_id
+      }
       if (query.status) filter.status = query.status
       if (query.date_from) filter.date_from = query.date_from
       if (query.date_to) filter.date_to = query.date_to
 
-      // Guard: only show DPOs from branches user has access to
-      if (!filter.branch_id) {
-        filter.branch_ids = await getAccessibleBranchIds(userId)
-      }
-
-      const result = await dailyPrepOrdersService.list(companyId, { page, limit }, filter)
+      const result = await dailyPrepOrdersService.list(branchIds, { page, limit }, filter)
       sendSuccess(res, result.data, 'DPO list retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_dpo' })
@@ -55,8 +67,8 @@ export class DailyPrepOrdersController {
   getById = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const result = await dailyPrepOrdersService.getById(id, companyId)
+      const { branchIds } = await dpoScope(req)
+      const result = await dailyPrepOrdersService.getById(id, branchIds)
       sendSuccess(res, result, 'DPO retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_dpo', id: req.params.id })
@@ -68,9 +80,8 @@ export class DailyPrepOrdersController {
   generate = async (req: Request, res: Response) => {
     try {
       const { body } = (req as GenerateReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const result = await dailyPrepOrdersService.generate(companyId, { ...body, created_by: userId })
+      const { branchIds, userId } = await dpoScope(req)
+      const result = await dailyPrepOrdersService.generate(branchIds, { ...body, created_by: userId })
       sendSuccess(res, result, 'DPO generated', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'generate_dpo' })
@@ -82,10 +93,9 @@ export class DailyPrepOrdersController {
   updateLines = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as UpdateLinesReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds, userId } = await dpoScope(req)
       const result = await dailyPrepOrdersService.updateLines(
-        params.id, companyId, { ...body, updated_by: userId }
+        params.id, branchIds, { ...body, updated_by: userId }
       )
       sendSuccess(res, result, 'DPO lines updated')
     } catch (error: unknown) {
@@ -96,8 +106,8 @@ export class DailyPrepOrdersController {
   deleteLine = async (req: Request, res: Response) => {
     try {
       const { id, lineId } = (req as LineIdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const result = await dailyPrepOrdersService.deleteLine(id, companyId, lineId)
+      const { branchIds } = await dpoScope(req)
+      const result = await dailyPrepOrdersService.deleteLine(id, branchIds, lineId)
       sendSuccess(res, result, 'DPO line deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_dpo_line', id: req.params.id })
@@ -109,9 +119,8 @@ export class DailyPrepOrdersController {
   acquireLock = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const result = await dailyPrepOrdersService.acquireLock(id, companyId, userId)
+      const { branchIds, userId } = await dpoScope(req)
+      const result = await dailyPrepOrdersService.acquireLock(id, branchIds, userId)
       sendSuccess(res, result, 'Lock acquired')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'acquire_dpo_lock', id: req.params.id })
@@ -121,10 +130,9 @@ export class DailyPrepOrdersController {
   confirm = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as ConfirmReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds, userId } = await dpoScope(req)
       const result = await dailyPrepOrdersService.confirm(
-        params.id, companyId, { ...body, confirmed_by: userId }
+        params.id, branchIds, { ...body, confirmed_by: userId }
       )
       sendSuccess(res, result, 'DPO confirmed')
     } catch (error: unknown) {
@@ -135,9 +143,8 @@ export class DailyPrepOrdersController {
   cancel = async (req: Request, res: Response) => {
     try {
       const { params } = (req as CancelReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const result = await dailyPrepOrdersService.cancel(params.id, companyId, userId)
+      const { branchIds, userId } = await dpoScope(req)
+      const result = await dailyPrepOrdersService.cancel(params.id, branchIds, userId)
       sendSuccess(res, result, 'DPO deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_dpo', id: req.params.id })
@@ -147,9 +154,8 @@ export class DailyPrepOrdersController {
   softDelete = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const result = await dailyPrepOrdersService.softDelete(id, companyId, userId)
+      const { branchIds, userId } = await dpoScope(req)
+      const result = await dailyPrepOrdersService.softDelete(id, branchIds, userId)
       sendSuccess(res, result, 'DPO deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_dpo', id: req.params.id })
@@ -161,7 +167,10 @@ export class DailyPrepOrdersController {
   getForecastConfig = async (req: Request, res: Response) => {
     try {
       const { branchId } = (req as BranchIdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds, companyIds } = await dpoScope(req)
+      requireBranchAccess(branchId, branchIds)
+      const companyId = (await getCompanyIdForBranch(branchId)) ?? ''
+      requireCompanyAccess(companyId, companyIds)
       const result = await dailyPrepOrdersService.getForecastConfig(companyId, branchId)
       sendSuccess(res, result, 'Forecast config retrieved')
     } catch (error: unknown) {
@@ -172,8 +181,10 @@ export class DailyPrepOrdersController {
   upsertForecastConfig = async (req: Request, res: Response) => {
     try {
       const { body } = (req as UpsertForecastReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds, companyIds, userId } = await dpoScope(req)
+      requireBranchAccess(body.branch_id, branchIds)
+      const companyId = (await getCompanyIdForBranch(body.branch_id)) ?? ''
+      requireCompanyAccess(companyId, companyIds)
       const result = await dailyPrepOrdersService.upsertForecastConfig(companyId, body, userId)
       sendSuccess(res, result, 'Forecast config saved')
     } catch (error: unknown) {
@@ -185,7 +196,7 @@ export class DailyPrepOrdersController {
 
   getHolidays = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyId } = await dpoScope(req)
       const from = req.query.from as string || new Date().getFullYear() + '-01-01'
       const to = req.query.to as string || new Date().getFullYear() + '-12-31'
       const result = await dailyPrepOrdersService.getHolidays(companyId, from, to)
@@ -198,8 +209,7 @@ export class DailyPrepOrdersController {
   upsertHoliday = async (req: Request, res: Response) => {
     try {
       const { body } = (req as UpsertHolidayReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await dpoScope(req)
       const result = await dailyPrepOrdersService.upsertHoliday(companyId, body, userId)
       sendSuccess(res, result, 'Holiday saved', 201)
     } catch (error: unknown) {
@@ -210,7 +220,7 @@ export class DailyPrepOrdersController {
   deleteHoliday = async (req: Request, res: Response) => {
     try {
       const { holidayId } = (req as HolidayIdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
+      const { companyId } = await dpoScope(req)
       const result = await dailyPrepOrdersService.deleteHoliday(companyId, holidayId)
       sendSuccess(res, { deleted: result }, 'Holiday deleted')
     } catch (error: unknown) {

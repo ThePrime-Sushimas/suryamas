@@ -695,10 +695,12 @@ export class CashFlowSalesRepository {
     }
   }
 
-  async getBranches(companyId: string): Promise<Array<{ branch_id: string; branch_name: string }>> {
+  async getBranches(branchIds: string[]): Promise<Array<{ branch_id: string; branch_name: string }>> {
     const { rows } = await pool.query(
-      'SELECT id, branch_name FROM branches WHERE company_id = $1 AND status IN (\'active\', \'closed\') ORDER BY branch_name',
-      [companyId]
+      `SELECT id, branch_name FROM branches
+       WHERE id = ANY($1::uuid[]) AND status IN ('active', 'closed')
+       ORDER BY branch_name`,
+      [branchIds],
     )
     return rows.map(b => ({ branch_id: b.id, branch_name: b.branch_name }))
   }

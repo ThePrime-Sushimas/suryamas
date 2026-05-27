@@ -69,9 +69,9 @@
       await journalHeadersService.postAsUser(journalHeader.id, authUserId)
       return { id: journalHeader.id }
     }
-    async list(companyId: string, filter: any, pagination: { page: number; limit: number }) {
+    async list(companyIds: string[], filter: any, pagination: { page: number; limit: number }) {
       const offset = (pagination.page - 1) * pagination.limit
-      return marketplacePoRepository.listSessions(companyId, filter, { limit: pagination.limit, offset })
+      return marketplacePoRepository.listSessions(companyIds, filter, { limit: pagination.limit, offset })
     }
 
     async getSessionDetail(id: string, companyId: string) {
@@ -97,8 +97,8 @@
       }
     }
 
-    async listPendingPoLines(companyId: string, filter: { platform?: string; branch_id?: string }) {
-      return marketplacePoRepository.findPendingPoLines(companyId, filter)
+    async listPendingPoLines(branchIds: string[], filter: { platform?: string; branch_id?: string }) {
+      return marketplacePoRepository.findPendingPoLines(branchIds, filter)
     }
 
     async createOwnerCreditCard(

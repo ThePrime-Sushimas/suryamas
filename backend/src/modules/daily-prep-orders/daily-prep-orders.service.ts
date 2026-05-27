@@ -56,13 +56,13 @@ export class DailyPrepOrdersService {
   // ─── LIST / GET ─────────────────────────────────────────────────────────────
 
   async list(
-    companyId: string,
+    branchIds: string[],
     pagination: { page: number; limit: number },
-    filter?: { branch_id?: string; branch_ids?: string[]; status?: string; date_from?: string; date_to?: string }
+    filter?: { branch_id?: string; status?: string; date_from?: string; date_to?: string }
   ) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await dailyPrepOrdersRepository.findAll(
-      companyId, { limit: pagination.limit, offset }, filter
+      branchIds, { limit: pagination.limit, offset }, filter
     )
     const totalPages = Math.ceil(total / pagination.limit)
     return {
@@ -71,15 +71,18 @@ export class DailyPrepOrdersService {
     }
   }
 
-  async getById(id: string, companyId: string) {
-    const dpo = await dailyPrepOrdersRepository.findDetail(id, companyId)
+  async getById(id: string, branchIds: string[]) {
+    const dpo = await dailyPrepOrdersRepository.findDetailAccessible(id, branchIds)
     if (!dpo) throw new DpoNotFoundError(id)
     return dpo
   }
 
   // ─── GENERATE ───────────────────────────────────────────────────────────────
 
-  async generate(companyId: string, dto: GenerateDpoDto) {
+  async generate(branchIds: string[], dto: GenerateDpoDto) {
+    const { requireBranchAccess, getCompanyIdForBranch } = await import('../../utils/branch-access.util')
+    requireBranchAccess(dto.branch_id, branchIds)
+    const companyId = (await getCompanyIdForBranch(dto.branch_id)) ?? ''
     // 1. Ambil forecast config
     const config = await dailyPrepOrdersRepository.findForecastConfig(companyId, dto.branch_id)
     if (!config) throw new DpoForecastConfigNotFoundError(dto.branch_id)
@@ -168,28 +171,28 @@ export class DailyPrepOrdersService {
 
   // ─── UPDATE LINES ───────────────────────────────────────────────────────────
 
-  async updateLines(id: string, companyId: string, dto: UpdateDpoLinesDto) {
-    const dpo = await dailyPrepOrdersRepository.findById(id, companyId)
+  async updateLines(id: string, branchIds: string[], dto: UpdateDpoLinesDto) {
+    const dpo = await dailyPrepOrdersRepository.findByIdAccessible(id, branchIds)
     if (!dpo) throw new DpoNotFoundError(id)
     if (dpo.status !== 'DRAFT') throw new DpoInvalidStatusError(dpo.status, 'DRAFT')
 
     await dailyPrepOrdersRepository.updateLines(id, dto)
-    return dailyPrepOrdersRepository.findDetail(id, companyId)
+    return dailyPrepOrdersRepository.findDetailAccessible(id, branchIds)
   }
 
-  async deleteLine(id: string, companyId: string, lineId: string) {
-    const dpo = await dailyPrepOrdersRepository.findById(id, companyId)
+  async deleteLine(id: string, branchIds: string[], lineId: string) {
+    const dpo = await dailyPrepOrdersRepository.findByIdAccessible(id, branchIds)
     if (!dpo) throw new DpoNotFoundError(id)
     if (dpo.status !== 'DRAFT') throw new DpoInvalidStatusError(dpo.status, 'DRAFT')
 
     await dailyPrepOrdersRepository.deleteLine(id, lineId)
-    return dailyPrepOrdersRepository.findDetail(id, companyId)
+    return dailyPrepOrdersRepository.findDetailAccessible(id, branchIds)
   }
 
   // ─── ACQUIRE LOCK (panggil sebelum open confirm modal) ──────────────────────
 
-  async acquireLock(id: string, companyId: string, userId: string) {
-    const dpo = await dailyPrepOrdersRepository.findById(id, companyId)
+  async acquireLock(id: string, branchIds: string[], userId: string) {
+    const dpo = await dailyPrepOrdersRepository.findByIdAccessible(id, branchIds)
     if (!dpo) throw new DpoNotFoundError(id)
     if (dpo.status !== 'DRAFT') throw new DpoInvalidStatusError(dpo.status, 'DRAFT')
 
@@ -203,8 +206,8 @@ export class DailyPrepOrdersService {
 
   // ─── CONFIRM ────────────────────────────────────────────────────────────────
 
-  async confirm(id: string, companyId: string, dto: ConfirmDpoDto) {
-    const detail = await dailyPrepOrdersRepository.findDetail(id, companyId)
+  async confirm(id: string, branchIds: string[], dto: ConfirmDpoDto) {
+    const detail = await dailyPrepOrdersRepository.findDetailAccessible(id, branchIds)
     if (!detail) throw new DpoNotFoundError(id)
     if (detail.status !== 'DRAFT') throw new DpoInvalidStatusError(detail.status, 'DRAFT')
 
@@ -304,18 +307,18 @@ export class DailyPrepOrdersService {
 
       await AuditService.log('UPDATE', 'daily_prep_orders', id, dto.confirmed_by, { status: 'DRAFT' }, { status: 'CONFIRMED', line_count: activeLines.length })
 
-      return dailyPrepOrdersRepository.findDetail(id, companyId)
+      return dailyPrepOrdersRepository.findDetailAccessible(id, branchIds)
     })
   }
 
   // ─── CANCEL (hard delete) ────────────────────────────────────────────────────
 
-  async cancel(id: string, companyId: string, userId: string) {
-    const dpo = await dailyPrepOrdersRepository.findById(id, companyId)
+  async cancel(id: string, branchIds: string[], userId: string) {
+    const dpo = await dailyPrepOrdersRepository.findByIdAccessible(id, branchIds)
     if (!dpo) throw new DpoNotFoundError(id)
     if (dpo.status !== 'DRAFT') throw new DpoInvalidStatusError(dpo.status, 'DRAFT')
 
-    const ok = await dailyPrepOrdersRepository.hardDelete(id, companyId)
+    const ok = await dailyPrepOrdersRepository.hardDelete(id, dpo.company_id)
     if (!ok) throw new DpoNotFoundError(id)
 
     await AuditService.log('DELETE', 'daily_prep_orders', id, userId, { status: 'DRAFT', dpo_number: dpo.dpo_number }, null)
@@ -324,12 +327,12 @@ export class DailyPrepOrdersService {
 
   // ─── SOFT DELETE ────────────────────────────────────────────────────────────
 
-  async softDelete(id: string, companyId: string, userId: string) {
-    const dpo = await dailyPrepOrdersRepository.findById(id, companyId)
+  async softDelete(id: string, branchIds: string[], userId: string) {
+    const dpo = await dailyPrepOrdersRepository.findByIdAccessible(id, branchIds)
     if (!dpo) throw new DpoNotFoundError(id)
     if (dpo.status !== 'DRAFT') throw new DpoInvalidStatusError(dpo.status, 'DRAFT')
 
-    const ok = await dailyPrepOrdersRepository.softDelete(id, companyId, userId)
+    const ok = await dailyPrepOrdersRepository.softDelete(id, dpo.company_id, userId)
     if (!ok) throw new DpoNotFoundError(id)
     return { success: true }
   }

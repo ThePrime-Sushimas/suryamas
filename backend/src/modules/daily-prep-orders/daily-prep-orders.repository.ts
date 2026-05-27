@@ -343,16 +343,17 @@ export class DailyPrepOrdersRepository {
   // ─── DPO CRUD ────────────────────────────────────────────────────────────────
 
   async findAll(
-    companyId: string,
+    branchIds: string[],
     pagination: { limit: number; offset: number },
-    filter?: { branch_id?: string; branch_ids?: string[]; status?: string; date_from?: string; date_to?: string }
+    filter?: { branch_id?: string; status?: string; date_from?: string; date_to?: string }
   ): Promise<{ data: DailyPrepOrderWithRelations[]; total: number }> {
-    const conditions = ['dpo.company_id = $1', 'dpo.is_deleted = false']
-    const params: unknown[] = [companyId]
+    const scopedBranches = filter?.branch_id
+      ? branchIds.filter((id) => id === filter.branch_id)
+      : branchIds
+    const conditions = ['dpo.branch_id = ANY($1::uuid[])', 'dpo.is_deleted = false']
+    const params: unknown[] = [scopedBranches]
     let idx = 2
 
-    if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`dpo.branch_id = $${idx++}`) }
-    else if (filter?.branch_ids?.length) { params.push(filter.branch_ids); conditions.push(`dpo.branch_id = ANY($${idx++}::uuid[])`) }
     if (filter?.status) { params.push(filter.status); conditions.push(`dpo.status = $${idx++}`) }
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`dpo.prep_date >= $${idx++}::date`) }
     if (filter?.date_to) { params.push(filter.date_to); conditions.push(`dpo.prep_date <= $${idx++}::date`) }
@@ -373,6 +374,15 @@ export class DailyPrepOrdersRepository {
       `SELECT ${HEADER_SELECT} ${HEADER_FROM}
        WHERE dpo.id = $1 AND dpo.company_id = $2 AND dpo.is_deleted = false`,
       [id, companyId]
+    )
+    return rows[0] ?? null
+  }
+
+  async findByIdAccessible(id: string, branchIds: string[]): Promise<DailyPrepOrderWithRelations | null> {
+    const { rows } = await pool.query(
+      `SELECT ${HEADER_SELECT} ${HEADER_FROM}
+       WHERE dpo.id = $1 AND dpo.branch_id = ANY($2::uuid[]) AND dpo.is_deleted = false`,
+      [id, branchIds],
     )
     return rows[0] ?? null
   }
@@ -417,6 +427,12 @@ export class DailyPrepOrdersRepository {
     )
 
     return { ...header, lines: lines as DailyPrepOrderLineWithRelations[] }
+  }
+
+  async findDetailAccessible(id: string, branchIds: string[]): Promise<DailyPrepOrderDetail | null> {
+    const header = await this.findByIdAccessible(id, branchIds)
+    if (!header) return null
+    return this.findDetail(id, header.company_id)
   }
 
   async findExistingDraft(branchId: string, prepDate: string): Promise<DailyPrepOrder | null> {
