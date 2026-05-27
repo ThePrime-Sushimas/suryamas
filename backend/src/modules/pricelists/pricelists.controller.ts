@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { pricelistsService } from './pricelists.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
+import { getAccessibleCompanyIds } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import {
   createPricelistSchema, updatePricelistSchema, pricelistIdSchema,
@@ -115,9 +116,9 @@ export class PricelistsController {
 
   listPriceChanges = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       const { query } = (req as PriceChangeListReq).validated
-      const result = await pricelistsService.getPriceChanges(companyId, query)
+      const result = await pricelistsService.getPriceChanges(companyIds, query)
       sendSuccess(
         res,
         { items: result.data, summary: result.summary },
@@ -132,9 +133,9 @@ export class PricelistsController {
 
   priceChangeChart = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       const { query } = (req as PriceChangeChartReq).validated
-      const result = await pricelistsService.getPriceChangeChart(companyId, query)
+      const result = await pricelistsService.getPriceChangeChart(companyIds, query)
       sendSuccess(res, result, 'Price change chart data retrieved successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'price_change_chart' })

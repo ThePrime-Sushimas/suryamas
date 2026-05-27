@@ -21,6 +21,7 @@ import {
 } from './bank-mutation-entries.types'
 import type { JournalType } from '../../accounting/journals/shared/journal.types'
 import { BusinessRuleError } from '../../../utils/errors.base'
+import { requireCompanyAccess } from '../../../utils/branch-access.util'
 
 const RECONCILIATION_SOURCE = 'BANK_MUTATION_ENTRY' as const
 const JOURNAL_SOURCE_MODULE = 'BANK_MUTATION_ENTRY' as const
@@ -35,8 +36,9 @@ export class BankMutationEntriesService {
   async reconcileWithMutationEntry(
     dto: ReconcileBankStatementWithMutationEntryDto,
     userId: string,
-    companyId: string,
+    companyIds: string[],
   ): Promise<BankMutationEntryDetail> {
+    const companyId = await this.resolveCompanyIdForMutation(companyIds, dto.bankStatementId)
     // 1. Validate bank statement exists & not already reconciled
     const statement = await bankReconciliationRepository.findById(dto.bankStatementId)
     if (statement.is_reconciled) {
@@ -132,9 +134,10 @@ export class BankMutationEntriesService {
     id: string,
     dto: VoidBankMutationEntryDto,
     userId: string,
-    companyId: string,
+    companyIds: string[],
   ): Promise<void> {
-    const entry = await this.repository.findByIdOrThrow(id, companyId)
+    const entry = await this.repository.findByIdOrThrow(id, companyIds)
+    const companyId = entry.company_id
 
     if (entry.status === 'VOIDED') {
       throw new BankMutationEntryAlreadyVoidedError(id)
@@ -183,7 +186,7 @@ export class BankMutationEntriesService {
     const offset = (page - 1) * limit
 
     const { data, total } = await this.repository.list({
-      companyId: filter.companyId,
+      companyIds: filter.companyIds,
       bankAccountId: filter.bankAccountId,
       entryType: filter.entryType,
       status: filter.status,
@@ -201,9 +204,15 @@ export class BankMutationEntriesService {
   /**
    * Get single entry detail
    */
-  async getById(id: string, companyId: string): Promise<BankMutationEntryDetail> {
-    const entry = await this.repository.findByIdOrThrow(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<BankMutationEntryDetail> {
+    const entry = await this.repository.findByIdOrThrow(id, companyIds)
     return this.toDetail(entry)
+  }
+
+  private async resolveCompanyIdForMutation(companyIds: string[], bankStatementId: string): Promise<string> {
+    const statement = await bankReconciliationRepository.findById(bankStatementId)
+    requireCompanyAccess(statement.company_id, companyIds)
+    return statement.company_id
   }
 
   /**

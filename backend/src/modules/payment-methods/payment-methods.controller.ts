@@ -12,6 +12,7 @@ import {
   bulkDeleteSchema,
 } from './payment-methods.schema'
 import type { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './payment-methods.types'
+import { getAccessibleCompanyIds, resolveContextCompanyId, requireCompanyAccess } from '../../utils/branch-access.util'
 
 type CreateReq = ValidatedAuthRequest<typeof createPaymentMethodSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updatePaymentMethodSchema>
@@ -19,16 +20,18 @@ type IdReq = ValidatedAuthRequest<typeof paymentMethodIdSchema>
 type BulkStatusReq = ValidatedAuthRequest<typeof bulkUpdateStatusSchema>
 type BulkDeleteReq = ValidatedAuthRequest<typeof bulkDeleteSchema>
 
-function getCompanyId(req: Request): string {
-  const companyId = req.context?.company_id
+async function pmScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const companyIds = await getAccessibleCompanyIds(userId)
+  const companyId = resolveContextCompanyId(req.context?.company_id ?? '', companyIds)
   if (!companyId) throw new Error('Branch context required - no company access')
-  return companyId
+  return { userId, companyIds, companyId }
 }
 
 export class PaymentMethodsController {
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       const pagination = req.pagination!
       if (pagination.limit > 1000) pagination.limit = 1000
 
@@ -41,7 +44,7 @@ export class PaymentMethodsController {
 
   create = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       const { body } = (req as CreateReq).validated
       const paymentMethod = await paymentMethodsService.create(
         { ...body, company_id: companyId } as CreatePaymentMethodDto,
@@ -55,7 +58,7 @@ export class PaymentMethodsController {
 
   getById = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       const id = parseInt((req as IdReq).validated.params.id)
       const paymentMethod = await paymentMethodsService.getById(id, companyId)
       sendSuccess(res, paymentMethod)
@@ -66,7 +69,7 @@ export class PaymentMethodsController {
 
   update = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       const validated = (req as UpdateReq).validated
       const id = parseInt(validated.params.id)
       const paymentMethod = await paymentMethodsService.update(id, validated.body as UpdatePaymentMethodDto, req.user?.id ?? '', companyId)
@@ -78,7 +81,7 @@ export class PaymentMethodsController {
 
   delete = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       const id = parseInt((req as IdReq).validated.params.id)
       await paymentMethodsService.delete(id, req.user?.id ?? '', companyId)
       sendSuccess(res, null, 'Payment method deleted')
@@ -89,7 +92,7 @@ export class PaymentMethodsController {
 
   bulkUpdateStatus = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       const { ids, is_active } = (req as BulkStatusReq).validated.body
       await paymentMethodsService.bulkUpdateStatus(ids, is_active, req.user?.id ?? '', companyId)
       sendSuccess(res, null, 'Bulk status update completed')
@@ -100,7 +103,7 @@ export class PaymentMethodsController {
 
   bulkDelete = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       const { ids } = (req as BulkDeleteReq).validated.body
       await paymentMethodsService.bulkDelete(ids, req.user?.id ?? '', companyId)
       sendSuccess(res, null, 'Bulk delete completed')
@@ -115,7 +118,7 @@ export class PaymentMethodsController {
 
   exportData = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       return handleExport(req, res, (filter) => paymentMethodsService.exportToExcel(companyId, filter), 'payment-methods')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'export_payment_methods' })
@@ -124,7 +127,7 @@ export class PaymentMethodsController {
 
   getOptions = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyId, companyIds } = await pmScope(req)
       const options = await paymentMethodsService.getOptions(companyId)
       sendSuccess(res, options, 'Payment method options retrieved')
     } catch (error: unknown) {

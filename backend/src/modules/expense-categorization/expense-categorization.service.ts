@@ -3,17 +3,22 @@ import { journalHeadersService } from '../accounting/journals/journal-headers/jo
 import { AuditService } from '../monitoring/monitoring.service'
 import { RuleNotFoundError, RuleDuplicateError, NoEligibleStatementsError, MissingCoaMappingError } from './expense-categorization.errors'
 import { isPostgresError } from '../../utils/postgres-error.util'
+import { requireCompanyAccess } from '../../utils/branch-access.util'
+import { BusinessRuleError } from '../../utils/errors.base'
 import type { ExpenseAutoRule, CreateRuleDto, UpdateRuleDto, CategorizeResult } from './expense-categorization.types'
+
+const DUMMY_COMPANY = '00000000-0000-0000-0000-000000000000'
 
 export class ExpenseCategorizationService {
 
   // ── Rules CRUD ──
 
-  async listRules(companyId: string): Promise<ExpenseAutoRule[]> {
-    return expenseCategorizationRepository.listRules(companyId)
+  async listRules(companyIds: string[]): Promise<ExpenseAutoRule[]> {
+    return expenseCategorizationRepository.listRules(companyIds)
   }
 
-  async createRule(companyId: string, dto: CreateRuleDto, userId: string): Promise<ExpenseAutoRule> {
+  async createRule(companyId: string, companyIds: string[], dto: CreateRuleDto, userId: string): Promise<ExpenseAutoRule> {
+    requireCompanyAccess(companyId, companyIds)
     try {
       const rule = await expenseCategorizationRepository.createRule(companyId, {
         purpose_id: dto.purpose_id,
@@ -29,8 +34,9 @@ export class ExpenseCategorizationService {
     }
   }
 
-  async updateRule(id: string, companyId: string, dto: UpdateRuleDto, userId: string): Promise<ExpenseAutoRule> {
-    const existing = await expenseCategorizationRepository.findRuleById(id, companyId)
+  async updateRule(id: string, companyId: string, companyIds: string[], dto: UpdateRuleDto, userId: string): Promise<ExpenseAutoRule> {
+    requireCompanyAccess(companyId, companyIds)
+    const existing = await expenseCategorizationRepository.findRuleById(id, companyIds)
     if (!existing) throw new RuleNotFoundError(id)
 
     const allowed: Record<string, unknown> = {}
@@ -41,7 +47,7 @@ export class ExpenseCategorizationService {
     if (dto.is_active !== undefined) allowed.is_active = dto.is_active
 
     try {
-      const rule = await expenseCategorizationRepository.updateRule(id, companyId, allowed, userId)
+      const rule = await expenseCategorizationRepository.updateRule(id, existing.company_id, allowed, userId)
       await AuditService.log('UPDATE', 'expense_auto_rule', id, userId, existing, rule)
       return rule
     } catch (err: unknown) {
@@ -50,17 +56,30 @@ export class ExpenseCategorizationService {
     }
   }
 
-  async deleteRule(id: string, companyId: string, userId: string): Promise<void> {
-    const existing = await expenseCategorizationRepository.findRuleById(id, companyId)
+  async deleteRule(id: string, companyId: string, companyIds: string[], userId: string): Promise<void> {
+    requireCompanyAccess(companyId, companyIds)
+    const existing = await expenseCategorizationRepository.findRuleById(id, companyIds)
     if (!existing) throw new RuleNotFoundError(id)
 
-    await expenseCategorizationRepository.deleteRule(id, companyId)
+    await expenseCategorizationRepository.deleteRule(id, existing.company_id)
     await AuditService.log('DELETE', 'expense_auto_rule', id, userId, existing)
   }
 
   // ── Auto-categorize engine ──
 
-  async autoCategorize(companyId: string, userId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string; dry_run?: boolean; include_categorized?: boolean }): Promise<CategorizeResult> {
+  async autoCategorize(companyIds: string[], userId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string; dry_run?: boolean; include_categorized?: boolean }): Promise<CategorizeResult> {
+    const result: CategorizeResult = { categorized: 0, skipped: 0, details: [] }
+    for (const companyId of companyIds) {
+      if (companyId === DUMMY_COMPANY) continue
+      const part = await this.autoCategorizeForCompany(companyId, userId, filters)
+      result.categorized += part.categorized
+      result.skipped += part.skipped
+      result.details.push(...part.details)
+    }
+    return result
+  }
+
+  private async autoCategorizeForCompany(companyId: string, userId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string; dry_run?: boolean; include_categorized?: boolean }): Promise<CategorizeResult> {
     const rules = await expenseCategorizationRepository.getActiveRules(companyId)
     if (rules.length === 0) return { categorized: 0, skipped: 0, details: [] }
 
@@ -87,7 +106,7 @@ export class ExpenseCategorizationService {
 
         if (matched) {
           matches.set(stmt.id, { purpose_id: rule.purpose_id, purpose_name: rule.purpose_name })
-          break // first match wins (sorted by priority)
+          break
         }
       }
     }
@@ -100,7 +119,6 @@ export class ExpenseCategorizationService {
       }
     }
 
-    // Group by purpose_id for batch updates
     const byPurpose = new Map<string, number[]>()
     for (const [stmtId, { purpose_id }] of matches) {
       if (!byPurpose.has(purpose_id)) byPurpose.set(purpose_id, [])
@@ -109,13 +127,14 @@ export class ExpenseCategorizationService {
 
     let totalCategorized = 0
     for (const [purposeId, ids] of byPurpose) {
-      totalCategorized += await expenseCategorizationRepository.setCategoryBulk(ids, purposeId, companyId)
+      totalCategorized += await expenseCategorizationRepository.setCategoryBulk(ids, purposeId, [companyId])
     }
 
     await AuditService.log('CREATE', 'expense_auto_categorize', 'bulk', userId, undefined, {
       categorized: totalCategorized,
       rules_used: rules.length,
       statements_checked: statements.length,
+      company_id: companyId,
     })
 
     return {
@@ -127,8 +146,8 @@ export class ExpenseCategorizationService {
 
   // ── Manual categorize ──
 
-  async categorizeManual(companyId: string, statementIds: number[], purposeId: string, userId: string): Promise<number> {
-    const count = await expenseCategorizationRepository.setCategoryBulk(statementIds, purposeId, companyId)
+  async categorizeManual(companyIds: string[], statementIds: number[], purposeId: string, userId: string): Promise<number> {
+    const count = await expenseCategorizationRepository.setCategoryBulk(statementIds, purposeId, companyIds)
     await AuditService.log('UPDATE', 'expense_categorize_manual', 'bulk', userId, undefined, {
       statement_ids: statementIds,
       purpose_id: purposeId,
@@ -137,8 +156,8 @@ export class ExpenseCategorizationService {
     return count
   }
 
-  async uncategorize(companyId: string, statementIds: number[], userId: string): Promise<number> {
-    const count = await expenseCategorizationRepository.clearCategoryBulk(statementIds, companyId)
+  async uncategorize(companyIds: string[], statementIds: number[], userId: string): Promise<number> {
+    const count = await expenseCategorizationRepository.clearCategoryBulk(statementIds, companyIds)
     await AuditService.log('UPDATE', 'expense_uncategorize', 'bulk', userId, undefined, {
       statement_ids: statementIds,
       count,
@@ -149,23 +168,29 @@ export class ExpenseCategorizationService {
   // ── List uncategorized ──
 
   async listUncategorized(
-    companyId: string,
+    companyIds: string[],
     filters: { bank_account_id?: number; purpose_id?: string; categorized?: string; search?: string; date_from?: string; date_to?: string },
     page: number, limit: number
   ) {
-    return expenseCategorizationRepository.listUncategorized(companyId, filters, page, limit)
+    return expenseCategorizationRepository.listUncategorized(companyIds, filters, page, limit)
   }
 
   // ── Generate Journal ──
 
   async generateJournal(
-    companyId: string,
+    companyIds: string[],
     statementIds: number[],
     userId: string,
     options?: { journal_date?: string; description?: string }
   ): Promise<{ journal_id: string; journal_number: string; lines_count: number; total_amount: number }> {
-    const stmts = await expenseCategorizationRepository.getStatementsForJournal(statementIds, companyId)
+    const stmts = await expenseCategorizationRepository.getStatementsForJournal(statementIds, companyIds)
     if (stmts.length === 0) throw new NoEligibleStatementsError()
+
+    const companyId = stmts[0].company_id as string
+    requireCompanyAccess(companyId, companyIds)
+    if (stmts.some(s => s.company_id !== companyId)) {
+      throw new BusinessRuleError('Semua statement harus dari company yang sama untuk satu jurnal')
+    }
 
     const incomplete = stmts.filter(s => s.debit_accounts.length === 0 || s.credit_accounts.length === 0)
     if (incomplete.length > 0) {
@@ -173,14 +198,12 @@ export class ExpenseCategorizationService {
       throw new MissingCoaMappingError(codes)
     }
 
-    // Auto-detect credit account: batch lookup bank COA mappings
     const bankAccountIds = [...new Set(stmts.map(s => s.bank_account_id).filter((id): id is number => id !== null))]
     const [bankCoaMap, allBankCoaIds] = await Promise.all([
       expenseCategorizationRepository.getBankAccountCoaMap(bankAccountIds, companyId),
       expenseCategorizationRepository.getAllBankCoaIds(companyId),
     ])
 
-    // Use provided date, or latest transaction date from selected statements
     const latestDate = stmts.reduce((max, s) => s.transaction_date > max ? s.transaction_date : max, stmts[0].transaction_date)
     const journalDate = options?.journal_date || latestDate
     const lines: Array<{ line_number: number; account_id: string; description: string; debit_amount: number; credit_amount: number }> = []
@@ -188,11 +211,9 @@ export class ExpenseCategorizationService {
     let totalAmount = 0
 
     for (const stmt of stmts) {
-      // Note: uses first account per side (priority=1). Multi-account per side is a known limitation.
       const debitAccount = stmt.debit_accounts[0]
       let creditAccount = stmt.credit_accounts[0]
 
-      // Override credit account if it's a bank account and statement has bank_account_id
       if (stmt.bank_account_id && allBankCoaIds.has(creditAccount.account_id)) {
         const overrideCoa = bankCoaMap.get(stmt.bank_account_id)
         if (overrideCoa) {

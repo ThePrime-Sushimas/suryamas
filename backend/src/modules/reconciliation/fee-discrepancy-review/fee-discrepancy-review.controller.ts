@@ -4,19 +4,25 @@ import { feeDiscrepancyReviewService } from './fee-discrepancy-review.service'
 import type { feeDiscrepancyListSchema, feeDiscrepancySummarySchema, feeDiscrepancyUpdateStatusSchema, feeDiscrepancyCreateCorrectionSchema, feeDiscrepancyUndoCorrectionSchema } from './fee-discrepancy-review.schema'
 import { sendSuccess } from '@/utils/response.util'
 import { handleError } from '@/utils/error-handler.util'
+import { getAccessibleCompanyIds, resolveContextCompanyId } from '@/utils/branch-access.util'
+
+async function feeScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const companyIds = await getAccessibleCompanyIds(userId)
+  return {
+    userId,
+    companyIds,
+    companyId: resolveContextCompanyId(req.context?.company_id ?? '', companyIds),
+  }
+}
 
 class FeeDiscrepancyReviewController {
-  private getCompanyId(req: Request): string {
-    const companyId = req.context?.company_id
-    if (!companyId) throw new Error('Branch context required - no company access')
-    return companyId
-  }
 
   async list(req: Request, res: Response) {
     try {
       const { query } = (req as ValidatedAuthRequest<typeof feeDiscrepancyListSchema>).validated
-      const companyId = this.getCompanyId(req)
-      const result = await feeDiscrepancyReviewService.getDiscrepancies(companyId, query)
+      const { companyIds } = await feeScope(req)
+      const result = await feeDiscrepancyReviewService.getDiscrepancies(companyIds, query)
       sendSuccess(res, result.data, 'Fee discrepancies fetched', 200, {
         total: result.total,
         page: query.page,
@@ -30,8 +36,8 @@ class FeeDiscrepancyReviewController {
   async summary(req: Request, res: Response) {
     try {
       const { query } = (req as ValidatedAuthRequest<typeof feeDiscrepancySummarySchema>).validated
-      const companyId = this.getCompanyId(req)
-      const result = await feeDiscrepancyReviewService.getSummary(companyId, query)
+      const { companyIds } = await feeScope(req)
+      const result = await feeDiscrepancyReviewService.getSummary(companyIds, query)
       sendSuccess(res, result)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_fee_discrepancy_summary' })
@@ -41,15 +47,14 @@ class FeeDiscrepancyReviewController {
   async updateStatus(req: Request, res: Response) {
     try {
       const { params, body } = (req as ValidatedAuthRequest<typeof feeDiscrepancyUpdateStatusSchema>).validated
-      const companyId = this.getCompanyId(req)
-      const userId = req.user?.id
+      const { companyIds, companyId, userId } = await feeScope(req)
       if (!userId) throw new Error('User not authenticated')
 
       const { source, sourceId } = params
       const { status, notes, correctionJournalId } = body
 
       await feeDiscrepancyReviewService.updateStatus(
-        companyId, source, sourceId, status, userId, notes, correctionJournalId
+        companyIds, companyId, source, sourceId, status, userId, notes, correctionJournalId
       )
 
       sendSuccess(res, { source, sourceId, status }, 'Status updated')
@@ -61,15 +66,14 @@ class FeeDiscrepancyReviewController {
   async createCorrection(req: Request, res: Response) {
     try {
       const { params, body } = (req as ValidatedAuthRequest<typeof feeDiscrepancyCreateCorrectionSchema>).validated
-      const companyId = this.getCompanyId(req)
-      const userId = req.user?.id
+      const { companyIds, companyId, userId } = await feeScope(req)
       if (!userId) throw new Error('User not authenticated')
 
       const { source, sourceId } = params
       const { lines, notes } = body
 
       const result = await feeDiscrepancyReviewService.createCorrectionJournal(
-        companyId, source, sourceId, userId, lines, notes
+        companyIds, companyId, source, sourceId, userId, lines, notes
       )
 
       sendSuccess(res, result, 'Jurnal koreksi berhasil dibuat')
@@ -81,12 +85,11 @@ class FeeDiscrepancyReviewController {
   async undoCorrection(req: Request, res: Response) {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof feeDiscrepancyUndoCorrectionSchema>).validated
-      const companyId = this.getCompanyId(req)
-      const userId = req.user?.id
+      const { companyIds, companyId, userId } = await feeScope(req)
       if (!userId) throw new Error('User not authenticated')
 
       const { source, sourceId } = params
-      await feeDiscrepancyReviewService.undoCorrection(companyId, source, sourceId, userId)
+      await feeDiscrepancyReviewService.undoCorrection(companyIds, companyId, source, sourceId, userId)
 
       sendSuccess(res, { source, sourceId }, 'Koreksi berhasil di-undo')
     } catch (error: unknown) {

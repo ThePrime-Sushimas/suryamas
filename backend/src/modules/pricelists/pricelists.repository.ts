@@ -451,11 +451,11 @@ export class PricelistsRepository {
   }
 
   private buildPriceChangeFilters(
-    companyId: string,
+    companyIds: string[],
     query?: PriceChangeListQuery,
   ): { where: string; params: unknown[] } {
-    const conditions = ['ppc.company_id = $1']
-    const params: unknown[] = [companyId]
+    const conditions = ['ppc.company_id = ANY($1::uuid[])']
+    const params: unknown[] = [companyIds]
     let idx = 2
 
     if (query?.supplier_id) {
@@ -508,11 +508,11 @@ export class PricelistsRepository {
   }
 
   async findPriceChanges(
-    companyId: string,
+    companyIds: string[],
     pagination: { limit: number; offset: number },
     query?: PriceChangeListQuery,
   ): Promise<{ data: PriceChangeWithRelations[]; total: number }> {
-    const { where, params } = this.buildPriceChangeFilters(companyId, query)
+    const { where, params } = this.buildPriceChangeFilters(companyIds, query)
     const limitIdx = params.length + 1
     const offsetIdx = params.length + 2
 
@@ -578,10 +578,10 @@ export class PricelistsRepository {
   }
 
   async summarizePriceChanges(
-    companyId: string,
+    companyIds: string[],
     query?: PriceChangeListQuery,
   ): Promise<PriceChangeSummary> {
-    const { where, params } = this.buildPriceChangeFilters(companyId, query)
+    const { where, params } = this.buildPriceChangeFilters(companyIds, query)
     const { rows } = await pool.query(
       `SELECT
          COUNT(*) FILTER (WHERE ppc.change_pct > 0)::int AS up_count,
@@ -600,7 +600,7 @@ export class PricelistsRepository {
   }
 
   async findPriceChangeChart(
-    companyId: string,
+    companyIds: string[],
     query: PriceChangeChartQuery,
   ): Promise<PriceChangeChartResult> {
     const limit = Math.min(query.limit ?? 30, 90)
@@ -612,22 +612,22 @@ export class PricelistsRepository {
     const { rows } = await pool.query(
       `SELECT ppc.effective_date, ppc.new_price, ppc.change_pct, ppc.source
        FROM pricelist_price_changes ppc
-       WHERE ppc.company_id = $1
+       WHERE ppc.company_id = ANY($1::uuid[])
          AND ppc.supplier_id = $2
          AND ppc.product_id = $3
          AND ppc.uom_id = $4
          AND ppc.effective_date >= $5
        ORDER BY ppc.effective_date ASC, ppc.created_at ASC
        LIMIT $6`,
-      [companyId, query.supplier_id, query.product_id, query.uom_id, cutoffStr, limit],
+      [companyIds, query.supplier_id, query.product_id, query.uom_id, cutoffStr, limit],
     )
 
     const activeRes = await pool.query(
       `SELECT price FROM pricelists
-       WHERE company_id = $1 AND supplier_id = $2 AND product_id = $3 AND uom_id = $4
+       WHERE company_id = ANY($1::uuid[]) AND supplier_id = $2 AND product_id = $3 AND uom_id = $4
          AND is_active = true AND status = 'APPROVED' AND deleted_at IS NULL
        LIMIT 1`,
-      [companyId, query.supplier_id, query.product_id, query.uom_id],
+      [companyIds, query.supplier_id, query.product_id, query.uom_id],
     )
 
     return {

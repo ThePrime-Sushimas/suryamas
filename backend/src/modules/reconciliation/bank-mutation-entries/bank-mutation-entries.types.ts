@@ -103,7 +103,7 @@ export interface BankMutationEntryDetail {
 
 /** List filter */
 export interface ListBankMutationEntriesFilter {
-  companyId: string
+  companyIds: string[]
   bankAccountId?: number
   entryType?: BankMutationEntryType
   status?: BankMutationEntryStatus

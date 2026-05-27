@@ -10,18 +10,28 @@ import type {
 } from './bank-mutation-entries.schema'
 import { sendSuccess, sendError } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
-import { getAccessScope } from '../../../utils/branch-access.util'
+import { getAccessScope, resolveContextCompanyId } from '../../../utils/branch-access.util'
+
+async function mutationScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const { branchIds, companyIds } = await getAccessScope(userId)
+  return {
+    userId,
+    branchIds,
+    companyIds,
+    companyId: resolveContextCompanyId(req.context?.company_id ?? '', companyIds),
+  }
+}
 
 export class BankMutationEntriesController {
   async reconcile(req: Request, res: Response): Promise<void> {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof reconcileWithMutationEntrySchema>).validated
-      const userId = req.user?.id
-      const companyId = req.context?.company_id
+      const { userId, companyIds } = await mutationScope(req)
 
-      if (!userId || !companyId) { sendError(res, 'Unauthorized', 401); return }
+      if (!userId) { sendError(res, 'Unauthorized', 401); return }
 
-      const result = await bankMutationEntriesService.reconcileWithMutationEntry(body, userId, companyId)
+      const result = await bankMutationEntriesService.reconcileWithMutationEntry(body, userId, companyIds)
       sendSuccess(res, result, 'Bank mutation entry berhasil dibuat & direconcile', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reconcile_mutation_entry' })
@@ -31,12 +41,11 @@ export class BankMutationEntriesController {
   async voidEntry(req: Request, res: Response): Promise<void> {
     try {
       const { params, body } = (req as ValidatedAuthRequest<typeof voidMutationEntrySchema>).validated
-      const userId = req.user?.id
-      const companyId = req.context?.company_id
+      const { userId, companyIds } = await mutationScope(req)
 
-      if (!userId || !companyId) { sendError(res, 'Unauthorized', 401); return }
+      if (!userId) { sendError(res, 'Unauthorized', 401); return }
 
-      await bankMutationEntriesService.voidEntry(params.id, { voidReason: body.voidReason }, userId, companyId)
+      await bankMutationEntriesService.voidEntry(params.id, { voidReason: body.voidReason }, userId, companyIds)
       sendSuccess(res, null, 'Bank mutation entry berhasil di-void')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'void_mutation_entry' })
@@ -46,12 +55,10 @@ export class BankMutationEntriesController {
   async list(req: Request, res: Response): Promise<void> {
     try {
       const { query } = (req as ValidatedAuthRequest<typeof listMutationEntriesSchema>).validated
-      const companyId = req.context?.company_id
-
-      if (!companyId) { sendError(res, 'Unauthorized', 401); return }
+      const { companyIds } = await mutationScope(req)
 
       const result = await bankMutationEntriesService.list({
-        companyId,
+        companyIds,
         bankAccountId: query.bankAccountId,
         entryType: query.entryType,
         status: query.status,
@@ -72,11 +79,9 @@ export class BankMutationEntriesController {
   async getById(req: Request, res: Response): Promise<void> {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof mutationEntryIdSchema>).validated
-      const companyId = req.context?.company_id
+      const { companyIds } = await mutationScope(req)
 
-      if (!companyId) { sendError(res, 'Unauthorized', 401); return }
-
-      const result = await bankMutationEntriesService.getById(params.id, companyId)
+      const result = await bankMutationEntriesService.getById(params.id, companyIds)
       sendSuccess(res, result)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_mutation_entry' })

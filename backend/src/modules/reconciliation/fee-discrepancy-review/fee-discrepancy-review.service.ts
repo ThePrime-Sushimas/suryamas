@@ -1,6 +1,7 @@
 import { feeDiscrepancyReviewRepository } from './fee-discrepancy-review.repository'
 import type { FeeDiscrepancyFilter, FeeDiscrepancySource, FeeDiscrepancyStatus, CorrectionType } from './fee-discrepancy-review.types'
 import { BusinessRuleError } from '@/utils/errors.base'
+import { requireCompanyAccess } from '@/utils/branch-access.util'
 import { logInfo, logError } from '@/config/logger'
 import { pool } from '@/config/db'
 
@@ -18,16 +19,72 @@ const CORRECTION_LABELS: Record<CorrectionType, string> = {
 export class FeeDiscrepancyReviewService {
   constructor(private readonly repo = feeDiscrepancyReviewRepository) {}
 
-  async getDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter) {
-    return this.repo.getDiscrepancies(companyId, filter)
+  async getDiscrepancies(companyIds: string[], filter: FeeDiscrepancyFilter) {
+    const merged: import('./fee-discrepancy-review.types').FeeDiscrepancyItem[] = []
+    for (const companyId of companyIds) {
+      const part = await this.repo.getDiscrepancies(companyId, { ...filter, page: 1, limit: 10000 })
+      merged.push(...part.data)
+    }
+    merged.sort((a, b) => {
+      const dateDiff = b.transactionDate.localeCompare(a.transactionDate)
+      return dateDiff !== 0 ? dateDiff : Math.abs(b.discrepancyAmount) - Math.abs(a.discrepancyAmount)
+    })
+    const filtered = filter.status ? merged.filter(i => i.status === filter.status) : merged
+    const amountFiltered = filter.minAmount ? filtered.filter(i => Math.abs(i.discrepancyAmount) >= filter.minAmount!) : filtered
+    const limit = filter.limit || 50
+    const offset = ((filter.page || 1) - 1) * limit
+    return { data: amountFiltered.slice(offset, offset + limit), total: amountFiltered.length }
   }
 
-  async getSummary(companyId: string, filter: FeeDiscrepancyFilter) {
-    return this.repo.getSummary(companyId, filter)
+  async getSummary(companyIds: string[], filter: FeeDiscrepancyFilter) {
+    const { data } = await this.getDiscrepancies(companyIds, { ...filter, page: 1, limit: 10000 })
+    const summary = {
+      totalPending: 0, totalConfirmed: 0, totalCorrected: 0, totalDismissed: 0,
+      sumPendingPositive: 0, sumPendingNegative: 0, sumConfirmedPositive: 0, sumConfirmedNegative: 0,
+      count: data.length,
+    }
+    for (const item of data) {
+      switch (item.status) {
+        case 'PENDING':
+          summary.totalPending++
+          if (item.discrepancyAmount > 0) summary.sumPendingPositive += item.discrepancyAmount
+          else summary.sumPendingNegative += item.discrepancyAmount
+          break
+        case 'CONFIRMED':
+          summary.totalConfirmed++
+          if (item.discrepancyAmount > 0) summary.sumConfirmedPositive += item.discrepancyAmount
+          else summary.sumConfirmedNegative += item.discrepancyAmount
+          break
+        case 'CORRECTED': summary.totalCorrected++; break
+        case 'DISMISSED': summary.totalDismissed++; break
+      }
+    }
+    return summary
+  }
+
+  private async resolveDiscrepancyCompany(
+    companyIds: string[],
+    contextCompanyId: string,
+    source: FeeDiscrepancySource,
+    sourceId: string,
+  ): Promise<string> {
+    for (const companyId of companyIds) {
+      const item = await this.repo.getDiscrepancyById(companyId, source, sourceId)
+      if (item) {
+        requireCompanyAccess(companyId, companyIds)
+        return companyId
+      }
+    }
+    if (contextCompanyId && companyIds.includes(contextCompanyId)) {
+      const item = await this.repo.getDiscrepancyById(contextCompanyId, source, sourceId)
+      if (item) return contextCompanyId
+    }
+    throw new BusinessRuleError('Fee discrepancy tidak ditemukan')
   }
 
   async updateStatus(
-    companyId: string,
+    companyIds: string[],
+    contextCompanyId: string,
     source: FeeDiscrepancySource,
     sourceId: string,
     status: FeeDiscrepancyStatus,
@@ -35,6 +92,7 @@ export class FeeDiscrepancyReviewService {
     notes?: string,
     correctionJournalId?: string,
   ) {
+    const companyId = await this.resolveDiscrepancyCompany(companyIds, contextCompanyId, source, sourceId)
     if (status === 'CORRECTED' && !correctionJournalId) {
       throw new BusinessRuleError('correctionJournalId wajib diisi untuk status CORRECTED')
     }
@@ -53,14 +111,15 @@ export class FeeDiscrepancyReviewService {
   }
 
   async createCorrectionJournal(
-    companyId: string,
+    companyIds: string[],
+    contextCompanyId: string,
     source: FeeDiscrepancySource,
     sourceId: string,
     userId: string,
     correctionLines: Array<{ correctionType: CorrectionType; amount: number }>,
     notes?: string,
   ): Promise<{ journalId: string; journalNumber: string }> {
-    // 1. Get discrepancy detail — direct query, no full scan
+    const companyId = await this.resolveDiscrepancyCompany(companyIds, contextCompanyId, source, sourceId)
     const discItem = await this.repo.getDiscrepancyById(companyId, source, sourceId)
     if (!discItem) throw new BusinessRuleError('Fee discrepancy tidak ditemukan')
 
@@ -178,12 +237,13 @@ export class FeeDiscrepancyReviewService {
   }
 
   async undoCorrection(
-    companyId: string,
+    companyIds: string[],
+    contextCompanyId: string,
     source: FeeDiscrepancySource,
     sourceId: string,
     userId: string,
   ): Promise<void> {
-    // 1. Get current review
+    const companyId = await this.resolveDiscrepancyCompany(companyIds, contextCompanyId, source, sourceId)
     const discItem = await this.repo.getDiscrepancyById(companyId, source, sourceId)
     if (!discItem) throw new BusinessRuleError('Fee discrepancy tidak ditemukan')
     if (discItem.status !== 'CORRECTED') throw new BusinessRuleError('Item ini belum dikoreksi')

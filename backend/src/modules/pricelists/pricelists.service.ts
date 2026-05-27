@@ -481,11 +481,11 @@ export class PricelistsService {
     return [...affectedProductIds]
   }
 
-  async getPriceChanges(companyId: string, query: PriceChangeListQuery) {
+  async getPriceChanges(companyIds: string[], query: PriceChangeListQuery) {
     const { page, limit, offset } = getPaginationParams({ ...query })
     const [{ data, total }, summary] = await Promise.all([
-      pricelistsRepository.findPriceChanges(companyId, { limit, offset }, query),
-      pricelistsRepository.summarizePriceChanges(companyId, query),
+      pricelistsRepository.findPriceChanges(companyIds, { limit, offset }, query),
+      pricelistsRepository.summarizePriceChanges(companyIds, query),
     ])
     return {
       ...createPaginatedResponse(data, total, page, limit),
@@ -493,8 +493,8 @@ export class PricelistsService {
     }
   }
 
-  async getPriceChangeChart(companyId: string, query: PriceChangeChartQuery) {
-    return pricelistsRepository.findPriceChangeChart(companyId, query)
+  async getPriceChangeChart(companyIds: string[], query: PriceChangeChartQuery) {
+    return pricelistsRepository.findPriceChangeChart(companyIds, query)
   }
 }
 

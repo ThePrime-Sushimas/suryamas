@@ -5,25 +5,25 @@ export class ExpenseCategorizationRepository {
 
   // ── Rules CRUD ──
 
-  async listRules(companyId: string): Promise<ExpenseAutoRule[]> {
+  async listRules(companyIds: string[]): Promise<ExpenseAutoRule[]> {
     const { rows } = await pool.query(
       `SELECT r.*, ap.purpose_code, ap.purpose_name
        FROM expense_auto_rules r
        JOIN accounting_purposes ap ON r.purpose_id = ap.id
-       WHERE r.company_id = $1
+       WHERE r.company_id = ANY($1::uuid[])
        ORDER BY r.priority ASC, r.created_at ASC`,
-      [companyId]
+      [companyIds]
     )
     return rows
   }
 
-  async findRuleById(id: string, companyId: string): Promise<ExpenseAutoRule | null> {
+  async findRuleById(id: string, companyIds: string[]): Promise<ExpenseAutoRule | null> {
     const { rows } = await pool.query(
       `SELECT r.*, ap.purpose_code, ap.purpose_name
        FROM expense_auto_rules r
        JOIN accounting_purposes ap ON r.purpose_id = ap.id
-       WHERE r.id = $1 AND r.company_id = $2`,
-      [id, companyId]
+       WHERE r.id = $1 AND r.company_id = ANY($2::uuid[])`,
+      [id, companyIds]
     )
     return rows[0] || null
   }
@@ -35,7 +35,7 @@ export class ExpenseCategorizationRepository {
        RETURNING *`,
       [companyId, dto.purpose_id, dto.pattern, dto.match_type, dto.priority, userId]
     )
-    return (await this.findRuleById(rows[0].id, companyId))!
+    return (await this.findRuleById(rows[0].id, [companyId]))!
   }
 
   async updateRule(id: string, companyId: string, dto: Record<string, unknown>, userId: string): Promise<ExpenseAutoRule> {
@@ -56,7 +56,7 @@ export class ExpenseCategorizationRepository {
       `UPDATE expense_auto_rules SET ${fields.join(', ')} WHERE id = $${values.length - 1} AND company_id = $${values.length}`,
       values
     )
-    return (await this.findRuleById(id, companyId))!
+    return (await this.findRuleById(id, [companyId]))!
   }
 
   async deleteRule(id: string, companyId: string): Promise<void> {
@@ -79,9 +79,9 @@ export class ExpenseCategorizationRepository {
 
   // ── Bank statement categorization ──
 
-  async listUncategorized(companyId: string, filters: { bank_account_id?: number; purpose_id?: string; categorized?: string; search?: string; date_from?: string; date_to?: string }, page: number, limit: number): Promise<{ data: UncategorizedStatement[]; total: number }> {
-    const conditions = ['bs.company_id = $1', 'bs.debit_amount > 0', 'bs.deleted_at IS NULL', 'bs.journal_id IS NULL']
-    const params: unknown[] = [companyId]
+  async listUncategorized(companyIds: string[], filters: { bank_account_id?: number; purpose_id?: string; categorized?: string; search?: string; date_from?: string; date_to?: string }, page: number, limit: number): Promise<{ data: UncategorizedStatement[]; total: number }> {
+    const conditions = ['bs.company_id = ANY($1::uuid[])', 'bs.debit_amount > 0', 'bs.deleted_at IS NULL', 'bs.journal_id IS NULL']
+    const params: unknown[] = [companyIds]
 
     if (filters.bank_account_id) {
       params.push(filters.bank_account_id)
@@ -132,25 +132,25 @@ export class ExpenseCategorizationRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async setCategoryBulk(statementIds: number[], purposeId: string, companyId: string): Promise<number> {
+  async setCategoryBulk(statementIds: number[], purposeId: string, companyIds: string[]): Promise<number> {
     const { rowCount } = await pool.query(
       `UPDATE bank_statements SET purpose_id = $1
-       WHERE id = ANY($2::bigint[]) AND company_id = $3 AND debit_amount > 0 AND journal_id IS NULL AND deleted_at IS NULL`,
-      [purposeId, statementIds, companyId]
+       WHERE id = ANY($2::bigint[]) AND company_id = ANY($3::uuid[]) AND debit_amount > 0 AND journal_id IS NULL AND deleted_at IS NULL`,
+      [purposeId, statementIds, companyIds]
     )
     return rowCount ?? 0
   }
 
-  async clearCategoryBulk(statementIds: number[], companyId: string): Promise<number> {
+  async clearCategoryBulk(statementIds: number[], companyIds: string[]): Promise<number> {
     const { rowCount } = await pool.query(
       `UPDATE bank_statements SET purpose_id = NULL
-       WHERE id = ANY($1::bigint[]) AND company_id = $2 AND journal_id IS NULL AND deleted_at IS NULL`,
-      [statementIds, companyId]
+       WHERE id = ANY($1::bigint[]) AND company_id = ANY($2::uuid[]) AND journal_id IS NULL AND deleted_at IS NULL`,
+      [statementIds, companyIds]
     )
     return rowCount ?? 0
   }
 
-  async getUncategorizedForAutoMatch(companyId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string; include_categorized?: boolean }): Promise<Array<{ id: number; description: string }>> {
+  async getUncategorizedForAutoMatch(companyId: string, filters?: { bank_account_id?: number; date_from?: string; date_to?: string; include_categorized?: boolean }): Promise<Array<{ id: number; description: string; company_id: string }>> {
     const conditions = ['company_id = $1', 'debit_amount > 0', 'journal_id IS NULL', 'deleted_at IS NULL']
     const params: unknown[] = [companyId]
 
@@ -172,31 +172,33 @@ export class ExpenseCategorizationRepository {
     }
 
     const { rows } = await pool.query(
-      `SELECT id, description FROM bank_statements WHERE ${conditions.join(' AND ')}`,
+      `SELECT id, description, company_id FROM bank_statements WHERE ${conditions.join(' AND ')}`,
       params
     )
     return rows
   }
-  async getStatementsForJournal(statementIds: number[], companyId: string): Promise<Array<{
-    id: number; transaction_date: string; description: string; debit_amount: number;
+
+  async getStatementsForJournal(statementIds: number[], companyIds: string[]): Promise<Array<{
+    id: number; company_id: string; transaction_date: string; description: string; debit_amount: number;
     bank_account_id: number | null;
     purpose_id: string; purpose_code: string; purpose_name: string;
     debit_accounts: Array<{ account_id: string; account_code: string; account_name: string; priority: number }>;
     credit_accounts: Array<{ account_id: string; account_code: string; account_name: string; priority: number }>;
   }>> {
     const { rows } = await pool.query(
-      `SELECT bs.id, bs.transaction_date, bs.description, bs.debit_amount, bs.bank_account_id,
+      `SELECT bs.id, bs.company_id, bs.transaction_date, bs.description, bs.debit_amount, bs.bank_account_id,
               bs.purpose_id, ap.purpose_code, ap.purpose_name
        FROM bank_statements bs
        JOIN accounting_purposes ap ON bs.purpose_id = ap.id
-       WHERE bs.id = ANY($1::bigint[]) AND bs.company_id = $2
+       WHERE bs.id = ANY($1::bigint[]) AND bs.company_id = ANY($2::uuid[])
          AND bs.purpose_id IS NOT NULL AND bs.journal_id IS NULL
          AND bs.debit_amount > 0 AND bs.deleted_at IS NULL`,
-      [statementIds, companyId]
+      [statementIds, companyIds]
     )
     if (rows.length === 0) return []
 
     const purposeIds = [...new Set(rows.map(r => r.purpose_id))]
+    const journalCompanyId = rows[0].company_id as string
     const { rows: mappings } = await pool.query(
       `SELECT apa.purpose_id, apa.side, apa.account_id, apa.priority,
               coa.account_code, coa.account_name
@@ -205,7 +207,7 @@ export class ExpenseCategorizationRepository {
        WHERE apa.purpose_id = ANY($1::uuid[]) AND apa.company_id = $2
          AND apa.is_active = true AND apa.deleted_at IS NULL
        ORDER BY apa.priority ASC`,
-      [purposeIds, companyId]
+      [purposeIds, journalCompanyId]
     )
 
     const mappingsByPurpose = new Map<string, { debit: typeof mappings; credit: typeof mappings }>()
@@ -217,7 +219,9 @@ export class ExpenseCategorizationRepository {
     return rows.map(r => {
       const pm = mappingsByPurpose.get(r.purpose_id) || { debit: [], credit: [] }
       return {
-        ...r, debit_amount: Number(r.debit_amount),
+        ...r,
+        company_id: r.company_id,
+        debit_amount: Number(r.debit_amount),
         debit_accounts: pm.debit.map(m => ({ account_id: m.account_id, account_code: m.account_code, account_name: m.account_name, priority: m.priority })),
         credit_accounts: pm.credit.map(m => ({ account_id: m.account_id, account_code: m.account_code, account_name: m.account_name, priority: m.priority })),
       }

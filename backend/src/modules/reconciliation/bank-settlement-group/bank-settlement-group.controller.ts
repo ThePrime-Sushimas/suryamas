@@ -12,6 +12,7 @@ import type {
   getSuggestionsSchema,
 } from './bank-settlement-group.schema'
 import { logInfo } from '../../../config/logger'
+import { getAccessibleCompanyIds, resolveContextCompanyId, requireCompanyAccess } from '../../../utils/branch-access.util'
 
 export class SettlementGroupController {
   constructor(private readonly service: SettlementGroupService) {}
@@ -20,10 +21,12 @@ export class SettlementGroupController {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createSettlementGroupSchema>).validated
       const userId = req.user?.id
-      const companyId = req.context?.company_id
+      const companyIds = await getAccessibleCompanyIds(userId ?? '')
+      const companyId = resolveContextCompanyId(req.context?.company_id ?? '', companyIds)
+      requireCompanyAccess(companyId, companyIds)
 
       const result = await this.service.createSettlementGroup({
-        companyId: companyId || '',
+        companyId,
         bankStatementIds: body.bankStatementIds,
         aggregateIds: body.aggregateIds,
         notes: body.notes,

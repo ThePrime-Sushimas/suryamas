@@ -19,6 +19,7 @@ import {
 import type { CalculationType } from '../payment-terms/payment-terms.types'
 import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
+import { requireBranchAccess, getCompanyIdForBranch } from '../../utils/branch-access.util'
 
 export class PurchaseOrdersService {
   private async requireById(id: string, branchIds: string[]) {
@@ -328,7 +329,11 @@ export class PurchaseOrdersService {
    * Check for similar POs (same supplier + branch + similar amount) in last 30 days.
    * Used as warning before creating new PO.
    */
-  async checkDuplicates(companyId: string, supplierId: string, branchId: string, totalAmount: number) {
+  async checkDuplicates(branchIds: string[], supplierId: string, branchId: string, totalAmount: number) {
+    requireBranchAccess(branchId, branchIds)
+    const companyId = await getCompanyIdForBranch(branchId)
+    if (!companyId) throw new InvalidReferenceError('branch_id not found')
+
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -343,10 +348,27 @@ export class PurchaseOrdersService {
    * Get latest price for a product.
    * Priority: pricelists (active, valid date) → supplier_products.price → products.average_cost
    */
-  async getLatestPrice(companyId: string, productId: string, supplierId?: string): Promise<{ price: number; source: string }> {
+  async getLatestPrice(
+    branchIds: string[],
+    companyId: string | null,
+    productId: string,
+    supplierId?: string,
+  ): Promise<{ price: number; source: string }> {
+    const companyIds: string[] = []
+    if (companyId) {
+      companyIds.push(companyId)
+    } else {
+      for (const branchId of branchIds) {
+        const cid = await getCompanyIdForBranch(branchId)
+        if (cid && !companyIds.includes(cid)) companyIds.push(cid)
+      }
+    }
+
     if (supplierId) {
-      const pricelistPrice = await purchaseOrdersRepository.findLatestPricelistPrice(companyId, productId, supplierId)
-      if (pricelistPrice != null) return { price: pricelistPrice, source: 'pricelist' }
+      for (const cid of companyIds) {
+        const pricelistPrice = await purchaseOrdersRepository.findLatestPricelistPrice(cid, productId, supplierId)
+        if (pricelistPrice != null) return { price: pricelistPrice, source: 'pricelist' }
+      }
 
       const supplierProductPrice = await purchaseOrdersRepository.findSupplierProductPrice(productId, supplierId)
       if (supplierProductPrice != null) return { price: supplierProductPrice, source: 'supplier_product' }

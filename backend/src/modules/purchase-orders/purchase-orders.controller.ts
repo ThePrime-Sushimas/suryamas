@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import { purchaseOrdersService } from './purchase-orders.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { getAccessibleBranchIds } from '../../utils/branch-access.util'
+import { getAccessibleBranchIds, getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type {
   createPurchaseOrderSchema, updatePurchaseOrderSchema, purchaseOrderIdSchema, cancelSchema,
@@ -174,7 +174,7 @@ export class PurchaseOrdersController {
 
   checkDuplicates = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
       const supplier_id = req.query.supplier_id as string
       const branch_id = req.query.branch_id as string
       const total_amount = parseFloat(req.query.total_amount as string) || 0
@@ -184,7 +184,7 @@ export class PurchaseOrdersController {
         return
       }
 
-      const result = await purchaseOrdersService.checkDuplicates(companyId, supplier_id, branch_id, total_amount)
+      const result = await purchaseOrdersService.checkDuplicates(branchIds, supplier_id, branch_id, total_amount)
       sendSuccess(res, result, 'Duplicate check completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'check_duplicate_po' })
@@ -193,7 +193,8 @@ export class PurchaseOrdersController {
 
   getLatestPrice = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
+      const branch_id = req.query.branch_id as string | undefined
       const product_id = req.query.product_id as string
       const supplier_id = req.query.supplier_id as string | undefined
 
@@ -202,7 +203,13 @@ export class PurchaseOrdersController {
         return
       }
 
-      const result = await purchaseOrdersService.getLatestPrice(companyId, product_id, supplier_id)
+      let companyId: string | null = null
+      if (branch_id) {
+        requireBranchAccess(branch_id, branchIds)
+        companyId = await getCompanyIdForBranch(branch_id)
+      }
+
+      const result = await purchaseOrdersService.getLatestPrice(branchIds, companyId, product_id, supplier_id)
       sendSuccess(res, result, 'Latest price retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_latest_price' })

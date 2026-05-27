@@ -32,16 +32,16 @@ export class BankMutationEntriesRepository {
     return rows[0]
   }
 
-  async findById(id: string, companyId: string): Promise<BankMutationEntryRow | null> {
+  async findById(id: string, companyIds: string[]): Promise<BankMutationEntryRow | null> {
     const { rows } = await pool.query(
-      `SELECT * FROM bank_mutation_entries WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
-      [id, companyId]
+      `SELECT * FROM bank_mutation_entries WHERE id = $1 AND company_id = ANY($2::uuid[]) AND deleted_at IS NULL`,
+      [id, companyIds]
     )
     return rows[0] ?? null
   }
 
-  async findByIdOrThrow(id: string, companyId: string): Promise<BankMutationEntryRow> {
-    const row = await this.findById(id, companyId)
+  async findByIdOrThrow(id: string, companyIds: string[]): Promise<BankMutationEntryRow> {
+    const row = await this.findById(id, companyIds)
     if (!row) throw new BankMutationEntryNotFoundError(id)
     return row
   }
@@ -55,12 +55,12 @@ export class BankMutationEntriesRepository {
   }
 
   async list(filter: {
-    companyId: string; bankAccountId?: number; entryType?: BankMutationEntryType;
+    companyIds: string[]; bankAccountId?: number; entryType?: BankMutationEntryType;
     status?: BankMutationEntryStatus; isReconciled?: boolean;
     dateFrom?: string; dateTo?: string; search?: string; limit: number; offset: number;
   }): Promise<{ data: BankMutationEntryRow[]; total: number }> {
-    const conditions: string[] = ['company_id = $1', 'deleted_at IS NULL']
-    const values: unknown[] = [filter.companyId]
+    const conditions: string[] = ['company_id = ANY($1::uuid[])', 'deleted_at IS NULL']
+    const values: unknown[] = [filter.companyIds]
     let idx = 2
 
     if (filter.bankAccountId) { conditions.push(`bank_account_id = $${idx++}`); values.push(filter.bankAccountId) }
