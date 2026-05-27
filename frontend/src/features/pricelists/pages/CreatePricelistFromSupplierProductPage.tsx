@@ -52,7 +52,7 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
 
   const handleSubmit = useCallback(async (data: CreatePricelistDto | UpdatePricelistDto) => {
     if (!supplierProduct) { toast.error('Missing required context'); return }
-    if (!writeCompanyId) { toast.error('Pilih cabang di header untuk menentukan perusahaan'); return }
+    if (!writeCompanyId) { toast.error('Tidak ada perusahaan yang dapat diakses'); return }
     try {
       await createPL.mutateAsync({ ...(data as CreatePricelistDto), company_id: writeCompanyId })
       toast.success('Pricelist berhasil dibuat')
@@ -97,18 +97,6 @@ export const CreatePricelistFromSupplierProductPage = memo(function CreatePricel
           <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Tidak Ditemukan</h2>
           <p className="text-yellow-600 dark:text-yellow-400 mb-4">Produk supplier tidak ditemukan</p>
           <button onClick={() => navigate('/supplier-products')} className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700">Kembali</button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!writeCompanyId) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">Cabang diperlukan</h2>
-          <p className="text-yellow-600 dark:text-yellow-400 mb-4">Pilih cabang di header untuk membuat pricelist (operasi tulis).</p>
-          <button onClick={() => navigate('/')} className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700">Pilih Branch</button>
         </div>
       </div>
     )

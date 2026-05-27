@@ -1,6 +1,9 @@
 import { posAggregatesRepository } from "./pos-aggregates.repository";
 import { paymentMethodsRepository } from "../../payment-methods/payment-methods.repository";
 import { branchesRepository } from "../../branches/branches.repository";
+import {
+  assertAggregatedTransactionBranchAccess,
+} from "../../../utils/branch-access.util";
 import { AuditService } from "../../monitoring/monitoring.service";
 import {
   AggregatedTransaction,
@@ -22,6 +25,15 @@ import {
 import { logInfo, logError } from "../../../config/logger";
 
 export class PosAggregatesService {
+  private assertAccess(
+    tx: { branch_id?: string | null; branch_name?: string | null },
+    access?: { branchIds: string[]; branchNames: string[] },
+  ): void {
+    if (access) {
+      assertAggregatedTransactionBranchAccess(tx, access.branchIds, access.branchNames);
+    }
+  }
+
   /**
    * Validate that branch exists (if provided)
    */
@@ -378,10 +390,14 @@ export class PosAggregatesService {
    */
   async getTransactionById(
     id: string,
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<AggregatedTransactionWithDetails> {
     const transaction = await posAggregatesRepository.findById(id);
     if (!transaction) {
       throw AggregatedTransactionErrors.NOT_FOUND(id);
+    }
+    if (access) {
+      assertAggregatedTransactionBranchAccess(transaction, access.branchIds, access.branchNames);
     }
     return transaction;
   }
@@ -410,10 +426,14 @@ export class PosAggregatesService {
     id: string,
     updates: UpdateAggregatedTransactionDto,
     expectedVersion?: number,
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<AggregatedTransaction> {
     const existing = await posAggregatesRepository.findById(id);
     if (!existing) {
       throw AggregatedTransactionErrors.NOT_FOUND(id);
+    }
+    if (access) {
+      assertAggregatedTransactionBranchAccess(existing, access.branchIds, access.branchNames);
     }
 
     if (updates.status && updates.status !== existing.status) {
@@ -498,11 +518,16 @@ export class PosAggregatesService {
   /**
    * Soft delete transaction
    */
-  async deleteTransaction(id: string, deletedBy?: string): Promise<void> {
+  async deleteTransaction(
+    id: string,
+    deletedBy?: string,
+    access?: { branchIds: string[]; branchNames: string[] },
+  ): Promise<void> {
     const existing = await posAggregatesRepository.findById(id);
     if (!existing) {
       throw AggregatedTransactionErrors.NOT_FOUND(id);
     }
+    this.assertAccess(existing, access);
 
     if (existing.status === "COMPLETED") {
       throw AggregatedTransactionErrors.CANNOT_DELETE_COMPLETED(id);
@@ -524,11 +549,16 @@ export class PosAggregatesService {
   /**
    * Restore soft-deleted transaction
    */
-  async restoreTransaction(id: string, restoredBy?: string): Promise<void> {
+  async restoreTransaction(
+    id: string,
+    restoredBy?: string,
+    access?: { branchIds: string[]; branchNames: string[] },
+  ): Promise<void> {
     const existing = await posAggregatesRepository.findById(id);
     if (existing && !existing.deleted_at) {
       throw AggregatedTransactionErrors.ALREADY_ACTIVE(id);
     }
+    if (existing) this.assertAccess(existing, access);
 
     logInfo("Restoring aggregated transaction", { id });
     await posAggregatesRepository.restore(id);
@@ -541,11 +571,17 @@ export class PosAggregatesService {
   /**
    * Mark transaction as reconciled
    */
-  async reconcileTransaction(id: string, reconciledBy: string, reason?: string): Promise<void> {
+  async reconcileTransaction(
+    id: string,
+    reconciledBy: string,
+    reason?: string,
+    access?: { branchIds: string[]; branchNames: string[] },
+  ): Promise<void> {
     const existing = await posAggregatesRepository.findById(id);
     if (!existing) {
       throw AggregatedTransactionErrors.NOT_FOUND(id);
     }
+    this.assertAccess(existing, access);
 
     if (existing.is_reconciled) {
       throw AggregatedTransactionErrors.ALREADY_RECONCILED(id);
@@ -569,6 +605,7 @@ export class PosAggregatesService {
   async reconcileBatch(
     transactionIds: string[],
     reconciledBy: string,
+    access?: { branchIds: string[]; branchNames: string[] },
   ): Promise<number> {
     let reconciled = 0;
 
@@ -576,6 +613,7 @@ export class PosAggregatesService {
       try {
         const existing = await posAggregatesRepository.findById(id);
         if (existing && !existing.is_reconciled) {
+          this.assertAccess(existing, access);
           await posAggregatesRepository.markReconciled([id], reconciledBy);
           reconciled++;
         }
@@ -602,6 +640,7 @@ export class PosAggregatesService {
     paymentMethodIds?: number[],
     status?: string,
     isReconciled?: boolean,
+    accessibleBranchIds?: string[],
   ): Promise<AggregatedTransactionSummary> {
     const summary = await posAggregatesRepository.getSummary(
       dateFrom,
@@ -610,6 +649,7 @@ export class PosAggregatesService {
       paymentMethodIds,
       status,
       isReconciled,
+      accessibleBranchIds,
     );
 
     const statusCounts = await posAggregatesRepository.getStatusCounts(
@@ -617,6 +657,7 @@ export class PosAggregatesService {
       dateTo,
       branchNames,
       paymentMethodIds,
+      accessibleBranchIds,
     );
 
     return {

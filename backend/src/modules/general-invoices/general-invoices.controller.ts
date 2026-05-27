@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { getAccessibleBranchIds, getAccessibleCompanyIds } from '../../utils/branch-access.util'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, resolveContextCompanyId } from '../../utils/branch-access.util'
 
 async function giScope(req: Request) {
   const userId = req.user?.id ?? ''
@@ -14,7 +14,7 @@ async function giScope(req: Request) {
     branchIds,
     companyIds,
     contextBranchId: req.context?.branch_id ?? '',
-    contextCompanyId: req.context?.company_id ?? '',
+    contextCompanyId: resolveContextCompanyId(req.context?.company_id ?? '', companyIds),
   }
 }
 

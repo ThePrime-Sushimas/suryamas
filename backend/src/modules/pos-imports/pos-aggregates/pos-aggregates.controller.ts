@@ -8,6 +8,8 @@ import {
   aggregatedTransactionIdSchema, aggregatedTransactionListQuerySchema,
   batchReconcileSchema, createBatchSchema, batchAssignJournalSchema, recalculateFeeSchema,
 } from './pos-aggregates.schema'
+import { getBranchReadScope, getAccessibleBranchNames, requireBranchAccess } from '../../../utils/branch-access.util'
+import type { AggregatedTransactionFilterParams } from './pos-aggregates.types'
 
 type CreateReq = ValidatedAuthRequest<typeof createAggregatedTransactionSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updateAggregatedTransactionSchema>
@@ -18,10 +20,32 @@ type CreateBatchReq = ValidatedAuthRequest<typeof createBatchSchema>
 type BatchAssignJournalReq = ValidatedAuthRequest<typeof batchAssignJournalSchema>
 type RecalcFeeReq = ValidatedAuthRequest<typeof recalculateFeeSchema>
 
+async function getAccess(req: Request) {
+  const scope = await getBranchReadScope(req)
+  const branchNames = await getAccessibleBranchNames(scope.userId)
+  return { ...scope, branchNames }
+}
+
+function withAccessibleBranches(
+  filter: AggregatedTransactionFilterParams | undefined,
+  branchIds: string[],
+): AggregatedTransactionFilterParams {
+  return { ...filter, accessible_branch_ids: branchIds }
+}
+
+function intersectBranchNames(requested: string[] | undefined, accessible: string[]): string[] | undefined {
+  if (!requested?.length) return undefined
+  const allowed = new Set(accessible.map((n) => n.trim().toLowerCase()))
+  const matched = requested.filter((n) => allowed.has(n.trim().toLowerCase()))
+  return matched.length > 0 ? matched : ['__no_access__']
+}
+
 export class PosAggregatesController {
   create = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { body } = (req as CreateReq).validated
+      if (body.branch_id) requireBranchAccess(body.branch_id, branchIds)
       const transaction = await posAggregatesService.createTransaction(body as Parameters<typeof posAggregatesService.createTransaction>[0])
       sendSuccess(res, transaction, 'Aggregated transaction created successfully', 201)
     } catch (error: unknown) {
@@ -31,8 +55,22 @@ export class PosAggregatesController {
 
   list = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { query } = (req as ListReq).validated
-      const result = await posAggregatesService.getTransactions(query)
+      if (query.branch_id) requireBranchAccess(query.branch_id, branchIds)
+      const filter = withAccessibleBranches(
+        {
+          ...query,
+          branch_names: intersectBranchNames(
+            query.branch_names
+              ? (Array.isArray(query.branch_names) ? query.branch_names : String(query.branch_names).split(','))
+              : undefined,
+            branchNames,
+          ),
+        },
+        branchIds,
+      )
+      const result = await posAggregatesService.getTransactions(filter)
       sendSuccess(res, result.data, 'Aggregated transactions retrieved successfully', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_aggregated_transactions' })
@@ -41,8 +79,10 @@ export class PosAggregatesController {
 
   findById = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { id } = (req as IdReq).validated.params
-      const transaction = await posAggregatesService.getTransactionById(id)
+      const access = { branchIds, branchNames }
+      const transaction = await posAggregatesService.getTransactionById(id, access)
       sendSuccess(res, transaction, 'Aggregated transaction retrieved successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_aggregated_transaction', id: req.params.id })
@@ -51,8 +91,10 @@ export class PosAggregatesController {
 
   update = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { params, body } = (req as UpdateReq).validated
-      const transaction = await posAggregatesService.updateTransaction(params.id, body, body.version)
+      const access = { branchIds, branchNames }
+      const transaction = await posAggregatesService.updateTransaction(params.id, body, body.version, access)
       sendSuccess(res, transaction, 'Aggregated transaction updated successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_aggregated_transaction', id: req.params.id })
@@ -61,8 +103,10 @@ export class PosAggregatesController {
 
   delete = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { id } = (req as IdReq).validated.params
-      await posAggregatesService.deleteTransaction(id, req.user?.id)
+      const access = { branchIds, branchNames }
+      await posAggregatesService.deleteTransaction(id, req.user?.id, access)
       sendSuccess(res, null, 'Aggregated transaction deleted successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_aggregated_transaction', id: req.params.id })
@@ -71,8 +115,10 @@ export class PosAggregatesController {
 
   restore = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { id } = (req as IdReq).validated.params
-      await posAggregatesService.restoreTransaction(id)
+      const access = { branchIds, branchNames }
+      await posAggregatesService.restoreTransaction(id, req.user?.id, access)
       sendSuccess(res, null, 'Aggregated transaction restored successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'restore_aggregated_transaction', id: req.params.id })
@@ -81,11 +127,13 @@ export class PosAggregatesController {
 
   reconcile = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { id } = (req as IdReq).validated.params
       const reconciledBy = req.user?.id
       if (!reconciledBy) throw new Error('Authentication required')
       const reason = req.body.reason as string | undefined
-      await posAggregatesService.reconcileTransaction(id, reconciledBy, reason)
+      const access = { branchIds, branchNames }
+      await posAggregatesService.reconcileTransaction(id, reconciledBy, reason, access)
       sendSuccess(res, null, 'Transaction reconciled successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reconcile_transaction', id: req.params.id })
@@ -94,10 +142,12 @@ export class PosAggregatesController {
 
   batchReconcile = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { transaction_ids } = (req as BatchReconcileReq).validated.body
       const reconciledBy = req.user?.id
       if (!reconciledBy) throw new Error('Authentication required')
-      const count = await posAggregatesService.reconcileBatch(transaction_ids, reconciledBy)
+      const access = { branchIds, branchNames }
+      const count = await posAggregatesService.reconcileBatch(transaction_ids, reconciledBy, access)
       sendSuccess(res, { reconciled_count: count }, `${count} transactions reconciled successfully`)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'batch_reconcile' })
@@ -133,6 +183,7 @@ export class PosAggregatesController {
 
   getSummary = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const q = (req as ListReq).validated.query
       let branchNamesArray: string[] | undefined
       if (q.branch_names) {
@@ -140,6 +191,7 @@ export class PosAggregatesController {
           ? q.branch_names.map(b => String(b).trim()).filter(Boolean)
           : String(q.branch_names).split(',').map(b => b.trim()).filter(Boolean)
       }
+      branchNamesArray = intersectBranchNames(branchNamesArray, branchNames)
       let paymentMethodIdsArray: number[] | undefined
       if (q.payment_method_ids) {
         paymentMethodIdsArray = (Array.isArray(q.payment_method_ids) ? q.payment_method_ids : String(q.payment_method_ids).split(','))
@@ -148,6 +200,7 @@ export class PosAggregatesController {
       const summary = await posAggregatesService.getSummary(
         q.transaction_date_from ?? undefined, q.transaction_date_to ?? undefined,
         branchNamesArray, paymentMethodIdsArray, q.status ?? undefined, q.is_reconciled,
+        branchIds,
       )
       sendSuccess(res, summary, 'Summary retrieved successfully')
     } catch (error: unknown) {
@@ -192,8 +245,10 @@ export class PosAggregatesController {
 
   listFailed = async (req: Request, res: Response) => {
     try {
+      const { branchIds, branchNames } = await getAccess(req)
       const { query } = (req as ListReq).validated
-      const result = await posAggregatesService.getFailedTransactions(query)
+      const filter = withAccessibleBranches(query, branchIds)
+      const result = await posAggregatesService.getFailedTransactions(filter)
       sendSuccess(res, result.data, 'Failed transactions retrieved successfully', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_failed_transactions' })

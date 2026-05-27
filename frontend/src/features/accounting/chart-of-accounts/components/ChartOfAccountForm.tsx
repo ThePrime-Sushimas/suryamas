@@ -15,6 +15,7 @@ interface ChartOfAccountFormProps {
   parentAccounts?: ChartOfAccount[]
   defaultParentId?: string
   lockedAccountType?: AccountType
+  onCompanyChange?: (companyId: string) => void
 }
 
 export const ChartOfAccountForm = ({ 
@@ -24,7 +25,8 @@ export const ChartOfAccountForm = ({
   isLoading, 
   parentAccounts = [],
   defaultParentId,
-  lockedAccountType
+  lockedAccountType,
+  onCompanyChange,
 }: ChartOfAccountFormProps) => {
   const currentBranch = useBranchContext()
   const contextBranches = useBranchContextStore(s => s.branches)
@@ -159,7 +161,17 @@ export const ChartOfAccountForm = ({
       fieldValue = formatCode(value)
     }
 
-    setFormData(prev => ({ ...prev, [name]: fieldValue }))
+    if (name === 'company_id' && typeof fieldValue === 'string') {
+      onCompanyChange?.(fieldValue)
+      setFormData(prev => ({
+        ...prev,
+        company_id: fieldValue,
+        branch_id: '',
+        parent_account_id: '',
+      }))
+    } else {
+      setFormData(prev => ({ ...prev, [name]: fieldValue }))
+    }
 
     // Auto-adjust related fields
     if (name === 'account_type') {

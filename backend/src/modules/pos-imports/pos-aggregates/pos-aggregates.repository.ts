@@ -31,6 +31,29 @@ function normalizeNumberArray(value: string | number[] | undefined): number[] | 
   return value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
 }
 
+function appendAccessibleBranchScope(
+  conditions: string[],
+  params: unknown[],
+  accessibleBranchIds?: string[],
+  colPrefix = ''
+): void {
+  if (!accessibleBranchIds?.length) return
+  params.push(accessibleBranchIds)
+  const idx = params.length
+  const p = colPrefix
+  conditions.push(`(
+    ${p}branch_id = ANY($${idx}::uuid[])
+    OR (
+      ${p}branch_id IS NULL
+      AND ${p}branch_name IS NOT NULL
+      AND ${p}branch_name IN (
+        SELECT b.branch_name FROM branches b
+        WHERE b.id = ANY($${idx}::uuid[]) AND b.deleted_at IS NULL
+      )
+    )
+  )`)
+}
+
 export class PosAggregatesRepository {
   /**
    * Find all aggregated transactions with pagination and filters
@@ -48,6 +71,8 @@ export class PosAggregatesRepository {
     if (!filter?.show_deleted) {
       conditions.push('at.deleted_at IS NULL')
     }
+
+    appendAccessibleBranchScope(conditions, params, filter?.accessible_branch_ids, 'at.')
 
     // Apply filters
     if (filter?.branch_id) {
@@ -734,6 +759,7 @@ export class PosAggregatesRepository {
     paymentMethodIds?: number[],
     status?: string,
     isReconciled?: boolean,
+    accessibleBranchIds?: string[],
   ): Promise<{
     total_count: number
     total_gross_amount: number
@@ -781,6 +807,8 @@ export class PosAggregatesRepository {
       params.push(paymentMethodIds)
       conditions.push(`payment_method_id = ANY($${params.length})`)
     }
+
+    appendAccessibleBranchScope(conditions, params, accessibleBranchIds)
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
@@ -830,7 +858,8 @@ export class PosAggregatesRepository {
     dateFrom?: string,
     dateTo?: string,
     branchNames?: string[],
-    paymentMethodIds?: number[]
+    paymentMethodIds?: number[],
+    accessibleBranchIds?: string[],
   ): Promise<Record<AggregatedTransactionStatus, number>> {
     const conditions: string[] = ['deleted_at IS NULL', 'superseded_by IS NULL']
     const params: any[] = []
@@ -854,6 +883,8 @@ export class PosAggregatesRepository {
       params.push(paymentMethodIds)
       conditions.push(`payment_method_id = ANY($${params.length})`)
     }
+
+    appendAccessibleBranchScope(conditions, params, accessibleBranchIds)
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
     

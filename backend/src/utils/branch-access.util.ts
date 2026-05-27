@@ -102,6 +102,31 @@ export function isBranchAccessible(branchId: string | null | undefined, accessib
   return accessibleBranchIds.includes(branchId)
 }
 
+/** POS aggregates may use branch_id or branch_name without company_id */
+export function assertAggregatedTransactionBranchAccess(
+  tx: { branch_id?: string | null; branch_name?: string | null },
+  accessibleBranchIds: string[],
+  accessibleBranchNames: string[]
+): void {
+  if (tx.branch_id) {
+    requireBranchAccess(tx.branch_id, accessibleBranchIds)
+    return
+  }
+  if (tx.branch_name) {
+    const name = tx.branch_name.trim().toLowerCase()
+    const allowed = accessibleBranchNames.map((n) => n.trim().toLowerCase())
+    if (!allowed.includes(name)) {
+      const err = new Error('No access to this branch') as Error & { statusCode?: number }
+      err.statusCode = 403
+      throw err
+    }
+    return
+  }
+  const err = new Error('No access to this transaction branch') as Error & { statusCode?: number }
+  err.statusCode = 403
+  throw err
+}
+
 /** Active-branch company for writes (bank import, cash flow groups, etc.). */
 export function resolveContextCompanyId(contextCompanyId: string, companyIds: string[]): string {
   if (contextCompanyId && companyIds.includes(contextCompanyId)) return contextCompanyId

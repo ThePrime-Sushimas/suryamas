@@ -4,9 +4,9 @@
  * Filter controls — compact style matching pos-sync-aggregates.
  */
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { usePosAggregatesStore } from '../store/posAggregates.store'
-import { useBranchesStore } from '@/features/branches/store/branches.store'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePaymentMethodsStore } from '@/features/payment-methods/store/paymentMethods.store'
 import type { AggregatedTransactionStatus } from '../types'
 import { Search, X, ChevronDown, Filter } from 'lucide-react'
@@ -36,8 +36,17 @@ const JOURNAL_OPTIONS: { value: string; label: string }[] = [
 
 export const PosAggregatesFilters: React.FC = () => {
   const { filter, setFilter, clearFilter, fetchTransactions, fetchSummary } = usePosAggregatesStore()
-  const { branches, fetchPage: fetchBranches } = useBranchesStore()
+  const accessibleBranches = useBranchContextStore(s => s.branches)
   const { paymentMethods, fetchPaymentMethods } = usePaymentMethodsStore()
+
+  const branchOptions = useMemo(
+    () =>
+      accessibleBranches.map(b => ({
+        id: b.branch_id,
+        name: b.branch_name,
+      })),
+    [accessibleBranches],
+  )
 
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
   const [selectedPayments, setSelectedPayments] = useState<string[]>([])
@@ -63,9 +72,8 @@ export const PosAggregatesFilters: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    fetchBranches(1, 100, null, { status: 'active' })
     fetchPaymentMethods(1, 100)
-  }, [fetchBranches, fetchPaymentMethods])
+  }, [fetchPaymentMethods])
 
   const handleApplyFilters = async () => {
     setIsApplyingFilters(true)
@@ -183,17 +191,17 @@ export const PosAggregatesFilters: React.FC = () => {
             </button>
             {showBranchDropdown && (
               <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                {branches.map(b => (
+                {branchOptions.map(b => (
                   <label key={b.id} className="flex items-center px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={selectedBranches.includes(b.branch_name)}
+                      checked={selectedBranches.includes(b.name)}
                       onChange={() => setSelectedBranches(prev =>
-                        prev.includes(b.branch_name) ? prev.filter(x => x !== b.branch_name) : [...prev, b.branch_name]
+                        prev.includes(b.name) ? prev.filter(x => x !== b.name) : [...prev, b.name]
                       )}
                       className="mr-2"
                     />
-                    <span className="text-xs text-gray-900 dark:text-white">{b.branch_name}</span>
+                    <span className="text-xs text-gray-900 dark:text-white">{b.name}</span>
                   </label>
                 ))}
               </div>

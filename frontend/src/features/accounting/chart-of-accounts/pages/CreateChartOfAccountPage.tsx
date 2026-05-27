@@ -35,8 +35,9 @@ export default function CreateChartOfAccountPage() {
     currentBranch?.company_id ||
     branches.find(b => b.company_id)?.company_id ||
     ''
+  const [treeCompanyId, setTreeCompanyId] = useState(companyId)
   const { success, error } = useToast()
-  
+
   const [parentAccounts, setParentAccounts] = useState<ChartOfAccount[]>([])
   const [defaultParentId, setDefaultParentId] = useState<string | undefined>()
   const [selectedParent, setSelectedParent] = useState<ChartOfAccount | undefined>()
@@ -44,10 +45,14 @@ export default function CreateChartOfAccountPage() {
   const parentId = searchParams.get('parent')
 
   useEffect(() => {
-    if (companyId) {
-      fetchTree(undefined, { company_id: companyId })
+    if (companyId && !treeCompanyId) setTreeCompanyId(companyId)
+  }, [companyId, treeCompanyId])
+
+  useEffect(() => {
+    if (treeCompanyId) {
+      fetchTree(undefined, { company_id: treeCompanyId })
     }
-  }, [companyId, fetchTree])
+  }, [treeCompanyId, fetchTree])
 
   useEffect(() => {
     // Convert tree to flat array for parent selection
@@ -105,6 +110,7 @@ export default function CreateChartOfAccountPage() {
               parentAccounts={parentAccounts}
               defaultParentId={defaultParentId}
               lockedAccountType={selectedParent?.account_type}
+              onCompanyChange={setTreeCompanyId}
             />
           </div>
         </div>

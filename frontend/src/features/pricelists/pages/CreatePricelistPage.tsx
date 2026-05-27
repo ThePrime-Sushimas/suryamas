@@ -89,11 +89,10 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
   // UOM search hook
   const uomSearch = useUomSearch(formData.product_id)
 
-  // Sync write company when header branch or options change
+  // Set default company once when branches load (do not override user selection)
   useEffect(() => {
-    if (writeCompanyId) {
-      setFormData(prev => ({ ...prev, company_id: writeCompanyId }))
-    }
+    if (!writeCompanyId) return
+    setFormData(prev => (prev.company_id ? prev : { ...prev, company_id: writeCompanyId }))
   }, [writeCompanyId])
 
   // Fetch suppliers
@@ -215,7 +214,7 @@ export const CreatePricelistPage = memo(function CreatePricelistPage() {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.company_id) {
-      toast.error('Pilih cabang di header untuk menentukan perusahaan')
+      toast.error('Pilih perusahaan')
       return
     }
     

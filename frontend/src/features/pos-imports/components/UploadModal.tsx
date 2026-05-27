@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { Upload, X, AlertCircle } from 'lucide-react'
 import { useBranchContextStore } from '@/features/branch_context'
 import { POS_IMPORT_MAX_FILE_SIZE_MB } from '../constants/pos-imports.constants'
@@ -18,8 +18,21 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
   const [file, setFile] = useState<File | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [selectedBranchId, setSelectedBranchId] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const branches = useBranchContextStore(s => s.branches)
+
+  const branchOptions = useMemo(
+    () => branches.filter(b => b.branch_id),
+    [branches],
+  )
+
+  const activeBranchId = selectedBranchId || currentBranch?.branch_id || branchOptions[0]?.branch_id || ''
+  const activeBranchName =
+    branchOptions.find(b => b.branch_id === activeBranchId)?.branch_name ||
+    currentBranch?.branch_name ||
+    ''
 
   if (!isOpen) return null
 
@@ -58,10 +71,10 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
   }
 
   const handleUpload = async () => {
-    if (!file || !currentBranch?.branch_id) return
+    if (!file || !activeBranchId) return
 
     try {
-      await onUpload(file, currentBranch.branch_id)
+      await onUpload(file, activeBranchId)
       setFile(null)
       onClearError?.()
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -103,6 +116,26 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
         </div>
 
         <div className="p-6 space-y-4">
+          {branchOptions.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Cabang untuk import <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={activeBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                disabled={isLoading}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                {branchOptions.map((b) => (
+                  <option key={b.branch_id} value={b.branch_id}>
+                    {b.branch_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Select Excel File <span className="text-red-500">*</span>
@@ -187,8 +220,8 @@ export const UploadModal = ({ isOpen, onClose, onUpload, isLoading, uploadProgre
                 </div>
                 <div>
                   <div className="font-medium">Cabang</div>
-                  <div className="truncate" title={currentBranch?.branch_name}>
-                    {currentBranch?.branch_name || 'Unknown'}
+                  <div className="truncate" title={activeBranchName}>
+                    {activeBranchName || '—'}
                   </div>
                 </div>
                 {file && file.size > 5 * 1024 * 1024 && (

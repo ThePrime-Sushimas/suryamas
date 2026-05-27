@@ -4,7 +4,7 @@ import type { CreateAccountingPurposeAccountDto, UpdateAccountingPurposeAccountD
 import { useAccountingPurposeAccountsStore } from '../store/accountingPurposeAccounts.store'
 import { SIDES, FIELD_MAPPING_OPTIONS } from '../constants/accounting-purpose-account.constants'
 import { validateSideBalance } from '../utils/validation'
-import { useBranchContext } from '@/features/branch_context/hooks/useBranchContext'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
 interface AccountingPurposeAccountFormProps {
   initialData?: UpdateAccountingPurposeAccountDto & { purpose_id?: string; account_id?: string }
@@ -28,7 +28,9 @@ export const AccountingPurposeAccountForm = ({
   editInfo,
 }: AccountingPurposeAccountFormProps) => {
   const { postableAccounts, activePurposes, loading } = useAccountingPurposeAccountsStore()
-  const branchContext = useBranchContext()
+  const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const branches = useBranchContextStore(s => s.branches)
+  const activeCompanyId = currentBranch?.company_id ?? branches[0]?.company_id
   
   const { register, handleSubmit, reset, control, formState: { errors, isSubmitting } } = useForm({
     defaultValues: initialData
@@ -36,7 +38,7 @@ export const AccountingPurposeAccountForm = ({
 
   // Reset form when company changes (only for create mode)
   useEffect(() => {
-    if (!isEdit && branchContext?.company_id) {
+    if (!isEdit && activeCompanyId) {
       reset({
         purpose_id: '',
         account_id: '',
@@ -45,7 +47,7 @@ export const AccountingPurposeAccountForm = ({
         is_active: true
       })
     }
-  }, [branchContext?.company_id, isEdit, reset])
+  }, [activeCompanyId, isEdit, reset])
 
   const selectedAccountId = useWatch({
     control,

@@ -275,6 +275,8 @@ export interface AggregatedTransactionFilterParams {
   has_journal?: boolean;
   search?: string;
   show_deleted?: boolean;
+  /** Server-side scope: limit to branches the user can access */
+  accessible_branch_ids?: string[];
 }
 
 /**
