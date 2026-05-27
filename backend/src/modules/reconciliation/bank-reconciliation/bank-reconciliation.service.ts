@@ -443,13 +443,13 @@ export class BankReconciliationService {
         
         // Baru update aggregate kalau semua sudah di-undo
         if (remainingReconciled === 0) {
-          await this.feeReconciliationService.resetFeeDiscrepancy(aggregateId);
+          await this.feeReconciliationService.resetFeeDiscrepancy?.(aggregateId);
           await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING");
           await this.repository.softDeleteGroup(statement.reconciliation_group_id!);
         }
       } else {
         // Manual/auto reconcile — langsung reset
-        await this.feeReconciliationService.resetFeeDiscrepancy(aggregateId);
+        await this.feeReconciliationService.resetFeeDiscrepancy?.(aggregateId);
         await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING");
       }
     }
@@ -1056,19 +1056,22 @@ export class BankReconciliationService {
   }
 
   async createMultiMatch(
+    companyId: string,
     aggregateId: string,
     statementIds: string[],
     userId?: string,
-    companyId?: string,
     notes?: string,
     overrideDifference?: boolean,
   ): Promise<MultiMatchResultDto> {
     // Remove duplicate statement IDs
     const uniqueStatementIds = [...new Set(statementIds)];
 
-    const aggregate = await this.orchestratorService.getAggregate(aggregateId);
+    const aggregate = await this.orchestratorService.getAggregateById(aggregateId);
     if (!aggregate) {
       throw new Error("Aggregate tidak ditemukan");
+    }
+    if (aggregate.company_id && aggregate.company_id !== companyId) {
+      throw new Error("Aggregate tidak milik company ini");
     }
 
     const existingGroup = await this.repository.isAggregateInGroup(aggregateId);
@@ -1080,7 +1083,7 @@ export class BankReconciliationService {
       uniqueStatementIds.map((id) => this.repository.findById(id)),
     );
 
-    const invalidStatements = statements.filter((s) => !s || s.is_reconciled);
+    const invalidStatements = statements.filter((s) => !s || s.is_reconciled || s.company_id !== companyId);
     if (invalidStatements.length > 0) {
       throw new Error("Beberapa statement tidak valid atau sudah dicocokkan");
     }
@@ -1099,7 +1102,7 @@ export class BankReconciliationService {
       differencePercent <= this.multiMatchConfig.defaultTolerancePercent;
     if (!isWithinTolerance && !overrideDifference) {
       throw new Error(
-        `Selisih ${(differencePercent * 100).toFixed(2)}% melebihi tolerance ${this.multiMatchConfig.defaultTolerancePercent * 100}%. Gunakan override jika ingin melanjutkan.`,
+        `Selisih melebihi tolerance: ${(differencePercent * 100).toFixed(2)}% > ${this.multiMatchConfig.defaultTolerancePercent * 100}%. Gunakan override jika ingin melanjutkan.`,
       );
     }
 
@@ -1126,7 +1129,7 @@ export class BankReconciliationService {
       userId,
     );
 
-    await this.feeReconciliationService.calculateAndSaveFeeDiscrepancyMultiMatch(
+    await this.feeReconciliationService.calculateAndSaveFeeDiscrepancyMultiMatch?.(
       aggregateId,
       totalBankAmount,
     );
@@ -1195,12 +1198,10 @@ export class BankReconciliationService {
       throw new Error("Group sudah di-undo");
     }
 
-    await this.repository.undoReconciliationGroup(groupId, userId);
+    await this.repository.undoReconciliationGroup(groupId);
 
     if (group.aggregate_id) {
-      await this.feeReconciliationService.resetFeeDiscrepancy(
-        group.aggregate_id,
-      )
+      await this.feeReconciliationService.resetFeeDiscrepancy?.(group.aggregate_id)
     }
 
     if (group.aggregate_id) {
@@ -1236,7 +1237,7 @@ export class BankReconciliationService {
     dateToleranceDays?: number,
     maxStatements?: number,
   ): Promise<MultiMatchSuggestion[]> {
-    const aggregate = await this.orchestratorService.getAggregate(aggregateId);
+    const aggregate = await this.orchestratorService.getAggregateById(aggregateId);
     if (!aggregate) {
       throw new Error("Aggregate tidak ditemukan");
     }
@@ -1394,10 +1395,11 @@ export class BankReconciliationService {
   }
 
   async getReconciliationGroups(
+    companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
-    return this.repository.getReconciliationGroups(startDate, endDate);
+    return this.repository.getReconciliationGroups(companyId, startDate, endDate);
   }
 
   async getMultiMatchGroup(groupId: string): Promise<any> {

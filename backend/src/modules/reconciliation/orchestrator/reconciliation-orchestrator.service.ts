@@ -54,12 +54,17 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     return r;
   }
 
+  async getAggregateById(id: string): Promise<AggregatedTransaction> {
+    return this.getAggregate(id);
+  }
+
   async updateReconciliationStatus(
     aggregateId: string,
     status: "PENDING" | "RECONCILED" | "DISCREPANCY",
     _statementId?: string,
     _reconciledBy?: string,
   ): Promise<void> {
+    // DB trigger: reconciliation cascade logic is handled at database layer.
     await pool.query(
       `UPDATE aggregated_transactions SET is_reconciled = $1, updated_at = NOW() WHERE id = $2`,
       [status === "RECONCILED", aggregateId]

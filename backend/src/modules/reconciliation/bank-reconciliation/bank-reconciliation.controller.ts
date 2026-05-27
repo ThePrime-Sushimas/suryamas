@@ -302,10 +302,10 @@ export class BankReconciliationController {
       const { companyId } = await bankReconScope(req);
 
       const result = await this.service.createMultiMatch(
+        companyId,
         body.aggregateId,
         body.statementIds,
         userId,
-        companyId,
         body.notes,
         body.overrideDifference,
       );
@@ -359,10 +359,10 @@ export class BankReconciliationController {
 
   async getReconciliationGroups(req: Request, res: Response): Promise<void> {
     try {
-      const { startDate, endDate } = req.query;
+      const { companyId, startDate, endDate } = req.query;
 
       // Dates are optional - if not provided, return empty
-      if (!startDate || !endDate) {
+      if (!companyId || !startDate || !endDate) {
         res.status(200).json({
           success: true,
           data: [],
@@ -371,6 +371,7 @@ export class BankReconciliationController {
       }
 
       const result = await this.service.getReconciliationGroups(
+        String(companyId),
         new Date(startDate as string),
         new Date(endDate as string),
       );

@@ -990,6 +990,7 @@ export class BankReconciliationRepository {
    * Get all reconciliation groups for a company
    */
   async getReconciliationGroups(
+    companyId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<any[]> {
@@ -1008,9 +1009,10 @@ export class BankReconciliationRepository {
          JOIN aggregated_transactions at ON brg.aggregate_id = at.id
          LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
          WHERE at.transaction_date >= $1::date AND at.transaction_date <= $2::date 
+           AND at.company_id = $3::uuid
            AND brg.deleted_at IS NULL 
          ORDER BY brg.created_at DESC`,
-        [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0]]
+        [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0], companyId]
       );
 
       if (groups.length === 0) return [];

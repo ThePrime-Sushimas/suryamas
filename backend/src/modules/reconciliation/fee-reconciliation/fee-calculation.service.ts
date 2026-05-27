@@ -140,12 +140,14 @@ export class FeeCalculationService {
     }
 
     // 1. Hitung percentage fee (dari total gross)
-    const percentageFee = grossAmount * (fee_percentage / 100)
+    const percentageFee = Math.round(grossAmount * (fee_percentage / 100))
 
     // 2. Hitung fixed fee
-    const fixedFee = fee_fixed_per_transaction
-      ? transactionCount * fee_fixed_amount  // Per transaksi
-      : fee_fixed_amount                     // Per total
+    const fixedFee = Math.round(
+      fee_fixed_per_transaction
+        ? transactionCount * fee_fixed_amount  // Per transaksi
+        : fee_fixed_amount                     // Per total
+    )
 
     // 3. Total fee
     const totalFee = percentageFee + fixedFee

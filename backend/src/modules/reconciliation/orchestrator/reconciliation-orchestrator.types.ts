@@ -1,5 +1,6 @@
 export interface AggregatedTransaction {
   id: string;
+  company_id?: string;
   branch_name?: string;
   source_type: string;
   source_id: string;
@@ -51,6 +52,7 @@ export interface IReconciliationOrchestratorService {
   getAggregatesForDate(date: Date): Promise<ReconciliationAggregate[]>;
   getAggregatesByDateRange(startDate: Date, endDate: Date): Promise<ReconciliationAggregate[]>;
   getAggregate(id: string): Promise<AggregatedTransaction>;
+  getAggregateById(id: string): Promise<AggregatedTransaction>;
   updateReconciliationStatus(
     aggregateId: string, 
     status: 'PENDING' | 'RECONCILED' | 'DISCREPANCY',
