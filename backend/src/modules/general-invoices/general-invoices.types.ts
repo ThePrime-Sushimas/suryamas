@@ -44,7 +44,7 @@ export interface UpdateVendorDto extends Partial<CreateVendorDto> {
 }
 
 export interface VendorListFilter {
-  company_id: string
+  company_ids: string[]
   search?: string
   vendor_type?: VendorType
   is_active?: boolean
@@ -171,9 +171,8 @@ export interface UpdateGeneralInvoiceDto {
 }
 
 export interface GeneralInvoiceListFilter {
-  company_id: string
   branch_id?: string
-  branch_ids?: string[]
+  branch_ids: string[]
   status?: GeneralInvoiceStatus
   expense_type?: ExpenseType
   vendor_id?: string
@@ -232,9 +231,8 @@ export interface CreateGeneralInvoicePaymentDto {
 }
 
 export interface GeneralPaymentListFilter {
-  company_id: string
   branch_id?: string
-  branch_ids?: string[]
+  branch_ids: string[]
   status?: GeneralPaymentStatus
   vendor_id?: string
   payment_date_from?: string

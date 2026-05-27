@@ -59,6 +59,15 @@ export class StockRepository {
     return rows.length > 0
   }
 
+  async warehouseBelongsToAccessibleBranches(warehouseId: string, branchIds: string[]): Promise<boolean> {
+    if (branchIds.length === 0) return false
+    const { rows } = await pool.query(
+      'SELECT id FROM warehouses WHERE id = $1 AND branch_id = ANY($2::uuid[]) AND deleted_at IS NULL',
+      [warehouseId, branchIds],
+    )
+    return rows.length > 0
+  }
+
   async hasOpeningBalanceMovement(
     warehouseId: string,
     productId: string,
@@ -93,13 +102,13 @@ export class StockRepository {
   // ─── BALANCES ───────────────────────────────────────────────────────────────
 
   async findBalances(
-    companyId: string,
+    branchIds: string[],
     pagination: { limit: number; offset: number },
     filter?: StockBalanceFilter,
     search?: string
   ): Promise<{ data: StockBalanceWithRelations[]; total: number }> {
-    const conditions = ['w.company_id = $1', 'w.deleted_at IS NULL']
-    const params: unknown[] = [companyId]
+    const conditions = ['w.branch_id = ANY($1::uuid[])', 'w.deleted_at IS NULL']
+    const params: unknown[] = [branchIds]
     let idx = 2
 
     if (filter?.warehouse_id) { params.push(filter.warehouse_id); conditions.push(`sb.warehouse_id = $${idx++}`) }
@@ -152,12 +161,12 @@ export class StockRepository {
   // ─── MOVEMENTS ──────────────────────────────────────────────────────────────
 
   async findMovements(
-    companyId: string,
+    branchIds: string[],
     pagination: { limit: number; offset: number },
     filter?: StockMovementFilter
   ): Promise<{ data: StockMovementWithRelations[]; total: number }> {
-    const conditions = ['w.company_id = $1', 'w.deleted_at IS NULL']
-    const params: unknown[] = [companyId]
+    const conditions = ['w.branch_id = ANY($1::uuid[])', 'w.deleted_at IS NULL']
+    const params: unknown[] = [branchIds]
     let idx = 2
 
     if (filter?.warehouse_id) { params.push(filter.warehouse_id); conditions.push(`sm.warehouse_id = $${idx++}`) }
@@ -213,7 +222,7 @@ export class StockRepository {
 
   // ─── STOCK CONFIG ─────────────────────────────────────────────────────────────
 
-  async findStockConfigGrid(companyId: string): Promise<StockConfigGridRow[]> {
+  async findStockConfigGrid(companyIds: string[]): Promise<StockConfigGridRow[]> {
     const { rows } = await pool.query(
       `SELECT
         p.id AS product_id,
@@ -235,13 +244,13 @@ export class StockRepository {
       JOIN categories c ON c.id = p.category_id
       LEFT JOIN product_uoms pu ON pu.product_id = p.id AND pu.is_base_unit = true AND pu.is_deleted = false
       LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
-      LEFT JOIN product_stock_configs psc ON psc.product_id = p.id AND psc.company_id = $1
+      LEFT JOIN product_stock_configs psc ON psc.product_id = p.id AND psc.company_id = ANY($1::uuid[])
       WHERE p.is_deleted = false
         AND p.status = 'ACTIVE'
         AND p.is_purchasable = true
       GROUP BY p.id, p.product_code, p.product_name, c.category_name, mu.unit_name
       ORDER BY c.category_name, p.product_name`,
-      [companyId]
+      [companyIds]
     )
     return rows
   }
@@ -269,15 +278,15 @@ export class StockRepository {
 
   // ─── REORDER SUGGESTIONS ────────────────────────────────────────────────────
 
-  async findReorderSuggestions(companyId: string, branchIds?: string[]): Promise<ReorderSuggestionItem[]> {
-    const conditions = ['w.company_id = $1', 'w.deleted_at IS NULL', 'p.is_deleted = false', "p.status = 'ACTIVE'"]
-    const params: unknown[] = [companyId]
+  async findReorderSuggestions(branchIds: string[]): Promise<ReorderSuggestionItem[]> {
+    const conditions = [
+      'w.branch_id = ANY($1::uuid[])',
+      'w.deleted_at IS NULL',
+      'p.is_deleted = false',
+      "p.status = 'ACTIVE'",
+    ]
+    const params: unknown[] = [branchIds]
     let idx = 2
-
-    if (branchIds && branchIds.length > 0) {
-      params.push(branchIds)
-      conditions.push(`w.branch_id = ANY($${idx++}::uuid[])`)
-    }
 
     const where = conditions.join(' AND ')
 
@@ -355,7 +364,7 @@ export class StockRepository {
       LEFT JOIN product_stock_configs psc
                                 ON psc.product_id = p.id
                                AND psc.branch_id  = b.id
-                               AND psc.company_id = $1
+                               AND psc.company_id = w.company_id
       LEFT JOIN supplier_products sp
                                 ON sp.product_id  = p.id
                                AND sp.is_preferred = true

@@ -117,8 +117,8 @@ export const vendorRepository = {
   withTransaction,
 
   async findAll(filter: VendorListFilter): Promise<{ data: Vendor[]; total: number }> {
-    const conditions: string[] = ['v.company_id = $1', 'v.is_deleted = false']
-    const params: unknown[] = [filter.company_id]
+    const conditions: string[] = ['v.company_id = ANY($1::uuid[])', 'v.is_deleted = false']
+    const params: unknown[] = [filter.company_ids]
     let idx = 2
 
     if (filter.search) {
@@ -156,10 +156,10 @@ export const vendorRepository = {
     return { data, total: parseInt(countRows[0].count, 10) }
   },
 
-  async findById(id: string, companyId: string): Promise<Vendor | null> {
+  async findById(id: string, companyIds: string[]): Promise<Vendor | null> {
     const { rows } = await pool.query<Vendor>(
-      `SELECT * FROM vendors WHERE id = $1 AND company_id = $2 AND is_deleted = false`,
-      [id, companyId],
+      `SELECT * FROM vendors WHERE id = $1 AND company_id = ANY($2::uuid[]) AND is_deleted = false`,
+      [id, companyIds],
     )
     return rows[0] ?? null
   },
@@ -226,22 +226,14 @@ export const vendorRepository = {
 // HELPER FUNCTION: Build Dashboard WHERE Clause
 // ============================================================
 function buildDashboardWhereClause(
-  companyId: string,
-  branchIds?: string[],
+  branchIds: string[],
   includeConfidential = false,
 ): { where: string; params: unknown[] } {
-  const conditions: string[] = ['gi.company_id = $1', 'gi.is_deleted = false']
-  const params: unknown[] = [companyId]
-  let idx = 2
+  const conditions: string[] = ['gi.branch_id = ANY($1::uuid[])', 'gi.is_deleted = false']
+  const params: unknown[] = [branchIds]
 
   if (!includeConfidential) {
     conditions.push('gi.is_confidential = false')
-  }
-
-  if (branchIds && branchIds.length > 0) {
-    conditions.push(`gi.branch_id = ANY($${idx}::uuid[])`)
-    params.push(branchIds)
-    idx++
   }
 
   return {
@@ -259,23 +251,15 @@ export const generalInvoiceRepository = {
   findBranchCode,
 
   async findAll(filter: GeneralInvoiceListFilter): Promise<{ data: GeneralInvoice[]; total: number }> {
-    const conditions: string[] = ['gi.company_id = $1', 'gi.is_deleted = false']
-    const params: unknown[] = [filter.company_id]
+    const scopedBranches = filter.branch_id
+      ? filter.branch_ids.filter((id) => id === filter.branch_id)
+      : filter.branch_ids
+    const conditions: string[] = ['gi.branch_id = ANY($1::uuid[])', 'gi.is_deleted = false']
+    const params: unknown[] = [scopedBranches]
     let idx = 2
 
-    // Confidential filter — kalau tidak punya permission, sembunyikan is_confidential=true
     if (!filter.include_confidential) {
       conditions.push(`gi.is_confidential = false`)
-    }
-
-    if (filter.branch_ids && filter.branch_ids.length > 0) {
-      conditions.push(`gi.branch_id = ANY($${idx}::uuid[])`)
-      params.push(filter.branch_ids)
-      idx++
-    } else if (filter.branch_id) {
-      conditions.push(`gi.branch_id = $${idx}`)
-      params.push(filter.branch_id)
-      idx++
     }
 
     if (filter.status) {
@@ -409,6 +393,15 @@ export const generalInvoiceRepository = {
     })
 
     return { data, total: parseInt(countRows[0].count, 10) }
+  },
+
+  async findByIdAccessible(id: string, branchIds: string[]): Promise<GeneralInvoiceDetail | null> {
+    const { rows } = await pool.query<{ company_id: string }>(
+      `SELECT company_id FROM general_invoices WHERE id = $1 AND branch_id = ANY($2::uuid[]) AND is_deleted = false`,
+      [id, branchIds],
+    )
+    if (!rows[0]) return null
+    return this.findById(id, rows[0].company_id)
   },
 
   async findById(id: string, companyId: string): Promise<GeneralInvoiceDetail | null> {
@@ -641,12 +634,11 @@ export const generalInvoiceRepository = {
   // ----------------------------------------------------------
   // Dashboard
   // ----------------------------------------------------------
-  async getDashboard(companyId: string, branchIds?: string[], includeConfidential = false): Promise<GeneralApDashboard> {
+  async getDashboard(branchIds: string[], includeConfidential = false): Promise<GeneralApDashboard> {
     const today = new Date().toISOString().slice(0, 10)
     const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
 
-    // Build base WHERE clause
-    const { where, params } = buildDashboardWhereClause(companyId, branchIds, includeConfidential)
+    const { where, params } = buildDashboardWhereClause(branchIds, includeConfidential)
 
     // Append date params first, then calculate final placeholder indexes based on actual params length
     // This prevents pg from seeing mismatched placeholder counts.
@@ -779,21 +771,15 @@ export const generalPaymentRepository = {
   findBranchCode,
 
   async findAll(filter: GeneralPaymentListFilter): Promise<{ data: GeneralInvoicePayment[]; total: number }> {
-    const conditions: string[] = ['gip.company_id = $1', 'gip.is_deleted = false']
-    const params: unknown[] = [filter.company_id]
+    const scopedBranches = filter.branch_id
+      ? filter.branch_ids.filter((id) => id === filter.branch_id)
+      : filter.branch_ids
+    const conditions: string[] = ['gip.branch_id = ANY($1::uuid[])', 'gip.is_deleted = false']
+    const params: unknown[] = [scopedBranches]
     let idx = 2
 
     if (!filter.include_confidential) {
       conditions.push(`gi.is_confidential = false`)
-    }
-    if (filter.branch_ids && filter.branch_ids.length > 0) {
-      conditions.push(`gip.branch_id = ANY($${idx}::uuid[])`)
-      params.push(filter.branch_ids)
-      idx++
-    } else if (filter.branch_id) {
-      conditions.push(`gip.branch_id = $${idx}`)
-      params.push(filter.branch_id)
-      idx++
     }
     if (filter.status) {
       conditions.push(`gip.status = $${idx}`)
@@ -843,6 +829,15 @@ export const generalPaymentRepository = {
     ])
 
     return { data, total: parseInt(countRows[0].count, 10) }
+  },
+
+  async findByIdAccessible(id: string, branchIds: string[]): Promise<GeneralInvoicePayment | null> {
+    const { rows } = await pool.query<{ company_id: string }>(
+      `SELECT company_id FROM general_invoice_payments WHERE id = $1 AND branch_id = ANY($2::uuid[]) AND is_deleted = false`,
+      [id, branchIds],
+    )
+    if (!rows[0]) return null
+    return this.findById(id, rows[0].company_id)
   },
 
   async findById(id: string, companyId: string): Promise<GeneralInvoicePayment | null> {
@@ -1024,14 +1019,14 @@ export const expenseCoaDefaultRepository = {
 export const generalTemplateRepository = {
   withTransaction,
 
-  async findAll(companyId: string): Promise<GeneralInvoiceTemplate[]> {
+  async findAll(companyIds: string[]): Promise<GeneralInvoiceTemplate[]> {
     const { rows } = await pool.query<GeneralInvoiceTemplate>(
       `SELECT t.*, v.vendor_name
        FROM general_invoice_templates t
        JOIN vendors v ON v.id = t.vendor_id
-       WHERE t.company_id = $1 AND t.is_deleted = false
+       WHERE t.company_id = ANY($1::uuid[]) AND t.is_deleted = false
        ORDER BY t.template_name ASC`,
-      [companyId],
+      [companyIds],
     )
 
     // attach lines
@@ -1057,13 +1052,13 @@ export const generalTemplateRepository = {
     return rows.map((r) => ({ ...r, lines: lineMap.get(r.id) ?? [] }))
   },
 
-  async findById(id: string, companyId: string): Promise<GeneralInvoiceTemplate | null> {
+  async findById(id: string, companyIds: string[]): Promise<GeneralInvoiceTemplate | null> {
     const { rows } = await pool.query<GeneralInvoiceTemplate>(
       `SELECT t.*, v.vendor_name
        FROM general_invoice_templates t
        JOIN vendors v ON v.id = t.vendor_id
-       WHERE t.id = $1 AND t.company_id = $2 AND t.is_deleted = false`,
-      [id, companyId],
+       WHERE t.id = $1 AND t.company_id = ANY($2::uuid[]) AND t.is_deleted = false`,
+      [id, companyIds],
     )
     if (!rows[0]) return null
 

@@ -32,6 +32,7 @@ import type {
   UpsertExpenseCoaDefaultsDto,
   ExpenseType,
 } from './general-invoices.types'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import {
   GeneralInvoiceNotFoundError,
   GeneralInvoiceInvalidStatusError,
@@ -56,13 +57,14 @@ export class VendorService {
     return { data, total, page: filter.page ?? 1, limit: filter.limit ?? 50 }
   }
 
-  async getById(id: string, companyId: string): Promise<Vendor> {
-    const vendor = await vendorRepository.findById(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<Vendor> {
+    const vendor = await vendorRepository.findById(id, companyIds)
     if (!vendor) throw new VendorNotFoundError(id)
     return vendor
   }
 
-  async create(dto: CreateVendorDto, companyId: string, userId: string): Promise<Vendor> {
+  async create(dto: CreateVendorDto, companyIds: string[], contextCompanyId: string, userId: string): Promise<Vendor> {
+    const companyId = (contextCompanyId || companyIds[0]) ?? ''
     const vendor = await vendorRepository.withTransaction(async (client) => {
       return vendorRepository.create(client, companyId, dto, userId)
     })
@@ -71,8 +73,9 @@ export class VendorService {
     return vendor
   }
 
-  async update(id: string, dto: UpdateVendorDto, companyId: string, userId: string): Promise<Vendor> {
-    await this.getById(id, companyId)
+  async update(id: string, dto: UpdateVendorDto, companyIds: string[], userId: string): Promise<Vendor> {
+    const existing = await this.getById(id, companyIds)
+    const companyId = existing.company_id
     const updated = await vendorRepository.withTransaction(async (client) => {
       return vendorRepository.update(client, id, companyId, dto, userId)
     })
@@ -80,8 +83,9 @@ export class VendorService {
     return updated
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    await this.getById(id, companyId)
+  async delete(id: string, companyIds: string[], userId: string): Promise<void> {
+    const existing = await this.getById(id, companyIds)
+    const companyId = existing.company_id
     await vendorRepository.withTransaction(async (client) => {
       await vendorRepository.softDelete(client, id, companyId, userId)
     })
@@ -93,30 +97,36 @@ export class VendorService {
 // GENERAL INVOICE SERVICE
 // ============================================================
 export class GeneralInvoiceService {
+  private async requireById(id: string, branchIds: string[]): Promise<GeneralInvoiceDetail> {
+    const inv = await generalInvoiceRepository.findByIdAccessible(id, branchIds)
+    if (!inv) throw new GeneralInvoiceNotFoundError(id)
+    return inv
+  }
+
   async list(filter: GeneralInvoiceListFilter) {
     const { data, total } = await generalInvoiceRepository.findAll(filter)
     return { data, total, page: filter.page ?? 1, limit: filter.limit ?? 20 }
   }
 
-  async getById(id: string, companyId: string): Promise<GeneralInvoiceDetail> {
-    const inv = await generalInvoiceRepository.findById(id, companyId)
-    if (!inv) throw new GeneralInvoiceNotFoundError(id)
-    return inv
+  async getById(id: string, branchIds: string[]): Promise<GeneralInvoiceDetail> {
+    return this.requireById(id, branchIds)
   }
 
-  async getDashboard(companyId: string, branchIds?: string[], includeConfidential = false): Promise<GeneralApDashboard> {
-    return generalInvoiceRepository.getDashboard(companyId, branchIds, includeConfidential)
+  async getDashboard(branchIds: string[], includeConfidential = false): Promise<GeneralApDashboard> {
+    return generalInvoiceRepository.getDashboard(branchIds, includeConfidential)
   }
 
   async create(
     dto: CreateGeneralInvoiceDto,
-    companyId: string,
+    branchIds: string[],
     contextBranchId: string,
     userId: string,
   ): Promise<GeneralInvoiceDetail> {
     if (!dto.lines || dto.lines.length === 0) throw new GeneralInvoiceLineEmptyError()
 
     const branchId = dto.branch_id ?? contextBranchId
+    requireBranchAccess(branchId, branchIds)
+    const companyId = (await getCompanyIdForBranch(branchId)) ?? ''
 
     const { id } = await generalInvoiceRepository.withTransaction(async (client) => {
       const branchCode = await generalInvoiceRepository.findBranchCode(client, branchId)
@@ -133,16 +143,17 @@ export class GeneralInvoiceService {
       expense_type: dto.expense_type,
     })
     logInfo('General invoice created', { id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async update(
     id: string,
     dto: UpdateGeneralInvoiceDto,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<GeneralInvoiceDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') {
       throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -155,7 +166,7 @@ export class GeneralInvoiceService {
     })
 
     await AuditService.log('UPDATE', 'general_invoices', id, userId, null, dto)
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   /**
@@ -165,8 +176,9 @@ export class GeneralInvoiceService {
    *   DR  Beban xxx (tiap line di invoice)   xxx
    *       CR  Hutang Usaha Umum (GEN-AP-LIABILITY)  xxx
    */
-  async post(id: string, companyId: string, userId: string): Promise<GeneralInvoiceDetail> {
-    const existing = await this.getById(id, companyId)
+  async post(id: string, branchIds: string[], userId: string): Promise<GeneralInvoiceDetail> {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') {
       throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -240,11 +252,12 @@ export class GeneralInvoiceService {
 
     await AuditService.log('UPDATE', 'general_invoices', id, userId, { status: 'DRAFT' }, { status: 'POSTED', journal_id: journalId })
     logInfo('General invoice posted', { id, journal_id: journalId })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async cancel(id: string, companyId: string, userId: string): Promise<GeneralInvoiceDetail> {
-    const existing = await this.getById(id, companyId)
+  async cancel(id: string, branchIds: string[], userId: string): Promise<GeneralInvoiceDetail> {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (!['DRAFT', 'POSTED'].includes(existing.status)) {
       throw new GeneralInvoiceInvalidStatusError(existing.status, ['DRAFT', 'POSTED'])
     }
@@ -277,11 +290,12 @@ export class GeneralInvoiceService {
     })
 
     await AuditService.log('UPDATE', 'general_invoices', id, userId, { status: existing.status }, { status: 'CANCELLED' })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const existing = await this.getById(id, companyId)
+  async delete(id: string, branchIds: string[], userId: string): Promise<void> {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') {
       throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -296,11 +310,12 @@ export class GeneralInvoiceService {
 
   async uploadAttachment(
     id: string,
-    companyId: string,
+    branchIds: string[],
     userId: string,
     file: Express.Multer.File,
   ): Promise<GeneralInvoiceDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') {
       throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -322,7 +337,7 @@ export class GeneralInvoiceService {
       await generalInvoiceRepository.updateAttachment(client, id, companyId, path, userId)
     })
 
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 }
 
@@ -330,15 +345,19 @@ export class GeneralInvoiceService {
 // GENERAL INVOICE PAYMENT SERVICE
 // ============================================================
 export class GeneralInvoicePaymentService {
+  private async requireById(id: string, branchIds: string[]): Promise<GeneralInvoicePayment> {
+    const payment = await generalPaymentRepository.findByIdAccessible(id, branchIds)
+    if (!payment) throw new GeneralPaymentNotFoundError(id)
+    return payment
+  }
+
   async list(filter: GeneralPaymentListFilter) {
     const { data, total } = await generalPaymentRepository.findAll(filter)
     return { data, total, page: filter.page ?? 1, limit: filter.limit ?? 20 }
   }
 
-  async getById(id: string, companyId: string): Promise<GeneralInvoicePayment> {
-    const payment = await generalPaymentRepository.findById(id, companyId)
-    if (!payment) throw new GeneralPaymentNotFoundError(id)
-    return payment
+  async getById(id: string, branchIds: string[]): Promise<GeneralInvoicePayment> {
+    return this.requireById(id, branchIds)
   }
 
   /**
@@ -347,12 +366,11 @@ export class GeneralInvoicePaymentService {
    */
   async create(
     dto: CreateGeneralInvoicePaymentDto,
-    companyId: string,
+    branchIds: string[],
     contextBranchId: string,
     userId: string,
   ): Promise<GeneralInvoicePayment> {
-    // Pastikan invoice sudah POSTED
-    const invoice = await generalInvoiceRepository.findById(dto.general_invoice_id, companyId)
+    const invoice = await generalInvoiceRepository.findByIdAccessible(dto.general_invoice_id, branchIds)
     if (!invoice) throw new GeneralInvoiceNotFoundError(dto.general_invoice_id)
     if (invoice.status !== 'POSTED') {
       throw new GeneralInvoiceInvalidStatusError(invoice.status, 'POSTED')
@@ -365,6 +383,8 @@ export class GeneralInvoicePaymentService {
     }
 
     const branchId = dto.branch_id ?? contextBranchId
+    requireBranchAccess(branchId, branchIds)
+    const companyId = invoice.company_id
 
     const { id } = await generalPaymentRepository.withTransaction(async (client) => {
       const branchCode = await generalPaymentRepository.findBranchCode(client, branchId)
@@ -376,11 +396,11 @@ export class GeneralInvoicePaymentService {
       general_invoice_id: dto.general_invoice_id,
     })
     logInfo('General payment created', { id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async approve(id: string, companyId: string, userId: string): Promise<GeneralInvoicePayment> {
-    const existing = await this.getById(id, companyId)
+  async approve(id: string, branchIds: string[], userId: string): Promise<GeneralInvoicePayment> {
+    const existing = await this.requireById(id, branchIds)
     if (existing.status !== 'DRAFT') {
       throw new GeneralPaymentInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -394,11 +414,11 @@ export class GeneralInvoicePaymentService {
     })
 
     await AuditService.log('UPDATE', 'general_invoice_payments', id, userId, { status: 'DRAFT' }, { status: 'APPROVED' })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async reject(id: string, reason: string, companyId: string, userId: string): Promise<GeneralInvoicePayment> {
-    const existing = await this.getById(id, companyId)
+  async reject(id: string, reason: string, branchIds: string[], userId: string): Promise<GeneralInvoicePayment> {
+    const existing = await this.requireById(id, branchIds)
     if (existing.status !== 'DRAFT') {
       throw new GeneralPaymentInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -413,16 +433,17 @@ export class GeneralInvoicePaymentService {
     })
 
     await AuditService.log('UPDATE', 'general_invoice_payments', id, userId, { status: 'DRAFT' }, { status: 'REJECTED', reason })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async uploadProof(
     id: string,
     proofUrl: string,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<GeneralInvoicePayment> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (!['APPROVED', 'PAID'].includes(existing.status)) {
       throw new GeneralPaymentInvalidStatusError(existing.status, ['APPROVED', 'PAID'])
     }
@@ -436,15 +457,17 @@ export class GeneralInvoicePaymentService {
       })
     })
 
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async uploadProofFile(
     id: string,
-    companyId: string,
+    branchIds: string[],
     userId: string,
     file: Express.Multer.File,
   ): Promise<GeneralInvoicePayment> {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     const ext = resolveDocumentUploadExtension(file)
     if (!ext) {
       throw new BusinessRuleError(
@@ -457,7 +480,7 @@ export class GeneralInvoicePaymentService {
     const path = `${companyId}/general-ap-payments/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
 
     await storageService.uploadToPath(file.buffer, path, file.mimetype, 'invoices')
-    return this.uploadProof(id, path, companyId, userId)
+    return this.uploadProof(id, path, branchIds, userId)
   }
 
   /**
@@ -470,10 +493,11 @@ export class GeneralInvoicePaymentService {
   async markPaid(
     id: string,
     paymentDate: string | undefined,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<GeneralInvoicePayment> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'APPROVED') {
       throw new GeneralPaymentInvalidStatusError(existing.status, 'APPROVED')
     }
@@ -551,11 +575,11 @@ export class GeneralInvoicePaymentService {
 
     await AuditService.log('UPDATE', 'general_invoice_payments', id, userId, { status: 'APPROVED' }, { status: 'PAID', journal_id: journalId })
     logInfo('General payment marked paid', { id, journal_id: journalId })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async deleteJournal(id: string, companyId: string, userId: string): Promise<GeneralInvoicePayment> {
-    const existing = await this.getById(id, companyId)
+  async deleteJournal(id: string, branchIds: string[], userId: string): Promise<GeneralInvoicePayment> {
+    const existing = await this.requireById(id, branchIds)
     if (!existing.journal_id) throw new GeneralPaymentJournalMissingError()
     if (existing.status !== 'PAID') {
       throw new GeneralPaymentInvalidStatusError(existing.status, 'PAID')
@@ -565,11 +589,11 @@ export class GeneralInvoicePaymentService {
     await journalHeadersService.forceDeleteAsUser(journalId, userId)
 
     await AuditService.log('DELETE', 'general_invoice_payments', id, userId, { journal_id: journalId }, { journal_id: null })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const existing = await this.getById(id, companyId)
+  async delete(id: string, branchIds: string[], userId: string): Promise<void> {
+    const existing = await this.requireById(id, branchIds)
     if (existing.status !== 'DRAFT') {
       throw new GeneralPaymentInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -586,28 +610,31 @@ export class GeneralInvoicePaymentService {
 // TEMPLATE SERVICE
 // ============================================================
 export class GeneralInvoiceTemplateService {
-  async list(companyId: string): Promise<GeneralInvoiceTemplate[]> {
-    return generalTemplateRepository.findAll(companyId)
+  async list(companyIds: string[]): Promise<GeneralInvoiceTemplate[]> {
+    return generalTemplateRepository.findAll(companyIds)
   }
 
-  async getById(id: string, companyId: string): Promise<GeneralInvoiceTemplate> {
-    const t = await generalTemplateRepository.findById(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<GeneralInvoiceTemplate> {
+    const t = await generalTemplateRepository.findById(id, companyIds)
     if (!t) throw new GeneralTemplateNotFoundError(id)
     return t
   }
 
   async create(
     dto: CreateGeneralInvoiceTemplateDto,
-    companyId: string,
+    companyIds: string[],
+    branchIds: string[],
     contextBranchId: string,
     userId: string,
   ): Promise<GeneralInvoiceTemplate> {
     const branchId = dto.branch_id ?? contextBranchId
+    requireBranchAccess(branchId, branchIds)
+    const companyId = (await getCompanyIdForBranch(branchId)) ?? ''
     const { id } = await generalTemplateRepository.withTransaction(async (client) => {
       return generalTemplateRepository.create(client, companyId, branchId, dto, userId)
     })
     await AuditService.log('CREATE', 'general_invoice_templates', id, userId, null, { template_name: dto.template_name })
-    return this.getById(id, companyId)
+    return this.getById(id, companyIds)
   }
 
   /**
@@ -616,12 +643,14 @@ export class GeneralInvoiceTemplateService {
    */
   async generateFromTemplate(
     dto: GenerateFromTemplateDto,
-    companyId: string,
+    companyIds: string[],
+    branchIds: string[],
     contextBranchId: string,
     userId: string,
     invoiceService: GeneralInvoiceService,
   ): Promise<GeneralInvoiceDetail> {
-    const template = await this.getById(dto.template_id, companyId)
+    const template = await this.getById(dto.template_id, companyIds)
+    const companyId = template.company_id
 
     const lineAmountMap = new Map(
       (dto.line_amounts ?? []).map((la) => [la.line_number, la]),
@@ -671,7 +700,7 @@ export class GeneralInvoiceTemplateService {
       lines,
     }
 
-    const invoice = await invoiceService.create(createDto, companyId, contextBranchId, userId)
+    const invoice = await invoiceService.create(createDto, branchIds, contextBranchId, userId)
 
     // Update last_generated_at di template
     await generalTemplateRepository.withTransaction(async (client) => {
@@ -681,10 +710,10 @@ export class GeneralInvoiceTemplateService {
     return invoice
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    await this.getById(id, companyId)
+  async delete(id: string, companyIds: string[], userId: string): Promise<void> {
+    const existing = await this.getById(id, companyIds)
     await generalTemplateRepository.withTransaction(async (client) => {
-      await generalTemplateRepository.softDelete(client, id, companyId, userId)
+      await generalTemplateRepository.softDelete(client, id, existing.company_id, userId)
     })
     await AuditService.log('DELETE', 'general_invoice_templates', id, userId, null, null)
   }

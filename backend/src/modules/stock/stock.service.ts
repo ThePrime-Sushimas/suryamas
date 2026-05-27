@@ -1,4 +1,5 @@
 import { stockRepository } from './stock.repository'
+import { getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import { InsufficientStockError, DuplicateOpeningBalanceError, InvalidMovementError, WarehouseAccessDeniedError, InvalidReferenceError } from './stock.errors'
 import { AuditService } from '../monitoring/monitoring.service'
 import { isPostgresError } from '../../utils/postgres-error.util'
@@ -11,31 +12,24 @@ import type {
 export class StockService {
   // ─── BALANCES ───────────────────────────────────────────────────────────────
 
-  async listBalances(companyId: string, pagination: { page: number; limit: number }, filter?: StockBalanceFilter, search?: string) {
+  async listBalances(branchIds: string[], pagination: { page: number; limit: number }, filter?: StockBalanceFilter, search?: string) {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await stockRepository.findBalances(companyId, { limit: pagination.limit, offset }, filter, search)
-    const totalPages = Math.ceil(total / pagination.limit)
-    return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
-  }
-
-  async getProductHistory(warehouseId: string, productId: string, pagination: { page: number; limit: number }) {
-    const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await stockRepository.findMovementsByProduct(warehouseId, productId, { limit: pagination.limit, offset })
+    const { data, total } = await stockRepository.findBalances(branchIds, { limit: pagination.limit, offset }, filter, search)
     const totalPages = Math.ceil(total / pagination.limit)
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }
 
   // ─── MOVEMENTS ──────────────────────────────────────────────────────────────
 
-  async listMovements(companyId: string, pagination: { page: number; limit: number }, filter?: StockMovementFilter) {
+  async listMovements(branchIds: string[], pagination: { page: number; limit: number }, filter?: StockMovementFilter) {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await stockRepository.findMovements(companyId, { limit: pagination.limit, offset }, filter)
+    const { data, total } = await stockRepository.findMovements(branchIds, { limit: pagination.limit, offset }, filter)
     const totalPages = Math.ceil(total / pagination.limit)
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }
 
-  private async verifyWarehouseOwnership(warehouseId: string, companyId: string): Promise<void> {
-    const exists = await stockRepository.warehouseBelongsToCompany(warehouseId, companyId)
+  private async verifyWarehouseAccess(warehouseId: string, branchIds: string[]): Promise<void> {
+    const exists = await stockRepository.warehouseBelongsToAccessibleBranches(warehouseId, branchIds)
     if (!exists) throw new WarehouseAccessDeniedError(warehouseId)
   }
 
@@ -43,8 +37,8 @@ export class StockService {
    * Core function: create a stock movement and update balance atomically.
    * Used by all other modules (PO, Transfer, Daily Requisition, etc.)
    */
-  async createMovement(dto: CreateMovementDto, userId: string, companyId?: string): Promise<{ movement: StockMovement; newBalance: number }> {
-    if (companyId) await this.verifyWarehouseOwnership(dto.warehouse_id, companyId)
+  async createMovement(dto: CreateMovementDto, userId: string, branchIds?: string[]): Promise<{ movement: StockMovement; newBalance: number }> {
+    if (branchIds) await this.verifyWarehouseAccess(dto.warehouse_id, branchIds)
 
     try {
       const result = await stockRepository.withTransaction(async (client) => {
@@ -98,8 +92,8 @@ export class StockService {
 
   // ─── OPENING BALANCE ────────────────────────────────────────────────────────
 
-  async createOpeningBalance(dto: CreateOpeningBalanceDto, userId: string, companyId?: string) {
-    if (companyId) await this.verifyWarehouseOwnership(dto.warehouse_id, companyId)
+  async createOpeningBalance(dto: CreateOpeningBalanceDto, userId: string, branchIds?: string[]) {
+    if (branchIds) await this.verifyWarehouseAccess(dto.warehouse_id, branchIds)
 
     if (await stockRepository.hasOpeningBalanceMovement(dto.warehouse_id, dto.product_id)) {
       throw new DuplicateOpeningBalanceError('Product', 'Warehouse')
@@ -114,7 +108,7 @@ export class StockService {
       reference_type: 'opening',
       notes: dto.notes ?? 'Opening balance',
       created_by: userId,
-    }, userId, companyId)
+    }, userId, branchIds)
   }
 
   async bulkOpeningBalance(
@@ -122,9 +116,9 @@ export class StockService {
     items: { product_id: string; qty: number; cost_per_unit: number }[],
     notes: string | undefined,
     userId: string,
-    companyId?: string,
+    branchIds?: string[],
   ) {
-    if (companyId) await this.verifyWarehouseOwnership(warehouseId, companyId)
+    if (branchIds) await this.verifyWarehouseAccess(warehouseId, branchIds)
 
     try {
       const results = await stockRepository.withTransaction(async (client) => {
@@ -182,8 +176,8 @@ export class StockService {
 
   // ─── ADJUSTMENT ─────────────────────────────────────────────────────────────
 
-  async adjustStock(dto: AdjustStockDto, userId: string, companyId?: string) {
-    if (companyId) await this.verifyWarehouseOwnership(dto.warehouse_id, companyId)
+  async adjustStock(dto: AdjustStockDto, userId: string, branchIds?: string[]) {
+    if (branchIds) await this.verifyWarehouseAccess(dto.warehouse_id, branchIds)
 
     const existing = await stockRepository.findBalanceByWarehouseProduct(dto.warehouse_id, dto.product_id)
     const currentQty = existing ? Number(existing.qty) : 0
@@ -204,23 +198,47 @@ export class StockService {
       reference_type: 'adjustment',
       notes: dto.reason,
       created_by: userId,
-    }, userId, companyId)
+    }, userId, branchIds)
+  }
+
+  async getProductHistory(
+    warehouseId: string,
+    productId: string,
+    pagination: { page: number; limit: number },
+    branchIds?: string[],
+  ) {
+    if (branchIds) await this.verifyWarehouseAccess(warehouseId, branchIds)
+    return this.getProductHistoryUnchecked(warehouseId, productId, pagination)
+  }
+
+  private async getProductHistoryUnchecked(
+    warehouseId: string,
+    productId: string,
+    pagination: { page: number; limit: number },
+  ) {
+    const offset = (pagination.page - 1) * pagination.limit
+    const { data, total } = await stockRepository.findMovementsByProduct(warehouseId, productId, { limit: pagination.limit, offset })
+    const totalPages = Math.ceil(total / pagination.limit)
+    return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }
 
   // ─── STOCK CONFIG ─────────────────────────────────────────────────────────────
 
-  async getStockConfigGrid(companyId: string) {
-    return stockRepository.findStockConfigGrid(companyId)
+  async getStockConfigGrid(companyIds: string[]) {
+    return stockRepository.findStockConfigGrid(companyIds)
   }
 
-  async upsertStockConfig(companyId: string, dto: UpsertStockConfigDto, userId: string) {
+  async upsertStockConfig(companyIds: string[], branchIds: string[], dto: UpsertStockConfigDto, userId: string) {
+    requireBranchAccess(dto.branch_id, branchIds)
+    const companyId = (await getCompanyIdForBranch(dto.branch_id)) ?? ''
+    if (!companyIds.includes(companyId)) throw new WarehouseAccessDeniedError(dto.branch_id)
     return stockRepository.upsertStockConfig(companyId, dto, userId)
   }
 
   // ─── REORDER SUGGESTIONS ────────────────────────────────────────────────────
 
-  async getReorderSuggestions(companyId: string, branchIds?: string[]) {
-    return stockRepository.findReorderSuggestions(companyId, branchIds)
+  async getReorderSuggestions(branchIds: string[]) {
+    return stockRepository.findReorderSuggestions(branchIds)
   }
 }
 

@@ -1,7 +1,30 @@
 import type { Request, Response } from 'express'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
-import { getAccessibleBranchIds } from '../../utils/branch-access.util'
+import { getAccessibleBranchIds, getAccessibleCompanyIds } from '../../utils/branch-access.util'
+
+async function giScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const [branchIds, companyIds] = await Promise.all([
+    getAccessibleBranchIds(userId),
+    getAccessibleCompanyIds(userId),
+  ])
+  return {
+    userId,
+    branchIds,
+    companyIds,
+    contextBranchId: req.context?.branch_id ?? '',
+    contextCompanyId: req.context?.company_id ?? '',
+  }
+}
+
+function resolveBranchFilter(accessible: string[], branchId?: string): string[] {
+  if (!branchId) return accessible
+  if (!accessible.includes(branchId)) {
+    throw Object.assign(new Error('No access to this branch'), { statusCode: 403 })
+  }
+  return [branchId]
+}
 import {
   vendorService,
   generalInvoiceService,
@@ -21,11 +44,11 @@ import type {
 export class VendorsController {
   list = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyIds } = await giScope(req)
       const q = req.query as Record<string, string>
 
       const filter: VendorListFilter = {
-        company_id:  companyId,
+        company_ids: companyIds,
         search:      q.search,
         vendor_type: q.vendor_type as VendorListFilter['vendor_type'],
         is_active:   q.is_active === 'true' ? true : q.is_active === 'false' ? false : undefined,
@@ -47,8 +70,8 @@ export class VendorsController {
 
   getById = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const vendor = await vendorService.getById(req.params.id as string, companyId)
+      const { companyIds } = await giScope(req)
+      const vendor = await vendorService.getById(req.params.id as string, companyIds)
       sendSuccess(res, vendor)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_vendor', id: req.params.id })
@@ -57,9 +80,8 @@ export class VendorsController {
 
   create = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      const vendor    = await vendorService.create(req.body, companyId, userId)
+      const { companyIds, contextCompanyId, userId } = await giScope(req)
+      const vendor    = await vendorService.create(req.body, companyIds, contextCompanyId, userId)
       sendSuccess(res, vendor, 'Vendor berhasil dibuat', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_vendor' })
@@ -68,9 +90,8 @@ export class VendorsController {
 
   update = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      const vendor    = await vendorService.update(req.params.id as string, req.body, companyId, userId)
+      const { companyIds, userId } = await giScope(req)
+      const vendor    = await vendorService.update(req.params.id as string, req.body, companyIds, userId)
       sendSuccess(res, vendor)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_vendor', id: req.params.id })
@@ -79,9 +100,8 @@ export class VendorsController {
 
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      await vendorService.delete(req.params.id as string, companyId, userId)
+      const { companyIds, userId } = await giScope(req)
+      await vendorService.delete(req.params.id as string, companyIds, userId)
       sendSuccess(res, null, 'Vendor berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_vendor', id: req.params.id })
@@ -95,12 +115,13 @@ export class VendorsController {
 export class GeneralInvoicesController {
   dashboard = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { branchIds } = await giScope(req)
       const branchId  = req.query.branch_id as string | undefined
 
-      const accessible = await getAccessibleBranchIds(userId)
-      if (branchId && !accessible.includes(branchId)) {
+      let scopeBranchIds: string[]
+      try {
+        scopeBranchIds = resolveBranchFilter(branchIds, branchId)
+      } catch {
         res.status(403).json({ success: false, message: 'No access to this branch' })
         return
       }
@@ -108,8 +129,7 @@ export class GeneralInvoicesController {
       const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.view_confidential
 
       const data = await generalInvoiceService.getDashboard(
-        companyId,
-        branchId ? [branchId] : accessible,
+        scopeBranchIds,
         canViewConfidential,
       )
       sendSuccess(res, data, 'General AP dashboard retrieved')
@@ -120,16 +140,21 @@ export class GeneralInvoicesController {
 
   list = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { branchIds } = await giScope(req)
       const q = req.query as Record<string, string>
 
-      const accessible = await getAccessibleBranchIds(userId)
+      let scopeBranchIds: string[]
+      try {
+        scopeBranchIds = resolveBranchFilter(branchIds, q.branch_id)
+      } catch {
+        res.status(403).json({ success: false, message: 'No access to this branch' })
+        return
+      }
+
       const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.view_confidential
 
       const filter: GeneralInvoiceListFilter = {
-        company_id:          companyId,
-        branch_ids:          accessible,
+        branch_ids:          scopeBranchIds,
         branch_id:           q.branch_id,
         status:              q.status as GeneralInvoiceListFilter['status'],
         expense_type:        q.expense_type as GeneralInvoiceListFilter['expense_type'],
@@ -159,10 +184,10 @@ export class GeneralInvoicesController {
 
   getById = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds } = await giScope(req)
       const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.view_confidential
 
-      const invoice = await generalInvoiceService.getById(req.params.id as string, companyId)
+      const invoice = await generalInvoiceService.getById(req.params.id as string, branchIds)
 
       if (invoice.is_confidential && !canViewConfidential) {
         res.status(403).json({ success: false, message: 'Akses tidak diizinkan untuk tagihan ini' })
@@ -177,10 +202,8 @@ export class GeneralInvoicesController {
 
   create = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const branchId  = req.context?.branch_id  ?? ''
-      const userId    = req.user?.id             ?? ''
-      const invoice   = await generalInvoiceService.create(req.body, companyId, branchId, userId)
+      const { branchIds, contextBranchId, userId } = await giScope(req)
+      const invoice   = await generalInvoiceService.create(req.body, branchIds, contextBranchId, userId)
       sendSuccess(res, invoice, 'General invoice berhasil dibuat', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_general_invoice' })
@@ -189,9 +212,8 @@ export class GeneralInvoicesController {
 
   update = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      const invoice   = await generalInvoiceService.update(req.params.id as string, req.body, companyId, userId)
+      const { branchIds, userId } = await giScope(req)
+      const invoice   = await generalInvoiceService.update(req.params.id as string, req.body, branchIds, userId)
       sendSuccess(res, invoice)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_general_invoice', id: req.params.id })
@@ -200,9 +222,8 @@ export class GeneralInvoicesController {
 
   post = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId  = req.context?.company_id  ?? ''
-      const userId  = req.user?.id ?? ''
-      const invoice = await generalInvoiceService.post(req.params.id as string, companyId, userId)
+      const { branchIds, userId } = await giScope(req)
+      const invoice = await generalInvoiceService.post(req.params.id as string, branchIds, userId)
       sendSuccess(res, invoice, 'Invoice berhasil diposting')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post_general_invoice', id: req.params.id })
@@ -211,9 +232,8 @@ export class GeneralInvoicesController {
 
   cancel = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId  = req.context?.company_id  ?? ''
-      const userId  = req.user?.id ?? ''
-      const invoice = await generalInvoiceService.cancel(req.params.id as string, companyId, userId)
+      const { branchIds, userId } = await giScope(req)
+      const invoice = await generalInvoiceService.cancel(req.params.id as string, branchIds, userId)
       sendSuccess(res, invoice, 'Invoice berhasil dibatalkan')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_general_invoice', id: req.params.id })
@@ -222,9 +242,8 @@ export class GeneralInvoicesController {
 
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      await generalInvoiceService.delete(req.params.id as string, companyId, userId)
+      const { branchIds, userId } = await giScope(req)
+      await generalInvoiceService.delete(req.params.id as string, branchIds, userId)
       sendSuccess(res, null, 'Invoice berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_general_invoice', id: req.params.id })
@@ -233,8 +252,7 @@ export class GeneralInvoicesController {
 
   uploadAttachment = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds, userId } = await giScope(req)
       const file = req.file
       if (!file) {
         res.status(400).json({
@@ -246,7 +264,7 @@ export class GeneralInvoicesController {
 
       const invoice = await generalInvoiceService.uploadAttachment(
         req.params.id as string,
-        companyId,
+        branchIds,
         userId,
         file,
       )
@@ -263,16 +281,21 @@ export class GeneralInvoicesController {
 export class GeneralInvoicePaymentsController {
   list = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { branchIds } = await giScope(req)
       const q = req.query as Record<string, string>
 
-      const accessible = await getAccessibleBranchIds(userId)
+      let scopeBranchIds: string[]
+      try {
+        scopeBranchIds = resolveBranchFilter(branchIds, q.branch_id)
+      } catch {
+        res.status(403).json({ success: false, message: 'No access to this branch' })
+        return
+      }
+
       const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.view_confidential
 
       const filter: GeneralPaymentListFilter = {
-        company_id:           companyId,
-        branch_ids:           accessible,
+        branch_ids:           scopeBranchIds,
         branch_id:            q.branch_id,
         status:               q.status as GeneralPaymentListFilter['status'],
         vendor_id:            q.vendor_id,
@@ -298,8 +321,8 @@ export class GeneralInvoicePaymentsController {
 
   getById = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const payment   = await generalInvoicePaymentService.getById(req.params.id as string, companyId)
+      const { branchIds } = await giScope(req)
+      const payment   = await generalInvoicePaymentService.getById(req.params.id as string, branchIds)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_general_payment', id: req.params.id })
@@ -308,10 +331,8 @@ export class GeneralInvoicePaymentsController {
 
   create = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const branchId  = req.context?.branch_id  ?? ''
-      const userId    = req.user?.id             ?? ''
-      const payment   = await generalInvoicePaymentService.create(req.body, companyId, branchId, userId)
+      const { branchIds, contextBranchId, userId } = await giScope(req)
+      const payment   = await generalInvoicePaymentService.create(req.body, branchIds, contextBranchId, userId)
       sendSuccess(res, payment, 'General payment berhasil dibuat', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_general_payment' })
@@ -320,9 +341,8 @@ export class GeneralInvoicePaymentsController {
 
   approve = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      const payment   = await generalInvoicePaymentService.approve(req.params.id as string, companyId, userId)
+      const { branchIds, userId } = await giScope(req)
+      const payment   = await generalInvoicePaymentService.approve(req.params.id as string, branchIds, userId)
       sendSuccess(res, payment, 'Payment berhasil disetujui')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'approve_general_payment', id: req.params.id })
@@ -331,10 +351,9 @@ export class GeneralInvoicePaymentsController {
 
   reject = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { branchIds, userId } = await giScope(req)
       const { reason } = req.body
-      const payment   = await generalInvoicePaymentService.reject(req.params.id as string, reason, companyId, userId)
+      const payment   = await generalInvoicePaymentService.reject(req.params.id as string, reason, branchIds, userId)
       sendSuccess(res, payment, 'Payment berhasil ditolak')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reject_general_payment', id: req.params.id })
@@ -343,8 +362,7 @@ export class GeneralInvoicePaymentsController {
 
   uploadProof = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { branchIds, userId } = await giScope(req)
       const file = req.file
       const proofUrlFromBody = typeof req.body?.proof_url === 'string' ? req.body.proof_url : undefined
 
@@ -356,14 +374,14 @@ export class GeneralInvoicePaymentsController {
       const payment = file
         ? await generalInvoicePaymentService.uploadProofFile(
             req.params.id as string,
-            companyId,
+            branchIds,
             userId,
             file,
           )
         : await generalInvoicePaymentService.uploadProof(
             req.params.id as string,
             proofUrlFromBody!.trim(),
-            companyId,
+            branchIds,
             userId,
           )
 
@@ -375,10 +393,9 @@ export class GeneralInvoicePaymentsController {
 
   markPaid = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId    = req.context?.company_id ?? ''
-      const userId       = req.user?.id             ?? ''
+      const { branchIds, userId } = await giScope(req)
       const { payment_date } = req.body
-      const payment      = await generalInvoicePaymentService.markPaid(req.params.id as string, payment_date, companyId, userId)
+      const payment      = await generalInvoicePaymentService.markPaid(req.params.id as string, payment_date, branchIds, userId)
       sendSuccess(res, payment, 'Payment berhasil ditandai lunas')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark_paid_general_payment', id: req.params.id })
@@ -387,9 +404,8 @@ export class GeneralInvoicePaymentsController {
 
   deleteJournal = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId  = req.user?.id ?? ''
-      const payment = await generalInvoicePaymentService.deleteJournal(req.params.id as string, companyId, userId)
+      const { branchIds, userId } = await giScope(req)
+      const payment = await generalInvoicePaymentService.deleteJournal(req.params.id as string, branchIds, userId)
       sendSuccess(res, payment, 'Journal berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_general_payment_journal', id: req.params.id })
@@ -398,9 +414,8 @@ export class GeneralInvoicePaymentsController {
 
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      await generalInvoicePaymentService.delete(req.params.id as string, companyId, userId)
+      const { branchIds, userId } = await giScope(req)
+      await generalInvoicePaymentService.delete(req.params.id as string, branchIds, userId)
       sendSuccess(res, null, 'Payment berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_general_payment', id: req.params.id })
@@ -414,8 +429,8 @@ export class GeneralInvoicePaymentsController {
 export class GeneralInvoiceTemplatesController {
   list = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const templates = await generalInvoiceTemplateService.list(companyId)
+      const { companyIds } = await giScope(req)
+      const templates = await generalInvoiceTemplateService.list(companyIds)
       sendSuccess(res, templates, 'Templates retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_general_templates' })
@@ -424,8 +439,8 @@ export class GeneralInvoiceTemplatesController {
 
   getById = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const template  = await generalInvoiceTemplateService.getById(req.params.id as string, companyId)
+      const { companyIds } = await giScope(req)
+      const template  = await generalInvoiceTemplateService.getById(req.params.id as string, companyIds)
       sendSuccess(res, template)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_general_template', id: req.params.id })
@@ -434,10 +449,8 @@ export class GeneralInvoiceTemplatesController {
 
   create = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const branchId  = req.context?.branch_id  ?? ''
-      const userId    = req.user?.id             ?? ''
-      const template  = await generalInvoiceTemplateService.create(req.body, companyId, branchId, userId)
+      const { companyIds, branchIds, contextBranchId, userId } = await giScope(req)
+      const template  = await generalInvoiceTemplateService.create(req.body, companyIds, branchIds, contextBranchId, userId)
       sendSuccess(res, template, 'Template berhasil dibuat', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_general_template' })
@@ -446,13 +459,12 @@ export class GeneralInvoiceTemplatesController {
 
   generate = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const branchId  = req.context?.branch_id  ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { companyIds, branchIds, contextBranchId, userId } = await giScope(req)
       const invoice   = await generalInvoiceTemplateService.generateFromTemplate(
         req.body,
-        companyId,
-        branchId,
+        companyIds,
+        branchIds,
+        contextBranchId,
         userId,
         generalInvoiceService,
       )
@@ -464,9 +476,8 @@ export class GeneralInvoiceTemplatesController {
 
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
-      await generalInvoiceTemplateService.delete(req.params.id as string, companyId, userId)
+      const { companyIds, userId } = await giScope(req)
+      await generalInvoiceTemplateService.delete(req.params.id as string, companyIds, userId)
       sendSuccess(res, null, 'Template berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_general_template', id: req.params.id })
@@ -483,10 +494,22 @@ export const generalInvoiceTemplatesController = new GeneralInvoiceTemplatesCont
 // ============================================================
 // EXPENSE COA DEFAULTS CONTROLLER
 // ============================================================
+function resolveCompanyId(companyIds: string[], contextCompanyId: string, queryCompanyId?: string): string {
+  if (queryCompanyId) {
+    if (!companyIds.includes(queryCompanyId)) {
+      throw Object.assign(new Error('No access to this company'), { statusCode: 403 })
+    }
+    return queryCompanyId
+  }
+  if (contextCompanyId && companyIds.includes(contextCompanyId)) return contextCompanyId
+  return companyIds[0] ?? ''
+}
+
 export class ExpenseCoaDefaultsController {
   list = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyIds, contextCompanyId } = await giScope(req)
+      const companyId = resolveCompanyId(companyIds, contextCompanyId, req.query.company_id as string | undefined)
       const data = await expenseCoaDefaultService.list(companyId)
       sendSuccess(res, data, 'Expense COA defaults retrieved')
     } catch (error: unknown) {
@@ -496,8 +519,8 @@ export class ExpenseCoaDefaultsController {
 
   upsert = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyIds, contextCompanyId, userId } = await giScope(req)
+      const companyId = resolveCompanyId(companyIds, contextCompanyId, req.body?.company_id)
       const data = await expenseCoaDefaultService.upsert(req.body, companyId, userId)
       sendSuccess(res, data, 'Default COA per kategori disimpan')
     } catch (error: unknown) {
@@ -507,7 +530,8 @@ export class ExpenseCoaDefaultsController {
 
   suggest = async (req: Request, res: Response): Promise<void> => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyIds, contextCompanyId } = await giScope(req)
+      const companyId = resolveCompanyId(companyIds, contextCompanyId, req.query.company_id as string | undefined)
       const expenseType = req.query.expense_type as string
       if (!expenseType) {
         res.status(400).json({ success: false, message: 'expense_type query required' })
