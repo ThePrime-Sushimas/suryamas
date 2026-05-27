@@ -1,4 +1,6 @@
+import { useMemo } from 'react'
 import { StatusBadge } from './StatusBadge'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import type { FiscalPeriodWithDetails } from '../types/fiscal-period.types'
 
 interface FiscalPeriodTableProps {
@@ -16,6 +18,18 @@ interface FiscalPeriodTableProps {
 }
 
 export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClose, onReopen, canUpdate, canDelete, canClose, canReopen }: FiscalPeriodTableProps) {
+  const branches = useBranchContextStore(s => s.branches)
+  const companyNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const branch of branches) {
+      if (!map.has(branch.company_id)) {
+        map.set(branch.company_id, branch.company_name ?? branch.company_id.slice(0, 8))
+      }
+    }
+    return map
+  }, [branches])
+  const showCompanyColumn = companyNameById.size > 1
+
   const formatDate = (date: string) => {
     const d = new Date(date)
     return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('id-ID')
@@ -31,6 +45,9 @@ export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClos
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-800">
           <tr>
+            {showCompanyColumn && (
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Company</th>
+            )}
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Period</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Fiscal Year</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Period Start</th>
@@ -45,6 +62,11 @@ export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClos
         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
           {periods.map((period) => (
             <tr key={period.id} className={period.deleted_at ? 'bg-gray-50 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}>
+              {showCompanyColumn && (
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                  {companyNameById.get(period.company_id) ?? period.company_id.slice(0, 8)}
+                </td>
+              )}
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{period.period}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{period.fiscal_year}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{formatDate(period.period_start)}</td>

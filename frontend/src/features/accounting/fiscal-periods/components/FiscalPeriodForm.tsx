@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { validatePeriodFormat, validateDateRange } from '../utils/validation'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import type { CreateFiscalPeriodDto, FiscalPeriod } from '../types/fiscal-period.types'
 
 interface FiscalPeriodFormProps {
@@ -18,6 +19,21 @@ const DEFAULT_FORM_DATA: CreateFiscalPeriodDto = {
 }
 
 export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeriodFormProps) {
+  const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const branches = useBranchContextStore(s => s.branches)
+
+  const companyOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const branch of branches) {
+      if (!seen.has(branch.company_id)) {
+        seen.set(branch.company_id, branch.company_name ?? branch.company_id)
+      }
+    }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
+  }, [branches])
+
+  const isCreate = !initialData
+
   // Initialize form data - use initialData if available, otherwise use defaults
   const [formData, setFormData] = useState<CreateFiscalPeriodDto>(() => {
     if (initialData) {
@@ -29,7 +45,10 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
         is_year_end: initialData.is_year_end ?? false,
       }
     }
-    return DEFAULT_FORM_DATA
+    return {
+      ...DEFAULT_FORM_DATA,
+      company_id: currentBranch?.company_id ?? companyOptions[0]?.id,
+    }
   })
   
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -51,6 +70,10 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}
     const trimmedPeriod = formData.period.trim()
+
+    if (isCreate && !formData.company_id) {
+      newErrors.company_id = 'Company is required'
+    }
 
     if (!trimmedPeriod) {
       newErrors.period = 'Period is required'
@@ -90,6 +113,31 @@ export function FiscalPeriodForm({ initialData, onSubmit, onCancel }: FiscalPeri
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {isCreate && companyOptions.length > 0 && (
+        <div>
+          <label htmlFor="company_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Company <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="company_id"
+            value={formData.company_id ?? ''}
+            onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
+            aria-invalid={!!errors.company_id}
+            className={`w-full border rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 ${errors.company_id ? 'border-red-500 dark:border-red-500' : ''}`}
+          >
+            {companyOptions.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          {errors.company_id && (
+            <p className="text-red-500 dark:text-red-400 text-sm mt-1" role="alert">{errors.company_id}</p>
+          )}
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Periode fiskal dibuat per company. Pilih company yang benar — bukan hanya branch aktif di header.
+          </p>
+        </div>
+      )}
+
       <div>
         <label htmlFor="period" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Period <span className="text-red-500">*</span>

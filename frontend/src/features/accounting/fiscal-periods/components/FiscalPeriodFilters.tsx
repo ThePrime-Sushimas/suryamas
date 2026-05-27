@@ -1,9 +1,21 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
 export function FiscalPeriodFilters() {
   const { filters, setFilters, fetchPeriods } = useFiscalPeriodsStore()
+  const branches = useBranchContextStore(s => s.branches)
   const [localFilters, setLocalFilters] = useState(filters)
+
+  const companyOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const branch of branches) {
+      if (!seen.has(branch.company_id)) {
+        seen.set(branch.company_id, branch.company_name ?? branch.company_id)
+      }
+    }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
+  }, [branches])
 
   const handleApply = () => {
     setFilters(localFilters)
@@ -20,7 +32,27 @@ export function FiscalPeriodFilters() {
   const years = Array.from({ length: 10 }, (_, i) => currentYear - i)
 
   return (
-    <div className="flex gap-4 items-end">
+    <div className="flex gap-4 items-end flex-wrap">
+      {companyOptions.length > 1 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="company-filter">
+            Company
+          </label>
+          <select
+            id="company-filter"
+            value={localFilters.company_id || ''}
+            onChange={(e) => setLocalFilters({ ...localFilters, company_id: e.target.value || undefined })}
+            className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            aria-label="Filter by company"
+          >
+            <option value="">All Companies</option>
+            {companyOptions.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="fiscal-year-filter">
           Fiscal Year

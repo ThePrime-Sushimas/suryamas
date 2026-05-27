@@ -8,7 +8,7 @@ import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
 import { FiscalPeriodErrors } from './fiscal-periods.errors'
 import { defaultConfig } from './fiscal-periods.config'
-import { getAccessibleCompanyIds, getWriteScope } from '../../../utils/branch-access.util'
+import { getAccessibleCompanyIds, getWriteScope, requireCompanyAccess } from '../../../utils/branch-access.util'
 import type {
   createFiscalPeriodSchema,
   updateFiscalPeriodSchema,
@@ -30,8 +30,13 @@ export class FiscalPeriodsController {
         throw FiscalPeriodErrors.VALIDATION_ERROR('limit', `Page size cannot exceed ${defaultConfig.limits.pageSize}`)
       }
 
+      const filter = { ...req.filterParams }
+      if (filter?.company_id) {
+        requireCompanyAccess(filter.company_id as string, companyIds)
+      }
+
       const result = await fiscalPeriodsService.list(
-        companyIds, { ...req.pagination!, offset }, req.sort as Parameters<typeof fiscalPeriodsService.list>[2], req.filterParams
+        companyIds, { ...req.pagination!, offset }, req.sort as Parameters<typeof fiscalPeriodsService.list>[2], filter
       )
       sendSuccess(res, result.data, 'Fiscal periods retrieved', 200, result.pagination)
     } catch (error: unknown) {
@@ -42,9 +47,16 @@ export class FiscalPeriodsController {
   async create(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createFiscalPeriodSchema>).validated
-      const { companyId } = await getWriteScope(req)
+      const { companyId: writeCompanyId, companyIds } = await getWriteScope(req)
 
-      const createData = { ...body, company_id: companyId }
+      let companyId = writeCompanyId
+      if (body.company_id) {
+        requireCompanyAccess(body.company_id, companyIds)
+        companyId = body.company_id
+      }
+
+      const { company_id: _ignored, ...periodFields } = body
+      const createData = { ...periodFields, company_id: companyId }
       const period = await fiscalPeriodsService.create(createData, req.user!.id)
 
       logInfo('Fiscal period created', { period_id: period.id, period: period.period, user: req.user!.id })

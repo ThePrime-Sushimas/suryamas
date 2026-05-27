@@ -154,7 +154,14 @@ export class FiscalPeriodsService {
     if (filter.fiscal_year !== undefined && typeof filter.fiscal_year === 'number') {
       validatedFilter.fiscal_year = filter.fiscal_year
     }
-    
+
+    if (filter.company_id && typeof filter.company_id === 'string') {
+      const trimmed = filter.company_id.trim()
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+        validatedFilter.company_id = trimmed
+      }
+    }
+
     if (filter.is_open !== undefined && typeof filter.is_open === 'boolean') {
       validatedFilter.is_open = filter.is_open
     }

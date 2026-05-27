@@ -54,6 +54,7 @@ export class FiscalPeriodsRepository {
     else conditions.push('deleted_at IS NULL')
 
     if (filter?.fiscal_year !== undefined) { params.push(filter.fiscal_year); conditions.push(`fiscal_year = $${idx}`); idx++ }
+    if (filter?.company_id) { params.push(filter.company_id); conditions.push(`company_id = $${idx}`); idx++ }
     if (typeof filter?.is_open === 'boolean') { params.push(filter.is_open); conditions.push(`is_open = $${idx}`); idx++ }
     if (filter?.period) { params.push(filter.period); conditions.push(`period = $${idx}`); idx++ }
     if (filter?.q || search) {

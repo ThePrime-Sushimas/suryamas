@@ -22,6 +22,7 @@ export interface FiscalPeriod {
 }
 
 export interface CreateFiscalPeriodDto {
+  company_id?: string
   period: string // YYYY-MM
   period_start: string
   period_end: string
@@ -45,6 +46,7 @@ export interface ClosePeriodDto {
 }
 
 export interface FiscalPeriodFilter {
+  company_id?: string
   fiscal_year?: number
   is_open?: boolean
   period?: string

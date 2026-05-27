@@ -27,6 +27,7 @@ export const fiscalPeriodIdSchema = z.object({
 
 export const createFiscalPeriodSchema = z.object({
   body: z.object({
+    company_id: uuidSchema.optional(),
     period: periodSchema,
     period_start: dateSchema,
     period_end: dateSchema,

@@ -282,6 +282,7 @@ export interface BatchAssignJournalDto {
  * DTO for generating journal entries
  */
 export interface GenerateJournalDto {
+  company_id?: string;
   transaction_ids?: string[];
   transaction_date_from?: string;
   transaction_date_to?: string;
