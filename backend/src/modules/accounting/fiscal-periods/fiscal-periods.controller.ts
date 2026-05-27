@@ -8,7 +8,7 @@ import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
 import { FiscalPeriodErrors } from './fiscal-periods.errors'
 import { defaultConfig } from './fiscal-periods.config'
-import { getAccessibleCompanyIds } from '../../../utils/branch-access.util'
+import { getAccessibleCompanyIds, getWriteScope } from '../../../utils/branch-access.util'
 import type {
   createFiscalPeriodSchema,
   updateFiscalPeriodSchema,
@@ -21,14 +21,6 @@ import type {
 } from './fiscal-periods.schema'
 
 export class FiscalPeriodsController {
-  private getCompanyId(req: Request): string {
-    const companyId = req.context?.company_id
-    if (!companyId) {
-      throw FiscalPeriodErrors.VALIDATION_ERROR('company_id', 'Branch context required - no company access')
-    }
-    return companyId
-  }
-
   async list(req: Request, res: Response) {
     try {
       const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
@@ -50,7 +42,7 @@ export class FiscalPeriodsController {
   async create(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createFiscalPeriodSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const { companyId } = await getWriteScope(req)
 
       const createData = { ...body, company_id: companyId }
       const period = await fiscalPeriodsService.create(createData, req.user!.id)

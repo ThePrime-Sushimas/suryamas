@@ -21,7 +21,9 @@ interface VendorFormModalProps {
 
 function VendorFormModal({ open, onClose, vendor }: VendorFormModalProps) {
   const isEdit = !!vendor
-  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
+  const writeCompanyId = useBranchContextStore(
+    (s) => s.currentBranch?.company_id ?? s.branches[0]?.company_id,
+  )
   const createMutation = useCreateVendor()
   const updateMutation = useUpdateVendor()
 
@@ -176,7 +178,7 @@ function VendorFormModal({ open, onClose, vendor }: VendorFormModalProps) {
               <BankAccountsSection
                 ownerType="vendor"
                 ownerId={bankOwnerId}
-                companyId={companyId}
+                companyId={writeCompanyId}
               />
             </div>
           )}

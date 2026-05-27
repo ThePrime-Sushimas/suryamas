@@ -10,6 +10,7 @@ import type { CreateEmployeeSchema, UpdateEmployeeSchema, UpdateProfileSchema, B
 import { employeeIdSchema } from './employees.schema'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { jobsService } from '../jobs'
+import { getWriteScope } from '../../utils/branch-access.util'
 
 export class EmployeesController {
   async list(req: Request, res: Response) {
@@ -182,8 +183,7 @@ export class EmployeesController {
   async createExportJob(req: Request, res: Response) {
     try {
       const userId = req.user!.id
-      const companyId = req.context?.company_id
-      if (!companyId) return sendError(res, 'Company context required', 400)
+      const { companyId } = await getWriteScope(req)
 
       const filter: Record<string, unknown> = {}
       if (req.query.branch_name) filter.branch_name = req.query.branch_name
@@ -241,8 +241,7 @@ export class EmployeesController {
   async createImportJob(req: Request, res: Response) {
     try {
       const userId = req.user!.id
-      const companyId = req.context?.company_id
-      if (!companyId) return sendError(res, 'Company context required', 400)
+      const { companyId } = await getWriteScope(req)
       if (!req.file) return sendError(res, 'No file uploaded', 400)
 
       const allowedMimeTypes = [

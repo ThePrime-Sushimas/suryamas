@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, Save, Info } from 'lucide-react'
+import { Bell, Save, Info, Building2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePositions } from '../api/settings.api'
 import {
   useNotificationRulesCatalog,
@@ -25,9 +26,33 @@ function buildDraftFromCatalog(catalog: NotificationRuleCatalogItem[]): DraftMap
 
 export default function NotificationRoutingPage() {
   const toast = useToast()
-  const { data: catalog = [], isLoading } = useNotificationRulesCatalog()
+  const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const branches = useBranchContextStore(s => s.branches)
+
+  const companyOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const b of branches) {
+      if (b.company_id) map.set(b.company_id, b.company_name || b.branch_name || b.company_id)
+    }
+    return Array.from(map, ([id, name]) => ({ id, name }))
+  }, [branches])
+
+  const [selectedCompanyId, setSelectedCompanyId] = useState('')
+
+  const activeCompanyId = useMemo(() => {
+    if (selectedCompanyId) return selectedCompanyId
+    if (currentBranch?.company_id && companyOptions.some(c => c.id === currentBranch.company_id)) {
+      return currentBranch.company_id
+    }
+    return companyOptions[0]?.id ?? ''
+  }, [selectedCompanyId, companyOptions, currentBranch?.company_id])
+
+  const { data: catalog = [], isLoading } = useNotificationRulesCatalog(
+    activeCompanyId || undefined,
+    !!activeCompanyId,
+  )
   const positions = usePositions()
-  const saveRules = useSaveNotificationRules()
+  const saveRules = useSaveNotificationRules(activeCompanyId || undefined)
   const [draft, setDraft] = useState<DraftMap>({})
 
   const catalogSnapshot = useMemo(
@@ -110,6 +135,22 @@ export default function NotificationRoutingPage() {
           pembuat dokumen secara otomatis (di luar aturan posisi).
         </p>
       </div>
+
+      {companyOptions.length > 1 && (
+        <div className="flex items-center gap-3">
+          <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+          <label className="text-sm text-gray-600 dark:text-gray-400 shrink-0">Perusahaan</label>
+          <select
+            value={activeCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="flex-1 max-w-xs h-10 px-3 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+          >
+            {companyOptions.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">

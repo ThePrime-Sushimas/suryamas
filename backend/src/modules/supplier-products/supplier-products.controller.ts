@@ -13,6 +13,7 @@ import type {
   getBySupplierSchema,
   getByProductSchema,
 } from './supplier-products.schema'
+import { getWriteScope } from '../../utils/branch-access.util'
 
 export class SupplierProductsController {
   list = async (req: Request, res: Response): Promise<void> => {
@@ -93,11 +94,12 @@ export class SupplierProductsController {
   create = async (req: Request, res: Response): Promise<void> => {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createSupplierProductSchema>).validated
+      const { companyId } = await getWriteScope(req)
       const supplierProduct = await supplierProductsService.create({
         ...body,
         lead_time_days: body.lead_time_days ?? undefined,
         min_order_qty: body.min_order_qty ?? undefined,
-      }, req.user?.id, req.context?.company_id)
+      }, req.user?.id, companyId)
 
       logInfo('Supplier product created via API', {
         supplierProductId: supplierProduct.id,
@@ -115,11 +117,12 @@ export class SupplierProductsController {
   update = async (req: Request, res: Response): Promise<void> => {
     try {
       const { params, body } = (req as ValidatedAuthRequest<typeof updateSupplierProductSchema>).validated
+      const { companyId } = await getWriteScope(req)
       const supplierProduct = await supplierProductsService.update(params.id, {
         ...body,
         lead_time_days: body.lead_time_days ?? undefined,
         min_order_qty: body.min_order_qty ?? undefined,
-      }, req.user?.id, req.context?.company_id)
+      }, req.user?.id, companyId)
 
       logInfo('Supplier product updated via API', {
         supplierProductId: params.id,

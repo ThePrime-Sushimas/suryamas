@@ -197,10 +197,11 @@ export class JobsService {
   /**
    * Clear all completed/failed/cancelled jobs for a user in a company
    */
-  async clearAllJobs(userId: string, companyId: string): Promise<number> {
+  async clearAllJobs(userId: string, companyIds: string[]): Promise<number> {
+    const accessible = new Set(companyIds)
     const jobs = await jobsRepository.findUserRecentJobs(userId)
     const completedJobs = jobs.filter(
-      j => j.company_id === companyId && ['completed', 'failed', 'cancelled'].includes(j.status)
+      j => accessible.has(j.company_id) && ['completed', 'failed', 'cancelled'].includes(j.status)
     )
 
     const jobIds: string[] = []
@@ -211,7 +212,7 @@ export class JobsService {
 
     if (userId && jobIds.length > 0) {
       await AuditService.log('BULK_DELETE', 'job', jobIds.join(','), userId, undefined, {
-        company_id: companyId,
+        company_ids: companyIds,
         count: jobIds.length
       })
     }

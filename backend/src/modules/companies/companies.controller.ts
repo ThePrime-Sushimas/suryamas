@@ -8,6 +8,7 @@ import { handleExportToken, handleExport, handleImportPreview, handleImport } fr
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { createCompanySchema, updateCompanySchema, bulkUpdateStatusSchema, bulkDeleteSchema, companyIdSchema } from './companies.schema'
 import { jobsService, jobsRepository } from '../jobs'
+import { getWriteScope } from '../../utils/branch-access.util'
 
 export class CompaniesController {
   async list(req: Request, res: Response) {
@@ -96,11 +97,7 @@ export class CompaniesController {
   async createExportJob(req: Request, res: Response) {
     try {
       const userId = req.user!.id
-      const companyId = req.context?.company_id
-
-      if (!companyId) {
-        return sendError(res, 'Company context required', 400)
-      }
+      const { companyId } = await getWriteScope(req)
 
       const hasActiveJob = await jobsRepository.hasActiveJob(userId)
       if (hasActiveJob) {
@@ -152,11 +149,7 @@ export class CompaniesController {
   async createImportJob(req: Request, res: Response) {
     try {
       const userId = req.user!.id
-      const companyId = req.context?.company_id
-
-      if (!companyId) {
-        return sendError(res, 'Company context required', 400)
-      }
+      const { companyId } = await getWriteScope(req)
 
       const file = (req as Request & { file?: Express.Multer.File }).file
       if (!file) {

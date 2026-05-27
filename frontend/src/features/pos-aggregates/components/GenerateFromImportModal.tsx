@@ -8,6 +8,8 @@ import { usePosImportsStore } from '../../pos-imports/store/pos-imports.store'
 
 interface PosImport {
   id: string
+  company_id: string
+  branch_id: string
   file_name: string
   status: string
   import_date: string
@@ -32,6 +34,7 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   const navigate = useNavigate()
   const toast = useToast()
   const currentBranch = useBranchContextStore((s) => s.currentBranch)
+  const branches = useBranchContextStore((s) => s.branches)
   const { generateFromImportWithJob } = usePosAggregatesStore()
 
   const [imports, setImports] = useState<PosImport[]>([])
@@ -198,12 +201,15 @@ export const GenerateFromImportModal: React.FC<GenerateFromImportModalProps> = (
   const handleGenerate = async (importId: string) => {
     setGeneratingId(importId)
     try {
-      // Create job using jobs system
-      const jobId = await generateFromImportWithJob(
-        importId,
-        currentBranch?.company_id || '',
-        currentBranch?.branch_name
-      )
+      const imp = imports.find((i) => i.id === importId)
+      if (!imp?.company_id) {
+        toast.error('Import tidak memiliki company_id')
+        return
+      }
+      const branchName =
+        branches.find((b) => b.id === imp.branch_id)?.branch_name ?? currentBranch?.branch_name
+
+      const jobId = await generateFromImportWithJob(importId, imp.company_id, branchName)
       
       toast.success('Job created. Processing in background.')
       

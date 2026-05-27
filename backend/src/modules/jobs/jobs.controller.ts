@@ -4,23 +4,19 @@ import { jobsService } from './jobs.service'
 import { sendSuccess, sendError } from '../../utils/response.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { getJobByIdSchema, cancelJobSchema, createJobFullSchema } from './jobs.schema'
+import { getReadScope, getWriteScope, requireCompanyAccess } from '../../utils/branch-access.util'
 
 type GetJobReq = ValidatedAuthRequest<typeof getJobByIdSchema>
 type CancelJobReq = ValidatedAuthRequest<typeof cancelJobSchema>
 type CreateJobReq = ValidatedAuthRequest<typeof createJobFullSchema>
 
-function getCompanyId(req: Request): string {
-  const companyId = req.context?.company_id
-  if (!companyId) throw new Error('Company context required')
-  return companyId
-}
-
 export class JobsController {
   getRecentJobs = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyIds } = await getReadScope(req)
       const jobs = await jobsService.getUserRecentJobs(req.user?.id ?? '')
-      sendSuccess(res, jobs.filter(job => job.company_id === companyId), 'Recent jobs retrieved successfully')
+      const accessible = new Set(companyIds)
+      sendSuccess(res, jobs.filter(job => accessible.has(job.company_id)), 'Recent jobs retrieved successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_recent_jobs', company_id: req.context?.company_id })
     }
@@ -29,9 +25,9 @@ export class JobsController {
   getJobById = async (req: Request, res: Response) => {
     try {
       const { id } = (req as GetJobReq).validated.params
-      const companyId = getCompanyId(req)
+      const { companyIds } = await getReadScope(req)
       const job = await jobsService.getJobById(id, req.user?.id ?? '')
-      if (job.company_id !== companyId) throw new Error('Access denied to this job')
+      requireCompanyAccess(job.company_id, companyIds)
 
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
       res.set('Pragma', 'no-cache')
@@ -43,8 +39,14 @@ export class JobsController {
 
   createJob = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
-      const { type, module: mod, name, metadata } = (req as CreateJobReq).validated.body
+      const { companyId: writeCompanyId, companyIds } = await getWriteScope(req)
+      const { type, module: mod, name, metadata, company_id: bodyCompanyId } = (req as CreateJobReq).validated.body
+
+      let companyId = writeCompanyId
+      if (bodyCompanyId) {
+        requireCompanyAccess(bodyCompanyId, companyIds)
+        companyId = bodyCompanyId
+      }
 
       const job = await jobsService.createJob({
         user_id: req.user?.id ?? '',
@@ -64,13 +66,13 @@ export class JobsController {
   uploadJobFile = async (req: Request, res: Response) => {
     try {
       const { id } = (req as GetJobReq).validated.params
-      const companyId = getCompanyId(req)
+      const { companyIds } = await getReadScope(req)
       const userId = req.user?.id ?? ''
 
       if (!req.file) return sendError(res, 'No file uploaded', 400)
 
       const job = await jobsService.getJobById(id, userId)
-      if (job.company_id !== companyId) throw new Error('Access denied to this job')
+      requireCompanyAccess(job.company_id, companyIds)
       if (job.status !== 'pending') return sendError(res, `Cannot upload file. Job status is "${job.status}"`, 400)
 
       const allowedMimeTypes = [
@@ -100,11 +102,10 @@ export class JobsController {
   cancelJob = async (req: Request, res: Response) => {
     try {
       const { id } = (req as CancelJobReq).validated.params
-      const companyId = getCompanyId(req)
+      const { companyIds } = await getReadScope(req)
 
-      // Check access before cancel
       const existing = await jobsService.getJobById(id, req.user?.id ?? '')
-      if (existing.company_id !== companyId) throw new Error('Access denied to this job')
+      requireCompanyAccess(existing.company_id, companyIds)
 
       const job = await jobsService.cancelJob(id, req.user?.id ?? '')
       sendSuccess(res, job, 'Job cancelled successfully')
@@ -127,8 +128,8 @@ export class JobsController {
 
   clearAllJobs = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
-      const deletedCount = await jobsService.clearAllJobs(req.user?.id ?? '', companyId)
+      const { companyIds } = await getReadScope(req)
+      const deletedCount = await jobsService.clearAllJobs(req.user?.id ?? '', companyIds)
       sendSuccess(res, { deleted: deletedCount }, 'Jobs cleared successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'clear_all_jobs', company_id: req.context?.company_id })

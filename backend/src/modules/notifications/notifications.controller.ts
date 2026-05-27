@@ -6,6 +6,7 @@ import { handleError } from '../../utils/error-handler.util'
 import { AuthenticationError } from '../../utils/errors.base'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { notificationIdSchema, getNotificationsSchema, saveNotificationRulesSchema } from './notifications.schema'
+import { getWriteScope, requireCompanyAccess } from '../../utils/branch-access.util'
 
 type GetNotificationsReq = ValidatedAuthRequest<typeof getNotificationsSchema>
 type NotificationIdReq = ValidatedAuthRequest<typeof notificationIdSchema>
@@ -17,10 +18,14 @@ function requireUserId(req: Request): string {
   return userId
 }
 
-function requireCompanyId(req: Request): string {
-  const companyId = req.context?.company_id
-  if (!companyId) throw new AuthenticationError('Company context required')
-  return companyId
+async function resolveRulesCompanyId(req: Request): Promise<string> {
+  const { companyId: writeCompanyId, companyIds } = await getWriteScope(req)
+  const queryCompanyId = req.query.company_id as string | undefined
+  if (queryCompanyId) {
+    requireCompanyAccess(queryCompanyId, companyIds)
+    return queryCompanyId
+  }
+  return writeCompanyId
 }
 
 export class NotificationsController {
@@ -86,7 +91,7 @@ export class NotificationsController {
 
   getNotificationRules = async (req: Request, res: Response) => {
     try {
-      const companyId = requireCompanyId(req)
+      const companyId = await resolveRulesCompanyId(req)
       const catalog = await notificationRulesService.getCatalog(companyId)
       sendSuccess(res, catalog, 'Notification rules retrieved successfully')
     } catch (error: unknown) {
@@ -96,7 +101,7 @@ export class NotificationsController {
 
   saveNotificationRules = async (req: Request, res: Response) => {
     try {
-      const companyId = requireCompanyId(req)
+      const companyId = await resolveRulesCompanyId(req)
       const userId = requireUserId(req)
       const { body } = (req as SaveRulesReq).validated
       await notificationRulesService.saveRules(companyId, body.rules, userId)

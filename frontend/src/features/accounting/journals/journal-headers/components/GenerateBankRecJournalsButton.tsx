@@ -80,6 +80,7 @@ function GenerateBankRecModal({
   onClose: () => void
 }) {
   const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const branches = useBranchContextStore(s => s.branches)
   const { accounts, fetchAll } = useBankAccountsStore()
 
   const [bankAccountId, setBankAccountId] = useState<number | ''>('')
@@ -111,9 +112,20 @@ function GenerateBankRecModal({
 
   if (!isOpen) return null
 
-  const companyId = currentBranch?.company_id ?? null
+  const resolveJobCompanyId = (): string | null => {
+    if (bankAccountId) {
+      const acc = accounts.find(a => a.id === bankAccountId)
+      if (acc?.owner_type === 'company') return acc.owner_id
+    }
+    return currentBranch?.company_id ?? branches.find(b => b.company_id)?.company_id ?? null
+  }
 
   const handleGenerate = async () => {
+    const companyId = resolveJobCompanyId()
+    if (!companyId) {
+      setError('Company tidak tersedia — pilih rekening bank atau cabang di header')
+      return
+    }
 
     setIsLoading(true)
     setError(null)

@@ -28,26 +28,29 @@ export interface NotificationRuleDraft {
   is_active: boolean
 }
 
-export const useNotificationRulesCatalog = () =>
+export const useNotificationRulesCatalog = (companyId?: string, enabled = true) =>
   useQuery({
-    queryKey: ['notification-rules'],
+    queryKey: ['notification-rules', companyId ?? 'default'],
     queryFn: async () => {
-      const { data } = await api.get('/notifications/rules')
+      const params = companyId ? { company_id: companyId } : undefined
+      const { data } = await api.get('/notifications/rules', { params })
       return (data.data || []) as NotificationRuleCatalogItem[]
     },
+    enabled,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   })
 
-export const useSaveNotificationRules = () => {
+export const useSaveNotificationRules = (companyId?: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (rules: NotificationRuleDraft[]) => {
-      const { data } = await api.put('/notifications/rules', { rules })
+      const params = companyId ? { company_id: companyId } : undefined
+      const { data } = await api.put('/notifications/rules', { rules }, { params })
       return (data.data || []) as NotificationRuleCatalogItem[]
     },
     onSuccess: (catalog) => {
-      qc.setQueryData(['notification-rules'], catalog)
+      qc.setQueryData(['notification-rules', companyId ?? 'default'], catalog)
     },
   })
 }

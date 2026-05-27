@@ -58,6 +58,9 @@ export const PaymentMethodForm = ({
 
   const [showCOADropdown, setShowCOADropdown] = useState(false)
   const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const branches = useBranchContextStore(s => s.branches)
+  const writeCompanyId =
+    currentBranch?.company_id ?? branches.find(b => b.company_id)?.company_id
   
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<PaymentMethodFormData>({
     defaultValues: {
@@ -187,7 +190,7 @@ export const PaymentMethodForm = ({
     
     const submitData = {
       ...data,
-      company_id: currentBranch?.company_id,
+      company_id: writeCompanyId,
       bank_account_id: bankAccountId,
       coa_account_id: data.coa_account_id || null,
       description: data.description || null,

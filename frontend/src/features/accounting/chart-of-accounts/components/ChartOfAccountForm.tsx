@@ -37,9 +37,18 @@ export const ChartOfAccountForm = ({
     }
     return Array.from(map, ([id, name]) => ({ id, name }))
   }, [contextBranches])
+
+  const defaultCompanyId = useMemo(() => {
+    if (initialData?.company_id) return initialData.company_id
+    if (currentBranch?.company_id && companyOptions.some(c => c.id === currentBranch.company_id)) {
+      return currentBranch.company_id
+    }
+    return companyOptions[0]?.id || ''
+  }, [initialData?.company_id, currentBranch?.company_id, companyOptions])
+
   const initialFormData = useMemo(() => {
     return {
-      company_id: currentBranch?.company_id || '', // Always use context company_id
+      company_id: defaultCompanyId,
       account_code: initialData?.account_code || '',
       account_name: initialData?.account_name || '',
       account_type: (initialData?.account_type || lockedAccountType || 'ASSET') as AccountType,
@@ -52,7 +61,7 @@ export const ChartOfAccountForm = ({
       sort_order: initialData?.sort_order?.toString() || '',
       is_active: initialData?.is_active !== undefined ? initialData.is_active : true
     }
-  }, [initialData, defaultParentId, lockedAccountType, currentBranch?.company_id, currentBranch?.branch_id])
+  }, [initialData, defaultParentId, lockedAccountType, defaultCompanyId, currentBranch?.branch_id])
 
   const [formData, setFormData] = useState(initialFormData)
   const [errors, setErrors] = useState<Record<string, string>>({})

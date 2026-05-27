@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useBranchContext } from '@/features/branch_context'
 import { useToast } from '@/contexts/ToastContext'
 import { AccountingPurposesListPage } from './AccountingPurposesListPage'
 import { AccountingPurposeFormPage } from './AccountingPurposeFormPage'
@@ -14,7 +13,6 @@ type PageView = 'list' | 'create' | 'edit' | 'detail'
 export const AccountingPurposesPage = () => {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const currentBranch = useBranchContext()
   const [currentView, setCurrentView] = useState<PageView>('list')
   const [selectedPurposeId, setSelectedPurposeId] = useState<string | null>(null)
   const [selectedPurpose, setSelectedPurpose] = useState<AccountingPurpose | null>(null)
@@ -32,10 +30,6 @@ export const AccountingPurposesPage = () => {
   }, [id])
 
   const handleCreateNew = () => {
-    if (!currentBranch?.company_id) {
-      toast.error('Pilih cabang di header untuk membuat purpose baru')
-      return
-    }
     setSelectedPurposeId(null)
     setSelectedPurpose(null)
     setCurrentView('create')

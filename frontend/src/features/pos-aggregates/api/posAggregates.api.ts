@@ -943,8 +943,10 @@ export const posAggregatesApi = {
       if (!userId) throw new Error('User not authenticated')
 
       const currentBranch = useBranchContextStore.getState().currentBranch
-      const companyId = currentBranch?.company_id
-      if (!companyId) throw new Error('Company context required')
+      const branches = useBranchContextStore.getState().branches
+      const companyId =
+        currentBranch?.company_id ?? branches.find(b => b.company_id)?.company_id
+      if (!companyId) throw new Error('Tidak ada company yang dapat diakses')
 
       const res = await api.post<BackendResponse<{ job_id: string }>>('/jobs', {
         user_id: userId,

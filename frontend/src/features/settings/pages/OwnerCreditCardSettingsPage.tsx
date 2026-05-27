@@ -4,7 +4,6 @@ import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import {
   useOwnerCreditCards,
   useCreateOwnerCreditCard,
@@ -41,7 +40,6 @@ function formatCardSettlementDisplay(c: OwnerCreditCard): string {
 
 export default function OwnerCreditCardSettingsPage() {
   const toast = useToast()
-  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('owner_credit_cards', 'insert')
   const canUpdate = hasPermission('owner_credit_cards', 'update')
@@ -52,7 +50,7 @@ export default function OwnerCreditCardSettingsPage() {
     data: bankAccounts = [],
     isLoading: banksLoading,
     isFetching: banksFetching,
-  } = useCompanyBankAccounts(companyId)
+  } = useCompanyBankAccounts()
   const createCard = useCreateOwnerCreditCard()
   const updateCard = useUpdateOwnerCreditCard()
   const deleteCard = useDeleteOwnerCreditCard()
@@ -239,15 +237,11 @@ export default function OwnerCreditCardSettingsPage() {
                 onChange={(e) =>
                   setSettlementBankAccountId(e.target.value ? Number(e.target.value) : '')
                 }
-                disabled={banksSelectLoading || !companyId}
+                disabled={banksSelectLoading}
                 className="w-full h-9 px-3 text-sm border rounded-lg bg-white dark:bg-gray-700 disabled:opacity-60"
               >
                 <option value="">
-                  {banksSelectLoading
-                    ? 'Memuat rekening…'
-                    : !companyId
-                      ? 'Konteks perusahaan tidak tersedia'
-                      : '— Tidak dipilih —'}
+                  {banksSelectLoading ? 'Memuat rekening…' : '— Tidak dipilih —'}
                 </option>
                 {orphanSettlementOption && (
                   <option value={orphanSettlementOption.id}>{orphanSettlementOption.label}</option>

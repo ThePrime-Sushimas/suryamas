@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useCompanyBankAccounts, useOwnerCreditCards } from '../api/marketplacePo.api'
 import { fmtCurrency, todayIso } from '../utils/format'
 import {
@@ -29,10 +28,8 @@ export function SettleModal({
   isLoading: boolean
   session: MarketplaceCheckoutSession
 }) {
-  const headerCompanyId = useBranchContextStore((s) => s.currentBranch?.company_id)
-  const companyId = session.company_id ?? headerCompanyId
   const { data: banks = [], isLoading: banksLoading, isFetching: banksFetching } =
-    useCompanyBankAccounts(companyId)
+    useCompanyBankAccounts(session.company_id)
   const { data: ownerCards = [], isLoading: cardsLoading } = useOwnerCreditCards()
 
   const [bankAccountId, setBankAccountId] = useState<number | ''>('')
@@ -120,15 +117,11 @@ export function SettleModal({
                 setBankAccountId(e.target.value ? Number(e.target.value) : '')
                 setOrphanBankLabel(null)
               }}
-              disabled={banksSelectLoading || !companyId}
+              disabled={banksSelectLoading}
               className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm disabled:opacity-60"
             >
               <option value="">
-                {banksSelectLoading
-                  ? 'Memuat rekening…'
-                  : !companyId
-                    ? 'Konteks perusahaan tidak tersedia'
-                    : 'Pilih rekening'}
+                {banksSelectLoading ? 'Memuat rekening…' : 'Pilih rekening'}
               </option>
               {orphanBankLabel && bankAccountId !== '' && (
                 <option value={bankAccountId}>{orphanBankLabel}</option>

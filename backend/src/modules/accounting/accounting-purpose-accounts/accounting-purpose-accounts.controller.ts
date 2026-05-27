@@ -6,7 +6,7 @@ import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
-import { getAccessibleCompanyIds } from '../../../utils/branch-access.util'
+import { getAccessibleCompanyIds, getWriteScope } from '../../../utils/branch-access.util'
 import type {
   createAccountingPurposeAccountSchema,
   updateAccountingPurposeAccountSchema,
@@ -16,12 +16,6 @@ import type {
 } from './accounting-purpose-accounts.schema'
 
 export class AccountingPurposeAccountsController {
-  private getCompanyId(req: Request): string {
-    const companyId = req.context?.company_id
-    if (!companyId) throw new Error('Branch context required - no company access')
-    return companyId
-  }
-
   async list(req: Request, res: Response) {
     try {
       const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
@@ -43,7 +37,7 @@ export class AccountingPurposeAccountsController {
   async create(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createAccountingPurposeAccountSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const { companyId } = await getWriteScope(req)
 
       const purposeAccount = await accountingPurposeAccountsService.create(body, companyId, req.user!.id)
       sendSuccess(res, purposeAccount, 'Purpose account mapping created', 201)
@@ -91,7 +85,7 @@ export class AccountingPurposeAccountsController {
   async bulkCreate(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof bulkCreateAccountingPurposeAccountSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const { companyId } = await getWriteScope(req)
 
       const purposeAccounts = await accountingPurposeAccountsService.bulkCreate(body, companyId, req.user!.id)
       sendSuccess(res, purposeAccounts, 'Bulk create completed', 201)
