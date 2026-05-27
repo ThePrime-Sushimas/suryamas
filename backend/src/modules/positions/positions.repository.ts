@@ -3,9 +3,9 @@ import type { Position, PositionWithDepartment, CreatePositionDto, UpdatePositio
 
 class PositionsRepository {
 
-  async findAll(companyId: string, departmentId?: string): Promise<PositionWithDepartment[]> {
-    const conditions = ['p.company_id = $1', 'p.is_deleted = false']
-    const params: unknown[] = [companyId]
+  async findAll(companyIds: string[], departmentId?: string): Promise<PositionWithDepartment[]> {
+    const conditions = ['p.company_id = ANY($1::uuid[])', 'p.is_deleted = false']
+    const params: unknown[] = [companyIds]
 
     if (departmentId) { params.push(departmentId); conditions.push(`p.department_id = $${params.length}`) }
 
@@ -18,6 +18,15 @@ class PositionsRepository {
       ORDER BY d.sort_order, p.sort_order, p.position_name
     `, params)
     return rows
+  }
+
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<Position | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      `SELECT * FROM positions WHERE id = $1 AND company_id = ANY($2::uuid[]) AND is_deleted = false`,
+      [id, companyIds]
+    )
+    return rows[0] ?? null
   }
 
   async findById(id: string, companyId: string): Promise<Position | null> {

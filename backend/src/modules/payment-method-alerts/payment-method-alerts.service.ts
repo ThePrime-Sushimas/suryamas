@@ -7,12 +7,12 @@ import type { PaymentMethodAlert, CreateAlertDto, UpdateAlertDto, PaymentMethodA
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 
 export class PaymentMethodAlertsService {
-  async list(companyId: string): Promise<PaymentMethodAlert[]> {
-    return paymentMethodAlertsRepository.findAll(companyId)
+  async list(companyIds: string[]): Promise<PaymentMethodAlert[]> {
+    return paymentMethodAlertsRepository.findAll(companyIds)
   }
 
-  async getById(id: string, companyId: string): Promise<PaymentMethodAlert> {
-    const alert = await paymentMethodAlertsRepository.findById(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<PaymentMethodAlert> {
+    const alert = await paymentMethodAlertsRepository.findByIdAccessible(id, companyIds)
     if (!alert) throw PaymentMethodAlertErrors.NOT_FOUND(id)
     return alert
   }
@@ -24,32 +24,35 @@ export class PaymentMethodAlertsService {
     return alert
   }
 
-  async update(id: string, companyId: string, dto: UpdateAlertDto, userId: string): Promise<PaymentMethodAlert> {
-    const existing = await this.getById(id, companyId)
+  async update(id: string, companyId: string, dto: UpdateAlertDto, userId: string, existing?: PaymentMethodAlert): Promise<PaymentMethodAlert> {
+    const record = existing ?? await paymentMethodAlertsRepository.findByIdAccessible(id, [companyId])
+    if (!record) throw PaymentMethodAlertErrors.NOT_FOUND(id)
     const updated = await paymentMethodAlertsRepository.update(id, companyId, dto, userId)
     if (!updated) throw PaymentMethodAlertErrors.NOT_FOUND(id)
-    await AuditService.log('UPDATE', 'payment_method_alert', id, userId, existing, updated)
+    await AuditService.log('UPDATE', 'payment_method_alert', id, userId, record, updated)
     return updated
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const existing = await this.getById(id, companyId)
+  async delete(id: string, companyId: string, userId: string, existing?: PaymentMethodAlert): Promise<void> {
+    const record = existing ?? await paymentMethodAlertsRepository.findByIdAccessible(id, [companyId])
+    if (!record) throw PaymentMethodAlertErrors.NOT_FOUND(id)
     await paymentMethodAlertsRepository.softDelete(id, companyId, userId)
-    await AuditService.log('DELETE', 'payment_method_alert', id, userId, existing, null)
+    await AuditService.log('DELETE', 'payment_method_alert', id, userId, record, null)
   }
 
-  async testAlert(id: string, companyId: string): Promise<void> {
-    const alert = await this.getById(id, companyId)
+  async testAlert(id: string, companyId: string, existing?: PaymentMethodAlert): Promise<void> {
+    const alert = existing ?? await paymentMethodAlertsRepository.findByIdAccessible(id, [companyId])
+    if (!alert) throw PaymentMethodAlertErrors.NOT_FOUND(id)
     const msg = `🔔 *TEST ALERT: ${alert.payment_method_name || 'Payment Method'}*\n\nIni adalah test notifikasi.\nThreshold: Rp ${Number(alert.threshold_amount).toLocaleString('id-ID')}\n\n✅ Koneksi Telegram berhasil!`
     await sendTelegramMessage(alert.telegram_chat_id, msg)
   }
 
-  async getHistory(companyId: string, filters: AlertHistoryFilters = {}): Promise<{ data: PaymentMethodAlertHistory[], total: number }> {
-    return paymentMethodAlertsRepository.getHistory(companyId, filters)
+  async getHistory(companyIds: string[], filters: AlertHistoryFilters = {}): Promise<{ data: PaymentMethodAlertHistory[], total: number }> {
+    return paymentMethodAlertsRepository.getHistory(companyIds, filters)
   }
 
-  async getHistoryById(id: string, companyId: string): Promise<PaymentMethodAlertHistory> {
-    const history = await paymentMethodAlertsRepository.getHistoryById(id, companyId)
+  async getHistoryById(id: string, companyIds: string[]): Promise<PaymentMethodAlertHistory> {
+    const history = await paymentMethodAlertsRepository.getHistoryByIdAccessible(id, companyIds)
     if (!history) throw PaymentMethodAlertErrors.NOT_FOUND(id)
     return history
   }

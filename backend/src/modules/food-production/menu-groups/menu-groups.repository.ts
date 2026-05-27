@@ -2,9 +2,9 @@ import { pool } from '../../../config/db'
 import type { MenuGroup, MenuGroupWithCategory, CreateMenuGroupDto, UpdateMenuGroupDto } from './menu-groups.types'
 
 export class MenuGroupsRepository {
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: string }, filter?: { is_active?: boolean; category_id?: string }): Promise<{ data: MenuGroupWithCategory[]; total: number }> {
-    const conditions = ['mg.company_id = $1', 'mg.deleted_at IS NULL']
-    const params: unknown[] = [companyId]
+  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, sort?: { field: string; order: string }, filter?: { is_active?: boolean; category_id?: string }): Promise<{ data: MenuGroupWithCategory[]; total: number }> {
+    const conditions = ['mg.company_id = ANY($1::uuid[])', 'mg.deleted_at IS NULL']
+    const params: unknown[] = [companyIds]
     let idx = 2
 
     if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`mg.is_active = $${idx++}`) }
@@ -28,9 +28,9 @@ export class MenuGroupsRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async search(companyId: string, q: string, pagination: { limit: number; offset: number }): Promise<{ data: MenuGroupWithCategory[]; total: number }> {
-    const params = [companyId, `%${q}%`]
-    const where = `WHERE mg.company_id = $1 AND mg.deleted_at IS NULL AND (mg.group_name ILIKE $2 OR mg.group_code ILIKE $2)`
+  async search(companyIds: string[], q: string, pagination: { limit: number; offset: number }): Promise<{ data: MenuGroupWithCategory[]; total: number }> {
+    const params = [companyIds, `%${q}%`]
+    const where = `WHERE mg.company_id = ANY($1::uuid[]) AND mg.deleted_at IS NULL AND (mg.group_name ILIKE $2 OR mg.group_code ILIKE $2)`
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(
@@ -42,6 +42,17 @@ export class MenuGroupsRepository {
       pool.query(`SELECT COUNT(*)::int AS total FROM menu_groups mg ${where}`, params),
     ])
     return { data: dataRes.rows, total: countRes.rows[0].total }
+  }
+
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<MenuGroupWithCategory | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      `SELECT mg.*, mc.category_name, mc.category_code
+       FROM menu_groups mg JOIN menu_categories mc ON mc.id = mg.category_id
+       WHERE mg.id = $1 AND mg.company_id = ANY($2::uuid[]) AND mg.deleted_at IS NULL`,
+      [id, companyIds]
+    )
+    return rows[0] ?? null
   }
 
   async findById(id: string, companyId: string): Promise<MenuGroupWithCategory | null> {

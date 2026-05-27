@@ -1,3 +1,4 @@
+import type { Request } from 'express'
 import { pool } from '../config/db'
 
 const branchIdCache = new Map<string, { branches: string[]; expiresAt: number }>()
@@ -122,4 +123,33 @@ export async function getAccessScope(userId: string): Promise<{ branchIds: strin
     getAccessibleCompanyIds(userId),
   ])
   return { branchIds, companyIds }
+}
+
+export type ReadScope = { userId: string; companyIds: string[] }
+export type WriteScope = ReadScope & { companyId: string }
+export type BranchReadScope = ReadScope & { branchIds: string[] }
+
+/** Multi-company read scope from request (list/detail). */
+export async function getReadScope(req: Request): Promise<ReadScope> {
+  const userId = req.user?.id ?? ''
+  const companyIds = await getAccessibleCompanyIds(userId)
+  return { userId, companyIds }
+}
+
+/** Read scope including branch IDs (warehouses, branch-filtered lists). */
+export async function getBranchReadScope(req: Request): Promise<BranchReadScope> {
+  const userId = req.user?.id ?? ''
+  const [companyIds, branchIds] = await Promise.all([
+    getAccessibleCompanyIds(userId),
+    getAccessibleBranchIds(userId),
+  ])
+  return { userId, companyIds, branchIds }
+}
+
+/** Single company for writes using header branch context. */
+export async function getWriteScope(req: Request): Promise<WriteScope> {
+  const scope = await getReadScope(req)
+  const companyId = resolveContextCompanyId(req.context?.company_id ?? '', scope.companyIds)
+  if (!companyId) throw new Error('Branch context required')
+  return { ...scope, companyId }
 }

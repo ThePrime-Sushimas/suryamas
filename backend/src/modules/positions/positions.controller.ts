@@ -4,6 +4,7 @@ import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { createPositionSchema, updatePositionSchema, positionIdSchema, listPositionsSchema } from './positions.schema'
+import { getReadScope, getWriteScope } from '../../utils/branch-access.util'
 
 type CreateReq = ValidatedAuthRequest<typeof createPositionSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updatePositionSchema>
@@ -14,9 +15,9 @@ class PositionsController {
 
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { companyIds } = await getReadScope(req)
       const { department_id } = (req as ListReq).validated.query
-      const data = await positionsService.list(companyId, department_id)
+      const data = await positionsService.list(companyIds, department_id)
       sendSuccess(res, data, 'Positions retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_positions' })
@@ -25,9 +26,9 @@ class PositionsController {
 
   getById = async (req: Request, res: Response) => {
     try {
+      const { companyIds } = await getReadScope(req)
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const data = await positionsService.getById(id, companyId)
+      const data = await positionsService.getById(id, companyIds)
       sendSuccess(res, data, 'Position retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_position', id: req.params.id })
@@ -36,8 +37,7 @@ class PositionsController {
 
   create = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { companyId, userId } = await getWriteScope(req)
       const { body } = (req as CreateReq).validated
       const data = await positionsService.create(companyId, { ...body, created_by: userId })
       sendSuccess(res, data, 'Position created', 201)
@@ -48,10 +48,10 @@ class PositionsController {
 
   update = async (req: Request, res: Response) => {
     try {
+      const { companyIds, userId } = await getReadScope(req)
       const { params, body } = (req as UpdateReq).validated
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      const data = await positionsService.update(params.id, companyId, { ...body, updated_by: userId })
+      const existing = await positionsService.getById(params.id, companyIds)
+      const data = await positionsService.update(params.id, existing.company_id, { ...body, updated_by: userId })
       sendSuccess(res, data, 'Position updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_position', id: req.params.id })
@@ -60,10 +60,10 @@ class PositionsController {
 
   delete = async (req: Request, res: Response) => {
     try {
+      const { companyIds, userId } = await getReadScope(req)
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
-      await positionsService.delete(id, companyId, userId)
+      const existing = await positionsService.getById(id, companyIds)
+      await positionsService.delete(id, existing.company_id, userId)
       sendSuccess(res, null, 'Position deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_position', id: req.params.id })

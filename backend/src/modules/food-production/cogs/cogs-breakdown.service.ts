@@ -17,10 +17,10 @@ export interface CogsBreakdownResult {
 
 class CogsBreakdownService {
   async getFullBreakdown(
-    companyId: string, periodStart: string, periodEnd: string, branchId?: string | null,
+    companyIds: string[], periodStart: string, periodEnd: string, branchId?: string | null,
   ): Promise<CogsBreakdownResult> {
     const { daily, categories, groups, menus } = await cogsBreakdownRepository.getFullBreakdown(
-      companyId, periodStart, periodEnd, branchId,
+      companyIds, periodStart, periodEnd, branchId,
     )
 
     const totalCogs = daily.reduce((s, d) => s + d.total_cogs, 0)
@@ -39,10 +39,10 @@ class CogsBreakdownService {
   }
 
   async getMenusForGroup(
-    companyId: string, periodStart: string, periodEnd: string,
+    companyIds: string[], periodStart: string, periodEnd: string,
     branchId: string | null, categoryCode: string | null, groupId: string | null,
   ): Promise<MenuBreakdownRow[]> {
-    return cogsBreakdownRepository.getMenuBreakdown(companyId, periodStart, periodEnd, branchId, categoryCode, groupId)
+    return cogsBreakdownRepository.getMenuBreakdown(companyIds, periodStart, periodEnd, branchId, categoryCode, groupId)
   }
 }
 

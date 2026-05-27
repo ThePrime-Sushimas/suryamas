@@ -55,7 +55,6 @@ export interface MenuBreakdownRow {
 
 export class CogsBreakdownRepository {
   private buildBaseConditions(
-    companyId: string,
     periodStart: string,
     periodEnd: string,
     branchId?: string | null,
@@ -78,9 +77,9 @@ export class CogsBreakdownRepository {
   }
 
   async getDailyBreakdown(
-    companyId: string, periodStart: string, periodEnd: string, branchId?: string | null,
+    companyIds: string[], periodStart: string, periodEnd: string, branchId?: string | null,
   ): Promise<DailyCogsRow[]> {
-    const { conditions, params, nextIdx } = this.buildBaseConditions(companyId, periodStart, periodEnd, branchId)
+    const { conditions, params, nextIdx } = this.buildBaseConditions(periodStart, periodEnd, branchId)
     const where = conditions.join(' AND ')
 
     const { rows } = await pool.query(
@@ -96,12 +95,12 @@ export class CogsBreakdownRepository {
         SUM(CASE WHEN mc.category_code NOT IN ('FOOD', 'BEVERAGE') OR mc.category_code IS NULL THEN sm.qty * COALESCE(m.estimated_cost, 0) ELSE 0 END)::numeric AS other_cogs
       FROM tr_salesmenu sm
       JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
-      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = $${nextIdx} AND m.deleted_at IS NULL
+      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = ANY($${nextIdx}::uuid[]) AND m.deleted_at IS NULL
       LEFT JOIN menu_categories mc ON mc.id = m.category_id
       WHERE ${where}
       GROUP BY sh.sales_date
       ORDER BY sh.sales_date ASC`,
-      [...params, companyId],
+      [...params, companyIds],
     )
 
     return rows.map(r => ({
@@ -116,9 +115,9 @@ export class CogsBreakdownRepository {
   }
 
   async getCategoryBreakdown(
-    companyId: string, periodStart: string, periodEnd: string, branchId?: string | null,
+    companyIds: string[], periodStart: string, periodEnd: string, branchId?: string | null,
   ): Promise<CategoryBreakdownRow[]> {
-    const { conditions, params, nextIdx } = this.buildBaseConditions(companyId, periodStart, periodEnd, branchId)
+    const { conditions, params, nextIdx } = this.buildBaseConditions(periodStart, periodEnd, branchId)
     const where = conditions.join(' AND ')
 
     const { rows } = await pool.query(
@@ -133,12 +132,12 @@ export class CogsBreakdownRepository {
         COUNT(DISTINCT sm.menu_id)::int AS menu_count
       FROM tr_salesmenu sm
       JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
-      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = $${nextIdx} AND m.deleted_at IS NULL
+      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = ANY($${nextIdx}::uuid[]) AND m.deleted_at IS NULL
       LEFT JOIN menu_categories mc ON mc.id = m.category_id
       WHERE ${where}
       GROUP BY mc.category_code, mc.category_name
       ORDER BY total_cogs DESC NULLS LAST`,
-      [...params, companyId],
+      [...params, companyIds],
     )
 
     return rows.map(r => ({
@@ -153,9 +152,9 @@ export class CogsBreakdownRepository {
   }
 
   async getGroupBreakdown(
-    companyId: string, periodStart: string, periodEnd: string, branchId?: string | null,
+    companyIds: string[], periodStart: string, periodEnd: string, branchId?: string | null,
   ): Promise<GroupBreakdownRow[]> {
-    const { conditions, params, nextIdx } = this.buildBaseConditions(companyId, periodStart, periodEnd, branchId)
+    const { conditions, params, nextIdx } = this.buildBaseConditions(periodStart, periodEnd, branchId)
     const where = conditions.join(' AND ')
 
     const { rows } = await pool.query(
@@ -171,13 +170,13 @@ export class CogsBreakdownRepository {
         COUNT(DISTINCT sm.menu_id)::int AS menu_count
       FROM tr_salesmenu sm
       JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
-      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = $${nextIdx} AND m.deleted_at IS NULL
+      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = ANY($${nextIdx}::uuid[]) AND m.deleted_at IS NULL
       LEFT JOIN menu_categories mc ON mc.id = m.category_id
       LEFT JOIN menu_groups mg ON mg.id = m.group_id
       WHERE ${where}
       GROUP BY mc.category_code, mc.category_name, mg.id, mg.group_name
       ORDER BY mc.category_name NULLS LAST, total_cogs DESC`,
-      [...params, companyId],
+      [...params, companyIds],
     )
 
     return rows.map(r => ({
@@ -194,10 +193,10 @@ export class CogsBreakdownRepository {
   }
 
   async getMenuBreakdown(
-    companyId: string, periodStart: string, periodEnd: string,
+    companyIds: string[], periodStart: string, periodEnd: string,
     branchId?: string | null, categoryCode?: string | null, groupId?: string | null,
   ): Promise<MenuBreakdownRow[]> {
-    const { conditions, params, nextIdx } = this.buildBaseConditions(companyId, periodStart, periodEnd, branchId)
+    const { conditions, params, nextIdx } = this.buildBaseConditions(periodStart, periodEnd, branchId)
     let idx = nextIdx
 
     if (categoryCode) { params.push(categoryCode); conditions.push(`mc.category_code = $${idx++}`) }
@@ -222,7 +221,7 @@ export class CogsBreakdownRepository {
           ELSE 0 END AS cogs_percentage
       FROM tr_salesmenu sm
       JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
-      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = $${idx} AND m.deleted_at IS NULL
+      LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = ANY($${idx}::uuid[]) AND m.deleted_at IS NULL
       LEFT JOIN pos_staging_menus psm ON psm.pos_id = sm.menu_id
       LEFT JOIN menu_categories mc ON mc.id = m.category_id
       LEFT JOIN menu_groups mg ON mg.id = m.group_id
@@ -230,7 +229,7 @@ export class CogsBreakdownRepository {
       GROUP BY sm.menu_id, m.menu_name, psm.menu_name, mc.category_code, mc.category_name,
                mg.id, mg.group_name, m.id, m.estimated_cost, m.has_recipe
       ORDER BY total_cogs DESC`,
-      [...params, companyId],
+      [...params, companyIds],
     )
 
     return rows.map(r => ({
@@ -250,12 +249,12 @@ export class CogsBreakdownRepository {
     }))
   }
 
-  async getFullBreakdown(companyId: string, periodStart: string, periodEnd: string, branchId?: string | null) {
+  async getFullBreakdown(companyIds: string[], periodStart: string, periodEnd: string, branchId?: string | null) {
     const [daily, categories, groups, menus] = await Promise.all([
-      this.getDailyBreakdown(companyId, periodStart, periodEnd, branchId),
-      this.getCategoryBreakdown(companyId, periodStart, periodEnd, branchId),
-      this.getGroupBreakdown(companyId, periodStart, periodEnd, branchId),
-      this.getMenuBreakdown(companyId, periodStart, periodEnd, branchId),
+      this.getDailyBreakdown(companyIds, periodStart, periodEnd, branchId),
+      this.getCategoryBreakdown(companyIds, periodStart, periodEnd, branchId),
+      this.getGroupBreakdown(companyIds, periodStart, periodEnd, branchId),
+      this.getMenuBreakdown(companyIds, periodStart, periodEnd, branchId),
     ])
     return { daily, categories, groups, menus }
   }

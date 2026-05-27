@@ -4,6 +4,7 @@ import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import type { cogsPreviewSchema, cogsFinalizeSchema, cogsIdSchema, cogsListSchema } from './cogs.schema'
+import { getReadScope, getWriteScope } from '../../../utils/branch-access.util'
 
 type PreviewReq = ValidatedAuthRequest<typeof cogsPreviewSchema>
 type FinalizeReq = ValidatedAuthRequest<typeof cogsFinalizeSchema>
@@ -13,8 +14,9 @@ type ListReq = ValidatedAuthRequest<typeof cogsListSchema>
 export class CogsController {
   preview = async (req: Request, res: Response) => {
     try {
+      const { companyId } = await getWriteScope(req)
       const { body } = (req as PreviewReq).validated
-      const result = await cogsService.preview(req.context?.company_id ?? '', body)
+      const result = await cogsService.preview(companyId, body)
       sendSuccess(res, result, 'COGS preview calculated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cogs_preview' })
@@ -23,9 +25,9 @@ export class CogsController {
 
   finalize = async (req: Request, res: Response) => {
     try {
+      const { companyId, userId } = await getWriteScope(req)
       const { body } = (req as FinalizeReq).validated
-      const userId = req.user?.id ?? ''
-      const result = await cogsService.finalize(req.context?.company_id ?? '', body, userId)
+      const result = await cogsService.finalize(companyId, body, userId)
       sendSuccess(res, result, `COGS finalized — Journal ${result.journal_number} created`, 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cogs_finalize' })
@@ -34,8 +36,9 @@ export class CogsController {
 
   getById = async (req: Request, res: Response) => {
     try {
+      const { companyIds } = await getReadScope(req)
       const { id } = (req as IdReq).validated.params
-      const result = await cogsService.getById(id, req.context?.company_id ?? '')
+      const result = await cogsService.getById(id, companyIds)
       sendSuccess(res, result, 'COGS calculation retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_cogs_calculation', id: req.params.id })
@@ -44,8 +47,9 @@ export class CogsController {
 
   list = async (req: Request, res: Response) => {
     try {
+      const { companyIds } = await getReadScope(req)
       const { query } = (req as ListReq).validated
-      const result = await cogsService.list(req.context?.company_id ?? '', { page: query.page, limit: query.limit }, {
+      const result = await cogsService.list(companyIds, { page: query.page, limit: query.limit }, {
         period_start: query.period_start,
         period_end: query.period_end,
         branch_id: query.branch_id,

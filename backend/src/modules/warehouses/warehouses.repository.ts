@@ -12,13 +12,13 @@ const BASE_FROM = `
 
 export class WarehousesRepository {
   async findAll(
-    companyId: string,
+    companyIds: string[],
     pagination: { limit: number; offset: number },
     sort?: { field: string; order: string },
     filter?: { branch_id?: string; warehouse_type?: string; is_active?: boolean }
   ): Promise<{ data: WarehouseWithBranch[]; total: number }> {
-    const conditions = ['w.company_id = $1', 'w.deleted_at IS NULL']
-    const params: unknown[] = [companyId]
+    const conditions = ['w.company_id = ANY($1::uuid[])', 'w.deleted_at IS NULL']
+    const params: unknown[] = [companyIds]
     let idx = 2
 
     if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`w.branch_id = $${idx++}`) }
@@ -38,15 +38,24 @@ export class WarehousesRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async search(companyId: string, q: string, pagination: { limit: number; offset: number }): Promise<{ data: WarehouseWithBranch[]; total: number }> {
-    const params = [companyId, `%${q}%`]
-    const where = `WHERE w.company_id = $1 AND w.deleted_at IS NULL AND (w.warehouse_name ILIKE $2 OR w.warehouse_code ILIKE $2 OR b.branch_name ILIKE $2)`
+  async search(companyIds: string[], q: string, pagination: { limit: number; offset: number }): Promise<{ data: WarehouseWithBranch[]; total: number }> {
+    const params = [companyIds, `%${q}%`]
+    const where = `WHERE w.company_id = ANY($1::uuid[]) AND w.deleted_at IS NULL AND (w.warehouse_name ILIKE $2 OR w.warehouse_code ILIKE $2 OR b.branch_name ILIKE $2)`
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(`SELECT ${BASE_SELECT} ${BASE_FROM} ${where} ORDER BY b.branch_name ASC, w.warehouse_type ASC LIMIT $3 OFFSET $4`, [...params, pagination.limit, pagination.offset]),
       pool.query(`SELECT COUNT(*)::int AS total FROM warehouses w JOIN branches b ON b.id = w.branch_id ${where}`, params),
     ])
     return { data: dataRes.rows, total: countRes.rows[0].total }
+  }
+
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<WarehouseWithBranch | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE w.id = $1 AND w.company_id = ANY($2::uuid[]) AND w.deleted_at IS NULL`,
+      [id, companyIds]
+    )
+    return rows[0] ?? null
   }
 
   async findById(id: string, companyId: string): Promise<WarehouseWithBranch | null> {
@@ -65,10 +74,11 @@ export class WarehousesRepository {
     return rows[0] ?? null
   }
 
-  async findByBranch(branchId: string, companyId: string): Promise<WarehouseWithBranch[]> {
+  async findByBranch(branchId: string, companyIds: string[]): Promise<WarehouseWithBranch[]> {
+    if (!companyIds.length) return []
     const { rows } = await pool.query(
-      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE w.branch_id = $1 AND w.company_id = $2 AND w.deleted_at IS NULL ORDER BY w.warehouse_type ASC`,
-      [branchId, companyId]
+      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE w.branch_id = $1 AND w.company_id = ANY($2::uuid[]) AND w.deleted_at IS NULL ORDER BY w.warehouse_type ASC`,
+      [branchId, companyIds]
     )
     return rows
   }

@@ -2,14 +2,15 @@ import { pool } from '../../config/db'
 import type { PaymentMethodAlert, CreateAlertDto, UpdateAlertDto, DailyPaymentMethodTotal, PaymentMethodAlertHistory, BranchBreakdown, AlertHistoryFilters } from './payment-method-alerts.types'
 
 export class PaymentMethodAlertsRepository {
-  async findAll(companyId: string): Promise<PaymentMethodAlert[]> {
+  async findAll(companyIds: string[]): Promise<PaymentMethodAlert[]> {
+    if (!companyIds.length) return []
     const { rows } = await pool.query(
       `SELECT pma.*, pm.name AS payment_method_name
        FROM payment_method_alerts pma
        LEFT JOIN payment_methods pm ON pm.id = pma.payment_method_id
-       WHERE pma.company_id = $1 AND pma.deleted_at IS NULL
+       WHERE pma.company_id = ANY($1::uuid[]) AND pma.deleted_at IS NULL
        ORDER BY pm.name, pma.threshold_amount`,
-      [companyId]
+      [companyIds]
     )
     return rows
   }
@@ -24,6 +25,18 @@ export class PaymentMethodAlertsRepository {
       [companyId]
     )
     return rows
+  }
+
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<PaymentMethodAlert | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      `SELECT pma.*, pm.name AS payment_method_name
+       FROM payment_method_alerts pma
+       LEFT JOIN payment_methods pm ON pm.id = pma.payment_method_id
+       WHERE pma.id = $1 AND pma.company_id = ANY($2::uuid[]) AND pma.deleted_at IS NULL`,
+      [id, companyIds]
+    )
+    return rows[0] || null
   }
 
   async findById(id: string, companyId: string): Promise<PaymentMethodAlert | null> {
@@ -132,12 +145,13 @@ export class PaymentMethodAlertsRepository {
     return rows[0]  // pg driver sudah parse JSONB otomatis
   }
 
-  async getHistory(companyId: string, filters: AlertHistoryFilters = {}): Promise<{ data: PaymentMethodAlertHistory[], total: number }> {
+  async getHistory(companyIds: string[], filters: AlertHistoryFilters = {}): Promise<{ data: PaymentMethodAlertHistory[], total: number }> {
+    if (!companyIds.length) return { data: [], total: 0 }
     const { start_date, end_date, payment_method_id, page = 1, limit = 25 } = filters
     const offset = (page - 1) * limit
     
-    let whereClause = 'WHERE h.company_id = $1'
-    const params: any[] = [companyId]
+    let whereClause = 'WHERE h.company_id = ANY($1::uuid[])'
+    const params: unknown[] = [companyIds]
     let paramIndex = 2
 
     if (start_date) {
@@ -175,6 +189,19 @@ export class PaymentMethodAlertsRepository {
     const data = rows  // pg driver sudah parse JSONB otomatis
 
     return { data, total }
+  }
+
+  async getHistoryByIdAccessible(id: string, companyIds: string[]): Promise<PaymentMethodAlertHistory | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      `SELECT h.*, a.is_active as alert_is_active
+       FROM payment_method_alert_history h
+       LEFT JOIN payment_method_alerts a ON a.id = h.alert_id
+       WHERE h.id = $1 AND h.company_id = ANY($2::uuid[])`,
+      [id, companyIds]
+    )
+    if (rows.length === 0) return null
+    return rows[0]
   }
 
   async getHistoryById(id: string, companyId: string): Promise<PaymentMethodAlertHistory | null> {

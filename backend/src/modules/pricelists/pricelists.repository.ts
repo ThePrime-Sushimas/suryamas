@@ -76,6 +76,12 @@ export class PricelistsRepository {
     return { data: dataRes.rows.map(mapWithRelations), total: countRes.rows[0].total }
   }
 
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<PricelistWithRelations | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(`SELECT ${DETAIL_SELECT} ${DETAIL_FROM} WHERE pl.id = $1 AND pl.company_id = ANY($2::uuid[]) AND pl.deleted_at IS NULL`, [id, companyIds])
+    return rows[0] ? mapWithRelations(rows[0]) : null
+  }
+
   async findById(id: string): Promise<PricelistWithRelations | null> {
     const { rows } = await pool.query(`SELECT ${DETAIL_SELECT} ${DETAIL_FROM} WHERE pl.id = $1 AND pl.deleted_at IS NULL`, [id])
     return rows[0] ? mapWithRelations(rows[0]) : null

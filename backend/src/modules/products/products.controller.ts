@@ -7,6 +7,10 @@ import { handleError } from '../../utils/error-handler.util'
 import { logInfo, logError } from '../../config/logger'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type { ProductType, ProductStatus } from './products.types'
+import {
+  getAccessibleCompanyIds,
+  resolveContextCompanyId,
+} from '../../utils/branch-access.util'
 import { jobsService, jobsRepository } from '../jobs'
 import {
   createProductSchema,
@@ -177,7 +181,8 @@ export class ProductsController {
   createExportJob = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id
-      const companyId = req.context?.company_id
+      const companyIds = await getAccessibleCompanyIds(userId)
+      const companyId = resolveContextCompanyId(req.context?.company_id ?? '', companyIds)
       if (!companyId) return sendError(res, 'Company context required', 400)
 
       const hasActiveJob = await jobsRepository.hasActiveJob(userId)
@@ -233,7 +238,8 @@ export class ProductsController {
   createImportJob = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user!.id
-      const companyId = req.context?.company_id
+      const companyIds = await getAccessibleCompanyIds(userId)
+      const companyId = resolveContextCompanyId(req.context?.company_id ?? '', companyIds)
       if (!companyId) return sendError(res, 'Company context required', 400)
 
       if (!req.file) return sendError(res, 'No file uploaded', 400)

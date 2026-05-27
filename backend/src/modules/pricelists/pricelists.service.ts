@@ -134,8 +134,8 @@ export class PricelistsService {
     }
   }
 
-  async getPricelistById(id: string): Promise<PricelistWithRelations> {
-    const pricelist = await pricelistsRepository.findById(id)
+  async getPricelistById(id: string, companyIds: string[]): Promise<PricelistWithRelations> {
+    const pricelist = await pricelistsRepository.findByIdAccessible(id, companyIds)
     if (!pricelist) {
       throw new PricelistNotFoundError(id)
     }

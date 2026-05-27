@@ -6,12 +6,12 @@ import type { Position, PositionWithDepartment, CreatePositionDto, UpdatePositio
 
 class PositionsService {
 
-  async list(companyId: string, departmentId?: string): Promise<PositionWithDepartment[]> {
-    return positionsRepository.findAll(companyId, departmentId)
+  async list(companyIds: string[], departmentId?: string): Promise<PositionWithDepartment[]> {
+    return positionsRepository.findAll(companyIds, departmentId)
   }
 
-  async getById(id: string, companyId: string): Promise<Position> {
-    const pos = await positionsRepository.findById(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<Position> {
+    const pos = await positionsRepository.findByIdAccessible(id, companyIds)
     if (!pos) throw new PositionNotFoundError(id)
     return pos
   }

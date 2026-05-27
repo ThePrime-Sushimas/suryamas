@@ -96,16 +96,16 @@ export class CogsService {
     }
   }
 
-  async getById(id: string, companyId: string): Promise<{ calculation: CogsCalculation; lines: CogsCalculationLine[] }> {
-    const calculation = await cogsRepository.findById(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<{ calculation: CogsCalculation; lines: CogsCalculationLine[] }> {
+    const calculation = await cogsRepository.findByIdAccessible(id, companyIds)
     if (!calculation) throw new CogsCalculationNotFoundError(id)
     const lines = await cogsRepository.getLines(id)
     return { calculation, lines }
   }
 
-  async list(companyId: string, pagination: { page: number; limit: number }, filter?: { period_start?: string; period_end?: string; branch_id?: string; status?: string }) {
+  async list(companyIds: string[], pagination: { page: number; limit: number }, filter?: { period_start?: string; period_end?: string; branch_id?: string; status?: string }) {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await cogsRepository.findAll(companyId, { limit: pagination.limit, offset }, filter)
+    const { data, total } = await cogsRepository.findAll(companyIds, { limit: pagination.limit, offset }, filter)
     const totalPages = Math.ceil(total / pagination.limit)
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }

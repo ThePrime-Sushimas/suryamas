@@ -218,6 +218,15 @@ export class CogsRepository {
     )
   }
 
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<CogsCalculation | null> {
+    if (!companyIds.length) return null
+    const { rows } = await pool.query(
+      'SELECT * FROM cogs_calculations WHERE id = $1 AND company_id = ANY($2::uuid[])',
+      [id, companyIds]
+    )
+    return rows[0] ?? null
+  }
+
   async findById(id: string, companyId: string): Promise<CogsCalculation | null> {
     const { rows } = await pool.query(
       'SELECT * FROM cogs_calculations WHERE id = $1 AND company_id = $2',
@@ -234,9 +243,9 @@ export class CogsRepository {
     return rows
   }
 
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, filter?: { period_start?: string; period_end?: string; branch_id?: string; status?: string }): Promise<{ data: CogsCalculation[]; total: number }> {
-    const conditions = ['company_id = $1', 'superseded_by IS NULL']
-    const params: unknown[] = [companyId]
+  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { period_start?: string; period_end?: string; branch_id?: string; status?: string }): Promise<{ data: CogsCalculation[]; total: number }> {
+    const conditions = ['company_id = ANY($1::uuid[])', 'superseded_by IS NULL']
+    const params: unknown[] = [companyIds]
     let idx = 2
 
     if (filter?.period_start) { params.push(filter.period_start); conditions.push(`period_start >= $${idx++}::date`) }
