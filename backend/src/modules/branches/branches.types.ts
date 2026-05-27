@@ -20,6 +20,7 @@ export interface Branch {
   jam_tutup: string
   hari_operasional: HariOperasional
   notes: string | null
+  is_sales: boolean | null
   closed_at: string | null
   closed_by: string | null
   closed_date: string | null
@@ -47,6 +48,7 @@ export interface CreateBranchDto {
   hari_operasional: HariOperasional
   notes?: string | null
   status?: BranchStatus
+  is_sales?: boolean | null
   created_by?: string | null
 
   updated_by?: string | null

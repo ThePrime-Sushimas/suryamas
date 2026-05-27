@@ -2,7 +2,7 @@ import { pool } from '../../config/db'
 import type { Branch, CreateBranchDto, UpdateBranchDto } from './branches.types'
 import { BranchErrors } from './branches.errors'
 
-type BranchFilter = { status?: string; company_id?: string; city?: string; hari_operasional?: string }
+type BranchFilter = { status?: string; company_id?: string; city?: string; hari_operasional?: string; is_sales?: boolean }
 
 function toRecord<T extends object>(obj: T): Record<string, unknown> {
   return Object.fromEntries(Object.entries(obj))
@@ -24,6 +24,10 @@ export class BranchesRepository {
     if (filter?.status) { params.push(filter.status); conditions.push(`status = $${params.length}`) }
     if (filter?.company_id) { params.push(filter.company_id); conditions.push(`company_id = $${params.length}`) }
     if (filter?.city) { params.push(filter.city); conditions.push(`city = $${params.length}`) }
+    if (filter?.is_sales !== undefined && filter?.is_sales !== null) {
+      params.push(filter.is_sales)
+      conditions.push(`is_sales = $${params.length}`)
+    }
     if (filter?.hari_operasional) {
       params.push(JSON.stringify([filter.hari_operasional]))
       conditions.push(`hari_operasional @> $${params.length}::jsonb`)
@@ -72,6 +76,10 @@ export class BranchesRepository {
     if (filter?.city) {
       params.push(filter.city)
       conditions.push(`city = $${params.length}`)
+    }
+    if (filter?.is_sales !== undefined && filter?.is_sales !== null) {
+      params.push(filter.is_sales)
+      conditions.push(`is_sales = $${params.length}`)
     }
     if (filter?.hari_operasional) {
       params.push(JSON.stringify([filter.hari_operasional]))
@@ -154,6 +162,10 @@ export class BranchesRepository {
     if (filter?.status) { params.push(filter.status); conditions.push(`status = $${params.length}`) }
     if (filter?.company_id) { params.push(filter.company_id); conditions.push(`company_id = $${params.length}`) }
     if (filter?.city) { params.push(filter.city); conditions.push(`city = $${params.length}`) }
+    if (filter?.is_sales !== undefined && filter?.is_sales !== null) {
+      params.push(filter.is_sales)
+      conditions.push(`is_sales = $${params.length}`)
+    }
     if (filter?.hari_operasional) {
       params.push(JSON.stringify([filter.hari_operasional]))
       conditions.push(`hari_operasional @> $${params.length}::jsonb`)
@@ -191,7 +203,7 @@ export class BranchesRepository {
 
   async minimalActive(): Promise<{ id: string; branch_name: string }[]> {
     const { rows } = await pool.query(
-      `SELECT id, branch_name FROM branches WHERE status IN ('active', 'closed') ORDER BY branch_name LIMIT 1000`
+      `SELECT id, branch_name FROM branches WHERE status IN ('active', 'closed') AND is_sales = true ORDER BY branch_name LIMIT 1000`
     )
     return rows
   }
@@ -242,3 +254,4 @@ export class BranchesRepository {
 }
 
 export const branchesRepository = new BranchesRepository()
+

@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS public.branches
     branch_code character varying(50) COLLATE pg_catalog."default" NOT NULL,
     branch_name character varying(255) COLLATE pg_catalog."default" NOT NULL,
     status character varying(20) COLLATE pg_catalog."default" NOT NULL DEFAULT 'active'::character varying,
-    manager_id uuid,
     address text COLLATE pg_catalog."default",
     city character varying(100) COLLATE pg_catalog."default",
     province character varying(100) COLLATE pg_catalog."default",

@@ -37,7 +37,9 @@ export interface Branch {
   jam_tutup: string
   hari_operasional: string[]
   notes: string | null
+  is_sales: boolean | null
   created_at: string
+
   updated_at: string
   created_by: string | null
   updated_by: string | null
@@ -48,6 +50,7 @@ export interface CreateBranchDto {
   branch_code: string
   branch_name: string
   address: string
+  is_sales:boolean
   city: string
   province?: string
   postal_code?: string

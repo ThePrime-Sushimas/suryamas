@@ -28,6 +28,8 @@ export const CreateBranchSchema = z.object({
     jam_buka: z.string().regex(timeRegex, 'Invalid time format').default('10:00:00'),
     jam_tutup: z.string().regex(timeRegex, 'Invalid time format').default('22:00:00'),
     hari_operasional: z.array(z.string()).min(1, 'At least one operating day required').default([]),
+
+    is_sales: z.boolean().nullable().optional(),
   }),
 })
 

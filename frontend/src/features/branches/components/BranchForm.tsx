@@ -36,6 +36,8 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
     hari_operasional: initialData?.hari_operasional || [],
     status: initialData?.status || 'active',
 
+    is_sales: typeof initialData?.is_sales === 'boolean' ? initialData?.is_sales : true,
+
     notes: initialData?.notes || ''
   })
 
@@ -62,6 +64,7 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           country: formData.country, phone: formData.phone || undefined, whatsapp: formData.whatsapp || undefined,
           email: formData.email || undefined, jam_buka: formData.jam_buka + ':00', jam_tutup: formData.jam_tutup + ':00',
           hari_operasional: formData.hari_operasional, status: formData.status as 'active' | 'inactive',
+          is_sales: formData.is_sales,
           notes: formData.notes || undefined
         }
       : {
@@ -178,6 +181,20 @@ export const BranchForm = ({ initialData, isEdit, onSubmit, isLoading }: BranchF
           <option value="inactive">Nonaktif</option>
         </select>
       </div>
+
+      <div>
+        <label className={labelCls}>Tipe Cabang</label>
+        <select
+          name="is_sales"
+          value={String(formData.is_sales)}
+          onChange={(e) => setFormData(prev => ({ ...prev, is_sales: e.target.value === 'true' }))}
+          className={inputCls}
+        >
+          <option value="true">Sales (punya penjualan)</option>
+          <option value="false">Gudang (bukan penjualan)</option>
+        </select>
+      </div>
+
 
       <div className="flex gap-3 pt-2">
         <button type="submit" disabled={isLoading}
