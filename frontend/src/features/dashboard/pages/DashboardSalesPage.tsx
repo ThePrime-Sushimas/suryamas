@@ -423,12 +423,18 @@ function SidebarTabs({ branchRanking, paymentMethods, pmTotal, companies, active
 
 /* ── Sync Status Cell ── */
 
-function SyncStatusCell({ allBranches, salesData, isLoading }: { allBranches: Array<{ id: string; branch_name: string; status: string }> | undefined; salesData: Array<{ branch_name: string | null; synced_at?: string | null }> | undefined; isLoading: boolean }) {
+function SyncStatusCell({ allBranches, salesData, isLoading }: { 
+  allBranches: Array<{ id: string; branch_name: string; status: string; is_sales?: boolean | null }> | undefined
+  salesData: Array<{ branch_name: string | null; synced_at?: string | null }> | undefined
+  isLoading: boolean 
+}) {
   const [expanded, setExpanded] = useState(false)
 
   const { synced, missed } = useMemo(() => {
     if (!allBranches || !salesData) return { synced: [], missed: [] }
-    const activeBranches = allBranches.filter((b) => b.status === 'active')
+    const activeBranches = allBranches
+      .filter((b) => b.status === 'active')
+      .filter((b) => b.is_sales === true)
 
     // Get latest synced_at per branch
     const syncMap = new Map<string, string>()
