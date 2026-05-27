@@ -83,7 +83,7 @@ export async function getAccessibleCompanyIds(userId: string): Promise<string[]>
 
 export async function getCompanyIdForBranch(branchId: string): Promise<string | null> {
   const { rows } = await pool.query(
-    `SELECT company_id FROM branches WHERE id = $1 AND deleted_at IS NULL`,
+    `SELECT company_id FROM branches WHERE id = $1`,
     [branchId]
   )
   return (rows[0]?.company_id as string) ?? null

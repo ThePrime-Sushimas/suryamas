@@ -8,7 +8,7 @@ import { sendSuccess, sendError } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
 import { jobsService } from '../../jobs'
-import { getAccessibleBranchIds, getAccessibleCompanyIds, resolveContextCompanyId } from '../../../utils/branch-access.util'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, resolveContextCompanyId, requireCompanyAccess } from '../../../utils/branch-access.util'
 
 export const list = async (req: Request, res: Response) => {
   try {
@@ -68,6 +68,7 @@ export const exportToExcel = async (req: Request, res: Response) => {
       getAccessibleCompanyIds(userId),
     ])
     const companyId = resolveContextCompanyId(req.context?.company_id ?? '', companyIds)
+    requireCompanyAccess(companyId, companyIds)
 
     const filters = {
       dateFrom: req.query.dateFrom as string,

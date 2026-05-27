@@ -11,11 +11,21 @@ import type {
   printGoodsReceiptSchema,
   printDailyPrepOrderSchema,
 } from './printers.schema'
+import { getAccessibleCompanyIds, requireCompanyAccess, resolveContextCompanyId } from '../../utils/branch-access.util'
+
+async function printerWriteScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const companyIds = await getAccessibleCompanyIds(userId)
+  const companyId = resolveContextCompanyId(req.context?.company_id ?? '', companyIds)
+  requireCompanyAccess(companyId, companyIds)
+  return { userId, companyIds, companyId }
+}
 
 export class PrintersController {
   list = async (req: Request, res: Response): Promise<void> => {
     try {
-      const data = await printersService.list(req.context!.company_id, req.user!.id)
+      const { companyId, userId } = await printerWriteScope(req)
+      const data = await printersService.list(companyId, userId)
       sendSuccess(res, data, 'Printers retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_printers' })
@@ -25,7 +35,8 @@ export class PrintersController {
   getById = async (req: Request, res: Response): Promise<void> => {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof printerIdSchema>).validated
-      const data = await printersService.getById(params.id, req.context!.company_id, req.user!.id)
+      const { companyId, userId } = await printerWriteScope(req)
+      const data = await printersService.getById(params.id, companyId, userId)
       sendSuccess(res, data, 'Printer retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_printer' })
@@ -35,7 +46,8 @@ export class PrintersController {
   create = async (req: Request, res: Response): Promise<void> => {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof createPrinterSchema>).validated
-      const data = await printersService.create(req.context!.company_id, body, req.user!.id)
+      const { companyId, userId } = await printerWriteScope(req)
+      const data = await printersService.create(companyId, body, userId)
       sendSuccess(res, data, 'Printer created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_printer' })
@@ -45,7 +57,8 @@ export class PrintersController {
   update = async (req: Request, res: Response): Promise<void> => {
     try {
       const { params, body } = (req as ValidatedAuthRequest<typeof updatePrinterSchema>).validated
-      const data = await printersService.update(params.id, req.context!.company_id, body, req.user!.id)
+      const { companyId, userId } = await printerWriteScope(req)
+      const data = await printersService.update(params.id, companyId, body, userId)
       sendSuccess(res, data, 'Printer updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_printer' })
@@ -55,7 +68,8 @@ export class PrintersController {
   delete = async (req: Request, res: Response): Promise<void> => {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof printerIdSchema>).validated
-      await printersService.delete(params.id, req.context!.company_id, req.user!.id)
+      const { companyId, userId } = await printerWriteScope(req)
+      await printersService.delete(params.id, companyId, userId)
       sendSuccess(res, null, 'Printer deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_printer' })
@@ -65,10 +79,11 @@ export class PrintersController {
   testConnection = async (req: Request, res: Response): Promise<void> => {
     try {
       const { params } = (req as ValidatedAuthRequest<typeof printerIdSchema>).validated
+      const { companyId, userId } = await printerWriteScope(req)
       const connected = await printersService.testConnection(
         params.id,
-        req.context!.company_id,
-        req.user!.id,
+        companyId,
+        userId,
       )
       sendSuccess(res, { connected }, connected ? 'Printer connected' : 'Printer unreachable')
     } catch (error: unknown) {
@@ -79,12 +94,13 @@ export class PrintersController {
   printPurchaseRequest = async (req: Request, res: Response): Promise<void> => {
     try {
       const { params, body } = (req as ValidatedAuthRequest<typeof printPurchaseRequestSchema>).validated
+      const { companyId, userId } = await printerWriteScope(req)
       await printersService.printPurchaseRequest(
         body.printer_id,
         params.id,
         body.line_ids,
-        req.context!.company_id,
-        req.user!.id,
+        companyId,
+        userId,
       )
       sendSuccess(res, null, 'Print job sent successfully')
     } catch (error: unknown) {
@@ -95,12 +111,13 @@ export class PrintersController {
   printGoodsReceipt = async (req: Request, res: Response): Promise<void> => {
     try {
       const { params, body } = (req as ValidatedAuthRequest<typeof printGoodsReceiptSchema>).validated
+      const { companyId, userId } = await printerWriteScope(req)
       await printersService.printGoodsReceipt(
         body.printer_id,
         params.id,
         body.line_ids,
-        req.context!.company_id,
-        req.user!.id,
+        companyId,
+        userId,
       )
       sendSuccess(res, null, 'Print job sent successfully')
     } catch (error: unknown) {
@@ -111,12 +128,13 @@ export class PrintersController {
   printDailyPrepOrder = async (req: Request, res: Response): Promise<void> => {
     try {
       const { params, body } = (req as ValidatedAuthRequest<typeof printDailyPrepOrderSchema>).validated
+      const { companyId, userId } = await printerWriteScope(req)
       await printersService.printDailyPrepOrder(
         body.printer_id,
         params.id,
         body.line_ids,
-        req.context!.company_id,
-        req.user!.id,
+        companyId,
+        userId,
       )
       sendSuccess(res, null, 'Print job sent successfully')
     } catch (error: unknown) {

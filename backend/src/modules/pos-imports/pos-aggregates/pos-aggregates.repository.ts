@@ -48,7 +48,7 @@ function appendAccessibleBranchScope(
       AND ${p}branch_name IS NOT NULL
       AND ${p}branch_name IN (
         SELECT b.branch_name FROM branches b
-        WHERE b.id = ANY($${idx}::uuid[]) AND b.deleted_at IS NULL
+        WHERE b.id = ANY($${idx}::uuid[])
       )
     )
   )`)
