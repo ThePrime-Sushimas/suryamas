@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useBranchContext } from '@/features/branch_context'
-import { useBranchesStore } from '@/features/branches'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useToast } from '@/contexts/ToastContext'
 import type { ChartOfAccount, CreateChartOfAccountDto, UpdateChartOfAccountDto, AccountType } from '../types/chart-of-account.types'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, CURRENCY_CODES, DEFAULT_CURRENCY, NORMAL_BALANCE_MAP } from '../constants/chart-of-account.constants'
@@ -27,8 +27,16 @@ export const ChartOfAccountForm = ({
   lockedAccountType
 }: ChartOfAccountFormProps) => {
   const currentBranch = useBranchContext()
-  const { branches, fetchPage: fetchBranches } = useBranchesStore()
+  const contextBranches = useBranchContextStore(s => s.branches)
   const toast = useToast()
+
+  const companyOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const b of contextBranches) {
+      if (b.company_id) map.set(b.company_id, b.company_name || b.branch_name || b.company_id)
+    }
+    return Array.from(map, ([id, name]) => ({ id, name }))
+  }, [contextBranches])
   const initialFormData = useMemo(() => {
     return {
       company_id: currentBranch?.company_id || '', // Always use context company_id
@@ -54,19 +62,13 @@ export const ChartOfAccountForm = ({
     setFormData(initialFormData)
   }, [initialFormData])
 
-  useEffect(() => {
-    if (formData.company_id) {
-      fetchBranches(1, 100, null, { company_id: formData.company_id, status: 'active' })
-    }
-  }, [formData.company_id, fetchBranches])
-
   // Auto-set normal balance based on account type
   const normalBalance = useMemo(() => NORMAL_BALANCE_MAP[formData.account_type], [formData.account_type])
 
-  // Filter branches by selected company
   const availableBranches = useMemo(() => {
-    return branches.filter(branch => branch.company_id === formData.company_id)
-  }, [branches, formData.company_id])
+    if (!formData.company_id) return contextBranches
+    return contextBranches.filter(branch => branch.company_id === formData.company_id)
+  }, [contextBranches, formData.company_id])
 
   // Filter parent accounts by same type and header only
   const availableParents = useMemo(() => {
@@ -267,6 +269,23 @@ export const ChartOfAccountForm = ({
         {errors.account_name && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.account_name}</p>}
       </div>
 
+      {!isEdit && companyOptions.length > 1 && (
+        <div>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Company *</label>
+          <select
+            name="company_id"
+            value={formData.company_id}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          >
+            {companyOptions.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Branch</label>
         <select
@@ -279,7 +298,7 @@ export const ChartOfAccountForm = ({
         >
           <option value="">All Branches</option>
           {availableBranches.map(branch => (
-            <option key={branch.id} value={branch.id}>
+            <option key={branch.branch_id} value={branch.branch_id}>
               {branch.branch_code} - {branch.branch_name}
             </option>
           ))}

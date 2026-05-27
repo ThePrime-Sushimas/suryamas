@@ -591,28 +591,29 @@ export class FiscalPeriodsService {
     }
   }
 
-  async bulkDelete(ids: string[], userId: string, companyId: string, correlationId?: string): Promise<void> {
-    
+  async bulkDelete(ids: string[], userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess(companyId)
+      if (!accessibleCompanyIds.length) {
+        throw FiscalPeriodErrors.VALIDATION_ERROR('company_id', 'No accessible company')
+      }
       this.validateUUIDs(ids)
-      
+
       if (!userId?.trim()) {
         throw FiscalPeriodErrors.VALIDATION_ERROR('userId', 'User ID is required')
       }
-      
+
       if (ids.length > this.config.limits.bulkDelete) {
         throw FiscalPeriodErrors.BULK_OPERATION_LIMIT_EXCEEDED('delete', this.config.limits.bulkDelete, ids.length)
       }
-      
-      logInfo('Service bulkDelete started', { 
+
+      logInfo('Service bulkDelete started', {
         correlation_id: correlationId,
-        count: ids.length, 
+        count: ids.length,
         user_id: userId,
-        company_id: companyId
+        company_ids: accessibleCompanyIds,
       })
-      
-      const periods = await this.repository.findByIds(companyId, ids.map(id => id.trim()))
+
+      const periods = await this.repository.findByIdsAccessible(ids.map(id => id.trim()), accessibleCompanyIds)
       
       if (periods.length !== ids.length) {
         const foundIds = periods.map(p => p.id)
@@ -625,7 +626,7 @@ export class FiscalPeriodsService {
         throw FiscalPeriodErrors.VALIDATION_ERROR('closed_period', `Cannot delete closed period: ${closedPeriod.period}`)
       }
       
-      await this.repository.bulkDelete(companyId, ids.map(id => id.trim()), userId)
+      await this.repository.bulkDelete(accessibleCompanyIds, ids.map(id => id.trim()), userId)
       
       try {
         await this.auditService.log('BULK_DELETE', 'fiscal_period', ids.join(','), userId, null, null)
@@ -645,30 +646,35 @@ export class FiscalPeriodsService {
       logError('Service bulkDelete failed', { 
         correlation_id: correlationId,
         count: ids.length,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       throw error
     }
   }
 
-  async restore(id: string, userId: string, companyId: string, correlationId?: string): Promise<void> {
+  async restore(id: string, userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess(companyId)
-      
+      if (!accessibleCompanyIds.length) {
+        throw FiscalPeriodErrors.VALIDATION_ERROR('company_id', 'No accessible company')
+      }
+
       if (!id?.trim() || !userId?.trim()) {
         throw FiscalPeriodErrors.VALIDATION_ERROR('required_fields', 'Period ID and User ID are required')
       }
-      
-      logInfo('Service restore started', { 
+
+      const existing = await this.repository.findByIdAccessible(id.trim(), accessibleCompanyIds)
+      if (!existing) throw FiscalPeriodErrors.NOT_FOUND(id)
+
+      logInfo('Service restore started', {
         correlation_id: correlationId,
-        period_id: id, 
+        period_id: id,
         user_id: userId,
-        company_id: companyId
+        company_id: existing.company_id,
       })
-      
-      await this.repository.restore(id.trim(), companyId)
+
+      await this.repository.restore(id.trim(), existing.company_id)
       
       try {
         await this.auditService.log('RESTORE', 'fiscal_period', id, userId, null, null)
@@ -688,31 +694,33 @@ export class FiscalPeriodsService {
       logError('Service restore failed', { 
         correlation_id: correlationId,
         period_id: id,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       throw error
     }
   }
 
-  async bulkRestore(ids: string[], userId: string, companyId: string, correlationId?: string): Promise<void> {
+  async bulkRestore(ids: string[], userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess(companyId)
+      if (!accessibleCompanyIds.length) {
+        throw FiscalPeriodErrors.VALIDATION_ERROR('company_id', 'No accessible company')
+      }
       this.validateUUIDs(ids)
-      
+
       if (!userId?.trim()) {
         throw FiscalPeriodErrors.VALIDATION_ERROR('userId', 'User ID is required')
       }
-      
-      logInfo('Service bulkRestore started', { 
+
+      logInfo('Service bulkRestore started', {
         correlation_id: correlationId,
-        count: ids.length, 
+        count: ids.length,
         user_id: userId,
-        company_id: companyId
+        company_ids: accessibleCompanyIds,
       })
-      
-      await this.repository.bulkRestore(companyId, ids.map(id => id.trim()))
+
+      await this.repository.bulkRestore(accessibleCompanyIds, ids.map(id => id.trim()))
       
       try {
         await this.auditService.log('BULK_RESTORE', 'fiscal_period', ids.join(','), userId, null, null)
@@ -732,7 +740,7 @@ export class FiscalPeriodsService {
       logError('Service bulkRestore failed', { 
         correlation_id: correlationId,
         count: ids.length,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -1052,20 +1060,21 @@ export class FiscalPeriodsService {
     }
   }
 
-  async exportToExcel(companyId: string, filter?: any, correlationId?: string): Promise<Buffer> {
-    
+  async exportToExcel(companyIds: string[], filter?: any, correlationId?: string): Promise<Buffer> {
     try {
-      this.validateCompanyAccess(companyId)
-      
+      if (!companyIds.length) {
+        throw FiscalPeriodErrors.VALIDATION_ERROR('company_id', 'No accessible company')
+      }
+
       const validatedFilter = this.validateFilter(filter)
-      
-      logInfo('Service exportToExcel started', { 
+
+      logInfo('Service exportToExcel started', {
         correlation_id: correlationId,
-        company_id: companyId, 
-        filter: validatedFilter 
+        company_ids: companyIds,
+        filter: validatedFilter,
       })
-      
-      const data = await this.repository.exportData(companyId, validatedFilter, this.config.limits.export)
+
+      const data = await this.repository.exportData(companyIds, validatedFilter, this.config.limits.export)
       
       const columns = [
         { header: 'Period', key: 'period', width: 15 },
@@ -1080,17 +1089,17 @@ export class FiscalPeriodsService {
       
       const buffer = await this.exportService.generateExcel(data, columns)
       
-      logInfo('Service exportToExcel completed', { 
+      logInfo('Service exportToExcel completed', {
         correlation_id: correlationId,
-        company_id: companyId,
-        exported_records: data.length
+        company_ids: companyIds,
+        exported_records: data.length,
       })
-      
+
       return buffer
     } catch (error) {
-      logError('Service exportToExcel failed', { 
+      logError('Service exportToExcel failed', {
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
       throw error

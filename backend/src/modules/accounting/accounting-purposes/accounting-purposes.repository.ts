@@ -97,9 +97,27 @@ export class AccountingPurposesRepository {
     return rows[0] ?? null
   }
 
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<AccountingPurpose | null> {
+    if (!id?.trim() || !companyIds?.length) return null
+    const { rows } = await pool.query(
+      'SELECT * FROM accounting_purposes WHERE id = $1 AND company_id = ANY($2::uuid[])',
+      [id.trim(), companyIds]
+    )
+    return rows[0] ?? null
+  }
+
   async findByIds(companyId: string, ids: string[]): Promise<AccountingPurpose[]> {
     if (!companyId?.trim() || !ids?.length) return []
     const { rows } = await pool.query('SELECT * FROM accounting_purposes WHERE company_id = $1 AND id = ANY($2::uuid[])', [companyId, ids])
+    return rows
+  }
+
+  async findByIdsAccessible(ids: string[], companyIds: string[]): Promise<AccountingPurpose[]> {
+    if (!ids?.length || !companyIds?.length) return []
+    const { rows } = await pool.query(
+      'SELECT * FROM accounting_purposes WHERE id = ANY($1::uuid[]) AND company_id = ANY($2::uuid[])',
+      [ids, companyIds]
+    )
     return rows
   }
 
@@ -167,25 +185,25 @@ export class AccountingPurposesRepository {
     this.invalidateCache()
   }
 
-  async bulkUpdateStatus(companyId: string, ids: string[], updateData: { is_active: boolean; updated_by: string }): Promise<void> {
-    if (!companyId?.trim() || !ids?.length) throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Company ID and IDs array are required')
+  async bulkUpdateStatus(companyIds: string[], ids: string[], updateData: { is_active: boolean; updated_by: string }): Promise<void> {
+    if (!companyIds?.length || !ids?.length) throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Company IDs and IDs array are required')
     if (ids.length > this.config.limits.bulkUpdate) throw AccountingPurposeErrors.BULK_OPERATION_LIMIT_EXCEEDED('update', this.config.limits.bulkUpdate, ids.length)
 
     await pool.query(
-      'UPDATE accounting_purposes SET is_active = $1, updated_by = $2, updated_at = NOW() WHERE company_id = $3 AND is_system = false AND id = ANY($4::uuid[])',
-      [updateData.is_active, updateData.updated_by, companyId, ids]
+      'UPDATE accounting_purposes SET is_active = $1, updated_by = $2, updated_at = NOW() WHERE company_id = ANY($3::uuid[]) AND is_system = false AND id = ANY($4::uuid[])',
+      [updateData.is_active, updateData.updated_by, companyIds, ids]
     )
     this.invalidateCache('list:')
     this.invalidateCache('code:')
   }
 
-  async bulkDelete(companyId: string, ids: string[]): Promise<void> {
-    if (!companyId?.trim() || !ids?.length) throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Company ID and IDs array are required')
+  async bulkDelete(companyIds: string[], ids: string[]): Promise<void> {
+    if (!companyIds?.length || !ids?.length) throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Company IDs and IDs array are required')
     if (ids.length > this.config.limits.bulkDelete) throw AccountingPurposeErrors.BULK_OPERATION_LIMIT_EXCEEDED('delete', this.config.limits.bulkDelete, ids.length)
 
     await pool.query(
-      'UPDATE accounting_purposes SET is_deleted = true, deleted_at = NOW(), updated_at = NOW() WHERE company_id = $1 AND is_system = false AND id = ANY($2::uuid[])',
-      [companyId, ids]
+      'UPDATE accounting_purposes SET is_deleted = true, deleted_at = NOW(), updated_at = NOW() WHERE company_id = ANY($1::uuid[]) AND is_system = false AND id = ANY($2::uuid[])',
+      [companyIds, ids]
     )
     this.invalidateCache('list:')
     this.invalidateCache('code:')
@@ -200,22 +218,22 @@ export class AccountingPurposesRepository {
     this.invalidateCache()
   }
 
-  async bulkRestore(companyId: string, ids: string[]): Promise<void> {
-    if (!companyId?.trim() || !ids?.length) throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Company ID and IDs array are required')
+  async bulkRestore(companyIds: string[], ids: string[]): Promise<void> {
+    if (!companyIds?.length || !ids?.length) throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Company IDs and IDs array are required')
     await pool.query(
-      'UPDATE accounting_purposes SET is_deleted = false, deleted_at = NULL, deleted_by = NULL, updated_at = NOW() WHERE company_id = $1 AND is_deleted = true AND id = ANY($2::uuid[])',
-      [companyId, ids]
+      'UPDATE accounting_purposes SET is_deleted = false, deleted_at = NULL, deleted_by = NULL, updated_at = NOW() WHERE company_id = ANY($1::uuid[]) AND is_deleted = true AND id = ANY($2::uuid[])',
+      [companyIds, ids]
     )
     this.invalidateCache('list:')
     this.invalidateCache('code:')
   }
 
-  async exportData(companyId: string, filter?: FilterParams, limit?: number): Promise<AccountingPurpose[]> {
-    if (!companyId?.trim()) throw AccountingPurposeErrors.VALIDATION_ERROR('companyId', 'Company ID is required')
+  async exportData(companyIds: string[], filter?: FilterParams, limit?: number): Promise<AccountingPurpose[]> {
+    if (!companyIds?.length) throw AccountingPurposeErrors.VALIDATION_ERROR('companyIds', 'Company IDs are required')
     const safeLimit = Math.min(limit || this.config.limits.export, this.config.limits.export)
 
-    const conditions: string[] = ['company_id = $1']
-    const params: (string | boolean | number)[] = [companyId]
+    const conditions: string[] = ['company_id = ANY($1::uuid[])']
+    const params: unknown[] = [companyIds]
     let idx = 2
     if (filter?.applied_to) { params.push(filter.applied_to); conditions.push(`applied_to = $${idx}`); idx++ }
     if (typeof filter?.is_active === 'boolean') { params.push(filter.is_active); conditions.push(`is_active = $${idx}`); idx++ }
@@ -228,14 +246,14 @@ export class AccountingPurposesRepository {
     return rows
   }
 
-  async getFilterOptions(companyId: string): Promise<{ applied_to_types: string[] }> {
-    if (!companyId?.trim()) throw AccountingPurposeErrors.VALIDATION_ERROR('companyId', 'Company ID is required')
+  async getFilterOptions(companyIds: string[]): Promise<{ applied_to_types: string[] }> {
+    if (!companyIds?.length) throw AccountingPurposeErrors.VALIDATION_ERROR('companyIds', 'Company IDs are required')
 
-    const cacheKey = this.getCacheKey('filter-options', { companyId })
+    const cacheKey = this.getCacheKey('filter-options', { companyIds })
     const cached = this.getFromCache<{ applied_to_types: string[] }>(cacheKey)
     if (cached) return cached
 
-    const { rows } = await pool.query('SELECT applied_to FROM accounting_purposes WHERE company_id = $1', [companyId])
+    const { rows } = await pool.query('SELECT applied_to FROM accounting_purposes WHERE company_id = ANY($1::uuid[])', [companyIds])
     const result = { applied_to_types: [...new Set(rows.map((r: { applied_to: string }) => r.applied_to).filter(Boolean))] }
     this.setCache(cacheKey, result, 300000)
     return result

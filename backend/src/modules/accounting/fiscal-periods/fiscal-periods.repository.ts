@@ -143,6 +143,15 @@ export class FiscalPeriodsRepository {
     return rows
   }
 
+  async findByIdsAccessible(ids: string[], companyIds: string[]): Promise<FiscalPeriod[]> {
+    if (!ids?.length || !companyIds?.length) return []
+    const { rows } = await pool.query(
+      'SELECT * FROM fiscal_periods WHERE id = ANY($1::uuid[]) AND company_id = ANY($2::uuid[]) AND deleted_at IS NULL',
+      [ids, companyIds]
+    )
+    return rows
+  }
+
   async findAnyByCompanyAndPeriod(companyId: string, period: string): Promise<FiscalPeriod | null> {
     if (!companyId?.trim() || !period?.trim()) return null
     const { rows } = await pool.query('SELECT * FROM fiscal_periods WHERE company_id = $1 AND period = $2 ORDER BY created_at DESC LIMIT 1', [companyId, period])
@@ -216,10 +225,10 @@ export class FiscalPeriodsRepository {
     this.invalidateCache()
   }
 
-  async bulkDelete(companyId: string, ids: string[], userId: string): Promise<void> {
+  async bulkDelete(companyIds: string[], ids: string[], userId: string): Promise<void> {
     await pool.query(
-      'UPDATE fiscal_periods SET deleted_at = NOW(), deleted_by = $1, updated_at = NOW() WHERE company_id = $2 AND is_open = true AND id = ANY($3::uuid[])',
-      [userId, companyId, ids]
+      'UPDATE fiscal_periods SET deleted_at = NOW(), deleted_by = $1, updated_at = NOW() WHERE company_id = ANY($2::uuid[]) AND is_open = true AND id = ANY($3::uuid[])',
+      [userId, companyIds, ids]
     )
     this.invalidateCache()
   }
@@ -232,18 +241,18 @@ export class FiscalPeriodsRepository {
     this.invalidateCache()
   }
 
-  async bulkRestore(companyId: string, ids: string[]): Promise<void> {
+  async bulkRestore(companyIds: string[], ids: string[]): Promise<void> {
     await pool.query(
-      'UPDATE fiscal_periods SET deleted_at = NULL, deleted_by = NULL, updated_at = NOW() WHERE company_id = $1 AND deleted_at IS NOT NULL AND id = ANY($2::uuid[])',
-      [companyId, ids]
+      'UPDATE fiscal_periods SET deleted_at = NULL, deleted_by = NULL, updated_at = NOW() WHERE company_id = ANY($1::uuid[]) AND deleted_at IS NOT NULL AND id = ANY($2::uuid[])',
+      [companyIds, ids]
     )
     this.invalidateCache()
   }
 
-  async exportData(companyId: string, filter?: FiscalPeriodFilter, limit = 10000): Promise<FiscalPeriod[]> {
+  async exportData(companyIds: string[], filter?: FiscalPeriodFilter, limit = 10000): Promise<FiscalPeriod[]> {
     const safeLimit = Math.min(limit, this.config.limits.export)
-    const conditions: string[] = ['company_id = $1', 'deleted_at IS NULL']
-    const params: (string | boolean | number)[] = [companyId]
+    const conditions: string[] = ['company_id = ANY($1::uuid[])', 'deleted_at IS NULL']
+    const params: unknown[] = [companyIds]
     let idx = 2
     if (filter?.fiscal_year) { params.push(filter.fiscal_year); conditions.push(`fiscal_year = $${idx}`); idx++ }
     if (typeof filter?.is_open === 'boolean') { params.push(filter.is_open); conditions.push(`is_open = $${idx}`); idx++ }

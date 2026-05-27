@@ -54,6 +54,13 @@ export class AccountingPurposesService {
     }
   }
 
+  private assertRecordAccessible(recordCompanyId: string, accessibleCompanyIds: string[]): void {
+    this.validateCompanyAccess(accessibleCompanyIds)
+    if (!accessibleCompanyIds.includes(recordCompanyId)) {
+      throw AccountingPurposeErrors.COMPANY_ACCESS_DENIED(recordCompanyId)
+    }
+  }
+
   private validateUUIDs(ids: string[]): void {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const invalidIds = ids.filter(id => !id?.trim() || !uuidRegex.test(id.trim()))
@@ -304,39 +311,38 @@ export class AccountingPurposesService {
    * @param correlationId Request correlation ID
    * @returns Accounting purpose or throws if not found
    */
-  async getById(id: string, companyId: string, correlationId?: string): Promise<AccountingPurpose> {
-    
+  async getById(id: string, accessibleCompanyIds: string[], correlationId?: string): Promise<AccountingPurpose> {
     try {
-      this.validateCompanyAccess([companyId])
-      
+      this.validateCompanyAccess(accessibleCompanyIds)
+
       if (!id?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('id', 'Purpose ID is required')
       }
-      
-      logInfo('Service getById started', { 
+
+      logInfo('Service getById started', {
         correlation_id: correlationId,
         purpose_id: id,
-        company_id: companyId
+        company_ids: accessibleCompanyIds,
       })
-      
-      const purpose = await this.repository.findById(id.trim(), companyId)
+
+      const purpose = await this.repository.findByIdAccessible(id.trim(), accessibleCompanyIds)
       if (!purpose) {
         throw AccountingPurposeErrors.NOT_FOUND(id)
       }
-      
-      logInfo('Service getById completed', { 
+
+      logInfo('Service getById completed', {
         correlation_id: correlationId,
         purpose_id: id,
-        purpose_code: purpose.purpose_code
+        purpose_code: purpose.purpose_code,
       })
-      
+
       return purpose
     } catch (error) {
-      logError('Service getById failed', { 
+      logError('Service getById failed', {
         correlation_id: correlationId,
         purpose_id: id,
-        company_id: companyId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        company_ids: accessibleCompanyIds,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       throw error
     }
@@ -351,27 +357,26 @@ export class AccountingPurposesService {
    * @param correlationId Request correlation ID
    * @returns Updated accounting purpose
    */
-  async update(id: string, data: UpdateAccountingPurposeDTO, userId: string, companyId: string, correlationId?: string): Promise<AccountingPurpose> {
-    
+  async update(id: string, data: UpdateAccountingPurposeDTO, userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<AccountingPurpose> {
     try {
-      this.validateCompanyAccess([companyId])
-      
+      this.validateCompanyAccess(accessibleCompanyIds)
+
       if (!id?.trim() || !userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Purpose ID and User ID are required')
       }
-      
-      logInfo('Service update started', { 
+
+      logInfo('Service update started', {
         correlation_id: correlationId,
-        purpose_id: id, 
+        purpose_id: id,
         user_id: userId,
-        company_id: companyId
+        company_ids: accessibleCompanyIds,
       })
-      
-      // Get existing record for validation and audit
-      const existing = await this.repository.findById(id.trim(), companyId)
+
+      const existing = await this.repository.findByIdAccessible(id.trim(), accessibleCompanyIds)
       if (!existing) {
         throw AccountingPurposeErrors.NOT_FOUND(id)
       }
+      const companyId = existing.company_id
       
       // Check if system purpose
       if (existing.is_system) {
@@ -423,7 +428,7 @@ export class AccountingPurposesService {
       logError('Service update failed', { 
         correlation_id: correlationId,
         purpose_id: id,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -438,27 +443,26 @@ export class AccountingPurposesService {
    * @param companyId Company identifier
    * @param correlationId Request correlation ID
    */
-  async delete(id: string, userId: string, companyId: string, correlationId?: string): Promise<void> {
-    
+  async delete(id: string, userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess([companyId])
-      
+      this.validateCompanyAccess(accessibleCompanyIds)
+
       if (!id?.trim() || !userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Purpose ID and User ID are required')
       }
-      
-      logInfo('Service delete started', { 
+
+      logInfo('Service delete started', {
         correlation_id: correlationId,
-        purpose_id: id, 
+        purpose_id: id,
         user_id: userId,
-        company_id: companyId
+        company_ids: accessibleCompanyIds,
       })
-      
-      // Get existing record for validation and audit
-      const purpose = await this.repository.findById(id.trim(), companyId)
+
+      const purpose = await this.repository.findByIdAccessible(id.trim(), accessibleCompanyIds)
       if (!purpose) {
         throw AccountingPurposeErrors.NOT_FOUND(id)
       }
+      const companyId = purpose.company_id
       
       // Check if system purpose
       if (purpose.is_system) {
@@ -487,7 +491,7 @@ export class AccountingPurposesService {
       logError('Service delete failed', { 
         correlation_id: correlationId,
         purpose_id: id,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -503,11 +507,11 @@ export class AccountingPurposesService {
    * @param companyId Company identifier
    * @param correlationId Request correlation ID
    */
-  async bulkUpdateStatus(ids: string[], isActive: boolean, userId: string, companyId: string, correlationId?: string): Promise<void> {
-    const lockKey = `bulk_update_${companyId}`
-    
+  async bulkUpdateStatus(ids: string[], isActive: boolean, userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<void> {
+    const lockKey = `bulk_update_${accessibleCompanyIds.join(',')}`
+
     try {
-      this.validateCompanyAccess([companyId])
+      this.validateCompanyAccess(accessibleCompanyIds)
       this.validateUUIDs(ids)
       
       if (!userId?.trim()) {
@@ -523,24 +527,22 @@ export class AccountingPurposesService {
         count: ids.length, 
         is_active: isActive, 
         user_id: userId,
-        company_id: companyId
+        company_ids: accessibleCompanyIds,
       })
-      
-      // Validate no system purposes in the list (bulk check to avoid N+1)
-      const purposes = await this.repository.findByIds(companyId, ids.map(id => id.trim()))
+
+      const purposes = await this.repository.findByIdsAccessible(ids.map(id => id.trim()), accessibleCompanyIds)
       const systemPurposes = purposes.filter(p => p.is_system)
       if (systemPurposes.length > 0) {
         throw AccountingPurposeErrors.SYSTEM_PURPOSE_READONLY()
       }
-      
-      // Check if all requested IDs exist
+
       if (purposes.length !== ids.length) {
         const foundIds = purposes.map(p => p.id)
         const missingIds = ids.filter(id => !foundIds.includes(id))
         throw AccountingPurposeErrors.NOT_FOUND(missingIds[0])
       }
-      
-      await this.repository.bulkUpdateStatus(companyId, ids.map(id => id.trim()), {
+
+      await this.repository.bulkUpdateStatus(accessibleCompanyIds, ids.map(id => id.trim()), {
         is_active: isActive,
         updated_by: userId
       })
@@ -565,7 +567,7 @@ export class AccountingPurposesService {
       logError('Service bulkUpdateStatus failed', { 
         correlation_id: correlationId,
         count: ids.length,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -580,10 +582,9 @@ export class AccountingPurposesService {
    * @param companyId Company identifier
    * @param correlationId Request correlation ID
    */
-  async bulkDelete(ids: string[], userId: string, companyId: string, correlationId?: string): Promise<void> {
-    
+  async bulkDelete(ids: string[], userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess([companyId])
+      this.validateCompanyAccess(accessibleCompanyIds)
       this.validateUUIDs(ids)
       
       if (!userId?.trim()) {
@@ -598,24 +599,23 @@ export class AccountingPurposesService {
         correlation_id: correlationId,
         count: ids.length, 
         user_id: userId,
-        company_id: companyId
+        company_ids: accessibleCompanyIds
       })
       
       // Validate no system purposes in the list (bulk check to avoid N+1)
-      const purposes = await this.repository.findByIds(companyId, ids.map(id => id.trim()))
+      const purposes = await this.repository.findByIdsAccessible(ids.map(id => id.trim()), accessibleCompanyIds)
       const systemPurposes = purposes.filter(p => p.is_system)
       if (systemPurposes.length > 0) {
         throw AccountingPurposeErrors.SYSTEM_PURPOSE_READONLY()
       }
-      
-      // Check if all requested IDs exist
+
       if (purposes.length !== ids.length) {
         const foundIds = purposes.map(p => p.id)
         const missingIds = ids.filter(id => !foundIds.includes(id))
         throw AccountingPurposeErrors.NOT_FOUND(missingIds[0])
       }
-      
-      await this.repository.bulkDelete(companyId, ids.map(id => id.trim()))
+
+      await this.repository.bulkDelete(accessibleCompanyIds, ids.map(id => id.trim()))
       
       // Audit logging with error handling
       try {
@@ -636,7 +636,7 @@ export class AccountingPurposesService {
       logError('Service bulkDelete failed', { 
         correlation_id: correlationId,
         count: ids.length,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -644,22 +644,25 @@ export class AccountingPurposesService {
     }
   }
 
-  async restore(id: string, userId: string, companyId: string, correlationId?: string): Promise<void> {
+  async restore(id: string, userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess([companyId])
-      
+      this.validateCompanyAccess(accessibleCompanyIds)
+
       if (!id?.trim() || !userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Purpose ID and User ID are required')
       }
-      
-      logInfo('Service restore started', { 
+
+      const purpose = await this.repository.findByIdAccessible(id.trim(), accessibleCompanyIds)
+      if (!purpose) throw AccountingPurposeErrors.NOT_FOUND(id)
+
+      logInfo('Service restore started', {
         correlation_id: correlationId,
-        purpose_id: id, 
+        purpose_id: id,
         user_id: userId,
-        company_id: companyId
+        company_id: purpose.company_id,
       })
-      
-      await this.repository.restore(id.trim(), companyId)
+
+      await this.repository.restore(id.trim(), purpose.company_id)
       
       try {
         await this.auditService.log('RESTORE', 'accounting_purpose', id, userId, null, null)
@@ -679,31 +682,31 @@ export class AccountingPurposesService {
       logError('Service restore failed', { 
         correlation_id: correlationId,
         purpose_id: id,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       throw error
     }
   }
 
-  async bulkRestore(ids: string[], userId: string, companyId: string, correlationId?: string): Promise<void> {
+  async bulkRestore(ids: string[], userId: string, accessibleCompanyIds: string[], correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess([companyId])
+      this.validateCompanyAccess(accessibleCompanyIds)
       this.validateUUIDs(ids)
-      
+
       if (!userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('userId', 'User ID is required')
       }
-      
-      logInfo('Service bulkRestore started', { 
+
+      logInfo('Service bulkRestore started', {
         correlation_id: correlationId,
-        count: ids.length, 
+        count: ids.length,
         user_id: userId,
-        company_id: companyId
+        company_ids: accessibleCompanyIds,
       })
-      
-      await this.repository.bulkRestore(companyId, ids.map(id => id.trim()))
+
+      await this.repository.bulkRestore(accessibleCompanyIds, ids.map(id => id.trim()))
       
       try {
         await this.auditService.log('BULK_RESTORE', 'accounting_purpose', ids.join(','), userId, null, null)
@@ -723,7 +726,7 @@ export class AccountingPurposesService {
       logError('Service bulkRestore failed', { 
         correlation_id: correlationId,
         count: ids.length,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         user_id: userId,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -737,30 +740,29 @@ export class AccountingPurposesService {
    * @param correlationId Request correlation ID
    * @returns Available filter options
    */
-  async getFilterOptions(companyId: string, correlationId?: string) {
-    
+  async getFilterOptions(accessibleCompanyIds: string[], correlationId?: string) {
     try {
-      this.validateCompanyAccess([companyId])
-      
-      logInfo('Service getFilterOptions started', { 
+      this.validateCompanyAccess(accessibleCompanyIds)
+
+      logInfo('Service getFilterOptions started', {
         correlation_id: correlationId,
-        company_id: companyId
+        company_ids: accessibleCompanyIds,
       })
-      
-      const options = await this.repository.getFilterOptions(companyId)
-      
-      logInfo('Service getFilterOptions completed', { 
+
+      const options = await this.repository.getFilterOptions(accessibleCompanyIds)
+
+      logInfo('Service getFilterOptions completed', {
         correlation_id: correlationId,
-        company_id: companyId,
-        applied_to_types_count: options.applied_to_types.length
+        company_ids: accessibleCompanyIds,
+        applied_to_types_count: options.applied_to_types.length,
       })
-      
+
       return options
     } catch (error) {
-      logError('Service getFilterOptions failed', { 
+      logError('Service getFilterOptions failed', {
         correlation_id: correlationId,
-        company_id: companyId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        company_ids: accessibleCompanyIds,
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       throw error
     }
@@ -773,21 +775,19 @@ export class AccountingPurposesService {
    * @param correlationId Request correlation ID
    * @returns Excel file buffer
    */
-  async exportToExcel(companyId: string, filter?: any, correlationId?: string): Promise<Buffer> {
-    
+  async exportToExcel(accessibleCompanyIds: string[], filter?: any, correlationId?: string): Promise<Buffer> {
     try {
-      this.validateCompanyAccess([companyId])
-      
-      // Validate filter at service level
+      this.validateCompanyAccess(accessibleCompanyIds)
+
       const validatedFilter = this.validateFilter(filter)
-      
-      logInfo('Service exportToExcel started', { 
+
+      logInfo('Service exportToExcel started', {
         correlation_id: correlationId,
-        company_id: companyId, 
-        filter: validatedFilter 
+        company_ids: accessibleCompanyIds,
+        filter: validatedFilter,
       })
-      
-      const data = await this.repository.exportData(companyId, validatedFilter, this.config.limits.export)
+
+      const data = await this.repository.exportData(accessibleCompanyIds, validatedFilter, this.config.limits.export)
       
       const columns = [
         { header: 'Purpose Code', key: 'purpose_code', width: 20 },
@@ -803,15 +803,15 @@ export class AccountingPurposesService {
       
       logInfo('Service exportToExcel completed', { 
         correlation_id: correlationId,
-        company_id: companyId,
-        exported_records: data.length
+        company_ids: accessibleCompanyIds,
+        exported_records: data.length,
       })
-      
+
       return buffer
     } catch (error) {
-      logError('Service exportToExcel failed', { 
+      logError('Service exportToExcel failed', {
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: accessibleCompanyIds,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
       throw error

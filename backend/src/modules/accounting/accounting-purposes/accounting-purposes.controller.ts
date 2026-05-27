@@ -99,8 +99,8 @@ export class AccountingPurposesController {
 
   async getById(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
-      const purpose = await accountingPurposesService.getById(req.params.id as string, companyId)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const purpose = await accountingPurposesService.getById(req.params.id as string, companyIds)
       sendSuccess(res, purpose)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_purpose' })
@@ -110,9 +110,9 @@ export class AccountingPurposesController {
   async update(req: Request, res: Response) {
     try {
       const { body, params } = (req as ValidatedAuthRequest<typeof updateAccountingPurposeSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
 
-      const purpose = await accountingPurposesService.update(params.id, body, req.user!.id, companyId)
+      const purpose = await accountingPurposesService.update(params.id, body, req.user!.id, companyIds)
 
       logInfo('Accounting purpose updated', { purpose_id: params.id, user: req.user!.id })
       sendSuccess(res, purpose, 'Accounting purpose updated')
@@ -123,12 +123,12 @@ export class AccountingPurposesController {
 
   async delete(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       if (!req.user?.id) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('user', 'User authentication required')
       }
 
-      await accountingPurposesService.delete(req.params.id as string, req.user.id, companyId)
+      await accountingPurposesService.delete(req.params.id as string, req.user.id, companyIds)
 
       logInfo('Accounting purpose deleted', { purpose_id: req.params.id, user: req.user.id })
       sendSuccess(res, null, 'Accounting purpose deleted')
@@ -139,8 +139,8 @@ export class AccountingPurposesController {
 
   async getFilterOptions(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
-      const options = await accountingPurposesService.getFilterOptions(companyId)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const options = await accountingPurposesService.getFilterOptions(companyIds)
       sendSuccess(res, options)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_filter_options' })
@@ -153,10 +153,10 @@ export class AccountingPurposesController {
 
   async exportData(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       return handleExport(
         req, res,
-        (filter) => accountingPurposesService.exportToExcel(companyId, filter),
+        (filter) => accountingPurposesService.exportToExcel(companyIds, filter),
         'accounting-purposes'
       )
     } catch (error: unknown) {
@@ -191,13 +191,13 @@ export class AccountingPurposesController {
   async bulkUpdateStatus(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof bulkUpdateStatusSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
 
       if (body.ids.length > defaultConfig.limits.bulkUpdate) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('limit', `Cannot update more than ${defaultConfig.limits.bulkUpdate} records at once`)
       }
 
-      await accountingPurposesService.bulkUpdateStatus(body.ids, body.is_active, req.user!.id, companyId)
+      await accountingPurposesService.bulkUpdateStatus(body.ids, body.is_active, req.user!.id, companyIds)
       sendSuccess(res, null, 'Bulk status update completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_update_status' })
@@ -207,13 +207,13 @@ export class AccountingPurposesController {
   async bulkDelete(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof bulkDeleteSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
 
       if (body.ids.length > defaultConfig.limits.bulkDelete) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('limit', `Cannot delete more than ${defaultConfig.limits.bulkDelete} records at once`)
       }
 
-      await accountingPurposesService.bulkDelete(body.ids, req.user!.id, companyId)
+      await accountingPurposesService.bulkDelete(body.ids, req.user!.id, companyIds)
       sendSuccess(res, null, 'Bulk delete completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_delete' })
@@ -222,12 +222,12 @@ export class AccountingPurposesController {
 
   async restore(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       if (!req.user?.id) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('user', 'User authentication required')
       }
 
-      await accountingPurposesService.restore(req.params.id as string, req.user.id, companyId)
+      await accountingPurposesService.restore(req.params.id as string, req.user.id, companyIds)
       sendSuccess(res, null, 'Accounting purpose restored')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'restore_purpose' })
@@ -237,9 +237,9 @@ export class AccountingPurposesController {
   async bulkRestore(req: Request, res: Response) {
     try {
       const { body } = (req as ValidatedAuthRequest<typeof bulkDeleteSchema>).validated
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
 
-      await accountingPurposesService.bulkRestore(body.ids, req.user!.id, companyId)
+      await accountingPurposesService.bulkRestore(body.ids, req.user!.id, companyIds)
       sendSuccess(res, null, 'Bulk restore completed')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_restore' })
