@@ -10,6 +10,7 @@ import type {
 } from './bank-mutation-entries.schema'
 import { sendSuccess, sendError } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
+import { getAccessScope } from '../../../utils/branch-access.util'
 
 export class BankMutationEntriesController {
   async reconcile(req: Request, res: Response): Promise<void> {
@@ -85,11 +86,11 @@ export class BankMutationEntriesController {
   async getCoaSuggestions(req: Request, res: Response): Promise<void> {
     try {
       const { query } = (req as ValidatedAuthRequest<typeof coaSuggestionsSchema>).validated
-      const companyId = req.context?.company_id
+      const userId = req.user?.id
+      if (!userId) { sendError(res, 'Unauthorized', 401); return }
 
-      if (!companyId) { sendError(res, 'Unauthorized', 401); return }
-
-      const result = await bankMutationEntriesService.getCoaSuggestions(query.entryType, companyId)
+      const { branchIds, companyIds } = await getAccessScope(userId)
+      const result = await bankMutationEntriesService.getCoaSuggestions(query.entryType, branchIds, companyIds)
       sendSuccess(res, result)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_coa_suggestions' })

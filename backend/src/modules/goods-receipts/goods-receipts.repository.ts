@@ -308,6 +308,14 @@ export class GoodsReceiptsRepository {
     return rows[0] ?? null;
   }
 
+  async findByIdAccessible(id: string, branchIds: string[]): Promise<GoodsReceiptWithRelations | null> {
+    const { rows } = await pool.query(
+      `SELECT ${HEADER_SELECT} ${HEADER_FROM} WHERE gr.id = $1 AND gr.branch_id = ANY($2::uuid[]) AND gr.deleted_at IS NULL`,
+      [id, branchIds],
+    );
+    return rows[0] ?? null;
+  }
+
   async findWithLines(
     id: string,
     companyId: string,

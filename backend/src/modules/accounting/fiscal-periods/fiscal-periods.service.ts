@@ -78,7 +78,7 @@ export class FiscalPeriodsService {
     excludePeriodId?: string
   ): Promise<void> {
     const { data: allPeriods } = await this.repository.findAll(
-      companyId,
+      [companyId],
       { limit: 1000, offset: 0 },
       undefined,
       { show_deleted: false }
@@ -128,7 +128,7 @@ export class FiscalPeriodsService {
     // Check if year-end already exists for this fiscal year
     const fiscalYear = parseInt(period.substring(0, 4))
     const { data: existingPeriods } = await this.repository.findAll(
-      companyId,
+      [companyId],
       { limit: 100, offset: 0 },
       undefined,
       { fiscal_year: fiscalYear, show_deleted: false }
@@ -191,7 +191,7 @@ export class FiscalPeriodsService {
   }
 
   async list(
-    companyId: string,
+    companyIds: string[],
     pagination: { page: number; limit: number; offset: number },
     sort?: SortParams,
     filter?: any,
@@ -199,7 +199,9 @@ export class FiscalPeriodsService {
   ): Promise<PaginatedResponse<FiscalPeriod>> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      if (!companyIds.length) {
+        throw FiscalPeriodErrors.VALIDATION_ERROR('company_id', 'Company ID is required')
+      }
       
       if (pagination.limit > this.config.limits.pageSize) {
         throw FiscalPeriodErrors.VALIDATION_ERROR('limit', `Page size cannot exceed ${this.config.limits.pageSize}`)
@@ -210,18 +212,18 @@ export class FiscalPeriodsService {
       
       logInfo('Service list started', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         pagination,
         sort: validatedSort,
         filter: validatedFilter
       })
       
-      const { data, total } = await this.repository.findAll(companyId, pagination, validatedSort, validatedFilter)
+      const { data, total } = await this.repository.findAll(companyIds, pagination, validatedSort, validatedFilter)
       const result = createPaginatedResponse(data, total, pagination.page, pagination.limit)
       
       logInfo('Service list completed', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         total_records: total,
         returned_records: data.length
       })
@@ -230,7 +232,7 @@ export class FiscalPeriodsService {
     } catch (error) {
       logError('Service list failed', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
       throw error
@@ -343,10 +345,12 @@ export class FiscalPeriodsService {
     }
   }
 
-  async getById(id: string, companyId: string, correlationId?: string): Promise<FiscalPeriod> {
+  async getById(id: string, companyIds: string[], correlationId?: string): Promise<FiscalPeriod> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      if (!companyIds.length) {
+        throw FiscalPeriodErrors.VALIDATION_ERROR('company_id', 'Company ID is required')
+      }
       
       if (!id?.trim()) {
         throw FiscalPeriodErrors.VALIDATION_ERROR('id', 'Period ID is required')
@@ -355,10 +359,10 @@ export class FiscalPeriodsService {
       logInfo('Service getById started', { 
         correlation_id: correlationId,
         period_id: id,
-        company_id: companyId
+        company_ids: companyIds
       })
       
-      const period = await this.repository.findById(id.trim(), companyId)
+      const period = await this.repository.findByIdAccessible(id.trim(), companyIds)
       if (!period) {
         throw FiscalPeriodErrors.NOT_FOUND(id)
       }
@@ -374,7 +378,7 @@ export class FiscalPeriodsService {
       logError('Service getById failed', { 
         correlation_id: correlationId,
         period_id: id,
-        company_id: companyId,
+        company_ids: companyIds,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
       throw error

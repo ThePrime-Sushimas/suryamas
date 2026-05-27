@@ -6,6 +6,16 @@ import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../../utils/export.util'
 import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import { createChartOfAccountSchema, updateChartOfAccountSchema, bulkUpdateStatusSchema, bulkDeleteSchema, chartOfAccountIdSchema } from './chart-of-accounts.schema'
+import { getAccessibleBranchIds, getAccessibleCompanyIds } from '../../../utils/branch-access.util'
+
+async function getAccess(req: Request) {
+  const userId = req.user?.id ?? ''
+  const [branchIds, companyIds] = await Promise.all([
+    getAccessibleBranchIds(userId),
+    getAccessibleCompanyIds(userId),
+  ])
+  return { branchIds, companyIds }
+}
 
 function getCompanyId(req: Request): string {
   const companyId = req.context?.company_id
@@ -16,11 +26,11 @@ function getCompanyId(req: Request): string {
 export class ChartOfAccountsController {
   list = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { branchIds, companyIds } = await getAccess(req)
       const { offset } = getPaginationParams(req.query)
       const pagination = req.pagination!
       if (pagination.limit > 1000) pagination.limit = 1000
-      const result = await chartOfAccountsService.list(companyId, { ...pagination, offset }, req.sort || { field: 'account_code', order: 'asc' as const }, req.filterParams)
+      const result = await chartOfAccountsService.list(branchIds, companyIds, { ...pagination, offset }, req.sort || { field: 'account_code', order: 'asc' as const }, req.filterParams)
       sendSuccess(res, result.data, 'Chart of accounts retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_coa', company_id: req.context?.company_id })
@@ -29,10 +39,10 @@ export class ChartOfAccountsController {
 
   search = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { branchIds, companyIds } = await getAccess(req)
       const { offset } = getPaginationParams(req.query)
       const q = req.query.q as string
-      const result = await chartOfAccountsService.search(companyId, q, { ...req.pagination!, offset }, req.sort, req.filterParams)
+      const result = await chartOfAccountsService.search(branchIds, companyIds, q, { ...req.pagination!, offset }, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Chart of accounts retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'search_coa', company_id: req.context?.company_id })
@@ -63,9 +73,9 @@ export class ChartOfAccountsController {
 
   getById = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { branchIds, companyIds } = await getAccess(req)
       const { id } = (req as ValidatedAuthRequest<typeof chartOfAccountIdSchema>).validated.params
-      const account = await chartOfAccountsService.getById(id, companyId)
+      const account = await chartOfAccountsService.getById(id, branchIds, companyIds)
       sendSuccess(res, account)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_coa', id: req.params.id })

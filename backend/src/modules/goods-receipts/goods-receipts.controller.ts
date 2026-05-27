@@ -46,8 +46,8 @@ export class GoodsReceiptsController {
   getById = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const gr = await goodsReceiptsService.getById(id, companyId)
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
+      const gr = await goodsReceiptsService.getById(id, branchIds)
       sendSuccess(res, gr, 'Goods receipt retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_goods_receipt', id: req.params.id })
@@ -118,8 +118,8 @@ export class GoodsReceiptsController {
   listAttachments = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const gr = await goodsReceiptsRepository.findById(id, companyId)
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
+      const gr = await goodsReceiptsRepository.findByIdAccessible(id, branchIds)
       if (!gr) throw new GoodsReceiptNotFoundError(id)
       const attachments = await goodsReceiptsRepository.findAttachments(id)
       sendSuccess(res, attachments, 'Attachments retrieved')
@@ -131,10 +131,10 @@ export class GoodsReceiptsController {
   uploadAttachment = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as CreateAttachmentReq).validated
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
+      const branchIds = await getAccessibleBranchIds(userId)
 
-      const gr = await goodsReceiptsRepository.findById(params.id, companyId)
+      const gr = await goodsReceiptsRepository.findByIdAccessible(params.id, branchIds)
       if (!gr) throw new GoodsReceiptNotFoundError(params.id)
 
       const file = req.file
@@ -162,7 +162,7 @@ export class GoodsReceiptsController {
 
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
       const now = new Date()
-      const path = `${companyId}/gr-attachments/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
+      const path = `${gr.company_id}/gr-attachments/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
 
       await storageService.uploadToPath(file.buffer, path, file.mimetype, 'invoices')
 
@@ -182,9 +182,9 @@ export class GoodsReceiptsController {
   deleteAttachment = async (req: Request, res: Response) => {
     try {
       const { params } = (req as DeleteAttachmentReq).validated
-      const companyId = req.context?.company_id ?? ''
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
 
-      const gr = await goodsReceiptsRepository.findById(params.id, companyId)
+      const gr = await goodsReceiptsRepository.findByIdAccessible(params.id, branchIds)
       if (!gr) throw new GoodsReceiptNotFoundError(params.id)
 
       const deleted = await goodsReceiptsRepository.deleteAttachment(params.attachmentId, params.id)

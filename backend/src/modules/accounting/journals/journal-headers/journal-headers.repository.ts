@@ -5,10 +5,12 @@ import { logError, logInfo } from '../../../../config/logger'
 
 const VALID_SORT_FIELDS = ['journal_number', 'journal_date', 'journal_type', 'status', 'total_debit', 'created_at', 'updated_at', 'id']
 
-function buildConditions(companyId: string, filter?: JournalFilter) {
-  const conditions: string[] = ['jh.company_id = $1']
-  const params: (string | boolean)[] = [companyId]
-  let idx = 2
+function buildConditions(branchIds: string[], companyIds: string[], filter?: JournalFilter) {
+  const conditions: string[] = [
+    '(jh.branch_id = ANY($1::uuid[]) OR (jh.branch_id IS NULL AND jh.company_id = ANY($2::uuid[])))',
+  ]
+  const params: (string | boolean | string[])[] = [branchIds, companyIds]
+  let idx = 3
 
   if (filter?.show_deleted) {
     conditions.push('jh.deleted_at IS NOT NULL')
@@ -28,8 +30,8 @@ function buildConditions(companyId: string, filter?: JournalFilter) {
 }
 
 export class JournalHeadersRepository {
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: SortParams, filter?: JournalFilter): Promise<{ data: JournalHeader[]; total: number }> {
-    const { where, params, idx } = buildConditions(companyId, filter)
+  async findAll(branchIds: string[], companyIds: string[], pagination: { limit: number; offset: number }, sort?: SortParams, filter?: JournalFilter): Promise<{ data: JournalHeader[]; total: number }> {
+    const { where, params, idx } = buildConditions(branchIds, companyIds, filter)
     const sortField = sort?.field && VALID_SORT_FIELDS.includes(sort.field) ? `jh.${sort.field}` : (filter?.show_deleted ? 'jh.deleted_at' : 'jh.journal_date')
     const sortOrder = filter?.show_deleted ? 'DESC' : (sort?.order === 'asc' ? 'ASC' : 'DESC')
 
@@ -49,8 +51,8 @@ export class JournalHeadersRepository {
     return { data: await this.populateNames(mapped) as unknown as JournalHeader[], total: countRes.rows[0].total }
   }
 
-  async findAllWithLines(companyId: string, pagination: { limit: number; offset: number }, sort?: SortParams, filter?: JournalFilter): Promise<{ data: JournalHeaderWithLines[]; total: number }> {
-    const { data: headers, total } = await this.findAll(companyId, pagination, sort, filter)
+  async findAllWithLines(branchIds: string[], companyIds: string[], pagination: { limit: number; offset: number }, sort?: SortParams, filter?: JournalFilter): Promise<{ data: JournalHeaderWithLines[]; total: number }> {
+    const { data: headers, total } = await this.findAll(branchIds, companyIds, pagination, sort, filter)
     if (!headers.length) return { data: [], total }
 
     const headerIds = headers.map(h => (h as unknown as Record<string, unknown>).id)
@@ -307,8 +309,8 @@ export class JournalHeadersRepository {
     return map
   }
 
-  async getStatusCounts(companyId: string, dateFrom?: string, dateTo?: string): Promise<Record<string, number>> {
-    const params: any[] = [companyId]
+  async getStatusCounts(branchIds: string[], companyIds: string[], dateFrom?: string, dateTo?: string): Promise<Record<string, number>> {
+    const params: unknown[] = [branchIds, companyIds]
     let dateFilter = ''
     if (dateFrom && dateTo) {
       params.push(dateFrom, dateTo)
@@ -317,7 +319,8 @@ export class JournalHeadersRepository {
     const { rows } = await pool.query(
       `SELECT status, COUNT(*)::int AS count
        FROM journal_headers
-       WHERE company_id = $1 AND deleted_at IS NULL${dateFilter}
+       WHERE (branch_id = ANY($1::uuid[]) OR (branch_id IS NULL AND company_id = ANY($2::uuid[])))
+         AND deleted_at IS NULL${dateFilter}
        GROUP BY status`,
       params
     )

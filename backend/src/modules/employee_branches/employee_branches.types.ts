@@ -23,7 +23,7 @@ export interface EmployeeBranchWithRelations extends EmployeeBranchEntity {
     email: string | null
     mobile_phone: string | null
   }
-  branch: { branch_name: string; branch_code: string; company_id: string; status: string }
+  branch: { branch_name: string; branch_code: string; company_id: string; company_name?: string; status: string }
   role: { name: string; description: string | null }
   position: { // NEW: Position details
     position_code: string
@@ -109,6 +109,7 @@ export interface MyBranchDto {
   branch_name: string
   branch_code: string
   company_id: string
+  company_name?: string
   employee_id: string
   role_id: string
   role_name: string

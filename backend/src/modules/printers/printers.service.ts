@@ -94,7 +94,7 @@ export class PrintersService {
     companyId: string,
     userId: string,
   ) {
-    const pr = await purchaseRequestsRepository.findWithLines(prId, companyId)
+    const pr = await purchaseRequestsRepository.findWithLines(prId, await getAccessibleBranchIds(userId))
     if (!pr) throw new PurchaseRequestNotFoundError(prId)
 
     const printer = await printersRepository.findById(printerId, companyId)

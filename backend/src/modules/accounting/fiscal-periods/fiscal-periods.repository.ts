@@ -45,9 +45,9 @@ export class FiscalPeriodsRepository {
     this.cache.clear()
   }
 
-  private buildConditions(companyId: string, filter?: FiscalPeriodFilter, search?: string) {
-    const conditions: string[] = ['company_id = $1']
-    const params: (string | boolean | number)[] = [companyId]
+  private buildConditions(companyIds: string[], filter?: FiscalPeriodFilter, search?: string) {
+    const conditions: string[] = ['company_id = ANY($1::uuid[])']
+    const params: (string | boolean | number | string[])[] = [companyIds]
     let idx = 2
 
     if (filter?.show_deleted) conditions.push('deleted_at IS NOT NULL')
@@ -65,15 +65,15 @@ export class FiscalPeriodsRepository {
     return { where: `WHERE ${conditions.join(' AND ')}`, params, idx }
   }
 
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: SortParams, filter?: FiscalPeriodFilter): Promise<{ data: FiscalPeriod[]; total: number }> {
-    if (!companyId?.trim()) throw FiscalPeriodErrors.VALIDATION_ERROR('companyId', 'Company ID is required')
+  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, sort?: SortParams, filter?: FiscalPeriodFilter): Promise<{ data: FiscalPeriod[]; total: number }> {
+    if (!companyIds?.length) throw FiscalPeriodErrors.VALIDATION_ERROR('companyId', 'Company ID is required')
 
-    const cacheKey = this.getCacheKey('list', { companyId, offset: pagination.offset, limit: pagination.limit, sort, filter })
+    const cacheKey = this.getCacheKey('list', { companyIds, offset: pagination.offset, limit: pagination.limit, sort, filter })
     const cached = this.getFromCache<{ data: FiscalPeriod[]; total: number }>(cacheKey)
     if (cached) return cached
 
     try {
-      const { where, params, idx } = this.buildConditions(companyId, filter)
+      const { where, params, idx } = this.buildConditions(companyIds, filter)
       const sortField = sort?.field && VALID_SORT_FIELDS.includes(sort.field) ? sort.field : (filter?.show_deleted ? 'deleted_at' : 'period')
       const sortOrder = filter?.show_deleted ? 'DESC' : (sort?.order === 'asc' ? 'ASC' : 'DESC')
 
@@ -101,6 +101,15 @@ export class FiscalPeriodsRepository {
     const { rows } = await pool.query('SELECT * FROM fiscal_periods WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL', [id, companyId])
     if (rows[0]) this.setCache(cacheKey, rows[0])
     return rows[0] ?? null
+  }
+
+  async findByIdAccessible(id: string, companyIds: string[]): Promise<FiscalPeriod | null> {
+    const { rows } = await pool.query<{ company_id: string }>(
+      'SELECT company_id FROM fiscal_periods WHERE id = $1 AND company_id = ANY($2::uuid[]) AND deleted_at IS NULL',
+      [id, companyIds],
+    )
+    if (!rows[0]) return null
+    return this.findById(id, rows[0].company_id)
   }
 
   async findByCompanyAndPeriod(companyId: string, period: string): Promise<FiscalPeriod | null> {

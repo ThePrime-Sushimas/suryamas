@@ -13,8 +13,14 @@ import type {
   RejectPurchaseRequestDto,
   PurchaseRequestWithRelations, PurchaseRequestWithLines
 } from './purchase-requests.types'
+import { getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 
 export class PurchaseRequestsService {
+  private async requireById(id: string, branchIds: string[]): Promise<PurchaseRequestWithRelations> {
+    const pr = await purchaseRequestsRepository.findById(id, branchIds)
+    if (!pr) throw new PurchaseRequestNotFoundError(id)
+    return pr
+  }
   async list(branchIds: string[], pagination: { page: number; limit: number }, filter?: { status?: string; branch_id?: string; date_from?: string; date_to?: string }, search?: string) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await purchaseRequestsRepository.findAll(branchIds, { limit: pagination.limit, offset }, filter, search)
@@ -22,14 +28,17 @@ export class PurchaseRequestsService {
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }
 
-  async getById(id: string, companyId: string): Promise<PurchaseRequestWithLines> {
-    const pr = await purchaseRequestsRepository.findWithLines(id, companyId)
+  async getById(id: string, branchIds: string[]): Promise<PurchaseRequestWithLines> {
+    const pr = await purchaseRequestsRepository.findWithLines(id, branchIds)
     if (!pr) throw new PurchaseRequestNotFoundError(id)
     return pr
   }
 
-  async create(companyId: string, dto: CreatePurchaseRequestDto, userId: string) {
+  async create(branchIds: string[], dto: CreatePurchaseRequestDto, userId: string) {
     if (!dto.lines || dto.lines.length === 0) throw new PurchaseRequestEmptyLinesError()
+    requireBranchAccess(dto.branch_id, branchIds)
+    const companyId = (await getCompanyIdForBranch(dto.branch_id)) ?? ''
+    if (!companyId) throw new PurchaseRequestNotFoundError(dto.branch_id)
 
     const branchCode = (await purchaseRequestsRepository.findBranchCodeById(dto.branch_id)) ?? 'XXX'
 
@@ -52,7 +61,7 @@ export class PurchaseRequestsService {
       })
 
       await AuditService.log('CREATE', 'purchase_request', pr.id, userId, undefined, pr)
-      const createdWithLines = await purchaseRequestsRepository.findWithLines(pr.id, companyId)
+      const createdWithLines = await purchaseRequestsRepository.findWithLines(pr.id, branchIds)
       if (createdWithLines) {
         await notificationDispatcher.dispatch(
           NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_SUBMITTED,
@@ -74,9 +83,9 @@ export class PurchaseRequestsService {
     }
   }
 
-  async update(id: string, companyId: string, dto: UpdatePurchaseRequestDto, userId: string) {
-    const existing = await purchaseRequestsRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseRequestNotFoundError(id)
+  async update(id: string, branchIds: string[], dto: UpdatePurchaseRequestDto, userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (!['DRAFT', 'PENDING_APPROVAL'].includes(existing.status)) {
       throw new PurchaseRequestInvalidStatusError(existing.status, 'DRAFT or PENDING_APPROVAL')
     }
@@ -95,18 +104,18 @@ export class PurchaseRequestsService {
     })
 
     await AuditService.log('UPDATE', 'purchase_request', id, userId, existing)
-    return purchaseRequestsRepository.findWithLines(id, companyId)
+    return purchaseRequestsRepository.findWithLines(id, branchIds)
   }
 
-  async submitForApproval(id: string, companyId: string, userId: string) {
-    const existing = await purchaseRequestsRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseRequestNotFoundError(id)
+  async submitForApproval(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') throw new PurchaseRequestInvalidStatusError(existing.status, 'DRAFT')
 
     await purchaseRequestsRepository.updateStatus(id, companyId, 'PENDING_APPROVAL', { updated_by: userId })
     await AuditService.log('UPDATE', 'purchase_request', id, userId, { status: 'DRAFT' }, { status: 'PENDING_APPROVAL' })
 
-    const pr = await purchaseRequestsRepository.findWithLines(id, companyId)
+    const pr = await purchaseRequestsRepository.findWithLines(id, branchIds)
     if (pr) {
       await notificationDispatcher.dispatch(
         NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_SUBMITTED,
@@ -123,9 +132,9 @@ export class PurchaseRequestsService {
     }
   }
 
-  async reject(id: string, companyId: string, dto: RejectPurchaseRequestDto) {
-    const existing = await purchaseRequestsRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseRequestNotFoundError(id)
+  async reject(id: string, branchIds: string[], dto: RejectPurchaseRequestDto) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'PENDING_APPROVAL') throw new PurchaseRequestInvalidStatusError(existing.status, 'PENDING_APPROVAL')
 
     await purchaseRequestsRepository.updateStatus(id, companyId, 'REJECTED', {
@@ -134,7 +143,7 @@ export class PurchaseRequestsService {
     })
     await AuditService.log('UPDATE', 'purchase_request', id, dto.rejected_by, { status: 'PENDING_APPROVAL' }, { status: 'REJECTED', rejected_reason: dto.rejected_reason })
 
-    const pr = await purchaseRequestsRepository.findWithLines(id, companyId)
+    const pr = await purchaseRequestsRepository.findWithLines(id, branchIds)
     if (pr) {
       const creatorId = pr.created_by ?? pr.requested_by
       await notificationDispatcher.dispatch(
@@ -154,9 +163,9 @@ export class PurchaseRequestsService {
     }
   }
 
-  async cancel(id: string, companyId: string, userId: string) {
-    const existing = await purchaseRequestsRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseRequestNotFoundError(id)
+  async cancel(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (!['DRAFT', 'PENDING_APPROVAL'].includes(existing.status)) {
       throw new PurchaseRequestInvalidStatusError(existing.status, 'DRAFT or PENDING_APPROVAL')
     }
@@ -165,9 +174,9 @@ export class PurchaseRequestsService {
     await AuditService.log('UPDATE', 'purchase_request', id, userId, { status: existing.status }, { status: 'CANCELLED' })
   }
 
-  async delete(id: string, companyId: string, userId: string) {
-    const existing = await purchaseRequestsRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseRequestNotFoundError(id)
+  async delete(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
 
     const deleted = await purchaseRequestsRepository.softDelete(id, companyId, userId)
     if (!deleted) throw new PurchaseRequestInvalidStatusError(existing.status, 'DRAFT, REJECTED, or CANCELLED')
@@ -175,12 +184,14 @@ export class PurchaseRequestsService {
     await AuditService.log('DELETE', 'purchase_request', id, userId, existing)
   }
 
-  async getApprovalData(id: string, companyId: string) {
-    return purchaseRequestApprovalService.getApprovalData(id, companyId)
+  async getApprovalData(id: string, branchIds: string[]) {
+    const existing = await this.requireById(id, branchIds)
+    return purchaseRequestApprovalService.getApprovalData(id, branchIds)
   }
 
-  async approveAndGenerate(id: string, companyId: string, dto: { supplier_selections: Array<{ supplier_id: string; lines: Array<{ pr_line_id: string; qty_approved: number }>; payment_type: 'CASH' | 'CREDIT'; payment_terms_days?: number | null; expected_delivery_date?: string | null; notes?: string | null }> }, userId: string) {
-    return purchaseRequestApprovalService.approveAndGenerate(id, companyId, dto, userId)
+  async approveAndGenerate(id: string, branchIds: string[], dto: { supplier_selections: Array<{ supplier_id: string; lines: Array<{ pr_line_id: string; qty_approved: number }>; payment_type: 'CASH' | 'CREDIT'; payment_terms_days?: number | null; expected_delivery_date?: string | null; notes?: string | null }> }, userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    return purchaseRequestApprovalService.approveAndGenerate(id, branchIds, dto, userId)
   }
 }
 

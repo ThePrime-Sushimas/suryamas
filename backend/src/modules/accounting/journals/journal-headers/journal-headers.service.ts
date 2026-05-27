@@ -15,19 +15,42 @@ import {
 } from '../../../general-invoices/general-invoices.repository'
 import { notificationDispatcher } from '../../../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../../../notifications/notification-events'
+import { getAccessScope, isBranchAccessible } from '../../../../utils/branch-access.util'
 
 export class JournalHeadersService {
 
-  async list(companyId: string, pagination: { page: number; limit: number; offset: number }, sort?: SortParams, filter?: JournalFilter): Promise<PaginatedResponse<JournalHeader>> {
-    const { data, total } = await journalHeadersRepository.findAll(companyId, pagination, sort, filter)
+  private assertJournalAccess(
+    journal: { branch_id?: string | null; company_id: string },
+    branchIds: string[],
+    companyIds: string[],
+    id: string,
+  ): void {
+    if (journal.branch_id) {
+      if (!isBranchAccessible(journal.branch_id, branchIds)) throw JournalErrors.NOT_FOUND(id)
+    } else if (!companyIds.includes(journal.company_id)) {
+      throw JournalErrors.NOT_FOUND(id)
+    }
+  }
+
+  async list(branchIds: string[], companyIds: string[], pagination: { page: number; limit: number; offset: number }, sort?: SortParams, filter?: JournalFilter): Promise<PaginatedResponse<JournalHeader>> {
+    const { data, total } = await journalHeadersRepository.findAll(branchIds, companyIds, pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
-  async listWithLines(companyId: string, pagination: { page: number; limit: number; offset: number }, sort?: SortParams, filter?: JournalFilter): Promise<PaginatedResponse<JournalHeaderWithLines>> {
-    const { data, total } = await journalHeadersRepository.findAllWithLines(companyId, pagination, sort, filter)
+  async listWithLines(branchIds: string[], companyIds: string[], pagination: { page: number; limit: number; offset: number }, sort?: SortParams, filter?: JournalFilter): Promise<PaginatedResponse<JournalHeaderWithLines>> {
+    const { data, total } = await journalHeadersRepository.findAllWithLines(branchIds, companyIds, pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
+  /** API: resolve by accessible branches (cross-company). */
+  async getByIdForUser(id: string, branchIds: string[], companyIds: string[]): Promise<JournalHeaderWithLines> {
+    const journal = await journalHeadersRepository.findById(id)
+    if (!journal) throw JournalErrors.NOT_FOUND(id)
+    this.assertJournalAccess(journal, branchIds, companyIds, id)
+    return journal
+  }
+
+  /** Internal: company_id on the journal must match (callers pass company from the record). */
   async getById(id: string, companyId: string): Promise<JournalHeaderWithLines> {
     const journal = await journalHeadersRepository.findById(id)
     if (!journal) throw JournalErrors.NOT_FOUND(id)
@@ -70,8 +93,9 @@ export class JournalHeadersService {
     return journal
   }
 
-  async update(id: string, data: UpdateJournalDto, userId: string, companyId: string): Promise<JournalHeaderWithLines> {
-    const existing = await this.getById(id, companyId)
+  async update(id: string, data: UpdateJournalDto, userId: string, branchIds: string[], companyIds: string[]): Promise<JournalHeaderWithLines> {
+    const existing = await this.getByIdForUser(id, branchIds, companyIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') throw JournalErrors.CANNOT_EDIT_NON_DRAFT(existing.status)
 
     if (data.lines) {
@@ -101,11 +125,12 @@ export class JournalHeadersService {
     }
 
     await AuditService.log('UPDATE', 'journal_header', id, userId, { journal_number: existing.journal_number, status: existing.status }, { updates: data })
-    return this.getById(id, companyId)
+    return this.getByIdForUser(id, branchIds, companyIds)
   }
 
-  async delete(id: string, userId: string, companyId: string): Promise<void> {
-    const journal = await this.getById(id, companyId)
+  async delete(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+    const companyId = journal.company_id
     if (journal.status !== 'DRAFT' && journal.status !== 'REJECTED') throw JournalErrors.CANNOT_DELETE_POSTED()
 
     await journalHeadersRepository.clearJournalReferences(id)
@@ -114,8 +139,9 @@ export class JournalHeadersService {
     logInfo('Journal deleted', { journal_id: id, user_id: userId })
   }
 
-  async submit(id: string, userId: string, companyId: string): Promise<void> {
-    const journal = await this.getById(id, companyId)
+  async submit(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+    const companyId = journal.company_id
     if (!canTransition(journal.status, 'SUBMITTED')) throw JournalErrors.INVALID_STATUS_TRANSITION(journal.status, 'SUBMITTED')
     await journalHeadersRepository.updateStatus(id, 'SUBMITTED', userId, { submitted_at: new Date().toISOString(), submitted_by: userId })
     await AuditService.log('SUBMIT', 'journal_header', id, userId, { status: journal.status }, { status: 'SUBMITTED' })
@@ -132,8 +158,9 @@ export class JournalHeadersService {
     )
   }
 
-  async approve(id: string, userId: string, companyId: string): Promise<void> {
-    const journal = await this.getById(id, companyId)
+  async approve(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+    const companyId = journal.company_id
     if (!canTransition(journal.status, 'APPROVED')) throw JournalErrors.INVALID_STATUS_TRANSITION(journal.status, 'APPROVED')
     await journalHeadersRepository.updateStatus(id, 'APPROVED', userId, { approved_at: new Date().toISOString(), approved_by: userId })
     await AuditService.log('APPROVE', 'journal_header', id, userId, { status: journal.status }, { status: 'APPROVED' })
@@ -153,8 +180,9 @@ export class JournalHeadersService {
     )
   }
 
-  async reject(id: string, reason: string, userId: string, companyId: string): Promise<void> {
-    const journal = await this.getById(id, companyId)
+  async reject(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+    const companyId = journal.company_id
     if (!canTransition(journal.status, 'REJECTED')) throw JournalErrors.INVALID_STATUS_TRANSITION(journal.status, 'REJECTED')
     await journalHeadersRepository.update(id, { status: 'REJECTED', rejected_at: new Date().toISOString(), rejected_by: userId, rejection_reason: reason }, userId)
     await journalHeadersRepository.clearJournalReferences(id)
@@ -174,8 +202,9 @@ export class JournalHeadersService {
     )
   }
 
-  async post(id: string, userId: string, companyId: string): Promise<void> {
-    const journal = await this.getById(id, companyId)
+  async post(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+    const companyId = journal.company_id
     if (!canTransition(journal.status, 'POSTED')) throw JournalErrors.INVALID_STATUS_TRANSITION(journal.status, 'POSTED')
 
     const lineErrors = validateJournalLines(journal.lines)
@@ -219,8 +248,9 @@ export class JournalHeadersService {
     }
   }
 
-  async reverse(id: string, reason: string, userId: string, companyId: string): Promise<JournalHeaderWithLines> {
-    const original = await this.getById(id, companyId)
+  async reverse(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[]): Promise<JournalHeaderWithLines> {
+    const original = await this.getByIdForUser(id, branchIds, companyIds)
+    const companyId = original.company_id
     if (original.status !== 'POSTED') throw JournalErrors.REVERSE_NON_POSTED(original.status)
     if (original.is_reversed) throw JournalErrors.ALREADY_REVERSED()
     if (original.reversal_of_journal_id) throw JournalErrors.CANNOT_REVERSE_REVERSAL()
@@ -238,9 +268,9 @@ export class JournalHeadersService {
       reversal_of_journal_id: id, lines: reversalLines
     }, userId)
 
-    await this.submit(reversal.id, userId, companyId)
-    await this.approve(reversal.id, userId, companyId)
-    await this.post(reversal.id, userId, companyId)
+    await this.submit(reversal.id, userId, branchIds, companyIds)
+    await this.approve(reversal.id, userId, branchIds, companyIds)
+    await this.post(reversal.id, userId, branchIds, companyIds)
     await journalHeadersRepository.markReversed(id, reversal.id, reason)
 
     await AuditService.log('REVERSE', 'journal_header', id, userId, { status: original.status, is_reversed: false }, { status: 'REVERSED', reversal_id: reversal.id, reason })
@@ -248,10 +278,10 @@ export class JournalHeadersService {
     return reversal
   }
 
-  async restore(id: string, userId: string, companyId: string): Promise<void> {
+  async restore(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
     const journal = await journalHeadersRepository.findById(id, true)
     if (!journal) throw JournalErrors.NOT_FOUND(id)
-    if (journal.company_id !== companyId) throw JournalErrors.NOT_FOUND(id)
+    this.assertJournalAccess(journal, branchIds, companyIds, id)
     if (!journal.deleted_at) throw new Error('Journal is not deleted')
 
     await journalHeadersRepository.restore(id, userId)
@@ -259,8 +289,9 @@ export class JournalHeadersService {
     logInfo('Journal restored', { journal_id: id, user_id: userId })
   }
 
-  async forceDelete(id: string, userId: string, companyId: string): Promise<void> {
-    const journal = await this.getById(id, companyId)
+  async forceDelete(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+    const companyId = journal.company_id
     if (journal.source_module === 'FISCAL_CLOSING') {
       throw JournalErrors.CANNOT_DELETE_POSTED()
     }
@@ -326,11 +357,11 @@ export class JournalHeadersService {
     })
     logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
   }
-  async getCompleteness(id: string, companyId: string): Promise<{
+  async getCompleteness(id: string, branchIds: string[], companyIds: string[]): Promise<{
     is_complete: boolean; total_channels: number; reconciled_channels: number;
     unreconciled: Array<{ payment_method_id: number; payment_method_name: string; nett_amount: number; status: string }>
   }> {
-    const journal = await this.getById(id, companyId)
+    const journal = await this.getByIdForUser(id, branchIds, companyIds)
     if (journal.source_module !== 'POS_AGGREGATES' || !journal.branch_id) {
       return { is_complete: true, total_channels: 0, reconciled_channels: 0, unreconciled: [] }
     }
@@ -352,8 +383,34 @@ export class JournalHeadersService {
       })),
     }
   }
-  async getStatusCounts(companyId: string, dateFrom?: string, dateTo?: string): Promise<Record<string, number>> {
-    return journalHeadersRepository.getStatusCounts(companyId, dateFrom, dateTo)
+  async getStatusCounts(branchIds: string[], companyIds: string[], dateFrom?: string, dateTo?: string): Promise<Record<string, number>> {
+    return journalHeadersRepository.getStatusCounts(branchIds, companyIds, dateFrom, dateTo)
+  }
+
+  /** Internal callers: resolve user access scope then run workflow. */
+  async submitAsUser(id: string, userId: string): Promise<void> {
+    const { branchIds, companyIds } = await getAccessScope(userId)
+    return this.submit(id, userId, branchIds, companyIds)
+  }
+
+  async approveAsUser(id: string, userId: string): Promise<void> {
+    const { branchIds, companyIds } = await getAccessScope(userId)
+    return this.approve(id, userId, branchIds, companyIds)
+  }
+
+  async postAsUser(id: string, userId: string): Promise<void> {
+    const { branchIds, companyIds } = await getAccessScope(userId)
+    return this.post(id, userId, branchIds, companyIds)
+  }
+
+  async forceDeleteAsUser(id: string, userId: string): Promise<void> {
+    const { branchIds, companyIds } = await getAccessScope(userId)
+    return this.forceDelete(id, userId, branchIds, companyIds)
+  }
+
+  async reverseAsUser(id: string, reason: string, userId: string): Promise<JournalHeaderWithLines> {
+    const { branchIds, companyIds } = await getAccessScope(userId)
+    return this.reverse(id, reason, userId, branchIds, companyIds)
   }
 }
 

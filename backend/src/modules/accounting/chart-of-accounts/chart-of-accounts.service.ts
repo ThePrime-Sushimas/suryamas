@@ -8,28 +8,31 @@ import { AuditService } from '../../monitoring/monitoring.service'
 import { ChartOfAccountErrors } from './chart-of-accounts.errors'
 import { ChartOfAccountConfig } from './chart-of-accounts.constants'
 import { logInfo, logError } from '../../../config/logger'
+import { isBranchAccessible } from '../../../utils/branch-access.util'
 
 export class ChartOfAccountsService {
   constructor(private repository: ChartOfAccountsRepository = chartOfAccountsRepository) {}
 
   async list(
-    companyId: string,
+    branchIds: string[],
+    companyIds: string[],
     pagination: { page: number; limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: CoaFilter
   ): Promise<PaginatedResponse<ChartOfAccount>> {
-    const { data, total } = await this.repository.findAll(companyId, pagination, sort, filter)
+    const { data, total } = await this.repository.findAll(branchIds, companyIds, pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
   async search(
-    companyId: string,
+    branchIds: string[],
+    companyIds: string[],
     searchTerm: string,
     pagination: { page: number; limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: CoaFilter
   ): Promise<PaginatedResponse<ChartOfAccount>> {
-    const { data, total } = await this.repository.search(companyId, searchTerm, pagination, sort, filter)
+    const { data, total } = await this.repository.search(branchIds, companyIds, searchTerm, pagination, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
@@ -97,10 +100,18 @@ export class ChartOfAccountsService {
     }
   }
 
-  async getById(id: string, companyId?: string): Promise<ChartOfAccount> {
+  async getById(id: string, branchIds?: string[], companyIds?: string[]): Promise<ChartOfAccount> {
     const account = await this.repository.findById(id)
     if (!account) throw ChartOfAccountErrors.NOT_FOUND(id)
-    if (companyId && account.company_id !== companyId) throw ChartOfAccountErrors.COMPANY_ACCESS_DENIED(companyId)
+    if (branchIds && companyIds) {
+      if (account.branch_id) {
+        if (!isBranchAccessible(account.branch_id, branchIds)) {
+          throw ChartOfAccountErrors.COMPANY_ACCESS_DENIED(account.company_id)
+        }
+      } else if (!companyIds.includes(account.company_id)) {
+        throw ChartOfAccountErrors.COMPANY_ACCESS_DENIED(account.company_id)
+      }
+    }
     return account
   }
 

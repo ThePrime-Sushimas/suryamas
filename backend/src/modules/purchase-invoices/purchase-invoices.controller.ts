@@ -41,9 +41,9 @@ export class PurchaseInvoicesController {
 
   getById = async (req: Request, res: Response) => {
     try {
-      const companyId = req.context?.company_id ?? ''
       const id = req.params.id as string
-      const detail = await purchaseInvoicesService.getById(id, companyId)
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
+      const detail = await purchaseInvoicesService.getById(id, branchIds)
       sendSuccess(res, detail, 'Purchase invoice detail retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_purchase_invoice', id: req.params.id })

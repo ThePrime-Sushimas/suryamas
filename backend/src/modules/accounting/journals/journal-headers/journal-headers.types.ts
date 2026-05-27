@@ -95,7 +95,7 @@ export interface UpdateJournalDto {
 }
 
 export interface JournalFilter {
-  company_id: string;
+  company_id?: string;
   branch_id?: string;
   journal_type?: JournalType;
   status?: JournalStatus;

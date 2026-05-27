@@ -116,16 +116,16 @@ export class PurchaseRequestsRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async findById(id: string, companyId: string): Promise<PurchaseRequestWithRelations | null> {
+  async findById(id: string, branchIds: string[]): Promise<PurchaseRequestWithRelations | null> {
     const { rows } = await pool.query(
-      `SELECT ${HEADER_SELECT} ${HEADER_FROM} WHERE pr.id = $1 AND pr.company_id = $2 AND pr.deleted_at IS NULL`,
-      [id, companyId]
+      `SELECT ${HEADER_SELECT} ${HEADER_FROM} WHERE pr.id = $1 AND pr.branch_id = ANY($2::uuid[]) AND pr.deleted_at IS NULL`,
+      [id, branchIds]
     )
     return rows[0] ?? null
   }
 
-  async findWithLines(id: string, companyId: string): Promise<PurchaseRequestWithLines | null> {
-    const header = await this.findById(id, companyId)
+  async findWithLines(id: string, branchIds: string[]): Promise<PurchaseRequestWithLines | null> {
+    const header = await this.findById(id, branchIds)
     if (!header) return null
 
     const [{ rows: lines }, { rows: pos }] = await Promise.all([

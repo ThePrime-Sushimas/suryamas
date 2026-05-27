@@ -224,7 +224,7 @@ export class ExpenseCategorizationService {
         stmts.map(s => s.id), journal.id, companyId
       )
     } catch (linkErr) {
-      await journalHeadersService.forceDelete(journal.id, userId, companyId).catch(() => {})
+      await journalHeadersService.forceDeleteAsUser(journal.id, userId).catch(() => {})
       throw linkErr
     }
 

@@ -127,8 +127,10 @@ export class GoodsReceiptsService {
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
   }
 
-  async getById(id: string, companyId: string): Promise<GoodsReceiptWithLines> {
-    const gr = await goodsReceiptsRepository.findWithLines(id, companyId)
+  async getById(id: string, branchIds: string[]): Promise<GoodsReceiptWithLines> {
+    const header = await goodsReceiptsRepository.findByIdAccessible(id, branchIds)
+    if (!header) throw new GoodsReceiptNotFoundError(id)
+    const gr = await goodsReceiptsRepository.findWithLines(id, header.company_id)
     if (!gr) throw new GoodsReceiptNotFoundError(id)
     return gr
   }

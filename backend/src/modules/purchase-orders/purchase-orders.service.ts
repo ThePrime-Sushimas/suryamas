@@ -21,6 +21,12 @@ import { notificationDispatcher } from '../notifications/notification-dispatcher
 import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 
 export class PurchaseOrdersService {
+  private async requireById(id: string, branchIds: string[]) {
+    const po = await purchaseOrdersRepository.findById(id, branchIds)
+    if (!po) throw new PurchaseOrderNotFoundError(id)
+    return po
+  }
+
   /**
    * Verify branch, supplier, and PR belong to the given company.
    */
@@ -91,8 +97,8 @@ export class PurchaseOrdersService {
     }
   }
 
-  async getById(id: string, companyId: string): Promise<PurchaseOrderDetail> {
-    const po = await purchaseOrdersRepository.findWithLines(id, companyId)
+  async getById(id: string, branchIds: string[]): Promise<PurchaseOrderDetail> {
+    const po = await purchaseOrdersRepository.findWithLines(id, branchIds)
     if (!po) throw new PurchaseOrderNotFoundError(id)
     const { payment_term_name, payment_due_info } = await this.resolvePaymentDueInfo(po)
     return { ...po, payment_term_name, payment_due_info }
@@ -102,9 +108,8 @@ export class PurchaseOrdersService {
    * Preview payment due for a PO. Pass expectedDeliveryDate only when overriding the
    * saved date (e.g. live form edit); otherwise buildPoPaymentDueInfo uses po.expected_delivery_date.
    */
-  async getPaymentDuePreview(id: string, companyId: string, expectedDeliveryDate?: string) {
-    const po = await purchaseOrdersRepository.findById(id, companyId)
-    if (!po) throw new PurchaseOrderNotFoundError(id)
+  async getPaymentDuePreview(id: string, branchIds: string[], expectedDeliveryDate?: string) {
+    const po = await this.requireById(id, branchIds)
     return this.resolvePaymentDueInfo(po, expectedDeliveryDate)
   }
 
@@ -112,9 +117,9 @@ export class PurchaseOrdersService {
     throw new PurchaseOrderManualCreateDisabledError()
   }
 
-  async update(id: string, companyId: string, dto: UpdatePurchaseOrderDto, userId: string) {
-    const existing = await purchaseOrdersRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseOrderNotFoundError(id)
+  async update(id: string, branchIds: string[], dto: UpdatePurchaseOrderDto, userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     // Purchasing adjusts payment terms etc. after stock keeper sends PO (SENT)
     if (existing.status !== 'SENT') throw new PurchaseOrderInvalidStatusError(existing.status, 'SENT')
 
@@ -136,12 +141,12 @@ export class PurchaseOrdersService {
     }
 
     await AuditService.log('UPDATE', 'purchase_order', id, userId, existing)
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async submitForApproval(id: string, companyId: string, userId: string) {
-    const existing = await purchaseOrdersRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseOrderNotFoundError(id)
+  async submitForApproval(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') throw new PurchaseOrderInvalidStatusError(existing.status, 'DRAFT')
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'PENDING_APPROVAL', { updated_by: userId })
@@ -158,9 +163,9 @@ export class PurchaseOrdersService {
     )
   }
 
-  async approve(id: string, companyId: string, userId: string) {
-    const existing = await purchaseOrdersRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseOrderNotFoundError(id)
+  async approve(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'PENDING_APPROVAL') throw new PurchaseOrderInvalidStatusError(existing.status, 'PENDING_APPROVAL')
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'APPROVED', {
@@ -184,9 +189,9 @@ export class PurchaseOrdersService {
     )
   }
 
-  async markSent(id: string, companyId: string, userId: string) {
-    const existing = await purchaseOrdersRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseOrderNotFoundError(id)
+  async markSent(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') throw new PurchaseOrderInvalidStatusError(existing.status, 'DRAFT')
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'SENT', { updated_by: userId })
@@ -203,9 +208,9 @@ export class PurchaseOrdersService {
     )
   }
 
-  async markOrdered(id: string, companyId: string, userId: string) {
-    const existing = await purchaseOrdersRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseOrderNotFoundError(id)
+  async markOrdered(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'SENT') throw new PurchaseOrderInvalidStatusError(existing.status, 'SENT')
 
     await purchaseOrdersRepository.updateStatus(id, companyId, 'ORDERED', { updated_by: userId })
@@ -227,9 +232,9 @@ export class PurchaseOrdersService {
     await goodsReceiptsService.ensurePendingGrDraft(id, companyId, userId)
   }
 
-  async shortCloseLines(id: string, companyId: string, userId: string, lines: ShortClosePoLineDto[]) {
-    const existing = await purchaseOrdersRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseOrderNotFoundError(id)
+  async shortCloseLines(id: string, branchIds: string[], userId: string, lines: ShortClosePoLineDto[]) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(existing.status)) {
       throw new PurchaseOrderInvalidStatusError(existing.status, 'ORDERED or PARTIAL_RECEIVED')
     }
@@ -272,18 +277,18 @@ export class PurchaseOrdersService {
       }
     })
 
-    const refreshed = await purchaseOrdersRepository.findById(id, companyId)
+    const refreshed = await purchaseOrdersRepository.findById(id, branchIds)
     if (refreshed?.status !== 'FULLY_RECEIVED') {
       await goodsReceiptsService.ensurePendingGrDraft(id, companyId, userId)
     }
 
     await AuditService.log('UPDATE', 'purchase_order', id, userId, { action: 'short_close_lines' }, { lines })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async cancel(id: string, companyId: string, userId: string, reason: string) {
-    const existing = await purchaseOrdersRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseOrderNotFoundError(id)
+  async cancel(id: string, branchIds: string[], userId: string, reason: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (!['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT'].includes(existing.status)) {
       throw new PurchaseOrderInvalidStatusError(existing.status, 'DRAFT, PENDING_APPROVAL, APPROVED, or SENT')
     }
@@ -309,9 +314,9 @@ export class PurchaseOrdersService {
     )
   }
 
-  async delete(id: string, companyId: string, userId: string) {
-    const existing = await purchaseOrdersRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseOrderNotFoundError(id)
+  async delete(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
 
     const deleted = await purchaseOrdersRepository.softDelete(id, companyId, userId)
     if (!deleted) throw new PurchaseOrderInvalidStatusError(existing.status, 'DRAFT')

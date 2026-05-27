@@ -46,7 +46,7 @@
       for (const journalId of journalIds) {
         if (!journalId) continue
         try {
-          await journalHeadersService.forceDelete(journalId, userId, companyId)
+          await journalHeadersService.forceDeleteAsUser(journalId, userId)
         } catch (journalErr) {
           logError('forceDelete journal gagal setelah kegagalan link session', {
             context,
@@ -64,9 +64,9 @@
       companyId: string,
     ): Promise<{ id: string }> {
       const journalHeader = await journalHeadersService.create(journalCreateDto, authUserId)
-      await journalHeadersService.submit(journalHeader.id, authUserId, companyId)
-      await journalHeadersService.approve(journalHeader.id, authUserId, companyId)
-      await journalHeadersService.post(journalHeader.id, authUserId, companyId)
+      await journalHeadersService.submitAsUser(journalHeader.id, authUserId)
+      await journalHeadersService.approveAsUser(journalHeader.id, authUserId)
+      await journalHeadersService.postAsUser(journalHeader.id, authUserId)
       return { id: journalHeader.id }
     }
     async list(companyId: string, filter: any, pagination: { page: number; limit: number }) {

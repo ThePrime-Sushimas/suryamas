@@ -94,6 +94,7 @@ export class EmployeeBranchesService {
         branch_name: item.branch.branch_name,
         branch_code: item.branch.branch_code,
         company_id: item.branch.company_id,
+        company_name: item.branch.company_name,
         employee_id: item.employee_id,
         role_id: item.role_id,
         role_name: item.role.name,

@@ -76,7 +76,7 @@ export class CogsService {
 
     if (existing?.journal_id) {
       try {
-        await journalHeadersService.reverse(existing.journal_id, 'Superseded by COGS re-calculation', userId, companyId)
+        await journalHeadersService.reverseAsUser(existing.journal_id, 'Superseded by COGS re-calculation', userId)
       } catch (err: unknown) {
         logError('Failed to reverse old COGS journal', { journal_id: existing.journal_id, error: err instanceof Error ? err.message : 'Unknown' })
       }

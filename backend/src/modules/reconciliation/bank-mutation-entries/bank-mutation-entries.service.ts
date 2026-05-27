@@ -148,11 +148,10 @@ export class BankMutationEntriesService {
     // 2. Reverse journal if exists
     if (entry.journal_header_id) {
       try {
-        await journalHeadersService.reverse(
+        await journalHeadersService.reverseAsUser(
           entry.journal_header_id,
           `VOID mutation entry: ${dto.voidReason}`,
           userId,
-          companyId,
         )
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err)
@@ -210,12 +209,17 @@ export class BankMutationEntriesService {
   /**
    * Get COA suggestions based on entry type hint
    */
-  async getCoaSuggestions(entryType: BankMutationEntryType, companyId: string) {
+  async getCoaSuggestions(
+    entryType: BankMutationEntryType,
+    branchIds: string[],
+    companyIds: string[],
+  ) {
     const config = BANK_MUTATION_ENTRY_TYPE_CONFIG[entryType]
     if (!config.defaultCoaHint) return []
 
     const { data } = await chartOfAccountsRepository.search(
-      companyId,
+      branchIds,
+      companyIds,
       config.defaultCoaHint,
       { limit: 10, offset: 0 },
       undefined,

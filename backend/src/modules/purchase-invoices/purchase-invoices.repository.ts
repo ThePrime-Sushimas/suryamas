@@ -1214,6 +1214,17 @@ export class PurchaseInvoicesRepository {
     }
   }
 
+  /** Resolve invoice when user may access it via any assigned branch (cross-company). */
+  async findByIdAccessible(id: string, branchIds: string[], client?: PoolClient): Promise<PurchaseInvoiceDetail | null> {
+    const db = client ?? pool
+    const { rows } = await db.query<{ company_id: string }>(
+      `SELECT company_id FROM purchase_invoices WHERE id = $1 AND branch_id = ANY($2::uuid[]) AND deleted_at IS NULL`,
+      [id, branchIds],
+    )
+    if (!rows[0]) return null
+    return this.findById(id, rows[0].company_id, client)
+  }
+
   async create(client: PoolClient, companyId: string, data: {
     supplier_id: string
     branch_id: string

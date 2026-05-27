@@ -218,9 +218,9 @@ export class GeneralInvoiceService {
       journalId = journal.id
 
       // Auto submit → approve → post journal
-      await journalHeadersService.submit(journalId, userId, companyId)
-      await journalHeadersService.approve(journalId, userId, companyId)
-      await journalHeadersService.post(journalId, userId, companyId)
+      await journalHeadersService.submitAsUser(journalId, userId)
+      await journalHeadersService.approveAsUser(journalId, userId)
+      await journalHeadersService.postAsUser(journalId, userId)
 
       // Update invoice status
       await generalInvoiceRepository.withTransaction(async (client) => {
@@ -233,7 +233,7 @@ export class GeneralInvoiceService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
+        await journalHeadersService.forceDeleteAsUser(journalId, userId).catch(() => undefined)
       }
       throw err
     }
@@ -264,7 +264,7 @@ export class GeneralInvoiceService {
 
     // Hard-delete jurnal posting (forceDelete null FK + revert POSTED→DRAFT)
     if (existing.status === 'POSTED' && existing.journal_id) {
-      await journalHeadersService.forceDelete(existing.journal_id, userId, companyId)
+      await journalHeadersService.forceDeleteAsUser(existing.journal_id, userId)
     }
 
     await generalInvoiceRepository.withTransaction(async (client) => {
@@ -529,9 +529,9 @@ export class GeneralInvoicePaymentService {
       )
       journalId = journal.id
 
-      await journalHeadersService.submit(journalId, userId, companyId)
-      await journalHeadersService.approve(journalId, userId, companyId)
-      await journalHeadersService.post(journalId, userId, companyId)
+      await journalHeadersService.submitAsUser(journalId, userId)
+      await journalHeadersService.approveAsUser(journalId, userId)
+      await journalHeadersService.postAsUser(journalId, userId)
 
       await generalPaymentRepository.withTransaction(async (client) => {
         await generalPaymentRepository.updateStatus(client, id, 'PAID', {
@@ -544,7 +544,7 @@ export class GeneralInvoicePaymentService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
+        await journalHeadersService.forceDeleteAsUser(journalId, userId).catch(() => undefined)
       }
       throw err
     }
@@ -562,7 +562,7 @@ export class GeneralInvoicePaymentService {
     }
 
     const journalId = existing.journal_id
-    await journalHeadersService.forceDelete(journalId, userId, companyId)
+    await journalHeadersService.forceDeleteAsUser(journalId, userId)
 
     await AuditService.log('DELETE', 'general_invoice_payments', id, userId, { journal_id: journalId }, { journal_id: null })
     return this.getById(id, companyId)

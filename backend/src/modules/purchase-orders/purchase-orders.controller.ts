@@ -42,8 +42,8 @@ export class PurchaseOrdersController {
   getById = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
-      const po = await purchaseOrdersService.getById(id, companyId)
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
+      const po = await purchaseOrdersService.getById(id, branchIds)
       sendSuccess(res, po, 'Purchase order retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_purchase_order', id: req.params.id })
@@ -53,10 +53,10 @@ export class PurchaseOrdersController {
   getPaymentDuePreview = async (req: Request, res: Response) => {
     try {
       const { params, query } = (req as PaymentDuePreviewReq).validated
-      const companyId = req.context?.company_id ?? ''
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
       const preview = await purchaseOrdersService.getPaymentDuePreview(
         params.id,
-        companyId,
+        branchIds,
         query.expected_delivery_date
       )
       sendSuccess(res, preview, 'Payment due preview retrieved')
@@ -80,9 +80,9 @@ export class PurchaseOrdersController {
   update = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as UpdateReq).validated
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const po = await purchaseOrdersService.update(params.id, companyId, body, userId)
+      const branchIds = await getAccessibleBranchIds(userId)
+      const po = await purchaseOrdersService.update(params.id, branchIds, body, userId)
       sendSuccess(res, po, 'Purchase order updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_purchase_order', id: req.params.id })
@@ -92,9 +92,9 @@ export class PurchaseOrdersController {
   submitForApproval = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      await purchaseOrdersService.submitForApproval(id, companyId, userId)
+      const branchIds = await getAccessibleBranchIds(userId)
+      await purchaseOrdersService.submitForApproval(id, branchIds, userId)
       sendSuccess(res, null, 'Purchase order submitted for approval')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'submit_purchase_order', id: req.params.id })
@@ -104,9 +104,9 @@ export class PurchaseOrdersController {
   approve = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      await purchaseOrdersService.approve(id, companyId, userId)
+      const branchIds = await getAccessibleBranchIds(userId)
+      await purchaseOrdersService.approve(id, branchIds, userId)
       sendSuccess(res, null, 'Purchase order approved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'approve_purchase_order', id: req.params.id })
@@ -116,9 +116,9 @@ export class PurchaseOrdersController {
   markSent = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      await purchaseOrdersService.markSent(id, companyId, userId)
+      const branchIds = await getAccessibleBranchIds(userId)
+      await purchaseOrdersService.markSent(id, branchIds, userId)
       sendSuccess(res, null, 'Purchase order marked as sent')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark_sent_purchase_order', id: req.params.id })
@@ -128,9 +128,9 @@ export class PurchaseOrdersController {
   markOrdered = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      await purchaseOrdersService.markOrdered(id, companyId, userId)
+      const branchIds = await getAccessibleBranchIds(userId)
+      await purchaseOrdersService.markOrdered(id, branchIds, userId)
       sendSuccess(res, null, 'Purchase order marked as ordered')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark_ordered_purchase_order', id: req.params.id })
@@ -139,9 +139,9 @@ export class PurchaseOrdersController {
   shortCloseLines = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as ShortCloseReq).validated
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      const po = await purchaseOrdersService.shortCloseLines(params.id, companyId, userId, body.lines)
+      const branchIds = await getAccessibleBranchIds(userId)
+      const po = await purchaseOrdersService.shortCloseLines(params.id, branchIds, userId, body.lines)
       sendSuccess(res, po, 'Sisa PO berhasil ditutup')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'short_close_po_lines', id: req.params.id })
@@ -151,9 +151,9 @@ export class PurchaseOrdersController {
   cancel = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as CancelReq).validated
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      await purchaseOrdersService.cancel(params.id, companyId, userId, body.cancelled_reason)
+      const branchIds = await getAccessibleBranchIds(userId)
+      await purchaseOrdersService.cancel(params.id, branchIds, userId, body.cancelled_reason)
       sendSuccess(res, null, 'Purchase order cancelled')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'cancel_purchase_order', id: req.params.id })
@@ -163,9 +163,9 @@ export class PurchaseOrdersController {
   delete = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
       const userId = req.user?.id ?? ''
-      await purchaseOrdersService.delete(id, companyId, userId)
+      const branchIds = await getAccessibleBranchIds(userId)
+      await purchaseOrdersService.delete(id, branchIds, userId)
       sendSuccess(res, null, 'Purchase order deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_purchase_order', id: req.params.id })

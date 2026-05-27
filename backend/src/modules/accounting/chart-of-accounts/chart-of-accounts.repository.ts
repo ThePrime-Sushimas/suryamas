@@ -26,10 +26,12 @@ export class ChartOfAccountsRepository {
     else this.cache.clear()
   }
 
-  private buildConditions(companyId: string, filter?: CoaFilter, search?: string) {
-    const conditions: string[] = ['company_id = $1']
-    const params: (string | boolean)[] = [companyId]
-    let idx = 2
+  private buildConditions(branchIds: string[], companyIds: string[], filter?: CoaFilter, search?: string) {
+    const conditions: string[] = [
+      '(branch_id = ANY($1::uuid[]) OR (branch_id IS NULL AND company_id = ANY($2::uuid[])))',
+    ]
+    const params: (string | boolean | string[])[] = [branchIds, companyIds]
+    let idx = 3
 
     if (filter?.show_deleted) { conditions.push('deleted_at IS NOT NULL') }
     else { conditions.push('deleted_at IS NULL') }
@@ -45,8 +47,8 @@ export class ChartOfAccountsRepository {
     return { where: `WHERE ${conditions.join(' AND ')}`, params, idx }
   }
 
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: CoaFilter): Promise<{ data: ChartOfAccount[]; total: number }> {
-    const { where, params, idx } = this.buildConditions(companyId, filter)
+  async findAll(branchIds: string[], companyIds: string[], pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: CoaFilter): Promise<{ data: ChartOfAccount[]; total: number }> {
+    const { where, params, idx } = this.buildConditions(branchIds, companyIds, filter)
     const sortField = sort?.field && VALID_SORT_FIELDS.includes(sort.field) ? sort.field : 'account_code'
     const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
 
@@ -57,8 +59,8 @@ export class ChartOfAccountsRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async search(companyId: string, searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: CoaFilter): Promise<{ data: ChartOfAccount[]; total: number }> {
-    const { where, params, idx } = this.buildConditions(companyId, { ...filter, show_deleted: false }, searchTerm)
+  async search(branchIds: string[], companyIds: string[], searchTerm: string, pagination: { limit: number; offset: number }, sort?: { field: string; order: 'asc' | 'desc' }, filter?: CoaFilter): Promise<{ data: ChartOfAccount[]; total: number }> {
+    const { where, params, idx } = this.buildConditions(branchIds, companyIds, { ...filter, show_deleted: false }, searchTerm)
     const sortField = sort?.field && VALID_SORT_FIELDS.includes(sort.field) ? sort.field : 'level'
     const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
     const extraOrder = sortField === 'level' ? ', sort_order ASC, account_code ASC' : ''

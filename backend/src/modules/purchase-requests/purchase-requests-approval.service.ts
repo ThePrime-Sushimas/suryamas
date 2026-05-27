@@ -67,8 +67,8 @@ interface ApproveAndGenerateResult {
 
 export class PurchaseRequestApprovalService {
 
-  async getApprovalData(prId: string, companyId: string): Promise<ApprovalData> {
-    const pr = await purchaseRequestsRepository.findWithLines(prId, companyId)
+  async getApprovalData(prId: string, branchIds: string[]): Promise<ApprovalData> {
+    const pr = await purchaseRequestsRepository.findWithLines(prId, branchIds)
     if (!pr) throw new PurchaseRequestNotFoundError(prId)
 
     const warehouse = await purchaseRequestsRepository.findMainWarehouseByBranch(pr.branch_id)
@@ -158,7 +158,11 @@ export class PurchaseRequestApprovalService {
     return { pr, warehouse_id: warehouseId, warehouse_name: warehouseName, supplier_groups: supplierGroups }
   }
 
-  async approveAndGenerate(prId: string, companyId: string, dto: ApproveAndGenerateDto, userId: string): Promise<ApproveAndGenerateResult> {
+  async approveAndGenerate(prId: string, branchIds: string[], dto: ApproveAndGenerateDto, userId: string): Promise<ApproveAndGenerateResult> {
+    const prScope = await purchaseRequestsRepository.findWithLines(prId, branchIds)
+    if (!prScope) throw new PurchaseRequestNotFoundError(prId)
+    const companyId = prScope.company_id
+
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
@@ -263,12 +267,12 @@ export class PurchaseRequestApprovalService {
         { status: 'PENDING_APPROVAL' }, { status: 'CONVERTED', po_ids: poIds })
       logInfo('PR approved and POs generated', { pr_id: prId, po_count: poIds.length })
 
-      const updatedPr = await purchaseRequestsRepository.findWithLines(prId, companyId)
+      const updatedPr = await purchaseRequestsRepository.findWithLines(prId, branchIds)
       if (!updatedPr) throw new PurchaseRequestNotFoundError(prId)
 
       const purchase_orders: PurchaseOrderWithLines[] = []
       for (const poId of poIds) {
-        const po = await purchaseOrdersRepository.findWithLines(poId, companyId)
+        const po = await purchaseOrdersRepository.findWithLines(poId, branchIds)
         if (po) purchase_orders.push(po)
       }
 

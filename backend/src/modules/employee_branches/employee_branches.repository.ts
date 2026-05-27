@@ -6,7 +6,7 @@ import { employeesRepository } from '../employees/employees.repository'
 const BASE_SELECT = `
   eb.id, eb.employee_id, eb.branch_id, eb.role_id, eb.position_id, eb.is_primary, eb.approval_limit, eb.status, eb.created_at,
   e.full_name AS emp_full_name, e.job_position AS emp_job_position, e.email AS emp_email, e.mobile_phone AS emp_mobile_phone,
-  b.branch_name AS br_branch_name, b.branch_code AS br_branch_code, b.company_id AS br_company_id, b.status AS br_status,
+  b.branch_name AS br_branch_name, b.branch_code AS br_branch_code, b.company_id AS br_company_id, c.company_name AS br_company_name, b.status AS br_status,
   r.name AS role_name, r.description AS role_description,
   p.position_code AS pos_position_code, p.position_name AS pos_position_name, d.department_code AS pos_department_code, d.department_name AS pos_department_name
 `
@@ -14,6 +14,7 @@ const BASE_FROM = `
   FROM employee_branches eb
   JOIN employees e ON e.id = eb.employee_id
   JOIN branches b ON b.id = eb.branch_id
+  JOIN companies c ON c.id = b.company_id
   JOIN perm_roles r ON r.id = eb.role_id
   LEFT JOIN positions p ON p.id = eb.position_id
   LEFT JOIN departments d ON d.id = p.department_id
@@ -23,7 +24,7 @@ function mapRow(row: Record<string, unknown>): Record<string, unknown> {
   return {
     ...row,
     employees: { full_name: row.emp_full_name, job_position: row.emp_job_position, email: row.emp_email, mobile_phone: row.emp_mobile_phone },
-    branches: { branch_name: row.br_branch_name, branch_code: row.br_branch_code, company_id: row.br_company_id, status: row.br_status },
+    branches: { branch_name: row.br_branch_name, branch_code: row.br_branch_code, company_id: row.br_company_id, company_name: row.br_company_name, status: row.br_status },
     perm_roles: { name: row.role_name, description: row.role_description },
     positions: row.pos_position_code ? {
       position_code: row.pos_position_code,

@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg'
 import { logInfo } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
+import { getAccessScope } from '../../utils/branch-access.util'
 import { apPaymentsRepository } from './ap-payments.repository'
 import type {
   ApPaymentDetail,
@@ -747,24 +748,25 @@ export class ApPaymentsService {
   private async postJournalWorkflow(
     journalId: string,
     authUserId: string,
-    companyId: string,
+    _companyId: string,
   ): Promise<void> {
-    const journal = await journalHeadersService.getById(journalId, companyId)
+    const { branchIds, companyIds } = await getAccessScope(authUserId)
+    const journal = await journalHeadersService.getByIdForUser(journalId, branchIds, companyIds)
     if (journal.status === 'POSTED') {
       throw new ApPaymentJournalAlreadyPostedError()
     }
     if (journal.status === 'DRAFT') {
-      await journalHeadersService.submit(journalId, authUserId, companyId)
+      await journalHeadersService.submit(journalId, authUserId, branchIds, companyIds)
     }
-    const refreshed = await journalHeadersService.getById(journalId, companyId)
+    const refreshed = await journalHeadersService.getByIdForUser(journalId, branchIds, companyIds)
     if (refreshed.status === 'SUBMITTED') {
-      await journalHeadersService.approve(journalId, authUserId, companyId)
+      await journalHeadersService.approve(journalId, authUserId, branchIds, companyIds)
     }
-    const beforePost = await journalHeadersService.getById(journalId, companyId)
+    const beforePost = await journalHeadersService.getByIdForUser(journalId, branchIds, companyIds)
     if (beforePost.status !== 'APPROVED') {
       throw new ApPaymentJournalNotReadyError(beforePost.status)
     }
-    await journalHeadersService.post(journalId, authUserId, companyId)
+    await journalHeadersService.post(journalId, authUserId, branchIds, companyIds)
   }
 
   async markPaid(
@@ -803,7 +805,7 @@ export class ApPaymentsService {
       })
     } catch (err) {
       if (journalId) {
-        await journalHeadersService.forceDelete(journalId, userId, companyId).catch(() => undefined)
+        await journalHeadersService.forceDeleteAsUser(journalId, userId).catch(() => undefined)
       }
       throw err
     }
@@ -852,7 +854,7 @@ export class ApPaymentsService {
     }
 
     const journalId = existing.journal_id
-    await journalHeadersService.forceDelete(journalId, userId, companyId)
+    await journalHeadersService.forceDeleteAsUser(journalId, userId)
 
     await AuditService.log('DELETE', 'ap_payments', id, userId, {
       status: existing.status,

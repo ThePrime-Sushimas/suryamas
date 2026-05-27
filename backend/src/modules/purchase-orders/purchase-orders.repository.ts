@@ -204,16 +204,16 @@ export class PurchaseOrdersRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
-  async findById(id: string, companyId: string): Promise<PurchaseOrderWithRelations | null> {
+  async findById(id: string, branchIds: string[]): Promise<PurchaseOrderWithRelations | null> {
     const { rows } = await pool.query(
-      `SELECT ${HEADER_SELECT} ${HEADER_FROM} WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL`,
-      [id, companyId]
+      `SELECT ${HEADER_SELECT} ${HEADER_FROM} WHERE po.id = $1 AND po.branch_id = ANY($2::uuid[]) AND po.deleted_at IS NULL`,
+      [id, branchIds]
     )
     return rows[0] ?? null
   }
 
-  async findWithLines(id: string, companyId: string): Promise<PurchaseOrderWithLines | null> {
-    const header = await this.findById(id, companyId)
+  async findWithLines(id: string, branchIds: string[]): Promise<PurchaseOrderWithLines | null> {
+    const header = await this.findById(id, branchIds)
     if (!header) return null
     const { rows: lines } = await pool.query(`SELECT ${LINE_SELECT} ${LINE_FROM} WHERE pol.po_id = $1 ORDER BY pol.sort_order`, [id])
     return { ...header, lines }

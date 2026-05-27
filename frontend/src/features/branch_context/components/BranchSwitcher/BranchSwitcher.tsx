@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -5,20 +6,40 @@ export const BranchSwitcher = () => {
   const { currentBranch, branches, switchBranchWithPermissions, refetchBranches, isLoading } = useBranchContextStore()
   const { success, error: showError } = useToast()
 
+  const branchesByCompany = useMemo(() => {
+    const groups = new Map<string, { companyId: string; companyName: string; branches: typeof branches }>()
+    for (const branch of branches) {
+      const key = branch.company_id
+      const existing = groups.get(key)
+      if (existing) {
+        existing.branches.push(branch)
+      } else {
+        groups.set(key, {
+          companyId: key,
+          companyName: branch.company_name || 'Company',
+          branches: [branch],
+        })
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) =>
+      a.companyName.localeCompare(b.companyName, 'id'),
+    )
+  }, [branches])
+
   if (branches.length === 0) return null
 
   const handleSwitch = async (branchId: string) => {
     if (branchId === currentBranch?.branch_id || isLoading) return
 
     const result = await switchBranchWithPermissions(branchId)
-    
+
     if (result.success) {
       success('Branch switched successfully')
     } else {
       showError(result.error || 'Failed to switch branch')
     }
   }
-  
+
   const handleRefresh = async () => {
     await refetchBranches()
     success('Branches refreshed')
@@ -30,12 +51,17 @@ export const BranchSwitcher = () => {
         value={currentBranch?.branch_id || ''}
         onChange={(e) => handleSwitch(e.target.value)}
         disabled={branches.length <= 1 || isLoading || !currentBranch}
-        className="max-w-[120px] sm:max-w-none px-2 sm:px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed truncate"
+        className="max-w-[140px] sm:max-w-[220px] px-2 sm:px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed truncate"
       >
-        {branches.map((branch) => (
-          <option key={branch.branch_id} value={branch.branch_id}>
-            {branch.branch_name}{branch.branch_status === 'closed' ? ' [Tutup]' : ''}
-          </option>
+        {branchesByCompany.map((group) => (
+          <optgroup key={group.companyId} label={group.companyName}>
+            {group.branches.map((branch) => (
+              <option key={branch.branch_id} value={branch.branch_id}>
+                {branch.branch_name}
+                {branch.branch_status === 'closed' ? ' [Tutup]' : ''}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       <button
@@ -43,6 +69,7 @@ export const BranchSwitcher = () => {
         disabled={isLoading}
         className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50"
         title="Refresh branches"
+        type="button"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

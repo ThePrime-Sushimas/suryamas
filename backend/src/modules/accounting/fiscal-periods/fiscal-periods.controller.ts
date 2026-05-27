@@ -8,6 +8,7 @@ import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport } from '../../../utils/export.util'
 import { FiscalPeriodErrors } from './fiscal-periods.errors'
 import { defaultConfig } from './fiscal-periods.config'
+import { getAccessibleCompanyIds } from '../../../utils/branch-access.util'
 import type {
   createFiscalPeriodSchema,
   updateFiscalPeriodSchema,
@@ -30,7 +31,7 @@ export class FiscalPeriodsController {
 
   async list(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       const { offset } = getPaginationParams(req.query)
 
       if (req.pagination!.limit > defaultConfig.limits.pageSize) {
@@ -38,7 +39,7 @@ export class FiscalPeriodsController {
       }
 
       const result = await fiscalPeriodsService.list(
-        companyId, { ...req.pagination!, offset }, req.sort as Parameters<typeof fiscalPeriodsService.list>[2], req.filterParams
+        companyIds, { ...req.pagination!, offset }, req.sort as Parameters<typeof fiscalPeriodsService.list>[2], req.filterParams
       )
       sendSuccess(res, result.data, 'Fiscal periods retrieved', 200, result.pagination)
     } catch (error: unknown) {
@@ -63,8 +64,8 @@ export class FiscalPeriodsController {
 
   async getById(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
-      const period = await fiscalPeriodsService.getById(req.params.id as string, companyId)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const period = await fiscalPeriodsService.getById(req.params.id as string, companyIds)
       sendSuccess(res, period)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_fiscal_period' })

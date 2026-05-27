@@ -8,9 +8,11 @@ export function invalidateBranchCache(userId?: string): void {
   if (userId) {
     branchIdCache.delete(userId)
     branchNameCache.delete(userId)
+    companyIdCache.delete(userId)
   } else {
     branchIdCache.clear()
     branchNameCache.clear()
+    companyIdCache.clear()
   }
 }
 
@@ -54,4 +56,56 @@ export async function getAccessibleBranchNames(userId: string): Promise<string[]
   const names = rows.map(r => r.branch_name as string)
   branchNameCache.set(userId, { names, expiresAt: Date.now() + CACHE_TTL })
   return names
+}
+
+const companyIdCache = new Map<string, { companies: string[]; expiresAt: number }>()
+
+/** Distinct company IDs from branches the user can access (for fiscal periods, etc.). */
+export async function getAccessibleCompanyIds(userId: string): Promise<string[]> {
+  const cached = companyIdCache.get(userId)
+  if (cached && cached.expiresAt > Date.now()) return cached.companies
+
+  const { rows } = await pool.query(
+    `SELECT DISTINCT b.company_id FROM employee_branches eb
+     JOIN employees e ON e.id = eb.employee_id
+     JOIN branches b ON b.id = eb.branch_id
+     WHERE e.user_id = $1 AND eb.status = 'active'`,
+    [userId]
+  )
+
+  const companies = rows.map(r => r.company_id as string)
+  if (companies.length === 0) companies.push('00000000-0000-0000-0000-000000000000')
+
+  companyIdCache.set(userId, { companies, expiresAt: Date.now() + CACHE_TTL })
+  return companies
+}
+
+export async function getCompanyIdForBranch(branchId: string): Promise<string | null> {
+  const { rows } = await pool.query(
+    `SELECT company_id FROM branches WHERE id = $1 AND deleted_at IS NULL`,
+    [branchId]
+  )
+  return (rows[0]?.company_id as string) ?? null
+}
+
+export function requireBranchAccess(branchId: string, accessibleBranchIds: string[]): void {
+  if (!accessibleBranchIds.includes(branchId)) {
+    const err = new Error('No access to this branch') as Error & { statusCode?: number }
+    err.statusCode = 403
+    throw err
+  }
+}
+
+export function isBranchAccessible(branchId: string | null | undefined, accessibleBranchIds: string[]): boolean {
+  if (!branchId) return false
+  return accessibleBranchIds.includes(branchId)
+}
+
+/** Branch + company scope for a user (list/detail/mutations). */
+export async function getAccessScope(userId: string): Promise<{ branchIds: string[]; companyIds: string[] }> {
+  const [branchIds, companyIds] = await Promise.all([
+    getAccessibleBranchIds(userId),
+    getAccessibleCompanyIds(userId),
+  ])
+  return { branchIds, companyIds }
 }

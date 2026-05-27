@@ -534,10 +534,15 @@ export class PurchaseInvoicesService {
     return purchaseInvoicesRepository.findAvailableGrs(companyId, supplierId, branchId)
   }
 
-  async getById(id: string, companyId: string): Promise<PurchaseInvoiceDetail> {
-    const detail = await purchaseInvoicesRepository.findById(id, companyId)
+  async getById(id: string, branchIds: string[]): Promise<PurchaseInvoiceDetail> {
+    const detail = await purchaseInvoicesRepository.findByIdAccessible(id, branchIds)
     if (!detail) throw new PurchaseInvoiceNotFoundError(id)
     return this.enrichDetail(detail)
+  }
+
+  async getByIdForUser(id: string, userId: string): Promise<PurchaseInvoiceDetail> {
+    const { getAccessibleBranchIds } = await import('../../utils/branch-access.util')
+    return this.getById(id, await getAccessibleBranchIds(userId))
   }
 
   private async enrichDetail(detail: PurchaseInvoiceDetail): Promise<PurchaseInvoiceDetail> {
@@ -867,7 +872,7 @@ export class PurchaseInvoicesService {
       }
     )
 
-    return this.getById(id, companyId)
+    return this.getByIdForUser(id, userId)
   }
 
   async approve(companyId: string, id: string, userId: string) {
@@ -899,7 +904,7 @@ export class PurchaseInvoicesService {
     // AP Payment draft is NOT auto-created here.
     // Invoice will appear in Outstanding tab for manual payment creation.
 
-    return this.getById(id, companyId)
+    return this.getByIdForUser(id, userId)
   }
 
   async reject(companyId: string, id: string, reason: string, userId: string) {
@@ -938,7 +943,7 @@ export class PurchaseInvoicesService {
       logInfo('AP draft cancel failed after PI reject (non-blocking)', { id, err })
     }
 
-    return this.getById(id, companyId)
+    return this.getByIdForUser(id, userId)
   }
 
   async post(companyId: string, id: string, userId: string) {
@@ -1174,7 +1179,7 @@ export class PurchaseInvoicesService {
       }
     )
 
-    const invoice = await this.getById(id, companyId)
+    const invoice = await this.getByIdForUser(id, userId)
     return { ...invoice, pricelist_sync: pricelistSync }
   }
 
@@ -1290,7 +1295,7 @@ export class PurchaseInvoicesService {
       { status: 'POSTED', journal_id: journalId },
       { status: 'APPROVED', journal_id: null, unpost: true },
     )
-    return this.getById(id, companyId)
+    return this.getByIdForUser(id, userId)
   }
 
   async createDraftFromGr(client: PoolClient, companyId: string, grId: string, userId: string) {
@@ -1482,7 +1487,7 @@ export class PurchaseInvoicesService {
     })
 
     await AuditService.log('CREATE', 'purchase_invoices', master.id, userId, { merged_from: invoiceIds })
-    return this.getById(master.id, companyId)
+    return this.getByIdForUser(master.id, userId)
   }
 
   /**
