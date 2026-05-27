@@ -16,12 +16,17 @@ import {
 import {
   ReconciliationError,
 } from "./bank-reconciliation.errors";
-import { getAccessibleCompanyIds, resolveContextCompanyId } from "../../../utils/branch-access.util";
+import { getAccessibleCompanyIds, getAccessibleBranchIds, resolveContextCompanyId } from "../../../utils/branch-access.util";
 
 async function bankReconScope(req: Request) {
-  const companyIds = await getAccessibleCompanyIds(req.user?.id ?? "");
+  const userId = req.user?.id ?? "";
+  const [companyIds, branchIds] = await Promise.all([
+    getAccessibleCompanyIds(userId),
+    getAccessibleBranchIds(userId),
+  ]);
   return {
     companyIds,
+    branchIds,
     companyId: resolveContextCompanyId(req.context?.company_id ?? "", companyIds),
   };
 }
@@ -253,9 +258,12 @@ export class BankReconciliationController {
         return;
       }
 
+      const { companyIds, branchIds } = await bankReconScope(req);
       const result = await this.service.getSummary(
         new Date(startDate as string),
         new Date(endDate as string),
+        companyIds,
+        branchIds,
       );
 
       res.status(200).json({

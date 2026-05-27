@@ -1,7 +1,8 @@
 export interface BalanceSheetParams {
-  companyId: string
+  companyIds: string[]
   asOfDate: string
-  branchIds?: string[]
+  branchFilterIds: string[]
+  groupByBranch: boolean
   compareAsOfDate?: string
 }
 

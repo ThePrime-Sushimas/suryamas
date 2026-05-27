@@ -116,17 +116,11 @@ function exportCsv(rows: IncomeStatementRow[], dateFrom: string, dateTo: string,
 }
 
 export default function IncomeStatementPage() {
-  const { branches, currentBranch } = useBranchContextStore()
+  const { branches } = useBranchContextStore()
   const { filter, setFilter } = useIncomeStatementStore()
   const [fetchKey, setFetchKey] = useState(0)
   const [isStale, setIsStale] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
-
-  const companyId = currentBranch?.company_id ?? ''
-  const companyBranches = useMemo(
-    () => branches.filter(b => b.company_id === companyId),
-    [branches, companyId]
-  )
 
   const activeFilter = useMemo(
     () => ({
@@ -138,7 +132,7 @@ export default function IncomeStatementPage() {
   )
 
   const [appliedFilter, setAppliedFilter] = useState(activeFilter)
-  const { data, isLoading, isError, error } = useIncomeStatement(appliedFilter, companyId, fetchKey > 0, fetchKey)
+  const { data, isLoading, isError, error } = useIncomeStatement(appliedFilter, fetchKey > 0, fetchKey)
 
   const sections = useMemo(() => groupRows(data?.rows ?? []), [data])
   const summary = data?.summary
@@ -246,7 +240,7 @@ export default function IncomeStatementPage() {
             Branch {filter.branch_ids.length > 0 ? `(${filter.branch_ids.length} selected)` : '(All)'}
           </label>
           <div className="flex flex-wrap gap-2">
-            {companyBranches.map(b => {
+            {branches.map((b: { branch_id: string; branch_name: string }) => {
               const selected = filter.branch_ids.includes(b.branch_id)
               return (
                 <button key={b.branch_id} onClick={() => toggleBranch(b.branch_id)}

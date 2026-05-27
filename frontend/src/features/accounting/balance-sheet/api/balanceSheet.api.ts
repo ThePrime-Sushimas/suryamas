@@ -4,12 +4,12 @@ import type { BalanceSheetFilter, BalanceSheetRow, BalanceSheetSummary } from '.
 
 export const balanceSheetKeys = {
   all: ['balance-sheet'] as const,
-  data: (filter: BalanceSheetFilter, companyId: string) => [...balanceSheetKeys.all, 'data', companyId, filter] as const,
+  data: (filter: BalanceSheetFilter) => [...balanceSheetKeys.all, 'data', filter] as const,
 }
 
-export const useBalanceSheet = (filter: BalanceSheetFilter, companyId: string, enabled: boolean, fetchKey?: number) =>
+export const useBalanceSheet = (filter: BalanceSheetFilter, enabled: boolean, fetchKey?: number) =>
   useQuery({
-    queryKey: [...balanceSheetKeys.data(filter, companyId), fetchKey],
+    queryKey: [...balanceSheetKeys.data(filter), fetchKey],
     queryFn: async () => {
       const params: Record<string, string> = { as_of_date: filter.as_of_date }
       if (filter.branch_ids.length > 0) params.branch_ids = filter.branch_ids.join(',')
@@ -26,9 +26,9 @@ export const useBalanceSheet = (filter: BalanceSheetFilter, companyId: string, e
           compare_debit_amount: Number(r.compare_debit_amount ?? 0),
           compare_credit_amount: Number(r.compare_credit_amount ?? 0),
         })),
-        summary: result.summary, // JS-native numbers from service layer arithmetic
+        summary: result.summary,
       }
     },
-    enabled: enabled && !!companyId && !!filter.as_of_date,
+    enabled: enabled && !!filter.as_of_date,
     staleTime: 60_000,
   })

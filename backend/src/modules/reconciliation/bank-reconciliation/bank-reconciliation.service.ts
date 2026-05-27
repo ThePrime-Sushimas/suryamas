@@ -1035,10 +1035,12 @@ export class BankReconciliationService {
     return this.repository.getAllBankAccounts();
   }
 
-  async getSummary(startDate: Date, endDate: Date): Promise<any> {
+  async getSummary(startDate: Date, endDate: Date, companyIds: string[], branchIds: string[]): Promise<any> {
     return this.orchestratorService.getReconciliationSummary(
       startDate,
       endDate,
+      companyIds,
+      branchIds,
     );
   }
 

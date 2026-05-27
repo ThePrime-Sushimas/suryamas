@@ -141,17 +141,11 @@ function exportCsv(rows: BalanceSheetRow[], asOfDate: string, hasCompare: boolea
 }
 
 export default function BalanceSheetPage() {
-  const { branches, currentBranch } = useBranchContextStore()
+  const { branches } = useBranchContextStore()
   const { filter, setFilter } = useBalanceSheetStore()
   const [fetchKey, setFetchKey] = useState(0)
   const [isStale, setIsStale] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
-
-  const companyId = currentBranch?.company_id ?? ''
-  const companyBranches = useMemo(
-    () => branches.filter(b => b.company_id === companyId),
-    [branches, companyId]
-  )
 
   const activeFilter = useMemo(
     () => ({
@@ -162,7 +156,7 @@ export default function BalanceSheetPage() {
   )
 
   const [appliedFilter, setAppliedFilter] = useState(activeFilter)
-  const { data, isLoading, isError, error } = useBalanceSheet(appliedFilter, companyId, fetchKey > 0, fetchKey)
+  const { data, isLoading, isError, error } = useBalanceSheet(appliedFilter, fetchKey > 0, fetchKey)
 
   const sections = useMemo(() => buildSections(data?.rows ?? []), [data])
   const summary = data?.summary
@@ -258,7 +252,7 @@ export default function BalanceSheetPage() {
             Branch {filter.branch_ids.length > 0 ? `(${filter.branch_ids.length} selected)` : '(All)'}
           </label>
           <div className="flex flex-wrap gap-2">
-            {companyBranches.map(b => {
+            {branches.map(b => {
               const selected = filter.branch_ids.includes(b.branch_id)
               return (
                 <button key={b.branch_id} onClick={() => toggleBranch(b.branch_id)}

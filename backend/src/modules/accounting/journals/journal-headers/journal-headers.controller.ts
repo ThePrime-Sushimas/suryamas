@@ -8,7 +8,7 @@ import type { ValidatedAuthRequest } from '../../../../middleware/validation.mid
 import {
   createJournalSchema, updateJournalSchema, rejectJournalSchema, reverseJournalSchema, journalIdSchema,
 } from './journal-headers.schema'
-import { getAccessibleBranchIds, getAccessibleCompanyIds } from '../../../../utils/branch-access.util'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, requireBranchAccess, requireCompanyAccess, getCompanyIdForBranch } from '../../../../utils/branch-access.util'
 
 async function getAccess(req: Request) {
   const userId = req.user?.id ?? ''
@@ -17,12 +17,6 @@ async function getAccess(req: Request) {
     getAccessibleCompanyIds(userId),
   ])
   return { branchIds, companyIds }
-}
-
-function getCompanyId(req: Request): string {
-  const companyId = req.context?.company_id
-  if (!companyId) throw new Error('Branch context required - no company access')
-  return companyId
 }
 
 export class JournalHeadersController {
@@ -72,10 +66,15 @@ export class JournalHeadersController {
 
   create = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { branchIds, companyIds } = await getAccess(req)
       const userId = getAuthUserId(req)
       const { body } = (req as ValidatedAuthRequest<typeof createJournalSchema>).validated
-      const branchId = req.context?.branch_id
+      const branchId = body.branch_id ?? req.context?.branch_id
+      if (!branchId) throw new Error('Branch is required')
+      requireBranchAccess(branchId, branchIds)
+      const companyId = await getCompanyIdForBranch(branchId)
+      if (!companyId) throw new Error('Invalid branch')
+      requireCompanyAccess(companyId, companyIds)
       const journal = await journalHeadersService.create({ ...body, company_id: companyId, branch_id: branchId }, userId)
       sendSuccess(res, journal, 'Journal created', 201)
     } catch (error: unknown) {

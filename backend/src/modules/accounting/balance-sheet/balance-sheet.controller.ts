@@ -4,24 +4,36 @@ import { balanceSheetService } from './balance-sheet.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import type { balanceSheetQuerySchema } from './balance-sheet.schema'
+import { getAccessibleBranchIds, getAccessibleCompanyIds, requireBranchAccess } from '../../../utils/branch-access.util'
 
 export class BalanceSheetController {
   async get(req: Request, res: Response) {
     try {
-      const companyId = req.context?.company_id
-      if (!companyId) throw new Error('Branch context required - no company access')
+      const userId = req.user?.id ?? ''
+      const [companyIds, accessibleBranchIds] = await Promise.all([
+        getAccessibleCompanyIds(userId),
+        getAccessibleBranchIds(userId),
+      ])
 
       const { query } = (req as ValidatedAuthRequest<typeof balanceSheetQuerySchema>).validated
       const { as_of_date, branch_ids, compare_as_of_date } = query
 
-      const branchIds = branch_ids
-        ? branch_ids.split(',').map(s => s.trim()).filter(Boolean)
-        : undefined
+      let branchFilterIds: string[]
+      let groupByBranch: boolean
+      if (branch_ids) {
+        branchFilterIds = branch_ids.split(',').map(s => s.trim()).filter(Boolean)
+        for (const id of branchFilterIds) requireBranchAccess(id, accessibleBranchIds)
+        groupByBranch = branchFilterIds.length > 0
+      } else {
+        branchFilterIds = accessibleBranchIds
+        groupByBranch = false
+      }
 
       const result = await balanceSheetService.getBalanceSheet({
-        companyId,
+        companyIds,
         asOfDate: as_of_date,
-        branchIds,
+        branchFilterIds,
+        groupByBranch,
         compareAsOfDate: compare_as_of_date,
       })
 

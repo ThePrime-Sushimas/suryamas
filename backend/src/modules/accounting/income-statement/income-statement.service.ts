@@ -24,7 +24,7 @@ export class IncomeStatementService {
     summary: IncomeStatementSummary
   }> {
     logInfo('Fetching income statement', {
-      company_id: params.companyId,
+      company_ids: params.companyIds,
       date_from: params.dateFrom,
       date_to: params.dateTo,
       has_compare: !!(params.compareDateFrom && params.compareDateTo),

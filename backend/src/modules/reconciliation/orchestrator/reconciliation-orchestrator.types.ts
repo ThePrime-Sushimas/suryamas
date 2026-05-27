@@ -57,7 +57,7 @@ export interface IReconciliationOrchestratorService {
     statementId?: string,
     reconciledBy?: string
   ): Promise<void>;
-  getReconciliationSummary(startDate: Date, endDate: Date): Promise<any>;
+  getReconciliationSummary(startDate: Date, endDate: Date, companyIds: string[], branchIds: string[]): Promise<any>;
   findPotentialAggregatesForStatement(
     statementAmount: number,
     statementDate: Date,

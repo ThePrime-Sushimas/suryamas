@@ -25,12 +25,12 @@ export interface HrdDashboardData {
 }
 
 class DashboardHrdService {
-  async getHrdSummary(companyId: string): Promise<HrdDashboardData> {
+  async getHrdSummary(companyIds: string[], branchIds: string[]): Promise<HrdDashboardData> {
     const [summary, branchPositions, positionSummary, multiBranch] = await Promise.all([
-      dashboardHrdRepository.getSummary(companyId),
-      dashboardHrdRepository.getBranchPositions(companyId),
-      dashboardHrdRepository.getPositionSummary(companyId),
-      dashboardHrdRepository.getMultiBranchEmployees(companyId),
+      dashboardHrdRepository.getSummary(companyIds, branchIds),
+      dashboardHrdRepository.getBranchPositions(companyIds, branchIds),
+      dashboardHrdRepository.getPositionSummary(companyIds, branchIds),
+      dashboardHrdRepository.getMultiBranchEmployees(companyIds, branchIds),
     ])
 
     // Group branch positions into nested structure

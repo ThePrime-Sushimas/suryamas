@@ -1,8 +1,9 @@
 export interface IncomeStatementParams {
-  companyId: string
+  companyIds: string[]
   dateFrom: string
   dateTo: string
-  branchIds?: string[]
+  branchFilterIds: string[]
+  groupByBranch: boolean
   compareDateFrom?: string
   compareDateTo?: string
 }

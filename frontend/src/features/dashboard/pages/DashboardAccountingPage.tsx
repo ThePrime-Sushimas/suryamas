@@ -8,7 +8,6 @@ import {
   useBalanceSheetHealth, useExpenseCategorizeStats,
 } from '../api/useDashboardApi'
 import { useIncomeStatement } from '@/features/accounting/income-statement/api/incomeStatement.api'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { WorkflowTracker } from '../components/WorkflowTracker'
 import { MetricCard } from '../components/MetricCard'
 import { useQueryClient } from '@tanstack/react-query'
@@ -37,9 +36,6 @@ function getMonthRange(year: number, month: number): { from: string; to: string;
 }
 
 export default function DashboardAccountingPage() {
-  const { currentBranch } = useBranchContextStore()
-  const companyId = currentBranch?.company_id ?? ''
-
   const now = new Date()
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth())
@@ -65,8 +61,8 @@ export default function DashboardAccountingPage() {
   const recon = useReconSummary(appliedFrom, appliedTo)
   const feeSummary = useFeeDiscrepancySummary(appliedFrom, appliedTo)
   const journals = useJournalSummary(appliedFrom, appliedTo)
-  const pnl = useIncomeStatement({ date_from: appliedFrom, date_to: appliedTo, branch_ids: [] }, companyId, !!companyId)
-  const bsHealth = useBalanceSheetHealth(companyId, appliedTo)
+  const pnl = useIncomeStatement({ date_from: appliedFrom, date_to: appliedTo, branch_ids: [] }, true)
+  const bsHealth = useBalanceSheetHealth(appliedTo)
   const cashCount = useCashCountPending(appliedFrom, appliedTo)
   const expenseStats = useExpenseCategorizeStats(appliedFrom, appliedTo)
 

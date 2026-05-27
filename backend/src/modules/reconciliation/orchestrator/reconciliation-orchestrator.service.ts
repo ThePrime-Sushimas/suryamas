@@ -66,25 +66,37 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     );
   }
 
-  async getReconciliationSummary(startDate: Date, endDate: Date): Promise<Record<string, unknown>> {
+  async getReconciliationSummary(
+    startDate: Date,
+    endDate: Date,
+    companyIds: string[],
+    branchIds: string[],
+  ): Promise<Record<string, unknown>> {
     const startDateStr = startDate.toISOString().split("T")[0];
     const endDateStr = endDate.toISOString().split("T")[0];
-    return this.getSummaryFallback(startDateStr, endDateStr);
+    return this.getSummaryFallback(startDateStr, endDateStr, companyIds, branchIds);
   }
 
-  private async getSummaryFallback(startDate: string, endDate: string): Promise<Record<string, unknown>> {
+  private async getSummaryFallback(
+    startDate: string,
+    endDate: string,
+    companyIds: string[],
+    branchIds: string[],
+  ): Promise<Record<string, unknown>> {
     const [aggRes, stmtRes] = await Promise.all([
       pool.query(
         `SELECT is_reconciled, nett_amount FROM aggregated_transactions
          WHERE transaction_date >= $1 AND transaction_date <= $2
-           AND deleted_at IS NULL AND superseded_by IS NULL`,
-        [startDate, endDate]
+           AND deleted_at IS NULL AND superseded_by IS NULL
+           AND branch_id = ANY($3::uuid[])`,
+        [startDate, endDate, branchIds]
       ),
       pool.query(
         `SELECT id, is_reconciled, credit_amount, debit_amount, reconciliation_id
          FROM bank_statements
-         WHERE transaction_date >= $1 AND transaction_date <= $2 AND deleted_at IS NULL`,
-        [startDate, endDate]
+         WHERE transaction_date >= $1 AND transaction_date <= $2 AND deleted_at IS NULL
+           AND company_id = ANY($3::uuid[])`,
+        [startDate, endDate, companyIds]
       ),
     ]);
 

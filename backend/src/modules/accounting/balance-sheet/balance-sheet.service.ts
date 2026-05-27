@@ -26,16 +26,16 @@ export class BalanceSheetService {
     summary: BalanceSheetSummary
   }> {
     logInfo('Fetching balance sheet', {
-      company_id: params.companyId,
+      company_ids: params.companyIds,
       as_of_date: params.asOfDate,
       has_compare: !!params.compareAsOfDate,
     })
 
     const [{ current, compare }, retainedEarnings, compareRetainedEarnings] = await Promise.all([
       balanceSheetRepository.getBalanceSheet(params),
-      balanceSheetRepository.getRetainedEarnings(params.companyId, params.asOfDate),
+      balanceSheetRepository.getRetainedEarnings(params.companyIds, params.asOfDate),
       params.compareAsOfDate
-        ? balanceSheetRepository.getRetainedEarnings(params.companyId, params.compareAsOfDate)
+        ? balanceSheetRepository.getRetainedEarnings(params.companyIds, params.compareAsOfDate)
         : Promise.resolve(0),
     ])
 

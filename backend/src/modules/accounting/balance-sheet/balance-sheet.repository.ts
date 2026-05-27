@@ -5,24 +5,20 @@ import { BalanceSheetQueryError } from './balance-sheet.errors'
 
 export class BalanceSheetRepository {
   async getBalanceSheet(params: BalanceSheetParams): Promise<{ current: BalanceSheetRow[]; compare: BalanceSheetRow[] }> {
-    const current = await this.fetchAsOf(params.companyId, params.asOfDate, params.branchIds)
+    const current = await this.fetchAsOf(params)
     const compare = params.compareAsOfDate
-      ? await this.fetchAsOf(params.companyId, params.compareAsOfDate, params.branchIds)
+      ? await this.fetchAsOf({ ...params, asOfDate: params.compareAsOfDate })
       : []
     return { current, compare }
   }
 
-  private async fetchAsOf(companyId: string, asOfDate: string, branchIds?: string[]): Promise<BalanceSheetRow[]> {
+  private async fetchAsOf(params: BalanceSheetParams): Promise<BalanceSheetRow[]> {
+    const { companyIds, branchFilterIds, groupByBranch, asOfDate } = params
     try {
-      const values: (string | string[])[] = [companyId, asOfDate]
-      const hasBranch = branchIds && branchIds.length > 0
+      const values: (string | string[])[] = [companyIds, asOfDate, branchFilterIds]
+      const hasBranch = groupByBranch
 
-      let branchFilter = ''
-      if (hasBranch) {
-        values.push(branchIds)
-        branchFilter = `AND glv.branch_id = ANY($${values.length}::uuid[])`
-      }
-
+      const branchFilter = `AND glv.branch_id = ANY($3::uuid[])`
       const groupCols = hasBranch ? 'glv.account_id, glv.branch_id' : 'glv.account_id'
 
       const { rows } = await pool.query(
@@ -33,8 +29,8 @@ export class BalanceSheetRepository {
             SUM(glv.credit_amount) AS credit_amount
           FROM general_ledger_view glv
           JOIN chart_of_accounts coa ON coa.id = glv.account_id
-          WHERE glv.company_id = $1::uuid
-            AND coa.company_id = $1::uuid
+          WHERE glv.company_id = ANY($1::uuid[])
+            AND coa.company_id = ANY($1::uuid[])
             AND coa.account_type IN ('ASSET', 'LIABILITY', 'EQUITY')
             AND glv.journal_date <= $2::date
             ${branchFilter}
@@ -65,17 +61,12 @@ export class BalanceSheetRepository {
       return rows as BalanceSheetRow[]
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
-      logError('balance_sheet query failed', { error: message, companyId, asOfDate })
+      logError('balance_sheet query failed', { error: message, companyIds, asOfDate })
       throw new BalanceSheetQueryError(`Balance sheet query failed: ${message}`)
     }
   }
 
-  /**
-   * Retained earnings = Revenue - Expense, always company-level.
-   * Not filtered by branch because retained earnings is a company-wide figure.
-   * Filtering by branch would show misleading P&L for individual branches.
-   */
-  async getRetainedEarnings(companyId: string, asOfDate: string): Promise<number> {
+  async getRetainedEarnings(companyIds: string[], asOfDate: string): Promise<number> {
     try {
       const { rows } = await pool.query(
         `
@@ -85,17 +76,17 @@ export class BalanceSheetRepository {
           AS retained_earnings
         FROM general_ledger_view glv
         JOIN chart_of_accounts coa ON coa.id = glv.account_id
-        WHERE glv.company_id = $1::uuid
-          AND coa.company_id = $1::uuid
+        WHERE glv.company_id = ANY($1::uuid[])
+          AND coa.company_id = ANY($1::uuid[])
           AND coa.account_type IN ('REVENUE', 'EXPENSE')
           AND glv.journal_date <= $2::date
         `,
-        [companyId, asOfDate]
+        [companyIds, asOfDate]
       )
       return Number(rows[0]?.retained_earnings ?? 0)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
-      logError('retained_earnings query failed', { error: message, companyId, asOfDate })
+      logError('retained_earnings query failed', { error: message, companyIds, asOfDate })
       throw new BalanceSheetQueryError(`Retained earnings query failed: ${message}`)
     }
   }

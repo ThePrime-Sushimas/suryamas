@@ -5,24 +5,20 @@ import { IncomeStatementQueryError } from './income-statement.errors'
 
 export class IncomeStatementRepository {
   async getIncomeStatement(params: IncomeStatementParams): Promise<{ current: IncomeStatementRow[]; compare: IncomeStatementRow[] }> {
-    const current = await this.fetchPeriod(params.companyId, params.dateFrom, params.dateTo, params.branchIds)
+    const current = await this.fetchPeriod(params, params.dateFrom, params.dateTo)
     const compare = params.compareDateFrom && params.compareDateTo
-      ? await this.fetchPeriod(params.companyId, params.compareDateFrom, params.compareDateTo, params.branchIds)
+      ? await this.fetchPeriod(params, params.compareDateFrom, params.compareDateTo)
       : []
     return { current, compare }
   }
 
-  private async fetchPeriod(companyId: string, dateFrom: string, dateTo: string, branchIds?: string[]): Promise<IncomeStatementRow[]> {
+  private async fetchPeriod(params: IncomeStatementParams, dateFrom: string, dateTo: string): Promise<IncomeStatementRow[]> {
+    const { companyIds, branchFilterIds, groupByBranch } = params
     try {
-      const values: (string | string[])[] = [companyId, dateFrom, dateTo]
-      const hasBranch = branchIds && branchIds.length > 0
+      const values: (string | string[])[] = [companyIds, dateFrom, dateTo, branchFilterIds]
+      const hasBranch = groupByBranch
 
-      let branchFilter = ''
-      if (hasBranch) {
-        values.push(branchIds)
-        branchFilter = `AND glv.branch_id = ANY($${values.length}::uuid[])`
-      }
-
+      const branchFilter = `AND glv.branch_id = ANY($4::uuid[])`
       const groupCols = hasBranch ? 'glv.account_id, glv.branch_id' : 'glv.account_id'
 
       const { rows } = await pool.query(
@@ -33,8 +29,8 @@ export class IncomeStatementRepository {
             SUM(glv.credit_amount) AS credit_amount
           FROM general_ledger_view glv
           JOIN chart_of_accounts coa ON coa.id = glv.account_id
-          WHERE glv.company_id = $1::uuid
-            AND coa.company_id = $1::uuid
+          WHERE glv.company_id = ANY($1::uuid[])
+            AND coa.company_id = ANY($1::uuid[])
             AND coa.account_type IN ('REVENUE', 'EXPENSE')
             AND glv.journal_date >= $2::date
             AND glv.journal_date <= $3::date
@@ -66,7 +62,7 @@ export class IncomeStatementRepository {
       return rows as IncomeStatementRow[]
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
-      logError('income_statement query failed', { error: message, companyId, dateFrom, dateTo })
+      logError('income_statement query failed', { error: message, companyIds, dateFrom, dateTo })
       throw new IncomeStatementQueryError(`Income statement query failed: ${message}`)
     }
   }

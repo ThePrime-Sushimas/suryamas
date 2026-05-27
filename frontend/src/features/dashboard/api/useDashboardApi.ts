@@ -281,9 +281,9 @@ export const useExpenseCategorizeStats = (dateFrom?: string, dateTo?: string) =>
   })
 
 // Balance Sheet health check
-export const useBalanceSheetHealth = (companyId: string | undefined, asOfDate?: string) =>
+export const useBalanceSheetHealth = (asOfDate?: string) =>
   useQuery({
-    queryKey: ['dashboard', 'balance-sheet-health', companyId, asOfDate],
+    queryKey: ['dashboard', 'balance-sheet-health', asOfDate],
     queryFn: async () => {
       const date = asOfDate || fmtD(new Date())
       const { data } = await api.get('/accounting/balance-sheet', {

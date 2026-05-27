@@ -4,12 +4,12 @@ import type { IncomeStatementFilter, IncomeStatementRow, IncomeStatementSummary 
 
 export const incomeStatementKeys = {
   all: ['income-statement'] as const,
-  data: (filter: IncomeStatementFilter, companyId: string) => [...incomeStatementKeys.all, 'data', companyId, filter] as const,
+  data: (filter: IncomeStatementFilter) => [...incomeStatementKeys.all, 'data', filter] as const,
 }
 
-export const useIncomeStatement = (filter: IncomeStatementFilter, companyId: string, enabled: boolean, fetchKey?: number) =>
+export const useIncomeStatement = (filter: IncomeStatementFilter, enabled: boolean, fetchKey?: number) =>
   useQuery({
-    queryKey: [...incomeStatementKeys.data(filter, companyId), fetchKey],
+    queryKey: [...incomeStatementKeys.data(filter), fetchKey],
     queryFn: async () => {
       const params: Record<string, string> = {
         date_from: filter.date_from,
@@ -30,9 +30,9 @@ export const useIncomeStatement = (filter: IncomeStatementFilter, companyId: str
           compare_debit_amount: Number(r.compare_debit_amount ?? 0),
           compare_credit_amount: Number(r.compare_credit_amount ?? 0),
         })),
-        summary: result.summary, // summary fields are JS-native numbers from service layer arithmetic
+        summary: result.summary,
       }
     },
-    enabled: enabled && !!companyId && !!filter.date_from && !!filter.date_to,
+    enabled: enabled && !!filter.date_from && !!filter.date_to,
     staleTime: 60_000,
   })

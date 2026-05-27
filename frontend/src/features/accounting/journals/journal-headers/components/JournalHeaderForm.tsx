@@ -21,11 +21,8 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
   const { currentBranch, branches } = useBranchContextStore()
   const hasLoadedDraft = useRef(false)
 
-  const companyBranches = useMemo(
-    () => branches.filter(b => b.company_id === currentBranch?.company_id),
-    [branches, currentBranch?.company_id]
-  )
-  
+  const accessibleBranches = branches
+
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [journalDate, setJournalDate] = useState(initialData?.journal_date || new Date().toISOString().split('T')[0])
   const [journalType, setJournalType] = useState(initialData?.journal_type || 'GENERAL')
@@ -220,7 +217,7 @@ export function JournalHeaderForm({ initialData, onSubmit, onCancel }: Props) {
             required
             className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
           >
-            {companyBranches.map(b => (
+            {accessibleBranches.map(b => (
               <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>
             ))}
           </select>
