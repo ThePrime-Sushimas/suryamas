@@ -80,7 +80,7 @@ function GenerateBankRecModal({
   onClose: () => void
 }) {
   const currentBranch = useBranchContextStore(s => s.currentBranch)
-  const { accounts, fetchByOwner } = useBankAccountsStore()
+  const { accounts, fetchAll } = useBankAccountsStore()
 
   const [bankAccountId, setBankAccountId] = useState<number | ''>('')
   const [dateFrom, setDateFrom] = useState(() => {
@@ -95,10 +95,10 @@ function GenerateBankRecModal({
   const [phase, setPhase] = useState<'form' | 'loading' | 'result'>('form')
 
   useEffect(() => {
-    if (isOpen && currentBranch?.company_id) {
-      fetchByOwner('company', currentBranch.company_id)
+    if (isOpen) {
+      fetchAll()
     }
-  }, [isOpen, currentBranch?.company_id, fetchByOwner])
+  }, [isOpen, fetchAll])
 
   useEffect(() => {
     if (!isOpen) {
@@ -111,13 +111,9 @@ function GenerateBankRecModal({
 
   if (!isOpen) return null
 
-  const companyId = currentBranch?.company_id
+  const companyId = currentBranch?.company_id ?? null
 
   const handleGenerate = async () => {
-    if (!companyId) {
-      setError('Company belum dipilih. Pilih branch terlebih dahulu.')
-      return
-    }
 
     setIsLoading(true)
     setError(null)

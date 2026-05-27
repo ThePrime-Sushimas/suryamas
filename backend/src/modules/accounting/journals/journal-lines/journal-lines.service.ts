@@ -11,23 +11,16 @@ export class JournalLinesService {
    * Default sort: journal_date ASC, journal_number ASC, line_number ASC
    */
   async list(
-    companyId: string,
+    companyIds: string[],
     pagination: { page: number; limit: number; offset: number },
     sort?: JournalLineSortParams,
     filter?: JournalLineFilter
   ): Promise<PaginatedResponse<JournalLineWithDetails>> {
-    
-    // Enforce company_id in filter
-    const enhancedFilter: JournalLineFilter = {
-      ...filter,
-      company_id: companyId
-    }
-    
     const { data, total } = await journalLinesRepository.findAll(
-      companyId,
+      companyIds,
       pagination,
       sort,
-      enhancedFilter
+      filter
     )
     
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
@@ -37,8 +30,8 @@ export class JournalLinesService {
    * Get single journal line by ID
    * Validates company access
    */
-  async getById(id: string, companyId: string): Promise<JournalLineWithDetails> {
-    const line = await journalLinesRepository.findById(id, companyId)
+  async getById(id: string, companyIds: string[]): Promise<JournalLineWithDetails> {
+    const line = await journalLinesRepository.findById(id, companyIds)
     
     if (!line) {
       throw new Error('Journal line not found')
@@ -53,9 +46,9 @@ export class JournalLinesService {
    */
   async getByJournalHeaderId(
     journalHeaderId: string,
-    companyId: string
+    companyIds: string[]
   ): Promise<JournalLineWithDetails[]> {
-    const lines = await journalLinesRepository.findByJournalHeaderId(journalHeaderId, companyId)
+    const lines = await journalLinesRepository.findByJournalHeaderId(journalHeaderId, companyIds)
     
     return lines
   }
@@ -67,14 +60,11 @@ export class JournalLinesService {
    */
   async getByAccountId(
     accountId: string,
-    companyId: string,
+    companyIds: string[],
     filter?: JournalLineFilter
   ): Promise<JournalLineWithDetails[]> {
-    
-    // For reporting, default to POSTED_ONLY if not specified
     const reportingFilter: JournalLineFilter = {
       ...filter,
-      company_id: companyId,
       journal_status: filter?.journal_status || 'POSTED_ONLY',
       include_reversed: filter?.include_reversed ?? false,
       show_deleted: filter?.show_deleted ?? false
@@ -82,13 +72,13 @@ export class JournalLinesService {
     
     const lines = await journalLinesRepository.findByAccountId(
       accountId,
-      companyId,
+      companyIds,
       reportingFilter
     )
     
     logInfo('Journal lines retrieved by account', {
       account_id: accountId,
-      company_id: companyId,
+      company_ids: companyIds,
       count: lines.length,
       filter: reportingFilter
     })

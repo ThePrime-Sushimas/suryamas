@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useBranchContext } from '@/features/branch_context'
 import { useChartOfAccountsStore } from '../store/chartOfAccounts.store'
 import { ChartOfAccountForm } from '../components/ChartOfAccountForm'
 import { useToast } from '@/contexts/ToastContext'
@@ -10,7 +9,6 @@ import type { UpdateChartOfAccountDto } from '../types/chart-of-account.types'
 export default function EditChartOfAccountPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const currentBranch = useBranchContext()
   const { accounts, selectedAccount, loading, updateAccount, fetchAccounts, getAccountById } = useChartOfAccountsStore()
   const { success, error } = useToast()
   
@@ -22,38 +20,21 @@ export default function EditChartOfAccountPage() {
       return
     }
 
-    if (!currentBranch?.company_id) {
-      error('Please select a branch first')
-      navigate('/chart-of-accounts')
-      return
-    }
-
-    const companyId = String(currentBranch.company_id)
-    
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(companyId)) {
-      error('Invalid company selected. Please select a valid branch.')
-      navigate('/chart-of-accounts')
-      return
-    }
-
-    // Load the account and all accounts for parent selection
     Promise.all([
       getAccountById(id),
-      fetchAccounts(1, 1000) // Load more accounts for parent selection
+      fetchAccounts(1, 1000),
     ]).catch(() => {
       error('Account not found')
       navigate('/chart-of-accounts')
     })
-  }, [id, currentBranch, getAccountById, fetchAccounts, navigate, error])
+  }, [id, getAccountById, fetchAccounts, navigate, error])
 
   useEffect(() => {
     setParentAccounts(accounts)
   }, [accounts])
 
   const handleSubmit = async (data: UpdateChartOfAccountDto) => {
-    if (!id || !currentBranch?.company_id) return
+    if (!id) return
 
     try {
       await updateAccount(id, data)

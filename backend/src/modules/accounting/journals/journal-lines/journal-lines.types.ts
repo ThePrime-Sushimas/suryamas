@@ -52,9 +52,8 @@ export interface JournalLineWithDetails extends JournalLine {
   branch_name?: string
 }
 
+/** Query/business filters only. Company scope is passed separately to repository methods. */
 export interface JournalLineFilter {
-  /** Injected from auth context, not from client */
-  company_id: string
   branch_id?: string
   
   // Account filtering

@@ -48,12 +48,10 @@ export class AccountingPurposesService {
     return input.trim()
   }
 
-  private validateCompanyAccess(companyId: string): void {
-    if (!companyId?.trim()) {
+  private validateCompanyAccess(companyIds: string[]): void {
+    if (!Array.isArray(companyIds) || companyIds.length === 0) {
       throw AccountingPurposeErrors.COMPANY_ACCESS_DENIED('undefined')
     }
-    
-    // Additional validation can be added here (e.g., user permissions)
   }
 
   private validateUUIDs(ids: string[]): void {
@@ -117,7 +115,7 @@ export class AccountingPurposesService {
    * @returns Paginated list of accounting purposes
    */
   async list(
-    companyId: string,
+    companyIds: string[],
     pagination: { page: number; limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: any,
@@ -125,7 +123,7 @@ export class AccountingPurposesService {
   ): Promise<PaginatedResponse<AccountingPurpose>> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess(companyIds)
       
       // Validate pagination limits
       if (pagination.limit > this.config.limits.pageSize) {
@@ -138,18 +136,18 @@ export class AccountingPurposesService {
       
       logInfo('Service list started', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         pagination,
         sort: validatedSort,
         filter: validatedFilter
       })
       
-      const { data, total } = await this.repository.findAll(companyId, pagination, validatedSort, validatedFilter)
+      const { data, total } = await this.repository.findAll(companyIds, pagination, validatedSort, validatedFilter)
       const result = createPaginatedResponse(data, total, pagination.page, pagination.limit)
       
       logInfo('Service list completed', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         total_records: total,
         returned_records: data.length
       })
@@ -158,7 +156,7 @@ export class AccountingPurposesService {
     } catch (error) {
       logError('Service list failed', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
       throw error
@@ -176,7 +174,7 @@ export class AccountingPurposesService {
    * @returns Paginated search results
    */
   async search(
-    companyId: string,
+    companyIds: string[],
     searchTerm: string,
     pagination: { page: number; limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' },
@@ -185,7 +183,7 @@ export class AccountingPurposesService {
   ): Promise<PaginatedResponse<AccountingPurpose>> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess(companyIds)
       
       // Sanitize search term
       const sanitizedSearchTerm = this.sanitizeInput(searchTerm)
@@ -199,17 +197,17 @@ export class AccountingPurposesService {
       
       logInfo('Service search started', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         search_term: sanitizedSearchTerm,
         pagination
       })
       
-      const { data, total } = await this.repository.findAll(companyId, pagination, validatedSort, validatedFilter)
+      const { data, total } = await this.repository.findAll(companyIds, pagination, validatedSort, validatedFilter)
       const result = createPaginatedResponse(data, total, pagination.page, pagination.limit)
       
       logInfo('Service search completed', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         search_results: data.length
       })
       
@@ -217,7 +215,7 @@ export class AccountingPurposesService {
     } catch (error) {
       logError('Service search failed', { 
         correlation_id: correlationId,
-        company_id: companyId,
+        company_ids: companyIds,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
       throw error
@@ -234,7 +232,7 @@ export class AccountingPurposesService {
   async create(data: CreateAccountingPurposeDTO, userId: string, correlationId?: string): Promise<AccountingPurpose> {
     
     try {
-      this.validateCompanyAccess(data.company_id)
+      this.validateCompanyAccess([data.company_id])
       
       if (!userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('userId', 'User ID is required')
@@ -309,7 +307,7 @@ export class AccountingPurposesService {
   async getById(id: string, companyId: string, correlationId?: string): Promise<AccountingPurpose> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       
       if (!id?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('id', 'Purpose ID is required')
@@ -356,7 +354,7 @@ export class AccountingPurposesService {
   async update(id: string, data: UpdateAccountingPurposeDTO, userId: string, companyId: string, correlationId?: string): Promise<AccountingPurpose> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       
       if (!id?.trim() || !userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Purpose ID and User ID are required')
@@ -443,7 +441,7 @@ export class AccountingPurposesService {
   async delete(id: string, userId: string, companyId: string, correlationId?: string): Promise<void> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       
       if (!id?.trim() || !userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Purpose ID and User ID are required')
@@ -509,7 +507,7 @@ export class AccountingPurposesService {
     const lockKey = `bulk_update_${companyId}`
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       this.validateUUIDs(ids)
       
       if (!userId?.trim()) {
@@ -585,7 +583,7 @@ export class AccountingPurposesService {
   async bulkDelete(ids: string[], userId: string, companyId: string, correlationId?: string): Promise<void> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       this.validateUUIDs(ids)
       
       if (!userId?.trim()) {
@@ -648,7 +646,7 @@ export class AccountingPurposesService {
 
   async restore(id: string, userId: string, companyId: string, correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       
       if (!id?.trim() || !userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('required_fields', 'Purpose ID and User ID are required')
@@ -691,7 +689,7 @@ export class AccountingPurposesService {
 
   async bulkRestore(ids: string[], userId: string, companyId: string, correlationId?: string): Promise<void> {
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       this.validateUUIDs(ids)
       
       if (!userId?.trim()) {
@@ -742,7 +740,7 @@ export class AccountingPurposesService {
   async getFilterOptions(companyId: string, correlationId?: string) {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       
       logInfo('Service getFilterOptions started', { 
         correlation_id: correlationId,
@@ -778,7 +776,7 @@ export class AccountingPurposesService {
   async exportToExcel(companyId: string, filter?: any, correlationId?: string): Promise<Buffer> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       
       // Validate filter at service level
       const validatedFilter = this.validateFilter(filter)
@@ -863,7 +861,7 @@ export class AccountingPurposesService {
   async importFromExcel(buffer: Buffer, failOnDuplicates: boolean, companyId: string, userId: string, correlationId?: string): Promise<any> {
     
     try {
-      this.validateCompanyAccess(companyId)
+      this.validateCompanyAccess([companyId])
       
       if (!userId?.trim()) {
         throw AccountingPurposeErrors.VALIDATION_ERROR('userId', 'User ID is required')

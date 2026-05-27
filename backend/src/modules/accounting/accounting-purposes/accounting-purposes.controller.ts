@@ -8,6 +8,7 @@ import { getPaginationParams } from '../../../utils/pagination.util'
 import { handleExportToken, handleExport, handleImportPreview, handleImport } from '../../../utils/export.util'
 import { AccountingPurposeErrors } from './accounting-purposes.errors'
 import { defaultConfig } from './accounting-purposes.config'
+import { getAccessibleCompanyIds } from '../../../utils/branch-access.util'
 import type {
   createAccountingPurposeSchema,
   updateAccountingPurposeSchema,
@@ -26,7 +27,7 @@ export class AccountingPurposesController {
 
   async list(req: Request, res: Response) {
     try {
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       const { offset } = getPaginationParams(req.query)
 
       if (req.pagination!.limit > defaultConfig.limits.pageSize) {
@@ -36,7 +37,7 @@ export class AccountingPurposesController {
       const filter = { ...req.filterParams, ...(req.query.q && { q: req.query.q as string }) }
 
       const result = await accountingPurposesService.list(
-        companyId,
+        companyIds,
         { ...req.pagination!, offset },
         req.sort,
         filter
@@ -51,7 +52,7 @@ export class AccountingPurposesController {
   async search(req: Request, res: Response) {
     try {
       const { q } = req.query
-      const companyId = this.getCompanyId(req)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
       const { offset } = getPaginationParams(req.query)
 
       if (q && typeof q === 'string' && q.length > 100) {
@@ -59,7 +60,7 @@ export class AccountingPurposesController {
       }
 
       const result = await accountingPurposesService.search(
-        companyId,
+        companyIds,
         q as string,
         { ...req.pagination!, offset },
         req.sort,

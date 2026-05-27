@@ -11,6 +11,7 @@ interface BankAccountsState {
   mutationLoading: boolean
   error: string | null
   
+  fetchAll: () => Promise<void>
   fetchByOwner: (ownerType: 'company' | 'supplier' | 'vendor', ownerId: string) => Promise<void>
   fetchById: (id: number) => Promise<BankAccount>
   create: (data: CreateBankAccountDto) => Promise<BankAccount>
@@ -27,6 +28,16 @@ export const useBankAccountsStore = create<BankAccountsState>((set) => ({
   fetchLoading: false,
   mutationLoading: false,
   error: null,
+
+  fetchAll: async () => {
+    set({ fetchLoading: true, error: null })
+    try {
+      const result = await bankAccountsApi.list()
+      set({ accounts: result.data ?? result, fetchLoading: false })
+    } catch (error: unknown) {
+      set({ error: parseApiError(error, 'Gagal memuat rekening bank'), fetchLoading: false })
+    }
+  },
 
   fetchByOwner: async (ownerType, ownerId) => {
     set({ fetchLoading: true, error: null })

@@ -14,9 +14,10 @@ const BASE_FROM = `
   JOIN chart_of_accounts coa ON coa.id = jl.account_id
 `
 
-function buildConditions(companyId: string, filter?: JournalLineFilter) {
-  const conditions: string[] = ['jh.company_id = $1']
-  const params: (string | boolean)[] = [companyId]
+/** Company scope is always $1 from `companyIds` — filter fields are never used for company access. */
+function buildConditions(companyIds: string[], filter?: JournalLineFilter) {
+  const conditions: string[] = ['jh.company_id = ANY($1::uuid[])']
+  const params: unknown[] = [companyIds]
   let idx = 2
 
   if (!filter?.show_deleted) conditions.push('jh.deleted_at IS NULL')
@@ -79,10 +80,10 @@ function transformRow(row: Record<string, unknown>): JournalLineWithDetails {
 
 export class JournalLinesRepository {
   async findAll(
-    companyId: string, pagination: { limit: number; offset: number },
+    companyIds: string[], pagination: { limit: number; offset: number },
     sort?: JournalLineSortParams, filter?: JournalLineFilter
   ): Promise<{ data: JournalLineWithDetails[]; total: number }> {
-    const { where, params, idx } = buildConditions(companyId, filter)
+    const { where, params, idx } = buildConditions(companyIds, filter)
     const orderBy = buildOrderBy(sort)
 
     const [dataRes, countRes] = await Promise.all([
@@ -93,25 +94,24 @@ export class JournalLinesRepository {
     return { data: dataRes.rows.map(transformRow), total: countRes.rows[0].total }
   }
 
-  async findById(id: string, companyId: string): Promise<JournalLineWithDetails | null> {
+  async findById(id: string, companyIds: string[]): Promise<JournalLineWithDetails | null> {
     const { rows } = await pool.query(
-      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE jl.id = $1 AND jh.company_id = $2 AND jh.deleted_at IS NULL`,
-      [id, companyId]
+      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE jl.id = $1 AND jh.company_id = ANY($2::uuid[]) AND jh.deleted_at IS NULL`,
+      [id, companyIds]
     )
     return rows[0] ? transformRow(rows[0]) : null
   }
 
-  async findByJournalHeaderId(journalHeaderId: string, companyId: string): Promise<JournalLineWithDetails[]> {
+  async findByJournalHeaderId(journalHeaderId: string, companyIds: string[]): Promise<JournalLineWithDetails[]> {
     const { rows } = await pool.query(
-      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE jl.journal_header_id = $1 AND jh.company_id = $2 AND jh.deleted_at IS NULL ORDER BY jl.line_number ASC`,
-      [journalHeaderId, companyId]
+      `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE jl.journal_header_id = $1 AND jh.company_id = ANY($2::uuid[]) AND jh.deleted_at IS NULL ORDER BY jl.line_number ASC`,
+      [journalHeaderId, companyIds]
     )
     return rows.map(transformRow)
   }
 
-  async findByAccountId(accountId: string, companyId: string, filter?: JournalLineFilter): Promise<JournalLineWithDetails[]> {
+  async findByAccountId(accountId: string, companyIds: string[], filter?: JournalLineFilter): Promise<JournalLineWithDetails[]> {
     const defaultFilter: JournalLineFilter = {
-      company_id: companyId,
       account_id: accountId,
       journal_status: filter?.journal_status || 'POSTED_ONLY',
       include_reversed: filter?.include_reversed ?? false,
@@ -119,7 +119,7 @@ export class JournalLinesRepository {
       date_from: filter?.date_from,
       date_to: filter?.date_to,
     }
-    const { where, params } = buildConditions(companyId, defaultFilter)
+    const { where, params } = buildConditions(companyIds, defaultFilter)
 
     const { rows } = await pool.query(
       `SELECT ${BASE_SELECT} ${BASE_FROM} ${where} ORDER BY jh.journal_date ASC, jh.journal_number ASC, jl.line_number ASC`,

@@ -39,9 +39,9 @@ export class AccountingPurposesRepository {
     if (pattern) { for (const k of this.cache.keys()) { if (k.startsWith(pattern)) this.cache.delete(k) } } else this.cache.clear()
   }
 
-  private buildConditions(companyId: string, filter?: FilterParams) {
-    const conditions: string[] = ['company_id = $1']
-    const params: (string | boolean)[] = [companyId]
+  private buildConditions(companyIds: string[], filter?: FilterParams) {
+    const conditions: string[] = ['company_id = ANY($1::uuid[])']
+    const params: (string[] | string | boolean)[] = [companyIds]
     let idx = 2
 
     if (filter?.show_deleted) conditions.push('is_deleted = true')
@@ -59,15 +59,15 @@ export class AccountingPurposesRepository {
     return { where: `WHERE ${conditions.join(' AND ')}`, params, idx }
   }
 
-  async findAll(companyId: string, pagination: { limit: number; offset: number }, sort?: SortParams, filter?: FilterParams): Promise<{ data: AccountingPurpose[]; total: number }> {
-    if (!companyId?.trim()) throw AccountingPurposeErrors.VALIDATION_ERROR('companyId', 'Company ID is required')
+  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, sort?: SortParams, filter?: FilterParams): Promise<{ data: AccountingPurpose[]; total: number }> {
+    if (!Array.isArray(companyIds) || companyIds.length === 0) throw AccountingPurposeErrors.VALIDATION_ERROR('companyIds', 'Company IDs are required')
 
-    const cacheKey = this.getCacheKey('list', { companyId, offset: pagination.offset, limit: pagination.limit, sort, filter })
+    const cacheKey = this.getCacheKey('list', { companyIds, offset: pagination.offset, limit: pagination.limit, sort, filter })
     const cached = this.getFromCache<{ data: AccountingPurpose[]; total: number }>(cacheKey)
     if (cached) return cached
 
     try {
-      const { where, params, idx } = this.buildConditions(companyId, filter)
+      const { where, params, idx } = this.buildConditions(companyIds, filter)
       const sortField = sort?.field && VALID_SORT_FIELDS.includes(sort.field) ? sort.field : 'purpose_code'
       const sortOrder = sort?.order === 'desc' ? 'DESC' : 'ASC'
 

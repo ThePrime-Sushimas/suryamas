@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useBranchContext } from '@/features/branch_context'
 import { useChartOfAccountsStore } from '../store/chartOfAccounts.store'
 import { AccountTypeBadge } from '../components/AccountTypeBadge'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -12,7 +11,6 @@ import { buildAccountDisplayName, formatAccountPath } from '../utils/format'
 export default function ChartOfAccountDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const currentBranch = useBranchContext()
   const { selectedAccount, loading, getAccountById, deleteAccount } = useChartOfAccountsStore()
   const { success, error } = useToast()
 
@@ -37,30 +35,14 @@ export default function ChartOfAccountDetailPage() {
       return
     }
 
-    if (!currentBranch?.company_id) {
-      error('Please select a branch first')
-      navigate('/chart-of-accounts')
-      return
-    }
-
-    const companyId = String(currentBranch.company_id)
-    
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(companyId)) {
-      error('Invalid company selected. Please select a valid branch.')
-      navigate('/chart-of-accounts')
-      return
-    }
-
     getAccountById(id).catch(() => {
       error('Account not found')
       navigate('/chart-of-accounts')
     })
-  }, [id, currentBranch, getAccountById, navigate, error])
+  }, [id, getAccountById, navigate, error])
 
   const handleDelete = async () => {
-    if (!selectedAccount || !currentBranch?.company_id) return
+    if (!selectedAccount) return
 
     setConfirmModal({
       isOpen: true,

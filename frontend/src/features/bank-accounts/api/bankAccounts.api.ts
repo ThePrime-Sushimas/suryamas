@@ -2,6 +2,11 @@ import api from '@/lib/axios'
 import type { BankAccount, CreateBankAccountDto, UpdateBankAccountDto, ApiResponse, CoaOption } from '../types'
 
 export const bankAccountsApi = {
+  list: async (params?: Record<string, unknown>) => {
+    const res = await api.get<ApiResponse<BankAccount[]>>('/bank-accounts', { params })
+    return res.data.data
+  },
+
   getByOwner: async (ownerType: 'company' | 'supplier' | 'vendor', ownerId: string) => {
     const res = await api.get<ApiResponse<BankAccount[]>>('/bank-accounts', {
       params: { owner_type: ownerType, owner_id: ownerId }

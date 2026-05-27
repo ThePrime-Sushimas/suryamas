@@ -1,8 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useBranchContext } from '@/features/branch_context'
-import { branchesApi } from '@/features/branches/api/branches.api'
-import { useToast } from '@/contexts/ToastContext'
-import type { Branch } from '@/features/branches/types'
+import { useState, useMemo } from 'react'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import type { AccountingPurpose, CreateAccountingPurposeDto, UpdateAccountingPurposeDto, AppliedToType } from '../types/accounting-purpose.types'
 import { APPLIED_TO_OPTIONS } from '../constants/accounting-purpose.constants'
 import { accountingPurposeSchema, updateAccountingPurposeSchema } from '../utils/validation'
@@ -22,10 +19,7 @@ export const AccountingPurposeForm = ({
   isLoading, 
   onCancel
 }: AccountingPurposeFormProps) => {
-  const currentBranch = useBranchContext()
-  const toast = useToast()
-  const [branches, setBranches] = useState<Branch[]>([])
-  const [loadingBranches, setLoadingBranches] = useState(false)
+  const branches = useBranchContextStore(s => s.branches)
   const [formData, setFormData] = useState({
     purpose_code: initialData?.purpose_code || '',
     purpose_name: initialData?.purpose_name || '',
@@ -35,25 +29,6 @@ export const AccountingPurposeForm = ({
     branch_id: initialData?.branch_id || ''
   })
   const [touched, setTouched] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    const fetchBranches = async () => {
-      if (!currentBranch?.company_id) return
-      
-      setLoadingBranches(true)
-      try {
-        const response = await branchesApi.list(1, 100, null, { company_id: currentBranch.company_id, status: 'active' })
-        setBranches(response.data || [])
-      } catch {
-        toast.error('Failed to fetch branches')
-        setBranches([])
-      } finally {
-        setLoadingBranches(false)
-      }
-    }
-    
-    fetchBranches()
-  }, [currentBranch?.company_id, toast])
 
   const schema = isEdit ? updateAccountingPurposeSchema : accountingPurposeSchema
   const isSystemPurpose = initialData?.is_system || false
@@ -228,7 +203,7 @@ export const AccountingPurposeForm = ({
           onChange={handleChange}
           onBlur={handleBlur}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          disabled={isLoading || loadingBranches}
+          disabled={isLoading}
           aria-invalid={!!errors.branch_id}
         >
           <option value="">Semua Cabang</option>
