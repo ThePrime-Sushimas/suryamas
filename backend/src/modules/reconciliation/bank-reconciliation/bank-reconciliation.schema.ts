@@ -56,6 +56,9 @@ const dateFormat = z.string().refine(
  * Zod schemas for Bank Reconciliation module
  */
 
+// Company context is derived from `resolveBranchContext` middleware.
+// We still accept `companyId` in requests for backwards compatibility,
+// but it should not be required for read endpoints.
 const companyIdSchema = z.string().uuid("Invalid companyId UUID");
 
 /**
@@ -63,7 +66,7 @@ const companyIdSchema = z.string().uuid("Invalid companyId UUID");
  */
 export const manualReconcileSchema = z.object({
   body: z.object({
-    companyId: companyIdSchema,
+    companyId: companyIdSchema.optional(),
     aggregateId: z.coerce.string().min(1, "Aggregate ID is required"),
     statementId: z.coerce.string().min(1, "Statement ID is required"),
     notes: z.string().max(500).optional(),
@@ -84,7 +87,7 @@ export const manualReconcileCashDepositSchema = z.object({
  */
 export const autoMatchSchema = z.object({
   body: z.object({
-    companyId: companyIdSchema,
+    companyId: companyIdSchema.optional(),
     startDate: dateFormat,
     endDate: dateFormat,
     bankAccountId: z.number().int().positive().optional(),
@@ -104,7 +107,7 @@ export const autoMatchSchema = z.object({
  */
 export const getStatementsQuerySchema = z.object({
   query: z.object({
-    companyId: companyIdSchema,
+    companyId: companyIdSchema.optional(),
     // Optional date range - queries overall date range when not provided
     startDate: datetimeFormat,
     endDate: datetimeFormat,
@@ -146,7 +149,7 @@ export const getStatementsQuerySchema = z.object({
  */
 export const getSummaryQuerySchema = z.object({
   query: z.object({
-    companyId: companyIdSchema,
+    companyId: companyIdSchema.optional(),
     startDate: datetimeFormat,
     endDate: datetimeFormat,
   }),
@@ -166,7 +169,7 @@ export type GetSummaryQueryInput = z.infer<typeof getSummaryQuerySchema>;
  */
 export const multiMatchSchema = z.object({
   body: z.object({
-    companyId: companyIdSchema,
+    companyId: companyIdSchema.optional(),
     aggregateId: z.coerce.string().min(1, "Aggregate ID is required"),
     statementIds: z.array(
       z.string().uuid("Statement ID is required"),
@@ -184,7 +187,7 @@ export const multiMatchSchema = z.object({
  */
 export const multiMatchGroupQuerySchema = z.object({
   query: z.object({
-    companyId: companyIdSchema,
+    companyId: companyIdSchema.optional(),
     startDate: datetimeFormat,
     endDate: datetimeFormat,
   }),
@@ -195,7 +198,7 @@ export const multiMatchGroupQuerySchema = z.object({
  */
 export const multiMatchSuggestionsQuerySchema = z.object({
   query: z.object({
-    companyId: companyIdSchema,
+    companyId: companyIdSchema.optional(),
     aggregateId: z.string().min(1, "Aggregate ID is required"),
     tolerancePercent: z.coerce.number().min(0).max(1).optional(),
     dateToleranceDays: z.coerce.number().int().min(0).max(30).optional(),

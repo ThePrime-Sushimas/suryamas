@@ -53,7 +53,7 @@ export const bankAccountIdSchema = z.object({
 export const bankAccountListQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().max(100).default(10),
+    limit: z.coerce.number().int().positive().max(1000).default(10),
     owner_type: z.enum(['company', 'supplier','vendor']).optional(),
     owner_id: z.string().max(50).optional(),
     bank_id: z.coerce.number().int().positive().optional(),
