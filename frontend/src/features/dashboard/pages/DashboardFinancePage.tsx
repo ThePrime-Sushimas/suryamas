@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { useBranchContext } from '@/features/branch_context'
 import {
   usePosSalesRange, useReconSummary, useCashCountPending,
   useBankAccountsList, useRecentBankStatementImports,
@@ -15,14 +14,13 @@ const fmt = (n: number) =>
 function firstOfMonth() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) }
 
 export default function DashboardFinancePage() {
-  const currentBranch = useBranchContext()
   const appliedFrom = fmtDate(firstOfMonth())
   const appliedTo = fmtDate(new Date())
 
   const sales = usePosSalesRange(appliedFrom, appliedTo)
   const recon = useReconSummary()
   const cashCount = useCashCountPending()
-  const bankAccounts = useBankAccountsList(currentBranch?.company_id)
+  const bankAccounts = useBankAccountsList()
   const bankImports = useRecentBankStatementImports()
   const fiscalPeriods = useFiscalPeriodsStatus()
   const feeSummary = useFeeDiscrepancySummary(appliedFrom, appliedTo)

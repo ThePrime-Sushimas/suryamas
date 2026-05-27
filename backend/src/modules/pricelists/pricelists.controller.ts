@@ -33,7 +33,8 @@ export class PricelistsController {
   list = async (req: Request, res: Response) => {
     try {
       const { query } = (req as ListReq).validated
-      const result = await pricelistsService.getPricelists(query)
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const result = await pricelistsService.getPricelists({ ...query, company_ids: companyIds })
       sendSuccess(res, result.data, 'Pricelists retrieved successfully', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_pricelists' })

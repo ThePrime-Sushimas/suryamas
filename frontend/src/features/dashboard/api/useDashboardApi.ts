@@ -121,9 +121,9 @@ export const useHrdSummary = () =>
   })
 
 // Basic stats
-export const useDashboardStats = (companyId: string | undefined) =>
+export const useDashboardStats = () =>
   useQuery({
-    queryKey: ['dashboard', 'stats', companyId],
+    queryKey: ['dashboard', 'stats'],
     queryFn: async () => {
       const [emp, prod] = await Promise.all([
         api.get('/employees', { params: { limit: 1 } }),
@@ -134,7 +134,7 @@ export const useDashboardStats = (companyId: string | undefined) =>
         products: prod.data.pagination?.total || 0,
       }
     },
-    enabled: !!companyId,
+    staleTime: 10 * 60_000,
   })
 
 // All branches (for sync alert cross-check)
@@ -149,12 +149,12 @@ export const useAllBranches = () =>
   })
 
 // Bank accounts with owner = company (for statement status)
-export const useBankAccountsList = (companyId: string | undefined) =>
+export const useBankAccountsList = () =>
   useQuery({
-    queryKey: ['dashboard', 'bank-accounts', companyId],
+    queryKey: ['dashboard', 'bank-accounts'],
     queryFn: async () => {
       const { data } = await api.get('/bank-accounts', {
-        params: { owner_type: 'company', owner_id: companyId },
+        params: { owner_type: 'company', limit: 200, is_active: true },
       })
       return data.data as Array<{
         id: number
@@ -164,7 +164,6 @@ export const useBankAccountsList = (companyId: string | undefined) =>
         is_active: boolean
       }>
     },
-    enabled: !!companyId,
     staleTime: 5 * 60_000,
   })
 

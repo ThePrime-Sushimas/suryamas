@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2, Send, XCircle, Receipt, RefreshCw, ArrowRight } from 'lucide-react'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
 import {
   useGeneralInvoices,
@@ -29,7 +28,6 @@ import {
 import type { GeneralInvoice, GeneralInvoiceStatus, ExpenseType } from '../api/generalApi.api'
 
 export default function GeneralInvoicesPage() {
-  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
   const {
     filters,
     searchInput,
@@ -48,7 +46,7 @@ export default function GeneralInvoicesPage() {
 
   const { data, isLoading } = useGeneralInvoices(apiQuery)
   const { data: editInvoice } = useGeneralInvoice(editId ?? '')
-  const { data: companyBanks = [] } = useCompanyBankAccounts(companyId)
+  const { data: companyBanks = [] } = useCompanyBankAccounts()
 
   const postMutation = usePostGeneralInvoice()
   const cancelMutation = useCancelGeneralInvoice()

@@ -13,6 +13,7 @@ import {
   OwnerClosedError,
   OwnerDeletedError,
 } from './bankAccounts.errors'
+import { getAccessibleCompanyIds, requireCompanyAccess } from '../../utils/branch-access.util'
 import { getPaginationParams, createPaginatedResponse } from '../../utils/pagination.util'
 import { logInfo } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
@@ -147,9 +148,16 @@ export class BankAccountsService {
     return account
   }
 
-  async getBankAccounts(query: BankAccountListQuery) {
+  async getBankAccounts(query: BankAccountListQuery, userId?: string) {
+    const companyIds = userId ? await getAccessibleCompanyIds(userId) : []
+    if (query.owner_type === 'company' && query.owner_id && companyIds.length) {
+      requireCompanyAccess(query.owner_id, companyIds)
+    }
     const { page, limit, offset } = getPaginationParams({ ...query })
-    const { data, total } = await bankAccountsRepository.findAll({ limit, offset }, query)
+    const { data, total } = await bankAccountsRepository.findAll(
+      { limit, offset },
+      { ...query, accessible_company_ids: companyIds },
+    )
     return createPaginatedResponse(data, total, page, limit)
   }
 

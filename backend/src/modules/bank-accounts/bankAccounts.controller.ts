@@ -32,7 +32,7 @@ export class BankAccountsController {
   list = async (req: Request, res: Response) => {
     try {
       const { query } = (req as ListReq).validated
-      const result = await bankAccountsService.getBankAccounts(query)
+      const result = await bankAccountsService.getBankAccounts(query, req.user?.id)
       sendSuccess(res, result.data, 'Bank accounts retrieved successfully', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_bank_accounts' })

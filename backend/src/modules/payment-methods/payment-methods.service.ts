@@ -27,26 +27,28 @@ export class PaymentMethodsService {
   constructor(private repository: PaymentMethodsRepository = paymentMethodsRepository) {}
 
   async list(
-    companyId: string,
+    companyIds: string[],
     pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: PaymentMethodFilterParams
   ): Promise<PaginatedResponse<PaymentMethodWithDetails>> {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await this.repository.findAll(companyId, { limit: pagination.limit, offset }, sort, filter)
+    const { data, total } = await this.repository.findAll(companyIds, { limit: pagination.limit, offset }, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 
-  async getById(id: number, companyId?: string): Promise<PaymentMethodWithDetails> {
+  private assertCompanyAccess(companyIds: string[], recordCompanyId: string): void {
+    if (!companyIds.includes(recordCompanyId)) {
+      throw PaymentMethodErrors.COMPANY_ACCESS_DENIED(recordCompanyId)
+    }
+  }
+
+  async getById(id: number, companyIds: string[]): Promise<PaymentMethodWithDetails> {
     const paymentMethod = await this.repository.findById(id)
     if (!paymentMethod) {
       throw PaymentMethodErrors.NOT_FOUND(id)
     }
-    
-    if (companyId && paymentMethod.company_id !== companyId) {
-      throw PaymentMethodErrors.COMPANY_ACCESS_DENIED(companyId)
-    }
-    
+    this.assertCompanyAccess(companyIds, paymentMethod.company_id)
     return paymentMethod
   }
 
@@ -119,7 +121,7 @@ export class PaymentMethodsService {
     })
   }
 
-  async update(id: number, data: UpdatePaymentMethodDto, userId: string, companyId?: string): Promise<PaymentMethod> {
+  async update(id: number, data: UpdatePaymentMethodDto, userId: string, companyIds: string[]): Promise<PaymentMethod> {
     logInfo('Updating payment method', { id, user: userId })
     
     return await this.repository.withTransaction(async () => {
@@ -128,9 +130,7 @@ export class PaymentMethodsService {
         throw PaymentMethodErrors.NOT_FOUND(id)
       }
 
-      if (companyId && existing.company_id !== companyId) {
-        throw PaymentMethodErrors.COMPANY_ACCESS_DENIED(companyId)
-      }
+      this.assertCompanyAccess(companyIds, existing.company_id)
 
       try {
         // Check for duplicate code if code is being changed
@@ -200,7 +200,7 @@ export class PaymentMethodsService {
     })
   }
 
-  async delete(id: number, userId: string, companyId?: string): Promise<void> {
+  async delete(id: number, userId: string, companyIds: string[]): Promise<void> {
     logInfo('Deleting payment method', { id, user: userId })
     
     return await this.repository.withTransaction(async () => {
@@ -209,9 +209,7 @@ export class PaymentMethodsService {
         throw PaymentMethodErrors.NOT_FOUND(id)
       }
 
-      if (companyId && paymentMethod.company_id !== companyId) {
-        throw PaymentMethodErrors.COMPANY_ACCESS_DENIED(companyId)
-      }
+      this.assertCompanyAccess(companyIds, paymentMethod.company_id)
 
       // Prevent deleting default payment method
       if (paymentMethod.is_default) {
@@ -224,7 +222,7 @@ export class PaymentMethodsService {
     })
   }
 
-  async bulkUpdateStatus(ids: number[], isActive: boolean, userId: string, companyId?: string): Promise<void> {
+  async bulkUpdateStatus(ids: number[], isActive: boolean, userId: string, companyIds: string[]): Promise<void> {
     logInfo('Bulk updating payment method status', { count: ids.length, is_active: isActive, user: userId })
     
     return await this.repository.withTransaction(async () => {
@@ -235,9 +233,7 @@ export class PaymentMethodsService {
           throw PaymentMethodErrors.NOT_FOUND(id)
         }
 
-        if (companyId && paymentMethod.company_id !== companyId) {
-          throw PaymentMethodErrors.COMPANY_ACCESS_DENIED(companyId)
-        }
+        this.assertCompanyAccess(companyIds, paymentMethod.company_id)
 
         // Prevent deactivating default payment method
         if (!isActive && paymentMethod.is_default) {
@@ -251,7 +247,7 @@ export class PaymentMethodsService {
     })
   }
 
-  async bulkDelete(ids: number[], userId: string, companyId?: string): Promise<void> {
+  async bulkDelete(ids: number[], userId: string, companyIds: string[]): Promise<void> {
     logInfo('Bulk deleting payment methods', { count: ids.length, user: userId })
     
     return await this.repository.withTransaction(async () => {
@@ -262,9 +258,7 @@ export class PaymentMethodsService {
           throw PaymentMethodErrors.NOT_FOUND(id)
         }
 
-        if (companyId && paymentMethod.company_id !== companyId) {
-          throw PaymentMethodErrors.COMPANY_ACCESS_DENIED(companyId)
-        }
+        this.assertCompanyAccess(companyIds, paymentMethod.company_id)
 
         // Prevent deleting default payment method
         if (paymentMethod.is_default) {
@@ -301,8 +295,8 @@ export class PaymentMethodsService {
         return await ExportService.generateExcel(data, columns)
   }
 
-  async getOptions(companyId: string): Promise<PaymentMethodWithDetails[]> {
-    return this.repository.getOptions(companyId)
+  async getOptions(companyIds: string[]): Promise<PaymentMethodWithDetails[]> {
+    return this.repository.getOptions(companyIds)
   }
 
   async getByBankAccountId(bankAccountId: number): Promise<PaymentMethod | null> {

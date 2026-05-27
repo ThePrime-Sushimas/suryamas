@@ -61,11 +61,11 @@ export class PaymentMethodsRepository {
   }
 
   async findAll(
-    companyId: string, pagination: { limit: number; offset: number },
+    companyIds: string[], pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' }, filter?: FilterParams
   ): Promise<{ data: PaymentMethodWithDetails[]; total: number }> {
-    const conditions: string[] = ['pm.company_id = $1', 'pm.deleted_at IS NULL']
-    const params: (string | boolean)[] = [companyId]
+    const conditions: string[] = ['pm.company_id = ANY($1::uuid[])', 'pm.deleted_at IS NULL']
+    const params: (string | boolean | string[])[] = [companyIds]
     let idx = 2
 
     if (filter?.payment_type) { params.push(filter.payment_type); conditions.push(`pm.payment_type = $${idx}`); idx++ }
@@ -188,10 +188,11 @@ export class PaymentMethodsRepository {
     return rows.map(mapDetail)
   }
 
-  async getOptions(companyId: string): Promise<PaymentMethodWithDetails[]> {
+  async getOptions(companyIds: string[]): Promise<PaymentMethodWithDetails[]> {
+    if (!companyIds.length) return []
     const { rows } = await pool.query(
-      `SELECT ${DETAIL_SELECT} ${DETAIL_FROM} WHERE pm.company_id = $1 AND pm.is_active = true AND pm.deleted_at IS NULL ORDER BY pm.sort_order ASC, pm.code ASC`,
-      [companyId]
+      `SELECT ${DETAIL_SELECT} ${DETAIL_FROM} WHERE pm.company_id = ANY($1::uuid[]) AND pm.is_active = true AND pm.deleted_at IS NULL ORDER BY pm.sort_order ASC, pm.code ASC`,
+      [companyIds]
     )
     return rows.map(mapDetail)
   }

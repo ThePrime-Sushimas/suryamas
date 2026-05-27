@@ -176,6 +176,7 @@ export interface UpdatePricelistDto {
 export interface PricelistListQuery {
   page?: number
   limit?: number
+  company_ids?: string[]
   supplier_id?: string
   product_id?: string
   status?: PricelistStatus

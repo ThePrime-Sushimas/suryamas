@@ -105,8 +105,6 @@ export const PaymentMethodForm = ({
 
   useEffect(() => {
     const fetchOptions = async () => {
-      if (!currentBranch?.company_id) return
-      
       setLoadingOptions(true)
       try {
         const [bankRes, coaRes] = await Promise.all([

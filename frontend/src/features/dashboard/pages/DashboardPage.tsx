@@ -71,7 +71,7 @@ export default function DashboardPage() {
     retry: false,
   })
   const allBranches = useAllBranches()
-  const bankAccounts = useBankAccountsList(currentBranch?.company_id)
+  const bankAccounts = useBankAccountsList()
   const bankImports = useRecentBankStatementImports()
   const fiscalPeriods = useFiscalPeriodsStatus()
   const failedTrxCount = useFailedTransactionsCount()

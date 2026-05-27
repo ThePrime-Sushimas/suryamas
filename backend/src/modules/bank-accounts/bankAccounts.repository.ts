@@ -24,13 +24,25 @@ function mapRow(row: Record<string, unknown>): BankAccountWithBank {
 }
 
 export class BankAccountsRepository {
-  async findAll(pagination: { limit: number; offset: number }, query?: BankAccountListQuery): Promise<{ data: BankAccountWithBank[]; total: number }> {
+  async findAll(pagination: { limit: number; offset: number }, query?: BankAccountListQuery & { accessible_company_ids?: string[] }): Promise<{ data: BankAccountWithBank[]; total: number }> {
     const conditions: string[] = ['ba.deleted_at IS NULL']
-    const params: (string | boolean | number)[] = []
+    const params: (string | boolean | number | string[])[] = []
     let idx = 1
 
+    const companyIds = query?.accessible_company_ids
+    if (companyIds?.length) {
+      params.push(companyIds)
+      conditions.push(`(ba.owner_type <> 'company' OR ba.owner_id = ANY($${idx}::uuid[]))`)
+      idx++
+    }
+
     if (query?.owner_type) { params.push(query.owner_type); conditions.push(`ba.owner_type = $${idx}`); idx++ }
-    if (query?.owner_id) { params.push(query.owner_id); conditions.push(`ba.owner_id = $${idx}`); idx++ }
+    if (query?.owner_id) {
+      if (query.owner_type === 'company' && companyIds?.length && !companyIds.includes(query.owner_id)) {
+        return { data: [], total: 0 }
+      }
+      params.push(query.owner_id); conditions.push(`ba.owner_id = $${idx}`); idx++
+    }
     if (query?.bank_id) { params.push(query.bank_id); conditions.push(`ba.bank_id = $${idx}`); idx++ }
     if (query?.is_active !== undefined) { params.push(query.is_active); conditions.push(`ba.is_active = $${idx}`); idx++ }
 

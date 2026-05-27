@@ -22,7 +22,7 @@ export default function HomePage() {
   const sales = usePosSalesRange(today, today)
   const recon = useReconSummary()
   const cashCount = useCashCountPending()
-  const stats = useDashboardStats(currentBranch?.company_id)
+  const stats = useDashboardStats()
 
   const totalSales = useMemo(() => sales.data?.reduce((s: number, r: { grand_total: number }) => s + r.grand_total, 0) || 0, [sales.data])
   const totalTrx = useMemo(() => sales.data?.reduce((s: number, r: { transaction_count: number }) => s + r.transaction_count, 0) || 0, [sales.data])

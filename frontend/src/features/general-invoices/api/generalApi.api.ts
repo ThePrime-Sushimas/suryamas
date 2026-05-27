@@ -705,19 +705,17 @@ export const useUpsertExpenseCoaDefaults = () => {
 
 export function useCompanyBankAccounts(companyId?: string) {
   return useQuery({
-    queryKey: ['bank-accounts', 'company', companyId ?? 'ctx'],
+    queryKey: ['bank-accounts', 'company', companyId ?? 'all'],
     queryFn: async () => {
-      const { data } = await api.get('/bank-accounts', {
-        params: {
-          owner_type: 'company',
-          owner_id: companyId,
-          is_active: true,
-          limit: 100,
-        },
-      })
+      const params: Record<string, unknown> = {
+        owner_type: 'company',
+        is_active: true,
+        limit: 200,
+      }
+      if (companyId) params.owner_id = companyId
+      const { data } = await api.get('/bank-accounts', { params })
       return (data.data ?? []) as CompanyBankAccountOption[]
     },
-    enabled: !!companyId,
     staleTime: 5 * 60_000,
   })
 }

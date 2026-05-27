@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useCompanyBankAccounts, useOwnerCreditCards } from '../api/marketplacePo.api'
 import { fmtCurrency, todayIso } from '../utils/format'
 import { formatBankAccountOption, resolveBulkSettlementBank } from '../utils/settlementBank'
@@ -31,9 +30,8 @@ export function BulkSettleModal({
   selectedTotal: number
   selectedSessions: Pick<MarketplaceCheckoutSession, 'id' | 'cc_id'>[]
 }) {
-  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
   const { data: banks = [], isLoading: banksLoading, isFetching: banksFetching } =
-    useCompanyBankAccounts(companyId)
+    useCompanyBankAccounts()
   const { data: ownerCards = [], isLoading: cardsLoading } = useOwnerCreditCards()
   const [bankStatementId, setBankStatementId] = useState<number | null>(null)
 
@@ -128,15 +126,13 @@ export function BulkSettleModal({
                 setBankAccountId(e.target.value ? Number(e.target.value) : '')
                 setOrphanBankLabel(null)
               }}
-              disabled={banksSelectLoading || !companyId}
+              disabled={banksSelectLoading}
               className="w-full h-9 px-3 border rounded-lg bg-white dark:bg-gray-800 text-sm disabled:opacity-60"
             >
               <option value="">
                 {banksSelectLoading
                   ? 'Memuat rekening…'
-                  : !companyId
-                    ? 'Konteks perusahaan tidak tersedia'
-                    : 'Pilih rekening'}
+                  : 'Pilih rekening'}
               </option>
               {orphanBankLabel && bankAccountId !== '' && (
                 <option value={bankAccountId}>{orphanBankLabel}</option>

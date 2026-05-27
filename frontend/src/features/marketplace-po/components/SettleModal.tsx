@@ -29,7 +29,8 @@ export function SettleModal({
   isLoading: boolean
   session: MarketplaceCheckoutSession
 }) {
-  const companyId = useBranchContextStore((s) => s.currentBranch?.company_id)
+  const headerCompanyId = useBranchContextStore((s) => s.currentBranch?.company_id)
+  const companyId = session.company_id ?? headerCompanyId
   const { data: banks = [], isLoading: banksLoading, isFetching: banksFetching } =
     useCompanyBankAccounts(companyId)
   const { data: ownerCards = [], isLoading: cardsLoading } = useOwnerCreditCards()

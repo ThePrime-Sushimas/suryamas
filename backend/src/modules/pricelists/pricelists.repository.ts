@@ -48,8 +48,14 @@ const VALID_SORT_FIELDS = ['created_at', 'price', 'valid_from', 'valid_to', 'sta
 export class PricelistsRepository {
   async findAll(pagination: { limit: number; offset: number }, query?: PricelistListQuery): Promise<{ data: PricelistWithRelations[]; total: number }> {
     const conditions: string[] = []
-    const params: (string | boolean)[] = []
+    const params: (string | boolean | string[])[] = []
     let idx = 1
+
+    if (query?.company_ids?.length) {
+      params.push(query.company_ids)
+      conditions.push(`pl.company_id = ANY($${idx}::uuid[])`)
+      idx++
+    }
 
     if (!query?.include_deleted) conditions.push('pl.deleted_at IS NULL')
     if (query?.supplier_id) { params.push(query.supplier_id); conditions.push(`pl.supplier_id = $${idx}`); idx++ }

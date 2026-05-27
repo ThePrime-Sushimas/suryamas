@@ -60,14 +60,13 @@ export default function ApPaymentEditPage() {
   })
 
   useEffect(() => {
-    if (!branch?.company_id) return
     setLoadingBanks(true)
     bankAccountsApi
-      .getByOwner('company', branch.company_id)
+      .list({ owner_type: 'company', is_active: true, limit: 200 })
       .then(setBankAccounts)
       .catch(() => setBankAccounts([]))
       .finally(() => setLoadingBanks(false))
-  }, [branch?.company_id])
+  }, [])
 
   useEffect(() => {
     if (!existing) return
