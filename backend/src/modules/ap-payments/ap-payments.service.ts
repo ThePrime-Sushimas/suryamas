@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg'
 import { logInfo } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
-import { getAccessScope } from '../../utils/branch-access.util'
+import { getAccessScope, getAccessibleBranchIds, getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import { apPaymentsRepository } from './ap-payments.repository'
 import type {
   ApPaymentDetail,
@@ -277,13 +277,12 @@ export class ApPaymentsService {
   }
 
   async getDashboard(
-    companyId: string,
+    branchIds: string[],
     branchId?: string,
-    branchIds?: string[],
   ): Promise<ApDashboardResponse> {
     const [rows, pivotRows] = await Promise.all([
-      apPaymentsRepository.findDashboardInvoiceRows(companyId, branchId, branchIds),
-      apPaymentsRepository.findDueDatePivotRows(companyId, branchId, branchIds),
+      apPaymentsRepository.findDashboardInvoiceRows(branchIds, branchId),
+      apPaymentsRepository.findDueDatePivotRows(branchIds, branchId),
     ])
 
     const base = this.buildDashboardFromRows(rows)
@@ -369,7 +368,8 @@ export class ApPaymentsService {
       paymentId: payment.id,
       purchaseInvoiceId,
     })
-    return this.getById(payment.id, companyId)
+    const scope = await getAccessibleBranchIds(userId)
+    return this.getById(payment.id, scope)
   }
 
   async cancelDraftPaymentsForRejectedInvoice(
@@ -395,20 +395,20 @@ export class ApPaymentsService {
     return { data, total, page: filter.page ?? 1, limit: filter.limit ?? 20 }
   }
 
-  async getById(id: string, companyId: string): Promise<ApPaymentDetail> {
-    const payment = await apPaymentsRepository.findById(id, companyId)
+  async getById(id: string, branchIds: string[]): Promise<ApPaymentDetail> {
+    const payment = await apPaymentsRepository.findByIdAccessible(id, branchIds)
     if (!payment) throw new ApPaymentNotFoundError(id)
     return payment
   }
 
   async getOutstandingInvoices(
-    companyId: string,
+    branchIds: string[],
     supplierId?: string,
     branchId?: string,
     overdueOnly?: boolean,
   ): Promise<ApOutstandingInvoice[]> {
     return apPaymentsRepository.findOutstandingInvoices(
-      companyId,
+      branchIds,
       supplierId,
       branchId,
       overdueOnly,
@@ -416,14 +416,12 @@ export class ApPaymentsService {
   }
 
   async getOutstandingInvoicesPaginated(
-    companyId: string,
+    branchIds: string[],
     query: OutstandingInvoicesQuery,
-    branchIds?: string[],
   ): Promise<OutstandingInvoicesResponse> {
     const { data, total } = await apPaymentsRepository.findOutstandingPaginated(
-      companyId,
-      query,
       branchIds,
+      query,
     )
     const page = query.page ?? 1
     const limit = query.limit ?? 20
@@ -492,11 +490,10 @@ export class ApPaymentsService {
    * Shows all invoices with their payment info (if any).
    */
   async getCombined(
-    companyId: string,
+    branchIds: string[],
     query: CombinedInvoicePaymentQuery,
-    branchIds?: string[],
   ): Promise<CombinedInvoicePaymentResponse> {
-    const { data, total } = await apPaymentsRepository.findCombined(companyId, query, branchIds)
+    const { data, total } = await apPaymentsRepository.findCombined(branchIds, query)
     const page = query.page ?? 1
     const limit = query.limit ?? 20
     return {
@@ -512,13 +509,15 @@ export class ApPaymentsService {
 
   async create(
     dto: CreateApPaymentDto,
-    companyId: string,
+    branchIds: string[],
     contextBranchId: string,
     userId: string,
   ): Promise<ApPaymentDetail> {
     if (!dto.lines || dto.lines.length === 0) throw new ApPaymentEmptyLinesError()
 
     const branchId = dto.branch_id ?? contextBranchId
+    requireBranchAccess(branchId, branchIds)
+    const companyId = (await getCompanyIdForBranch(branchId)) ?? ''
 
     const linesTotal = dto.lines.reduce((sum, l) => sum + l.amount_paid, 0)
     if (Math.abs(linesTotal - dto.total_amount) > 0.01) {
@@ -559,16 +558,17 @@ export class ApPaymentsService {
     )
 
     logInfo('AP payment created', { id: payment.id, payment_number: payment.payment_number })
-    return this.getById(payment.id, companyId)
+    return this.getById(payment.id, branchIds)
   }
 
   async update(
     id: string,
     dto: UpdateApPaymentDto,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.getById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') {
       throw new ApPaymentInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -598,11 +598,11 @@ export class ApPaymentsService {
     })
 
     logInfo('AP payment updated', { id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async submit(id: string, companyId: string, userId: string): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+  async submit(id: string, branchIds: string[], userId: string): Promise<ApPaymentDetail> {
+    const existing = await this.getById(id, branchIds)
     if (existing.status !== 'DRAFT') {
       throw new ApPaymentInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -619,11 +619,11 @@ export class ApPaymentsService {
 
     await AuditService.log('UPDATE', 'ap_payments', id, userId, { status: 'DRAFT' }, { status: 'APPROVED' })
     logInfo('AP payment submitted → approved (skip approval)', { id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
-  async approve(id: string, companyId: string, userId: string): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+  async approve(id: string, branchIds: string[], userId: string): Promise<ApPaymentDetail> {
+    const existing = await this.getById(id, branchIds)
     if (existing.status !== 'PENDING_APPROVAL') {
       throw new ApPaymentInvalidStatusError(existing.status, 'PENDING_APPROVAL')
     }
@@ -638,16 +638,16 @@ export class ApPaymentsService {
 
     await AuditService.log('UPDATE', 'ap_payments', id, userId, { status: 'PENDING_APPROVAL' }, { status: 'APPROVED' })
     logInfo('AP payment approved', { id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async reject(
     id: string,
     dto: RejectApPaymentDto,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.getById(id, branchIds)
     if (existing.status !== 'PENDING_APPROVAL') {
       throw new ApPaymentInvalidStatusError(existing.status, 'PENDING_APPROVAL')
     }
@@ -666,16 +666,16 @@ export class ApPaymentsService {
       rejection_reason: dto.rejection_reason,
     })
     logInfo('AP payment rejected', { id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async uploadProof(
     id: string,
     dto: UploadProofDto,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.getById(id, branchIds)
     if (!['APPROVED', 'PAID'].includes(existing.status)) {
       throw new ApPaymentInvalidStatusError(existing.status, ['APPROVED', 'PAID'])
     }
@@ -690,7 +690,7 @@ export class ApPaymentsService {
     })
 
     logInfo('AP payment proof uploaded', { id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   private async createPaymentJournal(
@@ -772,10 +772,11 @@ export class ApPaymentsService {
   async markPaid(
     id: string,
     paymentDate: string | undefined,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.getById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'APPROVED') {
       throw new ApPaymentInvalidStatusError(existing.status, 'APPROVED')
     }
@@ -815,15 +816,16 @@ export class ApPaymentsService {
       journal_id: journalId,
     })
     logInfo('AP payment marked as paid with journal', { id, journal_id: journalId })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async postJournal(
     id: string,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.getById(id, branchIds)
+    const companyId = existing.company_id
     if (!['PAID', 'RECONCILED'].includes(existing.status)) {
       throw new ApPaymentInvalidStatusError(existing.status, ['PAID', 'RECONCILED'])
     }
@@ -837,15 +839,15 @@ export class ApPaymentsService {
       journal_id: existing.journal_id,
     })
     logInfo('AP payment journal posted', { id, journal_id: existing.journal_id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async deleteJournal(
     id: string,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.getById(id, branchIds)
     if (!existing.journal_id) {
       throw new ApPaymentNoJournalError()
     }
@@ -864,16 +866,16 @@ export class ApPaymentsService {
       journal_id: null,
     })
     logInfo('AP payment journal deleted, reverted to APPROVED', { id, journal_id: journalId })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async reconcile(
     id: string,
     dto: ReconcileApPaymentDto,
-    companyId: string,
+    branchIds: string[],
     userId: string,
   ): Promise<ApPaymentDetail> {
-    const existing = await this.getById(id, companyId)
+    const existing = await this.getById(id, branchIds)
     if (existing.status !== 'PAID') {
       throw new ApPaymentInvalidStatusError(existing.status, 'PAID')
     }
@@ -892,23 +894,24 @@ export class ApPaymentsService {
       bank_statement_id: dto.bank_statement_id,
     })
     logInfo('AP payment reconciled', { id })
-    return this.getById(id, companyId)
+    return this.getById(id, branchIds)
   }
 
   async getReconcileCandidates(
     paymentId: string,
-    companyId: string,
+    branchIds: string[],
   ): Promise<Array<{ id: number; transaction_date: string; description: string; debit_amount: number; credit_amount: number; reference_number: string | null }>> {
-    const payment = await this.getById(paymentId, companyId)
+    const payment = await this.getById(paymentId, branchIds)
     return apPaymentsRepository.findReconcileCandidates(
       payment.bank_account_id,
-      companyId,
+      payment.company_id,
       Number(payment.total_amount),
     )
   }
 
-  async delete(id: string, companyId: string, userId: string): Promise<void> {
-    const existing = await this.getById(id, companyId)
+  async delete(id: string, branchIds: string[], userId: string): Promise<void> {
+    const existing = await this.getById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') {
       throw new ApPaymentInvalidStatusError(existing.status, 'DRAFT')
     }
@@ -949,10 +952,12 @@ export class ApPaymentsService {
   // ── Bulk Payment Creation ──────────────────────────────────
   async createBulk(
     dto: BulkCreateApPaymentDto,
-    companyId: string,
+    branchIds: string[],
     contextBranchId: string,
     userId: string,
   ): Promise<BulkCreateApPaymentResponse> {
+    requireBranchAccess(contextBranchId, branchIds)
+    const companyId = (await getCompanyIdForBranch(contextBranchId)) ?? ''
     // 1. Validate payments array is not empty
     if (!dto.payments || dto.payments.length === 0) {
       throw new ApBulkEmptyPaymentsError()
@@ -1158,7 +1163,7 @@ export class ApPaymentsService {
 
   // ── Verify Screenshot (OCR cross-check with Gemini) ─────────
   async verifyScreenshot(
-    companyId: string,
+    branchIds: string[],
     image: string,
     mimeType: string,
     paymentIds?: string[],
@@ -1223,7 +1228,7 @@ Kembalikan HANYA JSON array, tanpa teks lain:
     }
 
     const payments = await Promise.all(
-      paymentIds.map((id) => this.getById(id, companyId)),
+      paymentIds.map((id) => this.getById(id, branchIds)),
     )
 
     const normalizeVa = (v: string) => v.replace(/\D/g, '')

@@ -269,7 +269,7 @@ export interface ReconcileApPaymentDto {
 
 // ── List filter ───────────────────────────────────────────────
 export interface ApPaymentListFilter {
-  company_id: string
+  branch_ids: string[]
   branch_id?: string
   supplier_id?: string
   status?: string

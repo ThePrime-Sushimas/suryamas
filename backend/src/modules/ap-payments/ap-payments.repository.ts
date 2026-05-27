@@ -32,6 +32,13 @@ type ActivePaymentForInvoiceRow = {
   status: string
 }
 
+function resolveBranchScope(branchId: string | undefined, branchIds: string[]): string[] {
+  if (branchId) {
+    return branchIds.includes(branchId) ? [branchId] : ['00000000-0000-0000-0000-000000000000']
+  }
+  return branchIds
+}
+
 /** Single branch filter, or scope to user's accessible branches when viewing "all". */
 function appendInvoiceBranchScope(
   conditions: string[],
@@ -273,16 +280,16 @@ export class ApPaymentsRepository {
     data: ApPaymentWithRelations[]
     total: number
   }> {
+    const scopedBranches = resolveBranchScope(filter.branch_id, filter.branch_ids)
     const conditions: string[] = [
-      'ap.company_id = $1',
+      'ap.branch_id = ANY($1::uuid[])',
       'ap.deleted_at IS NULL',
     ]
-    const params: unknown[] = [filter.company_id]
+    const params: unknown[] = [scopedBranches]
     let idx = 2
 
     if (filter.branch_id) {
-      conditions.push(`ap.branch_id = $${idx++}`)
-      params.push(filter.branch_id)
+      // already applied via resolveBranchScope
     }
     if (filter.supplier_id) {
       conditions.push(`ap.supplier_id = $${idx++}`)
@@ -375,6 +382,15 @@ export class ApPaymentsRepository {
   }
 
   // ── Find by ID ─────────────────────────────────────────────
+  async findByIdAccessible(id: string, branchIds: string[]): Promise<ApPaymentDetail | null> {
+    const { rows } = await pool.query<{ company_id: string }>(
+      `SELECT company_id FROM ap_payments WHERE id = $1 AND branch_id = ANY($2::uuid[]) AND deleted_at IS NULL`,
+      [id, branchIds],
+    )
+    if (!rows[0]) return null
+    return this.findById(id, rows[0].company_id)
+  }
+
   async findById(id: string, companyId: string): Promise<ApPaymentDetail | null> {
     const { rows } = await pool.query<ApPaymentWithRelations>(
       `SELECT
@@ -469,26 +485,23 @@ export class ApPaymentsRepository {
 
   // ── Outstanding invoices (untuk selector) ─────────────────
   async findOutstandingInvoices(
-    companyId: string,
+    branchIds: string[],
     supplierId?: string,
     branchId?: string,
     overdueOnly?: boolean,
   ): Promise<ApOutstandingInvoice[]> {
+    const scoped = resolveBranchScope(branchId, branchIds)
     const conditions: string[] = [
-      `pi.company_id = $1`,
+      `pi.branch_id = ANY($1::uuid[])`,
       `pi.status IN ('APPROVED', 'POSTED')`,
       `pi.deleted_at IS NULL`,
     ]
-    const params: unknown[] = [companyId]
+    const params: unknown[] = [scoped]
     let idx = 2
 
     if (supplierId) {
       conditions.push(`pi.supplier_id = $${idx++}`)
       params.push(supplierId)
-    }
-    if (branchId) {
-      conditions.push(`pi.branch_id = $${idx++}`)
-      params.push(branchId)
     }
 
     const where = conditions.join(' AND ')
@@ -542,19 +555,17 @@ export class ApPaymentsRepository {
   }
 
   async findDashboardInvoiceRows(
-    companyId: string,
+    branchIds: string[],
     branchId?: string,
-    branchIds?: string[],
   ): Promise<ApDashboardInvoiceRow[]> {
+    const scoped = resolveBranchScope(branchId, branchIds)
     const conditions: string[] = [
-      'pi.company_id = $1',
+      'pi.branch_id = ANY($1::uuid[])',
       "pi.status IN ('APPROVED', 'POSTED')",
       'pi.deleted_at IS NULL',
     ]
-    const params: unknown[] = [companyId]
-    let idx = 2
-
-    appendInvoiceBranchScope(conditions, params, () => idx++, branchId, branchIds)
+    const params: unknown[] = [scoped]
+    const idx = 2
 
     const where = conditions.join(' AND ')
 
@@ -595,19 +606,17 @@ export class ApPaymentsRepository {
    * Rekening supplier dari bank_accounts (owner_type = supplier), bukan kolom di suppliers.
    */
   async findDueDatePivotRows(
-    companyId: string,
+    branchIds: string[],
     branchId?: string,
-    branchIds?: string[],
   ): Promise<ApDueDatePivotRow[]> {
+    const scoped = resolveBranchScope(branchId, branchIds)
     const conditions: string[] = [
-      'pi.company_id = $1',
+      'pi.branch_id = ANY($1::uuid[])',
       "pi.status IN ('APPROVED', 'POSTED')",
       'pi.deleted_at IS NULL',
     ]
-    const params: unknown[] = [companyId]
-    let idx = 2
-
-    appendInvoiceBranchScope(conditions, params, () => idx++, branchId, branchIds)
+    const params: unknown[] = [scoped]
+    const idx = 2
 
     const where = conditions.join(' AND ')
 
@@ -954,28 +963,21 @@ export class ApPaymentsRepository {
 
   // ── Outstanding invoices paginated (for bulk payment tab) ──
   async findOutstandingPaginated(
-    companyId: string,
+    branchIds: string[],
     query: OutstandingInvoicesQuery,
-    branchIds?: string[],
   ): Promise<{ data: OutstandingInvoiceRow[]; total: number }> {
+    const scoped = resolveBranchScope(query.branch_id, branchIds)
     const conditions: string[] = [
-      'pi.company_id = $1',
+      'pi.branch_id = ANY($1::uuid[])',
       "pi.status IN ('APPROVED', 'POSTED')",
       'pi.deleted_at IS NULL',
     ]
-    const params: unknown[] = [companyId]
+    const params: unknown[] = [scoped]
     let idx = 2
 
     if (query.supplier_id) {
       conditions.push(`pi.supplier_id = $${idx++}`)
       params.push(query.supplier_id)
-    }
-    if (query.branch_id) {
-      conditions.push(`pi.branch_id = $${idx++}`)
-      params.push(query.branch_id)
-    } else if (branchIds && branchIds.length > 0) {
-      conditions.push(`pi.branch_id = ANY($${idx++}::uuid[])`)
-      params.push(branchIds)
     }
     if (query.date_from) {
       conditions.push(`pi.invoice_date >= $${idx++}`)
@@ -1442,28 +1444,21 @@ export class ApPaymentsRepository {
 
   // ── Combined Invoice + Payment (Gabungan tab) ──────────────
   async findCombined(
-    companyId: string,
+    branchIds: string[],
     query: CombinedInvoicePaymentQuery,
-    branchIds?: string[],
   ): Promise<{ data: CombinedInvoicePaymentRow[]; total: number }> {
+    const scoped = resolveBranchScope(query.branch_id, branchIds)
     const conditions: string[] = [
-      'pi.company_id = $1',
+      'pi.branch_id = ANY($1::uuid[])',
       "pi.status IN ('APPROVED', 'POSTED')",
       'pi.deleted_at IS NULL',
     ]
-    const params: unknown[] = [companyId]
+    const params: unknown[] = [scoped]
     let idx = 2
 
     if (query.supplier_id) {
       conditions.push(`pi.supplier_id = $${idx++}`)
       params.push(query.supplier_id)
-    }
-    if (query.branch_id) {
-      conditions.push(`pi.branch_id = $${idx++}`)
-      params.push(query.branch_id)
-    } else if (branchIds && branchIds.length > 0) {
-      conditions.push(`pi.branch_id = ANY($${idx++}::uuid[])`)
-      params.push(branchIds)
     }
     // date_from/date_to filter on ap.paid_at — strict: only show invoices that have a payment in range
     if (query.date_from) {

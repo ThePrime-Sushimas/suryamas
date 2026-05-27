@@ -27,6 +27,7 @@ import {
   computePurchaseInvoiceDueDate,
 } from './purchase-invoice-payment.util'
 import type { PoPaymentTermSnapshot } from '../purchase-orders/purchase-order-payment.util'
+import { getAccessibleBranchIds, getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import type {
   CreatePurchaseInvoiceChargeDto,
   CreatePurchaseInvoiceDto,
@@ -91,6 +92,12 @@ type InvoiceUomMaps = {
 }
 
 export class PurchaseInvoicesService {
+  private async requireById(id: string, branchIds: string[]): Promise<PurchaseInvoiceDetail> {
+    const detail = await purchaseInvoicesRepository.findByIdAccessible(id, branchIds)
+    if (!detail) throw new PurchaseInvoiceNotFoundError(id)
+    return detail
+  }
+
   private async loadInvoiceUomMaps(
     supplierId: string,
     productIds: string[],
@@ -530,8 +537,9 @@ export class PurchaseInvoicesService {
     }
   }
 
-  async getAvailableGrs(companyId: string, supplierId: string, branchId: string | null) {
-    return purchaseInvoicesRepository.findAvailableGrs(companyId, supplierId, branchId)
+  async getAvailableGrs(branchIds: string[], supplierId: string, branchId: string | null) {
+    if (branchId) requireBranchAccess(branchId, branchIds)
+    return purchaseInvoicesRepository.findAvailableGrs(branchIds, supplierId, branchId)
   }
 
   async getById(id: string, branchIds: string[]): Promise<PurchaseInvoiceDetail> {
@@ -720,7 +728,11 @@ export class PurchaseInvoicesService {
     )
   }
 
-  async create(companyId: string, dto: CreatePurchaseInvoiceDto, userId: string) {
+  async create(branchIds: string[], dto: CreatePurchaseInvoiceDto, userId: string) {
+    requireBranchAccess(dto.branch_id, branchIds)
+    const companyId = (await getCompanyIdForBranch(dto.branch_id)) ?? ''
+    if (!companyId) throw new PurchaseInvoiceNotFoundError(dto.branch_id)
+
     const invoice = await purchaseInvoicesRepository.withTransaction(async (client) => {
       const grLineIds = dto.lines.map((l) => l.gr_line_id)
       const grLineDetails = await purchaseInvoicesRepository.findGrLineDetailsForInvoicing(client, grLineIds)
@@ -784,9 +796,9 @@ export class PurchaseInvoicesService {
     return this.enrichDetail(created)
   }
 
-  async update(companyId: string, id: string, dto: UpdatePurchaseInvoiceDto, userId: string) {
-    const existing = await purchaseInvoicesRepository.findById(id, companyId)
-    if (!existing) throw new PurchaseInvoiceNotFoundError(id)
+  async update(id: string, branchIds: string[], dto: UpdatePurchaseInvoiceDto, userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status === 'POSTED') throw new PurchaseInvoiceCannotEditPostedError()
     if (existing.status !== 'DRAFT' && existing.status !== 'REJECTED') throw new PurchaseInvoiceInvalidStatusError(existing.status, 'DRAFT/REJECTED')
 
@@ -847,9 +859,9 @@ export class PurchaseInvoicesService {
     return this.enrichDetail(refreshed)
   }
 
-  async submit(companyId: string, id: string, userId: string) {
-    const detail = await purchaseInvoicesRepository.findById(id, companyId)
-    if (!detail) throw new PurchaseInvoiceNotFoundError(id)
+  async submit(id: string, branchIds: string[], userId: string) {
+    const detail = await this.requireById(id, branchIds)
+    const companyId = detail.company_id
     if (detail.status !== 'DRAFT' && detail.status !== 'REJECTED') throw new PurchaseInvoiceInvalidStatusError(detail.status, 'DRAFT/REJECTED')
     this.assertRealInvoiceNumber(detail.invoice_number)
 
@@ -875,9 +887,9 @@ export class PurchaseInvoicesService {
     return this.getByIdForUser(id, userId)
   }
 
-  async approve(companyId: string, id: string, userId: string) {
-    const detail = await purchaseInvoicesRepository.findById(id, companyId)
-    if (!detail) throw new PurchaseInvoiceNotFoundError(id)
+  async approve(id: string, branchIds: string[], userId: string) {
+    const detail = await this.requireById(id, branchIds)
+    const companyId = detail.company_id
     if (detail.status !== 'SUBMITTED') throw new PurchaseInvoiceInvalidStatusError(detail.status, 'SUBMITTED')
 
     await purchaseInvoicesRepository.withTransaction(async (client) => {
@@ -907,9 +919,9 @@ export class PurchaseInvoicesService {
     return this.getByIdForUser(id, userId)
   }
 
-  async reject(companyId: string, id: string, reason: string, userId: string) {
-    const detail = await purchaseInvoicesRepository.findById(id, companyId)
-    if (!detail) throw new PurchaseInvoiceNotFoundError(id)
+  async reject(id: string, branchIds: string[], reason: string, userId: string) {
+    const detail = await this.requireById(id, branchIds)
+    const companyId = detail.company_id
     if (detail.status !== 'SUBMITTED') throw new PurchaseInvoiceInvalidStatusError(detail.status, 'SUBMITTED')
 
     await purchaseInvoicesRepository.withTransaction(async (client) => {
@@ -946,9 +958,9 @@ export class PurchaseInvoicesService {
     return this.getByIdForUser(id, userId)
   }
 
-  async post(companyId: string, id: string, userId: string) {
-    const detail = await purchaseInvoicesRepository.findById(id, companyId)
-    if (!detail) throw new PurchaseInvoiceNotFoundError(id)
+  async post(id: string, branchIds: string[], userId: string) {
+    const detail = await this.requireById(id, branchIds)
+    const companyId = detail.company_id
     if (detail.status !== 'APPROVED') throw new PurchaseInvoiceInvalidStatusError(detail.status, 'APPROVED')
     if (detail.journal_id) throw new PurchaseInvoiceJournalAlreadyExistsError()
 
@@ -1198,9 +1210,9 @@ export class PurchaseInvoicesService {
    * - PurchaseInvoicePricelistSupersededError (409): thrown inside tx → full rollback incl. pricelist revert.
    * - TODO(purchase-payments): guard when purchase_payment linked to this invoice exists.
    */
-  async unpost(companyId: string, id: string, userId: string) {
-    const detail = await purchaseInvoicesRepository.findById(id, companyId)
-    if (!detail) throw new PurchaseInvoiceNotFoundError(id)
+  async unpost(id: string, branchIds: string[], userId: string) {
+    const detail = await this.requireById(id, branchIds)
+    const companyId = detail.company_id
     if (detail.status !== 'POSTED') throw new PurchaseInvoiceNotPostedError()
     if (!detail.journal_id) throw new PurchaseInvoiceNoJournalError()
 
@@ -1416,9 +1428,9 @@ export class PurchaseInvoicesService {
     return purchaseInvoicesRepository.findAttachmentsByInvoiceId(invoiceId)
   }
 
-  async delete(companyId: string, id: string, userId: string) {
-    const existing = await purchaseInvoicesRepository.findById(id, companyId)
-    if (!existing) throw new Error('Purchase invoice not found')
+  async delete(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
 
     await purchaseInvoicesRepository.withTransaction(async (client) => {
       await purchaseInvoicesRepository.softDelete(client, id, companyId, userId)
@@ -1427,9 +1439,15 @@ export class PurchaseInvoicesService {
     return true
   }
 
-  async mergeInvoices(companyId: string, invoiceIds: string[], userId: string) {
+  async mergeInvoices(branchIds: string[], invoiceIds: string[], userId: string) {
     if (invoiceIds.length < 2) throw new Error('At least two invoices are required to merge')
-    
+
+    for (const invId of invoiceIds) {
+      await this.requireById(invId, branchIds)
+    }
+    const first = await this.requireById(invoiceIds[0], branchIds)
+    const companyId = first.company_id
+
     const master = await purchaseInvoicesRepository.withTransaction(async (client) => {
       const invoices = await purchaseInvoicesRepository.findDraftInvoicesForMerge(client, invoiceIds, companyId)
       if (invoices.length !== invoiceIds.length) {
@@ -1495,11 +1513,13 @@ export class PurchaseInvoicesService {
    * Semua baris source wajib dialokasi tepat sekali; tidak boleh ada sisa di source.
    */
   async splitInvoice(
-    companyId: string,
     sourceId: string,
+    branchIds: string[],
     dto: SplitPurchaseInvoiceDto,
     userId: string,
   ): Promise<SplitPurchaseInvoiceResult> {
+    const scoped = await this.requireById(sourceId, branchIds)
+    const companyId = scoped.company_id
     if (dto.splits.length < 2) {
       throw new PurchaseInvoiceSplitValidationError(
         'Minimal 2 nota untuk pecah invoice. Jika hanya 1 nota, edit invoice staging dan isi nomor invoice supplier.',
@@ -1671,8 +1691,8 @@ export class PurchaseInvoicesService {
     }
   }
 
-  async getCounts(companyId: string) {
-    return purchaseInvoicesRepository.findStatusCounts(companyId)
+  async getCounts(branchIds: string[]) {
+    return purchaseInvoicesRepository.findStatusCounts(branchIds)
   }
 }
 

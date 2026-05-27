@@ -555,15 +555,15 @@ export class PurchaseInvoicesRepository {
     )
   }
 
-  async findStatusCounts(companyId: string): Promise<{ verify_count: number; approval_count: number; final_count: number }> {
+  async findStatusCounts(branchIds: string[]): Promise<{ verify_count: number; approval_count: number; final_count: number }> {
     const { rows } = await pool.query(
       `SELECT
          COUNT(*) FILTER (WHERE status IN ('DRAFT', 'REJECTED')) AS verify_count,
          COUNT(*) FILTER (WHERE status = 'SUBMITTED') AS approval_count,
          COUNT(*) FILTER (WHERE status = 'APPROVED') AS final_count
        FROM purchase_invoices
-       WHERE company_id = $1 AND deleted_at IS NULL`,
-      [companyId],
+       WHERE branch_id = ANY($1::uuid[]) AND deleted_at IS NULL`,
+      [branchIds],
     )
     return {
       verify_count: Number(rows[0].verify_count),
@@ -1542,14 +1542,9 @@ export class PurchaseInvoicesRepository {
     await this.insertGrLinks(client, invoiceId, grIds)
   }
 
-  async findAvailableGrs(companyId: string, supplierId: string, branchId: string | null) {
-    const params: any[] = [companyId, supplierId]
-    let branchFilter = ''
-    
-    if (branchId) {
-      params.push(branchId)
-      branchFilter = `AND gr.branch_id = $${params.length}`
-    }
+  async findAvailableGrs(branchIds: string[], supplierId: string, branchId: string | null) {
+    const scopedBranchIds = branchId ? branchIds.filter((id) => id === branchId) : branchIds
+    const params: unknown[] = [scopedBranchIds, supplierId]
 
     const { rows } = await pool.query(
       `SELECT gr.id, gr.gr_number, gr.received_date, gr.branch_id,
@@ -1559,11 +1554,10 @@ export class PurchaseInvoicesRepository {
        JOIN purchase_orders po ON po.id = gr.po_id
        JOIN suppliers s ON s.id = po.supplier_id
        JOIN goods_receipt_lines grl ON grl.gr_id = gr.id
-       WHERE gr.company_id = $1
+       WHERE gr.branch_id = ANY($1::uuid[])
          AND gr.status = 'CONFIRMED'
          AND gr.deleted_at IS NULL
          AND po.supplier_id = $2
-         ${branchFilter}
          AND (
            grl.qty_received - COALESCE((
              SELECT SUM(pil.qty_invoiced)

@@ -57,9 +57,9 @@ export class GoodsReceiptsController {
   create = async (req: Request, res: Response) => {
     try {
       const { body } = (req as CreateReq).validated
-      const companyId = req.context?.company_id ?? ''
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
       const userId = req.user?.id ?? ''
-      const gr = await goodsReceiptsService.create(companyId, body, userId)
+      const gr = await goodsReceiptsService.create(branchIds, body, userId)
       sendSuccess(res, gr, 'Goods receipt created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_goods_receipt' })
@@ -69,9 +69,9 @@ export class GoodsReceiptsController {
   confirm = async (req: Request, res: Response) => {
     try {
       const { params } = (req as ConfirmReq).validated
-      const companyId = req.context?.company_id ?? ''
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
       const userId = req.user?.id ?? ''
-      const gr = await goodsReceiptsService.confirm(params.id, companyId, userId)
+      const gr = await goodsReceiptsService.confirm(params.id, branchIds, userId)
       sendSuccess(res, gr, 'Goods receipt confirmed — stock & journal created')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'confirm_goods_receipt', id: req.params.id })
@@ -81,9 +81,9 @@ export class GoodsReceiptsController {
   update = async (req: Request, res: Response) => {
     try {
       const { params, body } = (req as UpdateReq).validated
-      const companyId = req.context?.company_id ?? ''
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
       const userId = req.user?.id ?? ''
-      const gr = await goodsReceiptsService.update(params.id, companyId, body, userId)
+      const gr = await goodsReceiptsService.update(params.id, branchIds, body, userId)
       sendSuccess(res, gr, 'Goods receipt updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_goods_receipt', id: req.params.id })
@@ -93,9 +93,9 @@ export class GoodsReceiptsController {
   delete = async (req: Request, res: Response) => {
     try {
       const { id } = (req as IdReq).validated.params
-      const companyId = req.context?.company_id ?? ''
+      const branchIds = await getAccessibleBranchIds(req.user?.id ?? '')
       const userId = req.user?.id ?? ''
-      await goodsReceiptsService.delete(id, companyId, userId)
+      await goodsReceiptsService.delete(id, branchIds, userId)
       sendSuccess(res, null, 'Goods receipt deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_goods_receipt', id: req.params.id })

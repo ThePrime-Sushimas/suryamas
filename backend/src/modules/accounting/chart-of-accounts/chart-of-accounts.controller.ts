@@ -51,7 +51,11 @@ export class ChartOfAccountsController {
 
   getTree = async (req: Request, res: Response) => {
     try {
-      const companyId = getCompanyId(req)
+      const { companyIds } = await getAccess(req)
+      const requested = req.query.company_id as string | undefined
+      const companyId =
+        requested && companyIds.includes(requested) ? requested : companyIds[0]
+      if (!companyId) throw new Error('No accessible company')
       const maxDepth = req.query.maxDepth ? parseInt(req.query.maxDepth as string) : undefined
       const tree = await chartOfAccountsService.getTree(companyId, maxDepth, req.filterParams)
       sendSuccess(res, tree, 'Chart of accounts tree retrieved')

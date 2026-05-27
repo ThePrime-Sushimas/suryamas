@@ -22,6 +22,7 @@ import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import { buildProductUomsMap, toProductBaseQty } from '../../utils/product-uom.util'
 import type { ProductUomsMap } from '../../utils/product-uom.util'
 import { computeGrLineInvoiceTotal } from '../../utils/gp-cost-allocation.util'
+import { requireBranchAccess } from '../../utils/branch-access.util'
 import type {
   CreateGoodsReceiptDto,
   CreateGoodsReceiptLineDto,
@@ -120,6 +121,12 @@ function buildProcessedGrLine(
 }
 
 export class GoodsReceiptsService {
+  private async requireById(id: string, branchIds: string[]) {
+    const header = await goodsReceiptsRepository.findByIdAccessible(id, branchIds)
+    if (!header) throw new GoodsReceiptNotFoundError(id)
+    return header
+  }
+
   async list(branchIds: string[], pagination: { page: number; limit: number }, filter?: { status?: string; po_id?: string; branch_id?: string; date_from?: string; date_to?: string; invoice_number?: string; source?: string; search?: string }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await goodsReceiptsRepository.findAll(branchIds, { limit: pagination.limit, offset }, filter)
@@ -135,9 +142,11 @@ export class GoodsReceiptsService {
     return gr
   }
 
-  async create(companyId: string, dto: CreateGoodsReceiptDto, userId: string) {
-    const po = await goodsReceiptsRepository.findPoForGr(dto.po_id, companyId)
+  async create(branchIds: string[], dto: CreateGoodsReceiptDto, userId: string) {
+    const po = await purchaseOrdersRepository.findById(dto.po_id, branchIds)
     if (!po) throw new InvalidReferenceError('purchase order not found')
+    requireBranchAccess(po.branch_id, branchIds)
+    const companyId = po.company_id
     if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)) {
       throw new GoodsReceiptInvalidPOStatusError(po.status)
     }
@@ -214,7 +223,9 @@ export class GoodsReceiptsService {
     }
   }
 
-  async confirm(id: string, companyId: string, userId: string) {
+  async confirm(id: string, branchIds: string[], userId: string) {
+    const header = await this.requireById(id, branchIds)
+    const companyId = header.company_id
     const gr = await goodsReceiptsRepository.findWithLines(id, companyId)
     if (!gr) throw new GoodsReceiptNotFoundError(id)
     if (gr.status === 'CONFIRMED') throw new GoodsReceiptAlreadyConfirmedError()
@@ -449,9 +460,9 @@ export class GoodsReceiptsService {
     })
   }
 
-  async update(id: string, companyId: string, dto: UpdateGoodsReceiptDto, userId: string) {
-    const existing = await goodsReceiptsRepository.findById(id, companyId)
-    if (!existing) throw new GoodsReceiptNotFoundError(id)
+  async update(id: string, branchIds: string[], dto: UpdateGoodsReceiptDto, userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
     if (existing.status !== 'DRAFT') throw new GoodsReceiptAlreadyConfirmedError()
     if (existing.source === 'MARKETPLACE') {
       throw new GoodsReceiptMarketplaceEditForbiddenError()
@@ -494,9 +505,9 @@ export class GoodsReceiptsService {
     return goodsReceiptsRepository.findWithLines(id, companyId)
   }
 
-  async delete(id: string, companyId: string, userId: string) {
-    const existing = await goodsReceiptsRepository.findById(id, companyId)
-    if (!existing) throw new GoodsReceiptNotFoundError(id)
+  async delete(id: string, branchIds: string[], userId: string) {
+    const existing = await this.requireById(id, branchIds)
+    const companyId = existing.company_id
 
     const deleted = await goodsReceiptsRepository.softDelete(id, companyId, userId)
     if (!deleted) throw new GoodsReceiptAlreadyConfirmedError()

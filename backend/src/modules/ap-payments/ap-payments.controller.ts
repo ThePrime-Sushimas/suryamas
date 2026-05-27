@@ -5,18 +5,25 @@ import { storageService } from '../../services/storage.service'
 import { apPaymentsService } from './ap-payments.service'
 import { bulkCreateApPaymentSchema } from './ap-payments.schema'
 import type { ApPaymentListFilter } from './ap-payments.types'
-import { getAccessibleBranchIds } from '../../utils/branch-access.util'
+import { getAccessibleBranchIds, requireBranchAccess } from '../../utils/branch-access.util'
+
+async function apScope(req: Request) {
+  const userId = req.user?.id ?? ''
+  const branchIds = await getAccessibleBranchIds(userId)
+  const contextBranchId = req.context?.branch_id ?? branchIds[0] ?? ''
+  return { userId, branchIds, contextBranchId }
+}
 import { DOCUMENT_UPLOAD_EXTENSIONS, resolveDocumentUploadExtension } from '../../utils/document-upload.util'
 
 export class ApPaymentsController {
   // GET /ap-payments
   async list(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds } = await apScope(req)
       const q = req.query as Record<string, string>
 
       const filter: ApPaymentListFilter = {
-        company_id: companyId,
+        branch_ids: branchIds,
         branch_id:      q.branch_id,
         supplier_id:    q.supplier_id,
         status:         q.status as ApPaymentListFilter['status'],
@@ -45,22 +52,14 @@ export class ApPaymentsController {
   // GET /ap-payments/dashboard — branch_id optional (page filter); default = all branches user can access
   async dashboard(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds } = await apScope(req)
       const branchId = (req.query as { branch_id?: string }).branch_id
 
-      const accessible = await getAccessibleBranchIds(userId)
-
-      if (branchId && !accessible.includes(branchId)) {
-        res.status(403).json({ success: false, message: 'No access to this branch' })
-        return
+      if (branchId) {
+        requireBranchAccess(branchId, branchIds)
       }
 
-      const data = await apPaymentsService.getDashboard(
-        companyId,
-        branchId,
-        branchId ? undefined : accessible,
-      )
+      const data = await apPaymentsService.getDashboard(branchIds, branchId)
       sendSuccess(res, data, 'AP dashboard retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_ap_dashboard' })
@@ -70,11 +69,11 @@ export class ApPaymentsController {
   // GET /ap-payments/outstanding-invoices
   async outstandingInvoices(req: Request, res: Response): Promise<void> {
     try {
-      const companyId  = req.context?.company_id ?? ''
+      const { branchIds } = await apScope(req)
       const { supplier_id, branch_id, overdue_only } = req.query as Record<string, string>
 
       const data = await apPaymentsService.getOutstandingInvoices(
-        companyId,
+        branchIds,
         supplier_id,
         branch_id,
         overdue_only === 'true',
@@ -88,16 +87,12 @@ export class ApPaymentsController {
   // GET /ap-payments/outstanding-invoices/paginated
   async outstandingInvoicesPaginated(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds } = await apScope(req)
       const query = (req as any).validated?.query ?? {}
 
-      const branchIds = await getAccessibleBranchIds(userId)
-
       const result = await apPaymentsService.getOutstandingInvoicesPaginated(
-        companyId,
-        query,
         branchIds,
+        query,
       )
 
       sendSuccess(res, result.data, 'Outstanding invoices retrieved', 200, result.pagination)
@@ -163,11 +158,8 @@ export class ApPaymentsController {
   // GET /ap-payments/combined
   async combined(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId = req.user?.id ?? ''
+      const { branchIds } = await apScope(req)
       const q = req.query as Record<string, string>
-
-      const branchIds = await getAccessibleBranchIds(userId)
 
       const query = {
         supplier_id: q.supplier_id,
@@ -184,7 +176,7 @@ export class ApPaymentsController {
         limit: q.limit ? parseInt(q.limit, 10) : 20,
       }
 
-      const result = await apPaymentsService.getCombined(companyId, query, branchIds)
+      const result = await apPaymentsService.getCombined(branchIds, query)
       sendSuccess(res, result.data, 'Combined invoice+payment data retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list combined invoice payments' })
@@ -209,9 +201,9 @@ export class ApPaymentsController {
   // GET /ap-payments/:id
   async getById(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds } = await apScope(req)
       const id = req.params.id as string
-      const payment   = await apPaymentsService.getById(id, companyId)
+      const payment   = await apPaymentsService.getById(id, branchIds)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get ap payment', id: req.params.id })
@@ -221,10 +213,8 @@ export class ApPaymentsController {
   // POST /ap-payments
   async create(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const branchId  = req.context?.branch_id  ?? ''
-      const userId    = req.user?.id             ?? ''
-      const payment   = await apPaymentsService.create(req.body, companyId, branchId, userId)
+      const { userId, branchIds, contextBranchId } = await apScope(req)
+      const payment   = await apPaymentsService.create(req.body, branchIds, contextBranchId, userId)
       sendSuccess(res, payment, 'AP payment created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create ap payment' })
@@ -234,9 +224,7 @@ export class ApPaymentsController {
   // POST /ap-payments/bulk
   async createBulk(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const branchId  = req.context?.branch_id  ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds, contextBranchId } = await apScope(req)
 
       // Parse JSON payload from multipart field
       const payloadRaw = req.body?.payload
@@ -275,7 +263,7 @@ export class ApPaymentsController {
 
       // Note: Proof file upload is handled separately on the payment detail page.
       // The bulk create endpoint only creates DRAFT payments.
-      const result = await apPaymentsService.createBulk(body, companyId, branchId, userId)
+      const result = await apPaymentsService.createBulk(body, branchIds, contextBranchId, userId)
       sendSuccess(res, result, 'Bulk payments created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create bulk ap payments' })
@@ -285,10 +273,9 @@ export class ApPaymentsController {
   // PATCH /ap-payments/:id
   async update(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
-      const payment   = await apPaymentsService.update(id, req.body, companyId, userId)
+      const payment   = await apPaymentsService.update(id, req.body, branchIds, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update ap payment', id: req.params.id })
@@ -298,10 +285,9 @@ export class ApPaymentsController {
   // POST /ap-payments/:id/submit
   async submit(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
-      const payment   = await apPaymentsService.submit(id, companyId, userId)
+      const payment   = await apPaymentsService.submit(id, branchIds, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'submit ap payment', id: req.params.id })
@@ -311,10 +297,9 @@ export class ApPaymentsController {
   // POST /ap-payments/:id/approve
   async approve(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
-      const payment   = await apPaymentsService.approve(id, companyId, userId)
+      const payment   = await apPaymentsService.approve(id, branchIds, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'approve ap payment', id: req.params.id })
@@ -324,10 +309,9 @@ export class ApPaymentsController {
   // POST /ap-payments/:id/reject
   async reject(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
-      const payment   = await apPaymentsService.reject(id, req.body, companyId, userId)
+      const payment   = await apPaymentsService.reject(id, req.body, branchIds, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reject ap payment', id: req.params.id })
@@ -337,9 +321,9 @@ export class ApPaymentsController {
   // POST /ap-payments/:id/proof — multipart field `proof` → R2 buktisetoran
   async uploadProof(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
+      const existing = await apPaymentsService.getById(id, branchIds)
 
       const file = req.file
       if (!file) {
@@ -365,14 +349,14 @@ export class ApPaymentsController {
         file.buffer,
         fileName,
         file.mimetype,
-        companyId,
+        existing.company_id,
         'buktisetoran',
       )
 
       const payment = await apPaymentsService.uploadProof(
         id,
         { proof_url: uploaded.path },
-        companyId,
+        branchIds,
         userId,
       )
       sendSuccess(res, payment)
@@ -384,11 +368,10 @@ export class ApPaymentsController {
   // POST /ap-payments/:id/pay
   async markPaid(req: Request, res: Response): Promise<void> {
     try {
-      const companyId   = req.context?.company_id ?? ''
-      const userId      = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
       const paymentDate = req.body?.payment_date
-      const payment     = await apPaymentsService.markPaid(id, paymentDate, companyId, userId)
+      const payment     = await apPaymentsService.markPaid(id, paymentDate, branchIds, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark paid ap payment', id: req.params.id })
@@ -398,10 +381,9 @@ export class ApPaymentsController {
   // POST /ap-payments/:id/post-journal
   async postJournal(req: Request, res: Response): Promise<void> {
     try {
-      const companyId  = req.context?.company_id ?? ''
-      const userId     = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
-      const payment    = await apPaymentsService.postJournal(id, companyId, userId)
+      const payment    = await apPaymentsService.postJournal(id, branchIds, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'post ap payment journal', id: req.params.id })
@@ -411,10 +393,9 @@ export class ApPaymentsController {
   // DELETE /ap-payments/:id/journal
   async deleteJournal(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
-      const payment   = await apPaymentsService.deleteJournal(id, companyId, userId)
+      const payment   = await apPaymentsService.deleteJournal(id, branchIds, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete ap payment journal', id: req.params.id })
@@ -424,10 +405,9 @@ export class ApPaymentsController {
   // POST /ap-payments/:id/reconcile
   async reconcile(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
-      const payment   = await apPaymentsService.reconcile(id, req.body, companyId, userId)
+      const payment   = await apPaymentsService.reconcile(id, req.body, branchIds, userId)
       sendSuccess(res, payment)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reconcile ap payment', id: req.params.id })
@@ -437,9 +417,9 @@ export class ApPaymentsController {
   // GET /ap-payments/:id/reconcile-candidates
   async getReconcileCandidates(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds } = await apScope(req)
       const id = req.params.id as string
-      const candidates = await apPaymentsService.getReconcileCandidates(id, companyId)
+      const candidates = await apPaymentsService.getReconcileCandidates(id, branchIds)
       sendSuccess(res, candidates)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get reconcile candidates', id: req.params.id })
@@ -449,10 +429,9 @@ export class ApPaymentsController {
   // DELETE /ap-payments/:id
   async delete(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
-      const userId    = req.user?.id             ?? ''
+      const { userId, branchIds } = await apScope(req)
       const id = req.params.id as string
-      await apPaymentsService.delete(id, companyId, userId)
+      await apPaymentsService.delete(id, branchIds, userId)
       sendSuccess(res, { message: 'AP payment deleted' })
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete ap payment', id: req.params.id })
@@ -462,14 +441,14 @@ export class ApPaymentsController {
   // POST /ap-payments/verify-screenshot
   async verifyScreenshot(req: Request, res: Response): Promise<void> {
     try {
-      const companyId = req.context?.company_id ?? ''
+      const { branchIds } = await apScope(req)
       const { image, mime_type, payment_ids } = req.body as {
         image: string
         mime_type: string
         payment_ids?: string[]
       }
       const result = await apPaymentsService.verifyScreenshot(
-        companyId,
+        branchIds,
         image,
         mime_type ?? 'image/jpeg',
         payment_ids,
