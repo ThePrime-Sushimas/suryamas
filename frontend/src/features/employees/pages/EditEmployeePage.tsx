@@ -41,7 +41,6 @@ export default function EditEmployeePage() {
         setEmployee(data)
         setInitialData({
           full_name: data.full_name,
-          job_position: data.job_position,
           brand_name: data.brand_name || '',
           ptkp_status: data.ptkp_status,
           status_employee: data.status_employee,

@@ -668,17 +668,38 @@ export const menuItems: MenuItem[] = [
     submenu: [
       {
         id: "employees",
-        name: "Employees",
+        name: "Karyawan",
         href: "/employees",
         icon: <Users size={16} />,
         module: "employees",
       },
       {
         id: "employee_branches",
-        name: "Employee Branches",
+        name: "Penempatan Cabang",
         href: "/employee-branches",
         icon: <Building2 size={16} />,
         module: "employee_branches",
+      },
+      {
+        id: "users",
+        name: "User Accounts",
+        href: "/users",
+        icon: <UserCog size={16} />,
+        module: "users",
+      },
+      {
+        id: "departments",
+        name: "Departemen",
+        href: "/settings/departments",
+        icon: <Layers size={16} />,
+        module: "departments",
+      },
+      {
+        id: "positions",
+        name: "Posisi & Jabatan",
+        href: "/settings/positions",
+        icon: <Shield size={16} />,
+        module: "positions",
       },
     ],
   },
@@ -692,32 +713,11 @@ export const menuItems: MenuItem[] = [
     icon: <Settings size={18} />,
     submenu: [
       {
-        id: "users",
-        name: "Users",
-        href: "/users",
-        icon: <UserCog size={16} />,
-        module: "users",
-      },
-      {
         id: "permissions",
         name: "Permissions",
         href: "/permissions",
         icon: <Shield size={16} />,
         module: "permissions",
-      },
-      {
-        id: "departments",
-        name: "Departemen",
-        href: "/settings/departments",
-        icon: <Building2 size={16} />,
-        module: "departments",
-      },
-      {
-        id: "positions",
-        name: "Posisi / Jabatan",
-        href: "/settings/positions",
-        icon: <Users size={16} />,
-        module: "positions",
       },
       {
         id: "owner-credit-cards",
