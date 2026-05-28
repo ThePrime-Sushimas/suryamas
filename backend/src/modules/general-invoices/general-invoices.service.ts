@@ -9,7 +9,6 @@ import {
   generalPaymentRepository,
   generalTemplateRepository,
   vendorRepository,
-  expenseCoaDefaultRepository,
 } from './general-invoices.repository'
 import type {
   CreateVendorDto,
@@ -28,8 +27,6 @@ import type {
   GenerateFromTemplateDto,
   GeneralInvoiceTemplate,
   GeneralApDashboard,
-  ExpenseCoaDefault,
-  UpsertExpenseCoaDefaultsDto,
   ExpenseType,
 } from './general-invoices.types'
 import { getAccessibleBranchIds, getAccessibleCompanyIds, getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
@@ -719,48 +716,8 @@ export class GeneralInvoiceTemplateService {
   }
 }
 
-// ============================================================
-// EXPENSE COA DEFAULTS SERVICE
-// ============================================================
-export class ExpenseCoaDefaultService {
-  async list(companyId: string): Promise<ExpenseCoaDefault[]> {
-    const rows = await expenseCoaDefaultRepository.findAll(companyId)
-    return rows.map((r) => ({
-      expense_type: r.expense_type as ExpenseType,
-      account_id: r.account_id,
-      account_code: r.account_code,
-      account_name: r.account_name,
-    }))
-  }
-
-  async getAccountIdForExpenseType(companyId: string, expenseType: ExpenseType): Promise<string | null> {
-    return expenseCoaDefaultRepository.findAccountIdByExpenseType(companyId, expenseType)
-  }
-
-  async upsert(dto: UpsertExpenseCoaDefaultsDto, companyId: string, userId: string): Promise<ExpenseCoaDefault[]> {
-    await vendorRepository.withTransaction(async (client) => {
-      const toUpsert = dto.defaults.filter((d) => d.account_id)
-      if (toUpsert.length > 0) {
-        await expenseCoaDefaultRepository.upsertBatch(
-          client,
-          companyId,
-          toUpsert.map((d) => ({ expense_type: d.expense_type, account_id: d.account_id! })),
-          userId,
-        )
-      }
-      for (const d of dto.defaults) {
-        if (!d.account_id) {
-          await expenseCoaDefaultRepository.deleteByExpenseType(client, companyId, d.expense_type)
-        }
-      }
-    })
-    return this.list(companyId)
-  }
-}
-
 // Singleton exports
 export const vendorService = new VendorService()
-export const expenseCoaDefaultService = new ExpenseCoaDefaultService()
 export const generalInvoiceService = new GeneralInvoiceService()
 export const generalInvoicePaymentService = new GeneralInvoicePaymentService()
 export const generalInvoiceTemplateService = new GeneralInvoiceTemplateService()

@@ -6,7 +6,6 @@ import {
   type GeneralInvoiceTemplate,
 } from '../api/generalApi.api'
 import { EXPENSE_TYPE_LABELS, RECURRENCE_OPTIONS, formatDate } from '../constants'
-import { ExpenseCoaDefaultsPanel } from '../components/ExpenseCoaDefaultsPanel'
 import { TemplateFormModal } from '../components/TemplateFormModal'
 import { GenerateFromTemplateModal } from '../components/GenerateFromTemplateModal'
 import { useToast } from '@/contexts/ToastContext'
@@ -39,13 +38,11 @@ export default function GeneralInvoiceTemplatesPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-lg font-bold text-gray-900">Template & Default COA</h1>
+        <h1 className="text-lg font-bold text-gray-900">Template Tagihan Rutin</h1>
         <p className="text-sm text-gray-500">
-          Template untuk tagihan rutin (listrik, sewa) dan mapping COA default per kategori beban.
+          Template untuk tagihan rutin (listrik, sewa, langganan, dll). Generate = invoice DRAFT.
         </p>
       </div>
-
-      <ExpenseCoaDefaultsPanel />
 
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-gray-100">

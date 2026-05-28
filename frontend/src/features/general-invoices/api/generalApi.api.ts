@@ -160,8 +160,6 @@ const KEYS = {
 
   templates: ['general-ap', 'templates'] as const,
   templateDetail: (id: string) => [...KEYS.templates, id] as const,
-  expenseCoaDefaults: ['general-ap', 'expense-coa-defaults'] as const,
-  expenseCoaSuggest: (type: ExpenseType) => [...KEYS.expenseCoaDefaults, 'suggest', type] as const,
 }
 
 export interface GeneralInvoiceTemplateLine {
@@ -193,13 +191,6 @@ export interface GeneralInvoiceTemplate {
   lines: GeneralInvoiceTemplateLine[]
   created_at: string
   updated_at: string
-}
-
-export interface ExpenseCoaDefault {
-  expense_type: ExpenseType
-  account_id: string
-  account_code: string
-  account_name: string
 }
 
 // ============================================================
@@ -607,6 +598,7 @@ export const useCreateGeneralInvoiceTemplate = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (body: {
+      branch_id?: string
       template_name: string
       vendor_id: string
       expense_type: ExpenseType
@@ -659,46 +651,6 @@ export const useGenerateFromTemplate = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.invoices })
       qc.invalidateQueries({ queryKey: KEYS.templates })
-    },
-  })
-}
-
-// ============================================================
-// EXPENSE COA DEFAULT HOOKS
-// ============================================================
-export const useExpenseCoaDefaults = () =>
-  useQuery({
-    queryKey: KEYS.expenseCoaDefaults,
-    queryFn: async () => {
-      const { data } = await api.get('/general-ap/expense-coa-defaults')
-      return data.data as ExpenseCoaDefault[]
-    },
-    staleTime: 60_000,
-  })
-
-export const useSuggestExpenseCoa = (expenseType: ExpenseType | '', enabled: boolean) =>
-  useQuery({
-    queryKey: KEYS.expenseCoaSuggest(expenseType || 'OTHER'),
-    queryFn: async () => {
-      const { data } = await api.get('/general-ap/expense-coa-defaults/suggest', {
-        params: { expense_type: expenseType },
-      })
-      return data.data as { account_id: string | null }
-    },
-    enabled: enabled && !!expenseType,
-    staleTime: 60_000,
-  })
-
-export const useUpsertExpenseCoaDefaults = () => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (defaults: Array<{ expense_type: ExpenseType; account_id: string | null }>) => {
-      const { data } = await api.put('/general-ap/expense-coa-defaults', { defaults })
-      return data.data as ExpenseCoaDefault[]
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEYS.expenseCoaDefaults })
-      qc.invalidateQueries({ queryKey: ['general-ap', 'expense-coa-defaults', 'suggest'] })
     },
   })
 }

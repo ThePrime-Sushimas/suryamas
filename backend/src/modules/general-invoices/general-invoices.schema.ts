@@ -227,15 +227,6 @@ export const generateFromTemplateSchema = z.object({
   }),
 })
 
-export const upsertExpenseCoaDefaultsSchema = z.object({
-  body: z.object({
-    defaults: z.array(z.object({
-      expense_type: z.enum(expenseTypes),
-      account_id:   z.string().uuid().nullable(),
-    })),
-  }),
-})
-
 export const generalTemplateParamSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
 })

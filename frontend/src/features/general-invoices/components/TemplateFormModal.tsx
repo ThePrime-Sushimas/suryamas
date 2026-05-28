@@ -5,6 +5,7 @@ import { EXPENSE_TYPE_OPTIONS, RECURRENCE_OPTIONS } from '../constants'
 import { AccountSelector } from '@/features/accounting/journals/shared/AccountSelector'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import type { ExpenseType, RecurrenceType } from '../api/generalApi.api'
 
 interface LineForm {
@@ -31,7 +32,10 @@ export function TemplateFormModal({ open, onClose }: Props) {
   const createMutation = useCreateGeneralInvoiceTemplate()
   const { data: vendorsData } = useVendors({ is_active: true, limit: 200 })
   const vendors = vendorsData?.data ?? []
+  const branches = useBranchContextStore((s) => s.branches)
+  const currentBranch = useBranchContextStore((s) => s.currentBranch)
 
+  const [branchId, setBranchId] = useState('')
   const [templateName, setTemplateName] = useState('')
   const [vendorId, setVendorId] = useState('')
   const [expenseType, setExpenseType] = useState<ExpenseType>('UTILITY')
@@ -44,6 +48,7 @@ export function TemplateFormModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return
+    setBranchId(currentBranch?.branch_id ?? '')
     setTemplateName('')
     setVendorId('')
     setExpenseType('UTILITY')
@@ -60,6 +65,10 @@ export function TemplateFormModal({ open, onClose }: Props) {
   }
 
   const handleSubmit = async () => {
+    if (!branchId) {
+      toast.warning('Cabang wajib dipilih')
+      return
+    }
     if (!templateName.trim() || !vendorId) {
       toast.warning('Nama template dan vendor wajib diisi')
       return
@@ -71,6 +80,7 @@ export function TemplateFormModal({ open, onClose }: Props) {
 
     try {
       await createMutation.mutateAsync({
+        branch_id: branchId,
         template_name: templateName.trim(),
         vendor_id: vendorId,
         expense_type: expenseType,
@@ -111,6 +121,10 @@ export function TemplateFormModal({ open, onClose }: Props) {
             className="w-full px-3 py-2 text-sm border rounded-lg"
           />
           <div className="grid grid-cols-2 gap-3">
+            <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="px-3 py-2 text-sm border rounded-lg">
+              <option value="">-- Cabang --</option>
+              {branches.map((b) => <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>)}
+            </select>
             <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className="px-3 py-2 text-sm border rounded-lg">
               <option value="">-- Vendor --</option>
               {vendors.map((v) => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}

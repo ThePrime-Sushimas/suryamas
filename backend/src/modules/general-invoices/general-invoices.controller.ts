@@ -30,7 +30,6 @@ import {
   generalInvoiceService,
   generalInvoicePaymentService,
   generalInvoiceTemplateService,
-  expenseCoaDefaultService,
 } from './general-invoices.service'
 import type {
   VendorListFilter,
@@ -490,62 +489,3 @@ export const vendorsController                 = new VendorsController()
 export const generalInvoicesController         = new GeneralInvoicesController()
 export const generalInvoicePaymentsController  = new GeneralInvoicePaymentsController()
 export const generalInvoiceTemplatesController = new GeneralInvoiceTemplatesController()
-
-// ============================================================
-// EXPENSE COA DEFAULTS CONTROLLER
-// ============================================================
-function resolveCompanyId(companyIds: string[], contextCompanyId: string, queryCompanyId?: string): string {
-  if (queryCompanyId) {
-    if (!companyIds.includes(queryCompanyId)) {
-      throw Object.assign(new Error('No access to this company'), { statusCode: 403 })
-    }
-    return queryCompanyId
-  }
-  if (contextCompanyId && companyIds.includes(contextCompanyId)) return contextCompanyId
-  return companyIds[0] ?? ''
-}
-
-export class ExpenseCoaDefaultsController {
-  list = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { companyIds, contextCompanyId } = await giScope(req)
-      const companyId = resolveCompanyId(companyIds, contextCompanyId, req.query.company_id as string | undefined)
-      const data = await expenseCoaDefaultService.list(companyId)
-      sendSuccess(res, data, 'Expense COA defaults retrieved')
-    } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'list_expense_coa_defaults' })
-    }
-  }
-
-  upsert = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { companyIds, contextCompanyId, userId } = await giScope(req)
-      const companyId = resolveCompanyId(companyIds, contextCompanyId, req.body?.company_id)
-      const data = await expenseCoaDefaultService.upsert(req.body, companyId, userId)
-      sendSuccess(res, data, 'Default COA per kategori disimpan')
-    } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'upsert_expense_coa_defaults' })
-    }
-  }
-
-  suggest = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { companyIds, contextCompanyId } = await giScope(req)
-      const companyId = resolveCompanyId(companyIds, contextCompanyId, req.query.company_id as string | undefined)
-      const expenseType = req.query.expense_type as string
-      if (!expenseType) {
-        res.status(400).json({ success: false, message: 'expense_type query required' })
-        return
-      }
-      const accountId = await expenseCoaDefaultService.getAccountIdForExpenseType(
-        companyId,
-        expenseType as import('./general-invoices.types').ExpenseType,
-      )
-      sendSuccess(res, { account_id: accountId })
-    } catch (error: unknown) {
-      await handleError(res, error, req, { action: 'suggest_expense_coa' })
-    }
-  }
-}
-
-export const expenseCoaDefaultsController = new ExpenseCoaDefaultsController()

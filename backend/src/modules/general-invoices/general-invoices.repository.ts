@@ -957,63 +957,6 @@ export const generalPaymentRepository = {
 }
 
 // ============================================================
-// EXPENSE TYPE → DEFAULT COA
-// ============================================================
-export interface ExpenseCoaDefaultRow {
-  expense_type: string
-  account_id: string
-  account_code: string
-  account_name: string
-}
-
-export const expenseCoaDefaultRepository = {
-  async findAll(companyId: string): Promise<ExpenseCoaDefaultRow[]> {
-    const { rows } = await pool.query<ExpenseCoaDefaultRow>(
-      `SELECT d.expense_type, d.account_id, coa.account_code, coa.account_name
-       FROM general_ap_expense_coa_defaults d
-       JOIN chart_of_accounts coa ON coa.id = d.account_id
-       WHERE d.company_id = $1
-       ORDER BY d.expense_type`,
-      [companyId],
-    )
-    return rows
-  },
-
-  async findAccountIdByExpenseType(companyId: string, expenseType: string): Promise<string | null> {
-    const { rows } = await pool.query<{ account_id: string }>(
-      `SELECT account_id FROM general_ap_expense_coa_defaults
-       WHERE company_id = $1 AND expense_type = $2`,
-      [companyId, expenseType],
-    )
-    return rows[0]?.account_id ?? null
-  },
-
-  async upsertBatch(
-    client: PoolClient,
-    companyId: string,
-    items: Array<{ expense_type: string; account_id: string }>,
-    userId: string,
-  ): Promise<void> {
-    for (const item of items) {
-      await client.query(
-        `INSERT INTO general_ap_expense_coa_defaults (company_id, expense_type, account_id, created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $4)
-         ON CONFLICT (company_id, expense_type)
-         DO UPDATE SET account_id = EXCLUDED.account_id, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-        [companyId, item.expense_type, item.account_id, userId],
-      )
-    }
-  },
-
-  async deleteByExpenseType(client: PoolClient, companyId: string, expenseType: string): Promise<void> {
-    await client.query(
-      `DELETE FROM general_ap_expense_coa_defaults WHERE company_id = $1 AND expense_type = $2`,
-      [companyId, expenseType],
-    )
-  },
-}
-
-// ============================================================
 // TEMPLATE REPOSITORY
 // ============================================================
 export const generalTemplateRepository = {

@@ -17,7 +17,6 @@ import {
   generalInvoicesController,
   generalInvoicePaymentsController,
   generalInvoiceTemplatesController,
-  expenseCoaDefaultsController,
 } from './general-invoices.controller'
 import {
   listVendorsSchema,
@@ -38,7 +37,6 @@ import {
   generalTemplateParamSchema,
   createGeneralInvoiceTemplateSchema,
   generateFromTemplateSchema,
-  upsertExpenseCoaDefaultsSchema,
 } from './general-invoices.schema'
 
 // ─── Module registration ──────────────────────────────────────
@@ -102,27 +100,6 @@ router.post(
 router.post(   '/general-invoice-payments/:id/mark-paid',    requireWriteAccess, canUpdate('general_invoice_payments'), validateSchema(markPaidGeneralPaymentSchema), (req, res) => generalInvoicePaymentsController.markPaid(req, res))
 router.delete( '/general-invoice-payments/:id/journal',      requireWriteAccess, canUpdate('general_invoice_payments'), validateSchema(generalPaymentParamSchema),            (req, res) => generalInvoicePaymentsController.deleteJournal(req, res))
 router.delete( '/general-invoice-payments/:id',              requireWriteAccess, canDelete('general_invoice_payments'), validateSchema(generalPaymentParamSchema),            (req, res) => generalInvoicePaymentsController.delete(req, res))
-
-// ============================================================
-// EXPENSE COA DEFAULTS  →  /api/v1/general-ap/expense-coa-defaults
-// ============================================================
-router.get(
-  '/general-ap/expense-coa-defaults/suggest',
-  canView('general_invoices'),
-  (req, res) => expenseCoaDefaultsController.suggest(req, res),
-)
-router.get(
-  '/general-ap/expense-coa-defaults',
-  canView('general_invoices'),
-  (req, res) => expenseCoaDefaultsController.list(req, res),
-)
-router.put(
-  '/general-ap/expense-coa-defaults',
-  requireWriteAccess,
-  canUpdate('general_invoices'),
-  validateSchema(upsertExpenseCoaDefaultsSchema),
-  (req, res) => expenseCoaDefaultsController.upsert(req, res),
-)
 
 // ============================================================
 // GENERAL INVOICE TEMPLATES  →  /api/v1/general-invoice-templates

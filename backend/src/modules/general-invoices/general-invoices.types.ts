@@ -333,20 +333,3 @@ export interface GeneralApDashboard {
   summary: GeneralApDashboardSummary
   by_expense_type: GeneralApDashboardByType[]
 }
-
-// ------------------------------------------------------------
-// EXPENSE TYPE → DEFAULT COA
-// ------------------------------------------------------------
-export interface ExpenseCoaDefault {
-  expense_type: ExpenseType
-  account_id: string
-  account_code: string
-  account_name: string
-}
-
-export interface UpsertExpenseCoaDefaultsDto {
-  defaults: Array<{
-    expense_type: ExpenseType
-    account_id: string | null
-  }>
-}

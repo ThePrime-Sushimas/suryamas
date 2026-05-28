@@ -5,7 +5,6 @@ import {
   useUpdateGeneralInvoice,
   useUploadGeneralInvoiceAttachment,
   useVendors,
-  useSuggestExpenseCoa,
 } from '../api/generalApi.api'
 import { EXPENSE_TYPE_OPTIONS, EXPENSE_TYPE_FIELD_HELP, INVOICE_DATE_FIELD_HELP } from '../constants'
 import { FieldHint } from '../components/FieldHint'
@@ -61,8 +60,6 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
   const [lines, setLines] = useState<LineForm[]>([emptyLine(1)])
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const { data: suggestedCoa } = useSuggestExpenseCoa(expenseType, open && !isEdit)
-
   useEffect(() => {
     if (!open) return
     if (invoice) {
@@ -90,13 +87,6 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
     }
     setErrors({})
   }, [open, invoice])
-
-  useEffect(() => {
-    if (!open || isEdit || !suggestedCoa?.account_id) return
-    setLines((prev) =>
-      prev.map((l, i) => (i === 0 ? { ...l, account_id: suggestedCoa.account_id! } : l)),
-    )
-  }, [open, isEdit, suggestedCoa?.account_id, expenseType])
 
   const resetForm = () => {
     setVendorId('')
