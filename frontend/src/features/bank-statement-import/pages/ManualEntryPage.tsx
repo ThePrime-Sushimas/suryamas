@@ -92,7 +92,7 @@ export function ManualEntryPanel() {
 
   useEffect(() => {
     setLoadingAccounts(true)
-    bankAccountsApi.list()
+    bankAccountsApi.list({ owner_type: 'company', is_active: true })
       .then(accs => setBankAccounts(accs || []))
       .catch(() => setBankAccounts([]))
       .finally(() => setLoadingAccounts(false))

@@ -41,7 +41,7 @@ export function UploadModal({
   const fetchBankAccounts = useCallback(async () => {
     setLoadingAccounts(true)
     try {
-      const accounts = await bankAccountsApi.list()
+      const accounts = await bankAccountsApi.list({ owner_type: 'company', is_active: true })
       setBankAccounts(accounts || [])
     } catch {
       setBankAccounts([])

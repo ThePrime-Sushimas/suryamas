@@ -33,7 +33,7 @@ export function BankAccountSelect({
   const fetchBankAccounts = useCallback(async () => {
     setLoading(true)
     try {
-      const accounts = await bankAccountsApi.list()
+      const accounts = await bankAccountsApi.list({ owner_type: 'company', is_active: true })
       setBankAccounts(accounts || [])
     } catch {
       setBankAccounts([])
