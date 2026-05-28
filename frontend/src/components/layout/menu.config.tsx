@@ -188,7 +188,74 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 4. POS MANAGEMENT — input data harian
+  // 4. FOOD PRODUCTION — Menu, Resep, COGS
+  // ─────────────────────────────────────────────
+  {
+    id: "food-production",
+    name: "Food Production",
+    icon: <ChefHat size={18} />,
+    submenu: [
+      {
+        id: "fp-menus",
+        name: "Master Menu",
+        href: "/food-production/menus",
+        icon: <UtensilsCrossed size={16} />,
+        module: "menus",
+      },
+      {
+        id: "fp-categories",
+        name: "Kategori Menu",
+        href: "/food-production/categories",
+        icon: <FolderKanban size={16} />,
+        module: "menu_categories",
+      },
+      {
+        id: "fp-groups",
+        name: "Group Menu",
+        href: "/food-production/groups",
+        icon: <Layers size={16} />,
+        module: "menu_groups",
+      },
+      {
+        id: "fp-wip",
+        name: "WIP (Setengah Jadi)",
+        href: "/food-production/wip",
+        icon: <Beaker size={16} />,
+        module: "wip_items",
+      },
+      {
+        id: "fp-production",
+        name: "Produksi Harian",
+        href: "/food-production/production",
+        icon: <Factory size={16} />,
+        module: "production_orders",
+      },
+      {
+        id: "fp-cogs",
+        name: "COGS Calculation",
+        href: "/food-production/cogs",
+        icon: <Calculator size={16} />,
+        module: "cogs",
+      },
+      {
+        id: "fp-cogs-breakdown",
+        name: "COGS Breakdown",
+        href: "/food-production/cogs/breakdown",
+        icon: <BarChart3 size={16} />,
+        module: "cogs_breakdown",
+      },
+      {
+        id: "fp-consumption",
+        name: "Analisa Konsumsi",
+        href: "/food-production/consumption",
+        icon: <FlaskConical size={16} />,
+        module: "consumption_analysis",
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // 5. POS MANAGEMENT — input data harian
   //    Flow: Import → Staging → Transactions → Aggregates
   // ─────────────────────────────────────────────
   {
@@ -242,74 +309,7 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 5. FOOD PRODUCTION — Menu, Resep, COGS
-  // ─────────────────────────────────────────────
-  {
-    id: "food-production",
-    name: "Food Production",
-    icon: <ChefHat size={18} />,
-    submenu: [
-      {
-        id: "fp-menus",
-        name: "Master Menu",
-        href: "/food-production/menus",
-        icon: <UtensilsCrossed size={16} />,
-        module: "menus",
-      },
-      {
-        id: "fp-wip",
-        name: "WIP (Setengah Jadi)",
-        href: "/food-production/wip",
-        icon: <Beaker size={16} />,
-        module: "wip_items",
-      },
-      {
-        id: "fp-production",
-        name: "Produksi Harian",
-        href: "/food-production/production",
-        icon: <Factory size={16} />,
-        module: "production_orders",
-      },
-      {
-        id: "fp-cogs",
-        name: "COGS Calculation",
-        href: "/food-production/cogs",
-        icon: <Calculator size={16} />,
-        module: "cogs",
-      },
-      {
-        id: "fp-cogs-breakdown",
-        name: "COGS Breakdown",
-        href: "/food-production/cogs/breakdown",
-        icon: <BarChart3 size={16} />,
-        module: "cogs_breakdown",
-      },
-      {
-        id: "fp-consumption",
-        name: "Analisa Konsumsi",
-        href: "/food-production/consumption",
-        icon: <FlaskConical size={16} />,
-        module: "consumption_analysis",
-      },
-      {
-        id: "fp-categories",
-        name: "Kategori Menu",
-        href: "/food-production/categories",
-        icon: <FolderKanban size={16} />,
-        module: "menu_categories",
-      },
-      {
-        id: "fp-groups",
-        name: "Group Menu",
-        href: "/food-production/groups",
-        icon: <Layers size={16} />,
-        module: "menu_groups",
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // 5b. INVENTORY — Gudang, Stok, Mutasi
+  // 6. INVENTORY — Gudang, Stok, Mutasi
   // ─────────────────────────────────────────────
   {
     id: "inventory",
@@ -390,7 +390,8 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 5c. PURCHASING — Alur Pengadaan Barang
+  // 7. PURCHASING — Alur Pengadaan Barang
+  //    Flow: PR → PO → Marketplace PO → CC Settlement
   // ─────────────────────────────────────────────
   {
     id: "purchasing",
@@ -425,12 +426,12 @@ export const menuItems: MenuItem[] = [
         icon: <CreditCard size={16} />,
         module: "cc_owner_settlements",
         permissionAction: "view",
-      },      
+      },
     ],
   },
 
   // ─────────────────────────────────────────────
-  // 5d. APPROVALS — Persetujuan
+  // 8. APPROVALS — Persetujuan PR & Invoice
   // ─────────────────────────────────────────────
   {
     id: "approvals",
@@ -456,8 +457,8 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 6. BANKING & REKONSILIASI — proses matching
-  //    Flow: Import Bank → Rekonsiliasi → Settlement → Voucher → Cash
+  // 9. BANKING & REKONSILIASI — proses matching
+  //    Flow: Import Bank → Rekonsiliasi → Settlement → Cash → AP
   // ─────────────────────────────────────────────
   {
     id: "banking",
@@ -486,10 +487,31 @@ export const menuItems: MenuItem[] = [
         module: "bank_reconciliation",
       },
       {
+        id: "fee_discrepancy-review",
+        name: "Fee Discrepancy Review",
+        href: "bank-reconciliation/fee-discrepancy-review",
+        icon: <ShieldCheck size={16} />,
+        module: "fee_discrepancy_review",
+      },
+      {
         id: "cash-flow",
         name: "In-Out",
         href: "/cash-flow",
         icon: <Activity size={16} />,
+        module: "cash_flow",
+      },
+      {
+        id: "cash-counts",
+        name: "Cash Count",
+        href: "/cash-counts",
+        icon: <Coins size={16} />,
+        module: "cash_counts",
+      },
+      {
+        id: "expense-categorization",
+        name: "Expense Categorization",
+        href: "/expense-categorization",
+        icon: <Tag size={16} />,
         module: "cash_flow",
       },
       {
@@ -534,34 +556,12 @@ export const menuItems: MenuItem[] = [
         icon: <RefreshCcw size={16} />,
         module: "general_invoices",
       },
-      {
-        id: "expense-categorization",
-        name: "Expense Categorization",
-        href: "/expense-categorization",
-        icon: <Tag size={16} />,
-        module: "cash_flow",
-      },
-
-      {
-        id: "cash-counts",
-        name: "Cash Count",
-        href: "/cash-counts",
-        icon: <Coins size={16} />,
-        module: "cash_counts",
-      },
-      {
-        id: "fee_discrepancy-review",
-        name: "Fee Discrepancy Review",
-        href: "bank-reconciliation/fee-discrepancy-review",
-        icon: <ShieldCheck size={16} />,
-        module: "fee_discrepancy_review",
-      },
     ],
   },
 
   // ─────────────────────────────────────────────
-  // 6. ACCOUNTING & LAPORAN — output/hasil akhir
-  //    Flow: Setup CoA → Jurnal → Laporan
+  // 10. ACCOUNTING & LAPORAN — output/hasil akhir
+  //     Flow: Setup CoA → Jurnal → Laporan
   // ─────────────────────────────────────────────
   {
     id: "accounting",
@@ -659,7 +659,7 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 7. HUMAN RESOURCES
+  // 11. HUMAN RESOURCES
   // ─────────────────────────────────────────────
   {
     id: "hr",
@@ -684,7 +684,7 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 8. SETTINGS & SYSTEM
+  // 12. SETTINGS & SYSTEM
   // ─────────────────────────────────────────────
   {
     id: "settings",
@@ -706,25 +706,11 @@ export const menuItems: MenuItem[] = [
         module: "permissions",
       },
       {
-        id: "alert-threshold",
-        name: "Alert Threshold",
-        href: "/settings/alerts",
-        icon: <Bell size={16} />,
-        module: "payment_method_alerts",
-      },
-      {
         id: "departments",
         name: "Departemen",
         href: "/settings/departments",
         icon: <Building2 size={16} />,
         module: "departments",
-      },
-      {
-        id: "owner-credit-cards",
-        name: "Kartu Kredit Owner",
-        href: "/settings/owner-credit-cards",
-        icon: <CreditCard size={16} />,
-        module: "owner_credit_cards",
       },
       {
         id: "positions",
@@ -734,6 +720,20 @@ export const menuItems: MenuItem[] = [
         module: "positions",
       },
       {
+        id: "owner-credit-cards",
+        name: "Kartu Kredit Owner",
+        href: "/settings/owner-credit-cards",
+        icon: <CreditCard size={16} />,
+        module: "owner_credit_cards",
+      },
+      {
+        id: "alert-threshold",
+        name: "Alert Threshold",
+        href: "/settings/alerts",
+        icon: <Bell size={16} />,
+        module: "payment_method_alerts",
+      },
+      {
         id: "notification-routing",
         name: "Routing Notifikasi",
         href: "/settings/notification-routing",
@@ -741,18 +741,18 @@ export const menuItems: MenuItem[] = [
         module: "notifications",
       },
       {
-        id: "monitoring",
-        name: "System Monitoring",
-        href: "/monitoring",
-        icon: <Activity size={16} />,
-        module: "monitoring",
-      },
-      {
         id: "printers",
         name: "Printers",
         href: "/settings/printers",
         icon: <Printer size={16} />,
         module: "printers",
+      },
+      {
+        id: "monitoring",
+        name: "System Monitoring",
+        href: "/monitoring",
+        icon: <Activity size={16} />,
+        module: "monitoring",
       },
     ],
   },
