@@ -184,6 +184,13 @@ export const menuItems: MenuItem[] = [
         icon: <Receipt size={16} />,
         module: "pricelists",
       },
+      {
+        id: "vendors",
+        name: "Vendors",
+        href: "/finance/general-invoices/vendors",
+        icon: <Building2 size={16} />,
+        module: "general_invoices",
+      },
     ],
   },
 
@@ -431,7 +438,7 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 8. APPROVALS — Persetujuan PR & Invoice
+  // 8. APPROVALS — Persetujuan PR
   // ─────────────────────────────────────────────
   {
     id: "approvals",
@@ -446,19 +453,12 @@ export const menuItems: MenuItem[] = [
         module: "purchase_requests",
         permissionAction: "approve",
       },
-      {
-        id: "inv-purchase-invoices",
-        name: "Verifikasi Invoice",
-        href: "/inventory/purchase-invoices",
-        icon: <FileText size={16} />,
-        module: "purchase_invoices",
-      },
     ],
   },
 
   // ─────────────────────────────────────────────
   // 9. BANKING & REKONSILIASI — proses matching
-  //    Flow: Import Bank → Rekonsiliasi → Settlement → Cash → AP
+  //    Flow: Import Bank → Rekonsiliasi → Settlement → Cash
   // ─────────────────────────────────────────────
   {
     id: "banking",
@@ -514,6 +514,24 @@ export const menuItems: MenuItem[] = [
         icon: <Tag size={16} />,
         module: "cash_flow",
       },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // 9b. FINANCE — AP, Invoices, Payments
+  // ─────────────────────────────────────────────
+  {
+    id: "finance",
+    name: "Finance",
+    icon: <DollarSign size={18} />,
+    submenu: [
+      {
+        id: "inv-purchase-invoices",
+        name: "Purchase Invoices",
+        href: "/inventory/purchase-invoices",
+        icon: <FileText size={16} />,
+        module: "purchase_invoices",
+      },
       {
         id: "ap-payments",
         name: "AP Payments",
@@ -540,13 +558,6 @@ export const menuItems: MenuItem[] = [
         name: "Payments",
         href: "/finance/general-invoices/payments",
         icon: <Banknote size={16} />,
-        module: "general_invoices",
-      },
-      {
-        id: "general-invoices-vendors",
-        name: "Vendors",
-        href: "/finance/general-invoices/vendors",
-        icon: <Building2 size={16} />,
         module: "general_invoices",
       },
       {
