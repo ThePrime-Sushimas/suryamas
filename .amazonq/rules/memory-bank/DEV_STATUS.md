@@ -94,7 +94,13 @@
 3. Routes: `(req, res) => controller.method(req, res)` — tanpa cast
 4. `error: unknown` di semua catch blocks
 5. Custom error class dari `*.errors.ts`, daftarkan di `ERROR_REGISTRY`. Jangan `throw new Error()`
-6. `company_id` dari `req.context?.company_id`, BUKAN dari query param
+6. `company_id` dari `req.context?.company_id`, BUKAN dari query param (form transaksi: lihat `MULTI_COMPANY.md`)
+
+## Multi-company (May 2026 — in progress)
+
+Refactor agar user multi-company tidak kena 404 / company mismatch. **Wajib baca:** `.amazonq/rules/memory-bank/MULTI_COMPANY.md`
+
+Sudah diperbaiki: production orders (create/complete/void/journal), WIP list filter `?company_id=`, production order form.
 7. Audit fields (`created_by`, `updated_by`, `posted_by`, dll.) → **`req.user.id`** (`auth_users`). Jangan pakai `employee_id` untuk FK audit. Nama user di UI: join `employees.user_id = auth_users.id`. Helper: `getAuthUserId(req)` di `backend/src/utils/auth-context.util.ts`
 8. Express global augmentation (`backend/src/types/express.d.ts`): `user`, `validated`, `sort`, `filterParams`, `queryFilter`, `context`, `permissions`
 9. `isPostgresError(error, code)` dari `src/utils/postgres-error.util.ts` untuk cek PG error code

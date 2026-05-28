@@ -130,7 +130,8 @@ Exception: method khusus untuk restore flow (`findByIdIncludeDeleted`)
 
 ## Controller Layer Contracts
 
-- `company_id` dari `req.context?.company_id` — BUKAN dari query param
+- `company_id` dari `req.context?.company_id` — BUKAN dari query param (kecuali filter list master data dengan `requireCompanyAccess` — lihat `MULTI_COMPANY.md`)
+- Form transaksi dengan `body.branch_id`: pakai `getCompanyIdForBranch(branch_id)` — lihat `MULTI_COMPANY.md`
 - `user_id` dari `req.user?.id`
 - Error handling: `await handleError(res, error, req, { action, id? })`
 - Response: `sendSuccess(res, data, message, statusCode, pagination?)`

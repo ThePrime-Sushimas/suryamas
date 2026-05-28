@@ -11,5 +11,10 @@ export function useUserBranches() {
   const branches = useBranchContextStore(s => s.branches)
   return branches
     .filter(b => b.branch_status === 'active')
-    .map(b => ({ id: b.branch_id, branch_name: b.branch_name, company_id: b.company_id }))
+    .map(b => ({
+      id: b.branch_id,
+      branch_name: b.branch_name,
+      company_id: b.company_id,
+      company_name: b.company_name,
+    }))
 }

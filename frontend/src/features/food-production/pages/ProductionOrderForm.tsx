@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useWipItems, useCreateProductionOrder } from '../api/food-production.api'
 import { useUserBranches } from '@/hooks/_shared/useUserBranches'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
 const today = () => new Date().toISOString().slice(0, 10)
@@ -17,9 +18,9 @@ interface LineInput {
 export default function ProductionOrderForm() {
   const navigate = useNavigate()
   const toast = useToast()
+  const currentBranch = useBranchContextStore(s => s.currentBranch)
 
   const availableBranches = useUserBranches()
-  const wipItems = useWipItems({ limit: 500, filter_by_position: true })
   const createOrder = useCreateProductionOrder()
 
   const [branchId, setBranchId] = useState('')
@@ -27,24 +28,26 @@ export default function ProductionOrderForm() {
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineInput[]>([{ wip_id: '', planned_batch_qty: 1 }])
 
-  const branchCompanyId = availableBranches.find(b => b.id === branchId)?.company_id
-  const allWips = wipItems.data?.data || []
-  const wipList = branchCompanyId
-    ? allWips.filter(w => w.company_id === branchCompanyId)
-    : []
+  const selectedBranch = availableBranches.find(b => b.id === branchId)
+
+  const wipItems = useWipItems(
+    { limit: 500, filter_by_position: true, branch_id: branchId || undefined },
+    { enabled: !!branchId },
+  )
+
+  const wipList = wipItems.data?.data || []
   const wipMap = new Map(wipList.map(w => [w.id, w]))
+
+  // Default cabang = cabang aktif di header (sama company dengan konteks kerja user)
+  useEffect(() => {
+    if (branchId || !currentBranch?.branch_id) return
+    const match = availableBranches.find(b => b.id === currentBranch.branch_id)
+    if (match) setBranchId(match.id)
+  }, [branchId, currentBranch?.branch_id, availableBranches])
 
   const handleBranchChange = (newBranchId: string) => {
     setBranchId(newBranchId)
-    const newCompanyId = availableBranches.find(b => b.id === newBranchId)?.company_id
-    if (!newCompanyId) return
-    setLines(prev => prev.map(l => {
-      const wip = allWips.find(w => w.id === l.wip_id)
-      if (l.wip_id && wip && wip.company_id !== newCompanyId) {
-        return { ...l, wip_id: '' }
-      }
-      return l
-    }))
+    setLines(prev => prev.map(l => ({ ...l, wip_id: '' })))
   }
 
   const addLine = () => setLines([...lines, { wip_id: '', planned_batch_qty: 1 }])
@@ -73,6 +76,12 @@ export default function ProductionOrderForm() {
       toast.error(parseApiError(err, 'Gagal membuat order'))
     }
   }
+
+  const wipEmptyHint = branchId && !wipItems.isLoading && wipList.length === 0
+    ? selectedBranch?.company_name
+      ? `Tidak ada WIP untuk ${selectedBranch.company_name} di cabang ini. Master WIP per company — duplikasi dari cabang lain atau buat WIP baru.`
+      : 'Tidak ada WIP untuk company cabang ini. Pilih cabang lain atau buat master WIP di company yang sama.'
+    : null
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
@@ -115,10 +124,18 @@ export default function ProductionOrderForm() {
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">WIP yang Diproduksi</h2>
-          <button onClick={addLine} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200">
+          <button onClick={addLine} disabled={!branchId}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50">
             <Plus className="w-3 h-3" /> Tambah WIP
           </button>
         </div>
+
+        {wipEmptyHint && (
+          <p className="px-4 py-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 border-b border-amber-100 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-900/10">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            {wipEmptyHint}
+          </p>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -139,9 +156,11 @@ export default function ProductionOrderForm() {
                   <tr key={idx}>
                     <td className="px-3 py-2">
                       <select value={line.wip_id} onChange={e => { const updated = [...lines]; updated[idx] = { ...updated[idx], wip_id: e.target.value }; setLines(updated) }}
-                        disabled={!branchId}
+                        disabled={!branchId || wipItems.isLoading}
                         className="w-full h-8 px-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
-                        <option value="">{branchId ? 'Pilih WIP...' : 'Pilih cabang dulu...'}</option>
+                        <option value="">
+                          {!branchId ? 'Pilih cabang dulu...' : wipItems.isLoading ? 'Memuat WIP...' : 'Pilih WIP...'}
+                        </option>
                         {wipList.map(w => <option key={w.id} value={w.id}>{w.wip_code} — {w.wip_name}</option>)}
                       </select>
                       {wip && !hasIngredients && (

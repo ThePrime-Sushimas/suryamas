@@ -17,6 +17,31 @@ export interface UserWipAccess {
  * Resolve user's position IDs and bypass flag.
  * Combines positions from employee_positions (cover) + employee_branches (per-branch).
  */
+/**
+ * Positions for WIP list on a specific branch form.
+ * Global employee_positions + position_id on employee_branches for that branch only.
+ */
+export async function resolveUserWipAccessForBranch(userId: string, branchId: string): Promise<UserWipAccess> {
+  const { rows } = await pool.query(`
+    SELECT DISTINCT p.id AS position_id, p.can_access_all_wip
+    FROM employees e
+    LEFT JOIN employee_positions ep ON ep.employee_id = e.id AND ep.is_deleted = false
+    LEFT JOIN positions p ON p.id = ep.position_id AND p.is_deleted = false
+    WHERE e.user_id = $1 AND e.deleted_at IS NULL
+    UNION
+    SELECT DISTINCT p.id AS position_id, p.can_access_all_wip
+    FROM employees e
+    JOIN employee_branches eb ON eb.employee_id = e.id AND eb.branch_id = $2 AND eb.status = 'active'
+    JOIN positions p ON p.id = eb.position_id AND p.is_deleted = false
+    WHERE e.user_id = $1 AND e.deleted_at IS NULL AND eb.position_id IS NOT NULL
+  `, [userId, branchId])
+
+  return {
+    positionIds: rows.filter(r => r.position_id).map(r => r.position_id),
+    canAccessAll: rows.some(r => r.can_access_all_wip),
+  }
+}
+
 export async function resolveUserWipAccess(userId: string): Promise<UserWipAccess> {
   const { rows } = await pool.query(`
     SELECT DISTINCT p.id AS position_id, p.can_access_all_wip

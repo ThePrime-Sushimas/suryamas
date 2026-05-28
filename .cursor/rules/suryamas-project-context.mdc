@@ -11,6 +11,7 @@ Read when relevant:
 - `.amazonq/rules/memory-bank/INFRASTRUCTURE.md` — server, DB tunnel, deploy, storage
 - `.amazonq/rules/memory-bank/DEV_STATUS.md` — progress, backlog, conventions
 - `.amazonq/rules/memory-bank/CODING_PATTERNS.md` — backend + **frontend list URL filters**
+- `.amazonq/rules/memory-bank/MULTI_COMPANY.md` — **multi-company refactor (May 2026)** — branch vs header company, WIP/production order patterns
 - `.amazonq/rules/memory-bank/MODULE_CHECKLIST.md` — new module checklist
 
 ## Current priority

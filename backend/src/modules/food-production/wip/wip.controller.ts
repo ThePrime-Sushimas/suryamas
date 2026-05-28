@@ -2,10 +2,13 @@ import type { Request, Response } from 'express'
 import { wipService } from './wip.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
-import { employeePositionsRepository } from '../../employee-positions/employee-positions.repository'
 import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import type { createWipItemSchema, updateWipItemSchema, wipItemIdSchema, bulkDeleteWipSchema } from './wip.schema'
-import { getReadScope, getWriteScope } from '../../../utils/branch-access.util'
+import {
+  getAccessibleBranchIds, getCompanyIdForBranch, getReadScope, getWriteScope,
+  requireBranchAccess, requireCompanyAccess,
+} from '../../../utils/branch-access.util'
+import { resolveUserWipAccess, resolveUserWipAccessForBranch } from './wip-access.util'
 
 type CreateReq = ValidatedAuthRequest<typeof createWipItemSchema>
 type UpdateReq = ValidatedAuthRequest<typeof updateWipItemSchema>
@@ -15,20 +18,40 @@ type BulkDeleteReq = ValidatedAuthRequest<typeof bulkDeleteWipSchema>
 export class WipController {
   list = async (req: Request, res: Response) => {
     try {
-      const { companyIds } = await getReadScope(req)
+      const { companyIds, userId } = await getReadScope(req)
       const page = parseInt(req.query.page as string) || 1
       const limit = parseInt(req.query.limit as string) || 50
       const is_active = req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined
 
+      const branchId = typeof req.query.branch_id === 'string' ? req.query.branch_id : undefined
+      let companyIdFilter = typeof req.query.company_id === 'string' ? req.query.company_id : undefined
+
+      if (branchId) {
+        const branchIds = await getAccessibleBranchIds(userId)
+        requireBranchAccess(branchId, branchIds)
+        const branchCompanyId = await getCompanyIdForBranch(branchId)
+        if (!branchCompanyId) {
+          sendSuccess(res, [], 'WIP items retrieved', 200, { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false })
+          return
+        }
+        companyIdFilter = branchCompanyId
+      }
+
+      if (companyIdFilter) requireCompanyAccess(companyIdFilter, companyIds)
+
       let positionIds: string[] | undefined
       let canAccessAll = false
       if (req.query.filter_by_position === 'true' && req.user?.id) {
-        const userPositions = await employeePositionsRepository.findByUserPositions(req.user.id)
-        positionIds = userPositions.map(p => p.position_id)
-        canAccessAll = userPositions.some(p => p.can_access_all_wip)
+        const access = branchId
+          ? await resolveUserWipAccessForBranch(req.user.id, branchId)
+          : await resolveUserWipAccess(req.user.id)
+        positionIds = access.positionIds
+        canAccessAll = access.canAccessAll
       }
 
-      const result = await wipService.list(companyIds, { page, limit }, { is_active, positionIds, canAccessAll })
+      const result = await wipService.list(companyIds, { page, limit }, {
+        is_active, positionIds, canAccessAll, companyId: companyIdFilter,
+      })
       sendSuccess(res, result.data, 'WIP items retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_wip_items' })

@@ -3,9 +3,14 @@ import type { PoolClient } from 'pg'
 import type { WipItem, WipItemWithIngredients, WipIngredientWithProduct, CreateWipItemDto, UpdateWipItemDto, CreateWipIngredientDto } from './wip.types'
 
 export class WipRepository {
-  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean }): Promise<{ data: WipItem[]; total: number }> {
+  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean; companyId?: string }): Promise<{ data: WipItem[]; total: number }> {
+    const scopedCompanyIds = filter?.companyId
+      ? (companyIds.includes(filter.companyId) ? [filter.companyId] : [])
+      : companyIds
+    if (scopedCompanyIds.length === 0) return { data: [], total: 0 }
+
     const conditions = ['w.company_id = ANY($1::uuid[])', 'w.deleted_at IS NULL']
-    const params: unknown[] = [companyIds]
+    const params: unknown[] = [scopedCompanyIds]
     let idx = 2
 
     if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`w.is_active = $${idx++}`) }
