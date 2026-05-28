@@ -16,7 +16,7 @@ interface EmployeeFormProps {
 const defaultFormData: EmployeeFormData = {
   employee_id: '',
   full_name: '',
-  job_position: '',
+  position_id: '',
   brand_name: '',
   ptkp_status: 'TK/0',
   status_employee: 'Permanent',
@@ -70,15 +70,7 @@ export default function EmployeeForm({
     setErrors({})
     setIsSubmitting(true)
     try {
-      // In create mode, derive job_position from the selected position dropdown
-      const dataToValidate = { ...formData }
-      if (mode === 'create' && formData.position_id) {
-        const selectedPosition = (positions.data || []).find(p => p.id === formData.position_id)
-        if (selectedPosition && !dataToValidate.job_position) {
-          dataToValidate.job_position = selectedPosition.position_name
-        }
-      }
-      const validated = employeeFormSchema.parse(dataToValidate) as EmployeeFormData
+      const validated = employeeFormSchema.parse(formData) as EmployeeFormData
       await onSubmit(validated, profilePicture || undefined)
       setFormData(defaultFormData)
       setProfilePicture(null)

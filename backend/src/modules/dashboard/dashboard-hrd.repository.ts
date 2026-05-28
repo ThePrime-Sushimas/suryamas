@@ -58,13 +58,15 @@ class DashboardHrdRepository {
 
   async getBranchPositions(companyIds: string[], branchIds: string[]): Promise<BranchPositionRow[]> {
     const { rows } = await pool.query(
-      `SELECT b.id AS branch_id, b.branch_name, UPPER(COALESCE(e.job_position, 'UNKNOWN')) AS job_position, COUNT(DISTINCT e.id)::int AS count
+      `SELECT b.id AS branch_id, b.branch_name, UPPER(COALESCE(pos.position_name, 'UNKNOWN')) AS job_position, COUNT(DISTINCT e.id)::int AS count
        FROM employee_branches eb
        JOIN employees e ON e.id = eb.employee_id AND e.deleted_at IS NULL AND e.full_name NOT IN ('test')
        JOIN branches b ON b.id = eb.branch_id AND b.status = 'active' AND b.id = ANY($2::uuid[])
+       LEFT JOIN employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+       LEFT JOIN positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
        WHERE eb.status = 'active' AND eb.is_primary = true AND b.company_id = ANY($1::uuid[])
-         AND LENGTH(TRIM(COALESCE(e.job_position, ''))) > 2
-       GROUP BY b.id, b.branch_name, UPPER(COALESCE(e.job_position, 'UNKNOWN'))
+         AND LENGTH(TRIM(COALESCE(pos.position_name, ''))) > 2
+       GROUP BY b.id, b.branch_name, UPPER(COALESCE(pos.position_name, 'UNKNOWN'))
        ORDER BY b.branch_name, count DESC`,
       [companyIds, branchIds]
     )
@@ -73,14 +75,16 @@ class DashboardHrdRepository {
 
   async getPositionSummary(companyIds: string[], branchIds: string[]): Promise<PositionRow[]> {
     const { rows } = await pool.query(
-      `SELECT UPPER(COALESCE(e.job_position, 'UNKNOWN')) AS job_position, COUNT(DISTINCT e.id)::int AS count
+      `SELECT UPPER(COALESCE(pos.position_name, 'UNKNOWN')) AS job_position, COUNT(DISTINCT e.id)::int AS count
        FROM employees e
        JOIN employee_branches eb ON eb.employee_id = e.id AND eb.status = 'active' AND eb.is_primary = true
        JOIN branches b ON b.id = eb.branch_id AND b.status = 'active'
          AND b.company_id = ANY($1::uuid[]) AND b.id = ANY($2::uuid[])
+       LEFT JOIN employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+       LEFT JOIN positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
        WHERE e.deleted_at IS NULL AND e.full_name NOT IN ('test')
-         AND e.job_position IS NOT NULL AND LENGTH(TRIM(e.job_position)) > 2
-       GROUP BY UPPER(COALESCE(e.job_position, 'UNKNOWN'))
+         AND pos.position_name IS NOT NULL AND LENGTH(TRIM(pos.position_name)) > 2
+       GROUP BY UPPER(COALESCE(pos.position_name, 'UNKNOWN'))
        ORDER BY count DESC`,
       [companyIds, branchIds]
     )
@@ -89,7 +93,7 @@ class DashboardHrdRepository {
 
   async getMultiBranchEmployees(companyIds: string[], branchIds: string[]): Promise<MultiBranchEmployee[]> {
     const { rows } = await pool.query(
-      `SELECT e.id AS employee_id, e.full_name, UPPER(COALESCE(e.job_position, 'UNKNOWN')) AS job_position,
+      `SELECT e.id AS employee_id, e.full_name, UPPER(COALESCE(pos.position_name, 'UNKNOWN')) AS job_position,
         (SELECT r.name FROM perm_roles r
          JOIN employee_branches eb2 ON eb2.role_id = r.id
          WHERE eb2.employee_id = e.id AND eb2.is_primary = true LIMIT 1) AS role_name,
@@ -99,8 +103,10 @@ class DashboardHrdRepository {
        JOIN employee_branches eb ON eb.employee_id = e.id AND eb.status = 'active'
        JOIN branches b ON b.id = eb.branch_id AND b.status = 'active'
          AND b.company_id = ANY($1::uuid[]) AND b.id = ANY($2::uuid[])
+       LEFT JOIN employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+       LEFT JOIN positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
        WHERE e.deleted_at IS NULL AND e.full_name NOT IN ('test')
-       GROUP BY e.id, e.full_name, e.job_position
+       GROUP BY e.id, e.full_name, pos.position_name
        HAVING COUNT(DISTINCT eb.branch_id) > 1
        ORDER BY branch_count DESC, e.full_name`,
       [companyIds, branchIds]

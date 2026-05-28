@@ -5,7 +5,7 @@ import { employeesRepository } from '../employees/employees.repository'
 
 const BASE_SELECT = `
   eb.id, eb.employee_id, eb.branch_id, eb.role_id, eb.position_id, eb.is_primary, eb.approval_limit, eb.status, eb.created_at,
-  e.full_name AS emp_full_name, e.job_position AS emp_job_position, e.email AS emp_email, e.mobile_phone AS emp_mobile_phone,
+  e.full_name AS emp_full_name, ep_pos.position_name AS emp_job_position, e.email AS emp_email, e.mobile_phone AS emp_mobile_phone,
   b.branch_name AS br_branch_name, b.branch_code AS br_branch_code, b.company_id AS br_company_id, c.company_name AS br_company_name, b.status AS br_status,
   r.name AS role_name, r.description AS role_description,
   p.position_code AS pos_position_code, p.position_name AS pos_position_name, d.department_code AS pos_department_code, d.department_name AS pos_department_name
@@ -18,6 +18,10 @@ const BASE_FROM = `
   JOIN perm_roles r ON r.id = eb.role_id
   LEFT JOIN positions p ON p.id = eb.position_id
   LEFT JOIN departments d ON d.id = p.department_id
+  -- ep_primary/ep_pos: employee's global primary position (from employee_positions)
+  -- p/d above: branch-specific position (from employee_branches.position_id)
+  LEFT JOIN employee_positions ep_primary ON ep_primary.employee_id = e.id AND ep_primary.is_primary = true AND ep_primary.is_deleted = false
+  LEFT JOIN positions ep_pos ON ep_pos.id = ep_primary.position_id AND ep_pos.is_deleted = false
 `
 
 function mapRow(row: Record<string, unknown>): Record<string, unknown> {

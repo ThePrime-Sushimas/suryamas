@@ -21,10 +21,11 @@ export class EmployeesService {
 
   async create(payload: EmployeeCreatePayload, file?: Express.Multer.File, userId?: string): Promise<EmployeeResponse> {
     const profilePictureUrl = file ? await this.uploadFile(file) : null
-    const employeeId = payload.employee_id || await this.generateEmployeeId(payload)
-    
-    // Extract position_id before creating employee (not stored in employees table)
+
+    // Resolve position_name from position_id for employee ID generation
     const { position_id, ...employeeData } = payload
+    const positionName = await this.resolvePositionName(position_id)
+    const employeeId = payload.employee_id || await this.generateEmployeeId({ ...payload, position_name: positionName })
     
     const employee = await employeesRepository.create({
       ...employeeData,
@@ -32,10 +33,8 @@ export class EmployeesService {
       profile_picture: profilePictureUrl
     })
 
-    // Auto-assign position if provided
-    if (position_id) {
-      await employeePositionsRepository.assign(employee.id, position_id, true, userId || undefined)
-    }
+    // Assign position to employee_positions
+    await employeePositionsRepository.assign(employee.id, position_id, true, userId || undefined)
 
     await AuditService.log('CREATE', 'employee', employee.id, userId || null, null, employee)
 
@@ -191,19 +190,23 @@ export class EmployeesService {
       rows,
       requiredFields,
       async (row) => {
+        const jobPosition = row.job_position as string
+
+        // Resolve position_id from job_position string (case-insensitive)
+        const positionId = await employeesRepository.resolvePositionIdByName(jobPosition)
+
         let employeeId = row.employee_id
-        if (!employeeId && row.brand_name && row.join_date && row.job_position) {
+        if (!employeeId && row.brand_name && row.join_date && jobPosition) {
           employeeId = await this.generateEmployeeId({
             brand_name: row.brand_name as string,
             join_date: row.join_date as string,
-            job_position: row.job_position as string,
+            position_name: jobPosition,
           })
         }
         
-        await employeesRepository.create({
+        const employee = await employeesRepository.create({
           employee_id: employeeId,
           full_name: row.full_name as string,
-          job_position: row.job_position as string,
           brand_name: row.brand_name as string,
           email: row.email as string,
           mobile_phone: row.mobile_phone as string,
@@ -225,13 +228,26 @@ export class EmployeesService {
           bank_account: row.bank_account as string,
           bank_account_holder: row.bank_account_holder as string,
         } as Partial<EmployeeDB>)
+
+        if (!employee.id) throw new Error('Failed to create employee: no ID returned')
+
+        // Auto-assign position if resolved
+        if (positionId) {
+          await employeePositionsRepository.assign(employee.id, positionId, true)
+        }
       },
       skipDuplicates
     )
   }
 
-  private async generateEmployeeId(payload: Pick<EmployeeCreatePayload, 'brand_name' | 'join_date' | 'job_position'>): Promise<string> {
-    return employeesRepository.generateEmployeeId(payload.brand_name, payload.join_date, payload.job_position)
+  private async generateEmployeeId(payload: Pick<EmployeeCreatePayload, 'brand_name' | 'join_date'> & { position_name: string }): Promise<string> {
+    return employeesRepository.generateEmployeeId(payload.brand_name, payload.join_date, payload.position_name)
+  }
+
+  private async resolvePositionName(positionId: string): Promise<string> {
+    const name = await employeesRepository.resolvePositionName(positionId)
+    if (!name) throw EmployeeErrors.VALIDATION('Position not found')
+    return name
   }
 
   private async uploadFile(file: Express.Multer.File, prefix?: string): Promise<string> {

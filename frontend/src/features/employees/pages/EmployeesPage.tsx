@@ -29,7 +29,7 @@ type QueryState = {
 
 type EmployeeFilters = {
   branch_name?: string
-  job_position?: string
+  position_id?: string
   status_employee?: string
   is_active?: string
   include_deleted?: string
@@ -119,7 +119,7 @@ export default function EmployeesPage() {
   const buildFilters = useCallback((q: QueryState): EmployeeFilters => {
     const filters: EmployeeFilters = {}
     if (q.branch) filters.branch_name = q.branch
-    if (q.position) filters.job_position = q.position
+    if (q.position) filters.position_id = q.position
     if (q.status) filters.status_employee = q.status
     if (q.isActive) filters.is_active = q.isActive
     if (q.includeDeleted) filters.include_deleted = 'true'
@@ -417,7 +417,7 @@ export default function EmployeesPage() {
             </select>
             <select value={query.position} onChange={e => handleFilterChange('position', e.target.value)} className={selectCls}>
               <option value="">Semua Posisi</option>
-              {filterOptions?.positions.map(p => <option key={p} value={p}>{p}</option>)}
+              {filterOptions?.positions.map(p => <option key={p.id} value={p.id}>{p.position_name}</option>)}
             </select>
             <select value={query.status} onChange={e => handleFilterChange('status', e.target.value)} className={selectCls}>
               <option value="">Semua Status</option>

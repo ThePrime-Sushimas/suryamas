@@ -15,6 +15,7 @@ export interface EmployeeBase {
   employee_id: string
   full_name: string
   job_position: string
+  department_name: string | null
   join_date: string
   resign_date: string | null
   status_employee: StatusEmployee
@@ -56,8 +57,7 @@ export interface EmployeeResponse extends EmployeeWithBranch {
 export interface EmployeeFormData {
   employee_id?: string
   full_name: string
-  job_position: string
-  position_id?: string // For create: assign first position
+  position_id: string
   brand_name: string
   join_date: string
   resign_date?: string
@@ -93,7 +93,7 @@ export interface EmployeeProfileUpdate {
 
 export interface FilterOptions {
   branches: Array<{ id: string; branch_name: string }>
-  positions: string[]
+  positions: Array<{ id: string; position_name: string }>
   statuses: string[]
 }
 

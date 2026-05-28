@@ -8,7 +8,6 @@ export interface EmployeeDB {
   id: string
   employee_id: string
   full_name: string
-  job_position: string
   join_date: string
   resign_date: string | null
   status_employee: StatusEmployee
@@ -37,6 +36,8 @@ export interface EmployeeDB {
 }
 
 export interface EmployeeWithBranch extends EmployeeDB {
+  job_position: string | null
+  department_name: string | null
   branch_code: string | null
   branch_city: string | null
   branch_name: string | null
@@ -50,8 +51,7 @@ export interface EmployeeResponse extends EmployeeWithBranch {
 export interface EmployeeCreatePayload {
   employee_id?: string
   full_name: string
-  job_position: string
-  position_id?: string // For auto-assign to employee_positions
+  position_id: string
   brand_name: string
   join_date: string
   resign_date?: string | null
@@ -76,7 +76,6 @@ export interface EmployeeCreatePayload {
 
 export interface EmployeeUpdatePayload {
   full_name?: string
-  job_position?: string
   brand_name?: string
   join_date?: string
   resign_date?: string | null
@@ -113,7 +112,7 @@ export interface EmployeeProfileUpdatePayload {
 export interface EmployeeFilter {
   search?: string
   branch_name?: string
-  job_position?: string
+  position_id?: string
   status_employee?: StatusEmployee
   is_active?: boolean
   include_deleted?: boolean

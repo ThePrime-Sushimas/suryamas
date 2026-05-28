@@ -39,9 +39,9 @@ class PositionsRepository {
 
   async create(companyId: string, dto: CreatePositionDto): Promise<Position> {
     const { rows } = await pool.query(
-      `INSERT INTO positions (company_id, department_id, position_code, position_name, can_access_all_wip, sort_order, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7) RETURNING *`,
-      [companyId, dto.department_id, dto.position_code, dto.position_name, dto.can_access_all_wip ?? false, dto.sort_order ?? 0, dto.created_by || null]
+      `INSERT INTO positions (company_id, department_id, position_code, position_name, role_id, can_access_all_wip, sort_order, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8) RETURNING *`,
+      [companyId, dto.department_id, dto.position_code, dto.position_name, dto.role_id || null, dto.can_access_all_wip ?? false, dto.sort_order ?? 0, dto.created_by || null]
     )
     return rows[0]
   }
@@ -53,6 +53,7 @@ class PositionsRepository {
 
     if (dto.department_id !== undefined) { sets.push(`department_id = $${idx++}`); params.push(dto.department_id) }
     if (dto.position_name !== undefined) { sets.push(`position_name = $${idx++}`); params.push(dto.position_name) }
+    if (dto.role_id !== undefined) { sets.push(`role_id = $${idx++}`); params.push(dto.role_id) }
     if (dto.can_access_all_wip !== undefined) { sets.push(`can_access_all_wip = $${idx++}`); params.push(dto.can_access_all_wip) }
     if (dto.sort_order !== undefined) { sets.push(`sort_order = $${idx++}`); params.push(dto.sort_order) }
     if (dto.is_active !== undefined) { sets.push(`is_active = $${idx++}`); params.push(dto.is_active) }
@@ -78,6 +79,7 @@ class PositionsRepository {
     const { rows } = await pool.query(`
       SELECT (
         (SELECT COUNT(*) FROM employee_positions WHERE position_id = $1 AND is_deleted = false) +
+        (SELECT COUNT(*) FROM employee_branches WHERE position_id = $1 AND status = 'active') +
         (SELECT COUNT(*) FROM wip_position_access WHERE position_id = $1)
       )::int AS cnt
     `, [id])

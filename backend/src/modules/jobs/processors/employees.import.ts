@@ -4,7 +4,9 @@
 
 import * as XLSX from 'xlsx'
 import { employeesRepository } from '@/modules/employees/employees.repository'
-import type { EmployeeCreatePayload, EmployeeFilter } from '@/modules/employees/employees.types'
+import { employeePositionsRepository } from '@/modules/employee-positions/employee-positions.repository'
+import type { EmployeeFilter } from '@/modules/employees/employees.types'
+import { pool } from '@/config/db'
 import { logInfo, logError } from '@/config/logger'
 import { jobsService } from '@/modules/jobs'
 import { deleteTempFile } from '../jobs.util'
@@ -85,10 +87,26 @@ export const processEmployeesImport: JobProcessor = async (
           const fullName = toString(rowData['Full Name'] || rowData['full_name'])
           const jobPosition = toString(rowData['Job Position'] || rowData['job_position'])
           
-          const employeeData: EmployeeCreatePayload = {
+          if (!employeeId || !fullName || !jobPosition) {
+            results.failed++
+            results.errors.push(`Row ${rowNum}: Missing required fields (employee_id, full_name, job_position)`)
+            continue
+          }
+
+          // Resolve position_id from job_position string
+          const { rows: posRows } = await pool.query(
+            'SELECT id FROM positions WHERE LOWER(position_name) = LOWER($1) AND is_deleted = false LIMIT 1',
+            [jobPosition]
+          )
+          const positionId: string | null = posRows[0]?.id || null
+
+          if (!positionId) {
+            results.errors.push(`Row ${rowNum}: Position "${jobPosition}" not found in positions table, imported without position assignment`)
+          }
+
+          const employeeData = {
             employee_id: employeeId,
             full_name: fullName,
-            job_position: jobPosition,
             brand_name: toString(rowData['Brand'] || rowData['brand_name']),
             join_date: toString(rowData['Join Date'] || rowData['join_date']),
             status_employee: toString(rowData['Status'] || rowData['status_employee'] || 'Permanent') as any,
@@ -107,12 +125,6 @@ export const processEmployeesImport: JobProcessor = async (
             citizen_id_address: toStringOrNull(rowData['Address'] || rowData['citizen_id_address']),
           }
 
-          if (!employeeData.employee_id || !employeeData.full_name || !employeeData.job_position) {
-            results.failed++
-            results.errors.push(`Row ${rowNum}: Missing required fields (employee_id, full_name, job_position)`)
-            continue
-          }
-
           // Check if employee exists by employee_id
           const filter: EmployeeFilter = { search: employeeData.employee_id }
           const existingEmployees = await employeesRepository.exportData(filter)
@@ -124,7 +136,6 @@ export const processEmployeesImport: JobProcessor = async (
             } else {
               await employeesRepository.updateById(existing.id, {
                 full_name: employeeData.full_name,
-                job_position: employeeData.job_position,
                 brand_name: employeeData.brand_name,
                 join_date: employeeData.join_date,
                 status_employee: employeeData.status_employee,
@@ -142,10 +153,19 @@ export const processEmployeesImport: JobProcessor = async (
                 bank_account_holder: employeeData.bank_account_holder,
                 citizen_id_address: employeeData.citizen_id_address,
               } as any)
+              // Sync position assignment on update
+              if (positionId) {
+                await employeePositionsRepository.assign(existing.id, positionId, true)
+              }
               results.updated++
             }
           } else {
-            await employeesRepository.create(employeeData)
+            const created = await employeesRepository.create(employeeData)
+            if (!created.id) throw new Error('Failed to create employee: no ID returned')
+            // Auto-assign position if resolved
+            if (positionId) {
+              await employeePositionsRepository.assign(created.id, positionId, true)
+            }
             results.created++
           }
         } catch (err) {

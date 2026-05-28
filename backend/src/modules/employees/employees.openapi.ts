@@ -72,7 +72,7 @@ registry.registerPath({
       page: z.string().optional(),
       limit: z.string().optional(),
       branch_name: z.string().optional(),
-      job_position: z.string().optional(),
+      position_id: z.string().uuid().optional(),
       status_employee: z.string().optional(),
       is_active: z.string().optional(),
       include_deleted: z.string().optional(),

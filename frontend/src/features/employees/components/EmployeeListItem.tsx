@@ -60,7 +60,7 @@ export const EmployeeListItem = ({ employee, isSelected, isActive, onClick, onSe
             </span>
           )}
         </div>
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{employee.job_position || 'Belum ada posisi'}</p>
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{employee.job_position || 'Belum ada posisi'}{employee.department_name ? ` · ${employee.department_name}` : ''}</p>
       </div>
 
       {/* Status */}

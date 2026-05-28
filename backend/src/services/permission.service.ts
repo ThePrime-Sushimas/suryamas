@@ -264,7 +264,13 @@ export class PermissionService {
 
   static async invalidateRoleCache(roleId: string): Promise<void> {
     try {
-      const { rows } = await pool.query('SELECT user_id FROM perm_user_profiles WHERE role_id = $1', [roleId])
+      const { rows } = await pool.query(
+        `SELECT DISTINCT e.user_id 
+         FROM employee_branches eb
+         JOIN employees e ON e.id = eb.employee_id
+         WHERE eb.role_id = $1 AND eb.status = 'active' AND e.user_id IS NOT NULL`,
+        [roleId]
+      )
       if (rows.length > 0) {
         const userIds = rows.map(r => r.user_id)
         await pool.query('DELETE FROM perm_cache WHERE user_id = ANY($1::uuid[])', [userIds])

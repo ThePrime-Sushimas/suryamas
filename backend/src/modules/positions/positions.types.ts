@@ -4,6 +4,7 @@ export interface Position {
   department_id: string
   position_code: string
   position_name: string
+  role_id: string | null
   can_access_all_wip: boolean
   sort_order: number
   is_active: boolean
@@ -25,6 +26,7 @@ export interface CreatePositionDto {
   department_id: string
   position_code: string
   position_name: string
+  role_id?: string
   can_access_all_wip?: boolean
   sort_order?: number
   created_by?: string
@@ -33,6 +35,7 @@ export interface CreatePositionDto {
 export interface UpdatePositionDto {
   department_id?: string
   position_name?: string
+  role_id?: string
   can_access_all_wip?: boolean
   sort_order?: number
   is_active?: boolean

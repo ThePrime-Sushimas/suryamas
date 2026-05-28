@@ -11,6 +11,7 @@ interface Employee {
   employee_id: string
   full_name: string
   job_position: string
+  department_name: string | null
   join_date: string
   resign_date: string | null
   status_employee: string
@@ -176,7 +177,7 @@ export default function EmployeeDetailPage() {
                 )}
                 <div className="min-w-0">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white truncate">{employee.full_name}</h1>
-                  <p className="text-blue-100 mt-1 truncate">{employee.job_position}</p>
+                  <p className="text-blue-100 mt-1 truncate">{employee.job_position}{employee.department_name ? ` · ${employee.department_name}` : ''}</p>
                   <p className="text-blue-200 text-sm mt-1">{employee.employee_id}</p>
                 </div>
               </div>
@@ -252,6 +253,7 @@ export default function EmployeeDetailPage() {
               {activeTab === 'employment' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <InfoItem label="Job Position" value={employee.job_position} />
+                  <InfoItem label="Department" value={employee.department_name} />
                   <InfoItem label="Branch" value={employee.branch_name} />
                   <InfoItem label="Brand Name" value={employee.brand_name} />
                   <InfoItem label="Status" value={employee.status_employee} />

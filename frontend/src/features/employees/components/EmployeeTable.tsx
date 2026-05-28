@@ -79,6 +79,7 @@ export default function EmployeeTable({
             >
               Position {onSort && <SortIcon field="job_position" sortField={sortField} sortOrder={sortOrder} />}
             </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
@@ -133,6 +134,7 @@ export default function EmployeeTable({
                 )}
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.job_position}</td>
+              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{employee.department_name || '-'}</td>
               <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.branch_name || '-'}</td>
               <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.email || '-'}</td>
               <td className="px-4 py-3 whitespace-nowrap text-sm">{employee.mobile_phone || '-'}</td>

@@ -4,14 +4,14 @@ import { EmployeeDB, EmployeeWithBranch, EmployeeFilter, PaginationParams } from
 import { EmployeeErrors } from './employees.errors'
 
 export class EmployeesRepository {
-  private static filterOptionsCache: { branches: { id: string; branch_name: string }[]; positions: string[]; statuses: string[] } | null = null
+  private static filterOptionsCache: { branches: { id: string; branch_name: string }[]; positions: { id: string; position_name: string }[]; statuses: string[] } | null = null
   private static filterOptionsCacheExpiry = 0
   private static readonly CACHE_TTL = 30 * 60 * 1000
 
   async findAll(params: PaginationParams): Promise<{ data: EmployeeWithBranch[]; total: number }> {
     const { page, limit, sort = 'full_name', order = 'asc' } = params
     const validFields = ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id']
-    const sortField = validFields.includes(sort) ? `e.${sort}` : 'e.full_name'
+    const sortField = sort === 'job_position' ? 'pos.position_name' : (validFields.includes(sort) ? `e.${sort}` : 'e.full_name')
     const sortOrder = order === 'desc' ? 'DESC' : 'ASC'
     const offset = (page - 1) * limit
 
@@ -19,12 +19,15 @@ export class EmployeesRepository {
       FROM employees e
       LEFT JOIN employee_branches eb ON eb.employee_id = e.id AND eb.is_primary = true
       LEFT JOIN branches b ON b.id = eb.branch_id
+      LEFT JOIN employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+      LEFT JOIN positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
+      LEFT JOIN departments dept ON dept.id = pos.department_id
       WHERE e.deleted_at IS NULL
     `
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(
-        `SELECT e.*, b.branch_name, b.branch_code, b.city AS branch_city ${baseQuery} ORDER BY ${sortField} ${sortOrder} LIMIT $1 OFFSET $2`,
+        `SELECT e.*, pos.position_name AS job_position, dept.department_name, b.branch_name, b.branch_code, b.city AS branch_city ${baseQuery} ORDER BY ${sortField} ${sortOrder} LIMIT $1 OFFSET $2`,
         [limit, offset]
       ),
       pool.query(`SELECT COUNT(*)::int AS total ${baseQuery}`)
@@ -39,11 +42,14 @@ export class EmployeesRepository {
     const baseQuery = `
       FROM employees e
       LEFT JOIN employee_branches eb ON eb.employee_id = e.id
+      LEFT JOIN employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+      LEFT JOIN positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
+      LEFT JOIN departments dept ON dept.id = pos.department_id
       WHERE e.deleted_at IS NULL AND eb.id IS NULL
     `
 
     const [dataRes, countRes] = await Promise.all([
-      pool.query(`SELECT e.*, NULL AS branch_name, NULL AS branch_code, NULL AS branch_city ${baseQuery} ORDER BY e.full_name LIMIT $1 OFFSET $2`, [params.limit, offset]),
+      pool.query(`SELECT e.*, pos.position_name AS job_position, dept.department_name, NULL AS branch_name, NULL AS branch_code, NULL AS branch_city ${baseQuery} ORDER BY e.full_name LIMIT $1 OFFSET $2`, [params.limit, offset]),
       pool.query(`SELECT COUNT(*)::int AS total ${baseQuery}`)
     ])
 
@@ -69,10 +75,13 @@ export class EmployeesRepository {
 
   async findById(id: string): Promise<EmployeeWithBranch | null> {
     const { rows } = await pool.query(
-      `SELECT e.*, b.branch_name, b.branch_code, b.city AS branch_city
+      `SELECT e.*, pos.position_name AS job_position, dept.department_name, b.branch_name, b.branch_code, b.city AS branch_city
        FROM employees e
        LEFT JOIN employee_branches eb ON eb.employee_id = e.id AND eb.is_primary = true
        LEFT JOIN branches b ON b.id = eb.branch_id
+       LEFT JOIN employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+       LEFT JOIN positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
+       LEFT JOIN departments dept ON dept.id = pos.department_id
        WHERE e.id = $1 AND e.deleted_at IS NULL`,
       [id]
     )
@@ -81,10 +90,13 @@ export class EmployeesRepository {
 
   async findByUserId(userId: string): Promise<EmployeeWithBranch | null> {
     const { rows } = await pool.query(
-      `SELECT e.*, b.branch_name, b.branch_code, b.city AS branch_city
+      `SELECT e.*, pos.position_name AS job_position, dept.department_name, b.branch_name, b.branch_code, b.city AS branch_city
        FROM employees e
        LEFT JOIN employee_branches eb ON eb.employee_id = e.id AND eb.is_primary = true
        LEFT JOIN branches b ON b.id = eb.branch_id
+       LEFT JOIN employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+       LEFT JOIN positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
+       LEFT JOIN departments dept ON dept.id = pos.department_id
        WHERE e.user_id = $1 AND e.deleted_at IS NULL`,
       [userId]
     )
@@ -94,7 +106,7 @@ export class EmployeesRepository {
   async search(searchTerm: string, params: PaginationParams, filter?: EmployeeFilter): Promise<{ data: EmployeeWithBranch[]; total: number }> {
     const { page, limit, sort = 'full_name', order = 'asc' } = params
     const validFields = ['employee_id', 'full_name', 'job_position', 'email', 'mobile_phone', 'join_date', 'is_active', 'created_at', 'id']
-    const sortField = validFields.includes(sort) ? `e.${sort}` : 'e.full_name'
+    const sortField = sort === 'job_position' ? 'pos.position_name' : (validFields.includes(sort) ? `e.${sort}` : 'e.full_name')
     const sortOrder = order === 'desc' ? 'DESC' : 'ASC'
 
     const conditions: string[] = []
@@ -118,9 +130,9 @@ export class EmployeesRepository {
       conditions.push(`b.branch_name = $${idx} AND eb.is_primary = true`)
       idx++
     }
-    if (filter?.job_position) {
-      queryParams.push(filter.job_position)
-      conditions.push(`e.job_position ILIKE $${idx}`)
+    if (filter?.position_id) {
+      queryParams.push(filter.position_id)
+      conditions.push(`ep.position_id = $${idx}`)
       idx++
     }
     if (filter?.status_employee) {
@@ -135,10 +147,14 @@ export class EmployeesRepository {
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const epJoinType = filter?.position_id ? 'JOIN' : 'LEFT JOIN'
     const baseQuery = `
       FROM employees e
       ${joinType} employee_branches eb ON eb.employee_id = e.id AND eb.is_primary = true
       ${joinType} branches b ON b.id = eb.branch_id
+      ${epJoinType} employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+      ${epJoinType} positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
+      LEFT JOIN departments dept ON dept.id = pos.department_id
       ${where}
     `
 
@@ -146,7 +162,7 @@ export class EmployeesRepository {
     queryParams.push(limit, offset)
 
     const [dataRes, countRes] = await Promise.all([
-      pool.query(`SELECT e.*, b.branch_name, b.branch_code, b.city AS branch_city ${baseQuery} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, queryParams),
+      pool.query(`SELECT e.*, pos.position_name AS job_position, dept.department_name, b.branch_name, b.branch_code, b.city AS branch_city ${baseQuery} ORDER BY ${sortField} ${sortOrder} LIMIT $${idx} OFFSET $${idx + 1}`, queryParams),
       pool.query(`SELECT COUNT(*)::int AS total ${baseQuery}`, queryParams.slice(0, -2))
     ])
 
@@ -203,18 +219,22 @@ export class EmployeesRepository {
     EmployeesRepository.filterOptionsCache = null
   }
 
-  async getFilterOptions(): Promise<{ branches: { id: string; branch_name: string }[]; positions: string[]; statuses: string[] }> {
+  async getFilterOptions(): Promise<{ branches: { id: string; branch_name: string }[]; positions: { id: string; position_name: string }[]; statuses: string[] }> {
     if (EmployeesRepository.filterOptionsCache && EmployeesRepository.filterOptionsCacheExpiry > Date.now()) {
       return EmployeesRepository.filterOptionsCache
     }
 
-    const [empRes, branchRes] = await Promise.all([
-      pool.query("SELECT DISTINCT LOWER(job_position) AS job_position FROM employees WHERE is_active = true AND deleted_at IS NULL AND job_position IS NOT NULL"),
+    const [posRes, branchRes] = await Promise.all([
+      pool.query(`SELECT DISTINCT p.id, p.position_name FROM positions p
+        JOIN employee_positions ep ON ep.position_id = p.id AND ep.is_deleted = false
+        JOIN employees e ON e.id = ep.employee_id AND e.deleted_at IS NULL AND e.is_active = true
+        WHERE p.is_deleted = false
+        ORDER BY p.position_name`),
       pool.query("SELECT id, branch_name FROM branches WHERE status IN ('active', 'closed') ORDER BY branch_name")
     ])
 
     const branches = branchRes.rows
-    const positions = empRes.rows.map((r: { job_position: string }) => r.job_position).sort()
+    const positions = posRes.rows
     const statuses = ['Permanent', 'Contract']
 
     const result = { branches, positions, statuses }
@@ -251,19 +271,23 @@ export class EmployeesRepository {
       conditions.push(`e.status_employee = $${idx}`)
       idx++
     }
-    if (filter?.job_position) {
-      params.push(filter.job_position)
-      conditions.push(`e.job_position ILIKE $${idx}`)
+    if (filter?.position_id) {
+      params.push(filter.position_id)
+      conditions.push(`ep.position_id = $${idx}`)
       idx++
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const epJoinType = filter?.position_id ? 'JOIN' : 'LEFT JOIN'
 
     const { rows } = await pool.query(
-      `SELECT e.*, b.branch_name, b.branch_code, b.city AS branch_city
+      `SELECT e.*, pos.position_name AS job_position, dept.department_name, b.branch_name, b.branch_code, b.city AS branch_city
        FROM employees e
        ${joinType} employee_branches eb ON eb.employee_id = e.id AND eb.is_primary = true
        ${joinType} branches b ON b.id = eb.branch_id
+       ${epJoinType} employee_positions ep ON ep.employee_id = e.id AND ep.is_primary = true AND ep.is_deleted = false
+       ${epJoinType} positions pos ON pos.id = ep.position_id AND pos.is_deleted = false
+       LEFT JOIN departments dept ON dept.id = pos.department_id
        ${where}
        ORDER BY e.full_name`,
       params
@@ -298,10 +322,26 @@ export class EmployeesRepository {
     EmployeesRepository.filterOptionsCache = null
   }
 
-  async generateEmployeeId(branchName: string, joinDate: string, jobPosition: string): Promise<string> {
+  async resolvePositionName(positionId: string): Promise<string | null> {
+    const { rows } = await pool.query(
+      'SELECT position_name FROM positions WHERE id = $1 AND is_deleted = false',
+      [positionId]
+    )
+    return rows[0]?.position_name || null
+  }
+
+  async resolvePositionIdByName(positionName: string): Promise<string | null> {
+    const { rows } = await pool.query(
+      'SELECT id FROM positions WHERE LOWER(position_name) = LOWER($1) AND is_deleted = false LIMIT 1',
+      [positionName]
+    )
+    return rows[0]?.id || null
+  }
+
+  async generateEmployeeId(branchName: string, joinDate: string, positionName: string): Promise<string> {
     const { rows } = await pool.query(
       'SELECT generate_employee_id($1::text, $2::date, $3::text) AS id',
-      [branchName, joinDate, jobPosition]
+      [branchName, joinDate, positionName]
     )
     if (!rows[0]?.id) throw EmployeeErrors.GENERATE_ID_FAILED()
     return rows[0].id

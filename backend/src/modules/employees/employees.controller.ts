@@ -53,7 +53,7 @@ export class EmployeesController {
 
       const filters: EmployeeFilter = {}
       if (req.query.branch_name) filters.branch_name = req.query.branch_name as string
-      if (req.query.job_position) filters.job_position = req.query.job_position as string
+      if (req.query.position_id) filters.position_id = req.query.position_id as string
       if (req.query.status_employee) filters.status_employee = req.query.status_employee as EmployeeFilter['status_employee']
       if (req.query.is_active !== undefined) filters.is_active = req.query.is_active === 'true'
       if (req.query.include_deleted !== undefined) filters.include_deleted = req.query.include_deleted === 'true'
@@ -187,7 +187,7 @@ export class EmployeesController {
 
       const filter: Record<string, unknown> = {}
       if (req.query.branch_name) filter.branch_name = req.query.branch_name
-      if (req.query.job_position) filter.job_position = req.query.job_position
+      if (req.query.position_id) filter.position_id = req.query.position_id
       if (req.query.status_employee) filter.status_employee = req.query.status_employee
       if (req.query.is_active) filter.is_active = req.query.is_active === 'true'
       if (req.query.search) filter.search = req.query.search
