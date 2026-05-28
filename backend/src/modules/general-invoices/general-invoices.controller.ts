@@ -125,7 +125,7 @@ export class GeneralInvoicesController {
         return
       }
 
-      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.view_confidential
+      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.release
 
       const data = await generalInvoiceService.getDashboard(
         scopeBranchIds,
@@ -150,13 +150,12 @@ export class GeneralInvoicesController {
         return
       }
 
-      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.view_confidential
+      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.release
 
       const filter: GeneralInvoiceListFilter = {
         branch_ids:          scopeBranchIds,
         branch_id:           q.branch_id,
         status:              q.status as GeneralInvoiceListFilter['status'],
-        expense_type:        q.expense_type as GeneralInvoiceListFilter['expense_type'],
         vendor_id:           q.vendor_id,
         due_date_from:       q.due_date_from,
         due_date_to:         q.due_date_to,
@@ -184,7 +183,7 @@ export class GeneralInvoicesController {
   getById = async (req: Request, res: Response): Promise<void> => {
     try {
       const { branchIds } = await giScope(req)
-      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.view_confidential
+      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.release
 
       const invoice = await generalInvoiceService.getById(req.params.id as string, branchIds)
 
@@ -291,7 +290,7 @@ export class GeneralInvoicePaymentsController {
         return
       }
 
-      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.view_confidential
+      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.release
 
       const filter: GeneralPaymentListFilter = {
         branch_ids:           scopeBranchIds,
@@ -480,6 +479,41 @@ export class GeneralInvoiceTemplatesController {
       sendSuccess(res, null, 'Template berhasil dihapus')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_general_template', id: req.params.id })
+    }
+  }
+
+  // ── Amortization endpoints ──────────────────────────────────
+  listAmortizations = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { branchIds } = await giScope(req)
+      const q = req.query as Record<string, string>
+      const data = await generalInvoiceTemplateService.listAmortizations(branchIds, {
+        branch_id: q.branch_id,
+        status: q.status as 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | undefined,
+        overdue: q.overdue === 'true' || q.overdue === '1',
+        page: q.page ? parseInt(q.page, 10) : 1,
+        limit: q.limit ? parseInt(q.limit, 10) : 20,
+      })
+      sendSuccess(res, data)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_amortizations' })
+    }
+  }
+
+  executeAmortization = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { branchIds, userId } = await giScope(req)
+      const { period_number, period_date } = req.body as { period_number: number; period_date?: string }
+      const result = await generalInvoiceTemplateService.executeAmortizationEntry(
+        req.params.id as string,
+        period_number,
+        period_date,
+        branchIds,
+        userId,
+      )
+      sendSuccess(res, result, 'Amortisasi berhasil dieksekusi')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'execute_amortization', id: req.params.id })
     }
   }
 }

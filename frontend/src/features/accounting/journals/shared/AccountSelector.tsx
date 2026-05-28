@@ -19,9 +19,14 @@ interface Props {
     account_name: string
     account_type: string
   } | null
+  /**
+   * Prioritize accounts whose code starts with these prefixes (shown first).
+   * E.g., ['6', '5'] will show expense accounts at the top.
+   */
+  priorityPrefix?: string[]
 }
 
-export function AccountSelector({ value, onChange, disabled, placeholder, tabIndex, accountInfo }: Props) {
+export function AccountSelector({ value, onChange, disabled, placeholder, tabIndex, accountInfo, priorityPrefix }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
@@ -43,18 +48,29 @@ export function AccountSelector({ value, onChange, disabled, placeholder, tabInd
     fetchPostableAccounts()
   }, [fetchPostableAccounts])
 
-  // Get local search filter for postable accounts
+  // Get local search filter for postable accounts with priority sorting
   const filteredAccounts = useMemo(() => {
-    if (!debouncedSearch.trim()) {
-      return accounts
+    let result = accounts
+    if (debouncedSearch.trim()) {
+      const searchLower = debouncedSearch.toLowerCase()
+      result = accounts.filter(
+        (acc) =>
+          acc.account_code.toLowerCase().includes(searchLower) ||
+          acc.account_name.toLowerCase().includes(searchLower)
+      )
     }
-    const searchLower = debouncedSearch.toLowerCase()
-    return accounts.filter(
-      (acc) =>
-        acc.account_code.toLowerCase().includes(searchLower) ||
-        acc.account_name.toLowerCase().includes(searchLower)
-    )
-  }, [accounts, debouncedSearch])
+    // Sort priority prefixes to the top (stable: secondary sort by account_code)
+    if (priorityPrefix && priorityPrefix.length > 0) {
+      result = [...result].sort((a, b) => {
+        const aMatch = priorityPrefix.some((p) => a.account_code.startsWith(p))
+        const bMatch = priorityPrefix.some((p) => b.account_code.startsWith(p))
+        if (aMatch && !bMatch) return -1
+        if (!aMatch && bMatch) return 1
+        return a.account_code.localeCompare(b.account_code)
+      })
+    }
+    return result
+  }, [accounts, debouncedSearch, priorityPrefix])
 
   // Update dropdown position when opened
   useEffect(() => {

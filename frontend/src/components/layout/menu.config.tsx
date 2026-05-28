@@ -44,7 +44,7 @@ import {
   FileText,
   FlaskConical,
   CreditCard,
-  Wallet,
+  Wallet,  
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -183,13 +183,6 @@ export const menuItems: MenuItem[] = [
         href: "/pricelists",
         icon: <Receipt size={16} />,
         module: "pricelists",
-      },
-      {
-        id: "vendors",
-        name: "Vendors",
-        href: "/finance/general-invoices/vendors",
-        icon: <Building2 size={16} />,
-        module: "general_invoices",
       },
     ],
   },
@@ -562,11 +555,18 @@ export const menuItems: MenuItem[] = [
       },
       {
         id: "general-invoices-templates",
-        name: "Template & COA",
+        name: "Template",
         href: "/finance/general-invoices/templates",
         icon: <RefreshCcw size={16} />,
         module: "general_invoices",
       },
+      {
+        id: "vendors",
+        name: "Vendors",
+        href: "/finance/general-invoices/vendors",
+        icon: <Building2 size={16} />,
+        module: "general_invoices",
+      }
     ],
   },
 

@@ -20,12 +20,10 @@ import {
   isOverdue,
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_COLORS,
-  EXPENSE_TYPE_LABELS,
   INVOICE_STATUS_OPTIONS,
-  EXPENSE_TYPE_OPTIONS,
   PAYMENT_STATUS_LABELS,
 } from '../constants'
-import type { GeneralInvoice, GeneralInvoiceStatus, ExpenseType } from '../api/generalApi.api'
+import type { GeneralInvoice, GeneralInvoiceStatus } from '../api/generalApi.api'
 
 export default function GeneralInvoicesPage() {
   const {
@@ -130,16 +128,6 @@ export default function GeneralInvoicesPage() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        <select
-          value={filters.expenseType}
-          onChange={(e) => setFilters({ expenseType: e.target.value as ExpenseType | '' })}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Semua Kategori</option>
-          {EXPENSE_TYPE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
         <label className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg whitespace-nowrap cursor-pointer hover:bg-gray-50">
           <input
             type="checkbox"
@@ -169,7 +157,6 @@ export default function GeneralInvoicesPage() {
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">No. Invoice</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Kategori</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tgl Invoice</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Jatuh Tempo</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
@@ -189,11 +176,6 @@ export default function GeneralInvoicesPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-gray-700">{inv.vendor_name}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                            {EXPENSE_TYPE_LABELS[inv.expense_type]}
-                          </span>
-                        </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(inv.invoice_date)}</td>
                         <td className="px-4 py-3 text-xs">
                           <span className={overdue ? 'text-red-600 font-semibold' : 'text-gray-500'}>
@@ -288,7 +270,7 @@ export default function GeneralInvoicesPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>{EXPENSE_TYPE_LABELS[inv.expense_type]}</span>
+                      <span className="text-xs text-gray-500">{inv.vendor_name}</span>
                       <span className={overdue ? 'text-red-600 font-semibold' : ''}>
                         Due: {formatDate(inv.due_date)}
                       </span>

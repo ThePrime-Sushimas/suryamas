@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { useCreateGeneralInvoiceTemplate, useVendors } from '../api/generalApi.api'
-import { EXPENSE_TYPE_OPTIONS, RECURRENCE_OPTIONS } from '../constants'
+import { RECURRENCE_OPTIONS } from '../constants'
 import { AccountSelector } from '@/features/accounting/journals/shared/AccountSelector'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
-import type { ExpenseType, RecurrenceType } from '../api/generalApi.api'
+import type { RecurrenceType } from '../api/generalApi.api'
 
 interface LineForm {
   line_number: number
@@ -38,7 +38,6 @@ export function TemplateFormModal({ open, onClose }: Props) {
   const [branchId, setBranchId] = useState('')
   const [templateName, setTemplateName] = useState('')
   const [vendorId, setVendorId] = useState('')
-  const [expenseType, setExpenseType] = useState<ExpenseType>('UTILITY')
   const [recurrence, setRecurrence] = useState<RecurrenceType>('MONTHLY')
   const [defaultAmount, setDefaultAmount] = useState('')
   const [dueOffset, setDueOffset] = useState('14')
@@ -51,7 +50,6 @@ export function TemplateFormModal({ open, onClose }: Props) {
     setBranchId(currentBranch?.branch_id ?? '')
     setTemplateName('')
     setVendorId('')
-    setExpenseType('UTILITY')
     setRecurrence('MONTHLY')
     setDefaultAmount('')
     setDueOffset('14')
@@ -83,7 +81,6 @@ export function TemplateFormModal({ open, onClose }: Props) {
         branch_id: branchId,
         template_name: templateName.trim(),
         vendor_id: vendorId,
-        expense_type: expenseType,
         recurrence,
         default_amount: defaultAmount ? parseFloat(defaultAmount) : null,
         due_date_offset_days: parseInt(dueOffset, 10) || 14,
@@ -128,9 +125,6 @@ export function TemplateFormModal({ open, onClose }: Props) {
             <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className="px-3 py-2 text-sm border rounded-lg">
               <option value="">-- Vendor --</option>
               {vendors.map((v) => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}
-            </select>
-            <select value={expenseType} onChange={(e) => setExpenseType(e.target.value as ExpenseType)} className="px-3 py-2 text-sm border rounded-lg">
-              {EXPENSE_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as RecurrenceType)} className="px-3 py-2 text-sm border rounded-lg">
               {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

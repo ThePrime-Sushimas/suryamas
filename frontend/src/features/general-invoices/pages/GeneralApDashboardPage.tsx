@@ -1,12 +1,10 @@
 
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertTriangle, Clock, FileText, CheckCircle2, TrendingUp, Banknote, List, RefreshCcw } from 'lucide-react'
+import { AlertTriangle, Clock, FileText, CheckCircle2, Banknote, List, RefreshCcw } from 'lucide-react'
 import { useGeneralInvoiceDashboard } from '../api/generalApi.api'
 import {
   formatRupiah,
-  EXPENSE_TYPE_LABELS,
 } from '../constants'
-import type { ExpenseType } from '../api/generalApi.api'
 
 const INVOICES_PATH = '/finance/general-invoices'
 const PAYMENTS_PATH = '/finance/general-invoices/payments'
@@ -30,7 +28,7 @@ export default function GeneralApDashboardPage() {
 
   if (!data) return null
 
-  const { summary, by_expense_type } = data
+  const { summary, pending_amortizations } = data
 
   const goInvoices = (params: Record<string, string>) => {
     const q = new URLSearchParams(params)
@@ -75,8 +73,6 @@ export default function GeneralApDashboardPage() {
     },
   ]
 
-  const maxAmount = Math.max(...by_expense_type.map((r) => r.total_amount), 1)
-
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -98,7 +94,14 @@ export default function GeneralApDashboardPage() {
             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50"
           >
             <RefreshCcw size={14} />
-            Template & COA
+            Template
+          </Link>
+          <Link
+            to="/finance/general-invoices/amortizations"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50"
+          >
+            <Clock size={14} />
+            Amortisasi
           </Link>
           <Link
             to={PAYMENTS_PATH}
@@ -132,39 +135,17 @@ export default function GeneralApDashboardPage() {
         ))}
       </div>
 
-      {by_expense_type.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={16} className="text-gray-500" />
-            <h3 className="text-sm font-semibold text-gray-700">Breakdown per Kategori Beban</h3>
+      {pending_amortizations > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center gap-2">
+            <Clock size={16} className="text-amber-600" />
+            <span className="text-sm font-medium text-amber-800">
+              {pending_amortizations} amortisasi prepaid menunggu eksekusi
+            </span>
           </div>
-          <p className="text-xs text-gray-500 mb-4">
-            Kategori ini untuk pelaporan; akun jurnal tetap dari COA per baris invoice.
+          <p className="text-xs text-amber-600 mt-1">
+            Ada entri amortisasi yang sudah jatuh tempo tapi belum dijalankan.
           </p>
-          <div className="space-y-3">
-            {by_expense_type.map((row) => {
-              const label = EXPENSE_TYPE_LABELS[row.expense_type as ExpenseType] ?? row.expense_type
-              const pct = Math.round((row.total_amount / maxAmount) * 100)
-
-              return (
-                <div key={row.expense_type} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-gray-700">
-                      {label}
-                      <span className="ml-1 text-gray-400">({row.invoice_count} inv)</span>
-                    </span>
-                    <span className="text-gray-900 font-semibold">{formatRupiah(row.total_amount)}</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-blue-400 transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
         </div>
       )}
     </div>

@@ -7,14 +7,13 @@ import {
   serializeNumber,
   serializeString,
 } from '@/lib/urlFilters'
-import type { ExpenseType, GeneralInvoiceStatus } from '../api/generalApi.api'
+import type { GeneralInvoiceStatus } from '../api/generalApi.api'
 
 export interface GeneralInvoiceFilters {
   page: number
   limit: number
   search: string
   status: GeneralInvoiceStatus | ''
-  expenseType: ExpenseType | ''
   overdue: boolean
 }
 
@@ -23,24 +22,14 @@ export const DEFAULT_GENERAL_INVOICE_FILTERS: GeneralInvoiceFilters = {
   limit: 20,
   search: '',
   status: '',
-  expenseType: '',
   overdue: false,
 }
 
 const VALID_STATUS = new Set<GeneralInvoiceStatus>(['DRAFT', 'POSTED', 'CANCELLED'])
-const VALID_EXPENSE = new Set<ExpenseType>([
-  'UTILITY',
-  'RENT',
-  'SALARY_SUPPORT',
-  'SUBSCRIPTION',
-  'MAINTENANCE',
-  'OTHER',
-])
 
 const FILTER_KEYS_RESET_PAGE: (keyof GeneralInvoiceFilters)[] = [
   'search',
   'status',
-  'expenseType',
   'overdue',
   'limit',
 ]
@@ -52,7 +41,6 @@ export function parseGeneralInvoiceFilters(searchParams: URLSearchParams): Gener
     limit: parsePositiveInt(searchParams.get('limit'), DEFAULT_GENERAL_INVOICE_FILTERS.limit, 100),
     search: parseString(searchParams.get('search') ?? searchParams.get('q')),
     status: parseEnum(searchParams.get('status'), VALID_STATUS, ''),
-    expenseType: parseEnum(searchParams.get('expense_type'), VALID_EXPENSE, ''),
     overdue: overdueRaw === '1' || overdueRaw === 'true',
   }
 }
@@ -68,7 +56,6 @@ export function stringifyGeneralInvoiceFilters(filters: GeneralInvoiceFilters): 
   const search = serializeString(filters.search)
   if (search) params.set('search', search)
   if (filters.status) params.set('status', filters.status)
-  if (filters.expenseType) params.set('expense_type', filters.expenseType)
   if (filters.overdue) params.set('overdue', '1')
 
   return params
@@ -95,7 +82,6 @@ export function toGeneralInvoiceListQuery(
     limit: Math.min(100, Math.max(1, filters.limit)),
     ...(search ? { search } : {}),
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.expenseType ? { expense_type: filters.expenseType } : {}),
     ...(filters.overdue ? { overdue: true as const } : {}),
   }
 }

@@ -1,7 +1,7 @@
 import { z } from '@/lib/openapi'
 
-const expenseTypes = ['UTILITY', 'RENT', 'SALARY_SUPPORT', 'SUBSCRIPTION', 'MAINTENANCE', 'OTHER'] as const
 const vendorTypes  = ['UTILITY', 'RENT', 'SERVICE', 'SUBSCRIPTION', 'OTHER'] as const
+const transactionTypes = ['EXPENSE', 'PREPAID'] as const
 const paymentMethods = ['TRANSFER', 'CASH'] as const
 const recurrenceTypes = ['MONTHLY', 'QUARTERLY', 'YEARLY'] as const
 
@@ -62,12 +62,24 @@ export const vendorParamSchema = z.object({
 // GENERAL INVOICE LINE (shared)
 // ============================================================
 const invoiceLineSchema = z.object({
-  line_number: z.number().int().positive(),
-  account_id:  z.string().uuid(),
-  description: z.string().max(500).nullable().optional(),
-  amount:      z.number().nonnegative(),
-  tax_amount:  z.number().nonnegative().default(0),
-})
+  line_number:             z.number().int().positive(),
+  account_id:              z.string().uuid(),
+  description:             z.string().max(500).nullable().optional(),
+  amount:                  z.number().nonnegative(),
+  tax_amount:              z.number().nonnegative().default(0),
+  transaction_type:        z.enum(transactionTypes).default('EXPENSE'),
+  expense_account_id:      z.string().uuid().optional(),       // required if PREPAID
+  total_periods:           z.number().int().positive().optional(),  // required if PREPAID
+  amortization_start_date: z.string().date().optional(),       // required if PREPAID
+}).refine(
+  (line) => {
+    if (line.transaction_type === 'PREPAID') {
+      return !!line.expense_account_id && !!line.total_periods && !!line.amortization_start_date
+    }
+    return true
+  },
+  { message: 'PREPAID lines require expense_account_id, total_periods, and amortization_start_date' },
+)
 
 // ============================================================
 // GENERAL INVOICE
@@ -81,7 +93,6 @@ export const createGeneralInvoiceSchema = z.object({
     due_date:        z.string().date().nullable().optional(),
     period_start:    z.string().date().nullable().optional(),
     period_end:      z.string().date().nullable().optional(),
-    expense_type:    z.enum(expenseTypes),
     is_confidential: z.boolean().default(false),
     notes:           z.string().max(1000).nullable().optional(),
     attachment_url:  z.string().max(500).nullable().optional(),
@@ -99,7 +110,6 @@ export const updateGeneralInvoiceSchema = z.object({
     due_date:        z.string().date().nullable().optional(),
     period_start:    z.string().date().nullable().optional(),
     period_end:      z.string().date().nullable().optional(),
-    expense_type:    z.enum(expenseTypes).optional(),
     is_confidential: z.boolean().optional(),
     notes:           z.string().max(1000).nullable().optional(),
     attachment_url:  z.string().url().nullable().optional(),
@@ -112,7 +122,6 @@ export const listGeneralInvoicesSchema = z.object({
     branch_id:          z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
     vendor_id:          z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
     status:             z.preprocess((v) => (v === '' ? undefined : v), z.enum(['DRAFT', 'POSTED', 'CANCELLED']).optional()),
-    expense_type:       z.preprocess((v) => (v === '' ? undefined : v), z.enum(expenseTypes).optional()),
     due_date_from:      z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
     due_date_to:        z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
     invoice_date_from:  z.preprocess((v) => (v === '' ? undefined : v), z.string().date().optional()),
@@ -192,18 +201,29 @@ export const generalPaymentParamSchema = z.object({
 // GENERAL INVOICE TEMPLATE
 // ============================================================
 const templateLineSchema = z.object({
-  line_number:  z.number().int().positive(),
-  account_id:   z.string().uuid(),
-  description:  z.string().max(500).nullable().optional(),
-  amount_ratio: z.number().min(0).max(1).nullable().optional(),
-})
+  line_number:                    z.number().int().positive(),
+  account_id:                     z.string().uuid(),
+  description:                    z.string().max(500).nullable().optional(),
+  amount_ratio:                   z.number().min(0).max(1).nullable().optional(),
+  transaction_type:               z.enum(transactionTypes).default('EXPENSE'),
+  expense_account_id:             z.string().uuid().optional(),
+  total_periods:                  z.number().int().positive().optional(),
+  amortization_start_offset_days: z.number().int().nonnegative().optional(),
+}).refine(
+  (line) => {
+    if (line.transaction_type === 'PREPAID') {
+      return !!line.expense_account_id && !!line.total_periods
+    }
+    return true
+  },
+  { message: 'PREPAID template lines require expense_account_id and total_periods' },
+)
 
 export const createGeneralInvoiceTemplateSchema = z.object({
   body: z.object({
     branch_id:            z.string().uuid().optional(),
     template_name:        z.string().min(1).max(255),
     vendor_id:            z.string().uuid(),
-    expense_type:         z.enum(expenseTypes),
     is_confidential:      z.boolean().default(false),
     recurrence:           z.enum(recurrenceTypes),
     default_amount:       z.number().positive().nullable().optional(),
@@ -229,4 +249,25 @@ export const generateFromTemplateSchema = z.object({
 
 export const generalTemplateParamSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
+})
+
+// ============================================================
+// AMORTIZATION
+// ============================================================
+export const executeAmortizationSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    period_number: z.number().int().positive(),
+    period_date:   z.string().date().optional(),
+  }),
+})
+
+export const listAmortizationsSchema = z.object({
+  query: z.object({
+    branch_id: z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
+    status:    z.preprocess((v) => (v === '' ? undefined : v), z.enum(['ACTIVE', 'COMPLETED', 'CANCELLED']).optional()),
+    overdue:   z.preprocess((v) => v === 'true' || v === '1', z.boolean().optional()),
+    page:      z.coerce.number().int().positive().default(1),
+    limit:     z.coerce.number().int().positive().max(200).default(20),
+  }),
 })

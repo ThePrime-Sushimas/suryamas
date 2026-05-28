@@ -9,6 +9,7 @@ import {
   generalPaymentRepository,
   generalTemplateRepository,
   vendorRepository,
+  amortizationRepository,
 } from './general-invoices.repository'
 import type {
   CreateVendorDto,
@@ -27,7 +28,6 @@ import type {
   GenerateFromTemplateDto,
   GeneralInvoiceTemplate,
   GeneralApDashboard,
-  ExpenseType,
 } from './general-invoices.types'
 import { getAccessibleBranchIds, getAccessibleCompanyIds, getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import {
@@ -137,7 +137,6 @@ export class GeneralInvoiceService {
 
     await AuditService.log('CREATE', 'general_invoices', id, userId, null, {
       vendor_id: dto.vendor_id,
-      expense_type: dto.expense_type,
     })
     logInfo('General invoice created', { id })
     return this.getById(id, branchIds)
@@ -187,10 +186,10 @@ export class GeneralInvoiceService {
 
     const totalAmount = Number(existing.total_amount)
 
-    // Build journal lines: DR tiap expense account, CR liability account
+    // Build journal lines: DR tiap expense/prepaid account, CR liability account
     const journalLines = existing.lines.map((line, i) => ({
       line_number: i + 1,
-      account_id: line.account_id,
+      account_id: line.account_id,  // For EXPENSE: 6xxx/5xxx, For PREPAID: 1xxx (prepaid asset)
       description: line.description ?? existing.vendor_name,
       debit_amount: Number(line.total_amount),
       credit_amount: 0,
@@ -213,7 +212,7 @@ export class GeneralInvoiceService {
           branch_id: existing.branch_id,
           journal_date: existing.invoice_date,
           journal_type: 'PAYABLE',
-          description: `Tagihan ${existing.expense_type} — ${existing.vendor_name} (${existing.invoice_number})`,
+          description: `Tagihan ${existing.vendor_name} (${existing.invoice_number})`,
           source_module: 'general_invoices',
           reference_type: 'general_invoice',
           reference_id: existing.id,
@@ -249,6 +248,69 @@ export class GeneralInvoiceService {
 
     await AuditService.log('UPDATE', 'general_invoices', id, userId, { status: 'DRAFT' }, { status: 'POSTED', journal_id: journalId })
     logInfo('General invoice posted', { id, journal_id: journalId })
+
+    // Create amortization schedules for PREPAID lines (idempotent — skips if already exists)
+    const prepaidLines = existing.lines.filter((l) => l.transaction_type === 'PREPAID')
+    if (prepaidLines.length > 0) {
+      await generalInvoiceRepository.withTransaction(async (client) => {
+        for (const line of prepaidLines) {
+          if (!line.expense_account_id || !line.total_periods || !line.amortization_start_date) continue
+
+          // Reconciliation: skip if schedule already exists for this line
+          const { rows: existingAmort } = await client.query(
+            `SELECT id FROM general_invoice_amortizations WHERE invoice_line_id = $1`,
+            [line.id],
+          )
+          if (existingAmort.length > 0) continue
+
+          const lineAmount = Number(line.total_amount)
+          const totalPeriods = line.total_periods
+          const amountPerPeriod = Math.floor((lineAmount / totalPeriods) * 10000) / 10000
+          const startDate = new Date(line.amortization_start_date)
+
+          // Calculate end date
+          const endDate = new Date(startDate)
+          endDate.setMonth(endDate.getMonth() + totalPeriods - 1)
+
+          // Create amortization header
+          const { rows: [amort] } = await client.query<{ id: string }>(
+            `INSERT INTO general_invoice_amortizations (
+              company_id, branch_id, invoice_id, invoice_line_id,
+              total_amount, total_periods, amount_per_period,
+              start_date, end_date,
+              prepaid_account_id, expense_account_id,
+              created_by
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            RETURNING id`,
+            [
+              companyId, existing.branch_id, id, line.id,
+              lineAmount, totalPeriods, amountPerPeriod,
+              line.amortization_start_date, endDate.toISOString().slice(0, 10),
+              line.account_id, line.expense_account_id,
+              userId,
+            ],
+          )
+
+          // Create entries for each period — last period absorbs rounding difference
+          for (let p = 1; p <= totalPeriods; p++) {
+            const periodDate = new Date(startDate)
+            periodDate.setMonth(periodDate.getMonth() + (p - 1))
+            const amount = p === totalPeriods
+              ? lineAmount - amountPerPeriod * (totalPeriods - 1)
+              : amountPerPeriod
+
+            await client.query(
+              `INSERT INTO general_invoice_amortization_entries
+                (amortization_id, period_number, period_date, amount)
+               VALUES ($1,$2,$3,$4)`,
+              [amort.id, p, periodDate.toISOString().slice(0, 10), amount],
+            )
+          }
+        }
+      })
+      logInfo('Amortization schedules created', { invoice_id: id, prepaid_lines: prepaidLines.length })
+    }
+
     return this.getById(id, branchIds)
   }
 
@@ -284,6 +346,8 @@ export class GeneralInvoiceService {
         posted_by: null,
         posted_at: null,
       })
+      // Cancel active amortization schedules
+      await amortizationRepository.cancelByInvoiceId(client, id)
     })
 
     await AuditService.log('UPDATE', 'general_invoices', id, userId, { status: existing.status }, { status: 'CANCELLED' })
@@ -660,12 +724,23 @@ export class GeneralInvoiceTemplateService {
           ? template.default_amount * tl.amount_ratio
           : 0)
 
+      // Calculate amortization_start_date from template offset
+      let amortizationStartDate: string | undefined
+      if (tl.transaction_type === 'PREPAID' && tl.amortization_start_offset_days != null) {
+        const start = new Date(new Date(dto.invoice_date).getTime() + tl.amortization_start_offset_days * 86400000)
+        amortizationStartDate = start.toISOString().slice(0, 10)
+      }
+
       return {
         line_number: tl.line_number,
         account_id: tl.account_id,
         description: tl.description ?? undefined,
         amount,
         tax_amount: override?.tax_amount ?? 0,
+        transaction_type: tl.transaction_type,
+        expense_account_id: tl.expense_account_id ?? undefined,
+        total_periods: tl.total_periods ?? undefined,
+        amortization_start_date: amortizationStartDate,
       }
     })
 
@@ -690,7 +765,6 @@ export class GeneralInvoiceTemplateService {
       invoice_number: invoiceNumber,
       invoice_date: invoiceDate,
       due_date: dueDate,
-      expense_type: template.expense_type,
       is_confidential: template.is_confidential,
       template_id: template.id,
       notes: dto.notes ?? template.notes ?? undefined,
@@ -713,6 +787,154 @@ export class GeneralInvoiceTemplateService {
       await generalTemplateRepository.softDelete(client, id, existing.company_id, userId)
     })
     await AuditService.log('DELETE', 'general_invoice_templates', id, userId, null, null)
+  }
+
+  // ── Amortization ─────────────────────────────────────────────
+  async listAmortizations(branchIds: string[], opts: {
+    branch_id?: string
+    status?: 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+    overdue?: boolean
+    page?: number
+    limit?: number
+  }) {
+    const scopedBranches = opts.branch_id
+      ? branchIds.filter((id) => id === opts.branch_id)
+      : branchIds
+
+    const page = opts.page ?? 1
+    const limit = Math.min(opts.limit ?? 20, 100)
+    const offset = (page - 1) * limit
+
+    const rows = await amortizationRepository.findAll({
+      branchIds: scopedBranches,
+      status: opts.status,
+      overdue: opts.overdue,
+      limit,
+      offset,
+    })
+
+    const ids = rows.map((r) => r.id as string)
+    const entries = await amortizationRepository.findEntriesByAmortizationIds(ids)
+
+    const entryMap = new Map<string, Array<Record<string, unknown>>>()
+    for (const e of entries) {
+      const amortId = e.amortization_id as string
+      const list = entryMap.get(amortId) ?? []
+      list.push(e)
+      entryMap.set(amortId, list)
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    return rows.map((r) => {
+      const amortEntries = entryMap.get(r.id as string) ?? []
+      const nextEntry = amortEntries.find((e) => !e.journal_id)
+      return {
+        ...r,
+        entries: amortEntries,
+        next_period_date: (nextEntry?.period_date as string) ?? null,
+        is_overdue: nextEntry ? (nextEntry.period_date as string) <= today : false,
+      }
+    })
+  }
+
+  async executeAmortizationEntry(
+    amortizationId: string,
+    periodNumber: number,
+    periodDate: string | undefined,
+    branchIds: string[],
+    userId: string,
+  ) {
+    // Get amortization
+    const amort = await amortizationRepository.findById(amortizationId)
+    if (!amort) throw new BusinessRuleError('Amortization not found or not active')
+    if (!branchIds.includes(amort.branch_id as string)) throw new BusinessRuleError('No access to this branch')
+
+    // Get entry
+    const entry = await amortizationRepository.findEntry(amortizationId, periodNumber)
+    if (!entry) throw new BusinessRuleError('Entry not found')
+    if (entry.journal_id) throw new BusinessRuleError('Entry already executed (idempotency guard)')
+
+    // Secondary idempotency: detect orphaned journals from partial failures
+    const orphanJournalIds = await amortizationRepository.countJournalsForAmortization(amortizationId)
+    if (orphanJournalIds.length > (amort.periods_executed as number)) {
+      throw new BusinessRuleError(
+        `Detected orphaned journal from a previous partial failure. ` +
+        `Journal IDs: ${orphanJournalIds.join(', ')}. ` +
+        `Expected ${amort.periods_executed} journals but found ${orphanJournalIds.length}. ` +
+        `Void the orphaned journal manually, then retry.`,
+      )
+    }
+
+    const journalDate = periodDate ?? (entry.period_date as string)
+    const entryAmount = Number(entry.amount)
+
+    // Use SELECT FOR UPDATE inside a transaction to prevent concurrent execution
+    let journalId: string | null = null
+    try {
+      const journal = await journalHeadersService.create(
+        {
+          company_id: amort.company_id as string,
+          branch_id: amort.branch_id as string,
+          journal_date: journalDate,
+          journal_type: 'GENERAL',
+          description: `Amortisasi ${amort.vendor_name} — ${amort.invoice_number} (periode ${periodNumber}/${amort.total_periods})`,
+          source_module: 'general_invoices',
+          reference_type: 'amortization',
+          reference_id: amortizationId,
+          reference_number: amort.invoice_number as string,
+          currency: 'IDR',
+          exchange_rate: 1,
+          lines: [
+            {
+              line_number: 1,
+              account_id: amort.expense_account_id as string,
+              description: `Amortisasi beban periode ${periodNumber}`,
+              debit_amount: entryAmount,
+              credit_amount: 0,
+            },
+            {
+              line_number: 2,
+              account_id: amort.prepaid_account_id as string,
+              description: `Pengurangan prepaid asset periode ${periodNumber}`,
+              debit_amount: 0,
+              credit_amount: entryAmount,
+            },
+          ],
+        },
+        userId,
+      )
+      journalId = journal.id
+
+      await journalHeadersService.submitAsUser(journalId, userId)
+      await journalHeadersService.approveAsUser(journalId, userId)
+      await journalHeadersService.postAsUser(journalId, userId)
+    } catch (err) {
+      if (journalId) {
+        await journalHeadersService.forceDeleteAsUser(journalId, userId).catch(() => undefined)
+      }
+      throw err
+    }
+
+    // Update entry + amortization header in one transaction
+    // markEntryExecuted uses conditional UPDATE (WHERE journal_id IS NULL) as concurrency guard
+    const newExecuted = (amort.periods_executed as number) + 1
+    const isComplete = newExecuted >= (amort.total_periods as number)
+
+    let marked = false
+    await amortizationRepository.withTransaction(async (client) => {
+      marked = await amortizationRepository.markEntryExecuted(client, entry.id as string, journalId!, userId)
+      if (!marked) return // concurrent request already marked it — skip progress update
+      await amortizationRepository.updateProgress(client, amortizationId, newExecuted, journalDate, isComplete ? 'COMPLETED' : 'ACTIVE')
+    })
+
+    // If mark failed, another request already executed this entry — cleanup our journal
+    if (!marked) {
+      await journalHeadersService.forceDeleteAsUser(journalId!, userId).catch(() => undefined)
+      throw new BusinessRuleError('Entry was already executed by a concurrent request. Journal has been cleaned up.')
+    }
+
+    logInfo('Amortization entry executed', { amortization_id: amortizationId, period: periodNumber, journal_id: journalId })
+    return { journal_id: journalId, period_number: periodNumber, status: isComplete ? 'COMPLETED' : 'ACTIVE' }
   }
 }
 

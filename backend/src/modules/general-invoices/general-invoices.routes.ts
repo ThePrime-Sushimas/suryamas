@@ -37,6 +37,8 @@ import {
   generalTemplateParamSchema,
   createGeneralInvoiceTemplateSchema,
   generateFromTemplateSchema,
+  listAmortizationsSchema,
+  executeAmortizationSchema,
 } from './general-invoices.schema'
 
 // ─── Module registration ──────────────────────────────────────
@@ -111,5 +113,11 @@ router.get(    '/general-invoice-templates/:id',      canView('general_invoice_t
 router.post(   '/general-invoice-templates',          requireWriteAccess, canInsert('general_invoice_templates'), validateSchema(createGeneralInvoiceTemplateSchema),  (req, res) => generalInvoiceTemplatesController.create(req, res))
 router.post(   '/general-invoice-templates/generate', requireWriteAccess, canInsert('general_invoice_templates'), validateSchema(generateFromTemplateSchema),          (req, res) => generalInvoiceTemplatesController.generate(req, res))
 router.delete( '/general-invoice-templates/:id',      requireWriteAccess, canDelete('general_invoice_templates'), validateSchema(generalTemplateParamSchema),          (req, res) => generalInvoiceTemplatesController.delete(req, res))
+
+// ============================================================
+// AMORTIZATIONS  →  /api/v1/general-invoice-amortizations
+// ============================================================
+router.get(    '/general-invoice-amortizations',              canView('general_invoices'),   validateSchema(listAmortizationsSchema), (req, res) => generalInvoiceTemplatesController.listAmortizations(req, res))
+router.post(   '/general-invoice-amortizations/:id/execute',  requireWriteAccess, canUpdate('general_invoices'), validateSchema(executeAmortizationSchema), (req, res) => generalInvoiceTemplatesController.executeAmortization(req, res))
 
 export default router

@@ -5,12 +5,12 @@ import {
   useDeleteGeneralInvoiceTemplate,
   type GeneralInvoiceTemplate,
 } from '../api/generalApi.api'
-import { EXPENSE_TYPE_LABELS, RECURRENCE_OPTIONS, formatDate } from '../constants'
+import { RECURRENCE_OPTIONS, formatDate } from '../constants'
 import { TemplateFormModal } from '../components/TemplateFormModal'
 import { GenerateFromTemplateModal } from '../components/GenerateFromTemplateModal'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import type { ExpenseType, RecurrenceType } from '../api/generalApi.api'
+import type { RecurrenceType } from '../api/generalApi.api'
 
 const recurrenceLabel = (r: RecurrenceType) =>
   RECURRENCE_OPTIONS.find((o) => o.value === r)?.label ?? r
@@ -78,9 +78,6 @@ export default function GeneralInvoiceTemplatesPage() {
                   <p className="font-semibold text-gray-900">{t.template_name}</p>
                   <p className="text-sm text-gray-600">{t.vendor_name}</p>
                   <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                    <span className="bg-gray-100 px-2 py-0.5 rounded-full">
-                      {EXPENSE_TYPE_LABELS[t.expense_type as ExpenseType]}
-                    </span>
                     <span>{recurrenceLabel(t.recurrence)}</span>
                     <span>Jatuh tempo +{t.due_date_offset_days} hari</span>
                     {t.last_generated_at && (

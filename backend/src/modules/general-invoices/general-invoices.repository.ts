@@ -19,7 +19,6 @@ import type {
   GeneralInvoiceTemplateLine,
   CreateGeneralInvoiceTemplateDto,
   GeneralApDashboard,
-  GeneralApDashboardByType,
 } from './general-invoices.types'
 
 // ============================================================
@@ -267,11 +266,6 @@ export const generalInvoiceRepository = {
       params.push(filter.status)
       idx++
     }
-    if (filter.expense_type) {
-      conditions.push(`gi.expense_type = $${idx}`)
-      params.push(filter.expense_type)
-      idx++
-    }
     if (filter.vendor_id) {
       conditions.push(`gi.vendor_id = $${idx}`)
       params.push(filter.vendor_id)
@@ -455,18 +449,18 @@ export const generalInvoiceRepository = {
       `INSERT INTO general_invoices (
         company_id, branch_id, invoice_number, vendor_id,
         invoice_date, due_date, period_start, period_end,
-        expense_type, is_confidential,
+        is_confidential,
         subtotal, total_tax, total_amount,
         notes, attachment_url, template_id,
         created_by, updated_by
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16
       ) RETURNING id`,
       [
         companyId, branchId, invoiceNumber, dto.vendor_id,
         dto.invoice_date, dto.due_date ?? null,
         dto.period_start ?? null, dto.period_end ?? null,
-        dto.expense_type, dto.is_confidential ?? false,
+        dto.is_confidential ?? false,
         subtotal, totalTax, totalAmount,
         dto.notes ?? null, dto.attachment_url ?? null, dto.template_id ?? null,
         userId,
@@ -478,15 +472,33 @@ export const generalInvoiceRepository = {
   async createLines(
     client: PoolClient,
     invoiceId: string,
-    lines: Array<{ line_number: number; account_id: string; description?: string; amount: number; tax_amount?: number }>,
+    lines: Array<{
+      line_number: number
+      account_id: string
+      description?: string
+      amount: number
+      tax_amount?: number
+      transaction_type?: string
+      expense_account_id?: string
+      total_periods?: number
+      amortization_start_date?: string
+    }>,
   ): Promise<void> {
     for (const line of lines) {
       const taxAmt = line.tax_amount ?? 0
       await client.query(
         `INSERT INTO general_invoice_lines
-          (general_invoice_id, line_number, account_id, description, amount, tax_amount, total_amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [invoiceId, line.line_number, line.account_id, line.description ?? null, line.amount, taxAmt, line.amount + taxAmt],
+          (general_invoice_id, line_number, account_id, description, amount, tax_amount, total_amount,
+           transaction_type, expense_account_id, total_periods, amortization_start_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [
+          invoiceId, line.line_number, line.account_id, line.description ?? null,
+          line.amount, taxAmt, line.amount + taxAmt,
+          line.transaction_type ?? 'EXPENSE',
+          line.expense_account_id ?? null,
+          line.total_periods ?? null,
+          line.amortization_start_date ?? null,
+        ],
       )
     }
   },
@@ -513,7 +525,7 @@ export const generalInvoiceRepository = {
 
     const allowed: Array<keyof UpdateGeneralInvoiceDto> = [
       'vendor_id', 'invoice_number', 'invoice_date', 'due_date',
-      'period_start', 'period_end', 'expense_type', 'is_confidential',
+      'period_start', 'period_end', 'is_confidential',
       'notes', 'attachment_url',
     ]
     for (const key of allowed) {
@@ -716,28 +728,18 @@ export const generalInvoiceRepository = {
       params,
     )
 
-    // by_expense_type query only needs the base where params,
-    // so slice out the appended date params.
-    const baseParams = params.slice(0, params.length - 2)
-    const { rows: byTypeRows } = await pool.query<GeneralApDashboardByType>(
-      `SELECT
-         gi.expense_type,
-         SUM(gi.total_amount) AS total_amount,
-         COUNT(*) AS invoice_count,
-         COALESCE(SUM(gi.total_amount) FILTER (
-           WHERE gi.status = 'POSTED'
-             AND NOT EXISTS (
-               SELECT 1 FROM general_invoice_payments gip
-               WHERE gip.general_invoice_id = gi.id
-                 AND gip.status = 'PAID'
-                 AND gip.is_deleted = false
-             )
-         ), 0) AS unpaid_amount
-       FROM general_invoices gi
-       WHERE ${where}
-       GROUP BY gi.expense_type
-       ORDER BY total_amount DESC`,
-      baseParams,
+    // Count pending amortizations (use branchIds directly, not positional assumption)
+    const { rows: amortRows } = await pool.query<{ pending_count: string }>(
+      `SELECT COUNT(*) AS pending_count
+       FROM general_invoice_amortization_entries ae
+       JOIN general_invoice_amortizations a ON a.id = ae.amortization_id
+       JOIN general_invoices gi ON gi.id = a.invoice_id
+       WHERE a.status = 'ACTIVE'
+         AND ae.journal_id IS NULL
+         AND ae.period_date <= CURRENT_DATE
+         AND gi.branch_id = ANY($1::uuid[])
+         AND gi.is_deleted = false`,
+      [branchIds],
     )
 
     const s = summaryRows[0]
@@ -752,12 +754,7 @@ export const generalInvoiceRepository = {
         draft_count: Number(s.draft_count),
         posted_count: Number(s.posted_count),
       },
-      by_expense_type: byTypeRows.map((r) => ({
-        expense_type: r.expense_type,
-        total_amount: Number(r.total_amount),
-        invoice_count: Number(r.invoice_count),
-        unpaid_amount: Number(r.unpaid_amount),
-      })),
+      pending_amortizations: Number(amortRows[0]?.pending_count ?? 0),
     }
   },
 }
@@ -1026,14 +1023,14 @@ export const generalTemplateRepository = {
     const { rows } = await client.query<{ id: string }>(
       `INSERT INTO general_invoice_templates (
         company_id, branch_id, template_name, vendor_id,
-        expense_type, is_confidential, recurrence,
+        is_confidential, recurrence,
         default_amount, due_date_offset_days, notes,
         created_by, updated_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
       RETURNING id`,
       [
         companyId, branchId, dto.template_name, dto.vendor_id,
-        dto.expense_type, dto.is_confidential ?? false, dto.recurrence,
+        dto.is_confidential ?? false, dto.recurrence,
         dto.default_amount ?? null, dto.due_date_offset_days ?? 14, dto.notes ?? null,
         userId,
       ],
@@ -1042,9 +1039,17 @@ export const generalTemplateRepository = {
     for (const line of dto.lines) {
       await client.query(
         `INSERT INTO general_invoice_template_lines
-          (template_id, line_number, account_id, description, amount_ratio)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [rows[0].id, line.line_number, line.account_id, line.description ?? null, line.amount_ratio ?? null],
+          (template_id, line_number, account_id, description, amount_ratio,
+           transaction_type, expense_account_id, total_periods, amortization_start_offset_days)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          rows[0].id, line.line_number, line.account_id,
+          line.description ?? null, line.amount_ratio ?? null,
+          line.transaction_type ?? 'EXPENSE',
+          line.expense_account_id ?? null,
+          line.total_periods ?? null,
+          line.amortization_start_offset_days ?? null,
+        ],
       )
     }
 
@@ -1064,6 +1069,146 @@ export const generalTemplateRepository = {
        SET is_deleted = true, deleted_at = now(), updated_by = $1
        WHERE id = $2 AND company_id = $3`,
       [userId, id, companyId],
+    )
+  },
+}
+
+// ============================================================
+// AMORTIZATION REPOSITORY
+// ============================================================
+export const amortizationRepository = {
+  withTransaction,
+
+  async findAll(filter: {
+    branchIds: string[]
+    status?: string
+    overdue?: boolean
+    limit: number
+    offset: number
+  }) {
+    const conditions = ['a.branch_id = ANY($1::uuid[])']
+    const params: unknown[] = [filter.branchIds]
+    let idx = 2
+
+    if (filter.status) {
+      conditions.push(`a.status = $${idx}`)
+      params.push(filter.status)
+      idx++
+    }
+
+    if (filter.overdue) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM general_invoice_amortization_entries ae
+        WHERE ae.amortization_id = a.id
+          AND ae.journal_id IS NULL
+          AND ae.period_date <= CURRENT_DATE
+      )`)
+    }
+
+    const where = conditions.join(' AND ')
+
+    const { rows } = await pool.query(
+      `SELECT a.*,
+              coa_p.account_code AS prepaid_account_code,
+              coa_p.account_name AS prepaid_account_name,
+              coa_e.account_code AS expense_account_code,
+              coa_e.account_name AS expense_account_name,
+              gi.invoice_number,
+              v.vendor_name
+       FROM general_invoice_amortizations a
+       JOIN chart_of_accounts coa_p ON coa_p.id = a.prepaid_account_id
+       JOIN chart_of_accounts coa_e ON coa_e.id = a.expense_account_id
+       JOIN general_invoices gi ON gi.id = a.invoice_id
+       JOIN vendors v ON v.id = gi.vendor_id
+       WHERE ${where}
+       ORDER BY a.start_date ASC
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, filter.limit, filter.offset],
+    )
+    return rows
+  },
+
+  async findEntriesByAmortizationIds(ids: string[]) {
+    if (ids.length === 0) return []
+    const { rows } = await pool.query(
+      `SELECT * FROM general_invoice_amortization_entries
+       WHERE amortization_id = ANY($1::uuid[])
+       ORDER BY amortization_id, period_number`,
+      [ids],
+    )
+    return rows
+  },
+
+  async findById(id: string) {
+    const { rows } = await pool.query(
+      `SELECT a.*, gi.branch_id, gi.company_id, gi.invoice_number, v.vendor_name
+       FROM general_invoice_amortizations a
+       JOIN general_invoices gi ON gi.id = a.invoice_id
+       JOIN vendors v ON v.id = gi.vendor_id
+       WHERE a.id = $1 AND a.status = 'ACTIVE'`,
+      [id],
+    )
+    return rows[0] ?? null
+  },
+
+  async findEntry(amortizationId: string, periodNumber: number) {
+    const { rows } = await pool.query(
+      `SELECT * FROM general_invoice_amortization_entries
+       WHERE amortization_id = $1 AND period_number = $2`,
+      [amortizationId, periodNumber],
+    )
+    return rows[0] ?? null
+  },
+
+  /** Same as findEntry but with row lock for concurrent safety */
+  async findEntryForUpdate(client: PoolClient, amortizationId: string, periodNumber: number) {
+    const { rows } = await client.query(
+      `SELECT * FROM general_invoice_amortization_entries
+       WHERE amortization_id = $1 AND period_number = $2
+       FOR UPDATE`,
+      [amortizationId, periodNumber],
+    )
+    return rows[0] ?? null
+  },
+
+  async countJournalsForAmortization(amortizationId: string): Promise<string[]> {
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM journal_headers
+       WHERE reference_type = 'amortization'
+         AND reference_id = $1
+         AND source_module = 'general_invoices'
+         AND status != 'VOIDED'`,
+      [amortizationId],
+    )
+    return rows.map((r) => r.id)
+  },
+
+  async markEntryExecuted(client: PoolClient, entryId: string, journalId: string, userId: string): Promise<boolean> {
+    // Conditional update: only succeeds if journal_id is still NULL (natural concurrency guard)
+    const { rowCount } = await client.query(
+      `UPDATE general_invoice_amortization_entries
+       SET journal_id = $1, executed_at = now(), executed_by = $2
+       WHERE id = $3 AND journal_id IS NULL`,
+      [journalId, userId, entryId],
+    )
+    return (rowCount ?? 0) > 0
+  },
+
+  async updateProgress(client: PoolClient, amortizationId: string, periodsExecuted: number, lastDate: string, status: string): Promise<void> {
+    await client.query(
+      `UPDATE general_invoice_amortizations
+       SET periods_executed = $1, last_executed_at = $2, status = $3
+       WHERE id = $4`,
+      [periodsExecuted, lastDate, status, amortizationId],
+    )
+  },
+
+  async cancelByInvoiceId(client: PoolClient, invoiceId: string): Promise<void> {
+    await client.query(
+      `UPDATE general_invoice_amortizations
+       SET status = 'CANCELLED', updated_at = now()
+       WHERE invoice_id = $1 AND status = 'ACTIVE'`,
+      [invoiceId],
     )
   },
 }

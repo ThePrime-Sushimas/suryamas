@@ -1,13 +1,9 @@
-import type { ExpenseType, VendorType, GeneralInvoiceStatus, GeneralPaymentStatus } from './api/generalApi.api'
+import type { VendorType, GeneralInvoiceStatus, GeneralPaymentStatus, TransactionType } from './api/generalApi.api'
 
 // ─── Labels ───────────────────────────────────────────────────
-export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
-  UTILITY: 'Utilitas',
-  RENT: 'Sewa',
-  SALARY_SUPPORT: 'Support Gaji',
-  SUBSCRIPTION: 'Langganan',
-  MAINTENANCE: 'Maintenance',
-  OTHER: 'Lainnya',
+export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
+  EXPENSE: 'Beban Langsung',
+  PREPAID: 'Prepaid (Amortisasi)',
 }
 
 export const VENDOR_TYPE_LABELS: Record<VendorType, string> = {
@@ -69,7 +65,7 @@ export const isOverdue = (dueDate: string | null) => {
 }
 
 // ─── Select options ───────────────────────────────────────────
-export const EXPENSE_TYPE_OPTIONS = (Object.entries(EXPENSE_TYPE_LABELS) as [ExpenseType, string][])
+export const TRANSACTION_TYPE_OPTIONS = (Object.entries(TRANSACTION_TYPE_LABELS) as [TransactionType, string][])
   .map(([value, label]) => ({ value, label }))
 
 export const VENDOR_TYPE_OPTIONS = (Object.entries(VENDOR_TYPE_LABELS) as [VendorType, string][])
@@ -103,6 +99,3 @@ export const INVOICE_DATE_FIELD_HELP = {
   periodEnd:
     'Akhir periode layanan yang ditagih (mis. 31 Jan). Untuk tagihan bulanan biasanya sama dengan akhir bulan periode.',
 } as const
-
-export const EXPENSE_TYPE_FIELD_HELP =
-  'Klasifikasi laporan & dashboard (bukan akun jurnal). Akun beban sebenarnya dipilih per baris invoice (COA) — harus akun beban (expense) yang bisa diposting.'

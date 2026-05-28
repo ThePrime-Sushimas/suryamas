@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 // ─── Types (mirror backend) ───────────────────────────────────
 export type VendorType = 'UTILITY' | 'RENT' | 'SERVICE' | 'SUBSCRIPTION' | 'OTHER'
-export type ExpenseType = 'UTILITY' | 'RENT' | 'SALARY_SUPPORT' | 'SUBSCRIPTION' | 'MAINTENANCE' | 'OTHER'
+export type TransactionType = 'EXPENSE' | 'PREPAID'
 export type GeneralInvoiceStatus = 'DRAFT' | 'POSTED' | 'CANCELLED'
 export type GeneralPaymentStatus = 'DRAFT' | 'APPROVED' | 'REJECTED' | 'PAID' | 'RECONCILED'
 export type RecurrenceType = 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
 export type PaymentMethod = 'TRANSFER' | 'CASH'
+export type AmortizationStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
 
 export interface Vendor {
   id: string
@@ -38,6 +39,12 @@ export interface GeneralInvoiceLine {
   amount: number
   tax_amount: number
   total_amount: number
+  transaction_type: TransactionType
+  expense_account_id: string | null
+  expense_account_code: string | null
+  expense_account_name: string | null
+  total_periods: number | null
+  amortization_start_date: string | null
 }
 
 export interface GeneralInvoice {
@@ -52,7 +59,6 @@ export interface GeneralInvoice {
   due_date: string | null
   period_start: string | null
   period_end: string | null
-  expense_type: ExpenseType
   is_confidential: boolean
   subtotal: number
   total_tax: number
@@ -124,12 +130,7 @@ export interface GeneralApDashboard {
     draft_count: number
     posted_count: number
   }
-  by_expense_type: Array<{
-    expense_type: ExpenseType
-    total_amount: number
-    invoice_count: number
-    unpaid_amount: number
-  }>
+  pending_amortizations: number
 }
 
 interface Pagination {
@@ -171,6 +172,12 @@ export interface GeneralInvoiceTemplateLine {
   account_name: string
   description: string | null
   amount_ratio: number | null
+  transaction_type: TransactionType
+  expense_account_id: string | null
+  expense_account_code: string | null
+  expense_account_name: string | null
+  total_periods: number | null
+  amortization_start_offset_days: number | null
 }
 
 export interface GeneralInvoiceTemplate {
@@ -180,7 +187,6 @@ export interface GeneralInvoiceTemplate {
   template_name: string
   vendor_id: string
   vendor_name: string
-  expense_type: ExpenseType
   is_confidential: boolean
   recurrence: RecurrenceType
   default_amount: number | null
@@ -307,7 +313,6 @@ export const useGeneralInvoices = (params?: {
   branch_id?: string
   vendor_id?: string
   status?: GeneralInvoiceStatus
-  expense_type?: ExpenseType
   overdue?: boolean
   due_date_from?: string
   due_date_to?: string
@@ -348,7 +353,6 @@ export const useCreateGeneralInvoice = () => {
       due_date?: string | null
       period_start?: string | null
       period_end?: string | null
-      expense_type: ExpenseType
       is_confidential?: boolean
       notes?: string | null
       attachment_url?: string | null
@@ -358,6 +362,10 @@ export const useCreateGeneralInvoice = () => {
         description?: string | null
         amount: number
         tax_amount?: number
+        transaction_type?: TransactionType
+        expense_account_id?: string
+        total_periods?: number
+        amortization_start_date?: string
       }>
     }) => {
       const { data } = await api.post('/general-invoices', body)
@@ -380,7 +388,6 @@ export const useUpdateGeneralInvoice = () => {
         due_date?: string | null
         period_start?: string | null
         period_end?: string | null
-        expense_type?: ExpenseType
         is_confidential?: boolean
         notes?: string | null
         attachment_url?: string | null
@@ -390,6 +397,10 @@ export const useUpdateGeneralInvoice = () => {
           description?: string | null
           amount: number
           tax_amount?: number
+          transaction_type?: TransactionType
+          expense_account_id?: string
+          total_periods?: number
+          amortization_start_date?: string
         }>
       }
     }) => {
@@ -601,7 +612,6 @@ export const useCreateGeneralInvoiceTemplate = () => {
       branch_id?: string
       template_name: string
       vendor_id: string
-      expense_type: ExpenseType
       is_confidential?: boolean
       recurrence: RecurrenceType
       default_amount?: number | null
@@ -612,6 +622,10 @@ export const useCreateGeneralInvoiceTemplate = () => {
         account_id: string
         description?: string | null
         amount_ratio?: number | null
+        transaction_type?: TransactionType
+        expense_account_id?: string
+        total_periods?: number
+        amortization_start_offset_days?: number
       }>
     }) => {
       const { data } = await api.post('/general-invoice-templates', body)
@@ -708,6 +722,83 @@ export const useDeleteGeneralPayment = () => {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.payments })
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+    },
+  })
+}
+
+
+// ============================================================
+// AMORTIZATION HOOKS
+// ============================================================
+export interface AmortizationEntry {
+  id: string
+  amortization_id: string
+  period_number: number
+  period_date: string
+  amount: number
+  journal_id: string | null
+  executed_at: string | null
+  executed_by: string | null
+}
+
+export interface AmortizationItem {
+  id: string
+  company_id: string
+  branch_id: string
+  invoice_id: string
+  invoice_line_id: string
+  total_amount: number
+  total_periods: number
+  amount_per_period: number
+  start_date: string
+  end_date: string
+  prepaid_account_id: string
+  prepaid_account_code: string
+  prepaid_account_name: string
+  expense_account_id: string
+  expense_account_code: string
+  expense_account_name: string
+  periods_executed: number
+  last_executed_at: string | null
+  status: AmortizationStatus
+  invoice_number: string
+  vendor_name: string
+  entries: AmortizationEntry[]
+  next_period_date: string | null
+  is_overdue: boolean
+}
+
+export const useAmortizations = (params?: {
+  branch_id?: string
+  status?: AmortizationStatus
+  overdue?: boolean
+}) =>
+  useQuery({
+    queryKey: ['general-ap', 'amortizations', params ?? {}],
+    queryFn: async () => {
+      const { data } = await api.get('/general-invoice-amortizations', { params })
+      return data.data as AmortizationItem[]
+    },
+    staleTime: 30_000,
+  })
+
+export const useExecuteAmortization = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, period_number, period_date }: {
+      id: string
+      period_number: number
+      period_date?: string
+    }) => {
+      const { data } = await api.post(`/general-invoice-amortizations/${id}/execute`, {
+        period_number,
+        period_date,
+      })
+      return data.data as { journal_id: string; period_number: number; status: string }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['general-ap', 'amortizations'] })
       qc.invalidateQueries({ queryKey: KEYS.invoices })
     },
   })

@@ -6,13 +6,13 @@ import {
   useUploadGeneralInvoiceAttachment,
   useVendors,
 } from '../api/generalApi.api'
-import { EXPENSE_TYPE_OPTIONS, EXPENSE_TYPE_FIELD_HELP, INVOICE_DATE_FIELD_HELP } from '../constants'
+import { INVOICE_DATE_FIELD_HELP } from '../constants'
 import { FieldHint } from '../components/FieldHint'
 import { AccountSelector } from '@/features/accounting/journals/shared/AccountSelector'
 import { getSignedStorageUrl } from '@/lib/storage'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import type { GeneralInvoiceDetail, ExpenseType } from '../api/generalApi.api'
+import type { GeneralInvoiceDetail, TransactionType } from '../api/generalApi.api'
 
 interface LineForm {
   line_number: number
@@ -20,6 +20,10 @@ interface LineForm {
   description: string
   amount: string
   tax_amount: string
+  transaction_type: TransactionType
+  expense_account_id: string
+  total_periods: string
+  amortization_start_date: string
 }
 
 interface Props {
@@ -34,6 +38,10 @@ const emptyLine = (n: number): LineForm => ({
   description: '',
   amount: '',
   tax_amount: '0',
+  transaction_type: 'EXPENSE',
+  expense_account_id: '',
+  total_periods: '',
+  amortization_start_date: '',
 })
 
 export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
@@ -52,7 +60,6 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
   const [dueDate, setDueDate] = useState('')
   const [periodStart, setPeriodStart] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
-  const [expenseType, setExpenseType] = useState<ExpenseType>('OTHER')
   const [isConfidential, setIsConfidential] = useState(false)
   const [notes, setNotes] = useState('')
   const [attachmentPath, setAttachmentPath] = useState<string | null>(null)
@@ -68,7 +75,6 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
       setDueDate(invoice.due_date ?? '')
       setPeriodStart(invoice.period_start ?? '')
       setPeriodEnd(invoice.period_end ?? '')
-      setExpenseType(invoice.expense_type)
       setIsConfidential(invoice.is_confidential)
       setNotes(invoice.notes ?? '')
       setAttachmentPath(invoice.attachment_url ?? null)
@@ -80,6 +86,10 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
           description: l.description ?? '',
           amount: String(l.amount),
           tax_amount: String(l.tax_amount),
+          transaction_type: l.transaction_type ?? 'EXPENSE',
+          expense_account_id: l.expense_account_id ?? '',
+          total_periods: l.total_periods ? String(l.total_periods) : '',
+          amortization_start_date: l.amortization_start_date ?? '',
         })),
       )
     } else {
@@ -94,7 +104,6 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
     setDueDate('')
     setPeriodStart('')
     setPeriodEnd('')
-    setExpenseType('OTHER')
     setIsConfidential(false)
     setNotes('')
     setAttachmentPath(null)
@@ -120,11 +129,15 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
     const errs: Record<string, string> = {}
     if (!vendorId) errs.vendorId = 'Vendor wajib dipilih'
     if (!invoiceDate) errs.invoiceDate = 'Tanggal invoice wajib diisi'
-    if (!expenseType) errs.expenseType = 'Kategori wajib dipilih'
     if (lines.length === 0) errs.lines = 'Minimal 1 baris diperlukan'
     lines.forEach((l, i) => {
       if (!l.account_id) errs[`line_${i}_account`] = 'COA wajib dipilih'
       if (!l.amount || parseFloat(l.amount) <= 0) errs[`line_${i}_amount`] = 'Nominal wajib diisi'
+      if (l.transaction_type === 'PREPAID') {
+        if (!l.expense_account_id) errs[`line_${i}_expense_account`] = 'COA beban wajib untuk PREPAID'
+        if (!l.total_periods || parseInt(l.total_periods) <= 0) errs[`line_${i}_periods`] = 'Jumlah periode wajib'
+        if (!l.amortization_start_date) errs[`line_${i}_start_date`] = 'Tanggal mulai amortisasi wajib'
+      }
     })
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -144,7 +157,6 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
       due_date: dueDate || null,
       period_start: periodStart || null,
       period_end: periodEnd || null,
-      expense_type: expenseType,
       is_confidential: isConfidential,
       notes: notes || null,
       attachment_url: attachmentPath,
@@ -154,6 +166,12 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
         description: l.description || null,
         amount: parseFloat(l.amount) || 0,
         tax_amount: parseFloat(l.tax_amount) || 0,
+        transaction_type: l.transaction_type,
+        ...(l.transaction_type === 'PREPAID' ? {
+          expense_account_id: l.expense_account_id,
+          total_periods: parseInt(l.total_periods) || undefined,
+          amortization_start_date: l.amortization_start_date || undefined,
+        } : {}),
       })),
     }
 
@@ -215,19 +233,6 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
               {errors.vendorId && <p className="text-xs text-red-500">{errors.vendorId}</p>}
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600">Kategori Beban *</label>
-              <select
-                value={expenseType}
-                onChange={(e) => setExpenseType(e.target.value as ExpenseType)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {EXPENSE_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <FieldHint text={EXPENSE_TYPE_FIELD_HELP} />
-            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -275,7 +280,7 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-gray-600">Baris Invoice (COA beban) *</label>
+              <label className="text-xs font-semibold text-gray-600">Baris Invoice *</label>
               <button
                 type="button"
                 onClick={addLine}
@@ -291,69 +296,153 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
             )}
 
             <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-              {lines.map((line, idx) => (
-                <div key={idx} className="p-3 space-y-2 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-start sm:space-y-0">
-                  <div className="sm:col-span-4">
-                    <label className="text-xs text-gray-500 sm:sr-only">COA</label>
-                    <AccountSelector
-                      value={line.account_id}
-                      onChange={(accountId) => updateLine(idx, 'account_id', accountId)}
-                      placeholder="Pilih akun beban..."
-                      accountInfo={
-                        invoice?.lines[idx]
-                          ? {
-                              account_code: invoice.lines[idx].account_code,
-                              account_name: invoice.lines[idx].account_name,
-                              account_type: 'EXPENSE',
-                            }
-                          : undefined
-                      }
-                    />
-                    {errors[`line_${idx}_account`] && (
-                      <p className="text-xs text-red-500 mt-0.5">{errors[`line_${idx}_account`]}</p>
+              {lines.map((line, idx) => {
+                // Compute end date helper for PREPAID
+                const endDateHint = (() => {
+                  if (line.transaction_type !== 'PREPAID' || !line.amortization_start_date || !line.total_periods) return null
+                  const periods = parseInt(line.total_periods)
+                  if (!periods || periods <= 0) return null
+                  const start = new Date(line.amortization_start_date)
+                  if (isNaN(start.getTime())) return null
+                  const end = new Date(start)
+                  end.setMonth(end.getMonth() + periods - 1)
+                  return end.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })
+                })()
+
+                return (
+                  <div key={idx} className="p-3 space-y-2">
+                    {/* Header: type badge + delete */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-gray-400">#{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateLine(idx, 'transaction_type', line.transaction_type === 'PREPAID' ? 'EXPENSE' : 'PREPAID')}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${
+                            line.transaction_type === 'PREPAID'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                          }`}
+                        >
+                          {line.transaction_type === 'PREPAID' ? '⏱ Prepaid' : '⚡ Expense'}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeLine(idx)}
+                        disabled={lines.length <= 1}
+                        className="p-1 text-red-400 disabled:opacity-30 hover:text-red-600"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+
+                    {/* Main fields: COA + Description + Amount + Tax */}
+                    <div className="grid grid-cols-12 gap-2 items-start">
+                      <div className="col-span-5">
+                        <label className="text-[10px] text-gray-500">
+                          {line.transaction_type === 'PREPAID' ? 'Akun Prepaid (Aset)' : 'Akun Beban'}
+                        </label>
+                        <AccountSelector
+                          value={line.account_id}
+                          onChange={(accountId) => updateLine(idx, 'account_id', accountId)}
+                          placeholder={line.transaction_type === 'PREPAID' ? 'Pilih akun prepaid (1xxx)...' : 'Pilih akun beban (6xxx)...'}
+                          priorityPrefix={line.transaction_type === 'PREPAID' ? ['1'] : ['6', '5']}
+                          accountInfo={
+                            invoice?.lines[idx]
+                              ? {
+                                  account_code: invoice.lines[idx].account_code,
+                                  account_name: invoice.lines[idx].account_name,
+                                  account_type: line.transaction_type === 'PREPAID' ? 'ASSET' : 'EXPENSE',
+                                }
+                              : undefined
+                          }
+                        />
+                        {errors[`line_${idx}_account`] && (
+                          <p className="text-xs text-red-500 mt-0.5">{errors[`line_${idx}_account`]}</p>
+                        )}
+                      </div>
+                      <div className="col-span-3">
+                        <label className="text-[10px] text-gray-500">Keterangan</label>
+                        <input
+                          type="text"
+                          placeholder="Opsional"
+                          value={line.description}
+                          onChange={(e) => updateLine(idx, 'description', e.target.value)}
+                          className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-gray-500">Nominal</label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={line.amount}
+                          onChange={(e) => updateLine(idx, 'amount', e.target.value)}
+                          min={0}
+                          className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right ${errors[`line_${idx}_amount`] ? 'border-red-400' : 'border-gray-200'}`}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-gray-500">Pajak</label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={line.tax_amount}
+                          onChange={(e) => updateLine(idx, 'tax_amount', e.target.value)}
+                          min={0}
+                          className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg text-right"
+                        />
+                      </div>
+                    </div>
+
+                    {/* PREPAID expand section */}
+                    {line.transaction_type === 'PREPAID' && (
+                      <div className="border-l-2 border-amber-300 pl-3 ml-1 pt-1 space-y-2 animate-in slide-in-from-top-1 duration-200">
+                        <p className="text-[10px] text-amber-600 font-medium">Jadwal Amortisasi</p>
+                        <div className="grid grid-cols-12 gap-2 items-start">
+                          <div className="col-span-5">
+                            <label className="text-[10px] text-gray-500">Akun Beban (amortisasi ke)</label>
+                            <AccountSelector
+                              value={line.expense_account_id}
+                              onChange={(id) => updateLine(idx, 'expense_account_id', id)}
+                              placeholder="Pilih akun beban (6xxx)..."
+                              priorityPrefix={['6', '5']}
+                            />
+                            {errors[`line_${idx}_expense_account`] && (
+                              <p className="text-xs text-red-500 mt-0.5">{errors[`line_${idx}_expense_account`]}</p>
+                            )}
+                          </div>
+                          <div className="col-span-3">
+                            <label className="text-[10px] text-gray-500">Jumlah Periode</label>
+                            <input
+                              type="number"
+                              placeholder="12"
+                              value={line.total_periods}
+                              onChange={(e) => updateLine(idx, 'total_periods', e.target.value)}
+                              min={1}
+                              className={`w-full px-2 py-1.5 text-xs border rounded-lg ${errors[`line_${idx}_periods`] ? 'border-red-400' : 'border-gray-200'}`}
+                            />
+                            <p className="text-[10px] text-gray-400 mt-0.5">bulan</p>
+                          </div>
+                          <div className="col-span-4">
+                            <label className="text-[10px] text-gray-500">Mulai Amortisasi</label>
+                            <input
+                              type="date"
+                              value={line.amortization_start_date}
+                              onChange={(e) => updateLine(idx, 'amortization_start_date', e.target.value)}
+                              className={`w-full px-2 py-1.5 text-xs border rounded-lg ${errors[`line_${idx}_start_date`] ? 'border-red-400' : 'border-gray-200'}`}
+                            />
+                            {endDateHint && (
+                              <p className="text-[10px] text-amber-600 mt-0.5">selesai {endDateHint}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
-                  <div className="sm:col-span-3">
-                    <input
-                      type="text"
-                      placeholder="Keterangan"
-                      value={line.description}
-                      onChange={(e) => updateLine(idx, 'description', e.target.value)}
-                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <input
-                      type="number"
-                      placeholder="Nominal"
-                      value={line.amount}
-                      onChange={(e) => updateLine(idx, 'amount', e.target.value)}
-                      min={0}
-                      className={`w-full px-2 py-1.5 text-xs border rounded-lg text-right ${errors[`line_${idx}_amount`] ? 'border-red-400' : 'border-gray-200'}`}
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <input
-                      type="number"
-                      placeholder="Pajak"
-                      value={line.tax_amount}
-                      onChange={(e) => updateLine(idx, 'tax_amount', e.target.value)}
-                      min={0}
-                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg text-right"
-                    />
-                  </div>
-                  <div className="sm:col-span-1 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => removeLine(idx)}
-                      disabled={lines.length <= 1}
-                      className="p-1 text-red-400 disabled:opacity-30"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
               <div className="bg-gray-50 px-3 py-2.5 text-sm font-bold text-gray-900 flex justify-between">
                 <span>Total</span>
                 <span>Rp {new Intl.NumberFormat('id-ID').format(totalAmount)}</span>

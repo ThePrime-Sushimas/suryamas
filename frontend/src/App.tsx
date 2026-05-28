@@ -448,6 +448,12 @@ const GeneralInvoiceTemplatesPage = lazy(() =>
   ),
 );
 
+const AmortizationsPage = lazy(() =>
+  import("./features/general-invoices/pages/AmortizationsPage").then(
+    (m) => ({ default: m.default }),
+  ),
+);
+
 const MonitoringPage = lazy(() =>
 import("./features/monitoring").then((m) => ({ default: m.MonitoringPage })),
 );
@@ -1603,6 +1609,16 @@ function App() {
                       <RequirePermission module="general_invoices">
                         <Suspense fallback={<LoadingFallback />}>
                           <GeneralInvoiceTemplatesPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/general-invoices/amortizations"
+                    element={
+                      <RequirePermission module="general_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AmortizationsPage />
                         </Suspense>
                       </RequirePermission>
                     }

@@ -53,19 +53,14 @@ export interface VendorListFilter {
 }
 
 // ------------------------------------------------------------
-// EXPENSE TYPE & STATUS
+// TRANSACTION TYPE & STATUS
 // ------------------------------------------------------------
-export type ExpenseType =
-  | 'UTILITY'
-  | 'RENT'
-  | 'SALARY_SUPPORT'
-  | 'SUBSCRIPTION'
-  | 'MAINTENANCE'
-  | 'OTHER'
+export type TransactionType = 'EXPENSE' | 'PREPAID'
 
 export type GeneralInvoiceStatus = 'DRAFT' | 'POSTED' | 'CANCELLED'
 export type GeneralPaymentStatus = 'DRAFT' | 'APPROVED' | 'REJECTED' | 'PAID' | 'RECONCILED'
 export type RecurrenceType = 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
+export type AmortizationStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
 
 // ------------------------------------------------------------
 // GENERAL INVOICE LINE
@@ -81,6 +76,12 @@ export interface GeneralInvoiceLine {
   amount: number
   tax_amount: number
   total_amount: number
+  transaction_type: TransactionType
+  expense_account_id: string | null    // COA 6xxx for PREPAID amortization
+  expense_account_code: string | null  // joined
+  expense_account_name: string | null  // joined
+  total_periods: number | null
+  amortization_start_date: string | null
 }
 
 export interface CreateGeneralInvoiceLineDto {
@@ -89,6 +90,10 @@ export interface CreateGeneralInvoiceLineDto {
   description?: string
   amount: number
   tax_amount?: number
+  transaction_type?: TransactionType  // default EXPENSE
+  expense_account_id?: string         // required if PREPAID
+  total_periods?: number              // required if PREPAID
+  amortization_start_date?: string    // required if PREPAID
 }
 
 // ------------------------------------------------------------
@@ -106,7 +111,6 @@ export interface GeneralInvoice {
   due_date: string | null
   period_start: string | null
   period_end: string | null
-  expense_type: ExpenseType
   is_confidential: boolean
   subtotal: number
   total_tax: number
@@ -124,11 +128,14 @@ export interface GeneralInvoice {
   created_by: string | null
   /** Payment aktif (bukan REJECTED) — diisi di list API */
   active_payment?: GeneralInvoicePaymentSummary | null
+  /** Whether this invoice has PREPAID lines with active amortization */
+  has_amortization?: boolean
 }
 
 export interface GeneralInvoiceDetail extends GeneralInvoice {
   lines: GeneralInvoiceLine[]
   payment: GeneralInvoicePaymentSummary | null
+  amortizations?: AmortizationSummary[]
 }
 
 export interface GeneralInvoicePaymentSummary {
@@ -143,12 +150,11 @@ export interface GeneralInvoicePaymentSummary {
 export interface CreateGeneralInvoiceDto {
   branch_id?: string
   vendor_id: string
-  invoice_number: string
+  invoice_number?: string
   invoice_date: string
   due_date?: string
   period_start?: string
   period_end?: string
-  expense_type: ExpenseType
   is_confidential?: boolean
   notes?: string
   attachment_url?: string
@@ -163,7 +169,6 @@ export interface UpdateGeneralInvoiceDto {
   due_date?: string
   period_start?: string
   period_end?: string
-  expense_type?: ExpenseType
   is_confidential?: boolean
   notes?: string
   attachment_url?: string
@@ -174,7 +179,6 @@ export interface GeneralInvoiceListFilter {
   branch_id?: string
   branch_ids: string[]
   status?: GeneralInvoiceStatus
-  expense_type?: ExpenseType
   vendor_id?: string
   due_date_from?: string
   due_date_to?: string
@@ -182,7 +186,7 @@ export interface GeneralInvoiceListFilter {
   invoice_date_to?: string
   search?: string
   overdue?: boolean
-  include_confidential?: boolean   // default false kecuali punya permission
+  include_confidential?: boolean
   page?: number
   limit?: number
 }
@@ -255,6 +259,12 @@ export interface GeneralInvoiceTemplateLine {
   account_name: string   // joined
   description: string | null
   amount_ratio: number | null
+  transaction_type: TransactionType
+  expense_account_id: string | null
+  expense_account_code: string | null  // joined
+  expense_account_name: string | null  // joined
+  total_periods: number | null
+  amortization_start_offset_days: number | null
 }
 
 export interface GeneralInvoiceTemplate {
@@ -264,7 +274,6 @@ export interface GeneralInvoiceTemplate {
   template_name: string
   vendor_id: string
   vendor_name: string    // joined
-  expense_type: ExpenseType
   is_confidential: boolean
   recurrence: RecurrenceType
   default_amount: number | null
@@ -281,7 +290,6 @@ export interface CreateGeneralInvoiceTemplateDto {
   branch_id?: string
   template_name: string
   vendor_id: string
-  expense_type: ExpenseType
   is_confidential?: boolean
   recurrence: RecurrenceType
   default_amount?: number
@@ -292,13 +300,17 @@ export interface CreateGeneralInvoiceTemplateDto {
     account_id: string
     description?: string
     amount_ratio?: number
+    transaction_type?: TransactionType
+    expense_account_id?: string
+    total_periods?: number
+    amortization_start_offset_days?: number
   }>
 }
 
 export interface GenerateFromTemplateDto {
   template_id: string
   invoice_date: string
-  invoice_number: string
+  invoice_number?: string
   // Override nominal per line jika perlu (listrik — nominal berubah tiap bulan)
   line_amounts?: Array<{
     line_number: number
@@ -306,6 +318,49 @@ export interface GenerateFromTemplateDto {
     tax_amount?: number
   }>
   notes?: string
+}
+
+// ------------------------------------------------------------
+// AMORTIZATION
+// ------------------------------------------------------------
+export interface AmortizationEntry {
+  id: string
+  amortization_id: string
+  period_number: number
+  period_date: string
+  amount: number
+  journal_id: string | null
+  executed_at: string | null
+  executed_by: string | null
+}
+
+export interface AmortizationSummary {
+  id: string
+  invoice_line_id: string
+  total_amount: number
+  total_periods: number
+  amount_per_period: number
+  start_date: string
+  end_date: string
+  prepaid_account_id: string
+  prepaid_account_code: string   // joined
+  prepaid_account_name: string   // joined
+  expense_account_id: string
+  expense_account_code: string   // joined
+  expense_account_name: string   // joined
+  periods_executed: number
+  last_executed_at: string | null
+  status: AmortizationStatus
+  entries: AmortizationEntry[]
+  // Computed
+  next_period_date: string | null
+  is_overdue: boolean
+}
+
+export interface ExecuteAmortizationDto {
+  amortization_id: string
+  period_number: number
+  period_date?: string  // default: entry's period_date
 }
 
 // ------------------------------------------------------------
@@ -322,14 +377,7 @@ export interface GeneralApDashboardSummary {
   posted_count: number
 }
 
-export interface GeneralApDashboardByType {
-  expense_type: ExpenseType
-  total_amount: number
-  invoice_count: number
-  unpaid_amount: number
-}
-
 export interface GeneralApDashboard {
   summary: GeneralApDashboardSummary
-  by_expense_type: GeneralApDashboardByType[]
+  pending_amortizations: number  // count of overdue amortization entries
 }
