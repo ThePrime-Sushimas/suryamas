@@ -651,6 +651,13 @@ export const menuItems: MenuItem[] = [
             module: "trial_balance",
           },
           {
+            id: "general-ledger",
+            name: "Buku Besar",
+            href: "/accounting/general-ledger",
+            icon: <BookOpen size={16} />,
+            module: "trial_balance",
+          },
+          {
             id: "income-statement",
             name: "Laba Rugi",
             href: "/accounting/income-statement",

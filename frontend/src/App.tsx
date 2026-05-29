@@ -341,6 +341,9 @@ const TrialBalancePage = lazy(() =>
 const DailyLedgerPage = lazy(() =>
   import("./features/accounting/daily-ledger/pages/DailyLedgerPage")
 );
+const GeneralLedgerPage = lazy(() =>
+  import("./features/accounting/general-ledger/pages/GeneralLedgerPage")
+);
 const DailyPrepOrdersPage = lazy(() => import('./features/daily-prep-orders2/pages/DailyPrepOrdersPage'));
 const DailyPrepOrderDetailPage = lazy(() => import('./features/daily-prep-orders2/pages/DailyPrepOrderDetailPage'));
 const IncomeStatementPage = lazy(() =>
@@ -1398,6 +1401,16 @@ function App() {
                       <RequirePermission module="trial_balance">
                         <Suspense fallback={<LoadingFallback />}>
                           <DailyLedgerPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="accounting/general-ledger"
+                    element={
+                      <RequirePermission module="trial_balance">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <GeneralLedgerPage />
                         </Suspense>
                       </RequirePermission>
                     }
