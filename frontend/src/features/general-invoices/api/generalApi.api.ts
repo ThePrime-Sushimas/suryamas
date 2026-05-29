@@ -51,6 +51,7 @@ export interface GeneralInvoice {
   id: string
   company_id: string
   branch_id: string
+  branch_name: string
   invoice_number: string
   vendor_id: string
   vendor_name: string
@@ -94,6 +95,7 @@ export interface GeneralInvoicePayment {
   id: string
   company_id: string
   branch_id: string
+  branch_name: string
   payment_number: string
   general_invoice_id: string
   invoice_number: string

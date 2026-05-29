@@ -157,6 +157,7 @@ export default function GeneralInvoicesPage() {
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">No. Invoice</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cabang</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tgl Invoice</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Jatuh Tempo</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
@@ -176,6 +177,7 @@ export default function GeneralInvoicesPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-gray-700">{inv.vendor_name}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{inv.branch_name}</td>
                         <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(inv.invoice_date)}</td>
                         <td className="px-4 py-3 text-xs">
                           <span className={overdue ? 'text-red-600 font-semibold' : 'text-gray-500'}>

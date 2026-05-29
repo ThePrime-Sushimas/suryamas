@@ -595,32 +595,44 @@ export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
             <p className="text-sm">Tidak ada payment</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {payments.map((pay) => (
-              <div
-                key={pay.id}
-                onClick={() => {
-                  onSelectPayment?.(pay)
-                  setSelectedPayment(pay)
-                }}
-                className="p-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors"
-              >
-                <div className="space-y-0.5 min-w-0">
-                  <p className="text-xs font-mono text-gray-500">{pay.payment_number}</p>
-                  <p className="text-sm font-medium text-gray-900 truncate">{pay.vendor_name}</p>
-                  <p className="text-xs text-gray-400">Invoice: {pay.invoice_number}</p>
-                  {pay.payment_date && (
-                    <p className="text-xs text-gray-400">{formatDate(pay.payment_date)}</p>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-1.5 shrink-0 ml-3">
-                  <p className="font-bold text-gray-900 text-sm">{formatRupiah(pay.total_amount)}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PAYMENT_STATUS_COLORS[pay.status]}`}>
-                    {PAYMENT_STATUS_LABELS[pay.status]}
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">No. Payment</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cabang</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">No. Invoice</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tgl Bayar</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nominal</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {payments.map((pay) => (
+                  <tr
+                    key={pay.id}
+                    onClick={() => {
+                      onSelectPayment?.(pay)
+                      setSelectedPayment(pay)
+                    }}
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <td className="px-4 py-3 font-mono text-xs text-gray-900">{pay.payment_number}</td>
+                    <td className="px-4 py-3 text-gray-700">{pay.vendor_name}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{pay.branch_name}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{pay.invoice_number}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{pay.payment_date ? formatDate(pay.payment_date) : '-'}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatRupiah(pay.total_amount)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PAYMENT_STATUS_COLORS[pay.status]}`}>
+                        {PAYMENT_STATUS_LABELS[pay.status]}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

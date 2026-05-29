@@ -317,6 +317,7 @@ export const generalInvoiceRepository = {
         gi.*,
         v.vendor_name,
         v.vendor_type,
+        b.branch_name,
         jh.journal_number,
         pay.id AS pay_id,
         pay.payment_number AS pay_payment_number,
@@ -326,6 +327,7 @@ export const generalInvoiceRepository = {
         pay.paid_at AS pay_paid_at
       FROM general_invoices gi
       JOIN vendors v ON v.id = gi.vendor_id
+      JOIN branches b ON b.id = gi.branch_id
       LEFT JOIN journal_headers jh ON jh.id = gi.journal_id
       LEFT JOIN LATERAL (
         SELECT gip.id, gip.payment_number, gip.status, gip.total_amount, gip.payment_date, gip.paid_at
@@ -410,9 +412,13 @@ export const generalInvoiceRepository = {
     if (!rows[0]) return null
 
     const { rows: lines } = await pool.query<GeneralInvoiceLine>(
-      `SELECT gil.*, coa.account_code, coa.account_name
+      `SELECT gil.*,
+              coa.account_code, coa.account_name,
+              coa_exp.account_code AS expense_account_code,
+              coa_exp.account_name AS expense_account_name
        FROM general_invoice_lines gil
        JOIN chart_of_accounts coa ON coa.id = gil.account_id
+       LEFT JOIN chart_of_accounts coa_exp ON coa_exp.id = gil.expense_account_id
        WHERE gil.general_invoice_id = $1
        ORDER BY gil.line_number ASC`,
       [id],
@@ -506,7 +512,17 @@ export const generalInvoiceRepository = {
   async replaceLines(
     client: PoolClient,
     invoiceId: string,
-    lines: Array<{ line_number: number; account_id: string; description?: string; amount: number; tax_amount?: number }>,
+    lines: Array<{
+      line_number: number
+      account_id: string
+      description?: string
+      amount: number
+      tax_amount?: number
+      transaction_type?: string
+      expense_account_id?: string
+      total_periods?: number
+      amortization_start_date?: string
+    }>,
   ): Promise<void> {
     await client.query(`DELETE FROM general_invoice_lines WHERE general_invoice_id = $1`, [invoiceId])
     await generalInvoiceRepository.createLines(client, invoiceId, lines)
@@ -801,11 +817,13 @@ export const generalPaymentRepository = {
 
     const sql = `
       SELECT gip.*, gi.invoice_number, v.vendor_name,
+             b.branch_name,
              ba.account_name AS bank_account_name,
              jh.journal_number
       FROM general_invoice_payments gip
       JOIN general_invoices gi ON gi.id = gip.general_invoice_id
       JOIN vendors v ON v.id = gi.vendor_id
+      JOIN branches b ON b.id = gip.branch_id
       LEFT JOIN bank_accounts ba ON ba.id = gip.bank_account_id
       LEFT JOIN journal_headers jh ON jh.id = gip.journal_id
       WHERE ${where}
@@ -1177,7 +1195,7 @@ export const amortizationRepository = {
        WHERE reference_type = 'amortization'
          AND reference_id = $1
          AND source_module = 'general_invoices'
-         AND status != 'VOIDED'`,
+         AND status != 'REVERSED'`,
       [amortizationId],
     )
     return rows.map((r) => r.id)
