@@ -437,6 +437,11 @@ const VendorsPage = lazy(() =>
     (m) => ({ default: m.default }),
   ),
 );
+const EditVendorPage = lazy(() =>
+  import("./features/general-invoices/pages/EditVendorPage").then(
+    (m) => ({ default: m.default }),
+  ),
+);
 const GeneralPaymentsPage = lazy(() =>
   import("./features/general-invoices/pages/PaymentModals").then(
     (m) => ({ default: m.GeneralPaymentsPage }),
@@ -1599,6 +1604,16 @@ function App() {
                       <RequirePermission module="general_invoices">
                         <Suspense fallback={<LoadingFallback />}>
                           <VendorsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/general-invoices/vendors/:id/edit"
+                    element={
+                      <RequirePermission module="general_invoices">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <EditVendorPage />
                         </Suspense>
                       </RequirePermission>
                     }

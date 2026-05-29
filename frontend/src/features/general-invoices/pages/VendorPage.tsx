@@ -1,73 +1,57 @@
 import { useEffect, useState } from 'react'
-import { Plus, Edit2, Trash2, Search, Building2, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Edit2, Trash2, Search, Building2, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { BankAccountsSection } from '@/features/bank-accounts/components/BankAccountsSection'
 import {
   useVendors,
   useCreateVendor,
-  useUpdateVendor,
   useDeleteVendor,
 } from '../api/generalApi.api'
 import { useVendorFilters } from '../hooks/useVendorFilters'
-import type { VendorFilters } from '../utils/vendorFilters.url'
+import type { VendorFilters, VendorSortBy } from '../utils/vendorFilters.url'
 import { VENDOR_TYPE_LABELS, VENDOR_TYPE_OPTIONS } from '../constants'
 import type { Vendor, VendorType } from '../api/generalApi.api'
 
 interface VendorFormModalProps {
   open: boolean
   onClose: () => void
-  vendor?: Vendor | null
 }
 
-function VendorFormModal({ open, onClose, vendor }: VendorFormModalProps) {
-  const isEdit = !!vendor
+function VendorFormModal({ open, onClose }: VendorFormModalProps) {
   const writeCompanyId = useBranchContextStore(
     (s) => s.currentBranch?.company_id ?? s.branches[0]?.company_id,
   )
   const createMutation = useCreateVendor()
-  const updateMutation = useUpdateVendor()
 
   const [form, setForm] = useState({
     vendor_code: '',
     vendor_name: '',
     vendor_type: '' as VendorType | '',
+    contact_person: '',
     phone: '',
     email: '',
     address: '',
     notes: '',
-    is_active: true,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [savedVendorId, setSavedVendorId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
-    setSavedVendorId(vendor?.id ?? null)
-    if (vendor) {
-      setForm({
-        vendor_code: vendor.vendor_code,
-        vendor_name: vendor.vendor_name,
-        vendor_type: vendor.vendor_type ?? '',
-        phone: vendor.phone ?? '',
-        email: vendor.email ?? '',
-        address: vendor.address ?? '',
-        notes: vendor.notes ?? '',
-        is_active: vendor.is_active,
-      })
-    } else {
-      setForm({
-        vendor_code: '',
-        vendor_name: '',
-        vendor_type: '',
-        phone: '',
-        email: '',
-        address: '',
-        notes: '',
-        is_active: true,
-      })
-    }
+    setSavedVendorId(null)
+    setForm({
+      vendor_code: '',
+      vendor_name: '',
+      vendor_type: '',
+      contact_person: '',
+      phone: '',
+      email: '',
+      address: '',
+      notes: '',
+    })
     setErrors({})
-  }, [open, vendor])
+  }, [open])
 
   const set = (key: string, value: unknown) => setForm((prev) => ({ ...prev, [key]: value }))
 
@@ -86,23 +70,18 @@ function VendorFormModal({ open, onClose, vendor }: VendorFormModalProps) {
       vendor_code: form.vendor_code,
       vendor_name: form.vendor_name,
       vendor_type: form.vendor_type || undefined,
+      contact_person: form.contact_person || undefined,
       phone: form.phone || undefined,
       email: form.email || undefined,
       address: form.address || undefined,
       notes: form.notes || undefined,
     }
 
-    if (isEdit && vendor) {
-      await updateMutation.mutateAsync({ id: vendor.id, body: { ...payload, is_active: form.is_active } })
-      onClose()
-    } else {
-      const created = await createMutation.mutateAsync(payload)
-      setSavedVendorId(created.id)
-    }
+    const created = await createMutation.mutateAsync(payload)
+    setSavedVendorId(created.id)
   }
 
-  const isPending = createMutation.isPending || updateMutation.isPending
-  const bankOwnerId = savedVendorId ?? vendor?.id
+  const isPending = createMutation.isPending
 
   if (!open) return null
 
@@ -111,7 +90,7 @@ function VendorFormModal({ open, onClose, vendor }: VendorFormModalProps) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-base font-bold text-gray-900">
-            {isEdit ? 'Edit Vendor' : savedVendorId ? 'Vendor — Rekening Bank' : 'Tambah Vendor'}
+            {savedVendorId ? 'Vendor — Rekening Bank' : 'Tambah Vendor'}
           </h2>
           <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X size={18} /></button>
         </div>
@@ -155,6 +134,17 @@ function VendorFormModal({ open, onClose, vendor }: VendorFormModalProps) {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-600">PIC / Contact Person</label>
+                <input
+                  type="text"
+                  value={form.contact_person}
+                  onChange={(e) => set('contact_person', e.target.value)}
+                  placeholder="Nama contact person"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <input type="tel" placeholder="Telepon" value={form.phone} onChange={(e) => set('phone', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" />
@@ -170,41 +160,28 @@ function VendorFormModal({ open, onClose, vendor }: VendorFormModalProps) {
             </>
           )}
 
-          {bankOwnerId && (
+          {savedVendorId && (
             <div className="border-t border-gray-100 pt-4">
               <p className="text-xs text-gray-500 mb-3">
                 Rekening untuk transfer ke vendor — data dari tabel <code className="text-[10px]">bank_accounts</code> (owner_type: vendor).
               </p>
               <BankAccountsSection
                 ownerType="vendor"
-                ownerId={bankOwnerId}
+                ownerId={savedVendorId}
                 companyId={writeCompanyId}
               />
             </div>
-          )}
-
-          {isEdit && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.is_active} onChange={(e) => set('is_active', e.target.checked)} />
-              <span className="text-sm text-gray-700">Vendor Aktif</span>
-            </label>
           )}
         </div>
 
         <div className="flex gap-3 justify-end px-6 py-4 border-t border-gray-200">
           <button type="button" onClick={onClose} disabled={isPending} className="px-4 py-2 text-sm border rounded-lg">
-            {savedVendorId && !isEdit ? 'Selesai' : 'Batal'}
+            {savedVendorId ? 'Selesai' : 'Batal'}
           </button>
           {!savedVendorId && (
             <button type="button" onClick={handleSubmit} disabled={isPending}
               className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium disabled:opacity-60">
-              {isPending ? 'Menyimpan...' : isEdit ? 'Simpan' : 'Simpan & Atur Bank'}
-            </button>
-          )}
-          {isEdit && (
-            <button type="button" onClick={handleSubmit} disabled={isPending}
-              className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium disabled:opacity-60">
-              Simpan
+              {isPending ? 'Menyimpan...' : 'Simpan & Atur Bank'}
             </button>
           )}
         </div>
@@ -213,7 +190,15 @@ function VendorFormModal({ open, onClose, vendor }: VendorFormModalProps) {
   )
 }
 
+function SortIcon({ column, currentSort, currentOrder }: { column: VendorSortBy; currentSort: VendorSortBy; currentOrder: 'asc' | 'desc' }) {
+  if (currentSort !== column) return <ArrowUpDown size={12} className="text-gray-300" />
+  return currentOrder === 'asc'
+    ? <ArrowUp size={12} className="text-blue-600" />
+    : <ArrowDown size={12} className="text-blue-600" />
+}
+
 export default function VendorsPage() {
+  const navigate = useNavigate()
   const {
     filters,
     searchInput,
@@ -224,7 +209,6 @@ export default function VendorsPage() {
   } = useVendorFilters()
 
   const [formOpen, setFormOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<Vendor | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null)
 
   const { data, isLoading } = useVendors(apiQuery)
@@ -232,6 +216,14 @@ export default function VendorsPage() {
 
   const vendors = data?.data ?? []
   const totalPages = data?.pagination?.totalPages ?? 1
+
+  const toggleSort = (column: VendorSortBy) => {
+    if (filters.sortBy === column) {
+      setFilters({ sortOrder: filters.sortOrder === 'asc' ? 'desc' : 'asc' })
+    } else {
+      setFilters({ sortBy: column, sortOrder: 'asc' })
+    }
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
@@ -242,7 +234,7 @@ export default function VendorsPage() {
         </div>
         <button
           type="button"
-          onClick={() => { setEditTarget(null); setFormOpen(true) }}
+          onClick={() => setFormOpen(true)}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
         >
           <Plus size={16} /> Tambah Vendor
@@ -292,9 +284,20 @@ export default function VendorsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Kode</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Nama</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">
+                    <button type="button" onClick={() => toggleSort('vendor_code')} className="flex items-center gap-1 hover:text-gray-700">
+                      Kode
+                      <SortIcon column="vendor_code" currentSort={filters.sortBy} currentOrder={filters.sortOrder} />
+                    </button>
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">
+                    <button type="button" onClick={() => toggleSort('vendor_name')} className="flex items-center gap-1 hover:text-gray-700">
+                      Nama
+                      <SortIcon column="vendor_name" currentSort={filters.sortBy} currentOrder={filters.sortOrder} />
+                    </button>
+                  </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Tipe</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">PIC</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Kontak</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
                   <th className="px-4 py-3" />
@@ -312,6 +315,9 @@ export default function VendorsPage() {
                         </span>
                       ) : '-'}
                     </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      {v.contact_person || '-'}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {v.phone && <p>{v.phone}</p>}
                       {v.email && <p>{v.email}</p>}
@@ -323,10 +329,10 @@ export default function VendorsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <button type="button" onClick={() => { setEditTarget(v); setFormOpen(true) }}
-                          className="p-1.5 rounded-md hover:bg-gray-100"><Edit2 size={13} /></button>
+                        <button type="button" onClick={() => navigate(`/finance/general-invoices/vendors/${v.id}/edit`)}
+                          className="p-1.5 rounded-md hover:bg-gray-100" title="Edit vendor"><Edit2 size={13} /></button>
                         <button type="button" onClick={() => setDeleteTarget(v)}
-                          className="p-1.5 rounded-md text-red-400 hover:bg-red-50"><Trash2 size={13} /></button>
+                          className="p-1.5 rounded-md text-red-400 hover:bg-red-50" title="Hapus vendor"><Trash2 size={13} /></button>
                       </div>
                     </td>
                   </tr>
@@ -351,8 +357,7 @@ export default function VendorsPage() {
 
       <VendorFormModal
         open={formOpen}
-        onClose={() => { setFormOpen(false); setEditTarget(null) }}
-        vendor={editTarget}
+        onClose={() => setFormOpen(false)}
       />
 
       {deleteTarget && (

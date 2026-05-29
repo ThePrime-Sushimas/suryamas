@@ -9,12 +9,17 @@ import {
 } from '@/lib/urlFilters'
 import type { VendorType } from '../api/generalApi.api'
 
+export type VendorSortBy = 'vendor_name' | 'vendor_code' | 'created_at'
+export type SortOrder = 'asc' | 'desc'
+
 export interface VendorFilters {
   page: number
   limit: number
   search: string
   vendorType: VendorType | ''
   isActive: '' | 'true' | 'false'
+  sortBy: VendorSortBy
+  sortOrder: SortOrder
 }
 
 export const DEFAULT_VENDOR_FILTERS: VendorFilters = {
@@ -23,9 +28,13 @@ export const DEFAULT_VENDOR_FILTERS: VendorFilters = {
   search: '',
   vendorType: '',
   isActive: 'true',
+  sortBy: 'vendor_name',
+  sortOrder: 'asc',
 }
 
 const VALID_VENDOR_TYPE = new Set<VendorType>(['UTILITY', 'RENT', 'SERVICE', 'SUBSCRIPTION', 'OTHER'])
+const VALID_SORT_BY = new Set<VendorSortBy>(['vendor_name', 'vendor_code', 'created_at'])
+const VALID_SORT_ORDER = new Set<SortOrder>(['asc', 'desc'])
 
 const FILTER_KEYS_RESET_PAGE: (keyof VendorFilters)[] = ['search', 'vendorType', 'isActive', 'limit']
 
@@ -41,6 +50,8 @@ export function parseVendorFilters(searchParams: URLSearchParams): VendorFilters
     search: parseString(searchParams.get('search') ?? searchParams.get('q')),
     vendorType: parseEnum(searchParams.get('vendor_type'), VALID_VENDOR_TYPE, ''),
     isActive,
+    sortBy: parseEnum(searchParams.get('sort_by'), VALID_SORT_BY, 'vendor_name'),
+    sortOrder: parseEnum(searchParams.get('sort_order'), VALID_SORT_ORDER, 'asc'),
   }
 }
 
@@ -59,6 +70,8 @@ export function stringifyVendorFilters(filters: VendorFilters): URLSearchParams 
     if (filters.isActive === '') params.set('is_active', 'all')
     else params.set('is_active', filters.isActive)
   }
+  if (filters.sortBy !== d.sortBy) params.set('sort_by', filters.sortBy)
+  if (filters.sortOrder !== d.sortOrder) params.set('sort_order', filters.sortOrder)
 
   return params
 }
@@ -81,5 +94,7 @@ export function toVendorListQuery(filters: VendorFilters, debouncedSearch?: stri
     ...(filters.isActive === ''
       ? {}
       : { is_active: filters.isActive === 'true' }),
+    sort_by: filters.sortBy,
+    sort_order: filters.sortOrder,
   }
 }

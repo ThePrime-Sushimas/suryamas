@@ -13,6 +13,7 @@ export interface Vendor {
   vendor_code: string
   vendor_name: string
   vendor_type: VendorType | null
+  contact_person: string | null
   phone: string | null
   email: string | null
   address: string | null
@@ -30,6 +31,7 @@ export interface CreateVendorDto {
   vendor_code: string
   vendor_name: string
   vendor_type?: VendorType
+  contact_person?: string
   phone?: string
   email?: string
   address?: string
@@ -48,6 +50,8 @@ export interface VendorListFilter {
   search?: string
   vendor_type?: VendorType
   is_active?: boolean
+  sort_by?: 'vendor_name' | 'vendor_code' | 'created_at'
+  sort_order?: 'asc' | 'desc'
   page?: number
   limit?: number
 }

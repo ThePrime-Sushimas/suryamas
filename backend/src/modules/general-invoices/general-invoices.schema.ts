@@ -13,6 +13,7 @@ export const createVendorSchema = z.object({
     vendor_code:         z.string().min(1).max(30),
     vendor_name:         z.string().min(1).max(255),
     vendor_type:         z.enum(vendorTypes).optional(),
+    contact_person:      z.string().max(150).nullable().optional(),
     phone:               z.string().max(30).nullable().optional(),
     email:               z.string().email().max(150).nullable().optional(),
     address:             z.string().max(500).nullable().optional(),
@@ -29,6 +30,7 @@ export const updateVendorSchema = z.object({
     vendor_code:         z.string().min(1).max(30).optional(),
     vendor_name:         z.string().min(1).max(255).optional(),
     vendor_type:         z.enum(vendorTypes).nullable().optional(),
+    contact_person:      z.string().max(150).nullable().optional(),
     phone:               z.string().max(30).nullable().optional(),
     email:               z.string().email().max(150).nullable().optional(),
     address:             z.string().max(500).nullable().optional(),
@@ -49,6 +51,8 @@ export const listVendorsSchema = z.object({
       if (v === 'false') return false
       return undefined
     }, z.boolean().optional()),
+    sort_by:    z.preprocess((v) => (v === '' ? undefined : v), z.enum(['vendor_name', 'vendor_code', 'created_at']).optional()),
+    sort_order: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['asc', 'desc']).optional()),
     page:  z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().max(200).default(50),
   }),

@@ -16,6 +16,7 @@ export interface Vendor {
   vendor_code: string
   vendor_name: string
   vendor_type: VendorType | null
+  contact_person: string | null
   phone: string | null
   email: string | null
   address: string | null
@@ -214,6 +215,8 @@ export const useVendors = (params?: {
   search?: string
   vendor_type?: VendorType
   is_active?: boolean
+  sort_by?: string
+  sort_order?: string
   page?: number
   limit?: number
 }) =>
@@ -246,6 +249,7 @@ export const useCreateVendor = () => {
       vendor_code: string
       vendor_name: string
       vendor_type?: VendorType
+      contact_person?: string
       phone?: string
       email?: string
       address?: string
@@ -272,6 +276,7 @@ export const useUpdateVendor = () => {
         vendor_code: string
         vendor_name: string
         vendor_type: VendorType | null
+        contact_person: string | null
         phone: string | null
         email: string | null
         address: string | null

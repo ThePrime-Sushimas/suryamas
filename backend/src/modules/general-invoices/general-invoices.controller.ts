@@ -51,6 +51,8 @@ export class VendorsController {
         search:      q.search,
         vendor_type: q.vendor_type as VendorListFilter['vendor_type'],
         is_active:   q.is_active === 'true' ? true : q.is_active === 'false' ? false : undefined,
+        sort_by:     q.sort_by as VendorListFilter['sort_by'],
+        sort_order:  q.sort_order as VendorListFilter['sort_order'],
         page:        q.page  ? parseInt(q.page,  10) : 1,
         limit:       q.limit ? parseInt(q.limit, 10) : 50,
       }

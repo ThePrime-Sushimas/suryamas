@@ -141,9 +141,18 @@ export const vendorRepository = {
     const limit = filter.limit ?? 50
     const offset = (page - 1) * limit
 
+    // Sorting — whitelist columns to prevent SQL injection
+    const allowedSortColumns: Record<string, string> = {
+      vendor_name: 'v.vendor_name',
+      vendor_code: 'v.vendor_code',
+      created_at: 'v.created_at',
+    }
+    const sortCol = allowedSortColumns[filter.sort_by ?? ''] ?? 'v.vendor_name'
+    const sortDir = filter.sort_order === 'desc' ? 'DESC' : 'ASC'
+
     const [{ rows: data }, { rows: countRows }] = await Promise.all([
       pool.query<Vendor>(
-        `SELECT * FROM vendors v WHERE ${where} ORDER BY v.vendor_name ASC LIMIT $${idx} OFFSET $${idx + 1}`,
+        `SELECT * FROM vendors v WHERE ${where} ORDER BY ${sortCol} ${sortDir} LIMIT $${idx} OFFSET $${idx + 1}`,
         [...params, limit, offset],
       ),
       pool.query<{ count: string }>(
@@ -167,14 +176,14 @@ export const vendorRepository = {
     const { rows } = await client.query<Vendor>(
       `INSERT INTO vendors (
         company_id, vendor_code, vendor_name, vendor_type,
-        phone, email, address,
+        contact_person, phone, email, address,
         bank_name, bank_account_number, bank_account_name,
         notes, created_by, updated_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13)
       RETURNING *`,
       [
         companyId, dto.vendor_code, dto.vendor_name, dto.vendor_type ?? null,
-        dto.phone ?? null, dto.email ?? null, dto.address ?? null,
+        dto.contact_person ?? null, dto.phone ?? null, dto.email ?? null, dto.address ?? null,
         dto.bank_name ?? null, dto.bank_account_number ?? null, dto.bank_account_name ?? null,
         dto.notes ?? null, userId,
       ],
@@ -188,7 +197,7 @@ export const vendorRepository = {
     let idx = 1
 
     const allowed: Array<keyof UpdateVendorDto> = [
-      'vendor_code', 'vendor_name', 'vendor_type', 'phone', 'email',
+      'vendor_code', 'vendor_name', 'vendor_type', 'contact_person', 'phone', 'email',
       'address', 'bank_name', 'bank_account_number', 'bank_account_name',
       'notes', 'is_active',
     ]
