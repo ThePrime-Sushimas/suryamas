@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, Send, XCircle, Receipt, RefreshCw, ArrowRight } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Send, XCircle, Receipt, RefreshCw, ArrowRight, AlertTriangle } from 'lucide-react'
 
 import {
   useGeneralInvoices,
@@ -8,9 +8,11 @@ import {
   usePostGeneralInvoice,
   useCancelGeneralInvoice,
   useDeleteGeneralInvoice,
+  useForceDeleteGeneralInvoice,
   useCompanyBankAccounts,
 } from '../api/generalApi.api'
 import { useGeneralInvoiceFilters } from '../hooks/useGeneralInvoiceFilters'
+import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import InvoiceFormModal from './InvoiceFormModal'
 import { CreatePaymentModal } from './PaymentModals'
 
@@ -41,14 +43,19 @@ export default function GeneralInvoicesPage() {
   const [confirmDelete, setConfirmDelete] = useState<GeneralInvoice | null>(null)
   const [confirmPost, setConfirmPost] = useState<GeneralInvoice | null>(null)
   const [confirmCancel, setConfirmCancel] = useState<GeneralInvoice | null>(null)
+  const [confirmForceDelete, setConfirmForceDelete] = useState<GeneralInvoice | null>(null)
 
   const { data, isLoading } = useGeneralInvoices(apiQuery)
   const { data: editInvoice } = useGeneralInvoice(editId ?? '')
   const { data: companyBanks = [] } = useCompanyBankAccounts()
 
+  const hasPermission = usePermissionStore(state => state.hasPermission)
+  const canRelease = hasPermission('general_invoices', 'release')
+
   const postMutation = usePostGeneralInvoice()
   const cancelMutation = useCancelGeneralInvoice()
   const deleteMutation = useDeleteGeneralInvoice()
+  const forceDeleteMutation = useForceDeleteGeneralInvoice()
 
   const handlePost = useCallback(async () => {
     if (!confirmPost) return
@@ -67,6 +74,12 @@ export default function GeneralInvoicesPage() {
     await deleteMutation.mutateAsync(confirmDelete.id)
     setConfirmDelete(null)
   }, [confirmDelete, deleteMutation])
+
+  const handleForceDelete = useCallback(async () => {
+    if (!confirmForceDelete) return
+    await forceDeleteMutation.mutateAsync(confirmForceDelete.id)
+    setConfirmForceDelete(null)
+  }, [confirmForceDelete, forceDeleteMutation])
 
   const invoices = data?.data ?? []
   const total = data?.pagination?.total ?? 0
@@ -245,7 +258,23 @@ export default function GeneralInvoicesPage() {
                                   className="text-red-500 hover:bg-red-50"
                                   onClick={() => setConfirmCancel(inv)}
                                 />
+                                {canRelease && (
+                                  <ActionButton
+                                    icon={<AlertTriangle size={13} />}
+                                    tooltip="Hapus Permanen"
+                                    className="text-red-700 hover:bg-red-50"
+                                    onClick={() => setConfirmForceDelete(inv)}
+                                  />
+                                )}
                               </>
+                            )}
+                            {inv.status === 'CANCELLED' && canRelease && (
+                              <ActionButton
+                                icon={<AlertTriangle size={13} />}
+                                tooltip="Hapus Permanen"
+                                className="text-red-700 hover:bg-red-50"
+                                onClick={() => setConfirmForceDelete(inv)}
+                              />
                             )}
                           </div>
                         </td>
@@ -391,6 +420,19 @@ export default function GeneralInvoicesPage() {
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
           loading={deleteMutation.isPending}
+        />
+      )}
+
+      {/* Confirm Force Delete Modal */}
+      {confirmForceDelete && (
+        <ConfirmModal
+          title="⚠️ Hapus Permanen?"
+          message={`Invoice ${confirmForceDelete.invoice_number} akan dihapus PERMANEN beserta semua data terkait: payment, jurnal posting, jurnal pembayaran, dan amortisasi. Data tidak bisa dikembalikan.`}
+          confirmLabel="Ya, Hapus Permanen"
+          confirmClass="bg-red-700 hover:bg-red-800 text-white"
+          onConfirm={handleForceDelete}
+          onCancel={() => setConfirmForceDelete(null)}
+          loading={forceDeleteMutation.isPending}
         />
       )}
     </div>
