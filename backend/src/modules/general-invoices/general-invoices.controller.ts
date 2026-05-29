@@ -487,10 +487,13 @@ export class GeneralInvoiceTemplatesController {
     try {
       const { branchIds } = await giScope(req)
       const q = req.query as Record<string, string>
+      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.release
+
       const data = await generalInvoiceTemplateService.listAmortizations(branchIds, {
         branch_id: q.branch_id,
         status: q.status as 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | undefined,
         overdue: q.overdue === 'true' || q.overdue === '1',
+        include_confidential: canViewConfidential,
         page: q.page ? parseInt(q.page, 10) : 1,
         limit: q.limit ? parseInt(q.limit, 10) : 20,
       })
@@ -503,6 +506,7 @@ export class GeneralInvoiceTemplatesController {
   executeAmortization = async (req: Request, res: Response): Promise<void> => {
     try {
       const { branchIds, userId } = await giScope(req)
+      const canViewConfidential = !!(req.permissions?.['general_invoices'] as any)?.release
       const { period_number, period_date } = req.body as { period_number: number; period_date?: string }
       const result = await generalInvoiceTemplateService.executeAmortizationEntry(
         req.params.id as string,
@@ -510,6 +514,7 @@ export class GeneralInvoiceTemplatesController {
         period_date,
         branchIds,
         userId,
+        canViewConfidential,
       )
       sendSuccess(res, result, 'Amortisasi berhasil dieksekusi')
     } catch (error: unknown) {

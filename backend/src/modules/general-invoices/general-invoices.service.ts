@@ -835,6 +835,7 @@ export class GeneralInvoiceTemplateService {
     branch_id?: string
     status?: 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
     overdue?: boolean
+    include_confidential?: boolean
     page?: number
     limit?: number
   }) {
@@ -850,6 +851,7 @@ export class GeneralInvoiceTemplateService {
       branchIds: scopedBranches,
       status: opts.status,
       overdue: opts.overdue,
+      includeConfidential: opts.include_confidential ?? false,
       limit,
       offset,
     })
@@ -884,11 +886,17 @@ export class GeneralInvoiceTemplateService {
     periodDate: string | undefined,
     branchIds: string[],
     userId: string,
+    canViewConfidential = false,
   ) {
     // Get amortization
     const amort = await amortizationRepository.findById(amortizationId)
     if (!amort) throw new BusinessRuleError('Amortization not found or not active')
     if (!branchIds.includes(amort.branch_id as string)) throw new BusinessRuleError('No access to this branch')
+
+    // Guard confidential access
+    if (amort.is_confidential && !canViewConfidential) {
+      throw new BusinessRuleError('Akses tidak diizinkan untuk amortisasi ini')
+    }
 
     // Get entry
     const entry = await amortizationRepository.findEntry(amortizationId, periodNumber)

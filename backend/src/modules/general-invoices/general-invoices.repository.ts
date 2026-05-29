@@ -750,6 +750,7 @@ export const generalInvoiceRepository = {
     )
 
     // Count pending amortizations (use branchIds directly, not positional assumption)
+    const confidentialFilter = includeConfidential ? '' : 'AND gi.is_confidential = false'
     const { rows: amortRows } = await pool.query<{ pending_count: string }>(
       `SELECT COUNT(*) AS pending_count
        FROM general_invoice_amortization_entries ae
@@ -759,7 +760,8 @@ export const generalInvoiceRepository = {
          AND ae.journal_id IS NULL
          AND ae.period_date <= CURRENT_DATE
          AND gi.branch_id = ANY($1::uuid[])
-         AND gi.is_deleted = false`,
+         AND gi.is_deleted = false
+         ${confidentialFilter}`,
       [branchIds],
     )
 
@@ -1120,12 +1122,17 @@ export const amortizationRepository = {
     branchIds: string[]
     status?: string
     overdue?: boolean
+    includeConfidential?: boolean
     limit: number
     offset: number
   }) {
     const conditions = ['a.branch_id = ANY($1::uuid[])']
     const params: unknown[] = [filter.branchIds]
     let idx = 2
+
+    if (!filter.includeConfidential) {
+      conditions.push(`gi.is_confidential = false`)
+    }
 
     if (filter.status) {
       conditions.push(`a.status = $${idx}`)
@@ -1178,7 +1185,7 @@ export const amortizationRepository = {
 
   async findById(id: string) {
     const { rows } = await pool.query(
-      `SELECT a.*, gi.branch_id, gi.company_id, gi.invoice_number, v.vendor_name
+      `SELECT a.*, gi.branch_id, gi.company_id, gi.invoice_number, gi.is_confidential, v.vendor_name
        FROM general_invoice_amortizations a
        JOIN general_invoices gi ON gi.id = a.invoice_id
        JOIN vendors v ON v.id = gi.vendor_id
