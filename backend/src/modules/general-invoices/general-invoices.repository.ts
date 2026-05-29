@@ -415,10 +415,13 @@ export const generalInvoiceRepository = {
       `SELECT gil.*,
               coa.account_code, coa.account_name,
               coa_exp.account_code AS expense_account_code,
-              coa_exp.account_name AS expense_account_name
+              coa_exp.account_name AS expense_account_name,
+              coa_tax.account_code AS tax_account_code,
+              coa_tax.account_name AS tax_account_name
        FROM general_invoice_lines gil
        JOIN chart_of_accounts coa ON coa.id = gil.account_id
        LEFT JOIN chart_of_accounts coa_exp ON coa_exp.id = gil.expense_account_id
+       LEFT JOIN chart_of_accounts coa_tax ON coa_tax.id = gil.tax_account_id
        WHERE gil.general_invoice_id = $1
        ORDER BY gil.line_number ASC`,
       [id],
@@ -484,6 +487,7 @@ export const generalInvoiceRepository = {
       description?: string
       amount: number
       tax_amount?: number
+      tax_account_id?: string | null
       transaction_type?: string
       expense_account_id?: string
       total_periods?: number
@@ -494,12 +498,12 @@ export const generalInvoiceRepository = {
       const taxAmt = line.tax_amount ?? 0
       await client.query(
         `INSERT INTO general_invoice_lines
-          (general_invoice_id, line_number, account_id, description, amount, tax_amount, total_amount,
+          (general_invoice_id, line_number, account_id, description, amount, tax_amount, tax_account_id, total_amount,
            transaction_type, expense_account_id, total_periods, amortization_start_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           invoiceId, line.line_number, line.account_id, line.description ?? null,
-          line.amount, taxAmt, line.amount + taxAmt,
+          line.amount, taxAmt, line.tax_account_id ?? null, line.amount + taxAmt,
           line.transaction_type ?? 'EXPENSE',
           line.expense_account_id ?? null,
           line.total_periods ?? null,
@@ -518,6 +522,7 @@ export const generalInvoiceRepository = {
       description?: string
       amount: number
       tax_amount?: number
+      tax_account_id?: string | null
       transaction_type?: string
       expense_account_id?: string
       total_periods?: number
@@ -992,9 +997,15 @@ export const generalTemplateRepository = {
     if (ids.length === 0) return []
 
     const { rows: lines } = await pool.query<GeneralInvoiceTemplateLine>(
-      `SELECT tl.*, coa.account_code, coa.account_name
+      `SELECT tl.*, coa.account_code, coa.account_name,
+              coa_exp.account_code AS expense_account_code,
+              coa_exp.account_name AS expense_account_name,
+              coa_tax.account_code AS tax_account_code,
+              coa_tax.account_name AS tax_account_name
        FROM general_invoice_template_lines tl
        JOIN chart_of_accounts coa ON coa.id = tl.account_id
+       LEFT JOIN chart_of_accounts coa_exp ON coa_exp.id = tl.expense_account_id
+       LEFT JOIN chart_of_accounts coa_tax ON coa_tax.id = tl.tax_account_id
        WHERE tl.template_id = ANY($1::uuid[])
        ORDER BY tl.template_id, tl.line_number`,
       [ids],
@@ -1021,9 +1032,15 @@ export const generalTemplateRepository = {
     if (!rows[0]) return null
 
     const { rows: lines } = await pool.query<GeneralInvoiceTemplateLine>(
-      `SELECT tl.*, coa.account_code, coa.account_name
+      `SELECT tl.*, coa.account_code, coa.account_name,
+              coa_exp.account_code AS expense_account_code,
+              coa_exp.account_name AS expense_account_name,
+              coa_tax.account_code AS tax_account_code,
+              coa_tax.account_name AS tax_account_name
        FROM general_invoice_template_lines tl
        JOIN chart_of_accounts coa ON coa.id = tl.account_id
+       LEFT JOIN chart_of_accounts coa_exp ON coa_exp.id = tl.expense_account_id
+       LEFT JOIN chart_of_accounts coa_tax ON coa_tax.id = tl.tax_account_id
        WHERE tl.template_id = $1 ORDER BY tl.line_number`,
       [id],
     )
@@ -1058,8 +1075,9 @@ export const generalTemplateRepository = {
       await client.query(
         `INSERT INTO general_invoice_template_lines
           (template_id, line_number, account_id, description, amount_ratio,
-           transaction_type, expense_account_id, total_periods, amortization_start_offset_days)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+           transaction_type, expense_account_id, total_periods, amortization_start_offset_days,
+           tax_account_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           rows[0].id, line.line_number, line.account_id,
           line.description ?? null, line.amount_ratio ?? null,
@@ -1067,6 +1085,7 @@ export const generalTemplateRepository = {
           line.expense_account_id ?? null,
           line.total_periods ?? null,
           line.amortization_start_offset_days ?? null,
+          line.tax_account_id ?? null,
         ],
       )
     }

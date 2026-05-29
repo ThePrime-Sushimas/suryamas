@@ -187,17 +187,53 @@ export class GeneralInvoiceService {
     const totalAmount = Number(existing.total_amount)
 
     // Build journal lines: DR tiap expense/prepaid account, CR liability account
-    const journalLines = existing.lines.map((line, i) => ({
-      line_number: i + 1,
-      account_id: line.account_id,  // For EXPENSE: 6xxx/5xxx, For PREPAID: 1xxx (prepaid asset)
-      description: line.description ?? existing.vendor_name,
-      debit_amount: Number(line.total_amount),
-      credit_amount: 0,
-    }))
+    // If a line has tax_account_id, tax gets its own journal line (e.g. PPN Masukan)
+    // If tax_account_id is NULL, tax is bundled into the main account debit
+    const journalLines: Array<{
+      line_number: number
+      account_id: string
+      description: string
+      debit_amount: number
+      credit_amount: number
+    }> = []
 
-    // CR: Hutang Usaha Umum
+    let lineNum = 1
+    for (const line of existing.lines) {
+      const lineAmount = Number(line.amount)
+      const taxAmount = Number(line.tax_amount)
+
+      if (line.tax_account_id && taxAmount > 0) {
+        // Tax has its own account → debit main account for base amount only
+        journalLines.push({
+          line_number: lineNum++,
+          account_id: line.account_id,
+          description: line.description ?? existing.vendor_name,
+          debit_amount: lineAmount,
+          credit_amount: 0,
+        })
+        // Separate debit for tax account (e.g. PPN Masukan)
+        journalLines.push({
+          line_number: lineNum++,
+          account_id: line.tax_account_id,
+          description: `PPN — ${line.description ?? existing.vendor_name}`,
+          debit_amount: taxAmount,
+          credit_amount: 0,
+        })
+      } else {
+        // No separate tax account → bundle tax into main account debit (legacy behavior)
+        journalLines.push({
+          line_number: lineNum++,
+          account_id: line.account_id,
+          description: line.description ?? existing.vendor_name,
+          debit_amount: Number(line.total_amount),
+          credit_amount: 0,
+        })
+      }
+    }
+
+    // CR: Hutang Usaha Umum (total termasuk pajak)
     journalLines.push({
-      line_number: journalLines.length + 1,
+      line_number: lineNum,
       account_id: liabilityAccountId,
       description: `Hutang ${existing.vendor_name} — ${existing.invoice_number}`,
       debit_amount: 0,
@@ -263,7 +299,11 @@ export class GeneralInvoiceService {
           )
           if (existingAmort.length > 0) continue
 
-          const lineAmount = Number(line.total_amount)
+          // Amortisasi atas base amount saja jika PPN terpisah (tax_account_id ada)
+          // Kalau PPN bundled (tax_account_id null), amortisasi atas total (base + tax)
+          const lineAmount = (line.tax_account_id && Number(line.tax_amount) > 0)
+            ? Number(line.amount)
+            : Number(line.total_amount)
           const totalPeriods = line.total_periods
           const amountPerPeriod = Math.floor((lineAmount / totalPeriods) * 10000) / 10000
           const startDate = new Date(line.amortization_start_date)
@@ -737,6 +777,7 @@ export class GeneralInvoiceTemplateService {
         description: tl.description ?? undefined,
         amount,
         tax_amount: override?.tax_amount ?? 0,
+        tax_account_id: tl.tax_account_id ?? undefined,
         transaction_type: tl.transaction_type,
         expense_account_id: tl.expense_account_id ?? undefined,
         total_periods: tl.total_periods ?? undefined,

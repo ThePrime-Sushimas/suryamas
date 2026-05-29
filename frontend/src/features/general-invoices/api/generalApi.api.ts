@@ -38,6 +38,9 @@ export interface GeneralInvoiceLine {
   description: string | null
   amount: number
   tax_amount: number
+  tax_account_id: string | null
+  tax_account_code: string | null
+  tax_account_name: string | null
   total_amount: number
   transaction_type: TransactionType
   expense_account_id: string | null
@@ -175,6 +178,9 @@ export interface GeneralInvoiceTemplateLine {
   description: string | null
   amount_ratio: number | null
   transaction_type: TransactionType
+  tax_account_id: string | null
+  tax_account_code: string | null
+  tax_account_name: string | null
   expense_account_id: string | null
   expense_account_code: string | null
   expense_account_name: string | null

@@ -75,6 +75,9 @@ export interface GeneralInvoiceLine {
   description: string | null
   amount: number
   tax_amount: number
+  tax_account_id: string | null        // COA for tax (e.g. PPN Masukan). If NULL, tax bundled into main account.
+  tax_account_code: string | null      // joined
+  tax_account_name: string | null      // joined
   total_amount: number
   transaction_type: TransactionType
   expense_account_id: string | null    // COA 6xxx for PREPAID amortization
@@ -90,6 +93,7 @@ export interface CreateGeneralInvoiceLineDto {
   description?: string
   amount: number
   tax_amount?: number
+  tax_account_id?: string             // COA for tax. If omitted, tax bundled into main account.
   transaction_type?: TransactionType  // default EXPENSE
   expense_account_id?: string         // required if PREPAID
   total_periods?: number              // required if PREPAID
@@ -260,6 +264,9 @@ export interface GeneralInvoiceTemplateLine {
   description: string | null
   amount_ratio: number | null
   transaction_type: TransactionType
+  tax_account_id: string | null
+  tax_account_code: string | null  // joined
+  tax_account_name: string | null  // joined
   expense_account_id: string | null
   expense_account_code: string | null  // joined
   expense_account_name: string | null  // joined
@@ -301,6 +308,7 @@ export interface CreateGeneralInvoiceTemplateDto {
     description?: string
     amount_ratio?: number
     transaction_type?: TransactionType
+    tax_account_id?: string
     expense_account_id?: string
     total_periods?: number
     amortization_start_offset_days?: number

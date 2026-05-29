@@ -4,6 +4,7 @@ import { formatRupiah, formatDate } from '../constants'
 interface LineInput {
   amount: string
   tax_amount: string
+  tax_account_id: string
   description: string
   transaction_type: 'EXPENSE' | 'PREPAID'
   total_periods: string
@@ -130,7 +131,14 @@ export function InvoiceSummaryPanel({
 
           {/* What happens on POST */}
           <p className="text-xs text-blue-600 mt-2 pt-2 border-t border-blue-200">
-            💡 Saat invoice di-posting, sistem akan membuat jurnal otomatis. Untuk baris prepaid, jadwal amortisasi akan dibuat dan bisa dieksekusi per bulan.
+            💡 Saat invoice di-posting, sistem akan membuat jurnal otomatis.
+            {lines.some((l) => parseFloat(l.tax_amount) > 0 && l.tax_account_id) && (
+              <> Pajak dengan akun terpisah akan di-debit ke akun pajak (mis. PPN Masukan).</>
+            )}
+            {lines.some((l) => parseFloat(l.tax_amount) > 0 && !l.tax_account_id) && (
+              <> Pajak tanpa akun terpisah akan digabung ke akun utama.</>
+            )}
+            {' '}Untuk baris prepaid, jadwal amortisasi akan dibuat dan bisa dieksekusi per bulan.
           </p>
         </div>
       </div>

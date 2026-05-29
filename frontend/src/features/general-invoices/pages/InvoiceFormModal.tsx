@@ -21,6 +21,7 @@ interface LineForm {
   description: string
   amount: string
   tax_amount: string
+  tax_account_id: string
   transaction_type: TransactionType
   expense_account_id: string
   total_periods: string
@@ -39,6 +40,7 @@ const emptyLine = (n: number): LineForm => ({
   description: '',
   amount: '',
   tax_amount: '0',
+  tax_account_id: '',
   transaction_type: 'EXPENSE',
   expense_account_id: '',
   total_periods: '',
@@ -87,6 +89,7 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
           description: l.description ?? '',
           amount: String(l.amount),
           tax_amount: String(l.tax_amount),
+          tax_account_id: l.tax_account_id ?? '',
           transaction_type: l.transaction_type ?? 'EXPENSE',
           expense_account_id: l.expense_account_id ?? '',
           total_periods: l.total_periods ? String(l.total_periods) : '',
@@ -167,6 +170,7 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
         description: l.description || null,
         amount: parseFloat(l.amount) || 0,
         tax_amount: parseFloat(l.tax_amount) || 0,
+        tax_account_id: l.tax_account_id || null,
         transaction_type: l.transaction_type,
         ...(l.transaction_type === 'PREPAID' ? {
           expense_account_id: l.expense_account_id,
@@ -396,6 +400,24 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
                         />
                       </div>
                     </div>
+
+                    {/* Tax account selector — muncul jika pajak > 0 */}
+                    {parseFloat(line.tax_amount) > 0 && (
+                      <div className="grid grid-cols-12 gap-2 items-start">
+                        <div className="col-span-5">
+                          <label className="text-[10px] text-gray-500">Akun Pajak (opsional)</label>
+                          <AccountSelector
+                            value={line.tax_account_id}
+                            onChange={(id) => updateLine(idx, 'tax_account_id', id)}
+                            placeholder="Kosong = pajak ikut akun utama"
+                            priorityPrefix={['1106', '11']}
+                          />
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            Isi jika PPN bisa dikreditkan (mis. PPN Masukan)
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* PREPAID expand section */}
                     {line.transaction_type === 'PREPAID' && (

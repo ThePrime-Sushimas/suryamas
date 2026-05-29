@@ -67,6 +67,7 @@ const invoiceLineSchema = z.object({
   description:             z.string().max(500).nullable().optional(),
   amount:                  z.number().nonnegative(),
   tax_amount:              z.number().nonnegative().default(0),
+  tax_account_id:          z.string().uuid().nullable().optional(),  // COA for tax (PPN Masukan etc.)
   transaction_type:        z.enum(transactionTypes).default('EXPENSE'),
   expense_account_id:      z.string().uuid().optional(),       // required if PREPAID
   total_periods:           z.number().int().positive().optional(),  // required if PREPAID
@@ -206,6 +207,7 @@ const templateLineSchema = z.object({
   description:                    z.string().max(500).nullable().optional(),
   amount_ratio:                   z.number().min(0).max(1).nullable().optional(),
   transaction_type:               z.enum(transactionTypes).default('EXPENSE'),
+  tax_account_id:                 z.string().uuid().nullable().optional(),
   expense_account_id:             z.string().uuid().optional(),
   total_periods:                  z.number().int().positive().optional(),
   amortization_start_offset_days: z.number().int().nonnegative().optional(),
