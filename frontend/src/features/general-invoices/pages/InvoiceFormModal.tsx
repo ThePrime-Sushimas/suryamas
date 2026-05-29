@@ -8,6 +8,7 @@ import {
 } from '../api/generalApi.api'
 import { INVOICE_DATE_FIELD_HELP } from '../constants'
 import { FieldHint } from '../components/FieldHint'
+import { InvoiceSummaryPanel } from '../components/InvoiceSummaryPanel'
 import { AccountSelector } from '@/features/accounting/journals/shared/AccountSelector'
 import { getSignedStorageUrl } from '@/lib/storage'
 import { useToast } from '@/contexts/ToastContext'
@@ -449,6 +450,17 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
               </div>
             </div>
           </div>
+
+          {/* Ringkasan naratif — muncul setelah data terisi */}
+          <InvoiceSummaryPanel
+            vendorName={vendors.find((v) => v.id === vendorId)?.vendor_name ?? ''}
+            invoiceDate={invoiceDate}
+            dueDate={dueDate}
+            periodStart={periodStart}
+            periodEnd={periodEnd}
+            lines={lines}
+            totalAmount={totalAmount}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
