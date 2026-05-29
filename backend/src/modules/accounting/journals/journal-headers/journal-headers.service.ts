@@ -12,6 +12,7 @@ import { apPaymentsRepository } from '../../../ap-payments/ap-payments.repositor
 import {
   generalInvoiceRepository,
   generalPaymentRepository,
+  amortizationRepository,
 } from '../../../general-invoices/general-invoices.repository'
 import { notificationDispatcher } from '../../../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../../../notifications/notification-events'
@@ -339,13 +340,88 @@ export class JournalHeadersService {
       journal.source_module === 'general_invoices' &&
       journal.reference_id
     ) {
-      await generalInvoiceRepository.revertPostedAfterJournalDelete(journal.reference_id, userId)
+      // Hard delete cascade: invoice + payments + amortizations
+      const invoiceId = journal.reference_id
+
+      // Delete all payment journals for this invoice
+      const payments = await generalPaymentRepository.findAllByInvoiceId(invoiceId)
+      for (const payment of payments) {
+        if (payment.journal_id && payment.journal_id !== id) {
+          await journalHeadersRepository.clearReversalReferences(payment.journal_id)
+          await journalHeadersRepository.clearJournalReferences(payment.journal_id)
+          await journalHeadersRepository.delete(payment.journal_id, userId)
+        }
+      }
+
+      // Delete all amortization journals for this invoice
+      const amortJournalIds = await amortizationRepository.findJournalIdsByInvoiceId(invoiceId)
+      for (const ajId of amortJournalIds) {
+        if (ajId !== id) {
+          await journalHeadersRepository.clearReversalReferences(ajId)
+          await journalHeadersRepository.clearJournalReferences(ajId)
+          await journalHeadersRepository.delete(ajId, userId)
+        }
+      }
+
+      // Hard delete payments + invoice + lines + amortizations
+      await generalInvoiceRepository.withTransaction(async (client) => {
+        await generalPaymentRepository.hardDeleteByInvoiceId(client, invoiceId)
+        await generalInvoiceRepository.hardDelete(client, invoiceId)
+      })
+
+      await AuditService.log('FORCE_DELETE', 'general_invoices', invoiceId, userId, {
+        reason: 'Cascade from journal force delete',
+        journal_id: id,
+      })
     } else if (
       journal.reference_type === 'general_invoice_payment' &&
       journal.source_module === 'general_invoice_payments' &&
       journal.reference_id
     ) {
-      await generalPaymentRepository.revertPaidAfterJournalDelete(journal.reference_id, userId)
+      // Hard delete cascade: payment journal → find invoice → delete everything
+      const paymentId = journal.reference_id
+      const invoiceId = await generalPaymentRepository.findInvoiceIdByPaymentId(paymentId)
+
+      if (invoiceId) {
+        // Delete all OTHER payment journals for this invoice
+        const allPayments = await generalPaymentRepository.findAllByInvoiceId(invoiceId)
+        for (const p of allPayments) {
+          if (p.journal_id && p.journal_id !== id) {
+            await journalHeadersRepository.clearReversalReferences(p.journal_id)
+            await journalHeadersRepository.clearJournalReferences(p.journal_id)
+            await journalHeadersRepository.delete(p.journal_id, userId)
+          }
+        }
+
+        // Delete invoice posting journal
+        const invJournalId = await generalInvoiceRepository.findJournalIdByInvoiceId(invoiceId)
+        if (invJournalId && invJournalId !== id) {
+          await journalHeadersRepository.clearReversalReferences(invJournalId)
+          await journalHeadersRepository.clearJournalReferences(invJournalId)
+          await journalHeadersRepository.delete(invJournalId, userId)
+        }
+
+        // Delete all amortization journals
+        const amortJournalIds = await amortizationRepository.findJournalIdsByInvoiceId(invoiceId)
+        for (const ajId of amortJournalIds) {
+          if (ajId !== id) {
+            await journalHeadersRepository.clearReversalReferences(ajId)
+            await journalHeadersRepository.clearJournalReferences(ajId)
+            await journalHeadersRepository.delete(ajId, userId)
+          }
+        }
+
+        // Hard delete everything
+        await generalInvoiceRepository.withTransaction(async (client) => {
+          await generalPaymentRepository.hardDeleteByInvoiceId(client, invoiceId)
+          await generalInvoiceRepository.hardDelete(client, invoiceId)
+        })
+
+        await AuditService.log('FORCE_DELETE', 'general_invoices', invoiceId, userId, {
+          reason: 'Cascade from payment journal force delete',
+          journal_id: id,
+        })
+      }
     }
 
     await journalHeadersRepository.clearReversalReferences(id)

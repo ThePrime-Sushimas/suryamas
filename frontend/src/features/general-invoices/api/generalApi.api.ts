@@ -468,6 +468,19 @@ export const useDeleteGeneralInvoice = () => {
   })
 }
 
+export const useForceDeleteGeneralInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/general-invoices/${id}/force`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.invoices })
+      qc.invalidateQueries({ queryKey: KEYS.payments })
+    },
+  })
+}
+
 // ============================================================
 // PAYMENT HOOKS
 // ============================================================

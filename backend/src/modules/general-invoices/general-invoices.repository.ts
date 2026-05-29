@@ -618,6 +618,45 @@ export const generalInvoiceRepository = {
     )
   },
 
+  /**
+   * Hard delete invoice beserta semua data terkait (lines, amortizations, entries).
+   * Payment dan journal harus sudah di-handle sebelum panggil ini.
+   */
+  async hardDelete(client: PoolClient, id: string): Promise<void> {
+    // 1. Delete amortization entries
+    await client.query(
+      `DELETE FROM general_invoice_amortization_entries
+       WHERE amortization_id IN (
+         SELECT id FROM general_invoice_amortizations WHERE invoice_id = $1
+       )`,
+      [id],
+    )
+    // 2. Delete amortization headers
+    await client.query(
+      `DELETE FROM general_invoice_amortizations WHERE invoice_id = $1`,
+      [id],
+    )
+    // 3. Delete invoice lines
+    await client.query(
+      `DELETE FROM general_invoice_lines WHERE general_invoice_id = $1`,
+      [id],
+    )
+    // 4. Delete invoice header
+    await client.query(
+      `DELETE FROM general_invoices WHERE id = $1`,
+      [id],
+    )
+  },
+
+  /** Find journal_id for a given invoice — used for cascade hard delete from journal page. */
+  async findJournalIdByInvoiceId(invoiceId: string): Promise<string | null> {
+    const { rows } = await pool.query<{ journal_id: string | null }>(
+      `SELECT journal_id FROM general_invoices WHERE id = $1`,
+      [invoiceId],
+    )
+    return rows[0]?.journal_id ?? null
+  },
+
   /** Setelah jurnal posting di-hard-delete dari halaman Journal → invoice kembali DRAFT. */
   async revertPostedAfterJournalDelete(invoiceId: string, userId: string): Promise<void> {
     await pool.query(
@@ -960,6 +999,31 @@ export const generalPaymentRepository = {
     )
   },
 
+  /** Hard delete payment record permanently. Journal harus sudah di-handle sebelumnya. */
+  async hardDelete(client: PoolClient, id: string): Promise<void> {
+    await client.query(
+      `DELETE FROM general_invoice_payments WHERE id = $1`,
+      [id],
+    )
+  },
+
+  /** Hard delete ALL payments for a given invoice. */
+  async hardDeleteByInvoiceId(client: PoolClient, invoiceId: string): Promise<void> {
+    await client.query(
+      `DELETE FROM general_invoice_payments WHERE general_invoice_id = $1`,
+      [invoiceId],
+    )
+  },
+
+  /** Find all payments (including soft-deleted) for an invoice — used for hard delete cascade. */
+  async findAllByInvoiceId(invoiceId: string): Promise<Array<{ id: string; journal_id: string | null; status: string }>> {
+    const { rows } = await pool.query<{ id: string; journal_id: string | null; status: string }>(
+      `SELECT id, journal_id, status FROM general_invoice_payments WHERE general_invoice_id = $1`,
+      [invoiceId],
+    )
+    return rows
+  },
+
   /** Setelah jurnal pembayaran di-hard-delete → payment kembali APPROVED (bukti tetap). */
   async revertPaidAfterJournalDelete(paymentId: string, userId: string): Promise<void> {
     await pool.query(
@@ -984,6 +1048,15 @@ export const generalPaymentRepository = {
       [bankAccountId],
     )
     return rows[0]?.coa_account_id ?? null
+  },
+
+  /** Find invoice_id for a given payment — used for cascade hard delete from journal page. */
+  async findInvoiceIdByPaymentId(paymentId: string): Promise<string | null> {
+    const { rows } = await pool.query<{ general_invoice_id: string }>(
+      `SELECT general_invoice_id FROM general_invoice_payments WHERE id = $1`,
+      [paymentId],
+    )
+    return rows[0]?.general_invoice_id ?? null
   },
 }
 
@@ -1263,5 +1336,18 @@ export const amortizationRepository = {
        WHERE invoice_id = $1 AND status = 'ACTIVE'`,
       [invoiceId],
     )
+  },
+
+  /** Find all journal IDs from amortization entries for a given invoice (for hard delete cascade). */
+  async findJournalIdsByInvoiceId(invoiceId: string): Promise<string[]> {
+    const { rows } = await pool.query<{ journal_id: string }>(
+      `SELECT ae.journal_id
+       FROM general_invoice_amortization_entries ae
+       JOIN general_invoice_amortizations a ON a.id = ae.amortization_id
+       WHERE a.invoice_id = $1
+         AND ae.journal_id IS NOT NULL`,
+      [invoiceId],
+    )
+    return rows.map((r) => r.journal_id)
   },
 }

@@ -8,6 +8,7 @@ import {
   canUpdate,
   canDelete,
   canApprove,
+  canRelease,
 } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { documentUploadSingle } from '../../middleware/upload-document.middleware'
@@ -82,6 +83,7 @@ router.post(
   (req, res) => generalInvoicesController.uploadAttachment(req, res),
 )
 router.delete( '/general-invoices/:id',        requireWriteAccess, canDelete('general_invoices'), validateSchema(generalInvoiceParamSchema),   (req, res) => generalInvoicesController.delete(req, res))
+router.delete( '/general-invoices/:id/force',  requireWriteAccess, canRelease('general_invoices'), validateSchema(generalInvoiceParamSchema),  (req, res) => generalInvoicesController.forceDelete(req, res))
 
 // ============================================================
 // GENERAL INVOICE PAYMENTS  →  /api/v1/general-invoice-payments

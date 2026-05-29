@@ -1,4 +1,5 @@
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
+import { journalHeadersRepository } from '../accounting/journals/journal-headers/journal-headers.repository'
 import { AuditService } from '../monitoring/monitoring.service'
 import { storageService } from '../../services/storage.service'
 import { resolveDocumentUploadExtension } from '../../utils/document-upload.util'
@@ -407,6 +408,70 @@ export class GeneralInvoiceService {
 
     await AuditService.log('DELETE', 'general_invoices', id, userId, { invoice_number: existing.invoice_number }, null)
     logInfo('General invoice deleted', { id })
+  }
+
+  /**
+   * Force delete (hard delete) — hapus total invoice beserta semua data terkait:
+   * - Payment journals (direct delete, bypass forceDeleteAsUser to avoid double-cascade)
+   * - Payments (hard delete)
+   * - Invoice posting journal (direct delete)
+   * - Amortization journals (direct delete)
+   * - Amortization entries & headers (hard delete)
+   * - Invoice lines (hard delete)
+   * - Invoice header (hard delete)
+   *
+   * Requires `release` permission on general_invoices module.
+   *
+   * NOTE: Kita TIDAK pakai forceDeleteAsUser karena handler di journal service
+   * akan trigger cascade balik (double-cascade). Langsung clear references + delete journal record.
+   */
+  async forceDelete(id: string, branchIds: string[], userId: string): Promise<void> {
+    const existing = await this.requireById(id, branchIds)
+    const invoiceNumber = existing.invoice_number
+
+    // Collect all journal IDs to delete
+    const journalIdsToDelete: string[] = []
+
+    // 1. Payment journals
+    const payments = await generalPaymentRepository.findAllByInvoiceId(id)
+    for (const payment of payments) {
+      if (payment.journal_id) journalIdsToDelete.push(payment.journal_id)
+    }
+
+    // 2. Invoice posting journal
+    if (existing.journal_id) {
+      journalIdsToDelete.push(existing.journal_id)
+    }
+
+    // 3. Amortization journals
+    const amortJournalIds = await amortizationRepository.findJournalIdsByInvoiceId(id)
+    journalIdsToDelete.push(...amortJournalIds)
+
+    // 4. Delete all journals directly (bypass forceDeleteAsUser to avoid double-cascade)
+    for (const journalId of journalIdsToDelete) {
+      try {
+        await journalHeadersRepository.clearReversalReferences(journalId)
+        await journalHeadersRepository.clearJournalReferences(journalId)
+        await journalHeadersRepository.delete(journalId, userId)
+      } catch {
+        // Journal mungkin sudah dihapus — skip
+      }
+    }
+
+    // 5. Hard delete everything in one transaction
+    await generalInvoiceRepository.withTransaction(async (client) => {
+      await generalPaymentRepository.hardDeleteByInvoiceId(client, id)
+      await generalInvoiceRepository.hardDelete(client, id)
+    })
+
+    await AuditService.log('FORCE_DELETE', 'general_invoices', id, userId, {
+      invoice_number: invoiceNumber,
+      status: existing.status,
+      had_payment: payments.length > 0,
+      had_amortization: amortJournalIds.length > 0,
+      journals_deleted: journalIdsToDelete.length,
+    }, null)
+    logInfo('General invoice force deleted (hard delete)', { id, invoice_number: invoiceNumber })
   }
 
   async uploadAttachment(

@@ -250,6 +250,16 @@ export class GeneralInvoicesController {
     }
   }
 
+  forceDelete = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { branchIds, userId } = await giScope(req)
+      await generalInvoiceService.forceDelete(req.params.id as string, branchIds, userId)
+      sendSuccess(res, null, 'Invoice berhasil dihapus permanen (hard delete)')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'force_delete_general_invoice', id: req.params.id })
+    }
+  }
+
   uploadAttachment = async (req: Request, res: Response): Promise<void> => {
     try {
       const { branchIds, userId } = await giScope(req)
