@@ -13,6 +13,7 @@ export interface Product {
   average_cost: number
   base_unit_name: string | null
   station: string | null
+  station_name?: string | null
   is_requestable: boolean
   is_purchasable: boolean
   notes: string | null

@@ -205,7 +205,7 @@ export default function ProductsPage() {
                     <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{p.product_name}</td>
                     <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.category_name || '—'}</td>
                     <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.sub_category_name || '—'}</td>
-                    <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.station || '—'}</td>
+                    <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.station_name || '—'}</td>
                     <td className="px-3 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
                       {p.average_cost > 0 ? (
                         <span>Rp {fmt(p.average_cost)}<span className="text-gray-400 text-xs ml-1">/{p.base_unit_name || '?'}</span></span>

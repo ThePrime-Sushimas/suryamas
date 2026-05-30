@@ -25,12 +25,13 @@ export const mapProductsFromDb = (rawProducts: any[]): Product[] => {
 /**
  * Extracts category and subcategory names from joined data
  */
-export const mapProductWithRelations = (raw: any): Product & { category_name?: string; sub_category_name?: string } => {
+export const mapProductWithRelations = (raw: any): Product & { category_name?: string; sub_category_name?: string; station_name?: string } => {
   const product = mapProductFromDb(raw)
   
   return {
     ...product,
     category_name: raw.category_name || null,
     sub_category_name: raw.sub_category_name || null,
+    station_name: raw.station_name || null,
   }
 }

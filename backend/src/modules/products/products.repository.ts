@@ -35,10 +35,12 @@ export class ProductsRepository {
     const [dataRes, countRes] = await Promise.all([
       pool.query(
         `SELECT p.*, c.category_name, sc.sub_category_name,
-                base_unit.unit_name AS base_unit_name
+                base_unit.unit_name AS base_unit_name,
+                pos.position_name AS station_name
          FROM products p
          LEFT JOIN categories c ON c.id = p.category_id
          LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+         LEFT JOIN positions pos ON pos.position_code = p.station AND pos.is_deleted = false
          LEFT JOIN LATERAL (
            SELECT mu.unit_name FROM product_uoms pu
            JOIN metric_units mu ON mu.id = pu.metric_unit_id
@@ -69,10 +71,12 @@ export class ProductsRepository {
     const [dataRes, countRes] = await Promise.all([
       pool.query(
         `SELECT p.*, c.category_name, sc.sub_category_name,
-                base_unit.unit_name AS base_unit_name
+                base_unit.unit_name AS base_unit_name,
+                pos.position_name AS station_name
          FROM products p
          LEFT JOIN categories c ON c.id = p.category_id
          LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+         LEFT JOIN positions pos ON pos.position_code = p.station AND pos.is_deleted = false
          LEFT JOIN LATERAL (
            SELECT mu.unit_name FROM product_uoms pu
            JOIN metric_units mu ON mu.id = pu.metric_unit_id
