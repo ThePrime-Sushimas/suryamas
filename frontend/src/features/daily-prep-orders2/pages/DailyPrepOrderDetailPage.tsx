@@ -11,6 +11,7 @@ import { DpoPrintModal } from '../components/DpoPrintModal'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { usePositions } from '@/features/settings/api/settings.api'
 
 const fmt = (n: number, unit?: string | null) =>
   `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(n)}${unit ? ` ${unit}` : ''}`
@@ -55,12 +56,12 @@ export default function DailyPrepOrderDetailPage() {
 
   const lines = dpo?.lines ?? []
 
-  // Derive unique stations from lines for filter dropdown
-  const stationOptions = useMemo(() => {
-    const stations = new Set<string>()
-    lines.forEach(l => { if (l.station) stations.add(l.station) })
-    return Array.from(stations).sort()
-  }, [lines])
+  // Get positions from API for station filter dropdown
+  const { data: positions = [] } = usePositions()
+  const stationOptions = useMemo(() =>
+    positions.filter(p => p.is_active).map(p => ({ code: p.position_code, name: p.position_name })),
+    [positions]
+  )
 
   // Client-side filtering
   const filteredLines = useMemo(() => {
@@ -303,7 +304,7 @@ export default function DailyPrepOrderDetailPage() {
                 >
                   <option value="">Semua Station</option>
                   {stationOptions.map(s => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s.code} value={s.name}>{s.name}</option>
                   ))}
                 </select>
               )}
