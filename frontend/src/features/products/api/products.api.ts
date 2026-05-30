@@ -7,7 +7,7 @@ const KEYS = {
   product: (id: string) => ['products', id] as const,
 }
 
-export const useProducts = (params: { page?: number; limit?: number; search?: string; status?: string; category_id?: string; sub_category_id?: string; includeDeleted?: boolean; sort?: string; order?: string }) =>
+export const useProducts = (params: { page?: number; limit?: number; search?: string; status?: string; category_id?: string; sub_category_id?: string; station?: string; includeDeleted?: boolean; sort?: string; order?: string }) =>
   useQuery({
     queryKey: KEYS.products(params),
     queryFn: async () => {
@@ -16,6 +16,7 @@ export const useProducts = (params: { page?: number; limit?: number; search?: st
       if (params.status) queryParams.status = params.status
       if (params.category_id) queryParams.category_id = params.category_id
       if (params.sub_category_id) queryParams.sub_category_id = params.sub_category_id
+      if (params.station) queryParams.station = params.station
       if (params.includeDeleted) queryParams.includeDeleted = true
       if (params.sort) queryParams.sort = params.sort
       if (params.order) queryParams.order = params.order

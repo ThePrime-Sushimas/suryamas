@@ -8,6 +8,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { useProducts, useDeleteProduct, useRestoreProduct, useBulkDeleteProducts, useBulkRestoreProducts } from '../api/products.api'
 import { useAllCategories, useSubCategories } from '@/features/categories/api/categories.api'
+import { usePositions } from '@/features/settings/api/settings.api'
 import type { Product } from '../types'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
@@ -21,6 +22,7 @@ export default function ProductsPage() {
   const [limit, setLimit] = useState(20)
   const [categoryFilter, setCategoryFilter] = useState('')
   const [subCategoryFilter, setSubCategoryFilter] = useState('')
+  const [stationFilter, setStationFilter] = useState('')
   const [showDeleted, setShowDeleted] = useState(false)
   const [showFilter, setShowFilter] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -34,14 +36,16 @@ export default function ProductsPage() {
   const { data: categories } = useAllCategories()
   const { data: subCategoriesData } = useSubCategories({ category_id: categoryFilter || undefined, limit: 500, is_active: 'true' })
   const subCategories = subCategoriesData?.data ?? []
+  const { data: positions = [] } = usePositions()
 
   const queryParams = useMemo(() => ({
     page, limit, search: debouncedSearch || undefined,
     category_id: categoryFilter || undefined,
     sub_category_id: subCategoryFilter || undefined,
+    station: stationFilter || undefined,
     includeDeleted: showDeleted || undefined,
     sort: sortBy, order: sortOrder,
-  }), [page, limit, debouncedSearch, categoryFilter, subCategoryFilter, showDeleted, sortBy, sortOrder])
+  }), [page, limit, debouncedSearch, categoryFilter, subCategoryFilter, stationFilter, showDeleted, sortBy, sortOrder])
 
   const { data, isLoading } = useProducts(queryParams)
   const deleteProduct = useDeleteProduct()
@@ -56,6 +60,7 @@ export default function ProductsPage() {
   const handleSearchChange = (v: string) => { setSearch(v); setPage(1) }
   const handleCategoryChange = (v: string) => { setCategoryFilter(v); setSubCategoryFilter(''); setPage(1) }
   const handleSubCategoryChange = (v: string) => { setSubCategoryFilter(v); setPage(1) }
+  const handleStationChange = (v: string) => { setStationFilter(v); setPage(1) }
   const handleDeletedChange = (v: boolean) => { setShowDeleted(v); setPage(1) }
   const handleSort = (field: string) => {
     if (sortBy === field) setSortOrder(o => o === 'asc' ? 'desc' : 'asc')
@@ -96,7 +101,7 @@ export default function ProductsPage() {
   const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
   const toggleAll = () => setSelectedIds(prev => prev.length === products.length ? [] : products.map(p => p.id))
 
-  const activeFilterCount = [categoryFilter, subCategoryFilter, showDeleted].filter(Boolean).length
+  const activeFilterCount = [categoryFilter, subCategoryFilter, stationFilter, showDeleted].filter(Boolean).length
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -133,7 +138,7 @@ export default function ProductsPage() {
           </button>
         </div>
         {showFilter && (
-          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-4 gap-3">
             <select value={categoryFilter} onChange={e => handleCategoryChange(e.target.value)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
               <option value="">Semua Kategori</option>
@@ -143,6 +148,11 @@ export default function ProductsPage() {
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
               <option value="">Semua Sub Kategori</option>
               {subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.sub_category_name}</option>)}
+            </select>
+            <select value={stationFilter} onChange={e => handleStationChange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+              <option value="">Semua Station</option>
+              {positions.filter(p => p.is_active).map(p => <option key={p.id} value={p.position_code}>{p.position_name}</option>)}
             </select>
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input type="checkbox" checked={showDeleted} onChange={e => handleDeletedChange(e.target.checked)}
