@@ -425,11 +425,6 @@ const SettlementGroupDetailPage = lazy(() =>
     }),
   ),
 );
-const GeneralInvoicesDashboardPage = lazy(() =>
-  import("./features/general-invoices/pages/GeneralApDashboardPage").then(
-    (m) => ({ default: m.default }),
-  ),
-);
 const GeneralInvoicesPage = lazy(() =>
   import("./features/general-invoices/pages/GeneralInvoicesPage").then(
     (m) => ({ default: m.default }),
@@ -1587,16 +1582,6 @@ function App() {
                       <RequirePermission module="cash_flow">
                         <Suspense fallback={<LoadingFallback />}>
                           <ExpenseCategorizationPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="finance/general-invoices/dashboard"
-                    element={
-                      <RequirePermission module="general_invoices">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <GeneralInvoicesDashboardPage />
                         </Suspense>
                       </RequirePermission>
                     }

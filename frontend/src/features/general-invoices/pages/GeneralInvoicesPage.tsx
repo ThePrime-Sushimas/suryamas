@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, Send, XCircle, Receipt, RefreshCw, ArrowRight, AlertTriangle } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Send, XCircle, Receipt, RefreshCw, ArrowRight, AlertTriangle, Clock } from 'lucide-react'
 
 import {
   useGeneralInvoices,
   useGeneralInvoice,
+  useGeneralInvoiceDashboard,
   usePostGeneralInvoice,
   useCancelGeneralInvoice,
   useDeleteGeneralInvoice,
@@ -48,6 +49,7 @@ export default function GeneralInvoicesPage() {
   const { data, isLoading } = useGeneralInvoices(apiQuery)
   const { data: editInvoice } = useGeneralInvoice(editId ?? '')
   const { data: companyBanks = [] } = useCompanyBankAccounts()
+  const { data: dashboardData } = useGeneralInvoiceDashboard()
 
   const hasPermission = usePermissionStore(state => state.hasPermission)
   const canRelease = hasPermission('general_invoices', 'release')
@@ -108,6 +110,13 @@ export default function GeneralInvoicesPage() {
             <RefreshCw size={16} />
             Template
           </Link>
+          <Link
+            to="/finance/general-invoices/amortizations"
+            className="flex items-center gap-2 border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+          >
+            <Clock size={16} />
+            Amortisasi
+          </Link>
           <button
             type="button"
             onClick={() => { setCreateOpen(true) }}
@@ -118,6 +127,23 @@ export default function GeneralInvoicesPage() {
           </button>
         </div>
       </div>
+
+      {/* Amortization pending banner */}
+      {dashboardData && dashboardData.pending_amortizations > 0 && (
+        <Link
+          to="/finance/general-invoices/amortizations"
+          className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 hover:bg-amber-100 transition-colors"
+        >
+          <Clock size={16} className="text-amber-600 shrink-0" />
+          <div className="flex-1">
+            <span className="text-sm font-medium text-amber-800">
+              {dashboardData.pending_amortizations} amortisasi prepaid menunggu eksekusi
+            </span>
+            <p className="text-xs text-amber-600">Klik untuk lihat dan eksekusi</p>
+          </div>
+          <ArrowRight size={14} className="text-amber-500" />
+        </Link>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 flex flex-col sm:flex-row gap-2 sm:gap-3">

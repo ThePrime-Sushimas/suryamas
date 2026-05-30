@@ -533,17 +533,10 @@ export const menuItems: MenuItem[] = [
         module: "ap_payments",
       },
       {
-        id: "general-invoices-dashboard",
-        name: "General Invoices",
-        href: "/finance/general-invoices/dashboard",
-        icon: <Receipt size={16} />,
-        module: "general_invoices",
-      },
-      {
         id: "general-invoices",
-        name: "All Invoices",
+        name: "General Invoices",
         href: "/finance/general-invoices",
-        icon: <FileText size={16} />,
+        icon: <Receipt size={16} />,
         module: "general_invoices",
       },
       {
