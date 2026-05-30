@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, Zap, FileText } from 'lucide-react'
 import { useGenerateFromTemplate, type GeneralInvoiceTemplate } from '../api/generalApi.api'
 import { formatRupiah } from '../constants'
 import { useToast } from '@/contexts/ToastContext'
@@ -18,59 +18,57 @@ export function GenerateFromTemplateModal({ open, onClose, template }: Props) {
   const generate = useGenerateFromTemplate()
 
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
-  const [invoiceNumber, setInvoiceNumber] = useState('')
-  const [lineAmounts, setLineAmounts] = useState<Record<number, { amount: string; tax: string }>>({})
   const [notes, setNotes] = useState('')
 
   useEffect(() => {
     if (!open || !template) return
     setInvoiceDate(new Date().toISOString().slice(0, 10))
-    setInvoiceNumber('')
-    setNotes(template.notes ?? '')
-    const amounts: Record<number, { amount: string; tax: string }> = {}
-    for (const line of template.lines) {
-      const fromDefault =
-        template.default_amount && line.amount_ratio
-          ? String(template.default_amount * line.amount_ratio)
-          : ''
-      amounts[line.line_number] = { amount: fromDefault, tax: '0' }
-    }
-    setLineAmounts(amounts)
+    setNotes('')
   }, [open, template])
+
+  // Nominal diambil langsung dari template
+  // Logic: jika amount_ratio ada → pakai ratio × default_amount
+  //        jika ratio null tapi default_amount ada → single line pakai full default_amount
+  //        jika keduanya null → 0 (template belum dikonfigurasi)
+  const computedLines = (template?.lines ?? []).map((line) => {
+    let amount = 0
+    if (template?.default_amount != null) {
+      if (line.amount_ratio != null && line.amount_ratio > 0) {
+        amount = Math.round(template.default_amount * line.amount_ratio)
+      } else if ((template?.lines ?? []).length === 1) {
+        // Single line tanpa ratio → pakai full default_amount
+        amount = Math.round(template.default_amount)
+      }
+    }
+    return { line_number: line.line_number, amount, description: line.description || line.account_name }
+  })
+
+  const totalAmount = computedLines.reduce((sum, l) => sum + l.amount, 0)
 
   const handleSubmit = async () => {
     if (!template) return
-    const line_amounts = template.lines
-      .map((l) => {
-        const a = lineAmounts[l.line_number]
-        const amount = parseFloat(a?.amount ?? '0')
-        if (amount <= 0) return null
-        return {
-          line_number: l.line_number,
-          amount,
-          tax_amount: parseFloat(a?.tax ?? '0') || 0,
-        }
-      })
-      .filter(Boolean) as Array<{ line_number: number; amount: number; tax_amount?: number }>
 
-    if (line_amounts.length === 0) {
-      toast.warning('Isi minimal satu nominal baris')
+    if (totalAmount <= 0) {
+      toast.warning('Template belum memiliki nominal. Hubungi admin untuk mengatur nominal di template.')
       return
     }
+
+    const line_amounts = computedLines
+      .filter((l) => l.amount > 0)
+      .map((l) => ({ line_number: l.line_number, amount: l.amount }))
 
     try {
       const inv = await generate.mutateAsync({
         template_id: template.id,
         invoice_date: invoiceDate,
-        invoice_number: invoiceNumber.trim() || undefined,
         line_amounts,
         notes: notes || null,
       })
-      toast.success(`Invoice ${inv.invoice_number} dibuat (DRAFT). Review lalu posting.`)
+      toast.success(`Request berhasil! Invoice ${inv.invoice_number} dibuat.`)
       onClose()
       navigate('/finance/general-invoices')
     } catch (err: unknown) {
-      toast.error(parseApiError(err, 'Gagal generate invoice'))
+      toast.error(parseApiError(err, 'Gagal membuat request'))
     }
   }
 
@@ -78,80 +76,78 @@ export function GenerateFromTemplateModal({ open, onClose, template }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
-          <h2 className="font-bold text-gray-900">Generate dari Template</h2>
-          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X size={18} /></button>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h2 className="font-bold text-gray-900 flex items-center gap-2">
+            <FileText size={18} className="text-green-600" />
+            Konfirmasi Request
+          </h2>
+          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
+            <X size={18} />
+          </button>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="bg-gray-50 rounded-xl p-3 text-sm">
-            <p className="font-semibold">{template.template_name}</p>
-            <p className="text-gray-500">{template.vendor_name}</p>
-            {template.default_amount != null && (
-              <p className="text-xs text-gray-500 mt-1">Default: {formatRupiah(template.default_amount)}</p>
-            )}
+        <div className="p-6 space-y-5">
+          {/* Template info */}
+          <div className="bg-gray-50 rounded-xl p-4 space-y-1">
+            <p className="font-bold text-gray-900">{template.template_name}</p>
+            <p className="text-sm text-gray-500">{template.vendor_name}</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-gray-600">Tgl tagihan</label>
-              <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)}
-                className="w-full mt-1 px-3 py-2 text-sm border rounded-lg" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-600">No. invoice (opsional)</label>
-              <input type="text" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)}
-                placeholder="Auto-generate"
-                className="w-full mt-1 px-3 py-2 text-sm border rounded-lg" />
-            </div>
-          </div>
-
+          {/* Nominal breakdown (read-only) */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-600">Nominal per baris</p>
-            {template.lines.map((line) => (
-              <div key={line.line_number} className="text-xs border rounded-lg p-2 space-y-1">
-                <p className="font-medium text-gray-700">{line.account_code} — {line.account_name}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    placeholder="Nominal"
-                    value={lineAmounts[line.line_number]?.amount ?? ''}
-                    onChange={(e) =>
-                      setLineAmounts((prev) => ({
-                        ...prev,
-                        [line.line_number]: { ...prev[line.line_number], amount: e.target.value, tax: prev[line.line_number]?.tax ?? '0' },
-                      }))
-                    }
-                    className="px-2 py-1.5 border rounded-lg"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Pajak"
-                    value={lineAmounts[line.line_number]?.tax ?? '0'}
-                    onChange={(e) =>
-                      setLineAmounts((prev) => ({
-                        ...prev,
-                        [line.line_number]: { amount: prev[line.line_number]?.amount ?? '', tax: e.target.value },
-                      }))
-                    }
-                    className="px-2 py-1.5 border rounded-lg"
-                  />
-                </div>
+            {computedLines.map((line) => (
+              <div key={line.line_number} className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">{line.description}</span>
+                <span className="font-semibold text-gray-900">{formatRupiah(line.amount)}</span>
               </div>
             ))}
+            <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+              <span className="text-sm font-semibold text-gray-700">Total</span>
+              <span className="text-lg font-bold text-green-700">{formatRupiah(totalAmount)}</span>
+            </div>
           </div>
 
-          <p className="text-[11px] text-gray-500">
-            Invoice dibuat status DRAFT. Anda masih perlu review dan posting manual (tidak auto-jurnal).
+          {/* Date */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600">Tanggal</label>
+            <input
+              type="date"
+              value={invoiceDate}
+              onChange={(e) => setInvoiceDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600">Catatan (opsional)</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Mis. token listrik bulan Juni"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          <p className="text-[11px] text-gray-400 text-center">
+            Invoice DRAFT akan dibuat. Admin akan review dan memproses pembayaran.
           </p>
         </div>
 
-        <div className="flex justify-end gap-2 px-6 py-4 border-t">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm border rounded-lg">Batal</button>
-          <button type="button" onClick={handleSubmit} disabled={generate.isPending}
-            className="px-5 py-2 text-sm bg-green-600 text-white rounded-lg disabled:opacity-60">
-            {generate.isPending ? 'Membuat...' : 'Generate Invoice'}
+        <div className="flex gap-3 px-6 py-4 border-t">
+          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl hover:bg-gray-50">
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={generate.isPending || totalAmount <= 0}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            <Zap size={15} />
+            {generate.isPending ? 'Membuat...' : 'Submit Request'}
           </button>
         </div>
       </div>

@@ -31,6 +31,8 @@ export const NOTIFICATION_EVENT_KEYS = {
   JOURNAL_APPROVED: 'journal.approved',
   JOURNAL_REJECTED: 'journal.rejected',
   JOURNAL_POSTED: 'journal.posted',
+  // General Invoice
+  GENERAL_INVOICE_REQUESTED: 'general_invoice.requested',
 } as const
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[keyof typeof NOTIFICATION_EVENT_KEYS]
@@ -246,6 +248,16 @@ export const NOTIFICATION_EVENT_CATALOG: NotificationEventDefinition[] = [
     default_title_template: 'Jurnal diposting',
     default_message_template: '{{journal_number}} telah diposting.',
     default_redirect_url_template: '/accounting/journals/{{id}}',
+  },
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.GENERAL_INVOICE_REQUESTED,
+    label: 'Request tagihan masuk',
+    description: 'Staff mengajukan request tagihan utilitas (listrik, air, dll)',
+    category: 'accounting',
+    default_type: 'approval_required',
+    default_title_template: 'Request tagihan baru',
+    default_message_template: '{{template_name}} — {{branch_name}} ({{amount}})',
+    default_redirect_url_template: '/finance/general-invoices',
   },
 ]
 

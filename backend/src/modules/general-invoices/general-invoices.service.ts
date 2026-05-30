@@ -1,6 +1,8 @@
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { journalHeadersRepository } from '../accounting/journals/journal-headers/journal-headers.repository'
 import { AuditService } from '../monitoring/monitoring.service'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 import { storageService } from '../../services/storage.service'
 import { resolveDocumentUploadExtension } from '../../utils/document-upload.util'
 import { logInfo } from '../../config/logger'
@@ -918,6 +920,31 @@ export class GeneralInvoiceTemplateService {
     await generalTemplateRepository.withTransaction(async (client) => {
       await generalTemplateRepository.updateLastGenerated(client, template.id, invoiceDate)
     })
+
+    // Dispatch notification: request tagihan masuk
+    const branchName = await generalInvoiceRepository.withTransaction(async (client) => {
+      const { rows } = await client.query<{ branch_name: string }>(
+        `SELECT branch_name FROM branches WHERE id = $1`,
+        [invoice.branch_id],
+      )
+      return rows[0]?.branch_name ?? ''
+    })
+
+    await notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.GENERAL_INVOICE_REQUESTED,
+      template.company_id,
+      {
+        entityId: invoice.id,
+        variables: {
+          template_name: template.template_name,
+          branch_name: branchName,
+          amount: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(invoice.total_amount)),
+          invoice_number: invoice.invoice_number,
+          vendor_name: template.vendor_name,
+        },
+        excludeUserIds: [userId],
+      },
+    )
 
     return invoice
   }
