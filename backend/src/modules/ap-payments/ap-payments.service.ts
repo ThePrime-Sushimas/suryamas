@@ -1325,6 +1325,100 @@ Kembalikan HANYA JSON array, tanpa teks lain:
 
     return { ocr_rows: ocrRows, ocr_total: ocrTotal, matches }
   }
+
+  /**
+   * Revert to DRAFT — hapus journal (jika ada), kembalikan status ke DRAFT
+   * sehingga payment bisa di-edit ulang.
+   * Berlaku untuk status: PENDING_APPROVAL, APPROVED, PAID, RECONCILED.
+   */
+  async revertToDraft(id: string, branchIds: string[], userId: string): Promise<ApPaymentDetail> {
+    const existing = await this.getById(id, branchIds)
+
+    if (existing.status === 'DRAFT') {
+      throw new ApPaymentInvalidStatusError(existing.status, 'non-DRAFT')
+    }
+
+    // Hapus journal jika ada
+    if (existing.journal_id) {
+      try {
+        await journalHeadersService.forceDeleteAsUser(existing.journal_id, userId)
+      } catch (err: unknown) {
+        // Hanya skip kalau journal memang sudah tidak ada
+        const isNotFound = err instanceof Error && (
+          'statusCode' in err && (err as any).statusCode === 404
+        )
+        if (!isNotFound) throw err
+      }
+    }
+
+    // Revert ke DRAFT
+    await apPaymentsRepository.withTransaction(async (client) => {
+      await apPaymentsRepository.updateStatus(client, id, 'DRAFT', {
+        journal_id: null,
+        paid_at: null,
+        paid_by: null,
+        payment_date: null,
+        bank_statement_id: null,
+        reconciled_at: null,
+        reconciled_by: null,
+        requested_at: null,
+        requested_by: null,
+        approved_at: null,
+        approved_by: null,
+        rejected_at: null,
+        rejected_by: null,
+        rejection_reason: null,
+        updated_by: userId,
+      })
+    })
+
+    await AuditService.log('UPDATE', 'ap_payments', id, userId, {
+      status: existing.status,
+      journal_id: existing.journal_id,
+    }, {
+      status: 'DRAFT',
+      journal_id: null,
+    })
+    logInfo('AP payment reverted to DRAFT', { id, from_status: existing.status })
+    return this.getById(id, branchIds)
+  }
+
+  /**
+   * Force delete (hard delete) — hapus total AP payment beserta:
+   * - Journal (jika ada)
+   * - Payment lines
+   * - Payment header
+   * Berlaku untuk semua status kecuali RECONCILED (harus unreconcile dulu).
+   */
+  async forceDelete(id: string, branchIds: string[], userId: string): Promise<void> {
+    const existing = await this.getById(id, branchIds)
+
+    // Hapus journal jika ada
+    if (existing.journal_id) {
+      try {
+        await journalHeadersService.forceDeleteAsUser(existing.journal_id, userId)
+      } catch (err: unknown) {
+        // Hanya skip kalau journal memang sudah tidak ada
+        const isNotFound = err instanceof Error && (
+          'statusCode' in err && (err as any).statusCode === 404
+        )
+        if (!isNotFound) throw err
+      }
+    }
+
+    // Hard delete payment + lines
+    await apPaymentsRepository.withTransaction(async (client) => {
+      await client.query('DELETE FROM ap_payment_invoice_lines WHERE ap_payment_id = $1', [id])
+      await client.query('DELETE FROM ap_payments WHERE id = $1', [id])
+    })
+
+    await AuditService.log('FORCE_DELETE', 'ap_payments', id, userId, {
+      payment_number: existing.payment_number,
+      status: existing.status,
+      journal_id: existing.journal_id,
+    }, null)
+    logInfo('AP payment force deleted (hard delete)', { id, payment_number: existing.payment_number })
+  }
 }
 
 export const apPaymentsService = new ApPaymentsService()

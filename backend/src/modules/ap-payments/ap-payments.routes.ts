@@ -149,6 +149,22 @@ router.delete(
   (req, res) => apPaymentsController.delete(req, res),
 )
 
+router.delete(
+  '/:id/force',
+  canRelease(MODULE),
+  requireWriteAccess,
+  validateSchema(apPaymentParamSchema),
+  (req, res) => apPaymentsController.forceDelete(req, res),
+)
+
+router.post(
+  '/:id/revert-draft',
+  canRelease(MODULE),
+  requireWriteAccess,
+  validateSchema(apPaymentParamSchema),
+  (req, res) => apPaymentsController.revertToDraft(req, res),
+)
+
 router.post(
   '/:id/submit',
   canUpdate(MODULE),

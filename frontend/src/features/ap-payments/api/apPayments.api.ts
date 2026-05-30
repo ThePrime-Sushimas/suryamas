@@ -393,6 +393,30 @@ export const useDeleteApPayment = () => {
   })
 }
 
+export const useForceDeleteApPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/ap-payments/${id}/force`)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ap-payments'] }),
+  })
+}
+
+export const useRevertApPaymentToDraft = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/ap-payments/${id}/revert-draft`)
+      return normalizeApPayment(data.data as ApPayment)
+    },
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['ap-payments'] })
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+    },
+  })
+}
+
 export const useSubmitApPayment = () => {
   const qc = useQueryClient()
   return useMutation({

@@ -436,6 +436,30 @@ export class ApPaymentsController {
     }
   }
 
+  // DELETE /ap-payments/:id/force
+  async forceDelete(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, branchIds } = await apScope(req)
+      const id = req.params.id as string
+      await apPaymentsService.forceDelete(id, branchIds, userId)
+      sendSuccess(res, { message: 'AP payment force deleted' })
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'force delete ap payment', id: req.params.id })
+    }
+  }
+
+  // POST /ap-payments/:id/revert-draft
+  async revertToDraft(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, branchIds } = await apScope(req)
+      const id = req.params.id as string
+      const payment = await apPaymentsService.revertToDraft(id, branchIds, userId)
+      sendSuccess(res, payment, 'AP payment reverted to DRAFT')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'revert ap payment to draft', id: req.params.id })
+    }
+  }
+
   // POST /ap-payments/verify-screenshot
   async verifyScreenshot(req: Request, res: Response): Promise<void> {
     try {

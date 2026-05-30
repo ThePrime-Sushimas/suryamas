@@ -26,6 +26,8 @@ import {
   useDeleteApPaymentJournal,
   useReconcileApPayment,
   useDeleteApPayment,
+  useForceDeleteApPayment,
+  useRevertApPaymentToDraft,
 } from '../api/apPayments.api'
 import {
   AP_PAYMENTS_LIST_PATH,
@@ -83,9 +85,13 @@ export default function ApPaymentDetailPage() {
   const deleteJournal = useDeleteApPaymentJournal()
   const reconcile = useReconcileApPayment()
   const deletePayment = useDeleteApPayment()
+  const forceDeletePayment = useForceDeleteApPayment()
+  const revertToDraft = useRevertApPaymentToDraft()
 
   const [showProof, setShowProof] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
+  const [showForceDelete, setShowForceDelete] = useState(false)
+  const [showRevertDraft, setShowRevertDraft] = useState(false)
   const [showPayConfirm, setShowPayConfirm] = useState(false)
   const [showDeleteJournal, setShowDeleteJournal] = useState(false)
   const [showReconcile, setShowReconcile] = useState(false)
@@ -143,6 +149,8 @@ export default function ApPaymentDetailPage() {
   const handlePostJournal = async () => { if (!id) return; try { await postJournal.mutateAsync(id); toast.success('Journal berhasil di-post') } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal post journal')) } }
   const handleDeleteJournal = async () => { if (!id) return; try { await deleteJournal.mutateAsync(id); toast.success('Journal dihapus — status kembali ke Menunggu Pembayaran'); setShowDeleteJournal(false) } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal hapus journal')) } }
   const handleDelete = async () => { if (!id) return; try { await deletePayment.mutateAsync(id); toast.success('Pembayaran dihapus'); backToList() } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus')) } finally { setShowDelete(false) } }
+  const handleForceDelete = async () => { if (!id) return; try { await forceDeletePayment.mutateAsync(id); toast.success('Pembayaran dihapus permanen'); backToList() } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus')) } finally { setShowForceDelete(false) } }
+  const handleRevertToDraft = async () => { if (!id) return; try { await revertToDraft.mutateAsync(id); toast.success('Status dikembalikan ke DRAFT — silakan edit'); setShowRevertDraft(false) } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal revert ke draft')) } }
 
   // Timeline steps
   const timelineSteps = [
@@ -451,6 +459,16 @@ export default function ApPaymentDetailPage() {
                   <Trash2 className="w-4 h-4" /> Hapus Journal
                 </button>
               )}
+              {payment.status !== 'DRAFT' && canRelease && (
+                <button type="button" onClick={() => setShowRevertDraft(true)} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/30 transition-colors">
+                  <Pencil className="w-4 h-4" /> Revert ke Draft (Edit)
+                </button>
+              )}
+              {payment.status !== 'DRAFT' && canRelease && (
+                <button type="button" onClick={() => setShowForceDelete(true)} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-300 text-red-700 text-sm font-medium hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30 transition-colors">
+                  <Trash2 className="w-4 h-4" /> Hapus Permanen
+                </button>
+              )}
             </section>
           </div>
         </div>
@@ -476,6 +494,8 @@ export default function ApPaymentDetailPage() {
       />
       <ConfirmModal isOpen={showPayConfirm} onClose={() => setShowPayConfirm(false)} onConfirm={() => void handleMarkPaid()} title="Tandai sudah dibayar?" message="Pastikan dana sudah keluar dari rekening. Status akan berubah ke PAID dan journal draft otomatis dibuat." confirmText="Konfirmasi" variant="success" isLoading={markPaid.isPending} />
       <ConfirmModal isOpen={showDeleteJournal} onClose={() => setShowDeleteJournal(false)} onConfirm={() => void handleDeleteJournal()} title="Hapus journal?" message="Journal akan dihapus permanen dan status pembayaran kembali ke Menunggu Pembayaran (APPROVED). Bukti bayar tetap tersimpan." confirmText="Hapus Journal" variant="danger" isLoading={deleteJournal.isPending} />
+      <ConfirmModal isOpen={showForceDelete} onClose={() => setShowForceDelete(false)} onConfirm={() => void handleForceDelete()} title="Hapus permanen?" message="Pembayaran akan dihapus total beserta journal-nya. Data tidak bisa dikembalikan." confirmText="Hapus Permanen" variant="danger" isLoading={forceDeletePayment.isPending} />
+      <ConfirmModal isOpen={showRevertDraft} onClose={() => setShowRevertDraft(false)} onConfirm={() => void handleRevertToDraft()} title="Revert ke Draft?" message="Status akan dikembalikan ke DRAFT. Journal (jika ada) akan dihapus. Anda bisa mengedit ulang pembayaran ini." confirmText="Revert ke Draft" variant="warning" isLoading={revertToDraft.isPending} />
       {showReconcile && (
         <ReconcileModal
           paymentId={id!}
