@@ -67,6 +67,7 @@ export interface DailyPrepOrderWithRelations extends DailyPrepOrder {
 export interface DailyPrepOrderLineWithRelations extends DailyPrepOrderLine {
   product_code: string
   product_name: string
+  station: string | null
   base_unit_name: string | null
   // Stok saat ini (live, bukan snapshot)
   live_ready_stock: number

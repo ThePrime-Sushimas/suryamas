@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Printer, CheckCircle, XCircle,
-  Trash2, AlertTriangle, RefreshCw, Zap
+  Trash2, AlertTriangle, RefreshCw, Zap, Search
 } from 'lucide-react'
 import { useDailyPrepOrder, useUpdateDpoLines, useDeleteDpoLine, useCancelDpo } from '../api/dailyPrepOrders.api'
 import { DpoStatusBadge } from '../components/DpoStatusBadge'
@@ -45,11 +45,38 @@ export default function DailyPrepOrderDetailPage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [showPrint, setShowPrint] = useState(false)
   const [editingQty, setEditingQty] = useState<Map<string, string>>(new Map())
+  const [searchQuery, setSearchQuery] = useState('')
+  const [stationFilter, setStationFilter] = useState('')
 
   // Queue for blur saves — prevents concurrent mutateAsync calls
   const saveQueueRef = useRef<Map<string, number | null>>(new Map())
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flushSaveQueueRef = useRef<() => Promise<void>>(async () => {})
+
+  const lines = dpo?.lines ?? []
+
+  // Derive unique stations from lines for filter dropdown
+  const stationOptions = useMemo(() => {
+    const stations = new Set<string>()
+    lines.forEach(l => { if (l.station) stations.add(l.station) })
+    return Array.from(stations).sort()
+  }, [lines])
+
+  // Client-side filtering
+  const filteredLines = useMemo(() => {
+    let result = lines
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(l =>
+        l.product_name.toLowerCase().includes(q) ||
+        l.product_code.toLowerCase().includes(q)
+      )
+    }
+    if (stationFilter) {
+      result = result.filter(l => l.station === stationFilter)
+    }
+    return result
+  }, [lines, searchQuery, stationFilter])
 
   flushSaveQueueRef.current = async () => {
     if (!dpo || saveQueueRef.current.size === 0) return
@@ -94,7 +121,6 @@ export default function DailyPrepOrderDetailPage() {
   if (!dpo) return null
 
   const isDraft = dpo.status === 'DRAFT'
-  const lines = dpo.lines ?? []
 
   const getQty = (lineId: string, suggested: number, confirmed: number | null) => {
     if (editingQty.has(lineId)) return editingQty.get(lineId)!
@@ -243,18 +269,45 @@ export default function DailyPrepOrderDetailPage() {
 
         {/* Lines */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-blue-500" />
-              <h2 className="font-semibold text-gray-900 dark:text-white text-sm">
-                Daftar Barang ({lines.length} item)
-              </h2>
+          <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-blue-500" />
+                <h2 className="font-semibold text-gray-900 dark:text-white text-sm">
+                  Daftar Barang ({filteredLines.length}/{lines.length} item)
+                </h2>
+              </div>
+              {isDraft && (
+                <p className="text-xs text-gray-400">
+                  Klik qty untuk edit · Hapus baris yang tidak perlu
+                </p>
+              )}
             </div>
-            {isDraft && (
-              <p className="text-xs text-gray-400">
-                Klik qty untuk edit · Hapus baris yang tidak perlu
-              </p>
-            )}
+            {/* Search & Station Filter */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Cari nama produk..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+              {stationOptions.length > 0 && (
+                <select
+                  value={stationFilter}
+                  onChange={e => setStationFilter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                  <option value="">Semua Station</option>
+                  {stationOptions.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
 
           {/* Desktop */}
@@ -275,7 +328,7 @@ export default function DailyPrepOrderDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                {lines.map(line => {
+                {filteredLines.map(line => {
                   const confirmedQty = line.confirmed_qty ?? line.suggested_qty
                   const isZero = confirmedQty === 0
                   return (
@@ -285,7 +338,14 @@ export default function DailyPrepOrderDetailPage() {
                     >
                       <td className="px-5 py-3">
                         <p className="font-medium text-gray-900 dark:text-white">{line.product_name}</p>
-                        <p className="text-xs text-gray-400 font-mono">{line.product_code}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs text-gray-400 font-mono">{line.product_code}</p>
+                          {line.station && (
+                            <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300 rounded text-[10px] leading-none">
+                              {line.station}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-gray-500 font-mono">
                         {fmt(line.avg_sales_7d, line.base_unit_name)}
@@ -342,14 +402,21 @@ export default function DailyPrepOrderDetailPage() {
 
           {/* Mobile cards */}
           <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-700/50">
-            {lines.map(line => {
+            {filteredLines.map(line => {
               const confirmedQty = line.confirmed_qty ?? line.suggested_qty
               return (
                 <div key={line.id} className="p-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white text-sm">{line.product_name}</p>
-                      <p className="text-xs text-gray-400 font-mono">{line.product_code}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs text-gray-400 font-mono">{line.product_code}</p>
+                        {line.station && (
+                          <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300 rounded text-[10px] leading-none">
+                            {line.station}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {isDraft && canDelete && (
                       <button
@@ -412,7 +479,13 @@ export default function DailyPrepOrderDetailPage() {
 
       {showPrint && dpo && (
         <DpoPrintModal
-          dpo={dpo}
+          dpoId={dpo.id}
+          allLines={lines}
+          preSelectedLineIds={
+            (searchQuery.trim() || stationFilter)
+              ? filteredLines.map(l => l.id)
+              : undefined
+          }
           onClose={() => setShowPrint(false)}
         />
       )}

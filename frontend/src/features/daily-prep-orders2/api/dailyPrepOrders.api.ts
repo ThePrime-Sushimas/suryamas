@@ -11,6 +11,7 @@ export interface DailyPrepOrderLine {
   product_id: string
   product_code: string
   product_name: string
+  station: string | null
   base_unit_name: string | null
   avg_sales_7d: number
   avg_sales_30d: number

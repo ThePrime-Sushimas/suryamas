@@ -69,3 +69,13 @@ export const usePrintGoodsReceipt = () =>
       })
     },
   })
+
+export const usePrintDailyPrepOrder = () =>
+  useMutation({
+    mutationFn: async (payload: { dpoId: string; printer_id: string; line_ids: string[] }) => {
+      await api.post(`/printers/print/daily-prep-order/${payload.dpoId}`, {
+        printer_id: payload.printer_id,
+        line_ids: payload.line_ids,
+      })
+    },
+  })

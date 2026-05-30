@@ -394,7 +394,7 @@ export class DailyPrepOrdersRepository {
     const { rows: lines } = await pool.query(
       `SELECT
          l.*,
-         p.product_code, p.product_name,
+         p.product_code, p.product_name, p.station,
          COALESCE(mu.unit_name, '') AS base_unit_name,
          COALESCE(rs.qty, 0)::numeric AS live_ready_stock,
          COALESCE(ms.qty, 0)::numeric AS live_main_stock,
