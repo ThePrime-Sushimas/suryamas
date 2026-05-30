@@ -548,7 +548,7 @@ export const menuItems: MenuItem[] = [
       },
       {
         id: "general-invoices-templates",
-        name: "Template",
+        name: "PR Utility",
         href: "/finance/general-invoices/templates",
         icon: <RefreshCcw size={16} />,
         module: "general_invoices",

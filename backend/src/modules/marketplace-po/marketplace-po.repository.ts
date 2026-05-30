@@ -731,6 +731,16 @@ export class MarketplacePoRepository {
       [userId, sessionId],
     )
   
+    // Nullify FK references from general_invoice_payments before deleting settlements
+    await pool.query(
+      `UPDATE general_invoice_payments
+       SET cc_settlement_id = NULL
+       WHERE cc_settlement_id IN (
+         SELECT id FROM marketplace_settlements WHERE session_id = $1 AND journal_id = $2
+       )`,
+      [sessionId, journalId],
+    )
+
     await pool.query(
       `DELETE FROM marketplace_settlements WHERE session_id = $1 AND journal_id = $2`,
       [sessionId, journalId],
@@ -776,6 +786,16 @@ export class MarketplacePoRepository {
       [userId, sessionIds],
     )
   
+    // Nullify FK references from general_invoice_payments before deleting settlements
+    await pool.query(
+      `UPDATE general_invoice_payments
+       SET cc_settlement_id = NULL
+       WHERE cc_settlement_id IN (
+         SELECT id FROM marketplace_settlements WHERE journal_id = ANY($1::uuid[])
+       )`,
+      [allJournalIds],
+    )
+
     // Hapus semua marketplace_settlements
     await pool.query(
       `DELETE FROM marketplace_settlements

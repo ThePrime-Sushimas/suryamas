@@ -1090,6 +1090,11 @@ export const generalPaymentRepository = {
 
   /** Delete a marketplace_settlement record (for hard delete cleanup). */
   async deleteSettlementRecord(client: PoolClient, settlementId: string): Promise<void> {
+    // Nullify FK reference from general_invoice_payments before deleting
+    await client.query(
+      `UPDATE general_invoice_payments SET cc_settlement_id = NULL WHERE cc_settlement_id = $1`,
+      [settlementId],
+    )
     await client.query(`DELETE FROM marketplace_settlements WHERE id = $1`, [settlementId])
   },
 }
