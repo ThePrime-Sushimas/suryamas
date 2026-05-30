@@ -77,6 +77,7 @@ router.get(
 )
 // CC Owner Settlements
 router.get('/marketplace-settlements/summary', canView('cc_owner_settlements'), (req, res) => marketplacePoController.getSettlementSummary(req, res))
+router.get('/marketplace-settlements/pending-general-invoices', canView('cc_owner_settlements'), (req, res) => marketplacePoController.getPendingCcOwnerGeneralInvoicePayments(req, res))
 router.post('/marketplace-settlements/bulk', canUpdate('cc_owner_settlements'), validateSchema(bulkSettleMarketplaceSessionSchema), (req, res) => marketplacePoController.createBulkSettlement(req, res))
 
 // Cancel session with reason

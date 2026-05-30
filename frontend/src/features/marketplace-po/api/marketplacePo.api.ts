@@ -332,9 +332,34 @@ export function useCCOwnerSettlementSummary() {
       const { data } = await api.get('/marketplace-settlements/summary')
       return data.data as {
         total_pending: number
+        total_pending_general_invoices: number
         total_this_month: number
         history: any[]
       }
+    },
+    staleTime: 60_000,
+  })
+}
+
+export interface PendingCcOwnerGiPayment {
+  id: string
+  payment_number: string
+  invoice_number: string
+  vendor_name: string
+  total_amount: number
+  payment_date: string | null
+  paid_at: string | null
+  owner_credit_card_id: string
+  cc_label: string
+  cc_id: string
+}
+
+export function usePendingCcOwnerGeneralInvoicePayments() {
+  return useQuery<PendingCcOwnerGiPayment[]>({
+    queryKey: ['marketplace-settlements', 'pending-general-invoices'],
+    queryFn: async () => {
+      const { data } = await api.get('/marketplace-settlements/pending-general-invoices')
+      return data.data
     },
     staleTime: 60_000,
   })
@@ -345,12 +370,13 @@ export function useCreateBulkCCOwnerSettlement() {
   return useMutation({
     mutationFn: async (payload: {
       session_ids: string[]
+      general_invoice_payment_ids?: string[]
       bank_account_id: number
       amount: number
       reference_number: string
       settled_date: string
       notes?: string | null
-      bank_statement_id?: number | null  // ← tambah ini
+      bank_statement_id?: number | null
     }) => {
       const { data } = await api.post('/marketplace-settlements/bulk', payload)
       return data.data
@@ -359,6 +385,8 @@ export function useCreateBulkCCOwnerSettlement() {
       qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
       qc.invalidateQueries({ queryKey: ['marketplace-settlements'] })
       qc.invalidateQueries({ queryKey: ['marketplace-sessions', 'pending-settlement'] })
+      qc.invalidateQueries({ queryKey: ['general-ap', 'payments'] })
+      qc.invalidateQueries({ queryKey: ['general-ap', 'invoices'] })
     },
   })
 }

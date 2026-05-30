@@ -914,12 +914,15 @@ export const generalPaymentRepository = {
     const { rows } = await pool.query<GeneralInvoicePayment>(
       `SELECT gip.*, gi.invoice_number, v.vendor_name,
               ba.account_name AS bank_account_name,
-              jh.journal_number
+              jh.journal_number,
+              occ.card_label AS owner_credit_card_label,
+              occ.coa_code AS owner_credit_card_coa_code
        FROM general_invoice_payments gip
        JOIN general_invoices gi ON gi.id = gip.general_invoice_id
        JOIN vendors v ON v.id = gi.vendor_id
        LEFT JOIN bank_accounts ba ON ba.id = gip.bank_account_id
        LEFT JOIN journal_headers jh ON jh.id = gip.journal_id
+       LEFT JOIN owner_credit_cards occ ON occ.id = gip.owner_credit_card_id
        WHERE gip.id = $1 AND gip.company_id = $2 AND gip.is_deleted = false`,
       [id, companyId],
     )
@@ -930,12 +933,15 @@ export const generalPaymentRepository = {
     const { rows } = await pool.query<GeneralInvoicePayment>(
       `SELECT gip.*, gi.invoice_number, v.vendor_name,
               ba.account_name AS bank_account_name,
-              jh.journal_number
+              jh.journal_number,
+              occ.card_label AS owner_credit_card_label,
+              occ.coa_code AS owner_credit_card_coa_code
        FROM general_invoice_payments gip
        JOIN general_invoices gi ON gi.id = gip.general_invoice_id
        JOIN vendors v ON v.id = gi.vendor_id
        LEFT JOIN bank_accounts ba ON ba.id = gip.bank_account_id
        LEFT JOIN journal_headers jh ON jh.id = gip.journal_id
+       LEFT JOIN owner_credit_cards occ ON occ.id = gip.owner_credit_card_id
        WHERE gip.general_invoice_id = $1 AND gip.is_deleted = false
        LIMIT 1`,
       [invoiceId],
@@ -954,13 +960,14 @@ export const generalPaymentRepository = {
     const { rows } = await client.query<{ id: string }>(
       `INSERT INTO general_invoice_payments (
         company_id, branch_id, payment_number, general_invoice_id,
-        bank_account_id, payment_method, total_amount,
+        bank_account_id, owner_credit_card_id, payment_method, total_amount,
         payment_date, notes, created_by, updated_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
       RETURNING id`,
       [
         companyId, branchId, paymentNumber, dto.general_invoice_id,
-        dto.bank_account_id, dto.payment_method ?? 'TRANSFER', dto.total_amount,
+        dto.bank_account_id ?? null, dto.owner_credit_card_id ?? null,
+        dto.payment_method ?? 'TRANSFER', dto.total_amount,
         dto.payment_date ?? null, dto.notes ?? null, userId,
       ],
     )
@@ -1016,9 +1023,9 @@ export const generalPaymentRepository = {
   },
 
   /** Find all payments (including soft-deleted) for an invoice — used for hard delete cascade. */
-  async findAllByInvoiceId(invoiceId: string): Promise<Array<{ id: string; journal_id: string | null; status: string }>> {
-    const { rows } = await pool.query<{ id: string; journal_id: string | null; status: string }>(
-      `SELECT id, journal_id, status FROM general_invoice_payments WHERE general_invoice_id = $1`,
+  async findAllByInvoiceId(invoiceId: string): Promise<Array<{ id: string; journal_id: string | null; status: string; cc_settlement_id: string | null }>> {
+    const { rows } = await pool.query<{ id: string; journal_id: string | null; status: string; cc_settlement_id: string | null }>(
+      `SELECT id, journal_id, status, cc_settlement_id FROM general_invoice_payments WHERE general_invoice_id = $1`,
       [invoiceId],
     )
     return rows
@@ -1057,6 +1064,33 @@ export const generalPaymentRepository = {
       [paymentId],
     )
     return rows[0]?.general_invoice_id ?? null
+  },
+
+  /** Find COA account_id for an owner credit card (for journal creation). */
+  async findCcOwnerCoaId(ownerCreditCardId: string, companyId: string): Promise<string | null> {
+    const { rows } = await pool.query<{ account_id: string }>(
+      `SELECT coa.id AS account_id
+       FROM owner_credit_cards occ
+       JOIN chart_of_accounts coa ON coa.account_code = occ.coa_code AND coa.company_id = occ.company_id
+       WHERE occ.id = $1 AND occ.company_id = $2 AND occ.is_active = true
+         AND coa.deleted_at IS NULL`,
+      [ownerCreditCardId, companyId],
+    )
+    return rows[0]?.account_id ?? null
+  },
+
+  /** Find settlement record by cc_settlement_id (for hard delete cleanup). */
+  async findSettlementById(settlementId: string): Promise<{ id: string; journal_id: string | null } | null> {
+    const { rows } = await pool.query<{ id: string; journal_id: string | null }>(
+      `SELECT id, journal_id FROM marketplace_settlements WHERE id = $1`,
+      [settlementId],
+    )
+    return rows[0] ?? null
+  },
+
+  /** Delete a marketplace_settlement record (for hard delete cleanup). */
+  async deleteSettlementRecord(client: PoolClient, settlementId: string): Promise<void> {
+    await client.query(`DELETE FROM marketplace_settlements WHERE id = $1`, [settlementId])
   },
 }
 

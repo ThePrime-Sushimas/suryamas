@@ -5,6 +5,7 @@ import { PaymentProofUpload } from '@/features/ap-payments/components/PaymentPro
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useGeneralPaymentFilters } from '../hooks/useGeneralPaymentFilters'
+import { useOwnerCreditCards } from '@/features/marketplace-po/api/marketplacePo.api'
 import {
   useCreateGeneralPayment,
   useApproveGeneralPayment,
@@ -46,9 +47,11 @@ interface CreatePaymentModalProps {
 
 export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }: CreatePaymentModalProps) {
   const createMutation = useCreateGeneralPayment()
+  const { data: ownerCards = [] } = useOwnerCreditCards({ is_active: true })
 
   const [bankAccountId, setBankAccountId] = useState<number | ''>('')
-  const [paymentMethod, setPaymentMethod] = useState<'TRANSFER' | 'CASH'>('TRANSFER')
+  const [ownerCreditCardId, setOwnerCreditCardId] = useState<string>('')
+  const [paymentMethod, setPaymentMethod] = useState<'TRANSFER' | 'CASH' | 'CC_OWNER'>('TRANSFER')
   const [totalAmount, setTotalAmount] = useState('')
   const [paymentDate, setPaymentDate] = useState('')
   const [notes, setNotes] = useState('')
@@ -58,6 +61,7 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
     if (open && invoice) {
       setTotalAmount(String(invoice.total_amount))
       setBankAccountId('')
+      setOwnerCreditCardId('')
       setPaymentMethod('TRANSFER')
       setPaymentDate('')
       setNotes('')
@@ -72,7 +76,11 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!bankAccountId) errs.bankAccountId = 'Rekening bank wajib dipilih'
+    if (paymentMethod === 'CC_OWNER') {
+      if (!ownerCreditCardId) errs.ownerCreditCardId = 'Kartu kredit owner wajib dipilih'
+    } else {
+      if (!bankAccountId) errs.bankAccountId = 'Rekening bank wajib dipilih'
+    }
     if (!totalAmount || parseFloat(totalAmount) <= 0) errs.totalAmount = 'Nominal wajib diisi'
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -85,7 +93,8 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
     }
     await createMutation.mutateAsync({
       general_invoice_id: invoice.id,
-      bank_account_id: bankAccountId as number,
+      bank_account_id: paymentMethod !== 'CC_OWNER' ? (bankAccountId as number) : null,
+      owner_credit_card_id: paymentMethod === 'CC_OWNER' ? ownerCreditCardId : null,
       payment_method: paymentMethod,
       total_amount: parseFloat(totalAmount),
       payment_date: paymentDate || null,
@@ -121,23 +130,43 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
             <p className="text-xs text-gray-500">{invoice.vendor_name} · {formatRupiah(invoice.total_amount)}</p>
           </div>
 
-          {/* Bank account */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-600">Rekening Bank *</label>
-            <select
-              value={bankAccountId}
-              onChange={(e) => setBankAccountId(e.target.value ? Number(e.target.value) : '')}
-              className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.bankAccountId ? 'border-red-400' : 'border-gray-200'}`}
-            >
-              <option value="">-- Pilih Rekening --</option>
-              {bankAccounts.map((ba) => (
-                <option key={ba.id} value={ba.id}>
-                  {ba.account_name}{ba.bank_name ? ` (${ba.bank_name})` : ''}
-                </option>
-              ))}
-            </select>
-            {errors.bankAccountId && <p className="text-xs text-red-500">{errors.bankAccountId}</p>}
-          </div>
+          {/* Bank account or CC Owner */}
+          {paymentMethod !== 'CC_OWNER' ? (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600">Rekening Bank *</label>
+              <select
+                value={bankAccountId}
+                onChange={(e) => setBankAccountId(e.target.value ? Number(e.target.value) : '')}
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.bankAccountId ? 'border-red-400' : 'border-gray-200'}`}
+              >
+                <option value="">-- Pilih Rekening --</option>
+                {bankAccounts.map((ba) => (
+                  <option key={ba.id} value={ba.id}>
+                    {ba.account_name}{ba.bank_name ? ` (${ba.bank_name})` : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.bankAccountId && <p className="text-xs text-red-500">{errors.bankAccountId}</p>}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600">Kartu Kredit Owner *</label>
+              <select
+                value={ownerCreditCardId}
+                onChange={(e) => setOwnerCreditCardId(e.target.value)}
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.ownerCreditCardId ? 'border-red-400' : 'border-gray-200'}`}
+              >
+                <option value="">-- Pilih Kartu CC Owner --</option>
+                {ownerCards.map((cc) => (
+                  <option key={cc.id} value={cc.id}>
+                    {cc.card_label} ({cc.coa_code})
+                  </option>
+                ))}
+              </select>
+              {errors.ownerCreditCardId && <p className="text-xs text-red-500">{errors.ownerCreditCardId}</p>}
+              <p className="text-[11px] text-gray-400">Hutang akan dicatat ke akun CC owner, lalu dilunasi di halaman CC Settlements</p>
+            </div>
+          )}
 
           {/* Method */}
           <div className="space-y-1">
@@ -147,7 +176,15 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setPaymentMethod(opt.value as 'TRANSFER' | 'CASH')}
+                  onClick={() => {
+                    setPaymentMethod(opt.value as 'TRANSFER' | 'CASH' | 'CC_OWNER')
+                    // Reset selections when switching method
+                    if (opt.value === 'CC_OWNER') {
+                      setBankAccountId('')
+                    } else {
+                      setOwnerCreditCardId('')
+                    }
+                  }}
                   className={`flex-1 py-2 text-sm rounded-lg border font-medium transition-colors ${
                     paymentMethod === opt.value
                       ? 'bg-blue-600 text-white border-blue-600'

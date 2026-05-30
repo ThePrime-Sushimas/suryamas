@@ -178,17 +178,21 @@ export const postReceiveJournalSchema = z.object({
 /** Same payload as cancel-ordered; separate route for SHIPPED sessions */
 export const cancelShippedSessionSchema = cancelOrderedSessionSchema
 
-// update bulkSettleMarketplaceSessionSchema — tambah 1 field
+// update bulkSettleMarketplaceSessionSchema — tambah support general_invoice_payment_ids
 export const bulkSettleMarketplaceSessionSchema = z.object({
   body: z.object({
-    session_ids: z.array(z.string().uuid()).min(1, "Pilih minimal 1 sesi"),
+    session_ids: z.array(z.string().uuid()).default([]),
+    general_invoice_payment_ids: z.array(z.string().uuid()).default([]),
     bank_account_id: z.coerce.number().int().positive("Bank account ID harus valid"),
     amount: z.coerce.number().positive("Jumlah harus lebih dari 0"),
     reference_number: z.string().min(1, "Nomor referensi wajib diisi"),
     settled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal salah (YYYY-MM-DD)"),
     notes: z.string().optional().nullable(),
-    bank_statement_id: z.coerce.number().int().positive().optional().nullable(), // ← tambah ini
-  }),
+    bank_statement_id: z.coerce.number().int().positive().optional().nullable(),
+  }).refine(
+    (data) => data.session_ids.length > 0 || data.general_invoice_payment_ids.length > 0,
+    { message: 'Pilih minimal 1 sesi marketplace atau 1 payment general invoice' },
+  ),
 })
 
 export const createMarketplaceShipmentSchema = shipMarketplaceSessionSchema

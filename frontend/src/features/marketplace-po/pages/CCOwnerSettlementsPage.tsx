@@ -8,6 +8,7 @@ import {
   useCCOwnerSettlementSummary,
   useCreateBulkCCOwnerSettlement,
   usePendingMarketplaceSessions,
+  usePendingCcOwnerGeneralInvoicePayments,
 } from "../api/marketplacePo.api";
 import { BulkSettleModal } from "../components/BulkSettleModal";
 import { fmtCurrency, fmtDate } from "../utils/format";
@@ -22,10 +23,12 @@ export default function CCOwnerSettlementsPage() {
 
   const { data: summary, isLoading: summaryLoading } = useCCOwnerSettlementSummary();
   const { data: pendingSessions, isLoading: pendingLoading } = usePendingMarketplaceSessions();
+  const { data: pendingGiPayments = [], isLoading: giLoading } = usePendingCcOwnerGeneralInvoicePayments();
   const createBulkSettlement = useCreateBulkCCOwnerSettlement();
 
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [selectedSessions, setSelectedSessions] = useState<string[]>([]);
+  const [selectedGiPayments, setSelectedGiPayments] = useState<string[]>([]);
 
   // Guard: Redirect if no permission
   if (!canView) {
@@ -36,7 +39,7 @@ export default function CCOwnerSettlementsPage() {
     );
   }
 
-  const isLoading = summaryLoading || pendingLoading;
+  const isLoading = summaryLoading || pendingLoading || giLoading;
 
   if (isLoading) {
     return (
@@ -54,8 +57,8 @@ export default function CCOwnerSettlementsPage() {
   }
 
   const handleBulkSettle = () => {
-    if (selectedSessions.length === 0) {
-      toast.error("Pilih minimal satu sesi untuk dilunasi");
+    if (selectedSessions.length === 0 && selectedGiPayments.length === 0) {
+      toast.error("Pilih minimal satu sesi atau payment untuk dilunasi");
       return;
     }
     setShowSettleModal(true);
@@ -79,7 +82,10 @@ export default function CCOwnerSettlementsPage() {
 
   const selectedTotal = (pendingSessions || [])
     .filter((s: MarketplaceCheckoutSession) => selectedSessions.includes(s.id))
-    .reduce((sum: number, s: MarketplaceCheckoutSession) => sum + s.total_amount, 0);
+    .reduce((sum: number, s: MarketplaceCheckoutSession) => sum + s.total_amount, 0)
+    + pendingGiPayments
+      .filter((p) => selectedGiPayments.includes(p.id))
+      .reduce((sum, p) => sum + p.total_amount, 0);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -105,7 +111,11 @@ export default function CCOwnerSettlementsPage() {
           </div>
           <button
             onClick={handleBulkSettle}
-            disabled={selectedSessions.length === 0 || createBulkSettlement.isPending || !canUpdateSettle}
+            disabled={
+              (selectedSessions.length === 0 && selectedGiPayments.length === 0) ||
+              createBulkSettlement.isPending ||
+              !canUpdateSettle
+            }
             className="flex items-center gap-1 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm whitespace-nowrap"
           >
             {createBulkSettlement.isPending ? "Memproses..." : "+ Pelunasan Bulanan"}
@@ -189,6 +199,77 @@ export default function CCOwnerSettlementsPage() {
         </div>
       </div>
 
+      {/* Pending General Invoice CC_OWNER Payments */}
+      {pendingGiPayments.length > 0 && (
+        <div className="px-4 sm:px-6 mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-gray-900 dark:text-white">Tagihan Umum via CC Owner (Belum Lunas)</h2>
+                <p className="text-xs text-gray-500 mt-1">General invoice yang dibayar via marketplace — perlu di-settle ke owner</p>
+              </div>
+              <button
+                onClick={() => {
+                  if (selectedGiPayments.length === pendingGiPayments.length) {
+                    setSelectedGiPayments([]);
+                  } else {
+                    setSelectedGiPayments(pendingGiPayments.map((p) => p.id));
+                  }
+                }}
+                className="text-sm text-purple-600 hover:text-purple-700"
+              >
+                {selectedGiPayments.length === pendingGiPayments.length ? "Batal Pilih Semua" : "Pilih Semua"}
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b dark:border-gray-700">
+                    <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400 w-12"></th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">No. Payment</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Invoice</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Vendor</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">CC</th>
+                    <th className="text-right p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Jumlah</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingGiPayments.map((pay) => (
+                    <tr
+                      key={pay.id}
+                      className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
+                        selectedGiPayments.includes(pay.id) ? "bg-purple-50 dark:bg-purple-900/20" : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedGiPayments((prev) =>
+                          prev.includes(pay.id)
+                            ? prev.filter((id) => id !== pay.id)
+                            : [...prev, pay.id]
+                        );
+                      }}
+                    >
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedGiPayments.includes(pay.id)}
+                          onChange={() => {}}
+                          className="w-4 h-4 rounded border-gray-300"
+                        />
+                      </td>
+                      <td className="p-3 text-sm font-mono text-gray-900 dark:text-white">{pay.payment_number}</td>
+                      <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{pay.invoice_number}</td>
+                      <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{pay.vendor_name}</td>
+                      <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{pay.cc_label}</td>
+                      <td className="p-3 text-sm text-right text-gray-900 dark:text-white font-medium">{fmtCurrency(pay.total_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Settlement History */}
       <div className="px-4 sm:px-6 flex-1 overflow-auto">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -239,16 +320,18 @@ export default function CCOwnerSettlementsPage() {
             await createBulkSettlement.mutateAsync({
               ...data,
               session_ids: selectedSessions,
+              general_invoice_payment_ids: selectedGiPayments,
             })
             toast.success('Pelunasan berhasil dicatat')
             setSelectedSessions([])
+            setSelectedGiPayments([])
             setShowSettleModal(false)
           } catch (err) {
             toast.error(parseApiError(err, 'Gagal mencatat pelunasan'))
           }
         }}
         isLoading={createBulkSettlement.isPending}
-        selectedCount={selectedSessions.length}
+        selectedCount={selectedSessions.length + selectedGiPayments.length}
         selectedTotal={selectedTotal}
         selectedSessions={(pendingSessions ?? []).filter((s) =>
           selectedSessions.includes(s.id),

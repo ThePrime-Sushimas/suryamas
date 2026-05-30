@@ -337,6 +337,16 @@ export class MarketplacePoController {
     }
   }
 
+  getPendingCcOwnerGeneralInvoicePayments = async (req: Request, res: Response) => {
+    try {
+      const { companyIds } = await mpScope(req)
+      const data = await marketplacePoService.getPendingCcOwnerGeneralInvoicePayments(companyIds)
+      sendSuccess(res, data, 'Pending CC owner general invoice payments fetched')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_pending_cc_owner_gi_payments' })
+    }
+  }
+
   createBulkSettlement = async (req: Request, res: Response) => {
     try {
       const { body } = (req as BulkSettleSessionReq).validated

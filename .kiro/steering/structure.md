@@ -68,12 +68,14 @@ backend/src/modules/{feature}/
 - Handles validation, authorization, and business rules
 - Logs operations with `logInfo`, `logError`, `logWarn`
 - Uses `AuditService` for audit logging
+- **NEVER import or use `pool` directly** — all DB queries must go through repository methods
 
 **Repository** (`{feature}.repository.ts`)
 - Contains raw SQL queries
 - Uses parameterized queries for security
 - Returns plain objects matching database schema
 - Handles soft deletes with `deleted_at IS NULL`
+- **Only place** where `pool` and `PoolClient` are used for DB access
 
 **Routes** (`{feature}.routes.ts`)
 - Defines API endpoints

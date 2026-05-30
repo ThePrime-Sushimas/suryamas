@@ -7,7 +7,7 @@ export type TransactionType = 'EXPENSE' | 'PREPAID'
 export type GeneralInvoiceStatus = 'DRAFT' | 'POSTED' | 'CANCELLED'
 export type GeneralPaymentStatus = 'DRAFT' | 'APPROVED' | 'REJECTED' | 'PAID' | 'RECONCILED'
 export type RecurrenceType = 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
-export type PaymentMethod = 'TRANSFER' | 'CASH'
+export type PaymentMethod = 'TRANSFER' | 'CASH' | 'CC_OWNER'
 export type AmortizationStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
 
 export interface Vendor {
@@ -104,8 +104,11 @@ export interface GeneralInvoicePayment {
   general_invoice_id: string
   invoice_number: string
   vendor_name: string
-  bank_account_id: number
+  bank_account_id: number | null
   bank_account_name: string | null
+  owner_credit_card_id: string | null
+  owner_credit_card_label: string | null
+  owner_credit_card_coa_code: string | null
   payment_method: PaymentMethod
   total_amount: number
   payment_date: string | null
@@ -120,6 +123,7 @@ export interface GeneralInvoicePayment {
   paid_at: string | null
   journal_id: string | null
   journal_number: string | null
+  cc_settlement_id: string | null
   reconciled_at: string | null
   created_at: string
   updated_at: string
@@ -521,7 +525,8 @@ export const useCreateGeneralPayment = () => {
   return useMutation({
     mutationFn: async (body: {
       general_invoice_id: string
-      bank_account_id: number
+      bank_account_id?: number | null
+      owner_credit_card_id?: string | null
       payment_method?: PaymentMethod
       total_amount: number
       payment_date?: string | null

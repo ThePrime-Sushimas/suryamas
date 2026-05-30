@@ -343,9 +343,19 @@ export class JournalHeadersService {
       // Hard delete cascade: invoice + payments + amortizations
       const invoiceId = journal.reference_id
 
-      // Delete all payment journals for this invoice
+      // Delete all payment journals + CC settlement journals for this invoice
       const payments = await generalPaymentRepository.findAllByInvoiceId(invoiceId)
       for (const payment of payments) {
+        // CC settlement journal cleanup
+        if (payment.cc_settlement_id) {
+          const settlement = await generalPaymentRepository.findSettlementById(payment.cc_settlement_id)
+          if (settlement?.journal_id && settlement.journal_id !== id) {
+            await journalHeadersRepository.clearReversalReferences(settlement.journal_id)
+            await journalHeadersRepository.clearJournalReferences(settlement.journal_id)
+            await journalHeadersRepository.delete(settlement.journal_id, userId)
+          }
+        }
+        // Payment journal
         if (payment.journal_id && payment.journal_id !== id) {
           await journalHeadersRepository.clearReversalReferences(payment.journal_id)
           await journalHeadersRepository.clearJournalReferences(payment.journal_id)
@@ -363,8 +373,13 @@ export class JournalHeadersService {
         }
       }
 
-      // Hard delete payments + invoice + lines + amortizations
+      // Hard delete settlement records + payments + invoice + lines + amortizations
       await generalInvoiceRepository.withTransaction(async (client) => {
+        for (const payment of payments) {
+          if (payment.cc_settlement_id) {
+            await generalPaymentRepository.deleteSettlementRecord(client, payment.cc_settlement_id)
+          }
+        }
         await generalPaymentRepository.hardDeleteByInvoiceId(client, invoiceId)
         await generalInvoiceRepository.hardDelete(client, invoiceId)
       })

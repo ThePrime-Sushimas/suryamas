@@ -2,7 +2,7 @@ import { z } from '@/lib/openapi'
 
 const vendorTypes  = ['UTILITY', 'RENT', 'SERVICE', 'SUBSCRIPTION', 'OTHER'] as const
 const transactionTypes = ['EXPENSE', 'PREPAID'] as const
-const paymentMethods = ['TRANSFER', 'CASH'] as const
+const paymentMethods = ['TRANSFER', 'CASH', 'CC_OWNER'] as const
 const recurrenceTypes = ['MONTHLY', 'QUARTERLY', 'YEARLY'] as const
 
 // ============================================================
@@ -153,14 +153,23 @@ export const generalInvoiceDashboardSchema = z.object({
 // ============================================================
 export const createGeneralInvoicePaymentSchema = z.object({
   body: z.object({
-    branch_id:          z.string().uuid().optional(),
-    general_invoice_id: z.string().uuid(),
-    bank_account_id:    z.number().int().positive(),
-    payment_method:     z.enum(paymentMethods).default('TRANSFER'),
-    total_amount:       z.number().positive(),
-    payment_date:       z.string().date().nullable().optional(),
-    notes:              z.string().max(1000).nullable().optional(),
-  }),
+    branch_id:              z.string().uuid().optional(),
+    general_invoice_id:     z.string().uuid(),
+    bank_account_id:        z.number().int().positive().nullable().optional(),
+    owner_credit_card_id:   z.string().uuid().nullable().optional(),
+    payment_method:         z.enum(paymentMethods).default('TRANSFER'),
+    total_amount:           z.number().positive(),
+    payment_date:           z.string().date().nullable().optional(),
+    notes:                  z.string().max(1000).nullable().optional(),
+  }).refine(
+    (data) => {
+      if (data.payment_method === 'CC_OWNER') {
+        return !!data.owner_credit_card_id
+      }
+      return !!data.bank_account_id
+    },
+    { message: 'CC_OWNER requires owner_credit_card_id, TRANSFER/CASH requires bank_account_id' },
+  ),
 })
 
 export const rejectGeneralPaymentSchema = z.object({

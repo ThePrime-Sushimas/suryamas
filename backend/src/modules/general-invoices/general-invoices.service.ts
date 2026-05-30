@@ -432,9 +432,17 @@ export class GeneralInvoiceService {
     // Collect all journal IDs to delete
     const journalIdsToDelete: string[] = []
 
-    // 1. Payment journals
+    // 1. Payment journals + CC settlement journals
     const payments = await generalPaymentRepository.findAllByInvoiceId(id)
     for (const payment of payments) {
+      // CC_OWNER settlement cleanup: hapus settlement journal + record
+      if (payment.cc_settlement_id) {
+        const settlement = await generalPaymentRepository.findSettlementById(payment.cc_settlement_id)
+        if (settlement?.journal_id) {
+          journalIdsToDelete.push(settlement.journal_id)
+        }
+      }
+      // Payment journal
       if (payment.journal_id) journalIdsToDelete.push(payment.journal_id)
     }
 
@@ -460,6 +468,12 @@ export class GeneralInvoiceService {
 
     // 5. Hard delete everything in one transaction
     await generalInvoiceRepository.withTransaction(async (client) => {
+      // Delete settlement records for CC_OWNER payments
+      for (const payment of payments) {
+        if (payment.cc_settlement_id) {
+          await generalPaymentRepository.deleteSettlementRecord(client, payment.cc_settlement_id)
+        }
+      }
       await generalPaymentRepository.hardDeleteByInvoiceId(client, id)
       await generalInvoiceRepository.hardDelete(client, id)
     })
@@ -652,9 +666,13 @@ export class GeneralInvoicePaymentService {
   /**
    * Mark as PAID → buat jurnal pembayaran
    *
-   * Journal:
+   * TRANSFER/CASH:
    *   DR  Hutang Usaha Umum (GEN-AP-LIABILITY)  xxx
    *       CR  Bank                                    xxx
+   *
+   * CC_OWNER:
+   *   DR  Hutang Usaha Umum (GEN-AP-LIABILITY)  xxx
+   *       CR  Hutang CC Owner (21060x)                xxx
    */
   async markPaid(
     id: string,
@@ -667,21 +685,38 @@ export class GeneralInvoicePaymentService {
     if (existing.status !== 'APPROVED') {
       throw new GeneralPaymentInvalidStatusError(existing.status, 'APPROVED')
     }
-    if (!existing.proof_url) {
+    // Proof wajib untuk TRANSFER/CASH, opsional untuk CC_OWNER (screenshot marketplace)
+    if (!existing.proof_url && existing.payment_method !== 'CC_OWNER') {
       throw new GeneralPaymentProofRequiredError()
     }
 
-    // Ambil COA
+    // Ambil COA debit: Hutang Usaha Umum
     const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId)
     if (!liabilityAccountId) throw new GeneralInvoiceLiabilityCoaMissingError()
 
-    // Ambil COA bank dari bank_account
-    const bankCoaId = await generalPaymentRepository.findBankCoaId(existing.bank_account_id)
-    if (!bankCoaId) throw new GeneralInvoiceBankCoaMissingError(existing.bank_account_id)
+    // Ambil COA credit: Bank atau Hutang CC Owner
+    let creditAccountId: string
+    if (existing.payment_method === 'CC_OWNER') {
+      if (!existing.owner_credit_card_id) {
+        throw new BusinessRuleError('CC_OWNER payment harus memiliki owner_credit_card_id')
+      }
+      const ccCoaId = await generalPaymentRepository.findCcOwnerCoaId(existing.owner_credit_card_id, companyId)
+      if (!ccCoaId) throw new BusinessRuleError('COA untuk kartu kredit owner tidak ditemukan. Pastikan coa_code di owner_credit_cards sudah terdaftar di chart_of_accounts.')
+      creditAccountId = ccCoaId
+    } else {
+      if (!existing.bank_account_id) {
+        throw new BusinessRuleError('TRANSFER/CASH payment harus memiliki bank_account_id')
+      }
+      const bankCoaId = await generalPaymentRepository.findBankCoaId(existing.bank_account_id)
+      if (!bankCoaId) throw new GeneralInvoiceBankCoaMissingError(existing.bank_account_id)
+      creditAccountId = bankCoaId
+    }
 
     const resolvedDate = paymentDate ?? new Date().toISOString().slice(0, 10)
     const amount = Number(existing.total_amount)
-    const desc = `Bayar hutang ${existing.invoice_number} — ${existing.vendor_name}`
+    const desc = existing.payment_method === 'CC_OWNER'
+      ? `Bayar hutang via CC Owner ${existing.invoice_number} — ${existing.vendor_name}`
+      : `Bayar hutang ${existing.invoice_number} — ${existing.vendor_name}`
 
     let journalId: string | null = null
     try {
@@ -708,7 +743,7 @@ export class GeneralInvoicePaymentService {
             },
             {
               line_number: 2,
-              account_id: bankCoaId,
+              account_id: creditAccountId,
               description: desc,
               debit_amount: 0,
               credit_amount: amount,

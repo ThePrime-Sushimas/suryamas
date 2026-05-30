@@ -195,9 +195,11 @@ export class MarketplacePoRepository {
 
   async findSettlementSummary(companyIds: string[]): Promise<{
     total_pending: number
+    total_pending_general_invoices: number
     total_this_month: number
     history: unknown[]
   }> {
+    // Pending marketplace sessions
     const { rows: pendingRows } = await pool.query(
       `SELECT COALESCE(SUM(total_amount), 0)::numeric AS total
        FROM marketplace_checkout_sessions
@@ -206,6 +208,19 @@ export class MarketplacePoRepository {
     )
     const totalPending = Number(pendingRows[0]?.total ?? 0)
 
+    // Pending general invoice CC_OWNER payments (PAID but not yet settled)
+    const { rows: pendingGiRows } = await pool.query(
+      `SELECT COALESCE(SUM(gip.total_amount), 0)::numeric AS total
+       FROM general_invoice_payments gip
+       WHERE gip.company_id = ANY($1::uuid[])
+         AND gip.payment_method = 'CC_OWNER'
+         AND gip.status = 'PAID'
+         AND gip.cc_settlement_id IS NULL
+         AND gip.is_deleted = false`,
+      [companyIds],
+    )
+    const totalPendingGi = Number(pendingGiRows[0]?.total ?? 0)
+
     const firstDayOfMonth = new Date()
     firstDayOfMonth.setDate(1)
     firstDayOfMonth.setHours(0, 0, 0, 0)
@@ -213,29 +228,145 @@ export class MarketplacePoRepository {
     const { rows: thisMonthRows } = await pool.query(
       `SELECT COALESCE(SUM(ms.amount), 0)::numeric AS total
        FROM marketplace_settlements ms
-       JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
-       WHERE mcs.company_id = ANY($1::uuid[])
-         AND ms.settled_date >= $2::date`,
+       WHERE (
+         ms.session_id IN (SELECT id FROM marketplace_checkout_sessions WHERE company_id = ANY($1::uuid[]))
+         OR ms.general_invoice_payment_id IN (SELECT id FROM general_invoice_payments WHERE company_id = ANY($1::uuid[]))
+       )
+       AND ms.settled_date >= $2::date`,
       [companyIds, firstDayOfMonth.toISOString().slice(0, 10)],
     )
     const totalThisMonth = Number(thisMonthRows[0]?.total ?? 0)
 
     const { rows: historyRows } = await pool.query(
-      `SELECT ms.*, ba.account_name AS bank_name
+      `SELECT ms.*, ba.account_name AS bank_name,
+              CASE
+                WHEN ms.session_id IS NOT NULL THEN 'MARKETPLACE'
+                WHEN ms.general_invoice_payment_id IS NOT NULL THEN 'GENERAL_INVOICE'
+              END AS source_type
        FROM marketplace_settlements ms
-       JOIN marketplace_checkout_sessions mcs ON mcs.id = ms.session_id
-       JOIN bank_accounts ba ON ba.id = ms.bank_account_id
-       WHERE mcs.company_id = ANY($1::uuid[])
+       LEFT JOIN bank_accounts ba ON ba.id = ms.bank_account_id
+       WHERE ms.session_id IN (SELECT id FROM marketplace_checkout_sessions WHERE company_id = ANY($1::uuid[]))
+          OR ms.general_invoice_payment_id IN (SELECT id FROM general_invoice_payments WHERE company_id = ANY($1::uuid[]))
        ORDER BY ms.settled_date DESC
        LIMIT 100`,
       [companyIds],
     )
 
     return {
-      total_pending: totalPending,
+      total_pending: totalPending + totalPendingGi,
+      total_pending_general_invoices: totalPendingGi,
       total_this_month: totalThisMonth,
       history: historyRows,
     }
+  }
+
+  /** Find general invoice CC_OWNER payments that are PAID but not yet settled. */
+  async findPendingCcOwnerGeneralInvoicePayments(companyIds: string[]): Promise<Array<{
+    id: string
+    payment_number: string
+    invoice_number: string
+    vendor_name: string
+    total_amount: number
+    payment_date: string | null
+    paid_at: string | null
+    owner_credit_card_id: string
+    cc_label: string
+    cc_id: string
+  }>> {
+    const { rows } = await pool.query(
+      `SELECT gip.id, gip.payment_number, gi.invoice_number, v.vendor_name,
+              gip.total_amount::float AS total_amount,
+              gip.payment_date, gip.paid_at,
+              gip.owner_credit_card_id,
+              occ.card_label AS cc_label,
+              gip.owner_credit_card_id AS cc_id
+       FROM general_invoice_payments gip
+       JOIN general_invoices gi ON gi.id = gip.general_invoice_id
+       JOIN vendors v ON v.id = gi.vendor_id
+       JOIN owner_credit_cards occ ON occ.id = gip.owner_credit_card_id
+       WHERE gip.company_id = ANY($1::uuid[])
+         AND gip.payment_method = 'CC_OWNER'
+         AND gip.status = 'PAID'
+         AND gip.cc_settlement_id IS NULL
+         AND gip.is_deleted = false
+       ORDER BY gip.paid_at DESC`,
+      [companyIds],
+    )
+    return rows
+  }
+
+  /** Find company_id from a general invoice payment. */
+  async findGiPaymentCompanyId(paymentId: string): Promise<string | null> {
+    const { rows } = await pool.query<{ company_id: string }>(
+      `SELECT company_id FROM general_invoice_payments WHERE id = $1 AND is_deleted = false`,
+      [paymentId],
+    )
+    return rows[0]?.company_id ?? null
+  }
+
+  /** Fetch GI payments with CC COA codes for bulk settlement. */
+  async findGiPaymentsForBulkSettlement(
+    paymentIds: string[],
+    companyId: string,
+  ): Promise<Array<{ id: string; total_amount: number; cc_coa_code: string; owner_credit_card_id: string }>> {
+    const { rows } = await pool.query<{ id: string; total_amount: number; cc_coa_code: string; owner_credit_card_id: string }>(
+      `SELECT gip.id, gip.total_amount::float AS total_amount,
+              occ.coa_code AS cc_coa_code, gip.owner_credit_card_id
+       FROM general_invoice_payments gip
+       JOIN owner_credit_cards occ ON occ.id = gip.owner_credit_card_id
+       WHERE gip.id = ANY($1::uuid[])
+         AND gip.company_id = $2
+         AND gip.payment_method = 'CC_OWNER'
+         AND gip.status = 'PAID'
+         AND gip.cc_settlement_id IS NULL
+         AND gip.is_deleted = false`,
+      [paymentIds, companyId],
+    )
+    return rows
+  }
+
+  /** Lock GI payments for settlement (SELECT FOR UPDATE) and verify they're still unsettled. */
+  async lockGiPaymentsForSettlement(client: PoolClient, paymentIds: string[]): Promise<string[]> {
+    const { rows } = await client.query<{ id: string }>(
+      `SELECT id FROM general_invoice_payments
+       WHERE id = ANY($1::uuid[])
+         AND cc_settlement_id IS NULL
+         AND status = 'PAID'
+         AND is_deleted = false
+       FOR UPDATE`,
+      [paymentIds],
+    )
+    return rows.map((r) => r.id)
+  }
+
+  /** Insert settlement record for a GI payment and update cc_settlement_id + status. */
+  async settleGiPayment(
+    client: PoolClient,
+    data: {
+      paymentId: string
+      settledDate: string
+      bankAccountId: number
+      amount: number
+      referenceNumber: string | null
+      notes: string | null
+      journalId: string
+      userId: string
+    },
+  ): Promise<string> {
+    const { rows: [settlement] } = await client.query<{ id: string }>(
+      `INSERT INTO marketplace_settlements
+        (general_invoice_payment_id, settled_date, bank_account_id, amount, reference_number, notes, journal_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      [data.paymentId, data.settledDate, data.bankAccountId, data.amount, data.referenceNumber, data.notes, data.journalId, data.userId],
+    )
+    await client.query(
+      `UPDATE general_invoice_payments
+       SET cc_settlement_id = $1, status = 'RECONCILED', reconciled_at = now(), updated_by = $2, updated_at = now()
+       WHERE id = $3`,
+      [settlement.id, data.userId, data.paymentId],
+    )
+    return settlement.id
   }
 
   async listUnreconciledBankStatements(

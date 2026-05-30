@@ -210,9 +210,12 @@ export interface GeneralInvoicePayment {
   general_invoice_id: string
   invoice_number: string    // joined
   vendor_name: string       // joined
-  bank_account_id: number
+  bank_account_id: number | null
   bank_account_name: string | null  // joined
-  payment_method: 'TRANSFER' | 'CASH'
+  owner_credit_card_id: string | null
+  owner_credit_card_label: string | null  // joined
+  owner_credit_card_coa_code: string | null  // joined
+  payment_method: 'TRANSFER' | 'CASH' | 'CC_OWNER'
   total_amount: number
   payment_date: string | null
   notes: string | null
@@ -227,6 +230,7 @@ export interface GeneralInvoicePayment {
   paid_at: string | null
   journal_id: string | null
   journal_number: string | null  // joined
+  cc_settlement_id: string | null
   reconciled_at: string | null
   created_at: string
   updated_at: string
@@ -235,8 +239,9 @@ export interface GeneralInvoicePayment {
 export interface CreateGeneralInvoicePaymentDto {
   branch_id?: string
   general_invoice_id: string
-  bank_account_id: number
-  payment_method?: 'TRANSFER' | 'CASH'
+  bank_account_id?: number | null
+  owner_credit_card_id?: string | null
+  payment_method?: 'TRANSFER' | 'CASH' | 'CC_OWNER'
   total_amount: number
   payment_date?: string
   notes?: string
