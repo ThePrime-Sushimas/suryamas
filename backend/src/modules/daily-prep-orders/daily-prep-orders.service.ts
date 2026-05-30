@@ -6,6 +6,8 @@ import {
   DpoInsufficientMainStockError
 } from './daily-prep-orders.errors'
 import { AuditService } from '../monitoring/monitoring.service'
+import { dailyStockOpnameRepository } from '../daily-stock-opname/daily-stock-opname.repository'
+import { DpoBlockedByOpnameError } from '../daily-stock-opname/daily-stock-opname.errors'
 import type {
   GenerateDpoDto, UpdateDpoLinesDto, ConfirmDpoDto,
   UpsertForecastConfigDto, UpsertHolidayDto
@@ -215,6 +217,15 @@ export class DailyPrepOrdersService {
     if (detail.lock_token !== dto.lock_token) throw new DpoLockConflictError()
     if (detail.locked_at && new Date(detail.locked_at) < new Date(Date.now() - 5 * 60 * 1000)) {
       throw new DpoLockExpiredError()
+    }
+
+    // Cek apakah opname sudah dikonfirmasi untuk branch + tanggal ini
+    const opnameExists = await dailyStockOpnameRepository.hasConfirmedSession(
+      detail.branch_id,
+      detail.prep_date
+    )
+    if (opnameExists) {
+      throw new DpoBlockedByOpnameError()
     }
 
     // Filter lines yang confirmed_qty > 0

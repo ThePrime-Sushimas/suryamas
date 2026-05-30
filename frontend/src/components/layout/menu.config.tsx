@@ -386,6 +386,20 @@ export const menuItems: MenuItem[] = [
         icon: <CalendarDays size={16} />,
         module: "daily_prep_orders",
       },
+      {
+        id: "inv-daily-stock-opname",
+        name: "Stock Opname",
+        href: "/inventory/daily-stock-opname",
+        icon: <ClipboardList size={16} />,
+        module: "daily_stock_opname",
+      },
+      {
+        id: "inv-opname-config",
+        name: "Opname Config",
+        href: "/inventory/daily-stock-opname/config",
+        icon: <Settings size={16} />,
+        module: "daily_stock_opname",
+      },
     ],
   },
 

@@ -79,6 +79,7 @@ import printersRoutes from "./modules/printers/printers.routes";
 import storageRoutes from "./routes/storage.routes";
 import notificationsRoutes from "./modules/notifications/notifications.routes";
 import dailyPrepOrdersRouter from './modules/daily-prep-orders/daily-prep-orders.routes';
+import dailyStockOpnameRoutes from './modules/daily-stock-opname/daily-stock-opname.routes';
 import generalInvoicesRouter from './modules/general-invoices/general-invoices.routes';
 import { pool } from "./config/db";
 
@@ -191,6 +192,7 @@ app.use("/api/v1/purchase-invoices", purchaseInvoicesRoutes);
 app.use("/api/v1/ap-payments", apPaymentsRoutes);
 app.use("/api/v1", marketplacePoRoutes);
 app.use('/api/v1/daily-prep-orders', dailyPrepOrdersRouter);
+app.use('/api/v1/daily-stock-opname', dailyStockOpnameRoutes);
 app.use('/api/v1', generalInvoicesRouter);
 app.use("/api/v1/printers", printersRoutes);
 app.use("/api/v1/storage", storageRoutes);

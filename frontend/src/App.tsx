@@ -546,6 +546,12 @@ const GoodsProcessingDetailPage = lazy(() => import('./features/goods-processing
 const DpoConfigPage = lazy(() => import('./features/daily-prep-orders2/pages/DpoConfigPage'))
 const DpoHolidaysPage = lazy(() => import('./features/daily-prep-orders2/pages/DpoHolidaysPage'))
 
+// Daily Stock Opname
+const DailyStockOpnamePage = lazy(() => import('./features/daily-stock-opname/pages/DailyStockOpnamePage'))
+const DailyStockOpnameDetailPage = lazy(() => import('./features/daily-stock-opname/pages/DailyStockOpnameDetailPage'))
+const OpnameVarianceReportPage = lazy(() => import('./features/daily-stock-opname/pages/OpnameVarianceReportPage'))
+const OpnameConfigPage = lazy(() => import('./features/daily-stock-opname/pages/OpnameConfigPage'))
+
 // Purchase Invoices
 const PurchaseInvoicesPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoicesPage"))
 const PurchaseInvoiceFormPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceFormPage"))
@@ -2157,6 +2163,47 @@ function App() {
                       <RequirePermission module="daily_prep_orders">
                         <Suspense fallback={<LoadingFallback />}>
                           <DpoHolidaysPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  {/* Daily Stock Opname */}
+                  <Route
+                    path="inventory/daily-stock-opname"
+                    element={
+                      <RequirePermission module="daily_stock_opname">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DailyStockOpnamePage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/daily-stock-opname/variance-report"
+                    element={
+                      <RequirePermission module="daily_stock_opname">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <OpnameVarianceReportPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/daily-stock-opname/config"
+                    element={
+                      <RequirePermission module="daily_stock_opname">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <OpnameConfigPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/daily-stock-opname/:id"
+                    element={
+                      <RequirePermission module="daily_stock_opname">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DailyStockOpnameDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }
