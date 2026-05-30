@@ -394,7 +394,8 @@ export class DailyPrepOrdersRepository {
     const { rows: lines } = await pool.query(
       `SELECT
          l.*,
-         p.product_code, p.product_name, p.station,
+         p.product_code, p.product_name,
+         COALESCE(pos.position_name, p.station) AS station,
          COALESCE(mu.unit_name, '') AS base_unit_name,
          COALESCE(rs.qty, 0)::numeric AS live_ready_stock,
          COALESCE(ms.qty, 0)::numeric AS live_main_stock,
@@ -402,6 +403,7 @@ export class DailyPrepOrdersRepository {
          COALESCE(tu.unit_name, mu.unit_name) AS transfer_unit_name
        FROM daily_prep_order_lines l
        JOIN products p ON p.id = l.product_id
+       LEFT JOIN positions pos ON pos.position_code = p.station AND pos.is_deleted = false
        LEFT JOIN product_uoms pu ON pu.product_id = p.id AND pu.is_base_unit = true AND pu.is_deleted = false
        LEFT JOIN metric_units mu ON mu.id = pu.metric_unit_id
        LEFT JOIN LATERAL (
