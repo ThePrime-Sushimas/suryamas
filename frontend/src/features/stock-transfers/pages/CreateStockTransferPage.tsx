@@ -39,9 +39,9 @@ export default function CreateStockTransferPage() {
   // Lines state
   const [lines, setLines] = useState<LineItem[]>([])
 
-  // Warehouse queries
-  const { data: sourceWarehousesData } = useWarehouses({ limit: 50, branch_id: sourceBranchId || undefined })
-  const { data: targetWarehousesData } = useWarehouses({ limit: 50, branch_id: targetBranchId || undefined })
+  // Warehouse queries — only MAIN, CENTRAL_STOCK, CENTRAL_KITCHEN (exclude READY)
+  const { data: sourceWarehousesData } = useWarehouses({ limit: 50, branch_id: sourceBranchId || undefined, warehouse_type: 'MAIN' })
+  const { data: targetWarehousesData } = useWarehouses({ limit: 50, branch_id: targetBranchId || undefined, warehouse_type: 'MAIN' })
   const sourceWarehouses = sourceWarehousesData?.data ?? []
   const targetWarehouses = targetWarehousesData?.data ?? []
 
@@ -257,7 +257,7 @@ export default function CreateStockTransferPage() {
                 >
                   <option value="">Pilih gudang sumber...</option>
                   {sourceWarehouses.map(w => (
-                    <option key={w.id} value={w.id}>{w.warehouse_name} ({w.warehouse_type})</option>
+                    <option key={w.id} value={w.id}>{w.warehouse_name}</option>
                   ))}
                 </select>
               </div>
@@ -275,7 +275,7 @@ export default function CreateStockTransferPage() {
                 >
                   <option value="">Pilih gudang tujuan...</option>
                   {targetWarehouses.map(w => (
-                    <option key={w.id} value={w.id}>{w.warehouse_name} ({w.warehouse_type})</option>
+                    <option key={w.id} value={w.id}>{w.warehouse_name}</option>
                   ))}
                 </select>
               </div>
