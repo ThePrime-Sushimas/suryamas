@@ -5,12 +5,13 @@ import {
   StockTransferInvalidStatusError,
   StockTransferInsufficientStockError,
 } from './stock-transfers.errors'
+import { BusinessRuleError } from '../../utils/errors.base'
 import { AuditService } from '../monitoring/monitoring.service'
 import type { MovementType, ReferenceType } from '../stock/stock.types'
 import type {
   CreateStockTransferDto, ConfirmStockTransferDto,
   ReturnLoanDto, CancelStockTransferDto,
-  StockTransferDetail, StockTransferWithRelations
+  StockTransferDetail
 } from './stock-transfers.types'
 
 export class StockTransfersService {
@@ -173,6 +174,11 @@ export class StockTransfersService {
       }
 
       await stockTransfersRepository.confirmTransfer(client, id, dto.confirmed_by)
+
+      // Generate journals for inter-branch transfers (skip intra-branch)
+      if (detail.source_branch_id !== detail.target_branch_id) {
+        await this.generateTransferJournals(client, detail, dto.confirmed_by)
+      }
     })
 
     await AuditService.log('UPDATE', 'stock_transfer', id, dto.confirmed_by, { status: 'DRAFT' }, { status: 'CONFIRMED' })
@@ -258,6 +264,11 @@ export class StockTransfersService {
       }
 
       await stockTransfersRepository.returnLoan(client, id, dto.returned_by)
+
+      // Generate reversal journals for inter-branch loan return
+      if (detail.source_branch_id !== detail.target_branch_id && detail.source_journal_id && detail.target_journal_id) {
+        await this.generateReturnJournals(client, detail, dto.returned_by, dto.return_date)
+      }
     })
 
     await AuditService.log('UPDATE', 'stock_transfer', id, dto.returned_by, { status: 'CONFIRMED' }, { status: 'RETURNED' })
@@ -287,6 +298,223 @@ export class StockTransfersService {
     }
     await stockTransfersRepository.softDelete(id, userId)
     await AuditService.log('DELETE', 'stock_transfer', id, userId)
+  }
+
+  // ─── DELETE JOURNALS (release-only) ─────────────────────────────────────────
+
+  async deleteJournals(id: string, branchIds: string[], userId: string): Promise<StockTransferDetail> {
+    const detail = await this.getById(id, branchIds)
+    if (!detail.source_journal_id && !detail.target_journal_id) {
+      throw new BusinessRuleError('Transfer ini tidak memiliki jurnal')
+    }
+    if (detail.status !== 'CONFIRMED' && detail.status !== 'CANCELLED' && detail.status !== 'RETURNED') {
+      throw new StockTransferInvalidStatusError(detail.status, 'CONFIRMED, CANCELLED, atau RETURNED')
+    }
+
+    await stockRepository.withTransaction(async (client) => {
+      const journalIds = [detail.source_journal_id, detail.target_journal_id].filter(Boolean) as string[]
+      await stockTransfersRepository.deleteJournals(client, journalIds)
+      await stockTransfersRepository.clearJournalIds(client, id)
+    })
+
+    await AuditService.log('DELETE', 'stock_transfer_journal', id, userId, undefined, {
+      source_journal_id: detail.source_journal_id,
+      target_journal_id: detail.target_journal_id,
+    })
+    return this.getById(id, branchIds)
+  }
+
+  // ─── JOURNAL GENERATION (private) ──────────────────────────────────────────
+
+  private async generateTransferJournals(
+    client: import('pg').PoolClient,
+    detail: StockTransferDetail,
+    userId: string,
+  ): Promise<void> {
+    const companyId = detail.company_id
+
+    // Find open fiscal period
+    const fiscalPeriod = await stockTransfersRepository.findOpenFiscalPeriod(companyId, detail.transfer_date, client)
+    if (!fiscalPeriod) return // Skip journal if no open period (don't block transfer)
+
+    // Resolve COA accounts
+    const bahanBaku = await stockTransfersRepository.findCoaByCode(companyId, '110501', client)
+    const persediaanTransit = await stockTransfersRepository.findCoaByCode(companyId, '110598', client)
+    if (!bahanBaku || !persediaanTransit) return // Skip if COA not configured
+
+    // Calculate total transfer value
+    const totalValue = detail.lines.reduce((sum, line) => sum + Number(line.qty) * Number(line.cost_per_unit), 0)
+    if (totalValue <= 0) return
+
+    const period = fiscalPeriod.period
+
+    // Journal 1 — Source branch (pengirim): DR Transit, CR Bahan Baku
+    const seq1 = await stockTransfersRepository.getNextJournalSequence(client, companyId, period)
+    const journalNumber1 = `JI-${period}-${String(seq1).padStart(4, '0')}`
+
+    const sourceJournalId = await stockTransfersRepository.insertJournalHeader(client, {
+      companyId,
+      branchId: detail.source_branch_id,
+      journalNumber: journalNumber1,
+      sequenceNumber: seq1,
+      journalDate: detail.transfer_date,
+      period,
+      description: `Transfer keluar ${detail.transfer_number} → ${detail.target_branch_name}`,
+      totalAmount: totalValue,
+      referenceId: detail.id,
+      referenceNumber: detail.transfer_number,
+      createdBy: userId,
+    })
+
+    await stockTransfersRepository.insertJournalLine(client, {
+      journalHeaderId: sourceJournalId,
+      lineNumber: 1,
+      accountId: persediaanTransit.id,
+      description: `Transfer keluar - ${detail.transfer_number}`,
+      debitAmount: totalValue,
+      creditAmount: 0,
+    })
+    await stockTransfersRepository.insertJournalLine(client, {
+      journalHeaderId: sourceJournalId,
+      lineNumber: 2,
+      accountId: bahanBaku.id,
+      description: `Transfer keluar - ${detail.transfer_number}`,
+      debitAmount: 0,
+      creditAmount: totalValue,
+    })
+
+    // Journal 2 — Target branch (penerima): DR Bahan Baku, CR Transit
+    const seq2 = await stockTransfersRepository.getNextJournalSequence(client, companyId, period)
+    const journalNumber2 = `JI-${period}-${String(seq2).padStart(4, '0')}`
+
+    const targetJournalId = await stockTransfersRepository.insertJournalHeader(client, {
+      companyId,
+      branchId: detail.target_branch_id,
+      journalNumber: journalNumber2,
+      sequenceNumber: seq2,
+      journalDate: detail.transfer_date,
+      period,
+      description: `Transfer masuk ${detail.transfer_number} ← ${detail.source_branch_name}`,
+      totalAmount: totalValue,
+      referenceId: detail.id,
+      referenceNumber: detail.transfer_number,
+      createdBy: userId,
+    })
+
+    await stockTransfersRepository.insertJournalLine(client, {
+      journalHeaderId: targetJournalId,
+      lineNumber: 1,
+      accountId: bahanBaku.id,
+      description: `Transfer masuk - ${detail.transfer_number}`,
+      debitAmount: totalValue,
+      creditAmount: 0,
+    })
+    await stockTransfersRepository.insertJournalLine(client, {
+      journalHeaderId: targetJournalId,
+      lineNumber: 2,
+      accountId: persediaanTransit.id,
+      description: `Transfer masuk - ${detail.transfer_number}`,
+      debitAmount: 0,
+      creditAmount: totalValue,
+    })
+
+    // Save journal references
+    await stockTransfersRepository.saveJournalIds(client, detail.id, sourceJournalId, targetJournalId)
+  }
+
+  /**
+   * Generate reversal journals for loan return.
+   * Entries are reversed: source gets DR Bahan Baku / CR Transit, target gets DR Transit / CR Bahan Baku.
+   */
+  private async generateReturnJournals(
+    client: import('pg').PoolClient,
+    detail: StockTransferDetail,
+    userId: string,
+    returnDate: string,
+  ): Promise<void> {
+    const companyId = detail.company_id
+
+    const fiscalPeriod = await stockTransfersRepository.findOpenFiscalPeriod(companyId, returnDate, client)
+    if (!fiscalPeriod) return
+
+    const bahanBaku = await stockTransfersRepository.findCoaByCode(companyId, '110501', client)
+    const persediaanTransit = await stockTransfersRepository.findCoaByCode(companyId, '110598', client)
+    if (!bahanBaku || !persediaanTransit) return
+
+    const totalValue = detail.lines.reduce((sum, line) => sum + Number(line.qty) * Number(line.cost_per_unit), 0)
+    if (totalValue <= 0) return
+
+    const period = fiscalPeriod.period
+
+    // Reversal Journal 1 — Source branch (pemberi terima kembali): DR Bahan Baku, CR Transit
+    const seq1 = await stockTransfersRepository.getNextJournalSequence(client, companyId, period)
+    const journalNumber1 = `JI-${period}-${String(seq1).padStart(4, '0')}`
+
+    const reversalSourceId = await stockTransfersRepository.insertJournalHeader(client, {
+      companyId,
+      branchId: detail.source_branch_id,
+      journalNumber: journalNumber1,
+      sequenceNumber: seq1,
+      journalDate: returnDate,
+      period,
+      description: `[RETURN] Pinjaman kembali ${detail.transfer_number} ← ${detail.target_branch_name}`,
+      totalAmount: totalValue,
+      referenceId: detail.id,
+      referenceNumber: detail.transfer_number,
+      createdBy: userId,
+    })
+
+    await stockTransfersRepository.insertJournalLine(client, {
+      journalHeaderId: reversalSourceId,
+      lineNumber: 1,
+      accountId: bahanBaku.id,
+      description: `[RETURN] Pinjaman kembali - ${detail.transfer_number}`,
+      debitAmount: totalValue,
+      creditAmount: 0,
+    })
+    await stockTransfersRepository.insertJournalLine(client, {
+      journalHeaderId: reversalSourceId,
+      lineNumber: 2,
+      accountId: persediaanTransit.id,
+      description: `[RETURN] Pinjaman kembali - ${detail.transfer_number}`,
+      debitAmount: 0,
+      creditAmount: totalValue,
+    })
+
+    // Reversal Journal 2 — Target branch (peminjam kembalikan): DR Transit, CR Bahan Baku
+    const seq2 = await stockTransfersRepository.getNextJournalSequence(client, companyId, period)
+    const journalNumber2 = `JI-${period}-${String(seq2).padStart(4, '0')}`
+
+    const reversalTargetId = await stockTransfersRepository.insertJournalHeader(client, {
+      companyId,
+      branchId: detail.target_branch_id,
+      journalNumber: journalNumber2,
+      sequenceNumber: seq2,
+      journalDate: returnDate,
+      period,
+      description: `[RETURN] Pinjaman dikembalikan ${detail.transfer_number} → ${detail.source_branch_name}`,
+      totalAmount: totalValue,
+      referenceId: detail.id,
+      referenceNumber: detail.transfer_number,
+      createdBy: userId,
+    })
+
+    await stockTransfersRepository.insertJournalLine(client, {
+      journalHeaderId: reversalTargetId,
+      lineNumber: 1,
+      accountId: persediaanTransit.id,
+      description: `[RETURN] Pinjaman dikembalikan - ${detail.transfer_number}`,
+      debitAmount: totalValue,
+      creditAmount: 0,
+    })
+    await stockTransfersRepository.insertJournalLine(client, {
+      journalHeaderId: reversalTargetId,
+      lineNumber: 2,
+      accountId: bahanBaku.id,
+      description: `[RETURN] Pinjaman dikembalikan - ${detail.transfer_number}`,
+      debitAmount: 0,
+      creditAmount: totalValue,
+    })
   }
 }
 

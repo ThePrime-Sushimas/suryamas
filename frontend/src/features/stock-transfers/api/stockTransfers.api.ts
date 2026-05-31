@@ -138,8 +138,8 @@ export const useConfirmStockTransfer = () => {
 export const useReturnLoan = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await api.post(`/stock-transfers/${id}/return`)
+    mutationFn: async ({ id, return_date }: { id: string; return_date: string }) => {
+      const { data } = await api.post(`/stock-transfers/${id}/return`, { return_date })
       return data.data as StockTransfer
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-transfers'] }),

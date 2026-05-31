@@ -1,11 +1,11 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
+import { canView, canInsert, canUpdate, canDelete, canRelease } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { stockTransfersController } from './stock-transfers.controller'
 import {
-  transferIdSchema, transferListSchema, createTransferSchema, cancelTransferSchema,
+  transferIdSchema, transferListSchema, createTransferSchema, cancelTransferSchema, returnLoanSchema,
 } from './stock-transfers.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -29,12 +29,15 @@ router.post('/', canInsert('stock_transfers'), validateSchema(createTransferSche
 router.post('/:id/confirm', canUpdate('stock_transfers'), validateSchema(transferIdSchema), (req, res) => stockTransfersController.confirm(req, res))
 
 // Return loan
-router.post('/:id/return', canUpdate('stock_transfers'), validateSchema(transferIdSchema), (req, res) => stockTransfersController.returnLoan(req, res))
+router.post('/:id/return', canUpdate('stock_transfers'), validateSchema(returnLoanSchema), (req, res) => stockTransfersController.returnLoan(req, res))
 
 // Cancel
 router.post('/:id/cancel', canUpdate('stock_transfers'), validateSchema(cancelTransferSchema), (req, res) => stockTransfersController.cancel(req, res))
 
 // Delete
 router.delete('/:id', canDelete('stock_transfers'), validateSchema(transferIdSchema), (req, res) => stockTransfersController.softDelete(req, res))
+
+// Delete journals (release permission only)
+router.delete('/:id/journals', canRelease('stock_transfers'), validateSchema(transferIdSchema), (req, res) => stockTransfersController.deleteJournals(req, res))
 
 export default router

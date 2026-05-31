@@ -20,6 +20,8 @@ export interface StockTransfer {
   cancelled_at: string | null
   cancelled_by: string | null
   cancel_reason: string | null
+  source_journal_id: string | null
+  target_journal_id: string | null
   created_at: string
   updated_at: string
   created_by: string | null
@@ -82,6 +84,7 @@ export interface ConfirmStockTransferDto {
 
 export interface ReturnLoanDto {
   returned_by: string
+  return_date: string // YYYY-MM-DD
 }
 
 export interface CancelStockTransferDto {

@@ -1,7 +1,7 @@
 import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
 import type {
-  StockTransfer, StockTransferWithRelations, StockTransferDetail,
+  StockTransferWithRelations, StockTransferDetail,
   StockTransferLineWithRelations, CreateStockTransferDto, TransferType
 } from './stock-transfers.types'
 
@@ -341,6 +341,113 @@ export class StockTransfersRepository {
       [transferId]
     )
     return rows
+  }
+
+  // ─── JOURNAL ──────────────────────────────────────────────────────────────────
+
+  async findOpenFiscalPeriod(companyId: string, transferDate: string, client?: PoolClient): Promise<{ period: string } | null> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+      `SELECT period FROM fiscal_periods
+       WHERE company_id = $1 AND is_open = true
+         AND period_start <= $2::date AND period_end >= $2::date
+       LIMIT 1`,
+      [companyId, transferDate],
+    )
+    return rows[0] ? { period: rows[0].period as string } : null
+  }
+
+  async findCoaByCode(companyId: string, accountCode: string, client?: PoolClient): Promise<{ id: string; account_name: string } | null> {
+    const db = client ?? pool
+    const { rows } = await db.query(
+      `SELECT id, account_name FROM chart_of_accounts WHERE company_id = $1 AND account_code = $2 LIMIT 1`,
+      [companyId, accountCode],
+    )
+    return rows[0] ?? null
+  }
+
+  async getNextJournalSequence(client: PoolClient, companyId: string, period: string): Promise<number> {
+    const { rows } = await client.query(
+      `SELECT get_next_journal_sequence($1, $2, 'INVENTORY'::journal_type_enum) AS seq`,
+      [companyId, period],
+    )
+    return Number(rows[0].seq)
+  }
+
+  async insertJournalHeader(
+    client: PoolClient,
+    data: {
+      companyId: string
+      branchId: string
+      journalNumber: string
+      sequenceNumber: number
+      journalDate: string
+      period: string
+      description: string
+      totalAmount: number
+      referenceId: string
+      referenceNumber: string
+      createdBy: string | null
+    },
+  ): Promise<string> {
+    const { rows } = await client.query(
+      `INSERT INTO journal_headers (
+         company_id, branch_id, journal_number, sequence_number,
+         journal_type, journal_date, period, description,
+         total_debit, total_credit, currency, exchange_rate,
+         status, source_module, reference_type, reference_id, reference_number,
+         is_auto, posted_at, created_by, created_at, updated_at
+       ) VALUES ($1, $2, $3, $4, 'INVENTORY', $5, $6, $7, $8, $8, 'IDR', 1,
+         'POSTED', 'stock_transfer', 'stock_transfer', $9, $10,
+         true, NOW(), $11, NOW(), NOW())
+       RETURNING id`,
+      [
+        data.companyId, data.branchId, data.journalNumber, data.sequenceNumber,
+        data.journalDate, data.period, data.description, data.totalAmount,
+        data.referenceId, data.referenceNumber, data.createdBy,
+      ],
+    )
+    return rows[0].id as string
+  }
+
+  async insertJournalLine(
+    client: PoolClient,
+    data: {
+      journalHeaderId: string
+      lineNumber: number
+      accountId: string
+      description: string
+      debitAmount: number
+      creditAmount: number
+    },
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO journal_lines (journal_header_id, line_number, account_id, description, debit_amount, credit_amount, base_debit_amount, base_credit_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $5, $6)`,
+      [data.journalHeaderId, data.lineNumber, data.accountId, data.description, data.debitAmount, data.creditAmount],
+    )
+  }
+
+  async saveJournalIds(client: PoolClient, id: string, sourceJournalId: string, targetJournalId: string): Promise<void> {
+    await client.query(
+      `UPDATE stock_transfers
+       SET source_journal_id = $2, target_journal_id = $3, updated_at = now()
+       WHERE id = $1`,
+      [id, sourceJournalId, targetJournalId]
+    )
+  }
+
+  async deleteJournals(client: PoolClient, journalIds: string[]): Promise<void> {
+    if (journalIds.length === 0) return
+    await client.query(`DELETE FROM journal_lines WHERE journal_header_id = ANY($1::uuid[])`, [journalIds])
+    await client.query(`DELETE FROM journal_headers WHERE id = ANY($1::uuid[])`, [journalIds])
+  }
+
+  async clearJournalIds(client: PoolClient, id: string): Promise<void> {
+    await client.query(
+      `UPDATE stock_transfers SET source_journal_id = NULL, target_journal_id = NULL, updated_at = now() WHERE id = $1`,
+      [id]
+    )
   }
 }
 

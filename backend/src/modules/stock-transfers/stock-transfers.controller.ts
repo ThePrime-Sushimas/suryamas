@@ -5,13 +5,14 @@ import { handleError } from '../../utils/error-handler.util'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type {
-  transferIdSchema, transferListSchema, createTransferSchema, cancelTransferSchema,
+  transferIdSchema, transferListSchema, createTransferSchema, cancelTransferSchema, returnLoanSchema,
 } from './stock-transfers.schema'
 
 type ListReq = ValidatedAuthRequest<typeof transferListSchema>
 type IdReq = ValidatedAuthRequest<typeof transferIdSchema>
 type CreateReq = ValidatedAuthRequest<typeof createTransferSchema>
 type CancelReq = ValidatedAuthRequest<typeof cancelTransferSchema>
+type ReturnReq = ValidatedAuthRequest<typeof returnLoanSchema>
 
 async function transferScope(req: Request) {
   const userId = req.user?.id ?? ''
@@ -79,9 +80,12 @@ export class StockTransfersController {
 
   returnLoan = async (req: Request, res: Response) => {
     try {
-      const { id } = (req as IdReq).validated.params
+      const { params, body } = (req as ReturnReq).validated
       const { branchIds, userId } = await transferScope(req)
-      const result = await stockTransfersService.returnLoan(id, branchIds, { returned_by: userId })
+      const result = await stockTransfersService.returnLoan(params.id, branchIds, {
+        returned_by: userId,
+        return_date: body.return_date,
+      })
       sendSuccess(res, result, 'Loan returned')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'return_loan', id: req.params.id })
@@ -110,6 +114,17 @@ export class StockTransfersController {
       sendSuccess(res, null, 'Stock transfer deleted')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'delete_stock_transfer', id: req.params.id })
+    }
+  }
+
+  deleteJournals = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as IdReq).validated.params
+      const { branchIds, userId } = await transferScope(req)
+      const result = await stockTransfersService.deleteJournals(id, branchIds, userId)
+      sendSuccess(res, result, 'Transfer journals deleted')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_transfer_journals', id: req.params.id })
     }
   }
 }

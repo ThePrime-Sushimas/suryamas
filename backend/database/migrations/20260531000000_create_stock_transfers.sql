@@ -32,6 +32,10 @@ CREATE TABLE stock_transfers (
   cancelled_by        UUID,
   cancel_reason       TEXT,
 
+  -- Journal references (filled on confirm for inter-branch transfers)
+  source_journal_id   UUID,
+  target_journal_id   UUID,
+
   -- Audit
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -44,6 +44,13 @@ export const createTransferSchema = z.object({
 
 // ─── CANCEL ───────────────────────────────────────────────────────────────────
 
+export const returnLoanSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    return_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }),
+})
+
 export const cancelTransferSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({

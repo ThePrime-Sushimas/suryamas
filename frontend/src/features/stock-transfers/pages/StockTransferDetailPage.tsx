@@ -28,6 +28,7 @@ export default function StockTransferDetailPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10))
 
   const handleConfirm = async () => {
     if (!id) return
@@ -52,8 +53,9 @@ export default function StockTransferDetailPage() {
 
   const handleReturnLoan = async () => {
     if (!id) return
+    if (!returnDate) { toast.error('Pilih tanggal pengembalian'); return }
     try {
-      await returnLoanMutation.mutateAsync(id)
+      await returnLoanMutation.mutateAsync({ id, return_date: returnDate })
       toast.success('Pinjaman berhasil dikembalikan — stok sudah dipindahkan kembali')
       setShowReturnModal(false)
     } catch (err) {
@@ -287,6 +289,17 @@ export default function StockTransferDetailPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Semua barang yang dipinjam akan dikembalikan ke gudang pemberi. Stok akan dipindahkan kembali.
             </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Tanggal Pengembalian <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={returnDate}
+                onChange={e => setReturnDate(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              />
+            </div>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowReturnModal(false)}
@@ -296,7 +309,7 @@ export default function StockTransferDetailPage() {
               </button>
               <button
                 onClick={handleReturnLoan}
-                disabled={returnLoanMutation.isPending}
+                disabled={returnLoanMutation.isPending || !returnDate}
                 className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
               >
                 {returnLoanMutation.isPending ? 'Mengembalikan...' : 'Ya, Kembalikan'}
