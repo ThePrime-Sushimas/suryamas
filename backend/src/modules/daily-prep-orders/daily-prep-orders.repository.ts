@@ -169,6 +169,7 @@ export class DailyPrepOrdersRepository {
     config: DpoForecastConfig,
     sourceWarehouseId: string,
     targetWarehouseId: string,
+    stationCodes: string[],
   ): Promise<DpoForecastLine[]> {
     const shortDays = config.lookback_days_short
     const longDays = config.lookback_days_long
@@ -192,6 +193,7 @@ export class DailyPrepOrdersRepository {
         WHERE sm.status_id = 13
           AND sh.branch_id = $1
           AND sh.sales_date BETWEEN CURRENT_DATE - ($2 * INTERVAL '1 day') AND CURRENT_DATE - 1
+          AND p.station = ANY($7::text[])
         GROUP BY sh.sales_date, rl.product_id, p.product_name, p.product_code, rl.uom
       ),
       -- Konsumsi per hari per produk (via WIP)
@@ -213,6 +215,7 @@ export class DailyPrepOrdersRepository {
         WHERE sm.status_id = 13
           AND sh.branch_id = $1
           AND sh.sales_date BETWEEN CURRENT_DATE - ($2 * INTERVAL '1 day') AND CURRENT_DATE - 1
+          AND p.station = ANY($7::text[])
         GROUP BY sh.sales_date, wi.product_id, p.product_name, p.product_code, wi.uom
       ),
       -- Gabungkan
@@ -303,7 +306,7 @@ export class DailyPrepOrdersRepository {
         LIMIT 1
       ) tu ON true
       ORDER BY ap.product_name`,
-      [branchPosId, longDays, shortDays, prepDate, targetWarehouseId, sourceWarehouseId]
+      [branchPosId, longDays, shortDays, prepDate, targetWarehouseId, sourceWarehouseId, stationCodes]
     )
 
     return rows.map(r => {
@@ -475,14 +478,16 @@ export class DailyPrepOrdersRepository {
       `INSERT INTO daily_prep_orders
          (company_id, branch_id, dpo_number, prep_date, status,
           source_warehouse_id, target_warehouse_id,
+          station_codes,
           weight_7d, weight_30d, weight_dow, coverage_days,
           holiday_factor_applied, has_upcoming_holiday,
           notes, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,'DRAFT',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)
+       VALUES ($1,$2,$3,$4,'DRAFT',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
        RETURNING *`,
       [
         companyId, dto.branch_id, dpoNumber, dto.prep_date,
         dto.source_warehouse_id, dto.target_warehouse_id,
+        dto.station_codes,
         config.weight_7d, config.weight_30d, config.weight_dow, config.coverage_days,
         config.holiday_factor_applied, config.has_upcoming_holiday,
         dto.notes ?? null, dto.created_by ?? null

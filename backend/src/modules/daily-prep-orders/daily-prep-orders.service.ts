@@ -101,7 +101,8 @@ export class DailyPrepOrdersService {
     // 4. Hitung forecast lines
     const rawLines = await dailyPrepOrdersRepository.calcForecastLines(
       branchPosId, dto.branch_id, dto.prep_date, config,
-      dto.source_warehouse_id, dto.target_warehouse_id
+      dto.source_warehouse_id, dto.target_warehouse_id,
+      dto.station_codes
     )
 
     // 5. Apply holiday factor ke predicted_need (semua dalam base unit)

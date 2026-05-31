@@ -39,6 +39,7 @@ export const generateDpoSchema = z.object({
     prep_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     source_warehouse_id: z.string().uuid(),
     target_warehouse_id: z.string().uuid(),
+    station_codes: z.array(z.string().min(1)).min(1, 'Minimal 1 station harus dipilih'),
     notes: z.string().nullable().optional(),
   })
 })

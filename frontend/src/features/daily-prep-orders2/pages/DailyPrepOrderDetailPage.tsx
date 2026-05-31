@@ -258,6 +258,14 @@ export default function DailyPrepOrderDetailPage() {
                 {dpo.has_upcoming_holiday && ' (libur)'}
               </p>
             </div>
+            <div className="col-span-2 md:col-span-4">
+              <p className="text-xs text-gray-500 mb-1">Station</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">
+                {dpo.station_codes?.length > 0
+                  ? dpo.station_codes.map(code => positions.find(p => p.position_code === code)?.position_name ?? code).join(', ')
+                  : 'Semua station (sebelum filter)'}
+              </p>
+            </div>
           </div>
 
           {dpo.status === 'CONFIRMED' && dpo.confirmed_by_name && (

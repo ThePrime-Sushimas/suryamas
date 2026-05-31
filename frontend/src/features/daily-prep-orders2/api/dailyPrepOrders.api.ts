@@ -131,6 +131,7 @@ export const useGenerateDpo = () => {
     mutationFn: async (body: {
       branch_id: string; prep_date: string
       source_warehouse_id: string; target_warehouse_id: string
+      station_codes: string[]
       notes?: string | null
     }) => {
       const { data } = await api.post('/daily-prep-orders/generate', body)

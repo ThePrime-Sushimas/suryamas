@@ -9,6 +9,7 @@ export interface DailyPrepOrder {
   status: DpoStatus
   source_warehouse_id: string
   target_warehouse_id: string
+  station_codes: string[]
   weight_7d: number
   weight_30d: number
   weight_dow: number
@@ -111,6 +112,7 @@ export interface GenerateDpoDto {
   prep_date: string          // tanggal operasional yang disiapkan (biasanya besok)
   source_warehouse_id: string
   target_warehouse_id: string
+  station_codes: string[]    // position_code values for station filtering
   notes?: string | null
   created_by?: string
 }

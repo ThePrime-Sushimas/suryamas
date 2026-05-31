@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Zap, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Zap, Loader2, X, ChevronDown } from 'lucide-react'
 import { useGenerateDpo } from '../api/dailyPrepOrders.api'
 import { useWarehouses } from '@/features/inventory/api/inventory.api'
+import { usePositions } from '@/features/settings/api/settings.api'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -33,6 +34,23 @@ export function DpoGenerateModal({ onClose, onGenerated }: Props) {
 
   const [sourceWarehouseId, setSourceWarehouseId] = useState('')
   const [targetWarehouseId, setTargetWarehouseId] = useState('')
+  const [stationCodes, setStationCodes] = useState<string[]>([])
+  const [stationDropdownOpen, setStationDropdownOpen] = useState(false)
+  const stationDropdownRef = useRef<HTMLDivElement>(null)
+
+  const { data: positionsData } = usePositions()
+  const activePositions = (positionsData ?? []).filter(p => p.is_active)
+
+  // Close station dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (stationDropdownRef.current && !stationDropdownRef.current.contains(e.target as Node)) {
+        setStationDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Auto-select first warehouse when branch changes
   const handleBranchChange = (newBranchId: string) => {
@@ -46,6 +64,7 @@ export function DpoGenerateModal({ onClose, onGenerated }: Props) {
     if (!sourceWarehouseId) { toast.error('Pilih gudang sumber (MAIN)'); return }
     if (!targetWarehouseId) { toast.error('Pilih gudang tujuan (READY)'); return }
     if (sourceWarehouseId === targetWarehouseId) { toast.error('Gudang sumber dan tujuan tidak boleh sama'); return }
+    if (stationCodes.length === 0) { toast.error('Pilih minimal 1 station'); return }
 
     try {
       const result = await generateDpo.mutateAsync({
@@ -53,6 +72,7 @@ export function DpoGenerateModal({ onClose, onGenerated }: Props) {
         prep_date: prepDate,
         source_warehouse_id: sourceWarehouseId,
         target_warehouse_id: targetWarehouseId,
+        station_codes: stationCodes,
         notes: notes || null,
       })
       if (!result?.id) {
@@ -150,6 +170,85 @@ export function DpoGenerateModal({ onClose, onGenerated }: Props) {
             </select>
           </div>
 
+          {/* Station filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Station <span className="text-red-500">*</span>
+            </label>
+            <div ref={stationDropdownRef} className="relative">
+              {/* Selected tags */}
+              {stationCodes.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-1.5">
+                  {stationCodes.map(code => {
+                    const pos = activePositions.find(p => p.position_code === code)
+                    return (
+                      <span
+                        key={code}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md text-xs font-medium"
+                      >
+                        {pos?.position_name ?? code}
+                        <button
+                          type="button"
+                          onClick={() => setStationCodes(prev => prev.filter(c => c !== code))}
+                          className="hover:text-blue-900 dark:hover:text-blue-100"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Dropdown trigger */}
+              <button
+                type="button"
+                onClick={() => setStationDropdownOpen(prev => !prev)}
+                className="w-full flex items-center justify-between px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              >
+                <span className={stationCodes.length === 0 ? 'text-gray-400' : ''}>
+                  {stationCodes.length === 0
+                    ? 'Pilih station...'
+                    : `${stationCodes.length} station dipilih`}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${stationDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown panel */}
+              {stationDropdownOpen && (
+                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                  {activePositions.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-gray-400">Tidak ada station aktif</div>
+                  ) : (
+                    activePositions.map(pos => {
+                      const isSelected = stationCodes.includes(pos.position_code)
+                      return (
+                        <label
+                          key={pos.id}
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-white"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              setStationCodes(prev =>
+                                isSelected
+                                  ? prev.filter(c => c !== pos.position_code)
+                                  : [...prev, pos.position_code]
+                              )
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          {pos.position_name}
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -177,7 +276,7 @@ export function DpoGenerateModal({ onClose, onGenerated }: Props) {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={generateDpo.isPending}
+            disabled={generateDpo.isPending || stationCodes.length === 0}
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-all"
           >
             {generateDpo.isPending
