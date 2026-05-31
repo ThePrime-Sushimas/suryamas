@@ -28,6 +28,7 @@ export default function CreateStockTransferPage() {
   const todayStr = new Date().toISOString().slice(0, 10)
 
   // Header state
+  const [transferType, setTransferType] = useState<'TRANSFER' | 'LOAN'>('TRANSFER')
   const [sourceBranchId, setSourceBranchId] = useState(branches[0]?.branch_id ?? '')
   const [targetBranchId, setTargetBranchId] = useState('')
   const [sourceWarehouseId, setSourceWarehouseId] = useState('')
@@ -123,14 +124,15 @@ export default function CreateStockTransferPage() {
 
     try {
       const result = await createTransfer.mutateAsync({
-        transfer_type: 'TRANSFER',
+        transfer_type: transferType,
         source_warehouse_id: sourceWarehouseId,
         target_warehouse_id: targetWarehouseId,
         transfer_date: transferDate,
         notes: notes || undefined,
         lines: lines.map(l => ({ product_id: l.product_id, qty: l.qty, notes: l.notes || undefined })),
       })
-      toast.success(`Transfer ${result.transfer_number} berhasil dibuat`)
+      const label = transferType === 'LOAN' ? 'Loan' : 'Transfer'
+      toast.success(`${label} ${result.transfer_number} berhasil dibuat`)
       navigate(`/inventory/stock-transfers/${result.id}`)
     } catch (err) {
       toast.error(parseApiError(err, 'Gagal membuat stock transfer'))
@@ -151,8 +153,12 @@ export default function CreateStockTransferPage() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Buat Stock Transfer</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Transfer barang antar gudang / cabang</p>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                {transferType === 'LOAN' ? 'Buat Pinjaman Barang' : 'Buat Stock Transfer'}
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {transferType === 'LOAN' ? 'Pinjam barang antar cabang' : 'Transfer barang antar gudang / cabang'}
+              </p>
             </div>
           </div>
           <button
@@ -175,11 +181,39 @@ export default function CreateStockTransferPage() {
           {/* Header Fields */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 p-6">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Informasi Transfer</h2>
+
+            {/* Transfer Type Selector */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipe</label>
+              <div className="flex gap-3">
+                <label className={`flex-1 flex items-center gap-2 px-4 py-2.5 border rounded-xl cursor-pointer transition-all ${transferType === 'TRANSFER' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  <input type="radio" name="transfer_type" value="TRANSFER" checked={transferType === 'TRANSFER'} onChange={() => setTransferType('TRANSFER')} className="sr-only" />
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${transferType === 'TRANSFER' ? 'border-blue-500' : 'border-gray-400'}`}>
+                    {transferType === 'TRANSFER' && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium">Transfer</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Kirim barang 1 arah</p>
+                  </div>
+                </label>
+                <label className={`flex-1 flex items-center gap-2 px-4 py-2.5 border rounded-xl cursor-pointer transition-all ${transferType === 'LOAN' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  <input type="radio" name="transfer_type" value="LOAN" checked={transferType === 'LOAN'} onChange={() => setTransferType('LOAN')} className="sr-only" />
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${transferType === 'LOAN' ? 'border-purple-500' : 'border-gray-400'}`}>
+                    {transferType === 'LOAN' && <div className="w-2 h-2 rounded-full bg-purple-500" />}
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium">Pinjam (Loan)</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Pinjam & harus dikembalikan</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Source Branch */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Cabang Sumber <span className="text-red-500">*</span>
+                  {transferType === 'LOAN' ? 'Cabang Pemberi' : 'Cabang Sumber'} <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={sourceBranchId}
@@ -196,7 +230,7 @@ export default function CreateStockTransferPage() {
               {/* Target Branch */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Cabang Tujuan <span className="text-red-500">*</span>
+                  {transferType === 'LOAN' ? 'Cabang Peminjam' : 'Cabang Tujuan'} <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={targetBranchId}

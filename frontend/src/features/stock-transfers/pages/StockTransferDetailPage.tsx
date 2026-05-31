@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
-import { ArrowLeft, Check, X, Loader2, ArrowRightLeft, Printer } from 'lucide-react'
-import { useStockTransfer, useConfirmStockTransfer, useCancelStockTransfer } from '../api/stockTransfers.api'
+import { ArrowLeft, Check, X, Loader2, ArrowRightLeft, Printer, Undo2 } from 'lucide-react'
+import { useStockTransfer, useConfirmStockTransfer, useCancelStockTransfer, useReturnLoan } from '../api/stockTransfers.api'
 import { useListNavigation } from '@/lib/urlFilters'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -22,10 +22,12 @@ export default function StockTransferDetailPage() {
   const { data: transfer, isLoading } = useStockTransfer(id ?? '')
   const confirmMutation = useConfirmStockTransfer()
   const cancelMutation = useCancelStockTransfer()
+  const returnLoanMutation = useReturnLoan()
 
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [showPrintModal, setShowPrintModal] = useState(false)
+  const [showReturnModal, setShowReturnModal] = useState(false)
 
   const handleConfirm = async () => {
     if (!id) return
@@ -45,6 +47,17 @@ export default function StockTransferDetailPage() {
       setShowCancelModal(false)
     } catch (err) {
       toast.error(parseApiError(err, 'Gagal membatalkan transfer'))
+    }
+  }
+
+  const handleReturnLoan = async () => {
+    if (!id) return
+    try {
+      await returnLoanMutation.mutateAsync(id)
+      toast.success('Pinjaman berhasil dikembalikan — stok sudah dipindahkan kembali')
+      setShowReturnModal(false)
+    } catch (err) {
+      toast.error(parseApiError(err, 'Gagal mengembalikan pinjaman'))
     }
   }
 
@@ -119,14 +132,29 @@ export default function StockTransferDetailPage() {
             </div>
           )}
           {transfer.status === 'CONFIRMED' && (
-            <button
-              type="button"
-              onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-900/20 text-sm font-medium transition-colors bg-white dark:bg-gray-800 shadow-sm"
-            >
-              <Printer className="w-4 h-4" />
-              <span className="hidden sm:inline">Print Thermal</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {transfer.transfer_type === 'LOAN' && (
+                <button
+                  type="button"
+                  onClick={() => setShowReturnModal(true)}
+                  disabled={returnLoanMutation.isPending}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm disabled:opacity-50"
+                >
+                  {returnLoanMutation.isPending
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Mengembalikan...</>
+                    : <><Undo2 className="w-4 h-4" /> Kembalikan Pinjaman</>
+                  }
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-900/20 text-sm font-medium transition-colors bg-white dark:bg-gray-800 shadow-sm"
+              >
+                <Printer className="w-4 h-4" />
+                <span className="hidden sm:inline">Print Thermal</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -245,6 +273,33 @@ export default function StockTransferDetailPage() {
                 className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50"
               >
                 {cancelMutation.isPending ? 'Membatalkan...' : 'Ya, Batalkan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Return Loan Modal */}
+      {showReturnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Kembalikan Pinjaman?</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Semua barang yang dipinjam akan dikembalikan ke gudang pemberi. Stok akan dipindahkan kembali.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowReturnModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleReturnLoan}
+                disabled={returnLoanMutation.isPending}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
+              >
+                {returnLoanMutation.isPending ? 'Mengembalikan...' : 'Ya, Kembalikan'}
               </button>
             </div>
           </div>
