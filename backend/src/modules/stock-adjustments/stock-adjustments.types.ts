@@ -60,6 +60,7 @@ export interface StockAdjustmentLineWithRelations extends StockAdjustmentLine {
   product_code: string
   product_name: string
   base_unit_name: string | null
+  station: string | null
 }
 
 // BREAKDOWN outputs

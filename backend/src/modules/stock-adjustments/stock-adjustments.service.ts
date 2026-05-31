@@ -98,6 +98,7 @@ export class StockAdjustmentsService {
 
   async confirm(id: string, branchIds: string[], dto: ConfirmStockAdjustmentDto): Promise<StockAdjustmentDetail> {
     let totalWasteValue = 0
+    const lineCosts = new Map<string, number>()
 
     await stockRepository.withTransaction(async (client) => {
       const detail = await stockAdjustmentsRepository.lockAndFindById(client, id, branchIds)
@@ -107,7 +108,7 @@ export class StockAdjustmentsService {
       }
 
       if (detail.adjustment_type === 'WASTE') {
-        totalWasteValue = await this.confirmWaste(client, detail, dto.confirmed_by)
+        totalWasteValue = await this.confirmWaste(client, detail, dto.confirmed_by, lineCosts)
       } else {
         totalWasteValue = await this.confirmBreakdown(client, detail, dto.confirmed_by)
       }
@@ -116,7 +117,7 @@ export class StockAdjustmentsService {
 
       // Generate journal for waste value
       if (totalWasteValue > 0) {
-        await this.generateWasteJournal(client, detail, totalWasteValue, dto.confirmed_by)
+        await this.generateWasteJournal(client, detail, totalWasteValue, dto.confirmed_by, lineCosts)
       }
     })
 
@@ -130,6 +131,7 @@ export class StockAdjustmentsService {
     client: import('pg').PoolClient,
     detail: StockAdjustmentDetail,
     userId: string,
+    lineCosts: Map<string, number>,
   ): Promise<number> {
     let totalWasteValue = 0
 
@@ -142,6 +144,9 @@ export class StockAdjustmentsService {
         throw new StockAdjustmentInsufficientStockError(line.product_name, currentQty, qty)
       }
       const avgCost = balance ? Number(balance.avg_cost) : 0
+
+      // Store cost for journal generation
+      lineCosts.set(line.id, avgCost)
 
       const newQty = currentQty - qty
       const outMovement = await stockRepository.createMovement(
@@ -307,11 +312,17 @@ export class StockAdjustmentsService {
 
   // ─── JOURNAL GENERATION (private) ──────────────────────────────────────────
 
+  /**
+   * Generate waste journal with:
+   * - DR side: grouped by station (1 line per station)
+   * - CR side: per product (1 line per product)
+   */
   private async generateWasteJournal(
     client: import('pg').PoolClient,
     detail: StockAdjustmentDetail,
     wasteValue: number,
     userId: string,
+    lineCosts: Map<string, number>,
   ): Promise<void> {
     const companyId = detail.company_id
     if (wasteValue <= 0) return
@@ -328,7 +339,8 @@ export class StockAdjustmentsService {
     const journalNumber = `JI-${period}-${String(seq).padStart(4, '0')}`
 
     const typeLabel = detail.adjustment_type === 'WASTE' ? 'Waste' : 'Breakdown susut'
-    const description = `${typeLabel} ${detail.adjustment_number} (${detail.reason ?? '-'})`
+    const reasonLabel = detail.reason ?? '-'
+    const description = `${typeLabel} ${detail.adjustment_number} (${reasonLabel})`
 
     const journalId = await stockAdjustmentsRepository.insertJournalHeader(client, {
       companyId,
@@ -344,23 +356,71 @@ export class StockAdjustmentsService {
       createdBy: userId,
     })
 
-    await stockAdjustmentsRepository.insertJournalLine(client, {
-      journalHeaderId: journalId,
-      lineNumber: 1,
-      accountId: selisihHpp.id,
-      description: `${typeLabel} - ${detail.adjustment_number}`,
-      debitAmount: wasteValue,
-      creditAmount: 0,
-    })
+    let lineNumber = 1
 
-    await stockAdjustmentsRepository.insertJournalLine(client, {
-      journalHeaderId: journalId,
-      lineNumber: 2,
-      accountId: bahanBaku.id,
-      description: `${typeLabel} - ${detail.adjustment_number}`,
-      debitAmount: 0,
-      creditAmount: wasteValue,
-    })
+    if (detail.adjustment_type === 'WASTE') {
+      // ─── WASTE: DR grouped by station, CR per product ─────────────────
+
+      // Group lines by station for DR side
+      const stationGroups = new Map<string, number>()
+      for (const line of detail.lines) {
+        const station = line.station || 'GENERAL'
+        const cost = lineCosts.get(line.id) ?? 0
+        const value = Number(line.qty) * cost
+        stationGroups.set(station, (stationGroups.get(station) ?? 0) + value)
+      }
+
+      // DR lines — 1 per station
+      for (const [station, value] of stationGroups) {
+        if (value <= 0) continue
+        await stockAdjustmentsRepository.insertJournalLine(client, {
+          journalHeaderId: journalId,
+          lineNumber: lineNumber++,
+          accountId: selisihHpp.id,
+          description: `${typeLabel} - Station ${station} (${detail.adjustment_number})`,
+          debitAmount: value,
+          creditAmount: 0,
+        })
+      }
+
+      // CR lines — 1 per product
+      for (const line of detail.lines) {
+        const cost = lineCosts.get(line.id) ?? 0
+        const value = Number(line.qty) * cost
+        if (value <= 0) continue
+        const fmtQty = parseFloat(Number(line.qty).toFixed(4)).toString()
+        await stockAdjustmentsRepository.insertJournalLine(client, {
+          journalHeaderId: journalId,
+          lineNumber: lineNumber++,
+          accountId: bahanBaku.id,
+          description: `${line.product_name} - ${fmtQty} ${line.base_unit_name ?? ''}`.trim(),
+          debitAmount: 0,
+          creditAmount: value,
+        })
+      }
+    } else {
+      // ─── BREAKDOWN: DR 1 line (susut), CR 1 line (input product) ──────
+
+      const inputStation = detail.input_product_name ? `Station ${(detail as any).station ?? 'GENERAL'}` : 'GENERAL'
+
+      await stockAdjustmentsRepository.insertJournalLine(client, {
+        journalHeaderId: journalId,
+        lineNumber: lineNumber++,
+        accountId: selisihHpp.id,
+        description: `Breakdown susut - ${detail.input_product_name} (${detail.adjustment_number})`,
+        debitAmount: wasteValue,
+        creditAmount: 0,
+      })
+
+      await stockAdjustmentsRepository.insertJournalLine(client, {
+        journalHeaderId: journalId,
+        lineNumber: lineNumber++,
+        accountId: bahanBaku.id,
+        description: `Breakdown susut - ${detail.input_product_name}`,
+        debitAmount: 0,
+        creditAmount: wasteValue,
+      })
+    }
 
     await stockAdjustmentsRepository.saveJournalId(client, detail.id, journalId)
   }

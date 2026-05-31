@@ -35,7 +35,7 @@ const HEADER_FROM = `
 
 const LINE_SELECT = `
   sal.*,
-  p.product_code, p.product_name,
+  p.product_code, p.product_name, p.station,
   mu.unit_name AS base_unit_name
 `
 const LINE_FROM = `
