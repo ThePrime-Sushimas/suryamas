@@ -4,7 +4,7 @@ import type {
   DailyPrepOrder, DailyPrepOrderWithRelations, DailyPrepOrderDetail,
   DailyPrepOrderLineWithRelations, DpoForecastConfig, PublicHoliday,
   UpsertForecastConfigDto, UpsertHolidayDto, UpdateDpoLinesDto,
-  DpoForecastLine, GenerateDpoDto
+  DpoForecastLine, GenerateDpoDto, CreateManualDpoDto
 } from './daily-prep-orders.types'
 
 const HEADER_SELECT = `
@@ -465,6 +465,44 @@ export class DailyPrepOrdersRepository {
     )
   }
 
+  async getStockSnapshots(
+    client: PoolClient,
+    productIds: string[],
+    sourceWarehouseId: string,
+    targetWarehouseId: string
+  ): Promise<Map<string, { current_main_stock: number; current_ready_stock: number }>> {
+    const result = new Map<string, { current_main_stock: number; current_ready_stock: number }>()
+
+    if (productIds.length === 0) return result
+
+    const { rows } = await client.query(
+      `SELECT sb.product_id, sb.warehouse_id, COALESCE(sb.qty, 0)::numeric AS qty
+       FROM stock_balances sb
+       WHERE sb.product_id = ANY($1::uuid[])
+         AND sb.warehouse_id IN ($2, $3)`,
+      [productIds, sourceWarehouseId, targetWarehouseId]
+    )
+
+    // Initialize all products with 0 defaults
+    for (const productId of productIds) {
+      result.set(productId, { current_main_stock: 0, current_ready_stock: 0 })
+    }
+
+    // Fill in actual stock values
+    for (const row of rows) {
+      const entry = result.get(row.product_id)
+      if (!entry) continue
+
+      if (row.warehouse_id === sourceWarehouseId) {
+        entry.current_main_stock = Number(row.qty)
+      } else if (row.warehouse_id === targetWarehouseId) {
+        entry.current_ready_stock = Number(row.qty)
+      }
+    }
+
+    return result
+  }
+
   async createWithLines(
     client: PoolClient,
     companyId: string,
@@ -508,6 +546,96 @@ export class DailyPrepOrdersRepository {
           line.predicted_need, line.current_ready_stock, line.current_main_stock,
           line.suggested_qty, line.suggested_qty,  // confirmed_qty = suggested_qty as default
           line.uom, i
+        )
+        idx += 14
+      })
+
+      await client.query(
+        `INSERT INTO daily_prep_order_lines
+           (dpo_id, product_id,
+            avg_sales_7d, avg_sales_30d, avg_sales_dow,
+            holiday_factor, coverage_days,
+            predicted_need, current_ready_stock, current_main_stock,
+            suggested_qty, confirmed_qty,
+            uom, sort_order)
+         VALUES ${valueRows.join(',')}`,
+        params
+      )
+    }
+
+    return dpo
+  }
+
+  async createManualWithLines(
+    client: PoolClient,
+    companyId: string,
+    dto: CreateManualDpoDto,
+    dpoNumber: string,
+    stockSnapshots: Map<string, { current_main_stock: number; current_ready_stock: number }>
+  ): Promise<DailyPrepOrder> {
+    const { rows: [dpo] } = await client.query(
+      `INSERT INTO daily_prep_orders
+         (company_id, branch_id, dpo_number, prep_date, status,
+          source_warehouse_id, target_warehouse_id,
+          station_codes,
+          weight_7d, weight_30d, weight_dow, coverage_days,
+          holiday_factor_applied, has_upcoming_holiday,
+          notes, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,'DRAFT',$5,$6,$7,0,0,0,0,0,false,$8,$9,$9)
+       RETURNING *`,
+      [
+        companyId, dto.branch_id, dpoNumber, dto.prep_date,
+        dto.source_warehouse_id, dto.target_warehouse_id,
+        dto.station_codes ?? [],
+        dto.notes ?? null, dto.created_by ?? null
+      ]
+    )
+
+    if (dto.lines.length > 0) {
+      // Fetch transfer unit names for all products (same logic as generate flow)
+      // Priority: is_default_transfer_unit > is_base_unit > lowest conversion_factor
+      const productIds = dto.lines.map(l => l.product_id)
+      const { rows: productRows } = await client.query(
+        `SELECT p.id, COALESCE(tu.unit_name, mu_base.unit_name, 'pcs') AS uom
+         FROM products p
+         LEFT JOIN product_uoms pu_base ON pu_base.product_id = p.id AND pu_base.is_base_unit = true AND pu_base.is_deleted = false
+         LEFT JOIN metric_units mu_base ON mu_base.id = pu_base.metric_unit_id
+         LEFT JOIN LATERAL (
+           SELECT mu.unit_name
+           FROM product_uoms pu
+           JOIN metric_units mu ON mu.id = pu.metric_unit_id
+           WHERE pu.product_id = p.id
+             AND pu.is_deleted = false
+             AND pu.status_uom = 'ACTIVE'
+           ORDER BY
+             CASE WHEN pu.is_default_transfer_unit = true THEN 0 ELSE 1 END,
+             CASE WHEN pu.is_base_unit = true THEN 0 ELSE 1 END,
+             pu.conversion_factor ASC
+           LIMIT 1
+         ) tu ON true
+         WHERE p.id = ANY($1::uuid[])`,
+        [productIds]
+      )
+      const uomMap = new Map<string, string>(productRows.map((r: { id: string; uom: string }) => [r.id, r.uom]))
+
+      const valueRows: string[] = []
+      const params: unknown[] = []
+      let idx = 1
+
+      dto.lines.forEach((line, i) => {
+        const snapshot = stockSnapshots.get(line.product_id) ?? { current_main_stock: 0, current_ready_stock: 0 }
+        const uom = uomMap.get(line.product_id) ?? 'pcs'
+        valueRows.push(`($${idx},$${idx+1},$${idx+2},$${idx+3},$${idx+4},$${idx+5},$${idx+6},$${idx+7},$${idx+8},$${idx+9},$${idx+10},$${idx+11},$${idx+12},$${idx+13})`)
+        params.push(
+          dpo.id, line.product_id,
+          0, 0, 0,           // avg_sales_7d, avg_sales_30d, avg_sales_dow
+          0, 0,              // holiday_factor, coverage_days
+          0,                 // predicted_need
+          snapshot.current_ready_stock, snapshot.current_main_stock,
+          0,                 // suggested_qty
+          line.qty,          // confirmed_qty
+          uom,               // uom
+          i                  // sort_order
         )
         idx += 14
       })

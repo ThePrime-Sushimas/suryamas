@@ -8,6 +8,7 @@ import {
   dpoIdSchema, dpoLineIdSchema, dpoListSchema, generateDpoSchema,
   updateDpoLinesSchema, confirmDpoSchema, cancelDpoSchema,
   branchIdParamSchema, upsertForecastConfigSchema, upsertHolidaySchema, holidayIdSchema,
+  createManualDpoSchema,
 } from './daily-prep-orders.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -31,6 +32,9 @@ router.put('/config', canUpdate('daily_prep_orders'), validateSchema(upsertForec
 router.get('/holidays', canView('daily_prep_orders'), (req, res) => dailyPrepOrdersController.getHolidays(req, res))
 router.put('/holidays', canInsert('daily_prep_orders'), validateSchema(upsertHolidaySchema), (req, res) => dailyPrepOrdersController.upsertHoliday(req, res))
 router.delete('/holidays/:holidayId', canDelete('daily_prep_orders'), validateSchema(holidayIdSchema), (req, res) => dailyPrepOrdersController.deleteHoliday(req, res))
+
+// Manual DPO creation
+router.post('/manual', canInsert('daily_prep_orders'), validateSchema(createManualDpoSchema), (req, res) => dailyPrepOrdersController.createManual(req, res))
 
 // ─── DPO LIST / DETAIL (dynamic /:id terakhir) ───────────────────────────────
 router.get('/', canView('daily_prep_orders'), validateSchema(dpoListSchema), (req, res) => dailyPrepOrdersController.list(req, res))

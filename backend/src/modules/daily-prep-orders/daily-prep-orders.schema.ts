@@ -44,6 +44,26 @@ export const generateDpoSchema = z.object({
   })
 })
 
+// ─── MANUAL DPO ───────────────────────────────────────────────────────────────
+
+export const createManualDpoSchema = z.object({
+  body: z.object({
+    branch_id: z.string().uuid(),
+    prep_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    source_warehouse_id: z.string().uuid(),
+    target_warehouse_id: z.string().uuid(),
+    station_codes: z.array(z.string().min(1)).optional(),
+    notes: z.string().nullable().optional(),
+    lines: z.array(z.object({
+      product_id: z.string().uuid(),
+      qty: z.number().gt(0, 'Qty harus lebih dari 0'),
+    })).min(1, 'Minimal 1 produk harus ditambahkan'),
+  }).refine(b => b.source_warehouse_id !== b.target_warehouse_id, {
+    message: 'Gudang sumber dan tujuan tidak boleh sama',
+    path: ['target_warehouse_id'],
+  })
+})
+
 // ─── LINES ────────────────────────────────────────────────────────────────────
 
 export const updateDpoLinesSchema = z.object({

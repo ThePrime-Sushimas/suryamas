@@ -117,6 +117,20 @@ export interface GenerateDpoDto {
   created_by?: string
 }
 
+export interface CreateManualDpoDto {
+  branch_id: string
+  prep_date: string                    // YYYY-MM-DD
+  source_warehouse_id: string
+  target_warehouse_id: string
+  station_codes?: string[]             // optional station filter (informational)
+  notes?: string | null
+  lines: {
+    product_id: string
+    qty: number                        // becomes confirmed_qty
+  }[]
+  created_by?: string
+}
+
 export interface UpdateDpoLinesDto {
   lines: {
     id: string

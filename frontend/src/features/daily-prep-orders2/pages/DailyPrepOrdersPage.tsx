@@ -86,6 +86,15 @@ export default function DailyPrepOrdersPage() {
             {canInsert && (
               <button
                 type="button"
+                onClick={() => navigate('/inventory/daily-prep-orders/manual/create')}
+                className="flex items-center gap-2 px-4 py-2.5 border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-xl text-sm font-medium transition-all"
+              >
+                <Plus className="w-4 h-4" /> Manual DPO
+              </button>
+            )}
+            {canInsert && (
+              <button
+                type="button"
                 onClick={() => setShowGenerate(true)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm"
               >

@@ -23,6 +23,7 @@ import type {
   dpoIdSchema, dpoLineIdSchema, dpoListSchema, generateDpoSchema,
   updateDpoLinesSchema, confirmDpoSchema, cancelDpoSchema,
   branchIdParamSchema, upsertForecastConfigSchema, upsertHolidaySchema, holidayIdSchema,
+  createManualDpoSchema,
 } from './daily-prep-orders.schema'
 
 type ListReq = ValidatedAuthRequest<typeof dpoListSchema>
@@ -36,6 +37,7 @@ type BranchIdReq = ValidatedAuthRequest<typeof branchIdParamSchema>
 type UpsertForecastReq = ValidatedAuthRequest<typeof upsertForecastConfigSchema>
 type UpsertHolidayReq = ValidatedAuthRequest<typeof upsertHolidaySchema>
 type HolidayIdReq = ValidatedAuthRequest<typeof holidayIdSchema>
+type CreateManualReq = ValidatedAuthRequest<typeof createManualDpoSchema>
 
 export class DailyPrepOrdersController {
 
@@ -85,6 +87,19 @@ export class DailyPrepOrdersController {
       sendSuccess(res, result, 'DPO generated', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'generate_dpo' })
+    }
+  }
+
+  // ─── MANUAL DPO ─────────────────────────────────────────────────────────────
+
+  createManual = async (req: Request, res: Response) => {
+    try {
+      const { body } = (req as CreateManualReq).validated
+      const { branchIds, userId } = await dpoScope(req)
+      const result = await dailyPrepOrdersService.createManual(branchIds, { ...body, created_by: userId })
+      sendSuccess(res, result, 'Manual DPO created', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_manual_dpo' })
     }
   }
 

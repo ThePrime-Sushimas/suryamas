@@ -10,7 +10,7 @@ import { dailyStockOpnameRepository } from '../daily-stock-opname/daily-stock-op
 import { DpoBlockedByOpnameError } from '../daily-stock-opname/daily-stock-opname.errors'
 import type {
   GenerateDpoDto, UpdateDpoLinesDto, ConfirmDpoDto,
-  UpsertForecastConfigDto, UpsertHolidayDto
+  UpsertForecastConfigDto, UpsertHolidayDto, CreateManualDpoDto
 } from './daily-prep-orders.types'
 
 // Resolve branch_pos_id dari branch UUID via repository
@@ -170,6 +170,52 @@ export class DailyPrepOrdersService {
     const detail = await dailyPrepOrdersRepository.findDetail(id, companyId)
     if (!detail) throw new DpoNotFoundError(id)
     return detail
+  }
+
+  // ─── MANUAL DPO ─────────────────────────────────────────────────────────────
+
+  async createManual(branchIds: string[], dto: CreateManualDpoDto) {
+    const { requireBranchAccess, getCompanyIdForBranch } = await import('../../utils/branch-access.util')
+    requireBranchAccess(dto.branch_id, branchIds)
+    const companyId = (await getCompanyIdForBranch(dto.branch_id)) ?? ''
+
+    // Check opname blocking — same guard as confirm flow
+    const opnameExists = await dailyStockOpnameRepository.hasConfirmedSession(
+      dto.branch_id, dto.prep_date
+    )
+    if (opnameExists) {
+      throw new DpoBlockedByOpnameError()
+    }
+
+    const newDpoId = await stockRepository.withTransaction(async (client) => {
+      // Soft-delete existing active DPOs for same branch+date (unique constraint)
+      await dailyPrepOrdersRepository.cancelAllForBranchDate(client, dto.branch_id, dto.prep_date)
+
+      const branchCode = await dailyPrepOrdersRepository.getBranchCode(client, dto.branch_id)
+      if (!branchCode) throw new Error(`Branch ${dto.branch_id} tidak ditemukan`)
+
+      const dpoNumber = await dailyPrepOrdersRepository.generateDpoNumber(
+        client, companyId, branchCode, dto.prep_date
+      )
+
+      const stockSnapshots = await dailyPrepOrdersRepository.getStockSnapshots(
+        client, dto.lines.map(l => l.product_id),
+        dto.source_warehouse_id, dto.target_warehouse_id
+      )
+
+      const dpo = await dailyPrepOrdersRepository.createManualWithLines(
+        client, companyId, dto, dpoNumber, stockSnapshots
+      )
+
+      await AuditService.log('CREATE', 'daily_prep_orders', dpo.id, dto.created_by ?? '', undefined, {
+        dpo_number: dpoNumber, branch_id: dto.branch_id, prep_date: dto.prep_date,
+        line_count: dto.lines.length, manual: true
+      })
+
+      return dpo.id
+    })
+
+    return this.fetchDetailAfterGenerate(newDpoId, companyId)
   }
 
   // ─── UPDATE LINES ───────────────────────────────────────────────────────────

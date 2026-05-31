@@ -346,6 +346,7 @@ const GeneralLedgerPage = lazy(() =>
 );
 const DailyPrepOrdersPage = lazy(() => import('./features/daily-prep-orders2/pages/DailyPrepOrdersPage'));
 const DailyPrepOrderDetailPage = lazy(() => import('./features/daily-prep-orders2/pages/DailyPrepOrderDetailPage'));
+const CreateManualDpoPage = lazy(() => import('./features/daily-prep-orders2/pages/CreateManualDpoPage'));
 const IncomeStatementPage = lazy(() =>
   import("./features/accounting/income-statement").then((m) => ({
     default: m.IncomeStatementPage,
@@ -992,6 +993,16 @@ function App() {
                       <RequirePermission module="daily_prep_orders">
                         <Suspense fallback={<LoadingFallback />}>
                           <DailyPrepOrdersPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/daily-prep-orders/manual/create"
+                    element={
+                      <RequirePermission module="daily_prep_orders">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CreateManualDpoPage />
                         </Suspense>
                       </RequirePermission>
                     }

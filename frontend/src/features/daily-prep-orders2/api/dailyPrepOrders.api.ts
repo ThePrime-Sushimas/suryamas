@@ -123,6 +123,27 @@ export const useDailyPrepOrder = (id: string) =>
     enabled: !!id,
   })
 
+// ─── MANUAL DPO ──────────────────────────────────────────────────────────────
+
+export const useCreateManualDpo = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: {
+      branch_id: string
+      prep_date: string
+      source_warehouse_id: string
+      target_warehouse_id: string
+      station_codes?: string[]
+      notes?: string | null
+      lines: { product_id: string; qty: number }[]
+    }) => {
+      const { data } = await api.post('/daily-prep-orders/manual', body)
+      return data.data as DailyPrepOrder
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['daily-prep-orders'] }),
+  })
+}
+
 // ─── GENERATE ────────────────────────────────────────────────────────────────
 
 export const useGenerateDpo = () => {
