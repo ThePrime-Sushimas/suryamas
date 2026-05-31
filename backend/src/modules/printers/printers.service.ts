@@ -3,11 +3,13 @@ import { purchaseRequestsRepository } from '../purchase-requests/purchase-reques
 import { PrinterNotFoundError, PrinterConnectionError } from './printers.errors'
 import { PurchaseRequestNotFoundError } from '../purchase-requests/purchase-requests.errors'
 import { AuditService } from '../monitoring/monitoring.service'
-import { buildDocReceipt, buildGoodsReceiptReceipt, buildDailyPrepOrderReceipt, sendToPrinter, testPrinterConnection, fmt } from './printers.print'
+import { buildDocReceipt, buildGoodsReceiptReceipt, buildDailyPrepOrderReceipt, buildStockTransferReceipt, sendToPrinter, testPrinterConnection, fmt } from './printers.print'
 import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
 import { GoodsReceiptNotFoundError } from '../goods-receipts/goods-receipts.errors'
 import { dailyPrepOrdersRepository } from '../daily-prep-orders/daily-prep-orders.repository'
 import { DpoNotFoundError } from '../daily-prep-orders/daily-prep-orders.errors'
+import { stockTransfersRepository } from '../stock-transfers/stock-transfers.repository'
+import { StockTransferNotFoundError } from '../stock-transfers/stock-transfers.errors'
 import type { GoodsReceiptLineWithRelations } from '../goods-receipts/goods-receipts.types'
 import { BusinessRuleError } from '../../utils/errors.base'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
@@ -288,6 +290,66 @@ export class PrintersService {
 
     logInfo('DPO printed', { dpo_id: dpoId, printer_id: printerId, lines: lineIds.length })
     await AuditService.log('PRINT', 'daily_prep_orders', dpoId, userId, undefined, {
+      printer_id: printerId,
+      line_count: lineIds.length,
+    })
+  }
+
+  // ─── PRINT STOCK TRANSFER ──────────────────────────────────────────────────
+
+  async printStockTransfer(
+    printerId: string,
+    transferId: string,
+    lineIds: string[],
+    companyId: string,
+    userId: string,
+  ): Promise<void> {
+    const branchIds = await getAccessibleBranchIds(userId)
+    const transfer = await stockTransfersRepository.findById(transferId, branchIds)
+    if (!transfer) throw new StockTransferNotFoundError(transferId)
+
+    const printer = await printersRepository.findById(printerId, companyId)
+    if (!printer) throw new PrinterNotFoundError(printerId)
+    if (!printer.is_active) {
+      throw new PrinterConnectionError(printer.ip_address, printer.port, 'Printer is inactive')
+    }
+    await this.assertPrintAccess(printer, userId, transfer.source_branch_id)
+
+    const selectedLines = transfer.lines.filter((l) => lineIds.includes(l.id))
+    if (selectedLines.length === 0) throw new BusinessRuleError('Tidak ada line yang dipilih untuk dicetak')
+
+    const printedByName = await printersRepository.getEmployeeName(userId)
+    const fmtDate = (d: string) =>
+      new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+
+    const header = [
+      { key: 'No', value: transfer.transfer_number },
+      { key: 'Tgl', value: fmtDate(transfer.transfer_date) },
+      { key: 'Tipe', value: transfer.transfer_type },
+      { key: 'Dari', value: `${transfer.source_warehouse_name} (${transfer.source_branch_name})` },
+      { key: 'Ke', value: `${transfer.target_warehouse_name} (${transfer.target_branch_name})` },
+      { key: 'Status', value: transfer.status },
+    ]
+    if (transfer.confirmed_by_name) header.push({ key: 'Konfirmasi', value: transfer.confirmed_by_name })
+    if (transfer.notes) header.push({ key: 'Catatan', value: transfer.notes })
+
+    const formatQty = (n: number) => parseFloat(n.toFixed(4)).toString()
+    const items = selectedLines.map((l, idx) => ({
+      label: `${idx + 1}. ${l.product_name}`,
+      detail: `${formatQty(Number(l.qty))} ${l.base_unit_name ?? ''}`,
+    }))
+
+    const receipt = buildStockTransferReceipt({
+      paper_width: printer.paper_width,
+      header,
+      items,
+      footer: `Dicetak oleh: ${printedByName ?? '-'} · ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
+    })
+
+    await sendToPrinter(printer.ip_address, printer.port, receipt)
+
+    logInfo('Stock transfer printed', { transfer_id: transferId, printer_id: printerId, lines: lineIds.length })
+    await AuditService.log('PRINT', 'stock_transfer', transferId, userId, undefined, {
       printer_id: printerId,
       line_count: lineIds.length,
     })

@@ -229,6 +229,35 @@ export function buildDailyPrepOrderReceipt(data: DailyPrepOrderPrintData): Buffe
   return buildReceipt({ paper_width: data.paper_width, rows })
 }
 
+// ─── Stock Transfer Receipt ──────────────────────────────────────────────────
+
+export interface StockTransferPrintData {
+  paper_width: number
+  header: Array<{ key: string; value: string }>
+  items: Array<{ label: string; detail: string }>
+  footer?: string
+}
+
+/** Thermal Bukti Stock Transfer — transfer antar gudang/cabang. */
+export function buildStockTransferReceipt(data: StockTransferPrintData): Buffer {
+  const now = new Date()
+  const defaultFooter = `Printed: ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`
+
+  const rows: ReceiptRow[] = [
+    { type: 'title', text: 'SURYAMAS' },
+    { type: 'subtitle', text: 'Stock Transfer' },
+    { type: 'double-separator' },
+    ...data.header.map((h) => ({ type: 'kv' as const, key: h.key, value: h.value })),
+    { type: 'separator' },
+    { type: 'section-header', text: 'BARANG:' },
+    ...data.items.map((i) => ({ type: 'item-qty' as const, label: i.label, detail: i.detail })),
+    { type: 'double-separator' },
+    { type: 'center', text: data.footer ?? defaultFooter },
+  ]
+
+  return buildReceipt({ paper_width: data.paper_width, rows })
+}
+
 // ─── Network ─────────────────────────────────────────────────────────────────
 
 export async function sendToPrinter(ip: string, port: number, data: Buffer, timeoutMs = 5000): Promise<void> {

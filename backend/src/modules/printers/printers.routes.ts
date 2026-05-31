@@ -11,6 +11,7 @@ import {
   printPurchaseRequestSchema,
   printGoodsReceiptSchema,
   printDailyPrepOrderSchema,
+  printStockTransferSchema,
 } from './printers.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -27,6 +28,7 @@ router.get('/', canView('printers'), (req, res) => printersController.list(req, 
 router.post('/print/purchase-request/:id', canView('purchase_requests'), validateSchema(printPurchaseRequestSchema), (req, res) => printersController.printPurchaseRequest(req, res))
 router.post('/print/goods-receipt/:id', canView('goods_receipts'), validateSchema(printGoodsReceiptSchema), (req, res) => printersController.printGoodsReceipt(req, res))
 router.post('/print/daily-prep-order/:id', canView('daily_prep_orders'), validateSchema(printDailyPrepOrderSchema), (req, res) => printersController.printDailyPrepOrder(req, res))
+router.post('/print/stock-transfer/:id', canView('stock_transfers'), validateSchema(printStockTransferSchema), (req, res) => printersController.printStockTransfer(req, res))
 
 router.get('/:id', canView('printers'), validateSchema(printerIdSchema), (req, res) => printersController.getById(req, res))
 router.post('/', canInsert('printers'), validateSchema(createPrinterSchema), (req, res) => printersController.create(req, res))

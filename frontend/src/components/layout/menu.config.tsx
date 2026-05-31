@@ -387,6 +387,13 @@ export const menuItems: MenuItem[] = [
         module: "daily_prep_orders",
       },
       {
+        id: "inv-stock-transfers",
+        name: "Stock Transfer",
+        href: "/inventory/stock-transfers",
+        icon: <ArrowLeftRight size={16} />,
+        module: "stock_transfers",
+      },
+      {
         id: "inv-daily-stock-opname",
         name: "Stock Opname",
         href: "/inventory/daily-stock-opname",

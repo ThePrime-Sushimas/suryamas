@@ -347,6 +347,11 @@ const GeneralLedgerPage = lazy(() =>
 const DailyPrepOrdersPage = lazy(() => import('./features/daily-prep-orders2/pages/DailyPrepOrdersPage'));
 const DailyPrepOrderDetailPage = lazy(() => import('./features/daily-prep-orders2/pages/DailyPrepOrderDetailPage'));
 const CreateManualDpoPage = lazy(() => import('./features/daily-prep-orders2/pages/CreateManualDpoPage'));
+
+// Stock Transfers
+const StockTransfersPage = lazy(() => import('./features/stock-transfers/pages/StockTransfersPage'));
+const CreateStockTransferPage = lazy(() => import('./features/stock-transfers/pages/CreateStockTransferPage'));
+const StockTransferDetailPage = lazy(() => import('./features/stock-transfers/pages/StockTransferDetailPage'));
 const IncomeStatementPage = lazy(() =>
   import("./features/accounting/income-statement").then((m) => ({
     default: m.IncomeStatementPage,
@@ -1013,6 +1018,36 @@ function App() {
                       <RequirePermission module="daily_prep_orders">
                         <Suspense fallback={<LoadingFallback />}>
                           <DailyPrepOrderDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/stock-transfers"
+                    element={
+                      <RequirePermission module="stock_transfers">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <StockTransfersPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/stock-transfers/create"
+                    element={
+                      <RequirePermission module="stock_transfers">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CreateStockTransferPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/stock-transfers/:id"
+                    element={
+                      <RequirePermission module="stock_transfers">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <StockTransferDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }
