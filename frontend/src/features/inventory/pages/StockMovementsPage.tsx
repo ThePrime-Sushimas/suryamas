@@ -7,18 +7,17 @@ const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigit
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 const MOVEMENT_LABELS: Record<string, string> = {
-  IN_PURCHASE: 'Pembelian',
-  IN_TRANSFER: 'Transfer Masuk',
-  IN_RETURN: 'Pengembalian',
-  IN_PRODUCTION: 'Hasil Produksi',
+  IN_PURCHASE: 'Pembelian (+)',
+  IN_TRANSFER: 'Transfer Masuk (+)',
+  IN_RETURN: 'Pengembalian (+)',
+  IN_PRODUCTION: 'Hasil Produksi (+)',
   IN_ADJUSTMENT: 'Penyesuaian (+)',
-  IN_OPENING: 'Saldo Awal',
-  OUT_TRANSFER: 'Transfer Keluar',
-  OUT_LOAN: 'Pinjam Cabang',
-  OUT_DAILY: 'Turun Harian',
+  IN_OPENING: 'Saldo Awal (+)',
+  OUT_TRANSFER: 'Transfer Keluar (-)',
+  OUT_LOAN: 'Pinjam Cabang (-)',
   OUT_ADJUSTMENT: 'Penyesuaian (-)',
-  OUT_WASTE: 'Waste',
-  OUT_PRODUCTION: 'Bahan Produksi',
+  OUT_WASTE: 'Waste (-)',
+  OUT_PRODUCTION: 'Bahan Produksi (-)',
 }
 
 export default function StockMovementsPage() {
@@ -111,7 +110,7 @@ export default function StockMovementsPage() {
                 ) : movements.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">Tidak ada mutasi ditemukan</td></tr>
                 ) : movements.map(m => {
-                  const isIn = m.qty > 0
+                  const isIn = m.movement_type.startsWith('IN_')
                   return (
                     <tr key={m.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{fmtDate(m.movement_date)}</td>
@@ -126,8 +125,8 @@ export default function StockMovementsPage() {
                           {MOVEMENT_LABELS[m.movement_type] || m.movement_type}
                         </span>
                       </td>
-                      <td className={`px-4 py-3 text-right font-mono ${isIn ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                        {isIn ? '+' : ''}{fmt(m.qty)}
+                      <td className={`px-4 py-3 text-right font-mono font-medium ${isIn ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                        {isIn ? '+' : '−'}{fmt(Math.abs(m.qty))}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">{fmt(m.balance_after)}</td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-[150px] truncate">{m.notes || '—'}</td>
@@ -149,7 +148,7 @@ export default function StockMovementsPage() {
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
                 {movements.map(m => {
-                  const isIn = m.qty > 0
+                  const isIn = m.movement_type.startsWith('IN_')
                   return (
                     <div key={m.id} className="p-4 space-y-1.5">
                       <div className="flex justify-between items-start">
@@ -158,7 +157,7 @@ export default function StockMovementsPage() {
                           <p className="text-xs text-gray-500">{m.product_code} · {m.warehouse_name}</p>
                         </div>
                         <span className={`font-mono text-sm font-semibold shrink-0 ml-2 ${isIn ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                          {isIn ? '+' : ''}{fmt(m.qty)}
+                          {isIn ? '+' : '−'}{fmt(Math.abs(m.qty))}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-xs">

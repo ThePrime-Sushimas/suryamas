@@ -14,7 +14,6 @@ const MOVEMENT_LABELS: Record<string, string> = {
   IN_OPENING: 'Saldo Awal',
   OUT_TRANSFER: 'Transfer Keluar',
   OUT_LOAN: 'Pinjam Cabang',
-  OUT_DAILY: 'Turun Harian',
   OUT_ADJUSTMENT: 'Penyesuaian (-)',
   OUT_WASTE: 'Waste',
   OUT_PRODUCTION: 'Bahan Produksi',
