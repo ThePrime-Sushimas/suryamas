@@ -394,6 +394,13 @@ export const menuItems: MenuItem[] = [
         module: "stock_transfers",
       },
       {
+        id: "inv-stock-adjustments",
+        name: "Waste & Breakdown",
+        href: "/inventory/stock-adjustments",
+        icon: <AlertTriangle size={16} />,
+        module: "stock_adjustments",
+      },
+      {
         id: "inv-daily-stock-opname",
         name: "Stock Opname",
         href: "/inventory/daily-stock-opname",
