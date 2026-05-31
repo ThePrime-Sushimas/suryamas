@@ -149,7 +149,6 @@ export function OpnameLineRow({
           sessionId={sessionId}
           lineId={line.id}
           photoUrl={line.photo_url}
-          isHighRisk={line.is_high_risk}
           requiresPhoto={line.requires_photo}
           disabled={!isEditable}
         />

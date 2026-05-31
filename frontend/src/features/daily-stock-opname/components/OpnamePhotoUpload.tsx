@@ -6,12 +6,11 @@ interface OpnamePhotoUploadProps {
   sessionId: string
   lineId: string
   photoUrl: string | null
-  isHighRisk: boolean
   requiresPhoto: boolean
   disabled?: boolean
 }
 
-export function OpnamePhotoUpload({ sessionId, lineId, photoUrl, isHighRisk, requiresPhoto, disabled = false }: OpnamePhotoUploadProps) {
+export function OpnamePhotoUpload({ sessionId, lineId, photoUrl, requiresPhoto, disabled = false }: OpnamePhotoUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadPhoto = useUploadPhoto()
 
