@@ -401,8 +401,6 @@ export class StockAdjustmentsService {
     } else {
       // ─── BREAKDOWN: DR 1 line (susut), CR 1 line (input product) ──────
 
-      const inputStation = detail.input_product_name ? `Station ${(detail as any).station ?? 'GENERAL'}` : 'GENERAL'
-
       await stockAdjustmentsRepository.insertJournalLine(client, {
         journalHeaderId: journalId,
         lineNumber: lineNumber++,
