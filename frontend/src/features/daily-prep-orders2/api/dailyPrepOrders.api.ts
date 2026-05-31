@@ -63,6 +63,7 @@ export interface DailyPrepOrder {
   locked_at: string | null
   locked_by: string | null
   notes: string | null
+  station_codes: string[]
   line_count: number
   created_at: string
   lines?: DailyPrepOrderLine[]

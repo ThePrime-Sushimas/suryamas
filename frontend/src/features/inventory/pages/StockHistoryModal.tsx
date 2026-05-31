@@ -6,17 +6,17 @@ const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigit
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 const MOVEMENT_LABELS: Record<string, string> = {
-  IN_PURCHASE: 'Pembelian',
-  IN_TRANSFER: 'Transfer Masuk',
-  IN_RETURN: 'Pengembalian',
-  IN_PRODUCTION: 'Hasil Produksi',
+  IN_PURCHASE: 'Pembelian (+)',
+  IN_TRANSFER: 'Transfer Masuk (+)',
+  IN_RETURN: 'Pengembalian (+)',
+  IN_PRODUCTION: 'Hasil Produksi (+)',
   IN_ADJUSTMENT: 'Penyesuaian (+)',
-  IN_OPENING: 'Saldo Awal',
-  OUT_TRANSFER: 'Transfer Keluar',
-  OUT_LOAN: 'Pinjam Cabang',
+  IN_OPENING: 'Saldo Awal (+)',
+  OUT_TRANSFER: 'Transfer Keluar (-)',
+  OUT_LOAN: 'Pinjam Cabang (-)',
   OUT_ADJUSTMENT: 'Penyesuaian (-)',
-  OUT_WASTE: 'Waste',
-  OUT_PRODUCTION: 'Bahan Produksi',
+  OUT_WASTE: 'Waste (-)',
+  OUT_PRODUCTION: 'Bahan Produksi (-)',
 }
 
 interface Props {
