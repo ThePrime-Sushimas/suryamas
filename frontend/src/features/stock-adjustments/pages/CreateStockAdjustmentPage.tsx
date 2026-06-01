@@ -52,8 +52,8 @@ export default function CreateStockAdjustmentPage() {
   const [inputStock, setInputStock] = useState<number | null>(null)
   const [outputs, setOutputs] = useState<OutputLine[]>([])
 
-  // Warehouse query
-  const { data: warehousesData } = useWarehouses({ limit: 50, branch_id: branchId || undefined, warehouse_type: 'MAIN' })
+  // Warehouse query: READY for both WASTE and BREAKDOWN
+  const { data: warehousesData } = useWarehouses({ limit: 50, branch_id: branchId || undefined, warehouse_type: 'READY' })
   const warehouses = warehousesData?.data ?? []
 
   const handleBranchChange = (val: string) => { setBranchId(val); setWarehouseId('') }
@@ -70,9 +70,10 @@ export default function CreateStockAdjustmentPage() {
   const fetchStockForWasteLine = async (productId: string) => {
     if (!warehouseId) return
     try {
-      const res = await api.get('/stock/balances', { params: { warehouse_id: warehouseId, product_id: productId, limit: 1 } })
-      const qty = res?.data?.data?.[0] ? Number(res.data.data[0].qty) : 0
-      setWasteLines(prev => prev.map(l => l.product_id === productId ? { ...l, stock: qty } : l))
+      // Fetch READY warehouse stock
+      const readyRes = await api.get('/stock/balances', { params: { warehouse_id: warehouseId, product_id: productId, limit: 1 } })
+      const readyQty = readyRes?.data?.data?.[0] ? Number(readyRes.data.data[0].qty) : 0
+      setWasteLines(prev => prev.map(l => l.product_id === productId ? { ...l, stock: readyQty } : l))
     } catch { /* informational */ }
   }
 
@@ -155,33 +156,31 @@ export default function CreateStockAdjustmentPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-18 flex flex-col">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => navigate('/inventory/stock-adjustments')} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-4 sm:px-6 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button type="button" onClick={() => navigate('/inventory/stock-adjustments')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+            <Scissors className="w-6 h-6 text-indigo-600 shrink-0 hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">
                 {adjustmentType === 'WASTE' ? 'Catat Waste' : 'Catat Breakdown'}
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
                 {adjustmentType === 'WASTE' ? 'Buang barang rusak/expired (multi-produk)' : 'Pecah 1 produk jadi beberapa bagian'}
               </p>
             </div>
           </div>
-          <button type="button" onClick={handleSubmit} disabled={createAdjustment.isPending}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium shadow-sm disabled:opacity-50">
-            {createAdjustment.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</> : <><Plus className="w-4 h-4" /> Simpan</>}
-          </button>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-4 lg:p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
+      {/* Content - scrollable */}
+      <div className="flex-1 overflow-auto">
+        <div className="p-4 lg:p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
 
           {/* Type + Info */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 p-6">
@@ -190,12 +189,12 @@ export default function CreateStockAdjustmentPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipe</label>
               <div className="flex gap-3">
                 <label className={`flex-1 flex items-center gap-2 px-4 py-2.5 border rounded-xl cursor-pointer transition-all ${adjustmentType === 'WASTE' ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                  <input type="radio" name="adj_type" value="WASTE" checked={adjustmentType === 'WASTE'} onChange={() => { setAdjustmentType('WASTE'); setOutputs([]); setInputProduct(null); setInputQty(0) }} className="sr-only" />
+                  <input type="radio" name="adj_type" value="WASTE" checked={adjustmentType === 'WASTE'} onChange={() => { setAdjustmentType('WASTE'); setWarehouseId(''); setOutputs([]); setInputProduct(null); setInputQty(0) }} className="sr-only" />
                   <Trash2 className="w-4 h-4" />
                   <div><span className="text-sm font-medium">Waste</span><p className="text-xs text-gray-500 dark:text-gray-400">Buang barang (multi-produk)</p></div>
                 </label>
                 <label className={`flex-1 flex items-center gap-2 px-4 py-2.5 border rounded-xl cursor-pointer transition-all ${adjustmentType === 'BREAKDOWN' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                  <input type="radio" name="adj_type" value="BREAKDOWN" checked={adjustmentType === 'BREAKDOWN'} onChange={() => { setAdjustmentType('BREAKDOWN'); setWasteLines([]) }} className="sr-only" />
+                  <input type="radio" name="adj_type" value="BREAKDOWN" checked={adjustmentType === 'BREAKDOWN'} onChange={() => { setAdjustmentType('BREAKDOWN'); setWarehouseId(''); setWasteLines([]) }} className="sr-only" />
                   <Scissors className="w-4 h-4" />
                   <div><span className="text-sm font-medium">Breakdown</span><p className="text-xs text-gray-500 dark:text-gray-400">Pecah 1 produk → beberapa</p></div>
                 </label>
@@ -251,7 +250,7 @@ export default function CreateStockAdjustmentPage() {
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">#</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Produk</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Stok</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Stok Ready</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Qty Buang</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Satuan</th>
                         <th className="px-4 py-3 w-12"></th>
@@ -295,7 +294,7 @@ export default function CreateStockAdjustmentPage() {
                       <p className="text-xs text-gray-500 font-mono">{inputProduct.product_code}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-500">Stok</p>
+                      <p className="text-xs text-gray-500">Stok Ready</p>
                       <p className="font-mono text-sm text-gray-900 dark:text-white">{inputStock !== null ? inputStock.toLocaleString('id-ID') : '—'} {inputProduct.base_unit_name ?? ''}</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -312,7 +311,7 @@ export default function CreateStockAdjustmentPage() {
               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 p-6">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Produk Output ({outputs.length} item)</h2>
                 <div className="mb-4">
-                  <ProductSearchInput onSelect={handleAddOutput} excludeProductIds={[...(inputProduct ? [inputProduct.id] : []), ...outputs.map(o => o.product_id)]} placeholder="Cari produk output..." />
+                  <ProductSearchInput onSelect={handleAddOutput} excludeProductIds={outputs.map(o => o.product_id)} placeholder="Cari produk output..." />
                 </div>
                 {outputs.length === 0 ? (
                   <div className="text-center py-8 text-gray-400"><Scissors className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">Tambahkan produk hasil breakdown</p></div>
@@ -361,6 +360,38 @@ export default function CreateStockAdjustmentPage() {
               </div>
             </>
           )}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer - Fixed */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
+        <div className="flex items-center justify-between gap-3 max-w-4xl mx-auto">
+          <button
+            type="button"
+            onClick={() => navigate('/inventory/stock-adjustments')}
+            className="hidden sm:inline-flex px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={createAdjustment.isPending}
+            className="flex items-center justify-center gap-2 min-w-38 sm:min-w-44 px-5 py-3 bg-indigo-600 text-white rounded-2xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md shadow-indigo-600/25"
+          >
+            {createAdjustment.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                <span>Simpan</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

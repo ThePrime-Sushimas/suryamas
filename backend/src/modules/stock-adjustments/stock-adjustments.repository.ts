@@ -231,6 +231,13 @@ export class StockAdjustmentsRepository {
     return rows[0]?.company_id ?? null
   }
 
+  async getWarehouseType(warehouseId: string): Promise<string | null> {
+    const { rows } = await pool.query(
+      'SELECT warehouse_type FROM warehouses WHERE id = $1 AND deleted_at IS NULL', [warehouseId]
+    )
+    return rows[0]?.warehouse_type ?? null
+  }
+
   // ─── CONFIRM ──────────────────────────────────────────────────────────────────
 
   async lockAndFindById(client: PoolClient, id: string, branchIds: string[]): Promise<StockAdjustmentDetail | null> {

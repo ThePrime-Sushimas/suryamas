@@ -51,6 +51,15 @@ export class StockAdjustmentsService {
     const companyId = await stockAdjustmentsRepository.getWarehouseCompanyId(dto.warehouse_id)
     if (!companyId) throw new Error('Gudang tidak ditemukan')
 
+    // WASTE & BREAKDOWN: warehouse must be READY
+    const warehouseType = await stockAdjustmentsRepository.getWarehouseType(dto.warehouse_id)
+    if (!['WASTE', 'BREAKDOWN'].includes(dto.adjustment_type)) {
+      throw new BusinessRuleError(`Tipe adjustment '${dto.adjustment_type}' tidak valid`)
+    }
+    if (warehouseType !== 'READY') {
+      throw new BusinessRuleError(`Adjustment hanya dapat dilakukan di gudang tipe READY, bukan ${warehouseType}`)
+    }
+
     // Validate BREAKDOWN outputs don't exceed input
     if (dto.adjustment_type === 'BREAKDOWN' && dto.outputs && dto.input_qty) {
       const totalOutputQty = dto.outputs.reduce((sum, o) => sum + o.qty, 0)
@@ -96,9 +105,10 @@ export class StockAdjustmentsService {
 
   // ─── CONFIRM ──────────────────────────────────────────────────────────────────
 
-  async confirm(id: string, branchIds: string[], dto: ConfirmStockAdjustmentDto): Promise<StockAdjustmentDetail> {
+  async confirm(id: string, branchIds: string[], dto: ConfirmStockAdjustmentDto): Promise<StockAdjustmentDetail & { journal_pending?: boolean }> {
     let totalWasteValue = 0
     const lineCosts = new Map<string, number>()
+    let journalPending = false
 
     await stockRepository.withTransaction(async (client) => {
       const detail = await stockAdjustmentsRepository.lockAndFindById(client, id, branchIds)
@@ -115,14 +125,23 @@ export class StockAdjustmentsService {
 
       await stockAdjustmentsRepository.confirmAdjustment(client, id, dto.confirmed_by)
 
-      // Generate journal for waste value
-      if (totalWasteValue > 0) {
-        await this.generateWasteJournal(client, detail, totalWasteValue, dto.confirmed_by, lineCosts)
+      // Generate journal for waste value (non-blocking: if fails, just log it)
+      try {
+        if (totalWasteValue > 0) {
+          await this.generateWasteJournal(client, detail, totalWasteValue, dto.confirmed_by, lineCosts, false)
+        }
+      } catch (err) {
+        console.warn(`[StockAdjustmentConfirm] Journal generation failed for ${detail.adjustment_number}:`, err)
+        journalPending = true
+        // Don't re-throw: allow confirm to succeed even if journal fails
       }
     })
 
     await AuditService.log('UPDATE', 'stock_adjustment', id, dto.confirmed_by, { status: 'DRAFT' }, { status: 'CONFIRMED' })
-    return this.getById(id, branchIds)
+    const result = await this.getById(id, branchIds)
+    
+    // Attach flag for frontend to show warning
+    return { ...result, journal_pending: journalPending }
   }
 
   // ─── CONFIRM WASTE (multi-line) ───────────────────────────────────────────────
@@ -170,11 +189,11 @@ export class StockAdjustmentsService {
       totalWasteValue += qty * avgCost
     }
 
-    // Update waste_qty on header (sum of all line qtys for reporting)
+    // Update waste_qty and waste_value on header
     const totalWasteQty = detail.lines.reduce((sum, l) => sum + Number(l.qty), 0)
     await client.query(
-      `UPDATE stock_adjustments SET waste_qty = $2, updated_at = now() WHERE id = $1`,
-      [detail.id, totalWasteQty]
+      `UPDATE stock_adjustments SET waste_qty = $2, waste_value = $3, updated_at = now() WHERE id = $1`,
+      [detail.id, totalWasteQty, totalWasteValue]
     )
 
     return totalWasteValue
@@ -260,10 +279,10 @@ export class StockAdjustmentsService {
     const wasteQty = inputQty - totalOutputQty
     const wasteValue = wasteQty * avgCost
 
-    // Update waste_qty on header
+    // Update waste_qty and waste_value on header
     await client.query(
-      `UPDATE stock_adjustments SET waste_qty = $2, updated_at = now() WHERE id = $1`,
-      [detail.id, wasteQty]
+      `UPDATE stock_adjustments SET waste_qty = $2, waste_value = $3, updated_at = now() WHERE id = $1`,
+      [detail.id, wasteQty, wasteValue]
     )
 
     return wasteValue // Only waste portion gets journaled
@@ -310,12 +329,50 @@ export class StockAdjustmentsService {
     return this.getById(id, branchIds)
   }
 
+  // ─── GENERATE JOURNAL (manual retry) ──────────────────────────────────────
+
+  async generateJournal(id: string, branchIds: string[], userId: string): Promise<StockAdjustmentDetail> {
+    const detail = await this.getById(id, branchIds)
+
+    if (detail.status !== 'CONFIRMED') {
+      throw new BusinessRuleError('Hanya adjustment yang sudah CONFIRMED yang bisa di-post journal')
+    }
+
+    if (detail.journal_id) {
+      throw new BusinessRuleError('Adjustment ini sudah memiliki journal')
+    }
+
+    // Use saved waste_value from confirm, not recalculate
+    const wasteValue = Number(detail.waste_value ?? 0)
+    if (wasteValue <= 0) {
+      throw new BusinessRuleError('Adjustment ini tidak memiliki waste value untuk di-journal')
+    }
+
+    // Build lineCosts only for WASTE (needed for per-product journal lines)
+    const lineCosts = new Map<string, number>()
+    if (detail.adjustment_type === 'WASTE') {
+      for (const line of detail.lines) {
+        lineCosts.set(line.id, Number(line.cost_per_unit ?? 0))
+      }
+    }
+    // For BREAKDOWN: lineCosts not used (journal uses wasteValue directly)
+
+    await stockRepository.withTransaction(async (client) => {
+      await this.generateWasteJournal(client, detail, wasteValue, userId, lineCosts, true)
+    })
+
+    await AuditService.log('UPDATE', 'stock_adjustment_journal', id, userId, undefined, { action: 'generate_journal' })
+    return this.getById(id, branchIds)
+  }
+
   // ─── JOURNAL GENERATION (private) ──────────────────────────────────────────
 
   /**
    * Generate waste journal with:
-   * - DR side: grouped by station (1 line per station)
-   * - CR side: per product (1 line per product)
+   * - WASTE: DR grouped by station (1 line per station), CR per product (1 line per product)
+   *   Requires lineCosts map to be populated from detail.lines
+   * - BREAKDOWN: DR 1 line (susut), CR 1 line (input product)
+   *   lineCosts map is not used for BREAKDOWN
    */
   private async generateWasteJournal(
     client: import('pg').PoolClient,
@@ -323,16 +380,42 @@ export class StockAdjustmentsService {
     wasteValue: number,
     userId: string,
     lineCosts: Map<string, number>,
+    isManualRetry = false,
   ): Promise<void> {
     const companyId = detail.company_id
-    if (wasteValue <= 0) return
+    if (wasteValue <= 0) {
+      console.log(`[StockAdjustmentJournal] Skipped: waste value <= 0 (${wasteValue})`)
+      return
+    }
 
     const fiscalPeriod = await stockAdjustmentsRepository.findOpenFiscalPeriod(companyId, detail.adjustment_date, client)
-    if (!fiscalPeriod) return
+    if (!fiscalPeriod) {
+      if (isManualRetry) {
+        // Manual retry: user explicitly clicked button, so fiscal period MUST be open
+        throw new BusinessRuleError(`Fiscal period untuk tanggal ${detail.adjustment_date} belum dibuka`)
+      } else {
+        // Auto-generation during confirm: silently skip if fiscal period not open yet
+        console.warn(`[StockAdjustmentJournal] No open fiscal period found for company ${companyId} on date ${detail.adjustment_date}`)
+        return
+      }
+    }
 
     const selisihHpp = await stockAdjustmentsRepository.findCoaByCode(companyId, '510301', client)
     const bahanBaku = await stockAdjustmentsRepository.findCoaByCode(companyId, '110501', client)
-    if (!selisihHpp || !bahanBaku) return
+    if (!selisihHpp) {
+      const msg = `COA 510301 (Selisih HPP) tidak ditemukan untuk perusahaan ini`
+      if (isManualRetry) throw new BusinessRuleError(msg)
+      console.warn(`[StockAdjustmentJournal] ${msg}`)
+      return
+    }
+    if (!bahanBaku) {
+      const msg = `COA 110501 (Bahan Baku) tidak ditemukan untuk perusahaan ini`
+      if (isManualRetry) throw new BusinessRuleError(msg)
+      console.warn(`[StockAdjustmentJournal] ${msg}`)
+      return
+    }
+
+    console.log(`[StockAdjustmentJournal] Generating journal for adjustment ${detail.adjustment_number}, waste value: ${wasteValue}`)
 
     const period = fiscalPeriod.period
     const seq = await stockAdjustmentsRepository.getNextJournalSequence(client, companyId, period)

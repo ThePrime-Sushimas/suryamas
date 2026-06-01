@@ -21,6 +21,7 @@ router.get('/:id', canView('stock_adjustments'), validateSchema(adjustmentIdSche
 router.post('/', canInsert('stock_adjustments'), validateSchema(createAdjustmentSchema), (req, res) => stockAdjustmentsController.create(req, res))
 router.post('/:id/confirm', canUpdate('stock_adjustments'), validateSchema(adjustmentIdSchema), (req, res) => stockAdjustmentsController.confirm(req, res))
 router.post('/:id/cancel', canUpdate('stock_adjustments'), validateSchema(cancelAdjustmentSchema), (req, res) => stockAdjustmentsController.cancel(req, res))
+router.post('/:id/journal', canRelease('stock_adjustments'), validateSchema(adjustmentIdSchema), (req, res) => stockAdjustmentsController.generateJournal(req, res))
 router.delete('/:id', canDelete('stock_adjustments'), validateSchema(adjustmentIdSchema), (req, res) => stockAdjustmentsController.softDelete(req, res))
 router.delete('/:id/journal', canRelease('stock_adjustments'), validateSchema(adjustmentIdSchema), (req, res) => stockAdjustmentsController.deleteJournal(req, res))
 

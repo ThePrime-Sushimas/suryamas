@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
-import { ArrowLeft, Check, X, Loader2, Trash2, Scissors } from 'lucide-react'
-import { useStockAdjustment, useConfirmStockAdjustment, useCancelStockAdjustment } from '../api/stockAdjustments.api'
+import { ArrowLeft, Check, X, Loader2, Trash2, Scissors, RefreshCw } from 'lucide-react'
+import { useStockAdjustment, useConfirmStockAdjustment, useCancelStockAdjustment, useGenerateStockAdjustmentJournal } from '../api/stockAdjustments.api'
 import { useListNavigation } from '@/lib/urlFilters'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -29,13 +29,18 @@ export default function StockAdjustmentDetailPage() {
   const { data: adjustment, isLoading } = useStockAdjustment(id ?? '')
   const confirmMutation = useConfirmStockAdjustment()
   const cancelMutation = useCancelStockAdjustment()
+  const generateJournalMutation = useGenerateStockAdjustmentJournal()
   const [showCancelModal, setShowCancelModal] = useState(false)
 
   const handleConfirm = async () => {
     if (!id) return
     try {
-      await confirmMutation.mutateAsync(id)
-      toast.success('Adjustment dikonfirmasi — stok sudah diperbarui')
+      const result = await confirmMutation.mutateAsync(id)
+      if ((result as any)?.journal_pending) {
+        toast.warning('Adjustment dikonfirmasi! ⚠️ Fiscal period belum open — journal akan dibuat nanti')
+      } else {
+        toast.success('Adjustment dikonfirmasi — stok sudah diperbarui')
+      }
     } catch (err) {
       toast.error(parseApiError(err, 'Gagal konfirmasi'))
     }
@@ -49,6 +54,16 @@ export default function StockAdjustmentDetailPage() {
       setShowCancelModal(false)
     } catch (err) {
       toast.error(parseApiError(err, 'Gagal membatalkan'))
+    }
+  }
+
+  const handleGenerateJournal = async () => {
+    if (!id) return
+    try {
+      await generateJournalMutation.mutateAsync(id)
+      toast.success('Journal berhasil di-post')
+    } catch (err) {
+      toast.error(parseApiError(err, 'Gagal posting journal'))
     }
   }
 
@@ -129,6 +144,67 @@ export default function StockAdjustmentDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Warning: Journal Pending */}
+          {adjustment.status === 'CONFIRMED' && !adjustment.journal_id && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">Journal Pending</h3>
+                  <p className="text-sm text-amber-800 dark:text-amber-300 mt-1">
+                    Fiscal period untuk periode ini belum dibuka. Journal entry untuk waste/susut akan otomatis dibuat setelah fiscal period dibuka.
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+                    ✓ Stock movements sudah diproses  
+                    ⏳ Menunggu: Fiscal period dibuka
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleGenerateJournal}
+                    disabled={generateJournalMutation.isPending}
+                    className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+                  >
+                    {generateJournalMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Posting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Post Journal</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Success: Journal Posted */}
+          {adjustment.status === 'CONFIRMED' && adjustment.journal_id && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-green-900 dark:text-green-200">Journal Posted</h3>
+                  <p className="text-sm text-green-800 dark:text-green-300 mt-1">
+                    Journal entry untuk waste/susut sudah dibuat dan di-post ke akun.
+                  </p>
+                  <p className="text-xs text-green-700 dark:text-green-400 mt-2">
+                    Journal ID: <span className="font-mono">{adjustment.journal_id}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* WASTE: show lines */}
           {adjustment.adjustment_type === 'WASTE' && lines.length > 0 && (

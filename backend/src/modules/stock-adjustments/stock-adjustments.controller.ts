@@ -108,6 +108,17 @@ export class StockAdjustmentsController {
       await handleError(res, error, req, { action: 'delete_adjustment_journal', id: req.params.id })
     }
   }
+
+  generateJournal = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as IdReq).validated.params
+      const { branchIds, userId } = await adjustmentScope(req)
+      const result = await stockAdjustmentsService.generateJournal(id, branchIds, userId)
+      sendSuccess(res, result, 'Journal generated successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'generate_adjustment_journal', id: req.params.id })
+    }
+  }
 }
 
 export const stockAdjustmentsController = new StockAdjustmentsController()

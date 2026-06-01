@@ -19,6 +19,7 @@ export interface StockAdjustment {
   input_cost_per_unit: number
   input_movement_id: string | null
   waste_qty: number
+  waste_value: number
   journal_id: string | null
   confirmed_at: string | null
   confirmed_by: string | null

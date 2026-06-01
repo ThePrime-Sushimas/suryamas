@@ -152,3 +152,17 @@ export const useDeleteStockAdjustment = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-adjustments'] }),
   })
 }
+
+export const useGenerateStockAdjustmentJournal = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/stock-adjustments/${id}/journal`)
+      return data.data as StockAdjustment
+    },
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(result.id) })
+      qc.invalidateQueries({ queryKey: ['stock-adjustments'] })
+    },
+  })
+}
