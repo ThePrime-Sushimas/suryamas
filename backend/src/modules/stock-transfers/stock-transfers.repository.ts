@@ -265,6 +265,46 @@ export class StockTransfersRepository {
     )
   }
 
+  async updateHeader(
+    client: PoolClient,
+    id: string,
+    dto: {
+      source_warehouse_id: string
+      target_warehouse_id: string
+      transfer_date: string
+      notes?: string | null
+      updated_by?: string
+    },
+    sourceBranchId: string,
+    targetBranchId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE stock_transfers
+       SET source_warehouse_id = $2,
+           target_warehouse_id = $3,
+           source_branch_id = $4,
+           target_branch_id = $5,
+           transfer_date = $6,
+           notes = $7,
+           updated_at = now(),
+           updated_by = $8
+       WHERE id = $1`,
+      [id, dto.source_warehouse_id, dto.target_warehouse_id,
+       sourceBranchId, targetBranchId, dto.transfer_date, dto.notes ?? null, dto.updated_by ?? null]
+    )
+  }
+
+  async replaceLines(
+    client: PoolClient,
+    transferId: string,
+    lines: { product_id: string; qty: number; notes?: string | null }[]
+  ): Promise<void> {
+    // Delete existing lines
+    await client.query(`DELETE FROM stock_transfer_lines WHERE stock_transfer_id = $1`, [transferId])
+    // Insert new lines
+    await this.createLines(client, transferId, lines)
+  }
+
   async confirmTransfer(client: PoolClient, id: string, userId: string): Promise<void> {
     await client.query(
       `UPDATE stock_transfers

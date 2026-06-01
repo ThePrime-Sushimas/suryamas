@@ -42,6 +42,27 @@ export const createTransferSchema = z.object({
   })
 })
 
+// ─── UPDATE (DRAFT only — full replace) ──────────────────────────────────────
+
+export const updateTransferSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    // transfer_type intentionally excluded — cannot change type after creation
+    source_warehouse_id: z.string().uuid(),
+    target_warehouse_id: z.string().uuid(),
+    transfer_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    notes: z.string().nullable().optional(),
+    lines: z.array(z.object({
+      product_id: z.string().uuid(),
+      qty: z.number().gt(0, 'Qty harus lebih dari 0'),
+      notes: z.string().nullable().optional(),
+    })).min(1, 'Minimal 1 produk harus ditambahkan'),
+  }).refine(b => b.source_warehouse_id !== b.target_warehouse_id, {
+    message: 'Gudang sumber dan tujuan tidak boleh sama',
+    path: ['target_warehouse_id'],
+  })
+})
+
 // ─── CANCEL ───────────────────────────────────────────────────────────────────
 
 export const returnLoanSchema = z.object({

@@ -5,7 +5,7 @@ import { canView, canInsert, canUpdate, canDelete, canRelease } from '../../midd
 import { validateSchema } from '../../middleware/validation.middleware'
 import { stockTransfersController } from './stock-transfers.controller'
 import {
-  transferIdSchema, transferListSchema, createTransferSchema, cancelTransferSchema, returnLoanSchema,
+  transferIdSchema, transferListSchema, createTransferSchema, cancelTransferSchema, returnLoanSchema, updateTransferSchema,
 } from './stock-transfers.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -24,6 +24,9 @@ router.get('/:id', canView('stock_transfers'), validateSchema(transferIdSchema),
 
 // Create
 router.post('/', canInsert('stock_transfers'), validateSchema(createTransferSchema), (req, res) => stockTransfersController.create(req, res))
+
+// Update (DRAFT only)
+router.put('/:id', canUpdate('stock_transfers'), validateSchema(updateTransferSchema), (req, res) => stockTransfersController.update(req, res))
 
 // Confirm
 router.post('/:id/confirm', canUpdate('stock_transfers'), validateSchema(transferIdSchema), (req, res) => stockTransfersController.confirm(req, res))

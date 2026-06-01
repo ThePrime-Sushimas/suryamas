@@ -5,12 +5,13 @@ import { handleError } from '../../utils/error-handler.util'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import type {
-  transferIdSchema, transferListSchema, createTransferSchema, cancelTransferSchema, returnLoanSchema,
+  transferIdSchema, transferListSchema, createTransferSchema, cancelTransferSchema, returnLoanSchema, updateTransferSchema,
 } from './stock-transfers.schema'
 
 type ListReq = ValidatedAuthRequest<typeof transferListSchema>
 type IdReq = ValidatedAuthRequest<typeof transferIdSchema>
 type CreateReq = ValidatedAuthRequest<typeof createTransferSchema>
+type UpdateReq = ValidatedAuthRequest<typeof updateTransferSchema>
 type CancelReq = ValidatedAuthRequest<typeof cancelTransferSchema>
 type ReturnReq = ValidatedAuthRequest<typeof returnLoanSchema>
 
@@ -64,6 +65,17 @@ export class StockTransfersController {
       sendSuccess(res, result, 'Stock transfer created', 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'create_stock_transfer' })
+    }
+  }
+
+  update = async (req: Request, res: Response) => {
+    try {
+      const { params, body } = (req as UpdateReq).validated
+      const { branchIds, userId } = await transferScope(req)
+      const result = await stockTransfersService.update(params.id, branchIds, { ...body, updated_by: userId })
+      sendSuccess(res, result, 'Stock transfer updated')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_stock_transfer', id: req.params.id })
     }
   }
 

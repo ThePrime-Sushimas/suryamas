@@ -351,6 +351,7 @@ const CreateManualDpoPage = lazy(() => import('./features/daily-prep-orders2/pag
 // Stock Transfers
 const StockTransfersPage = lazy(() => import('./features/stock-transfers/pages/StockTransfersPage'));
 const CreateStockTransferPage = lazy(() => import('./features/stock-transfers/pages/CreateStockTransferPage'));
+const EditStockTransferPage = lazy(() => import('./features/stock-transfers/pages/EditStockTransferPage'));
 const StockTransferDetailPage = lazy(() => import('./features/stock-transfers/pages/StockTransferDetailPage'));
 
 // Stock Adjustments (Waste & Breakdown)
@@ -1043,6 +1044,16 @@ function App() {
                       <RequirePermission module="stock_transfers">
                         <Suspense fallback={<LoadingFallback />}>
                           <CreateStockTransferPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/stock-transfers/:id/edit"
+                    element={
+                      <RequirePermission module="stock_transfers">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <EditStockTransferPage />
                         </Suspense>
                       </RequirePermission>
                     }

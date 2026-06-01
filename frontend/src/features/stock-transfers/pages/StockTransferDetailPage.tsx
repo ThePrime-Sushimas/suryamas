@@ -1,11 +1,12 @@
-import { useParams } from 'react-router-dom'
-import { ArrowLeft, Check, X, Loader2, ArrowRightLeft, Printer, Undo2 } from 'lucide-react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Check, X, Loader2, ArrowRightLeft, Printer, Undo2, Pencil } from 'lucide-react'
 import { useStockTransfer, useConfirmStockTransfer, useCancelStockTransfer, useReturnLoan } from '../api/stockTransfers.api'
 import { useListNavigation } from '@/lib/urlFilters'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useState } from 'react'
 import { StockTransferPrintModal } from '../components/StockTransferPrintModal'
+import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
@@ -16,8 +17,10 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function StockTransferDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { backToList } = useListNavigation('/inventory/stock-transfers')
   const toast = useToast()
+  const canUpdate = usePermissionStore(s => s.hasPermission('stock_transfers', 'update'))
 
   const { data: transfer, isLoading } = useStockTransfer(id ?? '')
   const confirmMutation = useConfirmStockTransfer()
@@ -114,6 +117,14 @@ export default function StockTransferDetailPage() {
           {/* Actions */}
           {transfer.status === 'DRAFT' && (
             <div className="flex items-center gap-2">
+              {canUpdate && (
+                <button
+                  onClick={() => navigate(`/inventory/stock-transfers/${id}/edit`)}
+                  className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
+                >
+                  <Pencil className="w-4 h-4" /> Edit
+                </button>
+              )}
               <button
                 onClick={() => setShowCancelModal(true)}
                 disabled={cancelMutation.isPending}

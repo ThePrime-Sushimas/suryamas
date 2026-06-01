@@ -78,6 +78,20 @@ export interface CreateStockTransferDto {
   created_by?: string
 }
 
+export interface UpdateStockTransferDto {
+  // transfer_type excluded — cannot change after creation
+  source_warehouse_id: string
+  target_warehouse_id: string
+  transfer_date: string
+  notes?: string | null
+  lines: {
+    product_id: string
+    qty: number
+    notes?: string | null
+  }[]
+  updated_by?: string
+}
+
 export interface ConfirmStockTransferDto {
   confirmed_by: string
 }

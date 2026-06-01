@@ -9,7 +9,7 @@ import { BusinessRuleError } from '../../utils/errors.base'
 import { AuditService } from '../monitoring/monitoring.service'
 import type { MovementType, ReferenceType } from '../stock/stock.types'
 import type {
-  CreateStockTransferDto, ConfirmStockTransferDto,
+  CreateStockTransferDto, UpdateStockTransferDto, ConfirmStockTransferDto,
   ReturnLoanDto, CancelStockTransferDto,
   StockTransferDetail
 } from './stock-transfers.types'
@@ -91,6 +91,41 @@ export class StockTransfersService {
     })
 
     return this.getById(transferId, branchIds)
+  }
+
+  // ─── UPDATE (DRAFT only) ─────────────────────────────────────────────────────
+
+  async update(id: string, branchIds: string[], dto: UpdateStockTransferDto): Promise<StockTransferDetail> {
+    await stockRepository.withTransaction(async (client) => {
+      const detail = await stockTransfersRepository.lockAndFindById(client, id, branchIds)
+      if (!detail) throw new StockTransferNotFoundError(id)
+      if (detail.status !== 'DRAFT') {
+        throw new StockTransferInvalidStatusError(detail.status, 'DRAFT')
+      }
+
+      // Resolve branch IDs from new warehouses
+      const sourceBranchId = await stockTransfersRepository.getWarehouseBranchId(client, dto.source_warehouse_id)
+      const targetBranchId = await stockTransfersRepository.getWarehouseBranchId(client, dto.target_warehouse_id)
+      if (!sourceBranchId) throw new Error('Gudang sumber tidak ditemukan')
+      if (!targetBranchId) throw new Error('Gudang tujuan tidak ditemukan')
+
+      // User must have access to source branch
+      if (!branchIds.includes(sourceBranchId)) {
+        throw new Error('Anda tidak memiliki akses ke cabang gudang sumber')
+      }
+
+      await stockTransfersRepository.updateHeader(client, id, dto, sourceBranchId, targetBranchId)
+      await stockTransfersRepository.replaceLines(client, id, dto.lines)
+
+      await AuditService.log('UPDATE', 'stock_transfer', id, dto.updated_by ?? '', undefined, {
+        source_warehouse_id: dto.source_warehouse_id,
+        target_warehouse_id: dto.target_warehouse_id,
+        transfer_date: dto.transfer_date,
+        line_count: dto.lines.length,
+      })
+    })
+
+    return this.getById(id, branchIds)
   }
 
   // ─── CONFIRM ──────────────────────────────────────────────────────────────────

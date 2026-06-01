@@ -122,6 +122,25 @@ export const useCreateStockTransfer = () => {
 
 // ─── CONFIRM ─────────────────────────────────────────────────────────────────
 
+export const useUpdateStockTransfer = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...body }: {
+      id: string
+      // transfer_type excluded — cannot change after creation
+      source_warehouse_id: string
+      target_warehouse_id: string
+      transfer_date: string
+      notes?: string | null
+      lines: { product_id: string; qty: number; notes?: string | null }[]
+    }) => {
+      const { data } = await api.put(`/stock-transfers/${id}`, body)
+      return data.data as StockTransfer
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-transfers'] }),
+  })
+}
+
 export const useConfirmStockTransfer = () => {
   const qc = useQueryClient()
   return useMutation({
