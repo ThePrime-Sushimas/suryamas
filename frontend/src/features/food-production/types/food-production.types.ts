@@ -57,6 +57,8 @@ export interface WipItem {
   estimated_cost: number
   cost_per_unit: number
   notes: string | null
+  output_warehouse: 'READY' | 'FINISHED_GOODS'
+  output_product_id: string | null
   is_active: boolean
 }
 

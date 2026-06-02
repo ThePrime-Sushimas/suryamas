@@ -1,4 +1,4 @@
-export type WarehouseType = 'MAIN' | 'READY' | 'CENTRAL_STOCK' | 'CENTRAL_KITCHEN'
+export type WarehouseType = 'MAIN' | 'READY' | 'FINISHED_GOODS'
 
 export interface Warehouse {
   id: string

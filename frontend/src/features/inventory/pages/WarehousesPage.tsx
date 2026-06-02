@@ -13,15 +13,13 @@ import type { Warehouse, WarehouseType } from '../types'
 const WAREHOUSE_TYPE_LABELS: Record<WarehouseType, string> = {
   MAIN: 'Gudang Utama',
   READY: 'Gudang Ready',
-  CENTRAL_STOCK: 'Central Stock',
-  CENTRAL_KITCHEN: 'Central Kitchen',
+  FINISHED_GOODS: 'Finished Goods',
 }
 
 const WAREHOUSE_TYPE_COLORS: Record<WarehouseType, string> = {
   MAIN: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   READY: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-  CENTRAL_STOCK: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-  CENTRAL_KITCHEN: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  FINISHED_GOODS: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
 }
 
 export default function WarehousesPage() {

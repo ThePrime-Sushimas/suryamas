@@ -83,6 +83,14 @@ export class WarehousesRepository {
     return rows
   }
 
+  async findByBranchAndType(branchId: string, warehouseType: string): Promise<string | null> {
+    const { rows } = await pool.query(
+      `SELECT id FROM warehouses WHERE branch_id = $1 AND warehouse_type = $2 AND deleted_at IS NULL LIMIT 1`,
+      [branchId, warehouseType]
+    )
+    return rows.length > 0 ? (rows[0].id as string) : null
+  }
+
   async create(companyId: string, dto: CreateWarehouseDto): Promise<Warehouse> {
     const { rows } = await pool.query(
       `INSERT INTO warehouses (company_id, branch_id, warehouse_code, warehouse_name, warehouse_type, is_active, created_by, updated_by)

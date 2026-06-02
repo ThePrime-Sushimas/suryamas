@@ -82,10 +82,9 @@ export class WipRepository {
     const where = `WHERE ${conditions.join(' AND ')}`
     
     // Add pagination params for subquery
-    params.push(pagination.limit)
-    params.push(pagination.offset)
-    const limitIdx = idx
-    const offsetIdx = idx + 1
+    const dataParams = [...params, pagination.limit, pagination.offset]
+    const limitIdx = params.length + 1      // Correct: position in dataParams
+    const offsetIdx = params.length + 2     // Correct: position in dataParams
     
     const [dataRes, countRes] = await Promise.all([
       // Optimize: Apply LIMIT/OFFSET to WIP items BEFORE joining positions
@@ -122,9 +121,9 @@ export class WipRepository {
                   w.estimated_cost, w.cost_per_unit, w.notes, w.is_active, w.is_deleted,
                   w.created_at, w.updated_at, w.created_by, w.updated_by, w.deleted_at
          ORDER BY w.wip_name ASC`,
-        params
+        dataParams
       ),
-      pool.query(`SELECT COUNT(*)::int AS total FROM wip_items w ${where}`, params.slice(0, idx)),
+      pool.query(`SELECT COUNT(*)::int AS total FROM wip_items w ${where}`, params),
     ])
     
     const data = dataRes.rows.map(row => ({
@@ -182,9 +181,9 @@ export class WipRepository {
       await client.query('BEGIN')
 
       const { rows } = await client.query(
-        `INSERT INTO wip_items (company_id, wip_code, wip_name, uom, yield_qty, notes, is_active, created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8) RETURNING *`,
-        [companyId, dto.wip_code, dto.wip_name, dto.uom ?? 'gram', dto.yield_qty ?? 1, dto.notes ?? null, dto.is_active ?? true, dto.created_by ?? null]
+        `INSERT INTO wip_items (company_id, wip_code, wip_name, uom, yield_qty, notes, is_active, output_warehouse, output_product_id, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10) RETURNING *`,
+        [companyId, dto.wip_code, dto.wip_name, dto.uom ?? 'gram', dto.yield_qty ?? 1, dto.notes ?? null, dto.is_active ?? true, dto.output_warehouse ?? 'READY', dto.output_product_id ?? null, dto.created_by ?? null]
       )
       const wipItem = rows[0] as WipItem
 
@@ -219,6 +218,8 @@ export class WipRepository {
       if (dto.yield_qty !== undefined) { values.push(dto.yield_qty); fields.push(`yield_qty = $${idx++}`) }
       if (dto.notes !== undefined) { values.push(dto.notes); fields.push(`notes = $${idx++}`) }
       if (dto.is_active !== undefined) { values.push(dto.is_active); fields.push(`is_active = $${idx++}`) }
+      if (dto.output_warehouse !== undefined) { values.push(dto.output_warehouse); fields.push(`output_warehouse = $${idx++}`) }
+      if (dto.output_product_id !== undefined) { values.push(dto.output_product_id); fields.push(`output_product_id = $${idx++}`) }
       if (dto.updated_by) { values.push(dto.updated_by); fields.push(`updated_by = $${idx++}`) }
 
       if (fields.length > 1) {

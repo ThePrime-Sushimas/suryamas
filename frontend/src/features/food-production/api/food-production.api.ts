@@ -286,7 +286,7 @@ export const useWipItem = (id: string) =>
 export const useCreateWipItem = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { wip_code: string; wip_name: string; uom?: string; yield_qty?: number; notes?: string; ingredients?: Array<{ product_id: string; qty: number; uom?: string }> }) => {
+    mutationFn: async (body: { wip_code: string; wip_name: string; uom?: string; yield_qty?: number; notes?: string; output_warehouse?: 'READY' | 'FINISHED_GOODS'; output_product_id?: string | null; ingredients?: Array<{ product_id: string; qty: number; uom?: string }> }) => {
       const { data } = await api.post('/wip-items', body)
       return data.data as WipItem
     },
@@ -297,7 +297,7 @@ export const useCreateWipItem = () => {
 export const useUpdateWipItem = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; wip_name?: string; uom?: string; yield_qty?: number; notes?: string; is_active?: boolean; ingredients?: Array<{ product_id: string; qty: number; uom?: string }> }) => {
+    mutationFn: async ({ id, ...body }: { id: string; wip_name?: string; uom?: string; yield_qty?: number; notes?: string; output_warehouse?: 'READY' | 'FINISHED_GOODS'; output_product_id?: string | null; is_active?: boolean; ingredients?: Array<{ product_id: string; qty: number; uom?: string }> }) => {
       const { data } = await api.put(`/wip-items/${id}`, body)
       return data.data as WipItem
     },
@@ -471,6 +471,8 @@ export interface ProductionOrderLine {
   total_yield: number | null
   cost_per_batch: number
   total_cost: number | null
+  output_warehouse: 'READY' | 'FINISHED_GOODS'
+  output_product_id: string | null
   materials: ProductionOrderMaterial[]
 }
 

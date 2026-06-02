@@ -5,6 +5,7 @@ import { AuditService } from '../../monitoring/monitoring.service'
 import { productionOrdersRepository } from './production-orders.repository'
 import { WipRepository } from '../wip/wip.repository'
 import { filterAccessibleWipIds } from '../wip/wip-access.util'
+import { warehousesRepository } from '../../warehouses/warehouses.repository'
 import {
   ProductionOrderNotFoundError, ProductionOrderNotDraftError,
   ProductionOrderNotCompletedError, ProductionOrderNotVoidableError,
@@ -130,6 +131,129 @@ class ProductionOrdersService {
     return order
   }
 
+  private async createStockMovementsForOrder(
+    orderId: string,
+    client: PoolClient,
+    order: ProductionOrderWithDetails,
+    userId: string
+  ): Promise<void> {
+    // ── 1. Load lines dengan wip output config ──────────────────────────────
+    const lines = await productionOrdersRepository.getProductionLinesWithWip(client, orderId)
+    if (lines.length === 0) return
+
+    // ── 2. Tentukan source warehouse per line ───────────────────────────────
+    const sourceTypeMap: Record<string, 'MAIN' | 'READY'> = {}
+    for (const line of lines) {
+      sourceTypeMap[line.line_id] = line.output_warehouse === 'FINISHED_GOODS' ? 'MAIN' : 'READY'
+    }
+
+    // Cache warehouse id lookup
+    const warehouseCache = new Map<string, string>()
+    const getWarehouseId = async (type: string): Promise<string> => {
+      if (warehouseCache.has(type)) return warehouseCache.get(type)!
+      const warehouseId = await warehousesRepository.findByBranchAndType(order.branch_id, type)
+      if (!warehouseId) throw new BusinessRuleError(`Gudang tipe '${type}' tidak ditemukan untuk cabang ini`)
+      warehouseCache.set(type, warehouseId)
+      return warehouseId
+    }
+
+    // Validasi semua warehouse yang dibutuhkan ada
+    const neededTypes = new Set([...Object.values(sourceTypeMap), ...lines.map(l => l.output_warehouse)])
+    for (const type of neededTypes) {
+      await getWarehouseId(type)
+    }
+
+    // ── 3. Load materials per line ──────────────────────────────────────────
+    const materials = await productionOrdersRepository.getProductionMaterials(client, orderId)
+    const materialsByLine = new Map<string, typeof materials>()
+    for (const mat of materials) {
+      const arr = materialsByLine.get(mat.production_line_id) ?? []
+      arr.push(mat)
+      materialsByLine.set(mat.production_line_id, arr)
+    }
+
+    // ── 4. Process per line ─────────────────────────────────────────────────
+    for (const line of lines) {
+      const sourceWarehouseId = await getWarehouseId(sourceTypeMap[line.line_id])
+      const outputWarehouseId = await getWarehouseId(line.output_warehouse)
+      const lineMaterials = materialsByLine.get(line.line_id) ?? []
+
+      // ── 4a. OUT_PRODUCTION: potong bahan baku dari source warehouse ─────
+      for (const mat of lineMaterials) {
+        const balance = await productionOrdersRepository.getStockBalance(client, sourceWarehouseId, mat.product_id)
+
+        // Validasi stok cukup
+        if (balance.qty < Number(mat.actual_qty)) {
+          throw new BusinessRuleError(
+            `Stok tidak cukup untuk ${mat.product_name}. Tersedia: ${balance.qty}, Dibutuhkan: ${mat.actual_qty}`
+          )
+        }
+
+        const newQty = balance.qty - Number(mat.actual_qty)
+        const unitCost = Number(mat.actual_qty) > 0 ? Number(mat.total_cost) / Number(mat.actual_qty) : balance.avg_cost
+
+        // Insert OUT_PRODUCTION movement
+        const outMovId = await productionOrdersRepository.insertStockMovement(client, {
+          warehouse_id: sourceWarehouseId,
+          product_id: mat.product_id,
+          movement_type: 'OUT_PRODUCTION',
+          qty: -Number(mat.actual_qty),
+          cost_per_unit: unitCost,
+          total_cost: -Number(mat.total_cost),
+          balance_after: newQty,
+          reference_type: 'production_order',
+          reference_id: orderId,
+          movement_date: order.production_date,
+          notes: `Produksi ${order.order_number} - ${mat.product_name}`,
+          created_by: userId,
+        })
+
+        // Update reference di materials (only track OUT movement)
+        await productionOrdersRepository.updateMaterialStockMovementRef(client, mat.id, outMovId)
+
+        // Upsert stock balance source (pertahankan avg_cost saat stok habis untuk perhitungan berikutnya)
+        await productionOrdersRepository.upsertStockBalance(client, sourceWarehouseId, mat.product_id, newQty, balance.avg_cost)
+      }
+
+      // ── 4b. IN_PRODUCTION: masukkan hasil ke output warehouse ───────────
+      if (!line.output_product_id) continue
+
+      const totalYieldQty = Number(line.actual_batch_qty) * Number(line.yield_per_batch)
+      if (totalYieldQty <= 0) continue
+
+      const lineTotalCost = lineMaterials.reduce((sum: number, m) => sum + Number(m.total_cost), 0)
+      const yieldAvgCost = totalYieldQty > 0 ? lineTotalCost / totalYieldQty : 0
+
+      const outBalance = await productionOrdersRepository.getStockBalance(client, outputWarehouseId, line.output_product_id)
+
+      // Weighted average cost
+      const newOutQty = outBalance.qty + totalYieldQty
+      const newOutAvgCost = newOutQty > 0 ? (outBalance.qty * outBalance.avg_cost + lineTotalCost) / newOutQty : yieldAvgCost
+
+      // Insert IN_PRODUCTION movement
+      const inMovId = await productionOrdersRepository.insertStockMovement(client, {
+        warehouse_id: outputWarehouseId,
+        product_id: line.output_product_id,
+        movement_type: 'IN_PRODUCTION',
+        qty: totalYieldQty,
+        cost_per_unit: yieldAvgCost,
+        total_cost: lineTotalCost,
+        balance_after: newOutQty,
+        reference_type: 'production_order',
+        reference_id: orderId,
+        movement_date: order.production_date,
+        notes: `Hasil produksi ${order.order_number} - ${line.wip_name}`,
+        created_by: userId,
+      })
+
+      // Update reference di line
+      await productionOrdersRepository.updateLineStockMovementRef(client, line.line_id, inMovId, 'in')
+
+      // Upsert stock balance output warehouse
+      await productionOrdersRepository.upsertStockBalance(client, outputWarehouseId, line.output_product_id, newOutQty, newOutAvgCost)
+    }
+  }
+
   async complete(id: string, companyIds: string[], branchIds: string[], dto: CompleteProductionOrderDto): Promise<void> {
     const order = await this.getOrderForMutation(id, companyIds, branchIds)
     if (order.status !== 'DRAFT') throw new ProductionOrderNotDraftError()
@@ -174,6 +298,9 @@ class ProductionOrdersService {
           totalWasteCost += wasteCost
         }
       }
+
+      // Create stock movements for materials deducted
+      await this.createStockMovementsForOrder(id, client, order, dto.user_id)
 
       await productionOrdersRepository.updateHeaderStatus(client, id, {
         status: 'COMPLETED',

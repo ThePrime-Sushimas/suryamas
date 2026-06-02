@@ -38,6 +38,8 @@ export default function WipDetailPage() {
   const [uom, setUom] = useState('gram')
   const [yieldQty, setYieldQty] = useState(1)
   const [notes, setNotes] = useState('')
+  const [outputWarehouse, setOutputWarehouse] = useState<'READY' | 'FINISHED_GOODS'>('READY')
+  const [outputProductId, setOutputProductId] = useState<string>('')
   const [ingredients, setIngredients] = useState<EditableIngredient[]>([])
   const [dirty, setDirty] = useState(false)
   
@@ -78,6 +80,8 @@ export default function WipDetailPage() {
       setUom(wipItem.data.uom)
       setYieldQty(wipItem.data.yield_qty)
       setNotes(wipItem.data.notes || '')
+      setOutputWarehouse((wipItem.data.output_warehouse as 'READY' | 'FINISHED_GOODS') || 'READY')
+      setOutputProductId(wipItem.data.output_product_id || '')
       setIngredients(wipItem.data.ingredients.map(i => ({
         product_id: i.product_id,
         qty: i.qty,
@@ -132,7 +136,7 @@ export default function WipDetailPage() {
       if (!wipCode.trim() || !wipName.trim()) { toast.warning('Kode dan nama WIP wajib diisi'); return }
       const validIngredients = ingredients.filter(i => i.product_id && i.qty > 0)
       try {
-        const created = await createWip.mutateAsync({ wip_code: wipCode, wip_name: wipName, uom, yield_qty: yieldQty, notes: notes || undefined, ingredients: validIngredients })
+        const created = await createWip.mutateAsync({ wip_code: wipCode, wip_name: wipName, uom, yield_qty: yieldQty, notes: notes || undefined, output_warehouse: outputWarehouse, output_product_id: outputProductId || undefined, ingredients: validIngredients })
         toast.success('WIP berhasil dibuat')
         navigate(`/food-production/wip/${created.id}`, { replace: true })
       } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal membuat WIP')) }
@@ -140,7 +144,7 @@ export default function WipDetailPage() {
       if (!id) return
       const validIngredients = ingredients.filter(i => i.product_id && i.qty > 0)
       try {
-        await updateWip.mutateAsync({ id, wip_name: wipName, uom, yield_qty: yieldQty, notes: notes || undefined, ingredients: validIngredients })
+        await updateWip.mutateAsync({ id, wip_name: wipName, uom, yield_qty: yieldQty, notes: notes || undefined, output_warehouse: outputWarehouse, output_product_id: outputProductId || undefined, ingredients: validIngredients })
         toast.success('WIP berhasil disimpan')
         navigate('/food-production/wip')
       } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menyimpan WIP')) }
@@ -274,6 +278,43 @@ export default function WipDetailPage() {
             <textarea value={notes} onChange={e => { setNotes(e.target.value); setDirty(true) }} rows={2}
               className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 focus:border-purple-500 outline-none" />
           </div>
+
+          {/* Output Warehouse */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Output Warehouse</label>
+            <select value={outputWarehouse} onChange={e => { setOutputWarehouse(e.target.value as 'READY' | 'FINISHED_GOODS'); setDirty(true) }}
+              className="w-full h-10 px-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 focus:border-purple-500 outline-none">
+              <option value="READY">READY — branch biasa</option>
+              <option value="FINISHED_GOODS">FINISHED_GOODS — central kitchen</option>
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1">
+              {outputWarehouse === 'FINISHED_GOODS'
+                ? 'Hasil produksi masuk ke gudang Finished Goods.'
+                : 'Hasil produksi kembali ke gudang Ready.'}
+            </p>
+          </div>
+
+          {/* Output Product — hanya muncul kalau FINISHED_GOODS */}
+          {outputWarehouse === 'FINISHED_GOODS' && (
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Product Hasil Produksi</label>
+              <select value={outputProductId} onChange={e => { setOutputProductId(e.target.value); setDirty(true) }}
+                disabled={products.isLoading}
+                className="w-full h-10 px-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 focus:border-purple-500 outline-none disabled:opacity-50">
+                <option value="">
+                  {products.isLoading ? 'Memuat produk...' : 'Pilih product hasil...'}
+                </option>
+                {(products.data || []).map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.product_code} — {p.product_name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Product ini yang akan masuk ke stock saat produksi selesai (IN_PRODUCTION movement).
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

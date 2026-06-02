@@ -1,6 +1,6 @@
 import { z } from '@/lib/openapi'
 
-const warehouseTypes = ['MAIN', 'READY', 'CENTRAL_STOCK', 'CENTRAL_KITCHEN'] as const
+const warehouseTypes = ['MAIN', 'READY', 'FINISHED_GOODS'] as const
 
 export const createWarehouseSchema = z.object({
   body: z.object({

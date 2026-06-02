@@ -8,6 +8,8 @@ export interface WipItem {
   estimated_cost: number
   cost_per_unit: number
   notes: string | null
+  output_warehouse: 'READY' | 'FINISHED_GOODS'
+  output_product_id: string | null
   is_active: boolean
   is_deleted: boolean
   created_at: string
@@ -45,6 +47,8 @@ export interface CreateWipItemDto {
   uom?: string
   yield_qty?: number
   notes?: string | null
+  output_warehouse?: 'READY' | 'FINISHED_GOODS'
+  output_product_id?: string | null
   is_active?: boolean
   created_by?: string
   updated_by?: string
@@ -56,6 +60,8 @@ export interface UpdateWipItemDto {
   uom?: string
   yield_qty?: number
   notes?: string | null
+  output_warehouse?: 'READY' | 'FINISHED_GOODS'
+  output_product_id?: string | null
   is_active?: boolean
   updated_by?: string
   ingredients?: CreateWipIngredientDto[]

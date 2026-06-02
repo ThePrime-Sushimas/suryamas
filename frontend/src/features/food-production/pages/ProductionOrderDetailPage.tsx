@@ -161,6 +161,16 @@ export default function ProductionOrderDetailPage() {
             <div>
               <span className="text-sm font-semibold text-gray-900 dark:text-white">{line.wip_name}</span>
               <span className="ml-2 text-xs text-gray-400 font-mono">{line.wip_code}</span>
+              {/* Output Warehouse Badge */}
+              <div className="mt-1 flex items-center gap-2">
+                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${
+                  line.output_warehouse === 'FINISHED_GOODS'
+                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
+                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                }`}>
+                  {line.output_warehouse === 'FINISHED_GOODS' ? '→ Finished Goods' : '→ Ready'}
+                </span>
+              </div>
             </div>
             <div className="text-right text-xs text-gray-500">
               {isEditing ? (

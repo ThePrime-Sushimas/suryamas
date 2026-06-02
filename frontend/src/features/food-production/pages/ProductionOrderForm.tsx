@@ -161,7 +161,11 @@ export default function ProductionOrderForm() {
                         <option value="">
                           {!branchId ? 'Pilih cabang dulu...' : wipItems.isLoading ? 'Memuat WIP...' : 'Pilih WIP...'}
                         </option>
-                        {wipList.map(w => <option key={w.id} value={w.id}>{w.wip_code} — {w.wip_name}</option>)}
+                        {wipList.map(w => (
+                          <option key={w.id} value={w.id}>
+                            {w.wip_code} — {w.wip_name} {w.output_warehouse === 'FINISHED_GOODS' ? '[→ FG]' : '[→ Ready]'}
+                          </option>
+                        ))}
                       </select>
                       {wip && !hasIngredients && (
                         <p className="flex items-center gap-1 mt-1 text-[10px] text-amber-600"><AlertTriangle className="w-3 h-3" /> Belum ada bahan baku</p>

@@ -6,6 +6,25 @@ import type {
   MaterialUsageSummary, DailySummary
 } from './production-orders.types'
 
+export interface ProductionLineWithWip {
+  line_id: string
+  wip_id: string
+  wip_name: string
+  output_warehouse: string
+  output_product_id: string | null
+  actual_batch_qty: number
+  yield_per_batch: number
+}
+
+export interface ProductionMaterial {
+  id: string
+  production_line_id: string
+  product_id: string
+  product_name: string
+  actual_qty: number
+  total_cost: number
+}
+
 export class ProductionOrdersRepository {
   async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await pool.connect()
@@ -306,7 +325,13 @@ export class ProductionOrdersRepository {
   private async loadOrderDetails(order: ProductionOrderWithDetails, id: string): Promise<ProductionOrderWithDetails> {
 
     const linesRes = await pool.query(
-      `SELECT * FROM production_order_lines WHERE production_order_id = $1 ORDER BY sort_order, created_at`,
+      `SELECT pol.*,
+              COALESCE(w.output_warehouse, 'READY') AS output_warehouse,
+              w.output_product_id
+       FROM production_order_lines pol
+       JOIN wip_items w ON w.id = pol.wip_id
+       WHERE pol.production_order_id = $1
+       ORDER BY pol.sort_order, pol.created_at`,
       [id]
     )
 
@@ -516,6 +541,133 @@ export class ProductionOrdersRepository {
     if (orderId) { params.push(orderId); conditions.push(`production_order_id = $${params.length}`) }
     const { rows } = await pool.query(`SELECT * FROM production_order_materials WHERE ${conditions.join(' AND ')}`, params)
     return rows[0] ?? null
+  }
+
+  // ─── Stock Movements ───
+
+  async getProductionLinesWithWip(client: PoolClient, orderId: string): Promise<ProductionLineWithWip[]> {
+    const { rows } = await client.query(
+      `SELECT
+         pol.id AS line_id,
+         pol.wip_id,
+         w.wip_name,
+         COALESCE(w.output_warehouse, 'READY') AS output_warehouse,
+         w.output_product_id,
+         pol.actual_batch_qty,
+         pol.yield_per_batch
+       FROM production_order_lines pol
+       JOIN wip_items w ON w.id = pol.wip_id
+       WHERE pol.production_order_id = $1`,
+      [orderId]
+    )
+    return rows
+  }
+
+  async getProductionMaterials(client: PoolClient, orderId: string): Promise<ProductionMaterial[]> {
+    const { rows } = await client.query(
+      `SELECT
+         pom.id,
+         pom.production_line_id,
+         pom.product_id,
+         pom.product_name,
+         pom.actual_qty,
+         COALESCE(pom.total_cost, 0) AS total_cost
+       FROM production_order_materials pom
+       WHERE pom.production_order_id = $1
+         AND pom.actual_qty > 0`,
+      [orderId]
+    )
+    return rows
+  }
+
+  async getStockBalance(client: PoolClient, warehouseId: string, productId: string): Promise<{ qty: number; avg_cost: number }> {
+    const { rows } = await client.query(
+      `SELECT qty, avg_cost
+       FROM stock_balances
+       WHERE warehouse_id = $1 AND product_id = $2
+       FOR UPDATE`,
+      [warehouseId, productId]
+    )
+    return {
+      qty: rows.length > 0 ? Number(rows[0].qty) : 0,
+      avg_cost: rows.length > 0 ? Number(rows[0].avg_cost) : 0,
+    }
+  }
+
+  async insertStockMovement(
+    client: PoolClient,
+    data: {
+      warehouse_id: string
+      product_id: string
+      movement_type: string
+      qty: number
+      cost_per_unit: number
+      total_cost: number
+      balance_after: number
+      reference_type: string
+      reference_id: string
+      movement_date: string
+      notes: string
+      created_by: string
+    },
+  ): Promise<string> {
+    const { rows } = await client.query(
+      `INSERT INTO stock_movements (
+         warehouse_id, product_id, movement_type,
+         qty, cost_per_unit, total_cost, balance_after,
+         reference_type, reference_id,
+         movement_date, notes, created_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       RETURNING id`,
+      [
+        data.warehouse_id,
+        data.product_id,
+        data.movement_type,
+        data.qty,
+        data.cost_per_unit,
+        data.total_cost,
+        data.balance_after,
+        data.reference_type,
+        data.reference_id,
+        data.movement_date,
+        data.notes,
+        data.created_by,
+      ]
+    )
+    return rows[0].id
+  }
+
+  async updateMaterialStockMovementRef(client: PoolClient, materialId: string, movementId: string): Promise<void> {
+    // Materials only track OUT_PRODUCTION movements (when materials are deducted from warehouse)
+    // IN_PRODUCTION movements (finished goods output) are tracked on production_order_lines
+    await client.query(
+      `UPDATE production_order_materials SET stock_movement_out_id = $1 WHERE id = $2`,
+      [movementId, materialId]
+    )
+  }
+
+  async updateLineStockMovementRef(client: PoolClient, lineId: string, movementId: string, type: 'out' | 'in'): Promise<void> {
+    const field = type === 'in' ? 'stock_movement_in_id' : 'stock_movement_out_id'
+    await client.query(
+      `UPDATE production_order_lines SET ${field} = $1 WHERE id = $2`,
+      [movementId, lineId]
+    )
+  }
+
+  async upsertStockBalance(
+    client: PoolClient,
+    warehouseId: string,
+    productId: string,
+    qty: number,
+    avgCost: number,
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO stock_balances (warehouse_id, product_id, qty, avg_cost, last_movement_at, updated_at)
+       VALUES ($1, $2, $3, $4, now(), now())
+       ON CONFLICT (warehouse_id, product_id) DO UPDATE
+         SET qty = $3, avg_cost = $4, last_movement_at = now(), updated_at = now()`,
+      [warehouseId, productId, qty, avgCost]
+    )
   }
 }
 
