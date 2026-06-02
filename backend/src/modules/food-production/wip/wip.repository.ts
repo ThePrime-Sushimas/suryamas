@@ -1,9 +1,9 @@
 import { pool } from '../../../config/db'
 import type { PoolClient } from 'pg'
-import type { WipItem, WipItemWithIngredients, WipIngredientWithProduct, CreateWipItemDto, UpdateWipItemDto, CreateWipIngredientDto } from './wip.types'
+import type { WipItem, WipItemWithIngredients, WipItemWithPositions, WipIngredientWithProduct, CreateWipItemDto, UpdateWipItemDto, CreateWipIngredientDto } from './wip.types'
 
 export class WipRepository {
-  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean; companyId?: string }): Promise<{ data: WipItem[]; total: number }> {
+  async findAll(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean; companyId?: string; positionFilter?: string[] }): Promise<{ data: WipItem[]; total: number }> {
     const scopedCompanyIds = filter?.companyId
       ? (companyIds.includes(filter.companyId) ? [filter.companyId] : [])
       : companyIds
@@ -25,6 +25,13 @@ export class WipRepository {
       idx++
     }
 
+    // Filter by specific positions (user-selected filter)
+    if (filter?.positionFilter && filter.positionFilter.length > 0) {
+      params.push(filter.positionFilter)
+      conditions.push(`EXISTS (SELECT 1 FROM wip_position_access wpa WHERE wpa.wip_id = w.id AND wpa.position_id = ANY($${idx}::uuid[]))`)
+      idx++
+    }
+
     const where = `WHERE ${conditions.join(' AND ')}`
     const [dataRes, countRes] = await Promise.all([
       pool.query(`SELECT w.* FROM wip_items w ${where} ORDER BY w.wip_name ASC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
@@ -41,6 +48,91 @@ export class WipRepository {
       pool.query(`SELECT COUNT(*)::int AS total FROM wip_items w ${where}`, params),
     ])
     return { data: dataRes.rows, total: countRes.rows[0].total }
+  }
+
+  async findAllWithPositions(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean; companyId?: string; positionFilter?: string[] }): Promise<{ data: WipItemWithPositions[]; total: number }> {
+    const scopedCompanyIds = filter?.companyId
+      ? (companyIds.includes(filter.companyId) ? [filter.companyId] : [])
+      : companyIds
+    if (scopedCompanyIds.length === 0) return { data: [], total: 0 }
+
+    const conditions = ['w.company_id = ANY($1::uuid[])', 'w.deleted_at IS NULL']
+    const params: unknown[] = [scopedCompanyIds]
+    let idx = 2
+
+    if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`w.is_active = $${idx++}`) }
+
+    // Access control: user can only see WIPs they have access to
+    if (filter?.positionIds && !filter.canAccessAll) {
+      params.push(filter.positionIds)
+      conditions.push(`(
+        NOT EXISTS (SELECT 1 FROM wip_position_access wpa WHERE wpa.wip_id = w.id)
+        OR EXISTS (SELECT 1 FROM wip_position_access wpa WHERE wpa.wip_id = w.id AND wpa.position_id = ANY($${idx}::uuid[]))
+      )`)
+      idx++
+    }
+
+    // UI filter: additionally restrict to selected positions (strict: only shows restricted WIPs matching the filter)
+    if (filter?.positionFilter && filter.positionFilter.length > 0) {
+      params.push(filter.positionFilter)
+      conditions.push(`EXISTS (SELECT 1 FROM wip_position_access wpa WHERE wpa.wip_id = w.id AND wpa.position_id = ANY($${idx}::uuid[]))`)
+      idx++
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`
+    
+    // Add pagination params for subquery
+    params.push(pagination.limit)
+    params.push(pagination.offset)
+    const limitIdx = idx
+    const offsetIdx = idx + 1
+    
+    const [dataRes, countRes] = await Promise.all([
+      // Optimize: Apply LIMIT/OFFSET to WIP items BEFORE joining positions
+      // This prevents N×M row explosion before GROUP BY
+      pool.query(
+        `SELECT 
+          w.id, w.company_id, w.wip_code, w.wip_name, w.uom, w.yield_qty, 
+          w.estimated_cost, w.cost_per_unit, w.notes, w.is_active, w.is_deleted,
+          w.created_at, w.updated_at, w.created_by, w.updated_by, w.deleted_at,
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'position_id', p.id,
+                'position_code', p.position_code,
+                'position_name', p.position_name,
+                'department_name', d.department_name
+              ) ORDER BY d.sort_order, p.sort_order
+            ) FILTER (WHERE p.id IS NOT NULL),
+            '[]'::json
+          ) as positions
+         FROM (
+           SELECT w.id, w.company_id, w.wip_code, w.wip_name, w.uom, w.yield_qty,
+                  w.estimated_cost, w.cost_per_unit, w.notes, w.is_active, w.is_deleted,
+                  w.created_at, w.updated_at, w.created_by, w.updated_by, w.deleted_at
+           FROM wip_items w
+           ${where}
+           ORDER BY w.wip_name ASC
+           LIMIT $${limitIdx} OFFSET $${offsetIdx}
+         ) w
+         LEFT JOIN wip_position_access wpa ON wpa.wip_id = w.id
+         LEFT JOIN positions p ON p.id = wpa.position_id
+         LEFT JOIN departments d ON d.id = p.department_id
+         GROUP BY w.id, w.company_id, w.wip_code, w.wip_name, w.uom, w.yield_qty, 
+                  w.estimated_cost, w.cost_per_unit, w.notes, w.is_active, w.is_deleted,
+                  w.created_at, w.updated_at, w.created_by, w.updated_by, w.deleted_at
+         ORDER BY w.wip_name ASC`,
+        params
+      ),
+      pool.query(`SELECT COUNT(*)::int AS total FROM wip_items w ${where}`, params.slice(0, idx)),
+    ])
+    
+    const data = dataRes.rows.map(row => ({
+      ...row,
+      positions: row.positions ?? [],
+    })) as WipItemWithPositions[]
+    
+    return { data, total: countRes.rows[0].total }
   }
 
   async findByIdAccessible(id: string, companyIds: string[]): Promise<WipItem | null> {

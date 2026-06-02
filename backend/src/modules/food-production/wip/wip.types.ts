@@ -66,3 +66,14 @@ export interface CreateWipIngredientDto {
   qty: number
   uom?: string
 }
+
+export interface WipPosition {
+  position_id: string
+  position_code: string
+  position_name: string
+  department_name: string
+}
+
+export interface WipItemWithPositions extends WipItem {
+  positions: WipPosition[]
+}

@@ -1,11 +1,41 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Beaker, Plus, Search, X } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { Pagination } from '@/components/ui/Pagination'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { useUrlFilters } from '@/lib/urlFilters'
 import { useWipItems, useDeleteWipItem } from '../api/food-production.api'
+import { usePositions, type Position } from '@/features/settings/api/settings.api'
+import { wipFilterConfig } from '../utils/wipFilters.url'
+
+interface WipPosition {
+  position_id: string
+  position_code: string
+  position_name: string
+  department_name: string
+}
+
+interface WipItemWithPositions {
+  id: string
+  company_id: string
+  wip_code: string
+  wip_name: string
+  uom: string
+  yield_qty: number
+  estimated_cost: number
+  cost_per_unit: number
+  notes: string | null
+  is_active: boolean
+  is_deleted: boolean
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+  deleted_at: string | null
+  positions: WipPosition[]
+}
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
 
@@ -13,23 +43,22 @@ export default function WipItemsPage() {
   const navigate = useNavigate()
   const toast = useToast()
 
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const { filters, searchInput, setSearchInput, setFilters, setPage } =
+    useUrlFilters({ ...wipFilterConfig, searchField: 'search' })
+
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
-  useEffect(() => {
-    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
-    return () => clearTimeout(t)
-  }, [search])
-
   const queryParams = useMemo(() => ({
-    page, limit: 50,
-    ...(debouncedSearch ? { search: debouncedSearch } : {}),
-  }), [page, debouncedSearch])
+    page: filters.page,
+    limit: filters.limit,
+    with_positions: true,
+    ...(filters.search ? { search: filters.search } : {}),
+    ...(filters.position_filter ? { position_filter: filters.position_filter } : {}),
+  }), [filters])
 
   const wipItems = useWipItems(queryParams)
   const deleteWip = useDeleteWipItem()
+  const positions = usePositions()
 
   const handleDelete = async () => {
     if (!deleteId) return
@@ -38,8 +67,14 @@ export default function WipItemsPage() {
     finally { setDeleteId(null) }
   }
 
-  const data = wipItems.data?.data || []
+  const data = (wipItems.data?.data || []) as WipItemWithPositions[]
   const pagination = wipItems.data?.pagination
+
+  const selectedPositionIds = filters.position_filter ? filters.position_filter.split(',').filter(p => p) : []
+  const allPositions = (positions.data || []) as Position[]
+
+  // Show skeleton for position filter during loading
+  const showPositionFilterLoading = positions.isLoading
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -55,12 +90,59 @@ export default function WipItemsPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari WIP..."
-          className="w-full h-9 pl-8 pr-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-purple-500 outline-none" />
-        {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2"><X className="w-3.5 h-3.5 text-gray-400" /></button>}
+      {/* Search & Filters */}
+      <div className="space-y-3">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Cari WIP..."
+            className="w-full h-9 pl-8 pr-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-purple-500 outline-none" />
+          {searchInput && <button onClick={() => setSearchInput('')} className="absolute right-2.5 top-1/2 -translate-y-1/2"><X className="w-3.5 h-3.5 text-gray-400" /></button>}
+        </div>
+
+        {/* Position Filter */}
+        {(showPositionFilterLoading || allPositions.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            <label className="text-xs text-gray-600 dark:text-gray-300 self-center">Posisi:</label>
+            {showPositionFilterLoading ? (
+              // Loading skeleton
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-7 w-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+              ))
+            ) : (
+              <>
+                {allPositions.map(p => {
+                  const isSelected = selectedPositionIds.includes(p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        const newIds = isSelected
+                          ? selectedPositionIds.filter(id => id !== p.id)
+                          : [...selectedPositionIds, p.id]
+                        setFilters({ position_filter: newIds.join(',') })
+                      }}
+                      className={`px-3 py-1.5 text-xs rounded-lg transition ${
+                        isSelected
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {p.position_code}
+                    </button>
+                  )
+                })}
+                {selectedPositionIds.length > 0 && (
+                  <button
+                    onClick={() => setFilters({ position_filter: '' })}
+                    className="px-2 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                  >
+                    Reset
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -71,6 +153,7 @@ export default function WipItemsPage() {
               <tr>
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Kode</th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Nama WIP</th>
+                <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Posisi</th>
                 <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Hasil/Batch</th>
                 <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Cost/Batch</th>
                 <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Cost/Unit</th>
@@ -80,14 +163,27 @@ export default function WipItemsPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
               {wipItems.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}><td colSpan={6} className="px-3 py-3"><div className="h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
+                  <tr key={i}><td colSpan={7} className="px-3 py-3"><div className="h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
                 ))
               ) : data.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-12 text-center text-gray-400">Belum ada WIP</td></tr>
-              ) : data.map(w => (
+                <tr><td colSpan={7} className="px-3 py-12 text-center text-gray-400">Belum ada WIP</td></tr>
+              ) : data.map((w) => (
                 <tr key={w.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onClick={() => navigate(`/food-production/wip/${w.id}`)}>
                   <td className="px-3 py-2.5 font-mono text-xs text-gray-500">{w.wip_code}</td>
                   <td className="px-3 py-2.5 text-gray-900 dark:text-white font-medium">{w.wip_name}</td>
+                  <td className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300">
+                    {w.positions && w.positions.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {w.positions.map((p) => (
+                          <span key={p.position_id} className="inline-block px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded">
+                            {p.position_code}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 text-right font-mono">{w.yield_qty} <span className="text-gray-400 text-xs">{w.uom}</span></td>
                   <td className="px-3 py-2.5 text-right font-mono">{w.estimated_cost > 0 ? fmt(w.estimated_cost) : '—'}</td>
                   <td className="px-3 py-2.5 text-right font-mono font-medium">{w.cost_per_unit > 0 ? fmt(w.cost_per_unit) : '—'}</td>

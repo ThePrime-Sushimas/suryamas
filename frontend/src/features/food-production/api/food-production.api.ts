@@ -256,7 +256,7 @@ export const useSaveRecipe = () => {
 // ── WIP Items ──
 
 export const useWipItems = (
-  params: { page?: number; limit?: number; is_active?: boolean; search?: string; filter_by_position?: boolean; company_id?: string; branch_id?: string } = {},
+  params: { page?: number; limit?: number; is_active?: boolean; search?: string; filter_by_position?: boolean; company_id?: string; branch_id?: string; with_positions?: boolean; position_filter?: string } = {},
   options?: { enabled?: boolean },
 ) =>
   useQuery({

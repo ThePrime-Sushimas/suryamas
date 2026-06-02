@@ -22,6 +22,7 @@ export class WipController {
       const page = parseInt(req.query.page as string) || 1
       const limit = parseInt(req.query.limit as string) || 50
       const is_active = req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined
+      const withPositions = ['true', '1'].includes(String(req.query.with_positions).toLowerCase())
 
       const branchId = typeof req.query.branch_id === 'string' ? req.query.branch_id : undefined
       let companyIdFilter = typeof req.query.company_id === 'string' ? req.query.company_id : undefined
@@ -49,10 +50,21 @@ export class WipController {
         canAccessAll = access.canAccessAll
       }
 
-      const result = await wipService.list(companyIds, { page, limit }, {
-        is_active, positionIds, canAccessAll, companyId: companyIdFilter,
-      })
-      sendSuccess(res, result.data, 'WIP items retrieved', 200, result.pagination)
+      const positionFilter = typeof req.query.position_filter === 'string' 
+        ? (req.query.position_filter as string).split(',').filter(p => p)
+        : undefined
+
+      if (withPositions) {
+        const result = await wipService.listWithPositions(companyIds, { page, limit }, {
+          is_active, positionIds, canAccessAll, companyId: companyIdFilter, positionFilter,
+        })
+        sendSuccess(res, result.data, 'WIP items retrieved', 200, result.pagination)
+      } else {
+        const result = await wipService.list(companyIds, { page, limit }, {
+          is_active, positionIds, canAccessAll, companyId: companyIdFilter,
+        })
+        sendSuccess(res, result.data, 'WIP items retrieved', 200, result.pagination)
+      }
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_wip_items' })
     }
