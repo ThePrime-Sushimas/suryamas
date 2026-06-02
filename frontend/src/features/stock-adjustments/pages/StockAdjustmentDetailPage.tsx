@@ -146,7 +146,7 @@ export default function StockAdjustmentDetailPage() {
           </div>
 
           {/* Warning: Journal Pending */}
-          {adjustment.status === 'CONFIRMED' && !adjustment.journal_id && (
+          {adjustment.status === 'CONFIRMED' && !adjustment.journal_id && Number(adjustment.waste_qty) > 0 && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 mt-0.5">
