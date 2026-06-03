@@ -103,6 +103,25 @@ export class CogsService {
     return { calculation, lines }
   }
 
+  async void(id: string, companyIds: string[], userId: string): Promise<void> {
+    const calculation = await cogsRepository.findByIdAccessible(id, companyIds)
+    if (!calculation) throw new CogsCalculationNotFoundError(id)
+    if (calculation.status === 'VOID') throw new BusinessRuleError('COGS calculation sudah di-void')
+
+    await cogsRepository.withTransaction(async (client) => {
+      // Hard delete the journal if exists
+      if (calculation.journal_id) {
+        await client.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [calculation.journal_id])
+        await client.query('DELETE FROM journal_headers WHERE id = $1', [calculation.journal_id])
+      }
+
+      // Void the calculation + clear journal_id
+      await client.query('UPDATE cogs_calculations SET status = $1, journal_id = NULL, updated_at = now() WHERE id = $2', ['VOID', id])
+    })
+
+    await AuditService.log('UPDATE', 'cogs_calculation', id, userId, { status: calculation.status }, { status: 'VOID' })
+  }
+
   async list(companyIds: string[], pagination: { page: number; limit: number }, filter?: { period_start?: string; period_end?: string; branch_id?: string; status?: string }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await cogsRepository.findAll(companyIds, { limit: pagination.limit, offset }, filter)
@@ -222,6 +241,19 @@ export class CogsService {
       reference_type: 'cogs_calculation',
       lines,
     }, userId)
+
+    // Auto-post: follow full state machine DRAFT → SUBMITTED → APPROVED → POSTED
+    try {
+      await journalHeadersService.submitAsUser(journal.id, userId)
+      await journalHeadersService.approveAsUser(journal.id, userId)
+      await journalHeadersService.postAsUser(journal.id, userId)
+    } catch (postErr: unknown) {
+      // Journal created but stuck in intermediate state — log but don't fail
+      logError('COGS journal auto-post failed, journal may need manual posting', {
+        journal_id: journal.id, journal_number: journal.journal_number,
+        error: postErr instanceof Error ? postErr.message : 'Unknown',
+      })
+    }
 
     return { id: journal.id, journal_number: journal.journal_number }
   }

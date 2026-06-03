@@ -60,6 +60,17 @@ export class CogsController {
       await handleError(res, error, req, { action: 'list_cogs_calculations' })
     }
   }
+
+  void = async (req: Request, res: Response) => {
+    try {
+      const { companyId, userId } = await getWriteScope(req)
+      const { id } = (req as IdReq).validated.params
+      await cogsService.void(id, [companyId], userId)
+      sendSuccess(res, null, 'COGS calculation voided')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'void_cogs_calculation', id: req.params.id })
+    }
+  }
 }
 
 export const cogsController = new CogsController()

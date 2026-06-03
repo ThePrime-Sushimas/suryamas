@@ -147,6 +147,7 @@ export interface CogsPreviewResult {
 export interface CogsCalculation {
   id: string
   branch_id: string | null
+  branch_name: string | null
   calculation_date: string
   period_start: string
   period_end: string

@@ -74,11 +74,10 @@ export class CogsRepository {
     let idx = 3
 
     if (branchId) {
-      // tr_saleshead.branch_id is integer (POS branch ID), map via branches.pos_id
+      // tr_saleshead.branch_id is integer (POS branch ID), map via pos_staging_branches.mapped_id
       params.push(branchId)
-      conditions.push(`sh.branch_id = (SELECT pos_id FROM branches WHERE id = $${idx} AND company_id = $${idx + 1})`)
-      params.push(companyId)
-      idx += 2
+      conditions.push(`sh.branch_id = (SELECT pos_id FROM pos_staging_branches WHERE mapped_id = $${idx})`)
+      idx++
     }
 
     const where = conditions.join(' AND ')
@@ -244,20 +243,23 @@ export class CogsRepository {
   }
 
   async findAll(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { period_start?: string; period_end?: string; branch_id?: string; status?: string }): Promise<{ data: CogsCalculation[]; total: number }> {
-    const conditions = ['company_id = ANY($1::uuid[])', 'superseded_by IS NULL']
+    const conditions = ['c.company_id = ANY($1::uuid[])', 'c.superseded_by IS NULL']
     const params: unknown[] = [companyIds]
     let idx = 2
 
-    if (filter?.period_start) { params.push(filter.period_start); conditions.push(`period_start >= $${idx++}::date`) }
-    if (filter?.period_end) { params.push(filter.period_end); conditions.push(`period_end <= $${idx++}::date`) }
-    if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`branch_id = $${idx++}`) }
-    if (filter?.status) { params.push(filter.status); conditions.push(`status = $${idx++}`) }
+    if (filter?.period_start) { params.push(filter.period_start); conditions.push(`c.period_start >= $${idx++}::date`) }
+    if (filter?.period_end) { params.push(filter.period_end); conditions.push(`c.period_end <= $${idx++}::date`) }
+    if (filter?.branch_id) { params.push(filter.branch_id); conditions.push(`c.branch_id = $${idx++}`) }
+    if (filter?.status) { params.push(filter.status); conditions.push(`c.status = $${idx++}`) }
 
     const where = `WHERE ${conditions.join(' AND ')}`
 
     const [dataRes, countRes] = await Promise.all([
-      pool.query(`SELECT * FROM cogs_calculations ${where} ORDER BY period_start DESC, created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
-      pool.query(`SELECT COUNT(*)::int AS total FROM cogs_calculations ${where}`, params),
+      pool.query(
+        `SELECT c.*, b.branch_name FROM cogs_calculations c LEFT JOIN branches b ON b.id = c.branch_id ${where} ORDER BY c.period_start DESC, c.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...params, pagination.limit, pagination.offset]
+      ),
+      pool.query(`SELECT COUNT(*)::int AS total FROM cogs_calculations c ${where}`, params),
     ])
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }

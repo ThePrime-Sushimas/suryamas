@@ -441,6 +441,18 @@ export const useCogsDetail = (id: string) =>
     enabled: !!id,
   })
 
+export const useVoidCogs = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.post(`/cogs/${id}/void`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['food-production', 'cogs'] })
+    },
+  })
+}
+
 
 // ─── Production Orders ───
 

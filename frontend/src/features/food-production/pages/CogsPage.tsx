@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
 import { useState, useMemo } from 'react'
-import { Calculator, FileText, History, AlertTriangle } from 'lucide-react'
+import { Calculator, FileText, History, AlertTriangle, Loader2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { useFiscalPeriodsStatus } from '@/features/dashboard/api/useDashboardApi'
-import { useCogsPreview, useCogsFinalize, useCogsHistory } from '../api/food-production.api'
+import { useCogsPreview, useCogsFinalize, useCogsHistory, useVoidCogs } from '../api/food-production.api'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import type { CogsPreviewResult } from '../types/food-production.types'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(n)
@@ -20,19 +21,25 @@ export default function CogsPage() {
   // Calculate tab state
   const [periodStart, setPeriodStart] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([])
   const [preview, setPreview] = useState<CogsPreviewResult | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [showUnmappedOnly, setShowUnmappedOnly] = useState(false)
+  const [finalizeProgress, setFinalizeProgress] = useState<{ current: number; total: number; results: string[] } | null>(null)
+  const [voidingId, setVoidingId] = useState<string | null>(null)
+  const [showVoidConfirm, setShowVoidConfirm] = useState(false)
 
   // History tab state
   const [historyPage, setHistoryPage] = useState(1)
 
+  const { branches } = useBranchContextStore()
   const fiscalPeriods = useFiscalPeriodsStatus()
   const openPeriods = useMemo(() => (fiscalPeriods.data || []).filter(p => p.is_open).sort((a, b) => b.period.localeCompare(a.period)), [fiscalPeriods.data])
 
   const cogsPreview = useCogsPreview()
   const cogsFinalize = useCogsFinalize()
   const cogsHistory = useCogsHistory({ page: historyPage, limit: 25 })
+  const voidCogs = useVoidCogs()
 
   const handleSelectPeriod = (periodId: string) => {
     const p = openPeriods.find(fp => fp.id === periodId)
@@ -41,21 +48,46 @@ export default function CogsPage() {
 
   const handlePreview = async () => {
     if (!periodStart || !periodEnd) { toast.warning('Pilih periode terlebih dahulu'); return }
+    if (selectedBranches.length === 0) { toast.warning('Pilih minimal 1 cabang'); return }
     try {
-      const result = await cogsPreview.mutateAsync({ period_start: periodStart, period_end: periodEnd })
+      const result = await cogsPreview.mutateAsync({ period_start: periodStart, period_end: periodEnd, branch_id: selectedBranches[0] })
       setPreview(result)
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal preview COGS')) }
   }
 
   const handleFinalize = async () => {
-    if (!periodStart || !periodEnd) return
+    if (!periodStart || !periodEnd || selectedBranches.length === 0) return
+    const results: string[] = []
+    setFinalizeProgress({ current: 0, total: selectedBranches.length, results: [] })
     try {
-      const result = await cogsFinalize.mutateAsync({ period_start: periodStart, period_end: periodEnd })
-      toast.success(`COGS finalized — Journal ${result.journal_number} dibuat`)
+      for (let i = 0; i < selectedBranches.length; i++) {
+        const branchId = selectedBranches[i]
+        const branchName = branches.find(b => b.branch_id === branchId)?.branch_name || branchId
+        try {
+          const result = await cogsFinalize.mutateAsync({ period_start: periodStart, period_end: periodEnd, branch_id: branchId })
+          results.push(`✓ ${branchName}: ${result.journal_number}`)
+        } catch (err: unknown) {
+          results.push(`✗ ${branchName}: ${parseApiError(err, 'Gagal')}`)
+        }
+        setFinalizeProgress({ current: i + 1, total: selectedBranches.length, results: [...results] })
+      }
+      const failCount = results.filter(r => r.startsWith('✗')).length
+      const successCount = results.filter(r => r.startsWith('✓')).length
+      if (failCount === 0) {
+        toast.success(`COGS finalized untuk ${successCount} cabang`)
+      } else if (successCount === 0) {
+        toast.error(`Gagal finalize semua ${failCount} cabang`)
+      } else {
+        toast.warning(`COGS: ${successCount} berhasil, ${failCount} gagal`)
+      }
       setPreview(null)
       setShowConfirm(false)
+      setFinalizeProgress(null)
       setActiveTab('history')
-    } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal finalize COGS')) }
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal finalize COGS'))
+      setFinalizeProgress(null)
+    }
   }
 
   const filteredLines = useMemo(() => {
@@ -110,10 +142,39 @@ export default function CogsPage() {
                 <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)}
                   className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
               </div>
-              <button onClick={handlePreview} disabled={cogsPreview.isPending || !periodStart || !periodEnd}
+              <button onClick={handlePreview} disabled={cogsPreview.isPending || !periodStart || !periodEnd || selectedBranches.length === 0}
                 className="h-9 px-4 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40">
                 {cogsPreview.isPending ? 'Menghitung...' : 'Preview'}
               </button>
+            </div>
+
+            {/* Branch Multi-Select */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-gray-500">Cabang (pilih 1 atau lebih)</label>
+                <button type="button" onClick={() => setSelectedBranches(
+                  selectedBranches.length === branches.length ? [] : branches.map(b => b.branch_id)
+                )} className="text-[10px] text-blue-600 hover:text-blue-800">
+                  {selectedBranches.length === branches.length ? 'Hapus semua' : 'Pilih semua'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {branches.map(b => {
+                  const isSelected = selectedBranches.includes(b.branch_id)
+                  return (
+                    <button key={b.branch_id} type="button"
+                      onClick={() => setSelectedBranches(prev =>
+                        isSelected ? prev.filter(id => id !== b.branch_id) : [...prev, b.branch_id]
+                      )}
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${isSelected
+                        ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:border-blue-400 dark:text-blue-300'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}>
+                      {b.branch_name}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
 
@@ -199,12 +260,30 @@ export default function CogsPage() {
               </div>
 
               {/* Finalize Button */}
-              <div className="flex justify-end">
-                <button onClick={() => setShowConfirm(true)} disabled={cogsFinalize.isPending || !preview || preview.summary.total_cogs === 0}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 text-sm font-medium">
-                  <FileText className="w-4 h-4" />
-                  {cogsFinalize.isPending ? 'Memproses...' : 'Finalize & Generate Journal'}
-                </button>
+              <div className="flex flex-col gap-3">
+                {finalizeProgress && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                        Memproses {finalizeProgress.current}/{finalizeProgress.total} cabang...
+                      </span>
+                    </div>
+                    {finalizeProgress.results.map((r, i) => (
+                      <p key={i} className={`text-xs ${r.startsWith('✓') ? 'text-emerald-600' : 'text-red-600'}`}>{r}</p>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">
+                    Finalize COGS untuk <span className="font-semibold">{selectedBranches.length}</span> cabang
+                  </p>
+                  <button onClick={() => setShowConfirm(true)} disabled={cogsFinalize.isPending || !preview || preview.summary.total_cogs === 0 || selectedBranches.length === 0}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 text-sm font-medium">
+                    <FileText className="w-4 h-4" />
+                    {cogsFinalize.isPending ? 'Memproses...' : `Finalize ${selectedBranches.length} Cabang`}
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -219,24 +298,27 @@ export default function CogsPage() {
               <thead className="bg-gray-50 dark:bg-gray-900/50">
                 <tr>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Periode</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Cabang</th>
                   <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Total COGS</th>
                   <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
                   <th className="px-3 py-2.5 text-center text-xs font-medium text-gray-500 uppercase">Cost %</th>
                   <th className="px-3 py-2.5 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-3 py-2.5 text-center text-xs font-medium text-gray-500 uppercase">Jurnal</th>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Dibuat</th>
+                  <th className="px-3 py-2.5 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {cogsHistory.isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}><td colSpan={7} className="px-3 py-3"><div className="h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
+                    <tr key={i}><td colSpan={9} className="px-3 py-3"><div className="h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
                   ))
                 ) : (cogsHistory.data?.data || []).length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-12 text-center text-gray-400">Belum ada riwayat COGS</td></tr>
+                  <tr><td colSpan={9} className="px-3 py-12 text-center text-gray-400">Belum ada riwayat COGS</td></tr>
                 ) : (cogsHistory.data?.data || []).map(c => (
                   <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-3 py-2.5 text-gray-900 dark:text-white">{fmtDate(c.period_start)} — {fmtDate(c.period_end)}</td>
+                    <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400 text-xs">{c.branch_name || 'Semua'}</td>
                     <td className="px-3 py-2.5 text-right font-mono">{fmt(c.total_cogs)}</td>
                     <td className="px-3 py-2.5 text-right font-mono">{fmt(c.total_revenue)}</td>
                     <td className="px-3 py-2.5 text-center">
@@ -251,6 +333,15 @@ export default function CogsPage() {
                     </td>
                     <td className="px-3 py-2.5 text-center">{c.journal_id ? <Link to={`/accounting/journals/${c.journal_id}`} className="text-xs text-blue-600 hover:text-blue-800 underline">Lihat</Link> : <span className="text-xs text-gray-300">—</span>}</td>
                     <td className="px-3 py-2.5 text-gray-500 text-xs">{fmtDate(c.created_at)}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      {c.status === 'JOURNALED' && (
+                        <button onClick={() => { setVoidingId(c.id); setShowVoidConfirm(true) }}
+                          disabled={voidCogs.isPending && voidingId === c.id}
+                          className="text-[10px] px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-40">
+                          {voidCogs.isPending && voidingId === c.id ? '...' : 'Void'}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -270,12 +361,31 @@ export default function CogsPage() {
 
       <ConfirmModal
         isOpen={showConfirm}
-        onClose={() => setShowConfirm(false)}
+        onClose={() => { setShowConfirm(false); setFinalizeProgress(null) }}
         onConfirm={handleFinalize}
         title="Finalize COGS"
-        message={`Ini akan membuat jurnal COGS sebesar ${preview ? fmt(preview.summary.total_cogs) : '0'} untuk periode ${periodStart} s/d ${periodEnd}.${preview && preview.summary.unmapped_menu_count > 0 ? ` ⚠️ ${preview.summary.unmapped_menu_count} menu belum punya resep (COGS = 0).` : ""} Lanjutkan?`}
-        confirmText={cogsFinalize.isPending ? 'Memproses...' : 'Finalize'}
+        message={`Ini akan membuat jurnal COGS per cabang (${selectedBranches.length} cabang) untuk periode ${periodStart} s/d ${periodEnd}. Preview di atas hanya untuk cabang ${branches.find(b => b.branch_id === selectedBranches[0])?.branch_name || 'pertama'}.${preview && preview.summary.unmapped_menu_count > 0 ? ` ⚠️ ${preview.summary.unmapped_menu_count} menu belum punya resep.` : ""} Lanjutkan?`}
+        confirmText={cogsFinalize.isPending ? 'Memproses...' : `Finalize ${selectedBranches.length} Cabang`}
         variant="warning"
+      />
+
+      <ConfirmModal
+        isOpen={showVoidConfirm}
+        onClose={() => { setShowVoidConfirm(false); setVoidingId(null) }}
+        onConfirm={async () => {
+          if (!voidingId) return
+          try {
+            await voidCogs.mutateAsync(voidingId)
+            toast.success('COGS berhasil di-void')
+          } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal void COGS')) }
+          setShowVoidConfirm(false)
+          setVoidingId(null)
+        }}
+        title="Void COGS Calculation"
+        message="Journal COGS akan dihapus permanen. COGS bisa di-finalize ulang untuk periode & cabang yang sama."
+        confirmText={voidCogs.isPending ? 'Menghapus...' : 'Void & Hapus Journal'}
+        variant="danger"
+        isLoading={voidCogs.isPending}
       />
     </div>
   )
