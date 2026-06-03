@@ -60,6 +60,12 @@ export interface WipItem {
   output_warehouse: 'READY' | 'FINISHED_GOODS'
   output_product_id: string | null
   is_active: boolean
+  is_deleted: boolean
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+  deleted_at: string | null
 }
 
 export interface WipIngredient {

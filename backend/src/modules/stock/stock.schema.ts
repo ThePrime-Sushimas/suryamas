@@ -61,7 +61,7 @@ export const adjustStockSchema = z.object({
 export const stockBalanceListSchema = z.object({
   query: z.object({
     page: z.coerce.number().int().min(1).optional().default(1),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+    limit: z.coerce.number().int().min(1).max(500).optional().default(50),
     warehouse_id: z.string().uuid().optional(),
     branch_id: z.string().uuid().optional(),
     warehouse_type: z.string().optional(),

@@ -9,6 +9,7 @@ import { useUrlFilters } from '@/lib/urlFilters'
 import { useWipItems, useDeleteWipItem } from '../api/food-production.api'
 import { usePositions, type Position } from '@/features/settings/api/settings.api'
 import { wipFilterConfig } from '../utils/wipFilters.url'
+import type { WipItem } from '../types/food-production.types'
 
 interface WipPosition {
   position_id: string
@@ -17,23 +18,7 @@ interface WipPosition {
   department_name: string
 }
 
-interface WipItemWithPositions {
-  id: string
-  company_id: string
-  wip_code: string
-  wip_name: string
-  uom: string
-  yield_qty: number
-  estimated_cost: number
-  cost_per_unit: number
-  notes: string | null
-  is_active: boolean
-  is_deleted: boolean
-  created_at: string
-  updated_at: string
-  created_by: string | null
-  updated_by: string | null
-  deleted_at: string | null
+interface WipItemWithPositions extends WipItem {
   positions: WipPosition[]
 }
 
