@@ -39,11 +39,13 @@ export default function CreateStockTransferPage() {
   // Lines state
   const [lines, setLines] = useState<LineItem[]>([])
 
-  // Warehouse queries — only MAIN, CENTRAL_STOCK, CENTRAL_KITCHEN (exclude READY)
-  const { data: sourceWarehousesData } = useWarehouses({ limit: 50, branch_id: sourceBranchId || undefined, warehouse_type: 'MAIN' })
-  const { data: targetWarehousesData } = useWarehouses({ limit: 50, branch_id: targetBranchId || undefined, warehouse_type: 'MAIN' })
-  const sourceWarehouses = sourceWarehousesData?.data ?? []
-  const targetWarehouses = targetWarehousesData?.data ?? []
+  // Warehouse queries — MAIN and FINISHED_GOODS as source, MAIN and READY as target
+  const { data: sourceMainData } = useWarehouses({ limit: 50, branch_id: sourceBranchId || undefined, warehouse_type: 'MAIN' })
+  const { data: sourceFgData } = useWarehouses({ limit: 50, branch_id: sourceBranchId || undefined, warehouse_type: 'FINISHED_GOODS' })
+  const { data: targetMainData } = useWarehouses({ limit: 50, branch_id: targetBranchId || undefined, warehouse_type: 'MAIN' })
+  const { data: targetReadyData } = useWarehouses({ limit: 50, branch_id: targetBranchId || undefined, warehouse_type: 'READY' })
+  const sourceWarehouses = [...(sourceMainData?.data ?? []), ...(sourceFgData?.data ?? [])]
+  const targetWarehouses = [...(targetMainData?.data ?? []), ...(targetReadyData?.data ?? [])]
 
   const handleSourceBranchChange = (val: string) => {
     setSourceBranchId(val)
