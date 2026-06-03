@@ -212,7 +212,16 @@ export class StockTransfersService {
 
       // Generate journals for inter-branch transfers (skip intra-branch)
       if (detail.source_branch_id !== detail.target_branch_id) {
-        await this.generateTransferJournals(client, detail, dto.confirmed_by)
+        // Reload lines with updated cost_per_unit (set by updateMovementRefs above)
+        const { rows: updatedLines } = await client.query(
+          `SELECT stl.*, p.product_code, p.product_name
+           FROM stock_transfer_lines stl
+           JOIN products p ON p.id = stl.product_id
+           WHERE stl.stock_transfer_id = $1 ORDER BY stl.sort_order`,
+          [id]
+        )
+        const detailWithCost = { ...detail, lines: updatedLines }
+        await this.generateTransferJournals(client, detailWithCost, dto.confirmed_by)
       }
     })
 
@@ -370,20 +379,16 @@ export class StockTransfersService {
 
     // Find open fiscal period
     const fiscalPeriod = await stockTransfersRepository.findOpenFiscalPeriod(companyId, detail.transfer_date, client)
-    if (!fiscalPeriod) return // Skip journal if no open period (don't block transfer)
+    if (!fiscalPeriod) return
 
     // Resolve COA accounts for inter-branch transfer
-    // Source: DR 110598 (Persediaan Dalam Perjalanan), CR 110502 (Barang Dalam Proses) or 110501 (Bahan Baku)
-    // Target: DR 110505 (Persediaan Cabang), CR 110598 (Persediaan Dalam Perjalanan)
     const persediaanTransit = await stockTransfersRepository.findCoaByCode(companyId, '110598', client)
     const persediaanCabang = await stockTransfersRepository.findCoaByCode(companyId, '110505', client)
     const barangDalamProses = await stockTransfersRepository.findCoaByCode(companyId, '110502', client)
     const bahanBaku = await stockTransfersRepository.findCoaByCode(companyId, '110501', client)
-    if (!persediaanTransit || !persediaanCabang) return // Skip if COA not configured
+    if (!persediaanTransit || !persediaanCabang) return
 
-    // Determine source credit COA based on source warehouse type
-    // If from Finished Goods/WIP warehouse → credit 110502 (Barang Dalam Proses)
-    // Otherwise → credit 110501 (Bahan Baku)
+    // Determine source credit COA
     const sourceCreditCoa = barangDalamProses || bahanBaku
     if (!sourceCreditCoa) return
 
