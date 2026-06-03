@@ -446,6 +446,33 @@ class ProductionOrdersService {
         await productionOrdersRepository.markJournalAsReversed(client, reversalId, dto.reason, order.journal_id)
       }
 
+      // Reverse stock movements jika order sudah COMPLETED atau JOURNALED
+      if (order.status === 'COMPLETED' || order.status === 'JOURNALED') {
+        const movements = await productionOrdersRepository.getStockMovementsByOrder(client, id)
+        for (const mov of movements) {
+          const balance = await productionOrdersRepository.getStockBalance(client, mov.warehouse_id, mov.product_id)
+          const reversedQty = -mov.qty
+          const newQty = balance.qty + reversedQty
+
+          await productionOrdersRepository.insertStockMovement(client, {
+            warehouse_id: mov.warehouse_id,
+            product_id: mov.product_id,
+            movement_type: mov.movement_type === 'OUT_PRODUCTION' ? 'IN_ADJUSTMENT' : 'OUT_ADJUSTMENT',
+            qty: reversedQty,
+            cost_per_unit: mov.cost_per_unit,
+            total_cost: -mov.total_cost,
+            balance_after: newQty,
+            reference_type: 'production_order_void',
+            reference_id: id,
+            movement_date: order.production_date,
+            notes: `[VOID] Reversal ${order.order_number} - ${dto.reason}`,
+            created_by: dto.user_id,
+          })
+
+          await productionOrdersRepository.upsertStockBalance(client, mov.warehouse_id, mov.product_id, newQty, balance.avg_cost)
+        }
+      }
+
       await productionOrdersRepository.updateHeaderStatus(client, id, {
         status: 'VOID',
         voided_by: dto.user_id,

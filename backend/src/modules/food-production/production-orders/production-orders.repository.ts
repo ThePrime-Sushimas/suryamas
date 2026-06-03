@@ -580,6 +580,29 @@ export class ProductionOrdersRepository {
     return rows
   }
 
+  async getStockMovementsByOrder(client: PoolClient, orderId: string): Promise<Array<{
+    id: string
+    warehouse_id: string
+    product_id: string
+    movement_type: string
+    qty: number
+    cost_per_unit: number
+    total_cost: number
+  }>> {
+    const { rows } = await client.query(
+      `SELECT id, warehouse_id, product_id, movement_type, qty, cost_per_unit, total_cost
+       FROM stock_movements
+       WHERE reference_type = 'production_order' AND reference_id = $1`,
+      [orderId]
+    )
+    return rows.map(r => ({
+      ...r,
+      qty: Number(r.qty),
+      cost_per_unit: Number(r.cost_per_unit),
+      total_cost: Number(r.total_cost),
+    }))
+  }
+
   async getStockBalance(client: PoolClient, warehouseId: string, productId: string): Promise<{ qty: number; avg_cost: number }> {
     const { rows } = await client.query(
       `SELECT qty, avg_cost
