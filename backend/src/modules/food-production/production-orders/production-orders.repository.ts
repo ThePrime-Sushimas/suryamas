@@ -335,9 +335,18 @@ export class ProductionOrdersRepository {
       [id]
     )
 
+    // Fetch materials with ready stock balance for the branch
     const materialsRes = await pool.query(
-      `SELECT * FROM production_order_materials WHERE production_order_id = $1 ORDER BY sort_order, created_at`,
-      [id]
+      `SELECT pom.*,
+              COALESCE(sb.qty, 0)::numeric AS ready_stock
+       FROM production_order_materials pom
+       LEFT JOIN warehouses wh
+         ON wh.branch_id = $2 AND wh.warehouse_type = 'READY' AND wh.deleted_at IS NULL
+       LEFT JOIN stock_balances sb
+         ON sb.warehouse_id = wh.id AND sb.product_id = pom.product_id
+       WHERE pom.production_order_id = $1
+       ORDER BY pom.sort_order, pom.created_at`,
+      [id, order.branch_id]
     )
 
     const materialsByLine = new Map<string, ProductionOrderMaterial[]>()

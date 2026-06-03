@@ -193,6 +193,7 @@ export default function ProductionOrderDetailPage() {
             <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bahan</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Stok Ready</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Planned</th>
                 {(isEditing || o.status !== 'DRAFT') && <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actual</th>}
                 {(isEditing || o.status !== 'DRAFT') && <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Waste</th>}
@@ -206,6 +207,11 @@ export default function ProductionOrderDetailPage() {
                   <td className="px-3 py-2">
                     <span className="text-gray-900 dark:text-white">{mat.product_name}</span>
                     <span className="ml-1 text-xs text-gray-400">{mat.uom}</span>
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono text-xs">
+                    <span className={mat.ready_stock < mat.planned_qty ? 'text-red-500 font-semibold' : 'text-emerald-600 dark:text-emerald-400'}>
+                      {fmt(mat.ready_stock)}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-right font-mono text-xs">{fmt(mat.planned_qty)}</td>
                   {isEditing ? (

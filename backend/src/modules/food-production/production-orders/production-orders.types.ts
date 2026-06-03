@@ -66,6 +66,7 @@ export interface ProductionOrderMaterial {
   waste_reason: string | null
   sort_order: number
   created_at: string
+  ready_stock: number
 }
 
 export interface ProductionOrderWithDetails extends ProductionOrder {

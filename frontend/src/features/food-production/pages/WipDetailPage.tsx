@@ -294,27 +294,27 @@ export default function WipDetailPage() {
             </p>
           </div>
 
-          {/* Output Product — hanya muncul kalau FINISHED_GOODS */}
-          {outputWarehouse === 'FINISHED_GOODS' && (
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Product Hasil Produksi</label>
-              <select value={outputProductId} onChange={e => { setOutputProductId(e.target.value); setDirty(true) }}
-                disabled={products.isLoading}
-                className="w-full h-10 px-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 focus:border-purple-500 outline-none disabled:opacity-50">
-                <option value="">
-                  {products.isLoading ? 'Memuat produk...' : 'Pilih product hasil...'}
+          {/* Output Product */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Product Hasil Produksi</label>
+            <select value={outputProductId} onChange={e => { setOutputProductId(e.target.value); setDirty(true) }}
+              disabled={products.isLoading}
+              className="w-full h-10 px-3 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 focus:border-purple-500 outline-none disabled:opacity-50">
+              <option value="">
+                {products.isLoading ? 'Memuat produk...' : 'Pilih product hasil (opsional)...'}
+              </option>
+              {(products.data || []).map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.product_code} — {p.product_name}
                 </option>
-                {(products.data || []).map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.product_code} — {p.product_name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[10px] text-gray-400 mt-1">
-                Product ini yang akan masuk ke stock saat produksi selesai (IN_PRODUCTION movement).
-              </p>
-            </div>
-          )}
+              ))}
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1">
+              {outputWarehouse === 'FINISHED_GOODS'
+                ? 'Product ini yang akan masuk ke gudang Finished Goods saat produksi selesai.'
+                : 'Opsional. Isi jika hasil produksi perlu di-track sebagai stok di gudang Ready (contoh: Nasi Sushi).'}
+            </p>
+          </div>       
         </div>
       </div>
 
