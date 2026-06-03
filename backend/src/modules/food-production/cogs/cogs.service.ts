@@ -234,6 +234,7 @@ export class CogsService {
 
     const journal = await journalHeadersService.create({
       company_id: companyId,
+      branch_id: calculation.branch_id ?? undefined,
       journal_date: journalDate,
       journal_type: 'GENERAL',
       description: desc,
