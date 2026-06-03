@@ -177,9 +177,9 @@ export class CogsService {
       throw new BusinessRuleError(`Missing COGS COA mapping for categories: ${missing.join(', ')}. Please set cogs_coa_id in menu_categories.`)
     }
 
-    const inventoryCoaId = await cogsRepository.findInventoryCoaId(companyId)
+    const inventoryCoaId = await cogsRepository.findInventoryCoaId(companyId, '110505')
     if (!inventoryCoaId) {
-      throw new BusinessRuleError('Inventory COA (110501 - Bahan Baku) not found. Please create this account first.')
+      throw new BusinessRuleError('Inventory COA (110505 - Persediaan Cabang) not found. Please create this account first.')
     }
 
     const validMap = new Map<string, string>()

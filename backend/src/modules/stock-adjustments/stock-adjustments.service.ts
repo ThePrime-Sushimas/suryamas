@@ -401,15 +401,15 @@ export class StockAdjustmentsService {
     }
 
     const selisihHpp = await stockAdjustmentsRepository.findCoaByCode(companyId, '510301', client)
-    const bahanBaku = await stockAdjustmentsRepository.findCoaByCode(companyId, '110501', client)
+    const persediaanCabang = await stockAdjustmentsRepository.findCoaByCode(companyId, '110505', client)
     if (!selisihHpp) {
       const msg = `COA 510301 (Selisih HPP) tidak ditemukan untuk perusahaan ini`
       if (isManualRetry) throw new BusinessRuleError(msg)
       console.warn(`[StockAdjustmentJournal] ${msg}`)
       return
     }
-    if (!bahanBaku) {
-      const msg = `COA 110501 (Bahan Baku) tidak ditemukan untuk perusahaan ini`
+    if (!persediaanCabang) {
+      const msg = `COA 110505 (Persediaan Cabang) tidak ditemukan untuk perusahaan ini`
       if (isManualRetry) throw new BusinessRuleError(msg)
       console.warn(`[StockAdjustmentJournal] ${msg}`)
       return
@@ -475,7 +475,7 @@ export class StockAdjustmentsService {
         await stockAdjustmentsRepository.insertJournalLine(client, {
           journalHeaderId: journalId,
           lineNumber: lineNumber++,
-          accountId: bahanBaku.id,
+          accountId: persediaanCabang.id,
           description: `${line.product_name} - ${fmtQty} ${line.base_unit_name ?? ''}`.trim(),
           debitAmount: 0,
           creditAmount: value,
@@ -496,7 +496,7 @@ export class StockAdjustmentsService {
       await stockAdjustmentsRepository.insertJournalLine(client, {
         journalHeaderId: journalId,
         lineNumber: lineNumber++,
-        accountId: bahanBaku.id,
+        accountId: persediaanCabang.id,
         description: `Breakdown susut - ${detail.input_product_name}`,
         debitAmount: 0,
         creditAmount: wasteValue,

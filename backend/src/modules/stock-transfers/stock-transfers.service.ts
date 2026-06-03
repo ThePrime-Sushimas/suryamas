@@ -372,10 +372,20 @@ export class StockTransfersService {
     const fiscalPeriod = await stockTransfersRepository.findOpenFiscalPeriod(companyId, detail.transfer_date, client)
     if (!fiscalPeriod) return // Skip journal if no open period (don't block transfer)
 
-    // Resolve COA accounts
-    const bahanBaku = await stockTransfersRepository.findCoaByCode(companyId, '110501', client)
+    // Resolve COA accounts for inter-branch transfer
+    // Source: DR 110598 (Persediaan Dalam Perjalanan), CR 110502 (Barang Dalam Proses) or 110501 (Bahan Baku)
+    // Target: DR 110505 (Persediaan Cabang), CR 110598 (Persediaan Dalam Perjalanan)
     const persediaanTransit = await stockTransfersRepository.findCoaByCode(companyId, '110598', client)
-    if (!bahanBaku || !persediaanTransit) return // Skip if COA not configured
+    const persediaanCabang = await stockTransfersRepository.findCoaByCode(companyId, '110505', client)
+    const barangDalamProses = await stockTransfersRepository.findCoaByCode(companyId, '110502', client)
+    const bahanBaku = await stockTransfersRepository.findCoaByCode(companyId, '110501', client)
+    if (!persediaanTransit || !persediaanCabang) return // Skip if COA not configured
+
+    // Determine source credit COA based on source warehouse type
+    // If from Finished Goods/WIP warehouse → credit 110502 (Barang Dalam Proses)
+    // Otherwise → credit 110501 (Bahan Baku)
+    const sourceCreditCoa = barangDalamProses || bahanBaku
+    if (!sourceCreditCoa) return
 
     // Calculate total transfer value
     const totalValue = detail.lines.reduce((sum, line) => sum + Number(line.qty) * Number(line.cost_per_unit), 0)
@@ -383,7 +393,7 @@ export class StockTransfersService {
 
     const period = fiscalPeriod.period
 
-    // Journal 1 — Source branch (pengirim): DR Transit, CR Bahan Baku
+    // Journal 1 — Source branch (pengirim): DR Transit, CR WIP/Bahan Baku
     const seq1 = await stockTransfersRepository.getNextJournalSequence(client, companyId, period)
     const journalNumber1 = `JI-${period}-${String(seq1).padStart(4, '0')}`
 
@@ -412,13 +422,13 @@ export class StockTransfersService {
     await stockTransfersRepository.insertJournalLine(client, {
       journalHeaderId: sourceJournalId,
       lineNumber: 2,
-      accountId: bahanBaku.id,
+      accountId: sourceCreditCoa.id,
       description: `Transfer keluar - ${detail.transfer_number}`,
       debitAmount: 0,
       creditAmount: totalValue,
     })
 
-    // Journal 2 — Target branch (penerima): DR Bahan Baku, CR Transit
+    // Journal 2 — Target branch (penerima): DR Persediaan Cabang, CR Transit
     const seq2 = await stockTransfersRepository.getNextJournalSequence(client, companyId, period)
     const journalNumber2 = `JI-${period}-${String(seq2).padStart(4, '0')}`
 
@@ -439,7 +449,7 @@ export class StockTransfersService {
     await stockTransfersRepository.insertJournalLine(client, {
       journalHeaderId: targetJournalId,
       lineNumber: 1,
-      accountId: bahanBaku.id,
+      accountId: persediaanCabang.id,
       description: `Transfer masuk - ${detail.transfer_number}`,
       debitAmount: totalValue,
       creditAmount: 0,
