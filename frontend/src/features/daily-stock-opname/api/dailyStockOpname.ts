@@ -73,6 +73,27 @@ export const useCreateOpname = () => {
   })
 }
 
+// ─── AVAILABLE POSITIONS ─────────────────────────────────────────────────────
+
+export interface OpnamePosition {
+  id: string
+  position_code: string
+  position_name: string
+  department_name: string
+}
+
+export const useOpnamePositions = (branchId?: string) =>
+  useQuery({
+    queryKey: ['daily-stock-opname', 'positions', branchId],
+    queryFn: async () => {
+      const params = branchId ? { branch_id: branchId } : {}
+      const { data } = await api.get('/daily-stock-opname/positions', { params })
+      return (data.data || []) as OpnamePosition[]
+    },
+    enabled: !!branchId,
+    staleTime: 60_000,
+  })
+
 // ─── UPDATE LINE ─────────────────────────────────────────────────────────────
 
 export const useUpdateLine = () => {

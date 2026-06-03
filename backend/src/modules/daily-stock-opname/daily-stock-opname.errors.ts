@@ -7,8 +7,9 @@ export class OpnameNotFoundError extends NotFoundError {
 }
 
 export class OpnameDuplicateError extends ConflictError {
-  constructor(branchName: string, date: string) {
-    super(`Opname session untuk cabang "${branchName}" tanggal ${date} sudah ada`)
+  constructor(branchName: string, date: string, positionName?: string) {
+    const posInfo = positionName ? ` position "${positionName}"` : ''
+    super(`Opname session untuk cabang "${branchName}"${posInfo} tanggal ${date} sudah ada`)
   }
 }
 

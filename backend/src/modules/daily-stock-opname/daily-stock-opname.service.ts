@@ -1,6 +1,8 @@
 import { dailyStockOpnameRepository } from './daily-stock-opname.repository'
 import type { InsertLineData } from './daily-stock-opname.repository'
 import { theoreticalConsumptionRepository } from '../food-production/theoretical-consumption/theoretical-consumption.repository'
+import { resolveUserWipAccessForBranch } from '../food-production/wip/wip-access.util'
+import { requireBranchAccess, getCompanyIdForBranch } from '../../utils/branch-access.util'
 import { stockRepository } from '../stock/stock.repository'
 import { AuditService } from '../monitoring/monitoring.service'
 import { storageService } from '../../services/storage.service'
@@ -143,26 +145,24 @@ export class DailyStockOpnameService {
   // ─── SESSION CREATION ───────────────────────────────────────────────────────
 
   /**
-   * Creates a new opname session for a branch on today's date.
+   * Creates a new opname session for a branch on a given date, filtered by position.
    *
    * Steps:
-   * 1. Validate current date (Jakarta TZ), not past closing_time, no existing session
-   * 2. Resolve READY and MAIN warehouse for branch
-   * 3. Calculate expected balances: ready_balance - theoretical_consumption
-   * 4. Snapshot MAIN warehouse balances, cost_per_unit, DPO in quantities
-   * 5. Clamp negative expected to 0 with warning flag
-   * 6. Mark high-risk products (risk_category = 'HIGH')
-   * 7. Insert header and lines within transaction
-   * 8. Log audit entry via AuditService
-   *
-   * Requirements: 1.1, 1.4, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 3.4, 3.5, 4.1, 6.1, 6.3, 6.5, 15.1
+   * 1. Validate branch access, resolve company
+   * 2. Validate no existing session for branch + date + position
+   * 3. Resolve READY and MAIN warehouse for branch
+   * 4. Get products accessible by position (via WIP materials + outputs)
+   * 5. Filter to products with stock in READY warehouse
+   * 6. Calculate expected balances: ready_balance - theoretical_consumption
+   * 7. Snapshot MAIN warehouse balances, cost_per_unit, DPO in quantities
+   * 8. Insert header and lines within transaction
+   * 9. Log audit entry via AuditService
    */
   async createSession(
     branchIds: string[],
     dto: CreateOpnameDto,
     userId: string,
   ): Promise<DailyClosingCountDetail> {
-    const { requireBranchAccess, getCompanyIdForBranch } = await import('../../utils/branch-access.util')
     requireBranchAccess(dto.branch_id, branchIds)
 
     const companyId = (await getCompanyIdForBranch(dto.branch_id)) ?? ''
@@ -170,45 +170,65 @@ export class DailyStockOpnameService {
       throw new BusinessRuleError('Branch tidak ditemukan atau tidak memiliki company')
     }
 
-    // 1. Validate date: must be today in Jakarta TZ (no backdating)
-    const closingDate = todayJakarta()
+    // 1. Use closing_date from DTO (user picks the date)
+    const closingDate = dto.closing_date
 
-    // 2. Validate time restriction: not past closing_time for creation
-    await this.validateTimeRestriction(dto.branch_id, 'create')
-
-    // 3. Validate no existing session for branch+date
-    const existingSession = await dailyStockOpnameRepository.findByBranchAndDate(dto.branch_id, closingDate)
+    // 2. Validate no existing session for branch + date + position
+    const existingSession = await dailyStockOpnameRepository.findByBranchDateAndPosition(
+      dto.branch_id, closingDate, dto.position_id,
+    )
     if (existingSession) {
-      // Get branch name for error message
       const readyWarehouse = await dailyStockOpnameRepository.findWarehouseByBranchAndType(dto.branch_id, 'READY')
-      throw new OpnameDuplicateError(readyWarehouse?.warehouse_name ?? dto.branch_id, closingDate)
+      const posDetails = (await dailyStockOpnameRepository.getPositionDetails([dto.position_id]))[0]
+      throw new OpnameDuplicateError(readyWarehouse?.warehouse_name ?? dto.branch_id, closingDate, posDetails?.position_name)
     }
 
-    // 4. Resolve READY warehouse for branch
+    // 3. Resolve READY warehouse for branch
     const readyWarehouse = await dailyStockOpnameRepository.findWarehouseByBranchAndType(dto.branch_id, 'READY')
     if (!readyWarehouse) {
       throw new BusinessRuleError('Warehouse READY tidak ditemukan untuk cabang ini. Pastikan warehouse READY sudah dikonfigurasi.')
     }
 
-    // 5. Resolve MAIN warehouse for branch (for snapshot)
+    // 4. Resolve MAIN warehouse for branch (for snapshot)
     const mainWarehouse = await dailyStockOpnameRepository.findWarehouseByBranchAndType(dto.branch_id, 'MAIN')
     if (!mainWarehouse) {
       throw new BusinessRuleError('Warehouse MAIN tidak ditemukan untuk cabang ini. Pastikan warehouse MAIN sudah dikonfigurasi.')
     }
 
-    // 6. Get all products with stock in READY warehouse
-    const productsWithStock = await dailyStockOpnameRepository.getProductsWithStock(readyWarehouse.id)
+    // 5. Check if selected position has can_access_all_wip flag
+    const positionCheck = await dailyStockOpnameRepository.findPositionById(dto.position_id)
+    if (!positionCheck) {
+      throw new BusinessRuleError('Position tidak ditemukan atau sudah dihapus.')
+    }
+    const canAccessAllWip = positionCheck.can_access_all_wip
 
-    // 7. Get theoretical consumption for today
+    // 6. Get all products with stock in READY warehouse
+    const allProductsWithStock = await dailyStockOpnameRepository.getProductsWithStock(readyWarehouse.id)
+
+    // 7. Filter to only products accessible by this position (skip if can_access_all_wip)
+    let productsWithStock = allProductsWithStock
+    if (!canAccessAllWip) {
+      const positionProductIds = await dailyStockOpnameRepository.getProductIdsByPosition(dto.position_id, companyId)
+      if (positionProductIds.size === 0) {
+        throw new BusinessRuleError('Tidak ada produk yang terkait dengan position ini. Pastikan WIP sudah di-assign ke position yang dipilih.')
+      }
+      productsWithStock = allProductsWithStock.filter(p => positionProductIds.has(p.product_id))
+    }
+
+    if (productsWithStock.length === 0) {
+      throw new BusinessRuleError('Tidak ada produk dengan stok di gudang READY untuk position ini.')
+    }
+
+    // 8. Get theoretical consumption for the date
     const theoreticalMap = await this.getTheoreticalConsumptionForDate(dto.branch_id, closingDate)
 
-    // 8. Get DPO IN_TRANSFER movements for today (display only)
+    // 9. Get DPO IN_TRANSFER movements for the date (display only)
     const dpoTransfers = await dailyStockOpnameRepository.getDpoTransfersForDate(readyWarehouse.id, closingDate)
 
-    // 9. Get MAIN warehouse balances (snapshot)
+    // 10. Get MAIN warehouse balances (snapshot)
     const mainBalances = await dailyStockOpnameRepository.getMainBalances(mainWarehouse.id)
 
-    // 10. Build opname lines
+    // 11. Build opname lines
     const lines: InsertLineData[] = []
     let sortOrder = 0
 
@@ -225,10 +245,6 @@ export class DailyStockOpnameService {
       const mainBalance = mainBalances.get(product.product_id) ?? 0
 
       // Expected balance formula: ready_balance - theoretical_out
-      // DPO transfers are already reflected in stock_balances because DPO confirm
-      // calls stockRepository.upsertBalance() immediately within its transaction.
-      // Therefore dpo_in_qty is stored on the line for DISPLAY ONLY — not added to formula.
-      // Prerequisite: all DPOs for today must be confirmed BEFORE opname session creation.
       const rawExpected = readyBalance - theoreticalOut
 
       // Clamp negative to 0 with warning
@@ -272,7 +288,7 @@ export class DailyStockOpnameService {
       })
     }
 
-    // 11. Insert header and lines within a transaction
+    // 12. Insert header and lines within a transaction
     const sessionId = await dailyStockOpnameRepository.withTransaction(async (client) => {
       // Generate opname number (format: OPN-{branchCode}-{YYYYMMDD}-{seq})
       const branchCode = await dailyStockOpnameRepository.getBranchCode(dto.branch_id) ?? 'UNK'
@@ -285,6 +301,7 @@ export class DailyStockOpnameService {
         opname_number: opnameNumber,
         closing_date: closingDate,
         pic_user_id: userId,
+        position_id: dto.position_id,
         notes: dto.notes ?? null,
         created_by: userId,
       })
@@ -304,21 +321,41 @@ export class DailyStockOpnameService {
       return header.id
     })
 
-    // 12. Log audit entry
+    // 13. Log audit entry
     await AuditService.log('CREATE', 'daily_closing_counts', sessionId, userId, undefined, {
       branch_id: dto.branch_id,
       closing_date: closingDate,
       warehouse_id: readyWarehouse.id,
+      position_id: dto.position_id,
       line_count: lines.length,
     })
 
-    // 13. Fetch and return the full detail
+    // 14. Fetch and return the full detail
     const detail = await dailyStockOpnameRepository.findByIdAccessible(sessionId, branchIds)
     if (!detail) {
       throw new BusinessRuleError('Gagal mengambil detail opname session setelah pembuatan')
     }
 
     return detail
+  }
+
+  // ─── AVAILABLE POSITIONS ────────────────────────────────────────────────────
+
+  /**
+   * Returns positions available for the current user to create opname sessions.
+   * A position is "available" if:
+   * 1. User has that position (via employee_branches or employee_positions)
+   * 2. That position has WIP items assigned to it (via wip_position_access)
+   */
+  async getAvailablePositions(
+    userId: string,
+    branchId: string,
+  ): Promise<{ id: string; position_code: string; position_name: string; department_name: string }[]> {
+    const access = await resolveUserWipAccessForBranch(userId, branchId)
+
+    if (access.positionIds.length === 0) return []
+
+    return dailyStockOpnameRepository.getPositionDetails(access.positionIds)
   }
 
   // ─── LINE UPDATES ────────────────────────────────────────────────────────────

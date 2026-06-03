@@ -52,6 +52,8 @@ const HEADER_SELECT = `
   b.branch_name, b.branch_code,
   w.warehouse_name,
   pic.full_name AS pic_name,
+  pos.position_name AS position_name,
+  pos.position_code AS position_code,
   resolver.full_name AS resolved_by_name,
   confirmer.full_name AS confirmed_by_name
 `
@@ -61,6 +63,7 @@ const HEADER_FROM = `
   JOIN branches b ON b.id = dcc.branch_id
   JOIN warehouses w ON w.id = dcc.warehouse_id
   LEFT JOIN employees pic ON pic.user_id = dcc.pic_user_id
+  LEFT JOIN positions pos ON pos.id = dcc.position_id
   LEFT JOIN employees resolver ON resolver.user_id = dcc.resolved_by
   LEFT JOIN employees confirmer ON confirmer.user_id = dcc.confirmed_by
 `
@@ -200,6 +203,79 @@ export class DailyStockOpnameRepository {
     return rows[0] ?? null
   }
 
+  /**
+   * Check if a session already exists for this branch + date + position combination.
+   */
+  async findByBranchDateAndPosition(
+    branchId: string,
+    date: string,
+    positionId: string,
+  ): Promise<DailyClosingCount | null> {
+    const { rows } = await pool.query(
+      `SELECT * FROM daily_closing_counts
+       WHERE branch_id = $1 AND closing_date = $2::date AND position_id = $3 AND is_deleted = false`,
+      [branchId, date, positionId],
+    )
+    return rows[0] ?? null
+  }
+
+  /**
+   * Get all product IDs that belong to WIP items accessible by a given position.
+   * Returns both material (ingredient) product_ids and output_product_ids.
+   */
+  async getProductIdsByPosition(positionId: string, companyId: string): Promise<Set<string>> {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT product_id FROM (
+        -- Materials/ingredients of WIPs accessible by this position
+        SELECT wi.product_id
+        FROM wip_position_access wpa
+        JOIN wip_items w ON w.id = wpa.wip_id AND w.is_deleted = false AND w.is_active = true AND w.company_id = $2
+        JOIN wip_ingredients wi ON wi.wip_id = w.id
+        WHERE wpa.position_id = $1
+
+        UNION
+
+        -- Output products of WIPs accessible by this position
+        SELECT w.output_product_id AS product_id
+        FROM wip_position_access wpa
+        JOIN wip_items w ON w.id = wpa.wip_id AND w.is_deleted = false AND w.is_active = true AND w.company_id = $2
+        WHERE wpa.position_id = $1 AND w.output_product_id IS NOT NULL
+      ) sub`,
+      [positionId, companyId],
+    )
+    return new Set(rows.map(r => r.product_id))
+  }
+
+  /**
+   * Get position by ID for access check.
+   */
+  async findPositionById(positionId: string): Promise<{ can_access_all_wip: boolean } | null> {
+    const { rows } = await pool.query(
+      `SELECT can_access_all_wip FROM positions WHERE id = $1 AND is_deleted = false`,
+      [positionId],
+    )
+    return rows[0] ?? null
+  }
+
+  /**
+   * Get position details for a list of position IDs.
+   * Returns all active, non-deleted positions (no WIP assignment check).
+   */
+  async getPositionDetails(positionIds: string[]): Promise<{ id: string; position_code: string; position_name: string; department_name: string }[]> {
+    if (positionIds.length === 0) return []
+    const { rows } = await pool.query(
+      `SELECT DISTINCT p.id, p.position_code, p.position_name, d.department_name
+       FROM positions p
+       JOIN departments d ON d.id = p.department_id
+       WHERE p.id = ANY($1::uuid[])
+         AND p.is_deleted = false
+         AND p.is_active = true
+       ORDER BY p.position_name`,
+      [positionIds],
+    )
+    return rows
+  }
+
   async hasConfirmedSession(branchId: string, date: string): Promise<boolean> {
     const { rows } = await pool.query(
       `SELECT EXISTS(
@@ -240,14 +316,15 @@ export class DailyStockOpnameRepository {
       opname_number: string
       closing_date: string
       pic_user_id: string
+      position_id: string | null
       notes?: string | null
       created_by?: string | null
     },
   ): Promise<DailyClosingCount> {
     const { rows } = await client.query(
       `INSERT INTO daily_closing_counts
-         (company_id, branch_id, warehouse_id, opname_number, closing_date, pic_user_id, notes, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8, $8)
+         (company_id, branch_id, warehouse_id, opname_number, closing_date, pic_user_id, position_id, notes, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8, $9, $9)
        RETURNING *`,
       [
         data.company_id,
@@ -256,6 +333,7 @@ export class DailyStockOpnameRepository {
         data.opname_number,
         data.closing_date,
         data.pic_user_id,
+        data.position_id,
         data.notes ?? null,
         data.created_by ?? null,
       ],

@@ -96,6 +96,20 @@ export class DailyStockOpnameController {
     }
   }
 
+  // ─── AVAILABLE POSITIONS ────────────────────────────────────────────────────
+
+  getAvailablePositions = async (req: Request, res: Response) => {
+    try {
+      const { userId, branchIds } = await opnameScope(req)
+      const branchId = (req.query.branch_id as string) || req.context?.branch_id || ''
+      if (branchId) requireBranchAccess(branchId, branchIds)
+      const result = await dailyStockOpnameService.getAvailablePositions(userId, branchId)
+      sendSuccess(res, result, 'Available positions retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_opname_positions' })
+    }
+  }
+
   // ─── LINE UPDATES ──────────────────────────────────────────────────────────
 
   updateLine = async (req: Request, res: Response) => {

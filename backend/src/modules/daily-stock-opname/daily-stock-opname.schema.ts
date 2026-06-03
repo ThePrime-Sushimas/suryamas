@@ -26,6 +26,8 @@ export const photoUploadSchema = z.object({
 export const createOpnameSchema = z.object({
   body: z.object({
     branch_id: z.string().uuid(),
+    closing_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
+    position_id: z.string().uuid(),
     notes: z.string().max(500).optional(),
   }),
 })

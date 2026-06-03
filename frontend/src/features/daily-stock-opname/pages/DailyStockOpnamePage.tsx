@@ -3,6 +3,7 @@ import { ClipboardCheck, Plus, RefreshCw, Filter, X, Search } from 'lucide-react
 import { useUrlFilters, useListNavigation } from '@/lib/urlFilters'
 import { useOpnameList, useCreateOpname } from '../api/dailyStockOpname'
 import { OpnameStatusBadge } from '../components/OpnameStatusBadge'
+import { CreateOpnameDialog } from '../components/CreateOpnameDialog'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
@@ -58,11 +59,17 @@ export default function DailyStockOpnamePage() {
 
   const hasActiveFilters = filters.status || filters.branch_id || filters.date_from || filters.date_to || filters.search
 
-  const handleCreate = async () => {
-    const branchId = currentBranch?.branch_id
-    if (!branchId) return
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+
+  const handleCreate = async (data: { branch_id: string; closing_date: string; position_id: string; notes?: string }) => {
     try {
-      const result = await createOpname.mutateAsync({ branch_id: branchId })
+      const result = await createOpname.mutateAsync({
+        branch_id: data.branch_id,
+        closing_date: data.closing_date,
+        position_id: data.position_id,
+        notes: data.notes,
+      })
+      setShowCreateDialog(false)
       openDetail(`/inventory/daily-stock-opname/${result.id}`)
     } catch {
       // Error handled by mutation/toast
@@ -111,8 +118,7 @@ export default function DailyStockOpnamePage() {
             {canInsert && (
               <button
                 type="button"
-                onClick={handleCreate}
-                disabled={createOpname.isPending}
+                onClick={() => setShowCreateDialog(true)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" /> Mulai Opname
@@ -209,6 +215,7 @@ export default function DailyStockOpnamePage() {
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cabang</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Position</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">PIC</th>
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</th>
@@ -219,12 +226,12 @@ export default function DailyStockOpnamePage() {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}><td colSpan={7} className="px-6 py-5">
+                    <tr key={i}><td colSpan={8} className="px-6 py-5">
                       <div className="h-5 bg-gray-100 dark:bg-gray-700/50 rounded-lg animate-pulse" />
                     </td></tr>
                   ))
                 ) : sessions.length === 0 ? (
-                  <tr><td colSpan={7} className="px-6 py-16 text-center">
+                  <tr><td colSpan={8} className="px-6 py-16 text-center">
                     <ClipboardCheck className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                     <p className="text-gray-500">Belum ada sesi opname</p>
                   </td></tr>
@@ -241,6 +248,9 @@ export default function DailyStockOpnamePage() {
                       </td>
                       <td className="px-6 py-4 text-gray-900 dark:text-white">
                         {session.branch_name}
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                        {session.position_name ?? '—'}
                       </td>
                       <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                         {session.pic_name}
@@ -318,6 +328,15 @@ export default function DailyStockOpnamePage() {
           )}
         </div>
       </div>
+
+      {/* Create Opname Dialog */}
+      <CreateOpnameDialog
+        isOpen={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        onSubmit={handleCreate}
+        isLoading={createOpname.isPending}
+        defaultBranchId={currentBranch?.branch_id}
+      />
     </div>
   )
 }

@@ -31,6 +31,9 @@ router.use(authenticate, resolveBranchContext)
 
 // ─── STATIC ROUTES (before /:id to avoid param conflicts) ─────────────────────
 
+// Available positions for opname (user's positions that have WIP assignments)
+router.get('/positions', canView('daily_stock_opname'), (req, res) => dailyStockOpnameController.getAvailablePositions(req, res))
+
 // Dashboard
 router.get('/dashboard', canView('daily_stock_opname'), validateSchema(dashboardSchema), (req, res) => dailyStockOpnameController.getDashboard(req, res))
 

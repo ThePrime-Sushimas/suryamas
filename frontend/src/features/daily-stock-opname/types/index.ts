@@ -10,6 +10,7 @@ export interface DailyClosingCount {
   company_id: string
   branch_id: string
   warehouse_id: string
+  position_id: string | null
   closing_date: string
   pic_user_id: string
   status: OpnameStatus
@@ -35,6 +36,8 @@ export interface DailyClosingCount {
   branch_code: string
   warehouse_name: string
   pic_name: string
+  position_name: string | null
+  position_code: string | null
   resolved_by_name: string | null
   confirmed_by_name: string | null
 }
@@ -86,6 +89,8 @@ export interface OpnameSummary {
 
 export interface CreateOpnameDto {
   branch_id: string
+  closing_date: string      // YYYY-MM-DD
+  position_id: string
   notes?: string
 }
 
