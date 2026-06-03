@@ -46,6 +46,8 @@ export default function CogsPage() {
     if (p) { setPeriodStart(p.period_start); setPeriodEnd(p.period_end) }
   }
 
+  const isMultiBranch = selectedBranches.length > 1
+
   const handlePreview = async () => {
     if (!periodStart || !periodEnd) { toast.warning('Pilih periode terlebih dahulu'); return }
     if (selectedBranches.length === 0) { toast.warning('Pilih minimal 1 cabang'); return }
@@ -57,6 +59,8 @@ export default function CogsPage() {
 
   const handleFinalize = async () => {
     if (!periodStart || !periodEnd || selectedBranches.length === 0) return
+    // Close modal immediately so progress bar is visible
+    setShowConfirm(false)
     const results: string[] = []
     setFinalizeProgress({ current: 0, total: selectedBranches.length, results: [] })
     try {
@@ -81,9 +85,11 @@ export default function CogsPage() {
         toast.warning(`COGS: ${successCount} berhasil, ${failCount} gagal`)
       }
       setPreview(null)
-      setShowConfirm(false)
-      setFinalizeProgress(null)
-      setActiveTab('history')
+      // Keep progress visible for 2s so user can see results, then switch to history
+      setTimeout(() => {
+        setFinalizeProgress(null)
+        setActiveTab('history')
+      }, 2000)
     } catch (err: unknown) {
       toast.error(parseApiError(err, 'Gagal finalize COGS'))
       setFinalizeProgress(null)
@@ -142,19 +148,23 @@ export default function CogsPage() {
                 <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)}
                   className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
               </div>
-              <button onClick={handlePreview} disabled={cogsPreview.isPending || !periodStart || !periodEnd || selectedBranches.length === 0}
-                className="h-9 px-4 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40">
-                {cogsPreview.isPending ? 'Menghitung...' : 'Preview'}
-              </button>
+              {!isMultiBranch && (
+                <button onClick={handlePreview} disabled={cogsPreview.isPending || !periodStart || !periodEnd || selectedBranches.length === 0}
+                  className="h-9 px-4 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40">
+                  {cogsPreview.isPending ? 'Menghitung...' : 'Preview'}
+                </button>
+              )}
             </div>
 
             {/* Branch Multi-Select */}
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-medium text-gray-500">Cabang (pilih 1 atau lebih)</label>
-                <button type="button" onClick={() => setSelectedBranches(
-                  selectedBranches.length === branches.length ? [] : branches.map(b => b.branch_id)
-                )} className="text-[10px] text-blue-600 hover:text-blue-800">
+                <button type="button" onClick={() => {
+                  const next = selectedBranches.length === branches.length ? [] : branches.map(b => b.branch_id)
+                  setSelectedBranches(next)
+                  if (next.length > 1) setPreview(null)
+                }} className="text-[10px] text-blue-600 hover:text-blue-800">
                   {selectedBranches.length === branches.length ? 'Hapus semua' : 'Pilih semua'}
                 </button>
               </div>
@@ -163,9 +173,11 @@ export default function CogsPage() {
                   const isSelected = selectedBranches.includes(b.branch_id)
                   return (
                     <button key={b.branch_id} type="button"
-                      onClick={() => setSelectedBranches(prev =>
-                        isSelected ? prev.filter(id => id !== b.branch_id) : [...prev, b.branch_id]
-                      )}
+                      onClick={() => {
+                        const next = isSelected ? selectedBranches.filter(id => id !== b.branch_id) : [...selectedBranches, b.branch_id]
+                        setSelectedBranches(next)
+                        if (next.length > 1) setPreview(null)
+                      }}
                       className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${isSelected
                         ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:border-blue-400 dark:text-blue-300'
                         : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -178,8 +190,45 @@ export default function CogsPage() {
             </div>
           </div>
 
-          {/* Preview Result */}
-          {preview && (
+          {/* Multi-branch: skip preview, show finalize directly */}
+          {isMultiBranch && periodStart && periodEnd && (
+            <div className="space-y-3">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <span className="font-semibold">{selectedBranches.length} cabang</span> dipilih untuk periode {periodStart} s/d {periodEnd}.
+                  Preview tidak tersedia untuk multi-branch. Langsung finalize — progress per cabang akan ditampilkan.
+                </p>
+              </div>
+
+              {finalizeProgress && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                      Memproses {finalizeProgress.current}/{finalizeProgress.total} cabang...
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 mb-3">
+                    <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${(finalizeProgress.current / finalizeProgress.total) * 100}%` }} />
+                  </div>
+                  {finalizeProgress.results.map((r, i) => (
+                    <p key={i} className={`text-xs ${r.startsWith('✓') ? 'text-emerald-600' : 'text-red-600'}`}>{r}</p>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end">
+                <button onClick={() => setShowConfirm(true)} disabled={cogsFinalize.isPending || selectedBranches.length === 0}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 text-sm font-medium">
+                  <FileText className="w-4 h-4" />
+                  {cogsFinalize.isPending ? 'Memproses...' : `Finalize ${selectedBranches.length} Cabang`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Single-branch: preview result */}
+          {!isMultiBranch && preview && (
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -364,7 +413,10 @@ export default function CogsPage() {
         onClose={() => { setShowConfirm(false); setFinalizeProgress(null) }}
         onConfirm={handleFinalize}
         title="Finalize COGS"
-        message={`Ini akan membuat jurnal COGS per cabang (${selectedBranches.length} cabang) untuk periode ${periodStart} s/d ${periodEnd}. Preview di atas hanya untuk cabang ${branches.find(b => b.branch_id === selectedBranches[0])?.branch_name || 'pertama'}.${preview && preview.summary.unmapped_menu_count > 0 ? ` ⚠️ ${preview.summary.unmapped_menu_count} menu belum punya resep.` : ""} Lanjutkan?`}
+        message={isMultiBranch
+          ? `Ini akan membuat jurnal COGS untuk ${selectedBranches.length} cabang, periode ${periodStart} s/d ${periodEnd}. Proses berjalan per cabang dengan progress bar. Lanjutkan?`
+          : `Ini akan membuat jurnal COGS untuk cabang ${branches.find(b => b.branch_id === selectedBranches[0])?.branch_name || ''}, periode ${periodStart} s/d ${periodEnd}.${preview && preview.summary.unmapped_menu_count > 0 ? ` ⚠️ ${preview.summary.unmapped_menu_count} menu belum punya resep.` : ""} Lanjutkan?`
+        }
         confirmText={cogsFinalize.isPending ? 'Memproses...' : `Finalize ${selectedBranches.length} Cabang`}
         variant="warning"
       />
