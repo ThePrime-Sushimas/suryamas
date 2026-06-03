@@ -92,7 +92,7 @@ export class CogsRepository {
         COALESCE(m.estimated_cost, 0)::numeric AS estimated_cost,
         COALESCE(m.has_recipe, false) AS has_recipe,
         SUM(sm.qty)::numeric AS qty_sold,
-        SUM(sm.total)::numeric AS revenue
+        SUM(sm.price * sm.qty)::numeric AS revenue
       FROM tr_salesmenu sm
       JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
       LEFT JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.company_id = $${idx} AND m.deleted_at IS NULL
