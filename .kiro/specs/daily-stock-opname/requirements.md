@@ -4,6 +4,8 @@
 
 Stock Opname Harian (Daily Closing Count) is a daily inventory control system for the READY warehouse at each branch. Every night, kitchen staff weigh remaining items in the READY warehouse, the system calculates expected balances based on opening stock + DPO transfers in - theoretical consumption from POS sales, and variances are recorded as stock movements (OUT_WASTE or IN_ADJUSTMENT). This feature is the core mechanism for food cost control, fraud detection, and operational discipline across all 5 branches.
 
+**Enhancement Scope (Phase 1):** This document extends the existing stock opname system with three enhancements: (1) UI label rename with formula tooltips for better clarity, (2) a Real Consumption Analysis ("Analisis") tab showing per-product riil vs POS consumption comparison, and (3) Variance Classification allowing the PIC to categorize negative variances into waste vs shortage with employee notification for shortages. Journal entry integration is deferred to Phase 2.
+
 ## Glossary
 
 - **Opname_Session**: A single daily closing count record for one branch on one date, containing all counted product lines
@@ -24,6 +26,14 @@ Stock Opname Harian (Daily Closing Count) is a daily inventory control system fo
 - **Variance_Report**: A historical analysis view showing variance trends per product, branch, and period
 - **Jakarta_Time**: All date and time comparisons in this feature use Asia/Jakarta timezone (UTC+7)
 - **useUrlFilters**: The existing frontend library pattern (located at @/lib/urlFilters) for persisting list page filter, pagination, and search state in URL search parameters, enabling shareable links and browser navigation
+- **Detail_Page**: The frontend opname detail page component (DailyStockOpnameDetailPage) that displays session header, line items table, and action buttons
+- **Pemakaian_Riil**: Real/actual consumption calculated from physical stock movements: (stok_kemarin) − (stok_hari_ini + waste) + total_konversi. Note: stok_kemarin (system_qty from stock_balances) already includes DPO transfers, so barang_masuk is NOT added to this formula to avoid double-counting.
+- **Pemakaian_POS**: Theoretical consumption derived from POS sales × recipe quantities (same as theoretical_out stored on opname lines)
+- **Analysis_Service**: The backend service component responsible for computing real consumption analysis data
+- **Classification_Service**: The backend service component responsible for variance classification (waste vs shortage) logic
+- **Classification_Modal**: The full-screen modal dialog UI component for classifying negative-variance lines into waste and shortage categories
+- **Variance_Classification**: The process of categorizing negative variance into waste (acceptable loss) or shortage (requires follow-up/accountability)
+- **Shortage**: A portion of negative variance attributed to an employee error, theft, or mishandling that requires accountability and notification
 
 ## Requirements
 
@@ -249,7 +259,66 @@ Stock Opname Harian (Daily Closing Count) is a daily inventory control system fo
 3. WHEN evaluating time restrictions, THE Opname_Service SHALL use Jakarta_Time (Asia/Jakarta timezone) for all time comparisons
 4. THE Opname_Service SHALL store the Closing_Time in the same branch_opname_config table as the variance threshold
 
-### Requirement 19: Correction of Confirmed Session (Phase 2)
+### Requirement 19: UI Label Rename and Tooltips
+
+**User Story:** As a kitchen PIC, I want clear Indonesian labels and formula tooltips on the opname detail table, so that I can immediately understand what each column represents without guessing.
+
+#### Acceptance Criteria
+
+1. THE Detail_Page SHALL display the column header "Stok Main" instead of "MAIN Bal." for the MAIN_Warehouse balance column in the opname lines table
+2. THE Detail_Page SHALL display a tooltip on the "Sisa Expected" column header showing the formula: "Sisa Expected = Stok Awal − Pemakaian POS"
+3. THE Detail_Page SHALL display a tooltip on the "Var" column header showing the formula: "Variance = Actual − Sisa Expected"
+4. WHEN a user hovers over a column header that has a tooltip, THE Detail_Page SHALL display the formula text in a small popover or title attribute within 200ms of hover
+5. THE Detail_Page SHALL retain all existing column headers (Code, Produk, Stok Awal, Pemakaian POS, Sisa Expected, Actual, Var, Var %, Foto) unchanged except for the "MAIN Bal." → "Stok Main" rename
+
+### Requirement 20: Real Consumption Analysis
+
+**User Story:** As a branch manager, I want to see a per-product breakdown of real consumption vs POS-theoretical consumption, so that I can identify products where actual usage diverges from expected patterns and investigate root causes.
+
+#### Acceptance Criteria
+
+1. THE Opname_API SHALL provide an endpoint GET /daily-stock-opname/:id/analysis that returns a per-product consumption analysis for a CONFIRMED or FLAGGED Opname_Session
+2. WHEN calculating Pemakaian_Riil for each product line, THE Analysis_Service SHALL use the formula: (stok_kemarin) − (stok_hari_ini + waste) + total_konversi. Note: stok_kemarin (system_qty) already includes DPO IN_TRANSFER movements that were confirmed before session creation, so barang_masuk (dpo_in_qty) is NOT included in the formula to avoid double-counting.
+3. WHEN resolving stok_kemarin, THE Analysis_Service SHALL use the system_qty value from the opname session line record, which represents the READY_Warehouse stock balance snapshot captured at session creation time (already includes all confirmed DPO transfers)
+4. WHEN resolving barang_masuk for display, THE Analysis_Service SHALL use the dpo_in_qty value from the opname session line record as an informational reference column only — this value is NOT used in the Pemakaian_Riil formula because it is already reflected in system_qty (stok_kemarin) via the stock_balances table
+5. WHEN resolving stok_hari_ini, THE Analysis_Service SHALL use the actual_qty value from the confirmed opname session line record
+6. WHEN resolving waste, THE Analysis_Service SHALL use the absolute value of negative variance (actual_qty − expected_qty) only when variance is negative; otherwise waste is zero for that line
+7. WHEN resolving total_konversi, THE Analysis_Service SHALL sum all stock movements of type 'OUT_CONVERSION' and 'IN_CONVERSION' for the product in the READY_Warehouse on the opname date, representing production recipe transformations
+8. THE Analysis_Service SHALL return a comparison column showing the gap between Pemakaian_Riil and Pemakaian_POS (theoretical_out), calculated as: Pemakaian_Riil − Pemakaian_POS
+9. IF a product has no recipe data (has_recipe = false), THEN THE Analysis_Service SHALL set Pemakaian_POS to zero and mark the comparison as unavailable for that product
+10. THE Analysis_Service SHALL restrict access to the analysis endpoint to users with view permission on the daily_stock_opname module who also have branch access to the session's branch
+11. THE Detail_Page SHALL display the analysis data in an "Analisis" tab on the opname detail page, using the existing tab pattern (useState with activeTab, border-b-2 styling)
+12. THE Detail_Page SHALL display the following columns in the Analisis tab: Produk, Stok Kemarin, Barang Masuk (informational), Stok Hari Ini, Waste, Konversi, Pemakaian Riil, Pemakaian POS, Gap. The Barang Masuk column is displayed for reference transparency but is not used in the Pemakaian_Riil calculation.
+13. WHEN a product line has a positive gap (Pemakaian_Riil exceeds Pemakaian_POS), THE Detail_Page SHALL highlight the gap cell with a warning color to indicate higher-than-expected real consumption
+14. IF the Opname_Session is in DRAFT status, THEN THE Opname_API SHALL return an error indicating the analysis is only available after confirmation
+
+### Requirement 21: Variance Classification (Phase 1)
+
+**User Story:** As a kitchen PIC, I want to classify negative variance lines into waste vs shortage after confirming the opname, so that management can distinguish between acceptable loss and potential issues requiring follow-up.
+
+#### Acceptance Criteria
+
+1. WHILE an Opname_Session is in CONFIRMED status, THE Detail_Page SHALL display a "Klasifikasi Variance" button accessible to the PIC who performed the opname (pic_user_id matches current user)
+2. WHEN the PIC clicks "Klasifikasi Variance", THE Detail_Page SHALL open a full-screen modal dialog displaying all opname lines with negative variance (variance_qty less than zero)
+3. THE Classification_Modal SHALL display a table with columns: Produk, Variance Qty, Kategori (waste/shortage), Qty Waste, Qty Shortage, Assigned To, and Note
+4. THE Classification_Modal SHALL allow the PIC to split a single negative-variance line into multiple portions: a waste portion and a shortage portion, where the sum of portions equals the absolute value of the original variance_qty
+5. IF the PIC assigns a shortage portion, THEN THE Classification_Modal SHALL require selecting an employee (shortage_assigned_to) responsible for the shortage from the branch employee list
+6. THE Opname_API SHALL provide an endpoint POST /daily-stock-opname/:id/classify that accepts an array of classification entries, each containing: line_id, variance_category ('WASTE' or 'SHORTAGE'), qty, shortage_assigned_to (nullable), and shortage_note (nullable)
+7. WHEN classification is submitted, THE Classification_Service SHALL validate that for each line, the sum of classified quantities equals the absolute value of that line's variance_qty
+8. WHEN classification is submitted, THE Classification_Service SHALL store each classification entry in a variance_classification_lines table with fields: id, closing_id, line_id, variance_category, qty, shortage_assigned_to, shortage_note, classified_by, classified_at
+9. WHEN a classification entry with variance_category = 'SHORTAGE' is stored, THE Classification_Service SHALL create a notification to the shortage_assigned_to employee using the existing notification system (Socket.IO + DB storage) with event key 'opname.shortage_assigned'
+10. THE Classification_Service SHALL restrict the classify action to the PIC who performed the opname (pic_user_id) and users with approve permission on the daily_stock_opname module
+11. THE Classification_Service SHALL only allow classification on sessions in CONFIRMED or FLAGGED status (not DRAFT)
+12. THE Classification_Service SHALL enforce company_id and branch_id scoping on all classification queries
+13. WHEN classification has been completed for all negative-variance lines in a session, THE Detail_Page SHALL display a "Classified" badge on the session detail header. The classification is_complete flag is determined by: for ALL lines with variance_qty < 0 in the session, the SUM of classification entry quantities (from variance_classification_lines WHERE line_id = line.id) equals ABS(line.variance_qty). If any negative-variance line has unclassified quantity remaining, is_complete is false.
+14. THE Opname_API SHALL provide an endpoint GET /daily-stock-opname/:id/classifications that returns all classification entries for a session, restricted by branch access
+15. IF a session has shortage classifications pending approval, THE Detail_Page SHALL display a summary showing total waste qty, total shortage qty, and number of employees assigned
+16. WHEN classification entries are replaced (re-submission), THE Classification_Service SHALL log the previous classification state to the AuditService before deletion, including all entry details (line_id, variance_category, qty, shortage_assigned_to, classified_by, classified_at) to preserve history for audit purposes
+17. THE Classification_Service SHALL include a version counter on the session's classification state, incrementing on each re-submission, to track how many times the classification has been revised
+18. WHEN a classification entry with variance_category = 'SHORTAGE' is submitted, THE Classification_Service SHALL validate that the shortage_assigned_to employee is active (is_active = true) and not deleted (deleted_at IS NULL) before accepting the classification. IF the employee is inactive or deleted, THEN THE Classification_Service SHALL return an error indicating the employee is not eligible for shortage assignment.
+19. THE Classification_Modal SHALL use the existing employee search API (GET /employees/search) filtered by the session's branch to populate the shortage_assigned_to employee picker, showing only active employees from the same branch
+
+### Requirement 22: Correction of Confirmed Session (Phase 2 - Deferred)
 
 **User Story:** As a branch manager, I want to correct a confirmed opname session if a mistake is discovered, so that stock records remain accurate without requiring manual stock adjustments.
 
@@ -261,7 +330,7 @@ Stock Opname Harian (Daily Closing Count) is a daily inventory control system fo
 4. THE Opname_Service SHALL mark the original session as 'CORRECTED' and link it to the correction session for audit trail
 5. THIS REQUIREMENT IS DEFERRED TO PHASE 2 — for the initial release, corrections should be handled via the existing Stock Adjustment feature (manual OUT_ADJUSTMENT / IN_ADJUSTMENT with notes referencing the opname session)
 
-### Requirement 20: Assumptions and Operational Prerequisites
+### Requirement 23: Assumptions and Operational Prerequisites
 
 **User Story:** As a system administrator, I want the operational prerequisites for stock opname to be clearly documented, so that the feature works correctly within the expected workflow.
 

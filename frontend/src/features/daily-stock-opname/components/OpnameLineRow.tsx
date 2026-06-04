@@ -95,7 +95,19 @@ export function OpnameLineRow({
         </div>
       </td>
 
-      {/* Expected Qty */}
+      {/* Stok Awal (ready_balance snapshot) */}
+      <td className="px-3 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-mono whitespace-nowrap">
+        {fmtQty(line.system_qty)} <span className="text-xs text-gray-400">{line.uom}</span>
+      </td>
+
+      {/* Pemakaian POS (theoretical_out) */}
+      <td className="px-3 py-3 text-sm text-right font-mono whitespace-nowrap">
+        <span className={line.theoretical_out > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-400'}>
+          {line.theoretical_out > 0 ? `-${fmtQty(line.theoretical_out)}` : '0'}
+        </span>
+      </td>
+
+      {/* Sisa Expected */}
       <td className="px-3 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-mono whitespace-nowrap">
         {fmtQty(line.expected_qty)} <span className="text-xs text-gray-400">{line.uom}</span>
       </td>

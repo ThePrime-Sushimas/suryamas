@@ -64,3 +64,29 @@ export class DpoBlockedByOpnameError extends BusinessRuleError {
     super('DPO tidak bisa dikonfirmasi karena opname harian sudah difinalisasi untuk tanggal dan cabang ini')
   }
 }
+
+// ─── REOPEN ERRORS ────────────────────────────────────────────────────────────
+
+export class OpnameNotEligibleForReopenError extends BusinessRuleError {
+  constructor(status: string) {
+    super(`Sesi opname dengan status "${status}" tidak dapat diminta edit ulang. Hanya sesi CONFIRMED atau FLAGGED yang eligible.`)
+  }
+}
+
+export class OpnameReopenPendingExistsError extends BusinessRuleError {
+  constructor() {
+    super('Sudah ada permintaan edit ulang yang masih menunggu approval untuk sesi ini.')
+  }
+}
+
+export class OpnameReopenAlreadyRespondedError extends BusinessRuleError {
+  constructor() {
+    super('Permintaan edit ulang ini sudah direspon sebelumnya.')
+  }
+}
+
+export class OpnameReopenNotFoundError extends BusinessRuleError {
+  constructor(id: string) {
+    super(`Permintaan edit ulang dengan ID "${id}" tidak ditemukan.`)
+  }
+}

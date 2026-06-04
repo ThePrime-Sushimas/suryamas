@@ -33,6 +33,9 @@ export const NOTIFICATION_EVENT_KEYS = {
   JOURNAL_POSTED: 'journal.posted',
   // General Invoice
   GENERAL_INVOICE_REQUESTED: 'general_invoice.requested',
+  // Daily Stock Opname
+  OPNAME_SHORTAGE_ASSIGNED: 'opname.shortage_assigned',
+  OPNAME_REOPEN_REQUESTED: 'opname.reopen_requested',
 } as const
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[keyof typeof NOTIFICATION_EVENT_KEYS]
@@ -258,6 +261,26 @@ export const NOTIFICATION_EVENT_CATALOG: NotificationEventDefinition[] = [
     default_title_template: 'Request tagihan baru',
     default_message_template: '{{template_name}} — {{branch_name}} ({{amount}})',
     default_redirect_url_template: '/finance/general-invoices',
+  },
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.OPNAME_SHORTAGE_ASSIGNED,
+    label: 'Shortage opname di-assign',
+    description: 'Karyawan mendapat assignment shortage dari opname harian',
+    category: 'inventory',
+    default_type: 'warning',
+    default_title_template: 'Shortage Opname',
+    default_message_template: '{{product_name}} — {{qty}} {{uom}} shortage ditandai atas nama Anda oleh {{pic_name}}. Catatan: {{note}}',
+    default_redirect_url_template: '/inventory/daily-stock-opname/{{session_id}}',
+  },
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.OPNAME_REOPEN_REQUESTED,
+    label: 'Permintaan edit ulang opname',
+    description: 'PIC mengajukan permintaan edit ulang opname yang sudah dikonfirmasi',
+    category: 'inventory',
+    default_type: 'approval_required',
+    default_title_template: 'Permintaan Edit Ulang Opname',
+    default_message_template: '{{pic_name}} meminta izin edit ulang opname {{branch_name}} tanggal {{closing_date}}. Alasan: {{reason}}',
+    default_redirect_url_template: '/inventory/daily-stock-opname/{{session_id}}',
   },
 ]
 

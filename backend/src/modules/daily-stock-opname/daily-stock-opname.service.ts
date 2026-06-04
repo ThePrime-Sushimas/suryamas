@@ -387,18 +387,21 @@ export class DailyStockOpnameService {
       throw new OpnameNotFoundError(sessionId)
     }
 
-    // 2. Validate session is DRAFT
-    if (session.status !== 'DRAFT') {
+    // 2. Validate session is DRAFT or REOPENED
+    if (session.status !== 'DRAFT' && session.status !== 'REOPENED') {
       throw new OpnameNotDraftError(session.status)
     }
 
-    // 3. Validate session is not expired (DRAFT from previous day)
-    if (this.isSessionExpired(session)) {
-      throw new OpnameSessionExpiredError(session.closing_date)
-    }
+    // 3. Skip time restriction and expiry check when REOPENED
+    if (session.status !== 'REOPENED') {
+      // Validate session is not expired (DRAFT from previous day)
+      if (this.isSessionExpired(session)) {
+        throw new OpnameSessionExpiredError(session.closing_date)
+      }
 
-    // 4. Validate time restriction for 'edit' action
-    await this.validateTimeRestriction(session.branch_id, 'edit')
+      // Validate time restriction for 'edit' action
+      await this.validateTimeRestriction(session.branch_id, 'edit')
+    }
 
     // 5. Get the line's previous value for audit
     const previousLine = await dailyStockOpnameRepository.getLineById(lineId, sessionId)
@@ -453,18 +456,21 @@ export class DailyStockOpnameService {
       throw new OpnameNotFoundError(sessionId)
     }
 
-    // 2. Validate session is DRAFT
-    if (session.status !== 'DRAFT') {
+    // 2. Validate session is DRAFT or REOPENED
+    if (session.status !== 'DRAFT' && session.status !== 'REOPENED') {
       throw new OpnameNotDraftError(session.status)
     }
 
-    // 3. Validate session is not expired (DRAFT from previous day)
-    if (this.isSessionExpired(session)) {
-      throw new OpnameSessionExpiredError(session.closing_date)
-    }
+    // 3. Skip time restriction and expiry check when REOPENED
+    if (session.status !== 'REOPENED') {
+      // Validate session is not expired (DRAFT from previous day)
+      if (this.isSessionExpired(session)) {
+        throw new OpnameSessionExpiredError(session.closing_date)
+      }
 
-    // 4. Validate time restriction for 'edit' action
-    await this.validateTimeRestriction(session.branch_id, 'edit')
+      // Validate time restriction for 'edit' action
+      await this.validateTimeRestriction(session.branch_id, 'edit')
+    }
 
     // 5. Batch fetch all lines being updated (single DB call instead of N)
     const lineIds = dto.lines.map((l) => l.line_id)
@@ -541,18 +547,18 @@ export class DailyStockOpnameService {
       throw new OpnameNotFoundError(sessionId)
     }
 
-    // 2. Validate session is DRAFT
-    if (session.status !== 'DRAFT') {
+    // 2. Validate session is DRAFT or REOPENED
+    if (session.status !== 'DRAFT' && session.status !== 'REOPENED') {
       throw new OpnameNotDraftError(session.status)
     }
 
-    // 3. Validate session is not expired (DRAFT from previous day)
-    if (this.isSessionExpired(session)) {
-      throw new OpnameSessionExpiredError(session.closing_date)
+    // 3. Skip time restriction and expiry check when REOPENED
+    if (session.status !== 'REOPENED') {
+      if (this.isSessionExpired(session)) {
+        throw new OpnameSessionExpiredError(session.closing_date)
+      }
+      await this.validateTimeRestriction(session.branch_id, 'edit')
     }
-
-    // 4. Validate time restriction for 'edit' action
-    await this.validateTimeRestriction(session.branch_id, 'edit')
 
     // 5. Validate line exists
     const line = await dailyStockOpnameRepository.getLineById(lineId, sessionId)
@@ -575,6 +581,61 @@ export class DailyStockOpnameService {
     })
 
     return { photo_url: publicUrl }
+  }
+
+  /**
+   * Deletes the photo for an opname line.
+   * Removes the file from R2 and clears the photo_url.
+   */
+  async deletePhoto(
+    sessionId: string,
+    lineId: string,
+    branchIds: string[],
+    userId: string,
+  ): Promise<void> {
+    // 1. Fetch session and validate access
+    const session = await dailyStockOpnameRepository.findByIdAccessible(sessionId, branchIds)
+    if (!session) {
+      throw new OpnameNotFoundError(sessionId)
+    }
+
+    // 2. Validate session is DRAFT or REOPENED
+    if (session.status !== 'DRAFT' && session.status !== 'REOPENED') {
+      throw new OpnameNotDraftError(session.status)
+    }
+
+    // 3. Skip time restriction and expiry check when REOPENED
+    if (session.status !== 'REOPENED') {
+      if (this.isSessionExpired(session)) {
+        throw new OpnameSessionExpiredError(session.closing_date)
+      }
+      await this.validateTimeRestriction(session.branch_id, 'edit')
+    }
+
+    // 4. Validate line exists and has a photo
+    const line = await dailyStockOpnameRepository.getLineById(lineId, sessionId)
+    if (!line) {
+      throw new OpnameNotFoundError(lineId)
+    }
+    if (!line.photo_url) return // Nothing to delete
+
+    // 5. Extract storage path from public URL and delete from R2
+    try {
+      const url = new URL(line.photo_url)
+      const storagePath = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname
+      await storageService.delete(storagePath)
+    } catch {
+      // If deletion from storage fails, still clear the DB reference
+    }
+
+    // 6. Clear photo URL in DB
+    await dailyStockOpnameRepository.updateLinePhoto(lineId, sessionId, '')
+
+    // 7. Audit log
+    await AuditService.log('UPDATE', 'daily_closing_count_lines', lineId, userId,
+      { photo_url: line.photo_url },
+      { photo_url: null },
+    )
   }
 
   // ─── CONFIRM SESSION ──────────────────────────────────────────────────────
@@ -615,18 +676,21 @@ export class DailyStockOpnameService {
       throw new OpnameNotFoundError(id)
     }
 
-    // 2. Validate session is DRAFT
-    if (session.status !== 'DRAFT') {
+    // 2. Validate session is DRAFT or REOPENED
+    if (session.status !== 'DRAFT' && session.status !== 'REOPENED') {
       throw new OpnameNotDraftError(session.status)
     }
 
-    // 3. Validate session is not expired (DRAFT from previous day)
-    if (this.isSessionExpired(session)) {
-      throw new OpnameSessionExpiredError(session.closing_date)
-    }
+    // 3. Skip time restriction and expiry check when REOPENED
+    if (session.status !== 'REOPENED') {
+      // Validate session is not expired (DRAFT from previous day)
+      if (this.isSessionExpired(session)) {
+        throw new OpnameSessionExpiredError(session.closing_date)
+      }
 
-    // 4. Validate time restriction for 'confirm' action (closing_time + grace period)
-    await this.validateTimeRestriction(session.branch_id, 'confirm')
+      // Validate time restriction for 'confirm' action (closing_time + grace period)
+      await this.validateTimeRestriction(session.branch_id, 'confirm')
+    }
 
     // 5. Validate all lines have actual_qty (no nulls)
     const incompleteLines = session.lines.filter((l) => l.actual_qty === null)

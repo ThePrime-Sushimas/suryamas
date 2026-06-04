@@ -1,7 +1,40 @@
 // ─── STATUS TYPES ─────────────────────────────────────────────────────────────
 
-export type OpnameStatus = 'DRAFT' | 'CONFIRMED' | 'FLAGGED'
+export type OpnameStatus = 'DRAFT' | 'CONFIRMED' | 'FLAGGED' | 'REOPENED'
 export type OpnameDisplayStatus = OpnameStatus | 'MISSED' | 'NOT_STARTED'
+
+// ─── REOPEN TYPES ─────────────────────────────────────────────────────────────
+
+export type ReopenRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface OpnameReopenRequest {
+  id: string
+  closing_id: string
+  requested_by: string
+  requested_at: string
+  reason: string
+  status: ReopenRequestStatus
+  responded_by: string | null
+  responded_at: string | null
+  response_note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OpnameReopenRequestWithRelations extends OpnameReopenRequest {
+  requested_by_name: string
+  responded_by_name: string | null
+  closing_date: string
+  branch_name: string
+}
+
+export interface CreateReopenRequestDto {
+  reason: string
+}
+
+export interface RespondReopenRequestDto {
+  response_note?: string
+}
 
 // ─── DOMAIN MODELS ────────────────────────────────────────────────────────────
 
@@ -136,6 +169,73 @@ export interface OpnameDashboardItem {
   total_variance_cost: number | null
   completion_pct: number | null
   closing_date: string | null
+}
+
+// ─── ANALYSIS ─────────────────────────────────────────────────────────────────
+
+export interface AnalysisLineItem {
+  product_id: string
+  product_code: string
+  product_name: string
+  uom: string
+  stok_kemarin: number
+  barang_masuk: number
+  stok_hari_ini: number
+  waste: number
+  total_konversi: number
+  pemakaian_riil: number
+  pemakaian_pos: number
+  gap: number
+  has_recipe: boolean
+}
+
+export interface AnalysisResponse {
+  session_id: string
+  closing_date: string
+  branch_name: string
+  lines: AnalysisLineItem[]
+  summary: {
+    total_pemakaian_riil: number
+    total_pemakaian_pos: number
+    total_gap: number
+  }
+}
+
+// ─── CLASSIFICATION ───────────────────────────────────────────────────────────
+
+export interface ClassifyLineEntry {
+  line_id: string
+  variance_category: 'WASTE' | 'SHORTAGE'
+  qty: number
+  shortage_assigned_to: string | null
+  shortage_note: string | null
+}
+
+export interface ClassifyDto {
+  entries: ClassifyLineEntry[]
+}
+
+export interface ClassificationEntry extends ClassifyLineEntry {
+  id: string
+  classified_by: string
+  classified_at: string
+  product_name: string
+  product_code: string
+  uom: string
+  assigned_employee_name: string | null
+}
+
+export interface ClassificationSummary {
+  waste_total: number
+  shortage_total: number
+  entry_count: number
+  is_complete: boolean
+  classification_version: number
+}
+
+export interface ClassificationsResponse {
+  entries: ClassificationEntry[]
+  summary: ClassificationSummary
 }
 
 // ─── VARIANCE REPORT ──────────────────────────────────────────────────────────

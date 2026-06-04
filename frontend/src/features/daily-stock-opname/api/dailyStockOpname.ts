@@ -14,6 +14,12 @@ import type {
   VarianceReportItem,
   VarianceReportFilter,
   OpnameDisplayStatus,
+  AnalysisResponse,
+  ClassifyDto,
+  ClassificationsResponse,
+  OpnameReopenRequestWithRelations,
+  CreateReopenRequestDto,
+  RespondReopenRequestDto,
 } from '../types'
 
 // ─── KEYS ────────────────────────────────────────────────────────────────────
@@ -24,6 +30,7 @@ const KEYS = {
   config: (branchId: string) => ['daily-stock-opname', 'config', branchId] as const,
   dashboard: () => ['daily-stock-opname', 'dashboard'] as const,
   varianceReport: (p: Record<string, unknown>) => ['daily-stock-opname', 'variance-report', p] as const,
+  reopenRequests: (id: string) => ['daily-stock-opname', id, 'reopen-requests'] as const,
 }
 
 // ─── LIST ────────────────────────────────────────────────────────────────────
@@ -58,6 +65,18 @@ export const useOpnameDetail = (id: string) =>
       return data.data as DailyClosingCountDetail
     },
     enabled: !!id,
+  })
+
+// ─── ANALYSIS ────────────────────────────────────────────────────────────────
+
+export const useOpnameAnalysis = (id: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['daily-stock-opname', id, 'analysis'],
+    queryFn: async () => {
+      const { data } = await api.get(`/daily-stock-opname/${id}/analysis`)
+      return data.data as AnalysisResponse
+    },
+    enabled: !!id && enabled,
   })
 
 // ─── CREATE ──────────────────────────────────────────────────────────────────
@@ -153,6 +172,20 @@ export const useUploadPhoto = () => {
         { headers: { 'Content-Type': 'multipart/form-data' } },
       )
       return data.data as { photo_url: string }
+    },
+    onSuccess: (_, { sessionId }) =>
+      qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) }),
+  })
+}
+
+export const useDeletePhoto = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ sessionId, lineId }: {
+      sessionId: string
+      lineId: string
+    }) => {
+      await api.delete(`/daily-stock-opname/${sessionId}/lines/${lineId}/photo`)
     },
     onSuccess: (_, { sessionId }) =>
       qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) }),
@@ -273,3 +306,105 @@ export const useExportVarianceReportCsv = () =>
       window.URL.revokeObjectURL(url)
     },
   })
+
+// ─── CLASSIFY ────────────────────────────────────────────────────────────────
+
+export const useClassifyOpname = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ sessionId, body }: { sessionId: string; body: ClassifyDto }) => {
+      const { data } = await api.post(`/daily-stock-opname/${sessionId}/classify`, body)
+      return data.data
+    },
+    onSuccess: (_, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) })
+      qc.invalidateQueries({ queryKey: ['daily-stock-opname', sessionId, 'classifications'] })
+    },
+  })
+}
+
+// ─── CLASSIFICATIONS ─────────────────────────────────────────────────────────
+
+export const useOpnameClassifications = (id: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['daily-stock-opname', id, 'classifications'],
+    queryFn: async () => {
+      const { data } = await api.get(`/daily-stock-opname/${id}/classifications`)
+      return data.data as ClassificationsResponse
+    },
+    enabled: !!id && enabled,
+  })
+
+// ─── REOPEN REQUESTS ─────────────────────────────────────────────────────────
+
+export const useReopenRequests = (id: string) =>
+  useQuery({
+    queryKey: KEYS.reopenRequests(id),
+    queryFn: async () => {
+      const { data } = await api.get(`/daily-stock-opname/${id}/reopen-requests`)
+      return data.data as OpnameReopenRequestWithRelations[]
+    },
+    enabled: !!id,
+  })
+
+export const useCreateReopenRequest = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ sessionId, body }: {
+      sessionId: string
+      body: CreateReopenRequestDto
+    }) => {
+      const { data } = await api.post(
+        `/daily-stock-opname/${sessionId}/reopen-request`,
+        body,
+      )
+      return data.data as OpnameReopenRequestWithRelations
+    },
+    onSuccess: (_, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) })
+      qc.invalidateQueries({ queryKey: KEYS.reopenRequests(sessionId) })
+    },
+  })
+}
+
+export const useApproveReopenRequest = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: {
+      requestId: string
+      sessionId: string
+      body: RespondReopenRequestDto
+    }) => {
+      const { data } = await api.post(
+        `/daily-stock-opname/reopen-requests/${variables.requestId}/approve`,
+        variables.body,
+      )
+      return data.data as OpnameReopenRequestWithRelations
+    },
+    onSuccess: (_, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) })
+      qc.invalidateQueries({ queryKey: KEYS.reopenRequests(sessionId) })
+    },
+  })
+}
+
+export const useRejectReopenRequest = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: {
+      requestId: string
+      sessionId: string
+      body: RespondReopenRequestDto
+    }) => {
+      const { data } = await api.post(
+        `/daily-stock-opname/reopen-requests/${variables.requestId}/reject`,
+        variables.body,
+      )
+      return data.data as OpnameReopenRequestWithRelations
+    },
+    onSuccess: (_, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) })
+      qc.invalidateQueries({ queryKey: KEYS.reopenRequests(sessionId) })
+    },
+  })
+}

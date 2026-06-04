@@ -9,8 +9,8 @@ import {
   type UrlFilterUtils,
 } from '@/lib/urlFilters'
 
-type OpnameListStatus = 'DRAFT' | 'CONFIRMED' | 'FLAGGED' | 'MISSED' | ''
-const VALID_STATUSES = new Set<OpnameListStatus>(['DRAFT', 'CONFIRMED', 'FLAGGED', 'MISSED', ''])
+type OpnameListStatus = 'DRAFT' | 'CONFIRMED' | 'FLAGGED' | 'REOPENED' | 'MISSED' | ''
+const VALID_STATUSES = new Set<OpnameListStatus>(['DRAFT', 'CONFIRMED', 'FLAGGED', 'REOPENED', 'MISSED', ''])
 
 export type OpnameFilters = UrlFilterBase & {
   status: OpnameListStatus

@@ -1,8 +1,8 @@
 export type MovementType =
   | 'IN_PURCHASE' | 'IN_TRANSFER' | 'IN_RETURN' | 'IN_PRODUCTION'
-  | 'IN_ADJUSTMENT' | 'IN_OPENING'
+  | 'IN_ADJUSTMENT' | 'IN_OPENING' | 'IN_REVERSAL'
   | 'OUT_TRANSFER' | 'OUT_LOAN' | 'OUT_DAILY' | 'OUT_ADJUSTMENT'
-  | 'OUT_WASTE' | 'OUT_PRODUCTION'
+  | 'OUT_WASTE' | 'OUT_PRODUCTION' | 'OUT_REVERSAL'
 
 export type ReferenceType =
   | 'purchase_order' | 'transfer_order' | 'branch_loan'

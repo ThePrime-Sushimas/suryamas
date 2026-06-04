@@ -1,1021 +1,863 @@
-# Technical Design — Daily Stock Opname (Daily Closing Count)
+# Design Document: Daily Stock Opname Enhancement (Phase 1)
 
 ## Overview
 
-This document describes the technical design for the Daily Stock Opname feature — a nightly inventory control system for READY warehouses. The system calculates expected balances, accepts physical counts, records variances as stock movements, and provides reporting/dashboard capabilities.
+This design covers three enhancements to the existing Daily Stock Opname system:
 
-## Architecture
+1. **Requirement 19** — UI Label Rename & Tooltips: Rename "MAIN Bal." → "Stok Main", add formula tooltips to column headers
+2. **Requirement 20** — Real Consumption Analysis: New backend endpoint + "Analisis" tab on the detail page comparing real vs theoretical consumption
+3. **Requirement 21** — Variance Classification: Full-screen modal for classifying negative variance into waste/shortage, with notification to assigned employees
 
-### 2.1 System Context
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Frontend (React)                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────┐ │
-│  │ Opname List  │  │ Opname Detail│  │ Variance Report       │ │
-│  │ Page         │  │ /Input Page  │  │ + Dashboard Widget    │ │
-│  └──────┬───────┘  └──────┬───────┘  └───────────┬───────────┘ │
-└─────────┼──────────────────┼──────────────────────┼─────────────┘
-          │                  │                      │
-          ▼                  ▼                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Backend API (Express)                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │              daily-stock-opname module                     │   │
-│  │  controller → service → repository                        │   │
-│  └──────────────────────────┬───────────────────────────────┘   │
-│                             │                                    │
-│  ┌──────────┐  ┌───────────┴──┐  ┌──────────────┐  ┌────────┐ │
-│  │ Stock    │  │ Theoretical  │  │ Storage      │  │ Audit  │ │
-│  │ Module   │  │ Consumption  │  │ Service (R2) │  │Service │ │
-│  └──────────┘  └──────────────┘  └──────────────┘  └────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-          │
-          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      PostgreSQL                                   │
-│  daily_closing_counts, daily_closing_count_lines,                │
-│  branch_opname_config, stock_balances, stock_movements           │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-
-### 2.2 Backend Module Structure
-
-```
-backend/src/modules/daily-stock-opname/
-├── daily-stock-opname.controller.ts
-├── daily-stock-opname.service.ts
-├── daily-stock-opname.repository.ts
-├── daily-stock-opname.routes.ts
-├── daily-stock-opname.schema.ts
-├── daily-stock-opname.types.ts
-├── daily-stock-opname.errors.ts
-└── daily-stock-opname.openapi.ts
-```
-
-### 2.3 Frontend Feature Structure
-
-```
-frontend/src/features/daily-stock-opname/
-├── api/
-│   └── dailyStockOpname.ts
-├── components/
-│   ├── OpnameLineRow.tsx
-│   ├── OpnameSummaryCard.tsx
-│   ├── OpnamePhotoUpload.tsx
-│   ├── OpnameStatusBadge.tsx
-│   ├── VarianceIndicator.tsx
-│   ├── ResolveModal.tsx
-│   └── DashboardWidget.tsx
-├── pages/
-│   ├── DailyStockOpnamePage.tsx        (list)
-│   ├── DailyStockOpnameDetailPage.tsx  (detail/input)
-│   └── OpnameVarianceReportPage.tsx    (report)
-├── utils/
-│   └── opnameFilters.url.ts
-└── types/
-    └── index.ts
-```
-
-## 3. Database Schema
-
-### 3.1 New Tables
-
-#### `branch_opname_config`
-
-```sql
-CREATE TABLE branch_opname_config (
-  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id            UUID NOT NULL REFERENCES companies(id),
-  branch_id             UUID NOT NULL REFERENCES branches(id),
-  variance_threshold_pct NUMERIC(5,2) NOT NULL DEFAULT 15.00,
-  closing_time          TIME NOT NULL DEFAULT '23:59',
-  grace_period_minutes  INT NOT NULL DEFAULT 15,
-  updated_by            UUID,
-  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(branch_id)
-);
-```
-
-#### `daily_closing_counts`
-
-```sql
-CREATE TABLE daily_closing_counts (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id          UUID NOT NULL REFERENCES companies(id),
-  branch_id           UUID NOT NULL REFERENCES branches(id),
-  warehouse_id        UUID NOT NULL REFERENCES warehouses(id),
-  closing_date        DATE NOT NULL,
-  pic_user_id         UUID NOT NULL,
-  status              VARCHAR(20) NOT NULL DEFAULT 'DRAFT'
-                        CHECK (status IN ('DRAFT', 'CONFIRMED', 'FLAGGED')),
-  total_variance_cost NUMERIC(20,4) NOT NULL DEFAULT 0,
-  total_expected_cost NUMERIC(20,4) NOT NULL DEFAULT 0,
-  total_actual_cost   NUMERIC(20,4) NOT NULL DEFAULT 0,
-  line_count          INT NOT NULL DEFAULT 0,
-  completed_count     INT NOT NULL DEFAULT 0,
-  resolution_note     TEXT,
-  resolved_by         UUID,
-  resolved_at         TIMESTAMPTZ,
-  confirmed_by        UUID,
-  confirmed_at        TIMESTAMPTZ,
-  notes               TEXT,
-  is_deleted          BOOLEAN NOT NULL DEFAULT false,
-  deleted_at          TIMESTAMPTZ,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_by          UUID,
-  updated_by          UUID
-);
-
-CREATE UNIQUE INDEX idx_closing_counts_branch_date
-  ON daily_closing_counts(branch_id, closing_date)
-  WHERE deleted_at IS NULL;
-
-CREATE INDEX idx_closing_counts_company ON daily_closing_counts(company_id)
-  WHERE deleted_at IS NULL;
-CREATE INDEX idx_closing_counts_status ON daily_closing_counts(status)
-  WHERE deleted_at IS NULL;
-```
-
-#### `daily_closing_count_lines`
-
-```sql
-CREATE TABLE daily_closing_count_lines (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  closing_id      UUID NOT NULL REFERENCES daily_closing_counts(id) ON DELETE CASCADE,
-  product_id      UUID NOT NULL REFERENCES products(id),
-  product_code    VARCHAR(50) NOT NULL,
-  product_name    VARCHAR(200) NOT NULL,
-  uom             VARCHAR(30) NOT NULL,
-  system_qty      NUMERIC(20,4) NOT NULL DEFAULT 0,
-  expected_qty    NUMERIC(20,4) NOT NULL DEFAULT 0,
-  actual_qty      NUMERIC(20,4),
-  variance_qty    NUMERIC(20,4),
-  variance_pct    NUMERIC(10,2),
-  cost_per_unit   NUMERIC(20,4) NOT NULL DEFAULT 0,
-  variance_cost   NUMERIC(20,4),
-  main_balance    NUMERIC(20,4) NOT NULL DEFAULT 0,
-  dpo_in_qty      NUMERIC(20,4) NOT NULL DEFAULT 0,
-  theoretical_out NUMERIC(20,4) NOT NULL DEFAULT 0,
-  is_high_risk    BOOLEAN NOT NULL DEFAULT false,
-  requires_photo  BOOLEAN NOT NULL DEFAULT false,
-  photo_url       TEXT,
-  has_recipe      BOOLEAN NOT NULL DEFAULT true,
-  has_warning     BOOLEAN NOT NULL DEFAULT false,
-  warning_message TEXT,
-  sort_order      INT NOT NULL DEFAULT 0,
-  out_movement_id UUID,
-  in_movement_id  UUID,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_closing_lines_closing ON daily_closing_count_lines(closing_id);
-CREATE INDEX idx_closing_lines_product ON daily_closing_count_lines(product_id);
-```
-
-### 3.2 Schema Changes to Existing Tables
-
-```sql
--- Add 'daily_closing_count' to reference_type check constraint on stock_movements
--- (handled via ALTER or by updating the application-level validation)
-
--- Ensure products.risk_category exists (already present per INVENTORY_SYSTEM_V2_PLAN)
--- ALTER TABLE products ADD COLUMN IF NOT EXISTS risk_category VARCHAR(10) DEFAULT 'LOW'
---   CHECK (risk_category IN ('HIGH', 'MEDIUM', 'LOW'));
-```
-
-### 3.3 Reference Type Addition
-
-In `backend/src/modules/stock/stock.types.ts`, add `'daily_closing_count'` to `ReferenceType`:
-
-```typescript
-export type ReferenceType =
-  | 'purchase_order' | 'transfer_order' | 'branch_loan'
-  | 'daily_requisition' | 'production_order' | 'adjustment' | 'opening'
-  | 'goods_processing' | 'daily_closing_count'  // ← NEW
-```
-
-
-## Components and Interfaces
-
-### 4.1 Opname CRUD & Actions
-
-| Method | Path | Description | Req |
-|--------|------|-------------|-----|
-| GET | `/api/v1/daily-stock-opname` | List opname sessions (paginated, filtered) | R11 |
-| GET | `/api/v1/daily-stock-opname/:id` | Get opname detail with lines | R12 |
-| POST | `/api/v1/daily-stock-opname` | Create new opname session | R1, R2 |
-| PATCH | `/api/v1/daily-stock-opname/:id/lines/:lineId` | Update actual qty for a line | R3 |
-| PATCH | `/api/v1/daily-stock-opname/:id/lines/bulk` | Bulk update actual quantities | R3 |
-| POST | `/api/v1/daily-stock-opname/:id/lines/:lineId/photo` | Upload photo for a line | R4 |
-| POST | `/api/v1/daily-stock-opname/:id/confirm` | Confirm opname session | R5 |
-| POST | `/api/v1/daily-stock-opname/:id/resolve` | Resolve flagged session | R8 |
-| DELETE | `/api/v1/daily-stock-opname/:id` | Cancel (soft-delete) draft session | R7 |
-
-### 4.2 Configuration
-
-| Method | Path | Description | Req |
-|--------|------|-------------|-----|
-| GET | `/api/v1/daily-stock-opname/config/:branchId` | Get branch opname config | R17, R18 |
-| PUT | `/api/v1/daily-stock-opname/config/:branchId` | Update branch opname config | R17, R18 |
-
-### 4.3 Reports & Dashboard
-
-| Method | Path | Description | Req |
-|--------|------|-------------|-----|
-| GET | `/api/v1/daily-stock-opname/dashboard` | Today's opname status per branch | R14 |
-| GET | `/api/v1/daily-stock-opname/variance-report` | Variance report (aggregated) | R13 |
-| GET | `/api/v1/daily-stock-opname/variance-report/export` | Export variance report CSV | R13 |
-
-## Data Models
-
-### 5.1 Backend Types (`daily-stock-opname.types.ts`)
-
-```typescript
-export type OpnameStatus = 'DRAFT' | 'CONFIRMED' | 'FLAGGED'
-export type OpnameDisplayStatus = OpnameStatus | 'MISSED' | 'NOT_STARTED'
-
-export interface DailyClosingCount {
-  id: string
-  company_id: string
-  branch_id: string
-  warehouse_id: string
-  closing_date: string
-  pic_user_id: string
-  status: OpnameStatus
-  total_variance_cost: number
-  total_expected_cost: number
-  total_actual_cost: number
-  line_count: number
-  completed_count: number
-  resolution_note: string | null
-  resolved_by: string | null
-  resolved_at: string | null
-  confirmed_by: string | null
-  confirmed_at: string | null
-  notes: string | null
-  is_deleted: boolean
-  deleted_at: string | null
-  created_at: string
-  updated_at: string
-  created_by: string | null
-  updated_by: string | null
-}
-
-export interface DailyClosingCountWithRelations extends DailyClosingCount {
-  branch_name: string
-  branch_code: string
-  warehouse_name: string
-  pic_name: string
-  resolved_by_name: string | null
-  confirmed_by_name: string | null
-}
-
-export interface DailyClosingCountLine {
-  id: string
-  closing_id: string
-  product_id: string
-  product_code: string
-  product_name: string
-  uom: string
-  system_qty: number
-  expected_qty: number
-  actual_qty: number | null
-  variance_qty: number | null
-  variance_pct: number | null
-  cost_per_unit: number
-  variance_cost: number | null
-  main_balance: number
-  dpo_in_qty: number
-  theoretical_out: number
-  is_high_risk: boolean
-  requires_photo: boolean
-  photo_url: string | null
-  has_recipe: boolean
-  has_warning: boolean
-  warning_message: string | null
-  sort_order: number
-  out_movement_id: string | null
-  in_movement_id: string | null
-}
-
-export interface DailyClosingCountDetail extends DailyClosingCountWithRelations {
-  lines: DailyClosingCountLine[]
-  summary: OpnameSummary
-}
-
-export interface OpnameSummary {
-  total_expected_cost: number
-  total_actual_cost: number
-  total_variance_cost: number
-  completion_pct: number
-  line_count: number
-  completed_count: number
-  flagged_line_count: number
-}
-```
-
-```typescript
-// DTOs
-export interface CreateOpnameDto {
-  branch_id: string
-  notes?: string
-}
-
-export interface UpdateLineDto {
-  actual_qty: number
-}
-
-export interface BulkUpdateLinesDto {
-  lines: { line_id: string; actual_qty: number }[]
-}
-
-export interface ConfirmOpnameDto {
-  // No body needed — user context from auth
-}
-
-export interface ResolveOpnameDto {
-  resolution_note: string
-}
-
-export interface UpsertOpnameConfigDto {
-  variance_threshold_pct?: number
-  closing_time?: string  // HH:mm format
-  grace_period_minutes?: number
-}
-
-// Config
-export interface BranchOpnameConfig {
-  id: string
-  company_id: string
-  branch_id: string
-  variance_threshold_pct: number
-  closing_time: string
-  grace_period_minutes: number
-  updated_by: string | null
-  updated_at: string
-}
-
-// Dashboard
-export interface OpnameDashboardItem {
-  branch_id: string
-  branch_name: string
-  branch_code: string
-  status: OpnameDisplayStatus
-  session_id: string | null
-  total_variance_cost: number | null
-  completion_pct: number | null
-  closing_date: string | null
-}
-
-// Variance Report
-export interface VarianceReportItem {
-  product_id: string
-  product_code: string
-  product_name: string
-  uom: string
-  risk_category: string
-  total_variance_qty: number
-  total_variance_cost: number
-  avg_variance_pct: number
-  session_count: number
-  flagged_count: number
-}
-
-export interface VarianceReportFilter {
-  date_from: string
-  date_to: string
-  branch_id?: string
-  product_id?: string
-  risk_category?: string
-  group_by?: 'day' | 'week' | 'month'
-}
-```
-
-## 6. Data Flow — Key Operations
-
-### 6.1 Create Opname Session
-
-```
-User clicks "Mulai Opname" on list page
-        │
-        ▼
-POST /api/v1/daily-stock-opname { branch_id }
-        │
-        ▼
-┌─ Service: createSession() ─────────────────────────────────────┐
-│ 1. Validate: current date (Jakarta TZ), not past closing_time  │
-│ 2. Validate: no existing session for branch+date               │
-│ 3. Resolve READY warehouse for branch                          │
-│ 4. Resolve MAIN warehouse for branch                           │
-│ 5. Get branch_opname_config (or defaults)                      │
-│ 6. Calculate expected balances:                                 │
-│    a. Get current stock_balances for READY warehouse            │
-│    b. Get today's DPO IN_TRANSFER movements to READY           │
-│    c. Get theoretical consumption for today (POS × recipes)    │
-│    d. expected = ready_balance + dpo_in - theoretical           │
-│    e. Clamp negative to 0, flag warning                        │
-│ 7. Get MAIN warehouse balances (snapshot)                      │
-│ 8. Get product risk_category for each product                  │
-│ 9. Get cost_per_unit (from stock_balances.avg_cost or last     │
-│    movement cost)                                              │
-│ 10. Insert daily_closing_counts header                         │
-│ 11. Insert daily_closing_count_lines (all products)            │
-│ 12. AuditService.log('CREATE', ...)                            │
-└────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-Return session detail with all lines
-```
-
-
-### 6.2 Confirm Opname Session
-
-```
-User clicks "Konfirmasi" on detail page
-        │
-        ▼
-POST /api/v1/daily-stock-opname/:id/confirm
-        │
-        ▼
-┌─ Service: confirmSession() ────────────────────────────────────┐
-│ 1. Validate: session is DRAFT                                  │
-│ 2. Validate: current time within closing_time + grace          │
-│ 3. Validate: all lines have actual_qty (no nulls)              │
-│ 4. Validate: high-risk lines with photo requirement have photo │
-│ 5. Get branch_opname_config for threshold                      │
-│ 6. BEGIN TRANSACTION                                           │
-│    For each line:                                              │
-│    a. Calculate variance = actual_qty - expected_qty           │
-│    b. Calculate variance_cost = variance × cost_per_unit       │
-│    c. IF variance < 0:                                         │
-│       → stockRepository.createMovement(OUT_WASTE, abs(var))    │
-│       → stockRepository.upsertBalance(actual_qty)              │
-│       → Store out_movement_id on line                          │
-│    d. IF variance > 0:                                         │
-│       → stockRepository.createMovement(IN_ADJUSTMENT, var)     │
-│       → stockRepository.upsertBalance(actual_qty)              │
-│       → Store in_movement_id on line                           │
-│    e. IF variance == 0:                                        │
-│       → stockRepository.upsertBalance(actual_qty)              │
-│       (sync balance to actual, no movement needed)             │
-│ 7. Calculate total_variance_cost (sum of abs(line costs))      │
-│ 8. Determine status:                                           │
-│    IF any line variance_pct > threshold → FLAGGED              │
-│    ELSE → CONFIRMED                                            │
-│ 9. Update header (status, totals, confirmed_by, confirmed_at)  │
-│ 10. COMMIT TRANSACTION                                         │
-│ 11. AuditService.log('UPDATE', ...)                            │
-└────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-Return updated session detail
-```
-
-### 6.3 Expected Balance Calculation Detail
-
-```
-For each product in READY warehouse:
-
-  ready_balance = stock_balances.qty WHERE warehouse_id = READY
-                  (already reflects all prior movements)
-
-  dpo_in_qty = SUM(stock_movements.qty)
-               WHERE warehouse_id = READY
-               AND movement_type = 'IN_TRANSFER'
-               AND reference_type = 'transfer_order'
-               AND movement_date = today
-               AND created_at <= session_creation_time
-
-  theoretical_out = (from theoretical_consumption query)
-                    SUM(recipe_qty × pos_sales_qty)
-                    for direct products + WIP ingredient explosion
-                    WHERE sales_date = today AND branch = this branch
-
-  expected_qty = ready_balance + dpo_in_qty - theoretical_out
-               = MAX(0, calculated_value)  -- clamp negatives
-```
-
-**Note:** The `ready_balance` from `stock_balances` already includes DPO transfers that happened today (since DPO confirm creates IN_TRANSFER movements that update stock_balances). So the formula simplifies to:
-
-```
-expected_qty = ready_balance - theoretical_out
-```
-
-We do NOT add `dpo_in_qty` separately because it's already reflected in `ready_balance`. The `dpo_in_qty` field on the line is stored for **display purposes only** (showing the user how much came in today).
-
-
-## 7. Service Layer Design
-
-### 7.1 Key Methods
-
-```typescript
-class DailyStockOpnameService {
-  // ─── SESSION CRUD ───────────────────────────────────────────
-  async create(branchIds: string[], dto: CreateOpnameDto, userId: string): Promise<DailyClosingCountDetail>
-  async getById(id: string, branchIds: string[]): Promise<DailyClosingCountDetail>
-  async list(branchIds: string[], pagination, filter?, search?): Promise<PaginatedResult>
-  async cancel(id: string, branchIds: string[], userId: string): Promise<void>
-
-  // ─── LINE UPDATES ──────────────────────────────────────────
-  async updateLine(sessionId: string, lineId: string, branchIds: string[], dto: UpdateLineDto, userId: string): Promise<DailyClosingCountLine>
-  async bulkUpdateLines(sessionId: string, branchIds: string[], dto: BulkUpdateLinesDto, userId: string): Promise<DailyClosingCountLine[]>
-  async uploadPhoto(sessionId: string, lineId: string, branchIds: string[], file: Buffer, fileName: string, contentType: string, userId: string): Promise<{ photo_url: string }>
-
-  // ─── ACTIONS ────────────────────────────────────────────────
-  async confirm(id: string, branchIds: string[], userId: string): Promise<DailyClosingCountDetail>
-  async resolve(id: string, branchIds: string[], dto: ResolveOpnameDto, userId: string): Promise<DailyClosingCountDetail>
-
-  // ─── CONFIG ─────────────────────────────────────────────────
-  async getConfig(branchId: string): Promise<BranchOpnameConfig>
-  async upsertConfig(branchId: string, companyId: string, dto: UpsertOpnameConfigDto, userId: string): Promise<BranchOpnameConfig>
-
-  // ─── REPORTS & DASHBOARD ────────────────────────────────────
-  async getDashboard(branchIds: string[]): Promise<OpnameDashboardItem[]>
-  async getVarianceReport(branchIds: string[], filter: VarianceReportFilter): Promise<VarianceReportItem[]>
-  async exportVarianceReport(branchIds: string[], filter: VarianceReportFilter): Promise<Buffer>
-
-  // ─── INTERNAL HELPERS ───────────────────────────────────────
-  private async calculateExpectedBalances(warehouseId: string, branchId: string, date: string): Promise<ExpectedBalanceLine[]>
-  private async getTheoreticalConsumptionForDate(branchId: string, date: string): Promise<Map<string, number>>
-  private async validateTimeRestriction(branchId: string, action: 'create' | 'edit' | 'confirm'): Promise<void>
-  private isSessionExpired(session: DailyClosingCount): boolean
-}
-```
-
-### 7.2 Integration with DPO Module
-
-Add a check in `DailyPrepOrdersService.confirm()`:
-
-```typescript
-// In daily-prep-orders.service.ts → confirm()
-// Before processing, check if opname already confirmed for this date+branch
-const opnameExists = await dailyStockOpnameRepository.hasConfirmedSession(
-  detail.branch_id,
-  todayJakarta()
-)
-if (opnameExists) {
-  throw new DpoBlockedByOpnameError()
-}
-```
-
-
-## 8. Repository Layer Design
-
-### 8.1 Key Queries
-
-```typescript
-class DailyStockOpnameRepository {
-  // Transaction wrapper (same pattern as stockRepository)
-  async withTransaction<T>(op: (client: PoolClient) => Promise<T>): Promise<T>
-
-  // ─── HEADER ─────────────────────────────────────────────────
-  async findAll(branchIds: string[], pagination, filter?, search?): Promise<{ data; total }>
-  async findByIdAccessible(id: string, branchIds: string[]): Promise<DailyClosingCountDetail | null>
-  async findByBranchAndDate(branchId: string, date: string): Promise<DailyClosingCount | null>
-  async hasConfirmedSession(branchId: string, date: string): Promise<boolean>
-  async insertHeader(client: PoolClient, data): Promise<DailyClosingCount>
-  async updateHeaderStatus(client: PoolClient, id: string, data): Promise<void>
-  async softDelete(id: string, userId: string): Promise<boolean>
-
-  // ─── LINES ──────────────────────────────────────────────────
-  async insertLines(client: PoolClient, closingId: string, lines: InsertLineData[]): Promise<void>
-  async updateLineActual(id: string, closingId: string, actual_qty: number): Promise<DailyClosingCountLine>
-  async updateLinePhoto(id: string, closingId: string, photo_url: string): Promise<void>
-  async updateLineMovements(client: PoolClient, id: string, data: { out_movement_id?; in_movement_id?; variance_qty; variance_pct; variance_cost }): Promise<void>
-  async getLineById(id: string, closingId: string): Promise<DailyClosingCountLine | null>
-
-  // ─── EXPECTED BALANCE HELPERS ───────────────────────────────
-  async getReadyBalances(warehouseId: string): Promise<Map<string, { qty: number; avg_cost: number }>>
-  async getDpoTransfersForDate(warehouseId: string, date: string): Promise<Map<string, number>>
-  async getMainBalances(mainWarehouseId: string): Promise<Map<string, number>>
-  async getProductsWithStock(warehouseId: string): Promise<ProductStockInfo[]>
-  async getLastMovementCost(warehouseId: string, productId: string): Promise<number>
-
-  // ─── CONFIG ─────────────────────────────────────────────────
-  async findConfig(branchId: string): Promise<BranchOpnameConfig | null>
-  async upsertConfig(branchId: string, companyId: string, data, userId: string): Promise<BranchOpnameConfig>
-
-  // ─── DASHBOARD ──────────────────────────────────────────────
-  async getDashboardData(branchIds: string[], today: string): Promise<OpnameDashboardItem[]>
-
-  // ─── VARIANCE REPORT ────────────────────────────────────────
-  async getVarianceReport(branchIds: string[], filter: VarianceReportFilter): Promise<VarianceReportItem[]>
-}
-```
-
-### 8.2 Theoretical Consumption Integration
-
-The opname service will call the existing `theoreticalConsumptionRepository.getTheoreticalConsumption()` method with `periodStart = periodEnd = closingDate` and the branch's POS ID. This returns per-product theoretical quantities which are used in the expected balance calculation.
-
-```typescript
-// In service.createSession():
-const branchPosId = await theoreticalConsumptionRepository.resolveBranchIds(branchId)
-const theoreticalItems = await theoreticalConsumptionRepository.getTheoreticalConsumption(
-  closingDate, closingDate, branchPosId.branchPosId
-)
-// Convert to Map<product_id, theoretical_qty>
-const theoreticalMap = new Map(theoreticalItems.map(i => [i.product_id, i.theoretical_qty]))
-```
-
-
-## 9. Validation Schemas (`daily-stock-opname.schema.ts`)
-
-```typescript
-import { z } from 'zod'
-
-export const createOpnameSchema = z.object({
-  body: z.object({
-    branch_id: z.string().uuid(),
-    notes: z.string().max(500).optional(),
-  }),
-})
-
-export const updateLineSchema = z.object({
-  params: z.object({
-    id: z.string().uuid(),
-    lineId: z.string().uuid(),
-  }),
-  body: z.object({
-    actual_qty: z.number().min(0),
-  }),
-})
-
-export const bulkUpdateLinesSchema = z.object({
-  params: z.object({ id: z.string().uuid() }),
-  body: z.object({
-    lines: z.array(z.object({
-      line_id: z.string().uuid(),
-      actual_qty: z.number().min(0),
-    })).min(1).max(500),
-  }),
-})
-
-export const resolveSchema = z.object({
-  params: z.object({ id: z.string().uuid() }),
-  body: z.object({
-    resolution_note: z.string().min(10).max(1000),
-  }),
-})
-
-export const configSchema = z.object({
-  params: z.object({ branchId: z.string().uuid() }),
-  body: z.object({
-    variance_threshold_pct: z.number().min(1).max(100).optional(),
-    closing_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-    grace_period_minutes: z.number().min(0).max(60).optional(),
-  }),
-})
-
-export const listSchema = z.object({
-  query: z.object({
-    page: z.coerce.number().int().min(1).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(25),
-    date_from: z.string().optional(),
-    date_to: z.string().optional(),
-    branch_id: z.string().uuid().optional(),
-    status: z.enum(['DRAFT', 'CONFIRMED', 'FLAGGED', 'MISSED', '']).optional(),
-    search: z.string().optional(),
-  }),
-})
-
-export const varianceReportSchema = z.object({
-  query: z.object({
-    date_from: z.string(),
-    date_to: z.string(),
-    branch_id: z.string().uuid().optional(),
-    product_id: z.string().uuid().optional(),
-    risk_category: z.enum(['HIGH', 'MEDIUM', 'LOW', '']).optional(),
-    group_by: z.enum(['day', 'week', 'month']).default('day'),
-  }),
-})
-```
-
-## 10. Frontend Pages Design
-
-### 10.1 Opname List Page (`DailyStockOpnamePage.tsx`)
-
-**Route:** `/daily-stock-opname`
-
-**Features:**
-- Filter by date range, branch, status (using `useUrlFilters`)
-- Search by PIC name
-- Table columns: Date, Branch, PIC, Status (badge), Items (completed/total), Variance Cost, Actions
-- "Mulai Opname" button (creates new session for today)
-- Status badges: DRAFT (yellow), CONFIRMED (green), FLAGGED (red), MISSED (gray)
-- Click row → navigate to detail page
-
-### 10.2 Opname Detail Page (`DailyStockOpnameDetailPage.tsx`)
-
-**Route:** `/daily-stock-opname/:id`
-
-**Layout:**
-```
-┌─────────────────────────────────────────────────────────────┐
-│ Header: Branch | Date | PIC | Status Badge                  │
-│ Summary Cards: Expected Cost | Actual Cost | Variance | %   │
-├─────────────────────────────────────────────────────────────┤
-│ Progress Bar: 45/60 items completed                         │
-├─────────────────────────────────────────────────────────────┤
-│ Filter: [Search product] [High Risk Only] [Has Variance]    │
-├─────────────────────────────────────────────────────────────┤
-│ Table:                                                      │
-│ ┌─────┬──────┬────────┬────────┬────────┬────────┬───────┐ │
-│ │Code │Name  │Expected│Actual  │Variance│Var %   │Photo  │ │
-│ │     │      │(system)│(input) │        │        │       │ │
-│ ├─────┼──────┼────────┼────────┼────────┼────────┼───────┤ │
-│ │SAL01│Salmon│ 5.2 kg │[___]kg │ -0.3   │ -5.8%  │ 📷   │ │
-│ │WAG01│Wagyu │ 3.0 kg │[___]kg │        │        │ 📷!  │ │
-│ │UDG01│Udang │ 8.5 kg │[8.2]kg│ -0.3   │ -3.5%  │ ✅   │ │
-│ └─────┴──────┴────────┴────────┴────────┴────────┴───────┘ │
-│                                                             │
-│ Side info per row: MAIN balance: 12.5 kg                    │
-├─────────────────────────────────────────────────────────────┤
-│ [Batalkan]                              [Konfirmasi Opname] │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Behavior:**
-- DRAFT: editable inputs, photo upload enabled, confirm/cancel buttons
-- CONFIRMED/FLAGGED: read-only, resolve button (for FLAGGED, manager only)
-- Auto-calculate variance on input change (client-side)
-- Highlight rows exceeding threshold in red/orange
-- Show "⚠️ No recipe" indicator for products without recipe coverage
-- Show MAIN balance as tooltip or side column
-
-
-### 10.3 Variance Report Page (`OpnameVarianceReportPage.tsx`)
-
-**Route:** `/daily-stock-opname/variance-report`
-
-**Features:**
-- Date range picker, branch filter, risk category filter
-- Group by: day / week / month toggle
-- Table: Product, Total Variance Qty, Total Variance Cost, Avg Variance %, Sessions, Flagged Count
-- Sort by any column
-- Export CSV button
-- Chart: variance trend over time (optional, phase 2)
-
-### 10.4 Dashboard Widget (`DashboardWidget.tsx`)
-
-**Location:** Embedded in main dashboard page
-
-**Layout:**
-```
-┌─────────────────────────────────────────┐
-│ 📋 Stock Opname Hari Ini                │
-├─────────────────────────────────────────┤
-│ Cabang A    ✅ Confirmed   Var: Rp 25k  │
-│ Cabang B    🟡 In Progress  45/60       │
-│ Cabang C    ⚠️ Flagged     Var: Rp 180k │
-│ Cabang D    ⬜ Not Started              │
-│ Cabang E    🔴 Missed (yesterday)       │
-└─────────────────────────────────────────┘
-```
-
-### 10.5 URL Filter Config (`opnameFilters.url.ts`)
-
-```typescript
-import {
-  parsePositiveInt, parseEnum, parseString,
-  serializeString, serializeNumber, mergeWithPageReset,
-  type UrlFilterBase, type UrlFilterUtils,
-} from '@/lib/urlFilters'
-
-type OpnameListStatus = 'DRAFT' | 'CONFIRMED' | 'FLAGGED' | 'MISSED' | ''
-const VALID_STATUSES = new Set<OpnameListStatus>(['DRAFT', 'CONFIRMED', 'FLAGGED', 'MISSED', ''])
-
-export type OpnameFilters = UrlFilterBase & {
-  status: OpnameListStatus
-  branch_id: string
-  date_from: string
-  date_to: string
-  search: string
-}
-
-export const OPNAME_FILTER_DEFAULTS: OpnameFilters = {
-  page: 1, limit: 25,
-  status: '', branch_id: '', date_from: '', date_to: '', search: '',
-}
-
-export const opnameFilterConfig: UrlFilterUtils<OpnameFilters> = {
-  defaults: OPNAME_FILTER_DEFAULTS,
-  parse: (sp) => ({
-    page: parsePositiveInt(sp.get('page'), 1),
-    limit: parsePositiveInt(sp.get('limit'), 25, 100),
-    status: parseEnum(sp.get('status'), VALID_STATUSES, ''),
-    branch_id: parseString(sp.get('branch_id')),
-    date_from: parseString(sp.get('date_from')),
-    date_to: parseString(sp.get('date_to')),
-    search: parseString(sp.get('search')),
-  }),
-  stringify: (f) => {
-    const sp = new URLSearchParams()
-    const s = (k: string, v: string | null) => { if (v) sp.set(k, v) }
-    s('page', serializeNumber(f.page, 1))
-    s('limit', serializeNumber(f.limit, 25))
-    s('status', serializeString(f.status))
-    s('branch_id', serializeString(f.branch_id))
-    s('date_from', serializeString(f.date_from))
-    s('date_to', serializeString(f.date_to))
-    s('search', serializeString(f.search))
-    return sp
-  },
-  merge: (current, patch) =>
-    mergeWithPageReset(current, patch, OPNAME_FILTER_DEFAULTS, ['status', 'branch_id', 'date_from', 'date_to', 'search']),
-}
-```
-
-
-## 11. Integration Points
-
-### 11.1 Modules That This Feature Depends On
-
-| Module | Usage |
-|--------|-------|
-| `stock` | `stockRepository.withTransaction()`, `createMovement()`, `upsertBalance()`, `getBalanceForUpdate()` |
-| `theoretical-consumption` | `getTheoreticalConsumption()` for expected balance calculation |
-| `warehouses` | Resolve MAIN/READY warehouse IDs per branch |
-| `monitoring` (AuditService) | Audit logging for all operations |
-| `storage.service` | Photo upload to R2/S3 |
-| `products` | Product info, `risk_category` column |
-
-### 11.2 Modules That Need Changes
-
-| Module | Change |
-|--------|--------|
-| `stock/stock.types.ts` | Add `'daily_closing_count'` to `ReferenceType` |
-| `daily-prep-orders` | Add opname blocking check in `confirm()` method |
-| `App.tsx` (frontend) | Add routes for opname pages |
-| Dashboard page (frontend) | Add opname widget |
-
-### 11.3 Permission Model
-
-New permission module: `daily_stock_opname`
-
-| Permission | Who |
-|-----------|-----|
-| `daily_stock_opname.view` | All branch staff |
-| `daily_stock_opname.create` | Kitchen PIC, Manager |
-| `daily_stock_opname.update` | Kitchen PIC (own session), Manager |
-| `daily_stock_opname.confirm` | Kitchen PIC, Manager |
-| `daily_stock_opname.resolve` | Manager only |
-| `daily_stock_opname.config` | Manager, Admin |
-| `daily_stock_opname.report` | Manager, Owner |
-
-## Error Handling
-
-```typescript
-// daily-stock-opname.errors.ts
-export class OpnameNotFoundError extends AppError { ... }
-export class OpnameDuplicateError extends AppError { ... }        // same branch+date
-export class OpnameNotDraftError extends AppError { ... }
-export class OpnameNotFlaggedError extends AppError { ... }
-export class OpnameTimeExpiredError extends AppError { ... }      // past closing time
-export class OpnameBackdateError extends AppError { ... }         // trying to create for past date
-export class OpnameIncompleteError extends AppError { ... }       // not all lines filled
-export class OpnamePhotoRequiredError extends AppError { ... }    // high-risk without photo
-export class OpnameSessionExpiredError extends AppError { ... }   // DRAFT from previous day
-export class DpoBlockedByOpnameError extends AppError { ... }    // DPO blocked (in DPO module)
-```
-
-## 13. Photo Upload Design
-
-**Storage path:** `{companyId}/opname/{year}/{month}/{sessionId}/{lineId}_{timestamp}.{ext}`
-
-**Flow:**
-1. Frontend sends multipart/form-data to `POST /api/v1/daily-stock-opname/:id/lines/:lineId/photo`
-2. Controller uses Multer middleware (memory storage, 10MB limit, JPEG/PNG only)
-3. Service calls `storageService.uploadToPath(file, path, contentType, 'buktisetoran')`
-4. Public URL stored on line record
-5. Old photo deleted if replacing
-
-## 14. Time Zone Handling
-
-All date/time logic uses `Asia/Jakarta` (UTC+7):
-
-```typescript
-// Utility function
-function nowJakarta(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }))
-}
-
-function todayJakarta(): string {
-  return nowJakarta().toISOString().split('T')[0]
-}
-
-function currentTimeJakarta(): string {
-  return nowJakarta().toTimeString().slice(0, 5) // "HH:mm"
-}
-
-function isWithinClosingTime(closingTime: string, graceMinutes: number): boolean {
-  const now = nowJakarta()
-  const [h, m] = closingTime.split(':').map(Number)
-  const deadline = new Date(now)
-  deadline.setHours(h, m + graceMinutes, 0, 0)
-  return now <= deadline
-}
-```
-
-
-## 15. Migration File
-
-File: `backend/database/migrations/20260530000000_daily_stock_opname.sql`
-
-Contains:
-1. `CREATE TABLE branch_opname_config`
-2. `CREATE TABLE daily_closing_counts` with unique index
-3. `CREATE TABLE daily_closing_count_lines` with indexes
-4. Seed default config for existing branches (variance_threshold_pct = 15, closing_time = '23:59')
-
-## 16. Routes Registration
-
-In `backend/src/app.ts`:
-
-```typescript
-import { dailyStockOpnameRoutes } from './modules/daily-stock-opname/daily-stock-opname.routes'
-// ...
-app.use('/api/v1/daily-stock-opname', authenticate, dailyStockOpnameRoutes)
-```
-
-In `frontend/src/App.tsx`:
-
-```typescript
-const DailyStockOpnamePage = lazy(() => import('./features/daily-stock-opname/pages/DailyStockOpnamePage'))
-const DailyStockOpnameDetailPage = lazy(() => import('./features/daily-stock-opname/pages/DailyStockOpnameDetailPage'))
-const OpnameVarianceReportPage = lazy(() => import('./features/daily-stock-opname/pages/OpnameVarianceReportPage'))
-
-// Inside routes:
-<Route path="daily-stock-opname" element={<RequirePermission module="daily_stock_opname" action="view"><DailyStockOpnamePage /></RequirePermission>} />
-<Route path="daily-stock-opname/:id" element={<RequirePermission module="daily_stock_opname" action="view"><DailyStockOpnameDetailPage /></RequirePermission>} />
-<Route path="daily-stock-opname/variance-report" element={<RequirePermission module="daily_stock_opname" action="report"><OpnameVarianceReportPage /></RequirePermission>} />
-```
-
-## Correctness Properties
-
-### Property 1: Transaction Atomicity
-All stock movements during confirmation execute in a single database transaction. If any movement or balance update fails, the entire transaction rolls back and the session remains in DRAFT status.
-**Validates: Requirements 16.3, 16.4**
-
-### Property 2: Session Uniqueness
-Database-level unique index on (branch_id, closing_date) WHERE deleted_at IS NULL prevents duplicate sessions. Application-level check provides user-friendly error message before hitting the constraint.
-**Validates: Requirements 1.2, 1.3**
-
-### Property 3: Snapshot Consistency
-Expected balance, cost_per_unit, and MAIN balance are snapshotted at session creation time and stored on line records. These values never change regardless of subsequent stock movements or DPO confirmations.
-**Validates: Requirements 2.6, 3.5**
-
-### Property 4: Time Zone Consistency
-All date/time comparisons throughout the feature use Asia/Jakarta timezone (UTC+7). No mixing of UTC and local time.
-**Validates: Requirements 2.7, 6.5**
-
-### Property 5: Balance Integrity
-After confirmation, stock_balances for ALL products in the READY warehouse reflect the actual counted quantities, including lines where variance is zero. This ensures the ledger matches physical reality.
-**Validates: Requirements 5.5**
-
-### Property 6: Idempotency
-Confirming an already-confirmed session returns an error (OpnameNotDraftError). Stock movements are never duplicated.
-**Validates: Requirements 5.1**
-
-## Testing Strategy
-
-### Unit Tests
-- Service: `calculateExpectedBalances()` with various scenarios (no stock, no recipe, negative expected)
-- Service: `validateTimeRestriction()` with edge cases around closing time + grace period
-- Service: `confirm()` variance threshold logic (CONFIRMED vs FLAGGED)
-
-### Integration Tests
-- Create session → verify lines populated correctly from stock_balances + theoretical consumption
-- Confirm session → verify stock_movements created with correct types and quantities
-- Confirm session → verify stock_balances updated to actual quantities
-- DPO blocking → verify DPO confirm fails when opname already confirmed
-- Time restriction → verify creation/editing blocked after closing time
-
-### E2E Tests
-- Full flow: create → input quantities → upload photo → confirm → verify stock updated
-- Flagged flow: create → input with high variance → confirm → resolve
-
-## Implementation Order
-
-| Phase | Tasks | Dependencies |
-|-------|-------|-------------|
-| 1 | Migration + types + repository | None |
-| 2 | Service (create, calculate expected) | Phase 1 |
-| 3 | Service (update lines, confirm with stock movements) | Phase 2 |
-| 4 | Controller + routes + schema validation | Phase 3 |
-| 5 | DPO blocking integration | Phase 4 |
-| 6 | Frontend: List page | Phase 4 |
-| 7 | Frontend: Detail/Input page | Phase 4 |
-| 8 | Config endpoints + UI | Phase 4 |
-| 9 | Photo upload | Phase 7 |
-| 10 | Resolve flagged flow | Phase 7 |
-| 11 | Dashboard widget | Phase 6 |
-| 12 | Variance report + CSV export | Phase 6 |
+Requirements 1–18 are already implemented and remain unchanged.
 
 ---
 
-*Design created: 30 Mei 2026*
-*Based on requirements: `.kiro/specs/daily-stock-opname/requirements.md`*
+## Architecture
+
+### System Context
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     Frontend (React)                          │
+│                                                              │
+│  DailyStockOpnameDetailPage                                  │
+│  ├── Tab: "Opname" (existing — label rename + tooltips)      │
+│  ├── Tab: "Analisis" (NEW — real consumption table)          │
+│  └── ClassificationModal (NEW — full-screen modal)           │
+└────────────────────────────┬─────────────────────────────────┘
+                             │ HTTP
+┌────────────────────────────▼─────────────────────────────────┐
+│                     Backend (Express)                         │
+│                                                              │
+│  daily-stock-opname.controller.ts                            │
+│  ├── GET  /:id/analysis        → AnalysisService             │
+│  ├── POST /:id/classify        → ClassificationService       │
+│  └── GET  /:id/classifications → ClassificationService       │
+│                                                              │
+│  Notification Dispatcher (Socket.IO + DB)                    │
+└────────────────────────────┬─────────────────────────────────┘
+                             │ SQL
+┌────────────────────────────▼─────────────────────────────────┐
+│                     PostgreSQL                                │
+│                                                              │
+│  daily_closing_count_lines (existing — read for analysis)    │
+│  stock_movements (existing — query CONVERSION movements)     │
+│  variance_classification_lines (NEW table)                   │
+│  notifications (existing)                                    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Components and Interfaces
+
+### Backend Components
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| AnalysisService | `daily-stock-opname-analysis.service.ts` | Computes real consumption per product line |
+| ClassificationService | `daily-stock-opname-classification.service.ts` | Manages variance classification entries |
+| ClassificationRepository | `daily-stock-opname-classification.repository.ts` | DB operations for variance_classification_lines |
+| Controller (extended) | `daily-stock-opname.controller.ts` | New endpoints for analysis and classification |
+| Routes (extended) | `daily-stock-opname.routes.ts` | Route registration for new endpoints |
+| Schema (extended) | `daily-stock-opname.schema.ts` | Zod schemas for new request/response |
+
+### Frontend Components
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| DailyStockOpnameDetailPage (modified) | `pages/DailyStockOpnameDetailPage.tsx` | Label rename, tooltips, tab navigation |
+| AnalysisTab | `components/AnalysisTab.tsx` | Real consumption table display |
+| ClassificationModal | `components/ClassificationModal.tsx` | Full-screen variance classification UI |
+| ClassificationSummary | `components/ClassificationSummary.tsx` | Summary badge and totals |
+
+### Interfaces
+
+```typescript
+// ─── Analysis Service Interface ─────────────────────────────────────────────
+
+interface IAnalysisService {
+  getAnalysis(sessionId: string, branchIds: string[]): Promise<AnalysisResponse>
+}
+
+// ─── Classification Service Interface ───────────────────────────────────────
+
+interface IClassificationService {
+  classify(sessionId: string, branchIds: string[], dto: ClassifyDto, userId: string): Promise<ClassificationSummary>
+  getClassifications(sessionId: string, branchIds: string[]): Promise<ClassificationsResponse>
+}
+```
+
+---
+
+## Data Models
+
+### New Table: variance_classification_lines
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PK, DEFAULT gen_random_uuid() | Primary key |
+| closing_id | UUID | FK → daily_closing_counts(id), NOT NULL | Parent session |
+| line_id | UUID | FK → daily_closing_count_lines(id), NOT NULL | Parent line |
+| variance_category | VARCHAR(20) | NOT NULL, CHECK IN ('WASTE','SHORTAGE') | Classification type |
+| qty | NUMERIC(20,4) | NOT NULL, CHECK > 0 | Classified quantity |
+| shortage_assigned_to | UUID | FK → employees(user_id), nullable | Employee responsible |
+| shortage_note | TEXT | nullable | Explanation for shortage |
+| classified_by | UUID | NOT NULL | User who classified |
+| classified_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | When classified |
+| company_id | UUID | FK → companies(id), NOT NULL | Company scope |
+| branch_id | UUID | FK → branches(id), NOT NULL | Branch scope |
+| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | Record creation |
+
+### Response DTOs
+
+```typescript
+// Analysis endpoint response
+interface AnalysisLineItem {
+  product_id: string
+  product_code: string
+  product_name: string
+  uom: string
+  stok_kemarin: number
+  barang_masuk: number
+  stok_hari_ini: number
+  waste: number
+  total_konversi: number
+  pemakaian_riil: number
+  pemakaian_pos: number
+  gap: number
+  has_recipe: boolean
+}
+
+interface AnalysisResponse {
+  session_id: string
+  closing_date: string
+  branch_name: string
+  lines: AnalysisLineItem[]
+  summary: {
+    total_pemakaian_riil: number
+    total_pemakaian_pos: number
+    total_gap: number
+  }
+}
+
+// Classification endpoint DTOs
+interface ClassifyLineEntry {
+  line_id: string
+  variance_category: 'WASTE' | 'SHORTAGE'
+  qty: number
+  shortage_assigned_to: string | null
+  shortage_note: string | null
+}
+
+interface ClassifyDto {
+  entries: ClassifyLineEntry[]
+}
+
+interface ClassificationEntry extends ClassifyLineEntry {
+  id: string
+  classified_by: string
+  classified_at: string
+  product_name: string
+  product_code: string
+  uom: string
+  assigned_employee_name: string | null
+}
+
+interface ClassificationSummary {
+  waste_total: number
+  shortage_total: number
+  entry_count: number
+  is_complete: boolean  // see is_complete definition below
+  classification_version: number  // increments on each re-submission
+}
+```
+
+**`is_complete` Definition:**
+
+```sql
+-- is_complete = true when:
+-- For ALL lines WHERE variance_qty < 0:
+--   SUM(vcl.qty WHERE vcl.line_id = line.id) = ABS(line.variance_qty)
+-- If any line has remaining unclassified qty, is_complete = false
+```
+
+```typescript
+// In getSummary repository method:
+async getClassificationSummary(closingId: string): Promise<ClassificationSummary> {
+  const { rows } = await pool.query(`
+    WITH negative_lines AS (
+      SELECT id, ABS(variance_qty) AS abs_variance
+      FROM daily_closing_count_lines
+      WHERE closing_id = $1 AND variance_qty < 0
+    ),
+    classified AS (
+      SELECT line_id, SUM(qty) AS classified_qty
+      FROM variance_classification_lines
+      WHERE closing_id = $1
+      GROUP BY line_id
+    )
+    SELECT
+      COALESCE(SUM(CASE WHEN vcl.variance_category = 'WASTE' THEN vcl.qty END), 0) AS waste_total,
+      COALESCE(SUM(CASE WHEN vcl.variance_category = 'SHORTAGE' THEN vcl.qty END), 0) AS shortage_total,
+      COUNT(vcl.id) AS entry_count,
+      -- is_complete: true only when ALL negative-variance lines are fully classified
+      BOOL_AND(COALESCE(c.classified_qty, 0) = nl.abs_variance) AS is_complete
+    FROM negative_lines nl
+    LEFT JOIN classified c ON c.line_id = nl.id
+    LEFT JOIN variance_classification_lines vcl ON vcl.closing_id = $1
+  `, [closingId])
+  
+  // Also fetch classification_version from parent session
+  const { rows: sessionRows } = await pool.query(`
+    SELECT classification_version FROM daily_closing_counts WHERE id = $1
+  `, [closingId])
+
+  return {
+    waste_total: rows[0]?.waste_total ?? 0,
+    shortage_total: rows[0]?.shortage_total ?? 0,
+    entry_count: rows[0]?.entry_count ?? 0,
+    is_complete: rows[0]?.is_complete ?? false,
+    classification_version: sessionRows[0]?.classification_version ?? 0,
+  }
+}
+```
+
+interface ClassificationsResponse {
+  entries: ClassificationEntry[]
+  summary: ClassificationSummary
+}
+```
+
+---
+
+## Component Design
+
+### Requirement 19: UI Label Rename & Tooltips
+
+**Scope:** Frontend-only changes to `DailyStockOpnameDetailPage.tsx`
+
+#### Changes
+
+1. **Column header rename:** Replace `"MAIN Bal."` text with `"Stok Main"` in the `<thead>` section.
+
+2. **Tooltip component:** Use a lightweight `Tooltip` wrapper (existing or inline `title` attribute) on column headers that have formula explanations.
+
+```tsx
+// Tooltip on "Sisa Expected" header
+<th title="Sisa Expected = Stok Awal − Pemakaian POS">
+  Sisa Expected
+</th>
+
+// Tooltip on "Var" header
+<th title="Variance = Actual − Sisa Expected">
+  Var
+</th>
+```
+
+3. **Column headers (final order):** Code, Produk, Stok Awal, Pemakaian POS, Sisa Expected, Actual, Var, Var %, Foto, Stok Main
+
+No backend changes required.
+
+---
+
+### Requirement 20: Real Consumption Analysis
+
+#### Backend: Analysis Service
+
+**New file:** `backend/src/modules/daily-stock-opname/daily-stock-opname-analysis.service.ts`
+
+##### Data Model (Response)
+
+```typescript
+interface AnalysisLineItem {
+  product_id: string
+  product_code: string
+  product_name: string
+  uom: string
+  stok_kemarin: number      // system_qty from opname line (already includes DPO transfers)
+  barang_masuk: number      // dpo_in_qty from opname line — display only, NOT used in formula
+  stok_hari_ini: number     // actual_qty from confirmed line
+  waste: number             // abs(variance_qty) when variance < 0, else 0
+  total_konversi: number    // sum of OUT_CONVERSION + IN_CONVERSION movements
+  pemakaian_riil: number    // computed: stok_kemarin − (stok_hari_ini + waste) + total_konversi
+  pemakaian_pos: number     // theoretical_out from opname line (0 if has_recipe = false)
+  gap: number               // pemakaian_riil - pemakaian_pos
+  has_recipe: boolean
+}
+
+interface AnalysisResponse {
+  session_id: string
+  closing_date: string
+  branch_name: string
+  lines: AnalysisLineItem[]
+  summary: {
+    total_pemakaian_riil: number
+    total_pemakaian_pos: number
+    total_gap: number
+  }
+}
+```
+
+##### Computation Logic
+
+```typescript
+// For each opname line in the confirmed session:
+function computeAnalysisLine(
+  line: DailyClosingCountLine,
+  conversionMovements: Map<string, number>  // product_id → net conversion qty
+): AnalysisLineItem {
+  const stok_kemarin = line.system_qty  // already includes DPO transfers via stock_balances
+  const barang_masuk = line.dpo_in_qty  // display-only reference, NOT used in formula
+  const stok_hari_ini = line.actual_qty!  // guaranteed non-null for CONFIRMED
+  
+  // waste = abs(negative variance) only when variance is negative
+  const variance = line.actual_qty! - line.expected_qty
+  const waste = variance < 0 ? Math.abs(variance) : 0
+  
+  // total_konversi: sum of OUT_CONVERSION and IN_CONVERSION for this product on this date
+  const total_konversi = conversionMovements.get(line.product_id) ?? 0
+  
+  // Pemakaian Riil formula (corrected — barang_masuk excluded to avoid double-counting)
+  // system_qty already includes DPO IN_TRANSFER movements via stock_balances
+  const pemakaian_riil = stok_kemarin - (stok_hari_ini + waste) + total_konversi
+  
+  // Pemakaian POS: theoretical_out (0 if no recipe)
+  const pemakaian_pos = line.has_recipe ? line.theoretical_out : 0
+  
+  // Gap
+  const gap = pemakaian_riil - pemakaian_pos
+  
+  return {
+    product_id: line.product_id,
+    product_code: line.product_code,
+    product_name: line.product_name,
+    uom: line.uom,
+    stok_kemarin,
+    barang_masuk,       // included in response for display/transparency only
+    stok_hari_ini,
+    waste,
+    total_konversi,
+    pemakaian_riil,
+    pemakaian_pos,
+    gap,
+    has_recipe: line.has_recipe,
+  }
+}
+```
+
+##### Repository Query for Conversion Movements
+
+```typescript
+// In daily-stock-opname.repository.ts
+async getConversionMovementsForDate(
+  warehouseId: string,
+  date: string,
+  productIds: string[]
+): Promise<Map<string, number>> {
+  // Returns net conversion quantity per product:
+  // IN_CONVERSION qty is positive (product gained), OUT_CONVERSION is negative (product consumed)
+  const { rows } = await pool.query(`
+    SELECT product_id,
+      SUM(CASE WHEN movement_type = 'IN_CONVERSION' THEN qty ELSE 0 END) -
+      SUM(CASE WHEN movement_type = 'OUT_CONVERSION' THEN qty ELSE 0 END) AS net_conversion
+    FROM stock_movements
+    WHERE warehouse_id = $1
+      AND movement_date = $2::date
+      AND movement_type IN ('OUT_CONVERSION', 'IN_CONVERSION')
+      AND product_id = ANY($3::uuid[])
+    GROUP BY product_id
+  `, [warehouseId, date, productIds])
+  
+  const map = new Map<string, number>()
+  for (const row of rows) {
+    map.set(row.product_id, Number(row.net_conversion))
+  }
+  return map
+}
+```
+
+##### API Endpoint
+
+```
+GET /api/v1/daily-stock-opname/:id/analysis
+```
+
+**Access control:** User must have `view` permission on `daily_stock_opname` module AND branch access to the session's branch.
+
+**Validation:**
+- Session must exist and be accessible
+- Session must be in `CONFIRMED` or `FLAGGED` status (return 400 for DRAFT)
+
+#### Frontend: Analisis Tab
+
+**Modified file:** `DailyStockOpnameDetailPage.tsx`
+
+Add tab navigation using existing pattern:
+
+```tsx
+const [activeTab, setActiveTab] = useState<'opname' | 'analisis'>('opname')
+```
+
+Tab is only shown when session status is CONFIRMED or FLAGGED. The Analisis tab renders a read-only table with columns: Produk, Stok Kemarin, Barang Masuk, Stok Hari Ini, Waste, Konversi, Pemakaian Riil, Pemakaian POS, Gap.
+
+Gap cells with positive values are highlighted with `text-amber-600 bg-amber-50` styling.
+
+**New TanStack Query hook:**
+
+```typescript
+// In api/dailyStockOpname.ts
+export const useOpnameAnalysis = (id: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['daily-stock-opname', id, 'analysis'],
+    queryFn: async () => {
+      const { data } = await api.get(`/daily-stock-opname/${id}/analysis`)
+      return data.data as AnalysisResponse
+    },
+    enabled: !!id && enabled,
+  })
+```
+
+---
+
+### Requirement 21: Variance Classification
+
+#### Database: New Table
+
+**Migration file:** `backend/database/migrations/2026XXXX_variance_classification_lines.sql`
+
+```sql
+CREATE TABLE IF NOT EXISTS variance_classification_lines (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  closing_id            UUID NOT NULL REFERENCES daily_closing_counts(id),
+  line_id               UUID NOT NULL REFERENCES daily_closing_count_lines(id),
+  variance_category     VARCHAR(20) NOT NULL CHECK (variance_category IN ('WASTE', 'SHORTAGE')),
+  qty                   NUMERIC(20,4) NOT NULL CHECK (qty > 0),
+  shortage_assigned_to  UUID REFERENCES employees(user_id),
+  shortage_note         TEXT,
+  classified_by         UUID NOT NULL,
+  classified_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  company_id            UUID NOT NULL REFERENCES companies(id),
+  branch_id             UUID NOT NULL REFERENCES branches(id),
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_vcl_closing ON variance_classification_lines(closing_id);
+CREATE INDEX IF NOT EXISTS idx_vcl_line ON variance_classification_lines(line_id);
+CREATE INDEX IF NOT EXISTS idx_vcl_assigned ON variance_classification_lines(shortage_assigned_to)
+  WHERE variance_category = 'SHORTAGE';
+```
+
+#### Backend: Classification Service
+
+**New file:** `backend/src/modules/daily-stock-opname/daily-stock-opname-classification.service.ts`
+
+##### Input DTO
+
+```typescript
+interface ClassifyLineEntry {
+  line_id: string
+  variance_category: 'WASTE' | 'SHORTAGE'
+  qty: number
+  shortage_assigned_to: string | null  // required when category = SHORTAGE
+  shortage_note: string | null
+}
+
+interface ClassifyDto {
+  entries: ClassifyLineEntry[]
+}
+```
+
+##### Validation Rules
+
+```typescript
+// For each unique line_id in entries:
+// 1. Line must belong to this session
+// 2. Line must have negative variance (variance_qty < 0)
+// 3. Sum of all entries for this line_id must equal abs(line.variance_qty)
+// 4. If category = 'SHORTAGE', shortage_assigned_to is required
+// 5. All qty values must be > 0
+// 6. If category = 'SHORTAGE', shortage_assigned_to must reference an active employee
+//    (is_active = true AND deleted_at IS NULL) in the same company
+```
+
+##### Business Logic Flow
+
+```
+1.  Validate session is CONFIRMED or FLAGGED
+2.  Validate caller is PIC (pic_user_id) or has 'approve' permission
+3.  Validate company_id and branch_id scoping
+4.  Fetch all lines with negative variance for this session
+5.  Validate entries against lines (see rules above)
+6.  For each SHORTAGE entry: validate shortage_assigned_to employee is active
+    → Query employees table: is_active = true AND deleted_at IS NULL
+    → If inactive/deleted → return error SHORTAGE_EMPLOYEE_INACTIVE
+7.  If existing classifications exist (re-submission):
+    a. Log previous classification state to AuditService (all entry details)
+    b. Increment classification_version on session
+    c. Delete old classification entries
+8.  Insert new classification entries in transaction
+9.  For each SHORTAGE entry: dispatch notification to shortage_assigned_to
+10. Return classification summary (includes updated classification_version)
+```
+
+##### Active Employee Validation
+
+Before accepting any SHORTAGE classification entry, the service queries the employees table:
+
+```typescript
+// In ClassificationService.classify()
+async validateShortageEmployees(
+  entries: ClassifyLineEntry[],
+  companyId: string
+): Promise<void> {
+  const shortageEntries = entries.filter(e => e.variance_category === 'SHORTAGE')
+  if (shortageEntries.length === 0) return
+
+  const employeeIds = [...new Set(shortageEntries.map(e => e.shortage_assigned_to!))]
+  
+  const { rows } = await pool.query(`
+    SELECT user_id FROM employees
+    WHERE user_id = ANY($1::uuid[])
+      AND company_id = $2
+      AND is_active = true
+      AND deleted_at IS NULL
+  `, [employeeIds, companyId])
+
+  const activeIds = new Set(rows.map(r => r.user_id))
+  const inactiveIds = employeeIds.filter(id => !activeIds.has(id))
+
+  if (inactiveIds.length > 0) {
+    throw new AppError(
+      'SHORTAGE_EMPLOYEE_INACTIVE',
+      400,
+      `Karyawan tidak aktif atau sudah dihapus tidak dapat di-assign shortage`
+    )
+  }
+}
+```
+
+##### Classification Audit Trail (Re-submission)
+
+When classifications already exist for a session (replace strategy), the service logs the previous state before deletion:
+
+```typescript
+// In ClassificationService.classify() — before delete
+async logPreviousClassifications(
+  sessionId: string,
+  userId: string
+): Promise<void> {
+  const existing = await this.repository.getClassificationsByClosingId(sessionId)
+  if (existing.length === 0) return
+
+  await this.auditService.log({
+    action: 'CLASSIFICATION_REPLACED',
+    entity_type: 'daily_closing_count',
+    entity_id: sessionId,
+    user_id: userId,
+    details: {
+      previous_entries: existing.map(e => ({
+        line_id: e.line_id,
+        variance_category: e.variance_category,
+        qty: e.qty,
+        shortage_assigned_to: e.shortage_assigned_to,
+        classified_by: e.classified_by,
+        classified_at: e.classified_at,
+      })),
+      previous_version: currentVersion,  // classification_version before increment
+    },
+  })
+}
+```
+
+##### Classification Version Tracking
+
+The `classification_version` is stored on the parent `daily_closing_counts` table (or a dedicated column):
+
+```sql
+-- Add to daily_closing_counts table
+ALTER TABLE daily_closing_counts
+  ADD COLUMN IF NOT EXISTS classification_version INTEGER NOT NULL DEFAULT 0;
+```
+
+On each classify submission:
+```typescript
+// Increment version in the same transaction
+await client.query(`
+  UPDATE daily_closing_counts
+  SET classification_version = classification_version + 1
+  WHERE id = $1
+`, [sessionId])
+```
+
+##### Notification Integration
+
+Register new event key in `notification-events.ts`:
+
+```typescript
+// Add to NOTIFICATION_EVENT_KEYS:
+OPNAME_SHORTAGE_ASSIGNED: 'opname.shortage_assigned',
+
+// Add to NOTIFICATION_EVENT_CATALOG:
+{
+  event_key: NOTIFICATION_EVENT_KEYS.OPNAME_SHORTAGE_ASSIGNED,
+  label: 'Shortage opname di-assign',
+  description: 'Karyawan mendapat assignment shortage dari opname harian',
+  category: 'inventory',
+  default_type: 'warning',
+  default_title_template: 'Shortage Opname',
+  default_message_template: '{{product_name}} — {{qty}} {{uom}} shortage ditandai atas nama Anda oleh {{pic_name}}. Catatan: {{note}}',
+  default_redirect_url_template: '/inventory/daily-stock-opname/{{session_id}}',
+}
+```
+
+Notification dispatch uses the existing `notificationDispatcher.dispatch()` pattern with `additionalRecipientIds` pointing to the `shortage_assigned_to` user:
+
+```typescript
+await notificationDispatcher.dispatch(
+  NOTIFICATION_EVENT_KEYS.OPNAME_SHORTAGE_ASSIGNED,
+  companyId,
+  {
+    entityId: sessionId,
+    variables: {
+      product_name: line.product_name,
+      qty: String(entry.qty),
+      uom: line.uom,
+      pic_name: picName,
+      note: entry.shortage_note ?? '-',
+      session_id: sessionId,
+    },
+    additionalRecipientIds: [entry.shortage_assigned_to!],
+    excludeUserIds: [],
+  }
+)
+```
+
+##### API Endpoints
+
+```
+POST /api/v1/daily-stock-opname/:id/classify
+  Body: { entries: ClassifyLineEntry[] }
+  Response: { waste_total: number, shortage_total: number, entry_count: number }
+
+GET  /api/v1/daily-stock-opname/:id/classifications
+  Response: { entries: ClassificationEntry[], summary: ClassificationSummary }
+```
+
+**Access control:**
+- POST: PIC (pic_user_id matches) OR user has `approve` permission on `daily_stock_opname`
+- GET: User has `view` permission on `daily_stock_opname` AND branch access
+
+#### Frontend: Classification Modal
+
+**New component:** `frontend/src/features/daily-stock-opname/components/ClassificationModal.tsx`
+
+Full-screen modal (using `fixed inset-0 z-50`) displaying:
+
+1. **Header:** Session info, "Klasifikasi Variance" title, close button
+2. **Table:** All negative-variance lines with split inputs
+3. **Footer:** Summary totals, submit button
+
+Each row allows splitting into waste and shortage:
+
+```tsx
+interface ClassificationRow {
+  line_id: string
+  product_name: string
+  product_code: string
+  uom: string
+  variance_qty: number  // negative value
+  abs_variance: number  // displayed
+  waste_qty: number     // editable, default = abs_variance
+  shortage_qty: number  // editable, default = 0
+  shortage_assigned_to: string | null
+  shortage_note: string | null
+}
+```
+
+**Validation (client-side):**
+- For each row: `waste_qty + shortage_qty === abs_variance`
+- If `shortage_qty > 0`: `shortage_assigned_to` must be selected
+
+**Employee Picker:**
+
+The employee picker for `shortage_assigned_to` uses the existing employee search API from `@/features/employees`:
+
+```typescript
+// Uses existing employeesApi.search() from @/features/employees
+import { useEmployeeSearch } from '@/features/employees/api/employees'
+
+// In ClassificationModal component:
+const { data: employees } = useEmployeeSearch({
+  branch_name: session.branch_name,
+  is_active: true,
+})
+```
+
+API call: `GET /employees/search?branch_name={branchName}&is_active=true`
+
+This filters to only show active employees from the same branch as the opname session, ensuring the user cannot accidentally assign shortage to an inactive or cross-branch employee.
+
+**New TanStack Query hooks:**
+
+```typescript
+export const useClassifyOpname = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ sessionId, body }: { sessionId: string; body: ClassifyDto }) => {
+      const { data } = await api.post(`/daily-stock-opname/${sessionId}/classify`, body)
+      return data.data
+    },
+    onSuccess: (_, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) })
+      qc.invalidateQueries({ queryKey: ['daily-stock-opname', sessionId, 'classifications'] })
+    },
+  })
+}
+
+export const useOpnameClassifications = (id: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['daily-stock-opname', id, 'classifications'],
+    queryFn: async () => {
+      const { data } = await api.get(`/daily-stock-opname/${id}/classifications`)
+      return data.data as ClassificationsResponse
+    },
+    enabled: !!id && enabled,
+  })
+```
+
+**"Klasifikasi Variance" button visibility:**
+- Session status is `CONFIRMED` or `FLAGGED`
+- Current user is the PIC (`pic_user_id`) OR has `approve` permission
+- Session has at least one line with negative variance
+
+**"Classified" badge:**
+- Shown when `is_complete = true` from the classification summary
+- Definition: for ALL lines WHERE `variance_qty < 0`, the SUM of classification entry quantities for that line equals `ABS(variance_qty)`. If any negative-variance line has remaining unclassified qty, badge is not shown.
+
+---
+
+## Data Flow
+
+### Analysis Flow
+
+```
+User clicks "Analisis" tab
+  → useOpnameAnalysis(sessionId) fires
+  → GET /daily-stock-opname/:id/analysis
+  → AnalysisService:
+      1. Load session + lines (from existing detail query)
+      2. Validate status = CONFIRMED/FLAGGED
+      3. Query conversion movements for date + warehouse + product IDs
+      4. Compute per-line analysis using formula
+      5. Return AnalysisResponse
+  → Frontend renders table with highlight on positive gaps
+```
+
+### Classification Flow
+
+```
+User clicks "Klasifikasi Variance"
+  → Modal opens with negative-variance lines
+  → Employee picker loads: GET /employees/search?branch_name={branchName}&is_active=true
+  → User splits each line into waste/shortage portions
+  → User assigns employees for shortage portions (from branch active employees)
+  → Submit → POST /daily-stock-opname/:id/classify
+  → ClassificationService:
+      1. Validate session status & user authorization
+      2. Validate sum constraint per line
+      3. Validate shortage employees are active (is_active=true, deleted_at IS NULL)
+      4. If re-submission: log previous state to AuditService, increment version
+      5. Delete old classifications (replace strategy)
+      6. Insert new entries in transaction
+      7. For each SHORTAGE: dispatch notification
+      8. Return summary (includes classification_version)
+  → Frontend invalidates queries, shows success toast
+  → Detail header shows "Classified" badge
+```
+
+---
+
+## Error Handling
+
+| Scenario | Error Code | HTTP Status | Message |
+|----------|-----------|-------------|---------|
+| Analysis on DRAFT session | `OPNAME_NOT_CONFIRMED` | 400 | "Analisis hanya tersedia setelah opname dikonfirmasi" |
+| Classify on DRAFT session | `OPNAME_NOT_CONFIRMED` | 400 | "Klasifikasi hanya dapat dilakukan pada sesi CONFIRMED/FLAGGED" |
+| Non-PIC user without approve permission | `OPNAME_UNAUTHORIZED` | 403 | "Hanya PIC atau user dengan permission approve yang dapat mengklasifikasi" |
+| Classification sum mismatch | `CLASSIFICATION_SUM_MISMATCH` | 400 | "Total klasifikasi ({sum}) tidak sama dengan abs variance ({expected}) untuk produk {name}" |
+| Shortage without assigned employee | `SHORTAGE_EMPLOYEE_REQUIRED` | 400 | "Employee harus dipilih untuk klasifikasi shortage" |
+| Shortage assigned to inactive/deleted employee | `SHORTAGE_EMPLOYEE_INACTIVE` | 400 | "Karyawan tidak aktif atau sudah dihapus tidak dapat di-assign shortage" |
+| Session not found / no branch access | `OPNAME_NOT_FOUND` | 404 | "Sesi opname tidak ditemukan" |
+
+---
+
+## Testing Strategy
+
+### Property-Based Tests
+
+Three core properties are tested with 100+ generated inputs each:
+
+1. **Real Consumption Formula** — Generate random valid numeric tuples (system_qty, actual_qty, variance_qty, total_konversi, theoretical_out) and verify the `computeAnalysisLine` function produces correct pemakaian_riil (using corrected formula without barang_masuk), waste, and gap values. Ensure barang_masuk is present in DTO but not used in calculation.
+
+2. **Classification Sum Validation** — Generate random negative variances and random splits into waste/shortage portions, verify the validator accepts valid splits and rejects invalid ones.
+
+3. **Active Employee Validation** — Generate classification entries with random employee states (active/inactive, deleted/not-deleted), verify the system accepts entries only when all shortage employees have is_active = true AND deleted_at IS NULL.
+
+### Unit Tests (Example-Based)
+
+- Analysis endpoint returns 400 for DRAFT sessions
+- Analysis correctly maps system_qty → stok_kemarin, dpo_in_qty → barang_masuk (display only), actual_qty → stok_hari_ini
+- Analysis formula does NOT include barang_masuk in pemakaian_riil calculation
+- Classification requires employee for shortage entries
+- Classification restricted to PIC or approve-permission users
+- Classification rejects inactive/deleted employees for shortage assignment
+- Classification re-submission logs previous state to AuditService before deletion
+- Classification version increments on each re-submission
+- Notification dispatched for shortage entries
+- is_complete returns false when any negative-variance line has unclassified qty remaining
+- is_complete returns true when all negative-variance lines are fully classified
+- Employee picker calls GET /employees/search with branch_name and is_active=true
+- UI tooltips render correct formula text
+- Column header shows "Stok Main" not "MAIN Bal."
+
+### Integration Tests
+
+- Analysis endpoint queries conversion movements from stock_movements table
+- Classification entries persist to variance_classification_lines table
+- classification_version column persists and increments correctly
+- AuditService receives classification history on re-submission
+- Socket.IO notification delivered to assigned employee
+- Classification state reflected in "Classified" badge on detail page
+- Employee search API filters correctly by branch and active status
+
+---
+
+## Correctness Properties
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+### Property 1: Real Consumption Formula Invariant
+
+*For any* opname line with valid numeric values for system_qty (stok_kemarin), actual_qty (stok_hari_ini), variance_qty, and net conversion quantity (total_konversi), the computed pemakaian_riil SHALL equal `stok_kemarin − (stok_hari_ini + waste) + total_konversi` where waste is `abs(variance_qty)` when variance_qty < 0 and `0` otherwise. The barang_masuk (dpo_in_qty) value SHALL be present in the response DTO for display but SHALL NOT be included in the pemakaian_riil formula. The gap SHALL equal `pemakaian_riil - pemakaian_pos`.
+
+**Validates: Requirements 20.2, 20.4, 20.6, 20.8**
+
+### Property 2: Classification Sum Invariant
+
+*For any* opname line with negative variance and *for any* set of classification entries submitted for that line, the classification is valid if and only if the sum of all entry quantities equals the absolute value of the line's variance_qty. The system SHALL accept the classification when the sum matches and reject it when it does not.
+
+**Validates: Requirements 21.4, 21.7**
+
+### Property 3: Active Employee Constraint for Shortage Assignment
+
+*For any* classification submission containing SHORTAGE entries, the system SHALL accept the submission only when ALL referenced shortage_assigned_to employees satisfy `is_active = true AND deleted_at IS NULL`. *For any* submission where at least one shortage employee is inactive or deleted, the system SHALL reject the entire submission with an error.
+
+**Validates: Requirements 21.18**
+
+### Property 4: Classification Completeness (is_complete)
+
+*For any* confirmed opname session with negative-variance lines, `is_complete` SHALL be `true` if and only if *for all* lines where `variance_qty < 0`, the sum of classification entry quantities for that line equals `ABS(variance_qty)`. If any negative-variance line has remaining unclassified quantity, `is_complete` SHALL be `false`.
+
+**Validates: Requirements 21.13**

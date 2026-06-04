@@ -924,6 +924,39 @@ export class DailyStockOpnameRepository {
     }))
   }
 
+  // ─── CONVERSION MOVEMENTS ─────────────────────────────────────────────────
+
+  /**
+   * Get net conversion movements for a given date and warehouse.
+   * Returns Map<productId, netConversion> where netConversion = IN_CONVERSION - OUT_CONVERSION.
+   */
+  async getConversionMovementsForDate(
+    warehouseId: string,
+    date: string,
+    productIds: string[]
+  ): Promise<Map<string, number>> {
+    if (productIds.length === 0) return new Map()
+
+    const { rows } = await pool.query(
+      `SELECT product_id,
+        SUM(CASE WHEN movement_type = 'IN_CONVERSION' THEN qty ELSE 0 END) -
+        SUM(CASE WHEN movement_type = 'OUT_CONVERSION' THEN qty ELSE 0 END) AS net_conversion
+      FROM stock_movements
+      WHERE warehouse_id = $1
+        AND movement_date = $2::date
+        AND movement_type IN ('OUT_CONVERSION', 'IN_CONVERSION')
+        AND product_id = ANY($3::uuid[])
+      GROUP BY product_id`,
+      [warehouseId, date, productIds]
+    )
+
+    const map = new Map<string, number>()
+    for (const row of rows) {
+      map.set(row.product_id, Number(row.net_conversion))
+    }
+    return map
+  }
+
   // ─── VARIANCE REPORT EXPORT (LINE-LEVEL) ────────────────────────────────────
 
   async getVarianceReportExportData(branchIds: string[], filter: VarianceReportFilter): Promise<VarianceReportExportRow[]> {

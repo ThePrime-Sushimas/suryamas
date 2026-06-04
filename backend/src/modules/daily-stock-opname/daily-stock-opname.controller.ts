@@ -1,6 +1,9 @@
 import type { Request, Response } from 'express'
 import type { AuthRequest } from '../../types/common.types'
 import { dailyStockOpnameService } from './daily-stock-opname.service'
+import { dailyStockOpnameAnalysisService } from './daily-stock-opname-analysis.service'
+import { dailyStockOpnameClassificationService } from './daily-stock-opname-classification.service'
+import { dailyStockOpnameReopenService } from './daily-stock-opname-reopen.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { getAccessibleBranchIds, getAccessibleCompanyIds, getCompanyIdForBranch, requireBranchAccess, requireCompanyAccess, resolveContextCompanyId } from '../../utils/branch-access.util'
@@ -9,6 +12,8 @@ import type {
   listSchema, getByIdSchema, createOpnameSchema, updateLineSchema,
   bulkUpdateLinesSchema, photoUploadSchema, confirmSchema, resolveSchema,
   cancelSchema, configSchema, dashboardSchema, varianceReportSchema,
+  analysisParamsSchema, classifyBodySchema, getClassificationsSchema,
+  createReopenRequestSchema, respondReopenRequestSchema, getReopenRequestsSchema,
 } from './daily-stock-opname.schema'
 
 type ListReq = ValidatedAuthRequest<typeof listSchema>
@@ -23,6 +28,12 @@ type CancelReq = ValidatedAuthRequest<typeof cancelSchema>
 type ConfigReq = ValidatedAuthRequest<typeof configSchema>
 type DashboardReq = ValidatedAuthRequest<typeof dashboardSchema>
 type VarianceReportReq = ValidatedAuthRequest<typeof varianceReportSchema>
+type AnalysisParamsReq = ValidatedAuthRequest<typeof analysisParamsSchema>
+type ClassifyReq = ValidatedAuthRequest<typeof classifyBodySchema>
+type GetClassificationsReq = ValidatedAuthRequest<typeof getClassificationsSchema>
+type CreateReopenReq = ValidatedAuthRequest<typeof createReopenRequestSchema>
+type RespondReopenReq = ValidatedAuthRequest<typeof respondReopenRequestSchema>
+type GetReopenRequestsReq = ValidatedAuthRequest<typeof getReopenRequestsSchema>
 
 async function opnameScope(req: Request) {
   const userId = req.user?.id ?? ''
@@ -152,6 +163,17 @@ export class DailyStockOpnameController {
     }
   }
 
+  deletePhoto = async (req: Request, res: Response) => {
+    try {
+      const { params } = (req as PhotoUploadReq).validated
+      const { branchIds, userId } = await opnameScope(req)
+      await dailyStockOpnameService.deletePhoto(params.id, params.lineId, branchIds, userId)
+      sendSuccess(res, null, 'Photo deleted')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_opname_photo', id: req.params.id })
+    }
+  }
+
   // ─── ACTIONS ────────────────────────────────────────────────────────────────
 
   confirm = async (req: Request, res: Response) => {
@@ -217,6 +239,46 @@ export class DailyStockOpnameController {
     }
   }
 
+  // ─── ANALYSIS ─────────────────────────────────────────────────────────────
+
+  getAnalysis = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as AnalysisParamsReq).validated.params
+      const { branchIds } = await opnameScope(req)
+      const result = await dailyStockOpnameAnalysisService.getAnalysis(id, branchIds)
+      sendSuccess(res, result, 'Analysis retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_opname_analysis', id: req.params.id })
+    }
+  }
+
+  // ─── CLASSIFICATION ─────────────────────────────────────────────────────────
+
+  classify = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as ClassifyReq).validated.params
+      const { branchIds, userId } = await opnameScope(req)
+      const userPermissions = (req as AuthRequest).permissions
+      const result = await dailyStockOpnameClassificationService.classify(
+        id, branchIds, (req as ClassifyReq).validated.body, userId, userPermissions,
+      )
+      sendSuccess(res, result, 'Classification saved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'classify_opname', id: req.params.id })
+    }
+  }
+
+  getClassifications = async (req: Request, res: Response) => {
+    try {
+      const { id } = (req as GetClassificationsReq).validated.params
+      const { branchIds } = await opnameScope(req)
+      const result = await dailyStockOpnameClassificationService.getClassifications(id, branchIds)
+      sendSuccess(res, result, 'Classifications retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_opname_classifications', id: req.params.id })
+    }
+  }
+
   // ─── DASHBOARD & REPORTS ────────────────────────────────────────────────────
 
   getDashboard = async (req: Request, res: Response) => {
@@ -250,6 +312,60 @@ export class DailyStockOpnameController {
       res.send(csvBuffer)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'export_variance_report' })
+    }
+  }
+
+  // ─── REOPEN ─────────────────────────────────────────────────────────────────
+
+  createReopenRequest = async (req: Request, res: Response) => {
+    try {
+      const { params, body } = (req as CreateReopenReq).validated
+      const { branchIds, userId } = await opnameScope(req)
+      const result = await dailyStockOpnameReopenService.createReopenRequest(
+        params.id, branchIds, userId, body,
+      )
+      sendSuccess(res, result, 'Permintaan edit ulang berhasil diajukan', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_reopen_request', id: req.params.id })
+    }
+  }
+
+  approveReopenRequest = async (req: Request, res: Response) => {
+    try {
+      const { params, body } = (req as RespondReopenReq).validated
+      const { branchIds, userId } = await opnameScope(req)
+      const userPermissions = (req as AuthRequest).permissions
+      const result = await dailyStockOpnameReopenService.approveReopenRequest(
+        params.id, branchIds, userId, body, userPermissions,
+      )
+      sendSuccess(res, result, 'Permintaan edit ulang disetujui')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'approve_reopen_request', id: req.params.id })
+    }
+  }
+
+  rejectReopenRequest = async (req: Request, res: Response) => {
+    try {
+      const { params, body } = (req as RespondReopenReq).validated
+      const { branchIds, userId } = await opnameScope(req)
+      const userPermissions = (req as AuthRequest).permissions
+      const result = await dailyStockOpnameReopenService.rejectReopenRequest(
+        params.id, branchIds, userId, body, userPermissions,
+      )
+      sendSuccess(res, result, 'Permintaan edit ulang ditolak')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'reject_reopen_request', id: req.params.id })
+    }
+  }
+
+  getReopenRequests = async (req: Request, res: Response) => {
+    try {
+      const { params } = (req as GetReopenRequestsReq).validated
+      const { branchIds } = await opnameScope(req)
+      const result = await dailyStockOpnameReopenService.getReopenRequests(params.id, branchIds)
+      sendSuccess(res, result, 'Reopen requests retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_reopen_requests', id: req.params.id })
     }
   }
 }

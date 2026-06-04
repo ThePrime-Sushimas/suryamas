@@ -155,6 +155,7 @@ export default function DailyStockOpnamePage() {
                   <option value="DRAFT">Draft</option>
                   <option value="CONFIRMED">Confirmed</option>
                   <option value="FLAGGED">Flagged</option>
+                  <option value="REOPENED">Sedang Diedit Ulang</option>
                   <option value="MISSED">Missed</option>
                 </select>
               </div>

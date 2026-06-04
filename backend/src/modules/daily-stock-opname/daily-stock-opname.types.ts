@@ -1,6 +1,6 @@
 // ─── STATUS TYPES ─────────────────────────────────────────────────────────────
 
-export type OpnameStatus = 'DRAFT' | 'CONFIRMED' | 'FLAGGED'
+export type OpnameStatus = 'DRAFT' | 'CONFIRMED' | 'FLAGGED' | 'REOPENED'
 export type OpnameDisplayStatus = OpnameStatus | 'MISSED' | 'NOT_STARTED'
 
 // ─── DOMAIN MODELS ────────────────────────────────────────────────────────────
@@ -168,6 +168,36 @@ export interface VarianceReportFilter {
   group_by?: 'day' | 'week' | 'month'
 }
 
+// ─── ANALYSIS ──────────────────────────────────────────────────────────────────
+
+export interface AnalysisLineItem {
+  product_id: string
+  product_code: string
+  product_name: string
+  uom: string
+  stok_kemarin: number      // system_qty from opname line
+  barang_masuk: number      // dpo_in_qty from opname line — display only
+  stok_hari_ini: number     // actual_qty from confirmed line
+  waste: number             // abs(variance_qty) when variance < 0, else 0
+  total_konversi: number    // sum of OUT_CONVERSION + IN_CONVERSION movements
+  pemakaian_riil: number    // computed: stok_kemarin − (stok_hari_ini + waste) + total_konversi
+  pemakaian_pos: number     // theoretical_out from opname line (0 if has_recipe = false)
+  gap: number               // pemakaian_riil - pemakaian_pos
+  has_recipe: boolean
+}
+
+export interface AnalysisResponse {
+  session_id: string
+  closing_date: string
+  branch_name: string
+  lines: AnalysisLineItem[]
+  summary: {
+    total_pemakaian_riil: number
+    total_pemakaian_pos: number
+    total_gap: number
+  }
+}
+
 // ─── VARIANCE REPORT EXPORT (LINE-LEVEL) ──────────────────────────────────────
 
 export interface VarianceReportExportRow {
@@ -180,4 +210,56 @@ export interface VarianceReportExportRow {
   variance_qty: number
   variance_pct: number | null
   variance_cost: number
+}
+
+// ─── CLASSIFICATION ───────────────────────────────────────────────────────────
+
+export interface ClassifyLineEntry {
+  line_id: string
+  variance_category: 'WASTE' | 'SHORTAGE'
+  qty: number
+  shortage_assigned_to: string | null
+  shortage_note: string | null
+}
+
+export interface ClassifyDto {
+  entries: ClassifyLineEntry[]
+}
+
+export interface ClassificationEntry extends ClassifyLineEntry {
+  id: string
+  closing_id: string
+  classified_by: string
+  classified_at: string
+  company_id: string
+  branch_id: string
+  product_name: string
+  product_code: string
+  uom: string
+  assigned_employee_name: string | null
+}
+
+export interface ClassificationSummary {
+  waste_total: number
+  shortage_total: number
+  entry_count: number
+  is_complete: boolean
+  classification_version: number
+}
+
+export interface ClassificationsResponse {
+  entries: ClassificationEntry[]
+  summary: ClassificationSummary
+}
+
+export interface InsertClassificationEntry {
+  closing_id: string
+  line_id: string
+  variance_category: 'WASTE' | 'SHORTAGE'
+  qty: number
+  shortage_assigned_to: string | null
+  shortage_note: string | null
+  classified_by: string
+  company_id: string
+  branch_id: string
 }

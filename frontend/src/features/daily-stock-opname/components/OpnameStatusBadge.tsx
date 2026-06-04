@@ -16,6 +16,11 @@ const STATUS_CONFIG: Record<OpnameDisplayStatus, { label: string; className: str
     className:
       'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
   },
+  REOPENED: {
+    label: 'Sedang Diedit Ulang',
+    className:
+      'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+  },
   MISSED: {
     label: 'Missed',
     className:

@@ -7,6 +7,9 @@ import {
   Loader2,
   Search,
   AlertTriangle,
+  Clock,
+  User,
+  RotateCcw,
 } from 'lucide-react'
 import { useListNavigation } from '@/lib/urlFilters'
 import { useToast } from '@/contexts/ToastContext'
@@ -18,12 +21,18 @@ import {
   useCancelOpname,
   useOpnameConfig,
   useBulkUpdateLines,
+  useReopenRequests,
 } from '../api/dailyStockOpname'
 import { OpnameStatusBadge } from '../components/OpnameStatusBadge'
 import { OpnameSummaryCard } from '../components/OpnameSummaryCard'
 import { OpnameLineRow } from '../components/OpnameLineRow'
 import { ResolveModal } from '../components/ResolveModal'
-import type { OpnameDisplayStatus } from '../types'
+import { AnalysisTab } from '../components/AnalysisTab'
+import { ClassificationModal } from '../components/ClassificationModal'
+import { ClassificationSummary } from '../components/ClassificationSummary'
+import { ReopenRequestButton } from '../components/ReopenRequestButton'
+import { ReopenApprovalPanel } from '../components/ReopenApprovalPanel'
+import type { OpnameDisplayStatus, ReopenRequestStatus } from '../types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -34,6 +43,27 @@ const fmtDate = (d: string) =>
     month: 'long',
     year: 'numeric',
   })
+
+const fmtDateTime = (d: string) =>
+  new Date(d).toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+const STATUS_LABELS: Record<ReopenRequestStatus, string> = {
+  PENDING: 'Menunggu',
+  APPROVED: 'Disetujui',
+  REJECTED: 'Ditolak',
+}
+
+const STATUS_COLORS: Record<ReopenRequestStatus, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  APPROVED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  REJECTED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+}
 
 function todayJakarta(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
@@ -60,8 +90,16 @@ export default function DailyStockOpnameDetailPage() {
   // ── Data fetching ─────────────────────────────────────────────────────────
   const { data: detail, isLoading, isError } = useOpnameDetail(id ?? '')
   const { data: config } = useOpnameConfig(detail?.branch_id ?? '')
+  const { data: reopenRequests } = useReopenRequests(id ?? '')
 
   const threshold = config?.variance_threshold_pct ?? 15
+
+  // ── Reopen state ──────────────────────────────────────────────────────────
+  const pendingReopenRequest = useMemo(
+    () => reopenRequests?.find((r) => r.status === 'PENDING') ?? null,
+    [reopenRequests],
+  )
+  const hasPendingRequest = !!pendingReopenRequest
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const confirmOpname = useConfirmOpname()
@@ -69,6 +107,7 @@ export default function DailyStockOpnameDetailPage() {
   const bulkUpdateLines = useBulkUpdateLines()
 
   // ── Local state ───────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'opname' | 'klasifikasi' | 'analisis'>('opname')
   const [localActuals, setLocalActuals] = useState<Record<string, number | null>>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [filterHighRisk, setFilterHighRisk] = useState(false)
@@ -81,9 +120,11 @@ export default function DailyStockOpnameDetailPage() {
     ? getDisplayStatus(detail.status, detail.closing_date)
     : 'DRAFT'
   const isDraft = detail?.status === 'DRAFT'
+  const isReopened = detail?.status === 'REOPENED'
   const isFlagged = detail?.status === 'FLAGGED'
   const isExpired = displayStatus === 'MISSED'
-  const isEditable = isDraft && !isExpired && canUpdate
+  const isEditable = (isDraft || isReopened) && !isExpired && canUpdate
+  const isConfirmedOrFlagged = detail?.status === 'CONFIRMED' || detail?.status === 'FLAGGED'
 
   // ── Filtered lines ────────────────────────────────────────────────────────
   const filteredLines = useMemo(() => {
@@ -237,6 +278,9 @@ export default function DailyStockOpnameDetailPage() {
                 {detail.branch_name}
               </h1>
               <OpnameStatusBadge status={displayStatus} />
+              {isConfirmedOrFlagged && (
+                <ClassificationSummary sessionId={detail.id} enabled={isConfirmedOrFlagged} />
+              )}
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               {fmtDate(detail.closing_date)} · PIC: {detail.pic_name}
@@ -264,6 +308,59 @@ export default function DailyStockOpnameDetailPage() {
         </div>
       </div>
 
+      {/* ── Reopen Approval Panel ──────────────────────────────────────────── */}
+      {pendingReopenRequest && canApprove && (
+        <div className="px-6 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60">
+          <ReopenApprovalPanel
+            pendingRequest={pendingReopenRequest}
+            sessionId={detail.id}
+          />
+        </div>
+      )}
+
+      {/* ── Tab Navigation ──────────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6">
+        <div className="flex border-b border-gray-200 dark:border-gray-700/60 -mb-px">
+          <button
+            className={`px-4 py-2 text-sm font-medium ${
+              activeTab === 'opname'
+                ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+            onClick={() => setActiveTab('opname')}
+          >
+            Opname
+          </button>
+          {(detail.status === 'CONFIRMED' || detail.status === 'FLAGGED') && (
+            <>
+            <button
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === 'klasifikasi'
+                  ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+              onClick={() => setActiveTab('klasifikasi')}
+            >
+              Klasifikasi
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === 'analisis'
+                  ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+              onClick={() => setActiveTab('analisis')}
+            >
+              Analisis
+            </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Tab Content ────────────────────────────────────────────────────── */}
+      {activeTab === 'opname' && (
+        <>
       {/* ── Filters ────────────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6 py-3">
         <div className="flex items-center gap-3 flex-wrap">
@@ -302,7 +399,7 @@ export default function DailyStockOpnameDetailPage() {
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto min-h-[40rem]">
         <div className="min-w-full">
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700/60 sticky top-0 z-10">
@@ -314,13 +411,19 @@ export default function DailyStockOpnameDetailPage() {
                   Produk
                 </th>
                 <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Expected
+                  Stok Awal
+                </th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Pemakaian POS
+                </th>
+                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" title="Sisa Expected = Stok Awal − Pemakaian POS">
+                  Sisa Expected
                 </th>
                 <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Actual
                 </th>
-                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Variance
+                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" title="Variance = Actual − Sisa Expected">
+                  Var
                 </th>
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Var %
@@ -329,14 +432,14 @@ export default function DailyStockOpnameDetailPage() {
                   Foto
                 </th>
                 <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  MAIN Bal.
+                  Stok Main
                 </th>
               </tr>
             </thead>
             <tbody>
               {filteredLines.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-400 text-sm">
                     Tidak ada item yang cocok
                   </td>
                 </tr>
@@ -356,7 +459,85 @@ export default function DailyStockOpnameDetailPage() {
             </tbody>
           </table>
         </div>
+
+        {/* ── Reopen Request History (inside scroll area) ───────────────────── */}
+        {reopenRequests && reopenRequests.length > 0 && (
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700/60">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-gray-500" />
+              Riwayat Permintaan Edit Ulang
+            </h3>
+            <div className="space-y-3">
+              {reopenRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="font-medium text-gray-800 dark:text-gray-200">
+                        {req.requested_by_name}
+                      </span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[req.status]}`}>
+                        {STATUS_LABELS[req.status]}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">
+                      {fmtDateTime(req.requested_at)}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-gray-600 dark:text-gray-400 pl-6">
+                    {req.reason}
+                  </p>
+                  {req.responded_by_name && (
+                    <div className="mt-2 pl-6 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                      <Clock className="w-3 h-3" />
+                      <span>
+                        {req.status === 'APPROVED' ? 'Disetujui' : 'Ditolak'} oleh{' '}
+                        <span className="font-medium">{req.responded_by_name}</span>
+                        {req.responded_at && ` · ${fmtDateTime(req.responded_at)}`}
+                      </span>
+                    </div>
+                  )}
+                  {req.response_note && (
+                    <p className="mt-1 pl-6 text-xs text-gray-500 dark:text-gray-400 italic">
+                      &ldquo;{req.response_note}&rdquo;
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+        </>
+      )}
+
+      {activeTab === 'klasifikasi' && (
+        <div className="flex-1 overflow-auto">
+          <ClassificationModal
+            isOpen={true}
+            onClose={() => setActiveTab('opname')}
+            sessionId={detail.id}
+            branchName={detail.branch_name}
+            lines={detail.lines.filter(l => l.variance_qty !== null && l.variance_qty < 0).map(l => ({
+              id: l.id,
+              product_name: l.product_name,
+              product_code: l.product_code,
+              uom: l.uom,
+              variance_qty: l.variance_qty!,
+            }))}
+            inline
+          />
+        </div>
+      )}
+
+      {activeTab === 'analisis' && (
+        <div className="flex-1 overflow-auto">
+          <AnalysisTab sessionId={detail.id} enabled={activeTab === 'analisis'} />
+        </div>
+      )}
 
       {/* ── Action Bar ─────────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700/60 px-6 py-4">
@@ -378,6 +559,14 @@ export default function DailyStockOpnameDetailPage() {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            {isConfirmedOrFlagged && detail && (
+              <ReopenRequestButton
+                sessionId={detail.id}
+                sessionStatus={detail.status}
+                picUserId={detail.pic_user_id}
+                hasPendingRequest={hasPendingRequest}
+              />
+            )}
             {isFlagged && canApprove && (
               <button
                 type="button"

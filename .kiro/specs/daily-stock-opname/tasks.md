@@ -1,293 +1,205 @@
-# Implementation Plan: Daily Stock Opname (Daily Closing Count)
+# Implementation Plan: Daily Stock Opname Enhancement (Phase 1)
 
 ## Overview
 
-This plan implements the Daily Stock Opname feature — a nightly inventory control system for READY warehouses. Implementation follows the 12-phase dependency order from the design document: database migration → backend types/errors → repository → service (create + calculate) → service (confirm + stock movements) → controller/routes → DPO integration → frontend list → frontend detail → config/photo/resolve → dashboard widget → variance report.
+Implements three new requirements for the existing Daily Stock Opname system: (1) UI label rename with formula tooltips, (2) Real Consumption Analysis backend endpoint + "Analisis" tab, and (3) Variance Classification with migration, backend service, frontend modal, and notifications. Tasks ordered by complexity: Req 19 first, then Req 20, then Req 21.
 
 ## Tasks
 
-- [x] 1. Database migration, types, and error classes
-  - [x] 1.1 Create database migration file
-    - Create `backend/database/migrations/20260530000000_daily_stock_opname.sql`
-    - Include `branch_opname_config` table with variance_threshold_pct, closing_time, grace_period_minutes
-    - Include `daily_closing_counts` table with unique index on (branch_id, closing_date) WHERE deleted_at IS NULL
-    - Include `daily_closing_count_lines` table with indexes on closing_id and product_id
-    - Seed default config for existing branches (variance_threshold_pct = 15, closing_time = '23:59', grace_period_minutes = 15)
-    - _Requirements: 1.2, 17.4, 18.4_
+- [x] 1. Requirement 19: UI Label Rename and Tooltips (Frontend Only)
+  - [x] 1.1 Rename "MAIN Bal." column header to "Stok Main" and add formula tooltips
+    - In `frontend/src/features/daily-stock-opname/pages/DailyStockOpnameDetailPage.tsx`, change the last `<th>` column header text from `"MAIN Bal."` to `"Stok Main"`
+    - Add `title` attribute to the "Sisa Expected" `<th>`: `title="Sisa Expected = Stok Awal − Pemakaian POS"`
+    - Add `title` attribute to the "Var" `<th>`: `title="Variance = Actual − Sisa Expected"`
+    - Ensure all other column headers (Code, Produk, Stok Awal, Pemakaian POS, Sisa Expected, Actual, Var, Var %, Foto) remain unchanged
+    - _Requirements: 19.1, 19.2, 19.3, 19.4, 19.5_
 
-  - [x] 1.2 Create backend types file
-    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname.types.ts`
-    - Define OpnameStatus, OpnameDisplayStatus, DailyClosingCount, DailyClosingCountLine, DailyClosingCountDetail, OpnameSummary
-    - Define DTOs: CreateOpnameDto, UpdateLineDto, BulkUpdateLinesDto, ResolveOpnameDto, UpsertOpnameConfigDto
-    - Define BranchOpnameConfig, OpnameDashboardItem, VarianceReportItem, VarianceReportFilter
-    - _Requirements: 1.1, 3.2, 8.2, 11.3, 13.2, 14.2, 17.1_
+- [x] 2. Checkpoint - Verify Requirement 19 changes
+  - Ensure the frontend compiles without errors, ask the user if questions arise.
 
-  - [x] 1.3 Create error classes file
-    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname.errors.ts`
-    - Implement: OpnameNotFoundError, OpnameDuplicateError, OpnameNotDraftError, OpnameNotFlaggedError, OpnameTimeExpiredError, OpnameBackdateError, OpnameIncompleteError, OpnamePhotoRequiredError, OpnameSessionExpiredError, DpoBlockedByOpnameError
-    - _Requirements: 1.3, 5.1, 5.10, 6.1, 6.2, 6.3, 7.3, 8.4_
+- [x] 3. Requirement 20: Real Consumption Analysis — Backend
+  - [x] 3.1 Add repository method for conversion movements query
+    - In `backend/src/modules/daily-stock-opname/daily-stock-opname.repository.ts`, add `getConversionMovementsForDate(warehouseId, date, productIds)` method
+    - Query `stock_movements` for `OUT_CONVERSION` and `IN_CONVERSION` types grouped by product_id
+    - Return `Map<string, number>` with net conversion (IN minus OUT) per product
+    - _Requirements: 20.7_
 
-  - [x] 1.4 Add 'daily_closing_count' to ReferenceType in stock module
-    - Update `backend/src/modules/stock/stock.types.ts` to add `'daily_closing_count'` to the ReferenceType union
-    - _Requirements: 16.5_
+  - [x] 3.2 Create the Analysis Service
+    - Create new file `backend/src/modules/daily-stock-opname/daily-stock-opname-analysis.service.ts`
+    - Implement `getAnalysis(sessionId, branchIds)` method
+    - Validate session exists and is in CONFIRMED or FLAGGED status (return error for DRAFT)
+    - Load session lines and compute per-line analysis using the formula: `pemakaian_riil = stok_kemarin − (stok_hari_ini + waste) + total_konversi`
+    - **IMPORTANT:** `barang_masuk` (dpo_in_qty) is included in the response DTO for display/transparency but is NOT used in the pemakaian_riil formula — system_qty already includes DPO transfers via stock_balances, so adding barang_masuk would double-count
+    - Map fields: `system_qty → stok_kemarin`, `dpo_in_qty → barang_masuk` (display only), `actual_qty → stok_hari_ini`
+    - Calculate waste as `abs(variance_qty)` when negative, otherwise 0
+    - Set `pemakaian_pos = theoretical_out` (0 if `has_recipe = false`)
+    - Compute `gap = pemakaian_riil - pemakaian_pos`
+    - Return `AnalysisResponse` with lines array and summary totals
+    - _Requirements: 20.1, 20.2, 20.3, 20.4, 20.5, 20.6, 20.7, 20.8, 20.9, 20.14_
 
-- [x] 2. Repository layer
-  - [x] 2.1 Create repository file with transaction support and header queries
-    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname.repository.ts`
-    - Implement `withTransaction()` wrapper (same pattern as stockRepository)
-    - Implement `findAll()` with pagination, filtering by date range/branch/status/search, and MISSED status logic (DRAFT from previous days)
-    - Implement `findByIdAccessible()` returning full detail with lines and relations (joins to branches, users, warehouses)
-    - Implement `findByBranchAndDate()` for duplicate check
-    - Implement `hasConfirmedSession()` for DPO blocking check
-    - Implement `insertHeader()` and `updateHeaderStatus()`
-    - Implement `softDelete()` for cancellation
-    - _Requirements: 1.2, 1.3, 7.2, 9.1, 11.1, 11.2, 11.3, 11.4_
+  - [x] 3.3 Add Zod schemas for analysis endpoint
+    - In `backend/src/modules/daily-stock-opname/daily-stock-opname.schema.ts`, add `analysisParamsSchema` (id param validation)
+    - Define TypeScript types for `AnalysisLineItem` and `AnalysisResponse` in `daily-stock-opname.types.ts`
+    - _Requirements: 20.1_
 
-  - [x] 2.2 Implement line-related repository methods
-    - Implement `insertLines()` for bulk inserting opname lines within a transaction
-    - Implement `updateLineActual()` for updating actual_qty and recalculating variance fields
-    - Implement `updateLinePhoto()` for storing photo URL
-    - Implement `updateLineMovements()` for storing movement IDs after confirmation
-    - Implement `getLineById()` for single line retrieval
-    - _Requirements: 3.1, 3.7, 4.4, 5.3, 5.4_
+  - [x] 3.4 Add controller method and route for GET /:id/analysis
+    - In `daily-stock-opname.controller.ts`, add `getAnalysis` handler calling AnalysisService
+    - Enforce view permission on `daily_stock_opname` module and branch access
+    - In `daily-stock-opname.routes.ts`, register `GET /:id/analysis` route
+    - _Requirements: 20.1, 20.10, 20.14_
 
-  - [x] 2.3 Implement expected balance helper queries
-    - Implement `getReadyBalances()` — query stock_balances for READY warehouse
-    - Implement `getDpoTransfersForDate()` — sum IN_TRANSFER movements for display
-    - Implement `getMainBalances()` — query stock_balances for MAIN warehouse (snapshot)
-    - Implement `getProductsWithStock()` — get all products with positive balance or stock in READY warehouse
-    - Implement `getLastMovementCost()` — fallback cost lookup from most recent stock_movement
-    - _Requirements: 2.1, 2.2, 2.3, 3.4, 3.5_
+  - [ ]* 3.5 Write property test for Real Consumption Formula (Property 1)
+    - **Property 1: Real Consumption Formula Invariant**
+    - Generate random valid numeric tuples (system_qty, actual_qty, variance_qty, total_konversi, theoretical_out)
+    - Verify `computeAnalysisLine` produces correct `pemakaian_riil = stok_kemarin − (stok_hari_ini + waste) + total_konversi`, correct `waste`, and correct `gap` values
+    - Verify that `barang_masuk` (dpo_in_qty) is present in the output DTO but NOT included in the pemakaian_riil calculation
+    - **Validates: Requirements 20.2, 20.4, 20.6, 20.8**
 
-  - [x] 2.4 Implement config, dashboard, and variance report queries
-    - Implement `findConfig()` and `upsertConfig()` for branch_opname_config
-    - Implement `getDashboardData()` — today's opname status per branch with MISSED/NOT_STARTED logic
-    - Implement `getVarianceReport()` — aggregated variance data with grouping by day/week/month
-    - _Requirements: 14.1, 14.2, 14.3, 14.4, 13.1, 13.2, 13.3, 13.4, 17.1, 17.2_
+  - [ ]* 3.6 Write unit tests for Analysis Service
+    - Test returns 400 error for DRAFT sessions
+    - Test correctly maps `system_qty → stok_kemarin`, `dpo_in_qty → barang_masuk` (display only), `actual_qty → stok_hari_ini`
+    - Test that barang_masuk is NOT used in pemakaian_riil formula (changing dpo_in_qty should not affect pemakaian_riil)
+    - Test waste = 0 when variance is positive
+    - Test `pemakaian_pos = 0` when `has_recipe = false`
+    - Test summary totals are computed correctly
+    - _Requirements: 20.2, 20.3, 20.4, 20.5, 20.6, 20.9, 20.14_
 
-- [x] 3. Service layer — session creation and expected balance calculation
-  - [x] 3.1 Implement createSession() with expected balance calculation
-    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname.service.ts`
-    - Validate current date (Jakarta TZ), not past closing_time, no existing session for branch+date
-    - Resolve READY and MAIN warehouse for branch
-    - Calculate expected balances: ready_balance - theoretical_consumption (DPO already reflected in stock_balances)
-    - Snapshot MAIN warehouse balances, cost_per_unit (from avg_cost or last movement), DPO in quantities
-    - Clamp negative expected to 0 with warning flag
-    - Mark high-risk products (risk_category = 'HIGH')
-    - Insert header and lines within transaction
-    - Log audit entry via AuditService
-    - _Requirements: 1.1, 1.4, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 3.4, 3.5, 4.1, 6.1, 6.3, 6.5, 15.1_
+- [x] 4. Requirement 20: Real Consumption Analysis — Frontend
+  - [x] 4.1 Add TanStack Query hook for analysis endpoint
+    - In `frontend/src/features/daily-stock-opname/api/dailyStockOpname.ts`, add `useOpnameAnalysis(id, enabled)` hook
+    - Query key: `['daily-stock-opname', id, 'analysis']`
+    - Calls `GET /daily-stock-opname/${id}/analysis`
+    - Only enabled when `id` is truthy and `enabled` is true
+    - _Requirements: 20.1, 20.11_
 
-  - [x] 3.2 Implement time restriction validation helper
-    - Implement `validateTimeRestriction()` — checks closing_time + grace period for create/edit/confirm actions
-    - Implement `isSessionExpired()` — checks if DRAFT session is from a previous day
-    - Implement Jakarta timezone utility functions: `nowJakarta()`, `todayJakarta()`, `currentTimeJakarta()`, `isWithinClosingTime()`
-    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 10.2_
+  - [x] 4.2 Create the AnalysisTab component
+    - Create `frontend/src/features/daily-stock-opname/components/AnalysisTab.tsx`
+    - Render a read-only table with columns: Produk, Stok Kemarin, Barang Masuk, Stok Hari Ini, Waste, Konversi, Pemakaian Riil, Pemakaian POS, Gap
+    - Highlight positive gap cells with `text-amber-600 bg-amber-50` styling
+    - Show summary row with total_pemakaian_riil, total_pemakaian_pos, total_gap
+    - Handle loading and error states
+    - _Requirements: 20.11, 20.12, 20.13_
 
-  - [x] 3.3 Write property test for snapshot consistency
-    - **Property 3: Snapshot Consistency** — Expected balance, cost_per_unit, and MAIN balance stored on line records never change after session creation regardless of subsequent stock movements
-    - **Validates: Requirements 2.6, 3.5**
+  - [x] 4.3 Add tab navigation to DailyStockOpnameDetailPage
+    - Add `activeTab` state: `useState<'opname' | 'analisis'>('opname')`
+    - Show tab bar with "Opname" and "Analisis" tabs using `border-b-2` active styling
+    - "Analisis" tab only visible when session status is CONFIRMED or FLAGGED
+    - Conditionally render existing table (opname tab) or `<AnalysisTab>` component
+    - Pass session id and enabled flag to `useOpnameAnalysis`
+    - _Requirements: 20.11, 20.12, 20.13_
 
-- [x] 4. Service layer — line updates and confirmation with stock movements
-  - [x] 4.1 Implement updateLine() and bulkUpdateLines()
-    - Validate session is DRAFT and within time window
-    - Calculate variance = actual_qty - expected_qty
-    - Calculate variance_cost = variance × cost_per_unit
-    - Calculate variance_pct = (variance / expected_qty) × 100 when expected > 0
-    - Handle edge cases: expected=0 with actual>0 (null pct), expected=0 with actual=0 (zero)
-    - Update completed_count on header
-    - Log audit entry for each line update
-    - _Requirements: 3.1, 3.2, 3.3, 3.7, 3.8, 3.9, 3.10, 6.4, 15.3_
+- [x] 5. Checkpoint - Verify Requirement 20
+  - Ensure all tests pass and both frontend and backend compile without errors, ask the user if questions arise.
 
-  - [x] 4.2 Implement confirmSession() with stock movement creation
-    - Validate: session is DRAFT, within closing_time + grace, all lines have actual_qty, high-risk photo check
-    - Within single transaction: for each line create OUT_WASTE (negative variance), IN_ADJUSTMENT (positive variance), or OUT_ADJUSTMENT (zero variance but balance differs from actual)
-    - Set reference_type = 'daily_closing_count', reference_id = session ID on all movements
-    - Calculate total_variance_cost (sum of absolute line variance costs)
-    - Determine status: FLAGGED if any line (with expected > 0) exceeds threshold, else CONFIRMED
-    - Update header with status, totals, confirmed_by, confirmed_at
-    - Rollback entire transaction on any failure, return session to DRAFT
-    - Log audit entry
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 16.1, 16.2, 16.3, 16.4, 15.2_
+- [x] 6. Requirement 21: Variance Classification — Database Migration
+  - [x] 6.1 Create migration for variance_classification_lines table and classification_version column
+    - Create `backend/database/migrations/2026XXXX_variance_classification_lines.sql`
+    - Create table `variance_classification_lines` with columns: id (UUID PK), closing_id (FK → daily_closing_counts), line_id (FK → daily_closing_count_lines), variance_category (VARCHAR(20) CHECK IN 'WASTE','SHORTAGE'), qty (NUMERIC(20,4) CHECK > 0), shortage_assigned_to (UUID FK → employees(user_id) nullable), shortage_note (TEXT nullable), classified_by (UUID NOT NULL), classified_at (TIMESTAMPTZ DEFAULT now()), company_id (UUID FK NOT NULL), branch_id (UUID FK NOT NULL), created_at (TIMESTAMPTZ DEFAULT now())
+    - Add indexes: `idx_vcl_closing` on closing_id, `idx_vcl_line` on line_id, partial `idx_vcl_assigned` on shortage_assigned_to WHERE variance_category = 'SHORTAGE'
+    - Add `classification_version` column to `daily_closing_counts` table: `ALTER TABLE daily_closing_counts ADD COLUMN IF NOT EXISTS classification_version INTEGER NOT NULL DEFAULT 0;`
+    - _Requirements: 21.8, 21.12, 21.17_
 
-  - [x] 4.3 Write property test for transaction atomicity
-    - **Property 1: Transaction Atomicity** — If any stock movement fails during confirmation, all movements roll back and session remains DRAFT
-    - **Validates: Requirements 16.3, 16.4**
+- [x] 7. Requirement 21: Variance Classification — Backend
+  - [x] 7.1 Create Classification Repository
+    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname-classification.repository.ts`
+    - Implement `deleteByClosingId(client, closingId)` for replace strategy
+    - Implement `insertEntries(client, entries[])` for batch insert
+    - Implement `findByClosingId(closingId, branchIds)` for fetching classification entries with employee names joined
+    - Implement `getSummary(closingId)` returning waste_total, shortage_total, entry_count, is_complete flag, classification_version
+    - **is_complete definition:** Query ALL lines WHERE `variance_qty < 0` for the session, then for each such line check `SUM(vcl.qty WHERE vcl.line_id = line.id) = ABS(line.variance_qty)`. Use `BOOL_AND(COALESCE(c.classified_qty, 0) = nl.abs_variance)` — if any negative-variance line has remaining unclassified qty, is_complete = false
+    - Read `classification_version` from `daily_closing_counts` table and include in summary response
+    - _Requirements: 21.8, 21.13, 21.14, 21.17_
 
-  - [x] 4.4 Write property test for balance integrity
-    - **Property 5: Balance Integrity** — After confirmation, stock_balances for ALL products in READY warehouse equal the actual counted quantities
-    - **Validates: Requirements 5.5**
+  - [x] 7.2 Create Classification Service
+    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname-classification.service.ts`
+    - Implement `classify(sessionId, branchIds, dto, userId)`:
+      - Validate session is CONFIRMED or FLAGGED (error for DRAFT)
+      - Validate caller is PIC (pic_user_id) or has 'approve' permission
+      - Validate company_id and branch_id scoping
+      - Fetch lines with negative variance for the session
+      - Validate sum of classified quantities per line equals abs(variance_qty)
+      - Validate shortage entries have `shortage_assigned_to` set
+      - **Active Employee Validation:** For each SHORTAGE entry, validate that `shortage_assigned_to` references an active employee by querying `employees` table with conditions `is_active = true AND deleted_at IS NULL AND company_id = companyId`. If any referenced employee is inactive or deleted, return error `SHORTAGE_EMPLOYEE_INACTIVE` (HTTP 400) with message "Karyawan tidak aktif atau sudah dihapus tidak dapat di-assign shortage"
+      - **Classification Audit Trail:** If existing classifications exist (re-submission), log previous classification state to AuditService (action: 'CLASSIFICATION_REPLACED', entity_type: 'daily_closing_count', including all entry details: line_id, variance_category, qty, shortage_assigned_to, classified_by, classified_at, and previous_version) BEFORE deletion
+      - Increment `classification_version` on `daily_closing_counts` table in the same transaction
+      - Delete existing classifications (replace strategy) and insert new ones in transaction
+      - For each SHORTAGE entry: dispatch notification via notificationDispatcher
+      - Return classification summary (includes updated classification_version)
+    - Implement `getClassifications(sessionId, branchIds)`:
+      - Fetch all entries with employee names
+      - Compute and return summary (including is_complete and classification_version)
+    - _Requirements: 21.6, 21.7, 21.8, 21.9, 21.10, 21.11, 21.12, 21.13, 21.14, 21.16, 21.17, 21.18_
 
-- [x] 5. Checkpoint — Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
+  - [x] 7.3 Register notification event for opname shortage
+    - In `backend/src/modules/notifications/notification-events.ts`, add `OPNAME_SHORTAGE_ASSIGNED: 'opname.shortage_assigned'` to `NOTIFICATION_EVENT_KEYS`
+    - Add event definition to `NOTIFICATION_EVENT_CATALOG` with category 'inventory', type 'warning', title 'Shortage Opname', message template with product_name, qty, uom, pic_name, note variables, redirect to `/inventory/daily-stock-opname/{{session_id}}`
+    - _Requirements: 21.9_
 
-- [x] 6. Controller, routes, and schema validation
-  - [x] 6.1 Create Zod validation schemas
-    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname.schema.ts`
-    - Define: createOpnameSchema, updateLineSchema, bulkUpdateLinesSchema, resolveSchema, configSchema, listSchema, varianceReportSchema
-    - _Requirements: 1.1, 3.1, 8.2, 11.2, 13.2, 17.1_
+  - [x] 7.4 Add Zod schemas for classification endpoints
+    - In `daily-stock-opname.schema.ts`, add `classifyBodySchema` validating entries array with line_id, variance_category, qty, shortage_assigned_to, shortage_note
+    - Add response types for `ClassificationEntry`, `ClassificationSummary`, `ClassificationsResponse` in `daily-stock-opname.types.ts`
+    - _Requirements: 21.6_
 
-  - [x] 6.2 Create controller with all endpoint handlers
-    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname.controller.ts`
-    - Implement handlers: list, getById, create, updateLine, bulkUpdateLines, uploadPhoto, confirm, resolve, cancel
-    - Implement config handlers: getConfig, updateConfig
-    - Implement report handlers: getDashboard, getVarianceReport, exportVarianceReportCsv
-    - Use `req.validated.body/params/query`, `handleError`, `sendSuccess`
-    - _Requirements: 11.1, 12.1, 1.1, 3.1, 4.5, 5.1, 8.1, 7.1, 17.1, 18.1, 14.1, 13.1, 13.5_
+  - [x] 7.5 Add controller methods and routes for classify and classifications
+    - In `daily-stock-opname.controller.ts`, add `classify` handler (POST /:id/classify) and `getClassifications` handler (GET /:id/classifications)
+    - POST: Validate body with classifyBodySchema, call ClassificationService.classify
+    - GET: Call ClassificationService.getClassifications
+    - In `daily-stock-opname.routes.ts`, register both routes
+    - _Requirements: 21.6, 21.10, 21.14_
 
-  - [x] 6.3 Create routes file and register in app.ts
-    - Create `backend/src/modules/daily-stock-opname/daily-stock-opname.routes.ts`
-    - Define all routes per API table in design (CRUD, config, reports, dashboard)
-    - Apply authenticate middleware, validateSchema middleware, multer for photo upload
-    - Register routes in `backend/src/app.ts` under `/api/v1/daily-stock-opname`
-    - _Requirements: 4.5, 4.6, 11.1, 12.1, 13.1, 14.1, 17.1, 18.1_
+  - [ ]* 7.6 Write property test for Classification Sum Invariant (Property 2)
+    - **Property 2: Classification Sum Invariant**
+    - Generate random negative variances and random splits into waste/shortage portions
+    - Verify the validator accepts valid splits (sum equals abs variance) and rejects invalid ones
+    - **Validates: Requirements 21.4, 21.7**
 
-  - [x] 6.4 Write unit tests for controller endpoints
-    - Test validation rejection for invalid inputs
-    - Test correct service method delegation
-    - Test error response formatting
-    - _Requirements: 1.3, 6.2, 8.4_
+  - [ ]* 7.7 Write unit tests for Classification Service
+    - Test requires CONFIRMED/FLAGGED status
+    - Test rejects non-PIC user without approve permission
+    - Test validates sum constraint per line (returns CLASSIFICATION_SUM_MISMATCH error)
+    - Test requires shortage_assigned_to for SHORTAGE entries
+    - Test rejects inactive employee (is_active=false) for shortage assignment with SHORTAGE_EMPLOYEE_INACTIVE error
+    - Test rejects deleted employee (deleted_at IS NOT NULL) for shortage assignment with SHORTAGE_EMPLOYEE_INACTIVE error
+    - Test accepts active non-deleted employee for shortage assignment
+    - Test notification dispatched for SHORTAGE entries
+    - Test replace strategy (delete old + insert new)
+    - Test AuditService.log called with previous classification state before delete-all on re-submission
+    - Test classification_version increments on each re-submission
+    - Test is_complete = true when ALL negative-variance lines have SUM(vcl.qty) = ABS(line.variance_qty)
+    - Test is_complete = false when any negative-variance line has unclassified qty remaining
+    - _Requirements: 21.7, 21.9, 21.10, 21.11, 21.13, 21.16, 21.17, 21.18_
 
-- [x] 7. Service — cancel, resolve, and remaining actions
-  - [x] 7.1 Implement cancel() and resolve() methods
-    - `cancel()`: validate DRAFT status, soft-delete session
-    - `resolve()`: validate FLAGGED status, require resolution_note, update to CONFIRMED, record resolver info
-    - No additional stock movements on resolve (already created during original confirmation)
-    - Log audit entries
-    - _Requirements: 7.1, 7.2, 7.3, 8.1, 8.2, 8.3, 8.4, 15.2_
+- [x] 8. Requirement 21: Variance Classification — Frontend
+  - [x] 8.1 Add TanStack Query hooks for classification endpoints
+    - In `frontend/src/features/daily-stock-opname/api/dailyStockOpname.ts`, add:
+      - `useClassifyOpname()` mutation hook (POST /daily-stock-opname/:id/classify) with query invalidation
+      - `useOpnameClassifications(id, enabled)` query hook (GET /daily-stock-opname/:id/classifications)
+    - _Requirements: 21.6, 21.14_
 
-  - [x] 7.2 Implement getById(), list(), getConfig(), upsertConfig()
-    - `getById()`: return full detail with lines, summary calculations, display status (MISSED for expired DRAFT)
-    - `list()`: paginated with filters, compute display status for each session
-    - `getConfig()`: return config or defaults (15%, 23:59, 15min)
-    - `upsertConfig()`: validate and save config
-    - _Requirements: 11.1, 11.2, 11.3, 11.4, 12.1, 12.4, 17.1, 17.2, 17.3, 18.1, 18.2, 18.3_
+  - [x] 8.2 Create the ClassificationModal component
+    - Create `frontend/src/features/daily-stock-opname/components/ClassificationModal.tsx`
+    - Full-screen modal (`fixed inset-0 z-50`) with header, table, and footer
+    - Table columns: Produk, Variance Qty, Qty Waste, Qty Shortage, Assigned To, Note
+    - Each row shows abs(variance_qty) and allows splitting into waste_qty + shortage_qty
+    - Client-side validation: `waste_qty + shortage_qty === abs(variance_qty)` per row
+    - **Employee Picker:** Use existing `employeesApi.search()` from `@/features/employees` to call `GET /employees/search?branch_name={branchName}&is_active=true` for the shortage_assigned_to picker — shows only active employees from the same branch as the opname session
+    - If `shortage_qty > 0`, require selecting an employee from the filtered employee list
+    - Footer shows summary totals and submit button
+    - On submit, call `useClassifyOpname` mutation and show success toast
+    - _Requirements: 21.2, 21.3, 21.4, 21.5, 21.6, 21.7, 21.18, 21.19_
 
-- [x] 8. DPO blocking integration
-  - [x] 8.1 Add opname blocking check to DPO confirm flow
-    - In `backend/src/modules/daily-prep-orders2/` service confirm method, add check before processing
-    - Call `dailyStockOpnameRepository.hasConfirmedSession(branchId, movementDate)`
-    - If confirmed/flagged opname exists for same branch + date + READY warehouse, throw DpoBlockedByOpnameError
-    - _Requirements: 9.1, 9.2, 9.3_
+  - [x] 8.3 Create ClassificationSummary component and integrate into detail page
+    - Create `frontend/src/features/daily-stock-opname/components/ClassificationSummary.tsx`
+    - Shows "Classified" badge when `is_complete = true` (for ALL lines WHERE variance_qty < 0, SUM(vcl.qty) = ABS(line.variance_qty))
+    - Shows summary: total waste qty, total shortage qty, number of assigned employees
+    - In `DailyStockOpnameDetailPage.tsx`:
+      - Add "Klasifikasi Variance" button visible when: status is CONFIRMED/FLAGGED, user is PIC or has approve permission, session has negative-variance lines
+      - Render ClassificationModal when button is clicked
+      - Render ClassificationSummary badge in header when classification is complete
+    - _Requirements: 21.1, 21.13, 21.15_
 
-- [x] 9. Frontend — API layer and shared types
-  - [x] 9.1 Create frontend API service and types
-    - Create `frontend/src/features/daily-stock-opname/types/index.ts` with frontend type definitions
-    - Create `frontend/src/features/daily-stock-opname/api/dailyStockOpname.ts` with all API functions
-    - Implement: listOpname, getOpnameById, createOpname, updateLine, bulkUpdateLines, uploadPhoto, confirmOpname, resolveOpname, cancelOpname, getConfig, updateConfig, getDashboard, getVarianceReport, exportVarianceReportCsv
-    - _Requirements: 11.1, 12.1, 13.1, 14.1_
-
-  - [x] 9.2 Create URL filter config for list page
-    - Create `frontend/src/features/daily-stock-opname/utils/opnameFilters.url.ts`
-    - Define OpnameFilters type, OPNAME_FILTER_DEFAULTS, opnameFilterConfig (parse, stringify, merge)
-    - Follow existing pattern from dpoFilters.url.ts
-    - _Requirements: 11.5_
-
-- [x] 10. Frontend — List page
-  - [x] 10.1 Create Opname List Page
-    - Create `frontend/src/features/daily-stock-opname/pages/DailyStockOpnamePage.tsx`
-    - Use `useUrlFilters` with opnameFilterConfig for filter/pagination/search state
-    - Filter by date range, branch, status (DRAFT, CONFIRMED, FLAGGED, MISSED)
-    - Search by PIC name
-    - Table columns: Date, Branch, PIC, Status (badge), Items (completed/total), Variance Cost, Actions
-    - "Mulai Opname" button to create new session for today
-    - Click row navigates to detail page using `useListNavigation`
-    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
-
-  - [x] 10.2 Create OpnameStatusBadge component
-    - Create `frontend/src/features/daily-stock-opname/components/OpnameStatusBadge.tsx`
-    - Status badges: DRAFT (yellow), CONFIRMED (green), FLAGGED (red), MISSED (gray)
-    - _Requirements: 11.2_
-
-- [x] 11. Frontend — Detail/Input page
-  - [x] 11.1 Create Opname Detail Page with input functionality
-    - Create `frontend/src/features/daily-stock-opname/pages/DailyStockOpnameDetailPage.tsx`
-    - Header: Branch, Date, PIC, Status Badge
-    - Summary cards: Expected Cost, Actual Cost, Variance Cost, Completion %
-    - Progress bar showing completed/total items
-    - Product table with: Code, Name, Expected, Actual (input), Variance, Var%, Photo, MAIN balance
-    - DRAFT mode: editable inputs, photo upload, confirm/cancel buttons
-    - CONFIRMED/FLAGGED mode: read-only, resolve button for FLAGGED (manager only)
-    - Client-side variance calculation on input change
-    - Highlight rows exceeding threshold in red/orange
-    - Show "⚠️ No recipe" indicator for products without recipe coverage
-    - Use `useListNavigation` for back navigation preserving list filters
-    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
-
-  - [x] 11.2 Create OpnameLineRow component
-    - Create `frontend/src/features/daily-stock-opname/components/OpnameLineRow.tsx`
-    - Render single product line with input field, variance display, photo indicator
-    - Handle high-risk visual indicator and photo requirement badge
-    - Show MAIN warehouse balance as reference
-    - _Requirements: 3.6, 12.1, 12.5, 12.6_
-
-  - [x] 11.3 Create OpnameSummaryCard component
-    - Create `frontend/src/features/daily-stock-opname/components/OpnameSummaryCard.tsx`
-    - Display total expected cost, total actual cost, total variance cost, completion percentage
-    - _Requirements: 12.4_
-
-  - [x] 11.4 Create VarianceIndicator component
-    - Create `frontend/src/features/daily-stock-opname/components/VarianceIndicator.tsx`
-    - Visual indicator for variance severity (normal, warning, critical based on threshold)
-    - _Requirements: 12.5_
-
-  - [x] 11.5 Create OpnamePhotoUpload component
-    - Create `frontend/src/features/daily-stock-opname/components/OpnamePhotoUpload.tsx`
-    - Upload button with preview, accepts JPEG/PNG, max 10MB
-    - Show required indicator for high-risk products
-    - Display existing photo thumbnail when uploaded
-    - _Requirements: 4.4, 4.5, 4.6_
-
-  - [x] 11.6 Create ResolveModal component
-    - Create `frontend/src/features/daily-stock-opname/components/ResolveModal.tsx`
-    - Modal with textarea for resolution_note (min 10 chars)
-    - Submit calls resolve API endpoint
-    - _Requirements: 8.1, 8.2_
-
-- [x] 12. Checkpoint — Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
-
-- [x] 13. Configuration endpoints and UI
-  - [x] 13.1 Create config section in detail page or settings page
-    - Add config UI accessible from opname list page (settings icon per branch)
-    - Form fields: variance_threshold_pct (number, 1-100), closing_time (time picker HH:mm), grace_period_minutes (number, 0-60)
-    - Save calls PUT /api/v1/daily-stock-opname/config/:branchId
-    - _Requirements: 17.1, 17.2, 17.3, 18.1, 18.2, 18.3_
-
-- [x] 14. Dashboard widget
-  - [x] 14.1 Create DashboardWidget component
-    - Create `frontend/src/features/daily-stock-opname/components/DashboardWidget.tsx`
-    - Display today's opname status per branch: Confirmed, In Progress, Flagged, Not Started, Missed
-    - Show variance cost for confirmed/flagged sessions
-    - Show completion percentage for in-progress sessions
-    - Integrate into main dashboard page
-    - _Requirements: 14.1, 14.2, 14.3, 14.4_
-
-- [x] 15. Variance report and CSV export
-  - [x] 15.1 Implement getDashboard() and getVarianceReport() service methods
-    - `getDashboard()`: return today's status per accessible branch with MISSED/NOT_STARTED logic
-    - `getVarianceReport()`: aggregate variance data across confirmed/flagged sessions with grouping
-    - `exportVarianceReport()`: generate CSV buffer with UTF-8 BOM, columns: date, branch, product code, product name, expected qty, actual qty, variance qty, variance %, variance cost
-    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 14.1, 14.2, 14.3, 14.4_
-
-  - [x] 15.2 Create Variance Report Page
-    - Create `frontend/src/features/daily-stock-opname/pages/OpnameVarianceReportPage.tsx`
-    - Date range picker, branch filter, risk category filter
-    - Group by toggle: day / week / month
-    - Table: Product, Total Variance Qty, Total Variance Cost, Avg Variance %, Sessions, Flagged Count
-    - Sortable columns
-    - Export CSV button (triggers download)
-    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
-
-- [x] 16. Frontend route registration
-  - [x] 16.1 Register routes in App.tsx
-    - Add lazy imports for DailyStockOpnamePage, DailyStockOpnameDetailPage, OpnameVarianceReportPage
-    - Add Route entries with RequirePermission wrapper (module: daily_stock_opname)
-    - Add navigation menu item for "Stock Opname" in sidebar
-    - _Requirements: 11.1, 12.1, 13.1_
-
-- [x] 17. Final checkpoint — Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 9. Final Checkpoint
+  - Ensure all tests pass, frontend and backend compile without errors, ask the user if questions arise.
 
 ## Notes
 
@@ -295,28 +207,27 @@ This plan implements the Daily Stock Opname feature — a nightly inventory cont
 - Each task references specific requirements for traceability
 - Checkpoints ensure incremental validation
 - Property tests validate universal correctness properties from the design document
-- Requirement 19 (Correction of Confirmed Session) is deferred to Phase 2 per requirements
-- Requirement 20 (Assumptions) documents operational prerequisites and requires no implementation
-- The DPO blocking integration (task 8.1) modifies an existing module — review carefully for side effects
-- Photo upload uses the existing storageService pattern (R2/S3)
-- All date/time logic must use Asia/Jakarta timezone consistently
+- Unit tests validate specific examples and edge cases
+- The programming language for all tasks is TypeScript (matching existing codebase)
+- Existing patterns to follow: notification dispatcher pattern from purchase-invoices, TanStack Query hooks from dailyStockOpname.ts, tab navigation with useState + border-b-2 styling
+- **Formula clarification:** `pemakaian_riil = stok_kemarin − (stok_hari_ini + waste) + total_konversi` — barang_masuk is displayed but NOT used in the formula
+- **Employee picker:** Uses `GET /employees/search?branch_name={branchName}&is_active=true` via existing `employeesApi.search()` from `@/features/employees`
+- **is_complete:** For ALL lines WHERE variance_qty < 0, SUM(vcl.qty) = ABS(line.variance_qty). If any line has remaining unclassified qty, is_complete = false
+- **Classification audit trail:** Previous state logged to AuditService before delete-all on re-submission; classification_version column on daily_closing_counts increments on each re-submission
 
 ## Task Dependency Graph
 
 ```json
 {
   "waves": [
-    { "id": 0, "tasks": ["1.1", "1.2", "1.3", "1.4"] },
-    { "id": 1, "tasks": ["2.1", "2.2", "2.3", "2.4"] },
-    { "id": 2, "tasks": ["3.1", "3.2"] },
-    { "id": 3, "tasks": ["3.3", "4.1"] },
-    { "id": 4, "tasks": ["4.2"] },
-    { "id": 5, "tasks": ["4.3", "4.4", "6.1"] },
-    { "id": 6, "tasks": ["6.2", "6.3", "7.1", "7.2"] },
-    { "id": 7, "tasks": ["6.4", "8.1", "9.1", "9.2"] },
-    { "id": 8, "tasks": ["10.1", "10.2", "15.1"] },
-    { "id": 9, "tasks": ["11.1", "11.2", "11.3", "11.4", "11.5", "11.6", "14.1", "15.2"] },
-    { "id": 10, "tasks": ["13.1", "16.1"] }
+    { "id": 0, "tasks": ["1.1"] },
+    { "id": 1, "tasks": ["3.1", "3.3", "6.1"] },
+    { "id": 2, "tasks": ["3.2", "4.1", "7.1", "7.3", "7.4"] },
+    { "id": 3, "tasks": ["3.4", "3.5", "3.6", "4.2", "7.2"] },
+    { "id": 4, "tasks": ["4.3", "7.5", "7.6", "7.7"] },
+    { "id": 5, "tasks": ["8.1"] },
+    { "id": 6, "tasks": ["8.2"] },
+    { "id": 7, "tasks": ["8.3"] }
   ]
 }
 ```
