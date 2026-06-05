@@ -12,14 +12,11 @@ const MOVEMENT_LABELS: Record<string, string> = {
   IN_PRODUCTION: 'Hasil Produksi (+)',
   IN_ADJUSTMENT: 'Penyesuaian (+)',
   IN_OPENING: 'Saldo Awal (+)',
-  IN_REVERSAL: 'Reversal Masuk (+)',
   OUT_TRANSFER: 'Transfer Keluar (-)',
   OUT_LOAN: 'Pinjam Cabang (-)',
   OUT_ADJUSTMENT: 'Penyesuaian (-)',
   OUT_WASTE: 'Waste (-)',
   OUT_PRODUCTION: 'Bahan Produksi (-)',
-  OUT_REVERSAL: 'Reversal Keluar (-)',
-  OUT_SALES: 'Penjualan POS (-)',
 }
 
 interface Props {

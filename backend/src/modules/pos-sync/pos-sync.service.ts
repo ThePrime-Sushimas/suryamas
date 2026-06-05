@@ -19,7 +19,6 @@ import { pool } from "../../config/db";
 import { PosSyncAggregateResult } from "../jobs/processors/pos-sync-aggregates.processor";
 import { syncPosSyncToAggregated } from "../pos-sync-aggregates/pos-sync-aggregates.service";
 import { paymentMethodAlertsService } from "../payment-method-alerts/payment-method-alerts.service";
-import { generateWipOutputSalesMovements } from "./pos-sync-stock.service";
 
 export const salesService = {
   import: async (payload: ImportSalesPayload): Promise<ImportSalesResult> => {
@@ -36,12 +35,6 @@ export const salesService = {
 
     if (payments.length > 0) {
       await salesRepository.upsertPayments(payments);
-    }
-
-    // ✅ Fire-and-forget: generate OUT_SALES stock movements for WIP outputs
-    if (sales.length > 0 && items.length > 0) {
-      generateWipOutputSalesMovements(sales, items)
-        .catch((err) => logError("generateWipOutputSalesMovements failed", { err }));
     }
 
     // ✅ Trigger per tanggal, bukan per salesNums batch

@@ -51,7 +51,7 @@ export class StockService {
         const effectiveCost = isInbound ? dto.cost_per_unit : currentAvgCost
         const movementQty = isInbound ? Math.abs(dto.qty) : -Math.abs(dto.qty)
 
-        if (!isInbound && !dto.allowNegative && currentQty < Math.abs(dto.qty)) {
+        if (!isInbound && currentQty < Math.abs(dto.qty)) {
           throw new InsufficientStockError('Product', currentQty, Math.abs(dto.qty))
         }
 
@@ -66,7 +66,7 @@ export class StockService {
 
         const movement = await stockRepository.createMovement(
           client,
-          { ...dto, qty: movementQty, cost_per_unit: effectiveCost, created_by: userId || undefined },
+          { ...dto, qty: movementQty, cost_per_unit: effectiveCost, created_by: userId },
           newQty,
         )
 
@@ -75,7 +75,7 @@ export class StockService {
         return { movement, newBalance: newQty }
       })
 
-      await AuditService.log('CREATE', 'stock_movement', result.movement.id, userId || null, undefined, {
+      await AuditService.log('CREATE', 'stock_movement', result.movement.id, userId, undefined, {
         warehouse_id: dto.warehouse_id,
         product_id: dto.product_id,
         movement_type: dto.movement_type,

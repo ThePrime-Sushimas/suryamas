@@ -31,10 +31,9 @@ export interface UpdateWarehouseDto {
 
 export type MovementType =
   | 'IN_PURCHASE' | 'IN_TRANSFER' | 'IN_RETURN' | 'IN_PRODUCTION'
-  | 'IN_ADJUSTMENT' | 'IN_OPENING' | 'IN_REVERSAL'
+  | 'IN_ADJUSTMENT' | 'IN_OPENING'
   | 'OUT_TRANSFER' | 'OUT_LOAN' | 'OUT_DAILY' | 'OUT_ADJUSTMENT'
-  | 'OUT_WASTE' | 'OUT_PRODUCTION' | 'OUT_REVERSAL'
-  | 'OUT_SALES'
+  | 'OUT_WASTE' | 'OUT_PRODUCTION'
 
 export interface StockBalance {
   id: string
