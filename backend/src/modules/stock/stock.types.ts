@@ -3,11 +3,12 @@ export type MovementType =
   | 'IN_ADJUSTMENT' | 'IN_OPENING' | 'IN_REVERSAL'
   | 'OUT_TRANSFER' | 'OUT_LOAN' | 'OUT_DAILY' | 'OUT_ADJUSTMENT'
   | 'OUT_WASTE' | 'OUT_PRODUCTION' | 'OUT_REVERSAL'
+  | 'OUT_SALES'
 
 export type ReferenceType =
   | 'purchase_order' | 'transfer_order' | 'branch_loan'
   | 'daily_requisition' | 'production_order' | 'adjustment' | 'opening'
-  | 'goods_processing' | 'daily_closing_count'
+  | 'goods_processing' | 'daily_closing_count' | 'pos_sync'
 
 export interface StockBalance {
   id: string
@@ -67,6 +68,7 @@ export interface CreateMovementDto {
   notes?: string
   movement_date?: string
   created_by?: string
+  allowNegative?: boolean
 }
 
 export interface CreateOpeningBalanceDto {
