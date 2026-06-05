@@ -77,10 +77,40 @@ export class TheoreticalConsumptionRepository {
           ${stationFilter}
         GROUP BY wi.product_id, p.product_name, p.product_code, wi.uom
       ),
+      wip_output_consumption AS (
+        -- Tracks WIP OUTPUT consumption (not raw materials).
+        -- recipe_lines.qty is already in the WIP's output UOM, so we do NOT divide by yield_qty.
+        -- This is intentionally a separate product set from wip_consumption:
+        --   wip_consumption       -> wip_ingredients.product_id (raw materials of the WIP)
+        --   wip_output_consumption -> wip_items.output_product_id (the WIP's output, used in the menu)
+        -- If a WIP output is ALSO used as a raw material in another WIP's recipe, the outer GROUP BY
+        -- will correctly sum both consumption paths for the same product_id.
+        SELECT
+          wip.output_product_id AS product_id,
+          p.product_name,
+          p.product_code,
+          rl.uom,
+          SUM(rl.qty * sm.qty) AS theoretical_qty,
+          SUM(rl.qty * sm.qty * wip.cost_per_unit) AS theoretical_cost
+        FROM tr_salesmenu sm
+        JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
+        JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.deleted_at IS NULL
+        JOIN recipe_lines rl ON rl.menu_id = m.id AND rl.wip_id IS NOT NULL
+        JOIN wip_items wip ON wip.id = rl.wip_id
+        JOIN products p ON p.id = wip.output_product_id
+        WHERE sm.status_id = 13
+          AND sh.sales_date BETWEEN $1 AND $2
+          ${branchFilter}
+          ${stationFilter}
+          AND wip.output_product_id IS NOT NULL
+        GROUP BY wip.output_product_id, p.product_name, p.product_code, rl.uom
+      ),
       all_consumption AS (
         SELECT * FROM direct_consumption
         UNION ALL
         SELECT * FROM wip_consumption
+        UNION ALL
+        SELECT * FROM wip_output_consumption
       )
       SELECT
         product_id,
@@ -151,10 +181,34 @@ export class TheoreticalConsumptionRepository {
           ${stationFilter}
         GROUP BY wi.product_id, p.product_name, p.product_code, wi.uom
       ),
+      wip_output_consumption AS (
+        -- Tracks WIP OUTPUT consumption (see getTheoreticalConsumption for full rationale).
+        SELECT
+          wip.output_product_id AS product_id, p.product_name, p.product_code, rl.uom,
+          SUM(rl.qty * sm.qty) AS theoretical_qty
+        FROM tr_salesmenu sm
+        JOIN tr_saleshead sh ON sh.sales_num = sm.sales_num
+        JOIN menus m ON m.pos_menu_id = sm.menu_id AND m.deleted_at IS NULL
+        JOIN recipe_lines rl ON rl.menu_id = m.id AND rl.wip_id IS NOT NULL
+        JOIN wip_items wip ON wip.id = rl.wip_id
+        JOIN products p ON p.id = wip.output_product_id
+        WHERE sm.status_id = 13
+          AND sh.sales_date BETWEEN $1 AND $2
+          ${branchFilterPos}
+          ${stationFilter}
+          AND wip.output_product_id IS NOT NULL
+        GROUP BY wip.output_product_id, p.product_name, p.product_code, rl.uom
+      ),
       theoretical AS (
         SELECT product_id, product_name, product_code, uom,
           SUM(theoretical_qty) AS theoretical_qty
-        FROM (SELECT * FROM direct_consumption UNION ALL SELECT * FROM wip_consumption) combined
+        FROM (
+          SELECT * FROM direct_consumption
+          UNION ALL
+          SELECT * FROM wip_consumption
+          UNION ALL
+          SELECT * FROM wip_output_consumption
+        ) combined
         GROUP BY product_id, product_name, product_code, uom
       ),
       actual AS (
@@ -272,6 +326,9 @@ export class TheoreticalConsumptionRepository {
         SELECT rl.menu_id FROM recipe_lines rl JOIN products p ON p.id = rl.product_id WHERE p.station = $${idx}
         UNION
         SELECT rl.menu_id FROM recipe_lines rl JOIN wip_ingredients wi ON wi.wip_id = rl.wip_id JOIN products p ON p.id = wi.product_id WHERE p.station = $${idx}
+        UNION
+        -- Menus using a WIP whose output_product_id matches the station
+        SELECT rl.menu_id FROM recipe_lines rl JOIN wip_items w ON w.id = rl.wip_id JOIN products p ON p.id = w.output_product_id WHERE p.station = $${idx} AND w.output_product_id IS NOT NULL
       )`
       idx++
     }
