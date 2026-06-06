@@ -2044,7 +2044,7 @@ function App() {
                   <Route
                     path="inventory/stock-analysis"
                     element={
-                      <RequirePermission module="stock">
+                      <RequirePermission module="stock_analysis">
                         <Suspense fallback={<LoadingFallback />}>
                           <StockAnalysisPage />
                         </Suspense>

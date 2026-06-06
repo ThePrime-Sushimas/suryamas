@@ -356,7 +356,7 @@ export const menuItems: MenuItem[] = [
         name: "Analisa Stok",
         href: "/inventory/stock-analysis",
         icon: <BarChart3 size={16} />,
-        module: "stock",
+        module: "stock_analysis",
       },
       {
         id: "inv-goods-receipts",

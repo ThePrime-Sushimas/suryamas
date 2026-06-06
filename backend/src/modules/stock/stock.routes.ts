@@ -14,6 +14,10 @@ PermissionService.registerModule('stock', 'Stock / Inventory Management').catch(
   console.error('Failed to register stock module:', err instanceof Error ? err.message : err)
 })
 
+PermissionService.registerModule('stock_analysis', 'Stock Analysis Center').catch((err) => {
+  console.error('Failed to register stock_analysis module:', err instanceof Error ? err.message : err)
+})
+
 const router = Router()
 
 router.use(authenticate, resolveBranchContext)
@@ -41,6 +45,6 @@ router.put('/configs', canUpdate('stock'), validateSchema(upsertStockConfigSchem
 router.get('/reorder-suggestions', canView('stock'), (req, res) => stockController.getReorderSuggestions(req, res))
 
 // ─── STOCK ANALYSIS CENTER ────────────────────────────────────────────────────
-router.get('/analysis', canView('stock'), validateSchema(stockAnalysisSchema), (req, res) => stockController.getAnalysis(req, res))
+router.get('/analysis', canView('stock_analysis'), validateSchema(stockAnalysisSchema), (req, res) => stockController.getAnalysis(req, res))
 
 export default router
