@@ -352,6 +352,13 @@ export const menuItems: MenuItem[] = [
         module: "stock",
       },
       {
+        id: "inv-stock-analysis",
+        name: "Analisa Stok",
+        href: "/inventory/stock-analysis",
+        icon: <BarChart3 size={16} />,
+        module: "stock",
+      },
+      {
         id: "inv-goods-receipts",
         name: "Penerimaan Barang",
         href: "/inventory/goods-receipts",
@@ -478,74 +485,15 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 9. BANKING & REKONSILIASI — proses matching
-  //    Flow: Import Bank → Rekonsiliasi → Settlement → Cash
+  // 9. FINANCE & BANKING — Keuangan & Rekonsiliasi (Finance / Accounting Staff)
+  //    Flow: Invoices → Payments → Bank Reconciliation → Cash Flow
   // ─────────────────────────────────────────────
   {
-    id: "banking",
-    name: "Banking & Reconciliation",
-    icon: <Banknote size={18} />,
-    submenu: [
-      {
-        id: "bank-statement-imports",
-        name: "Bank Statement Imports",
-        href: "/bank-statement-import",
-        icon: <FileSpreadsheet size={16} />,
-        module: "bank_statement_imports",
-      },
-      {
-        id: "bank-reconciliation",
-        name: "Bank Reconciliation",
-        href: "/bank-reconciliation",
-        icon: <ArrowLeftRight size={16} />,
-        module: "bank_reconciliation",
-      },
-      {
-        id: "settlement-groups",
-        name: "Settlement Groups",
-        href: "/bank-reconciliation/settlement-groups",
-        icon: <FileCheck size={16} />,
-        module: "bank_reconciliation",
-      },
-      {
-        id: "fee_discrepancy-review",
-        name: "Fee Discrepancy Review",
-        href: "bank-reconciliation/fee-discrepancy-review",
-        icon: <ShieldCheck size={16} />,
-        module: "fee_discrepancy_review",
-      },
-      {
-        id: "cash-flow",
-        name: "In-Out",
-        href: "/cash-flow",
-        icon: <Activity size={16} />,
-        module: "cash_flow",
-      },
-      {
-        id: "cash-counts",
-        name: "Cash Count",
-        href: "/cash-counts",
-        icon: <Coins size={16} />,
-        module: "cash_counts",
-      },
-      {
-        id: "expense-categorization",
-        name: "Expense Categorization",
-        href: "/expense-categorization",
-        icon: <Tag size={16} />,
-        module: "cash_flow",
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // 9b. FINANCE — AP, Invoices, Payments
-  // ─────────────────────────────────────────────
-  {
-    id: "finance",
-    name: "Finance",
+    id: "finance-banking",
+    name: "Finance & Banking",
     icon: <DollarSign size={18} />,
     submenu: [
+      // Invoices & Payments
       {
         id: "inv-purchase-invoices",
         name: "Purchase Invoices",
@@ -587,7 +535,58 @@ export const menuItems: MenuItem[] = [
         href: "/finance/general-invoices/vendors",
         icon: <Building2 size={16} />,
         module: "general_invoices",
-      }
+      },
+      // Bank Reconciliation
+      {
+        id: "bank-statement-imports",
+        name: "Bank Statement Imports",
+        href: "/bank-statement-imports",
+        icon: <FileSpreadsheet size={16} />,
+        module: "bank_statement_imports",
+      },
+      {
+        id: "bank-reconciliation",
+        name: "Bank Reconciliation",
+        href: "/bank-reconciliation",
+        icon: <ArrowLeftRight size={16} />,
+        module: "bank_reconciliation",
+      },
+      {
+        id: "settlement-groups",
+        name: "Settlement Groups",
+        href: "/bank-reconciliation/settlement-groups",
+        icon: <FileCheck size={16} />,
+        module: "bank_reconciliation",
+      },
+      {
+        id: "fee_discrepancy-review",
+        name: "Fee Discrepancy Review",
+        href: "bank-reconciliation/fee-discrepancy-review",
+        icon: <ShieldCheck size={16} />,
+        module: "fee_discrepancy_review",
+      },
+      // Cash Management
+      {
+        id: "cash-flow",
+        name: "Cash Flow In-Out",
+        href: "/cash-flow",
+        icon: <Activity size={16} />,
+        module: "cash_flow",
+      },
+      {
+        id: "cash-counts",
+        name: "Cash Count",
+        href: "/cash-counts",
+        icon: <Coins size={16} />,
+        module: "cash_counts",
+      },
+      {
+        id: "expense-categorization",
+        name: "Expense Categorization",
+        href: "/expense-categorization",
+        icon: <Tag size={16} />,
+        module: "cash_flow",
+      },
     ],
   },
 
@@ -698,16 +697,16 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 11. HUMAN RESOURCES
+  // 11. PENGATURAN KARYAWAN & HRD (HRD Only)
   // ─────────────────────────────────────────────
   {
-    id: "hr",
-    name: "Human Resources",
+    id: "hr-management",
+    name: "HR Management",
     icon: <Users size={18} />,
     submenu: [
       {
         id: "employees",
-        name: "Karyawan",
+        name: "Data Karyawan",
         href: "/employees",
         icon: <Users size={16} />,
         module: "employees",
@@ -744,11 +743,11 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 12. SETTINGS & SYSTEM
+  // 12. PENGATURAN SISTEM & MENU (Admin / Owner Only)
   // ─────────────────────────────────────────────
   {
-    id: "settings",
-    name: "Settings",
+    id: "system-settings",
+    name: "System Settings",
     icon: <Settings size={18} />,
     submenu: [
       {

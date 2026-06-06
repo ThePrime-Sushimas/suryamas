@@ -6,7 +6,7 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { stockController } from './stock.controller'
 import {
   createMovementSchema, createOpeningBalanceSchema, bulkOpeningBalanceSchema, adjustStockSchema,
-  stockBalanceListSchema, stockMovementListSchema, upsertStockConfigSchema
+  stockBalanceListSchema, stockMovementListSchema, upsertStockConfigSchema, stockAnalysisSchema
 } from './stock.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -39,5 +39,8 @@ router.put('/configs', canUpdate('stock'), validateSchema(upsertStockConfigSchem
 
 // ─── REORDER SUGGESTIONS ────────────────────────────────────────────────────
 router.get('/reorder-suggestions', canView('stock'), (req, res) => stockController.getReorderSuggestions(req, res))
+
+// ─── STOCK ANALYSIS CENTER ────────────────────────────────────────────────────
+router.get('/analysis', canView('stock'), validateSchema(stockAnalysisSchema), (req, res) => stockController.getAnalysis(req, res))
 
 export default router

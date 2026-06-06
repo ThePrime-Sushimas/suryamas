@@ -1,18 +1,20 @@
 import type { Request, Response } from 'express'
 import { stockService } from './stock.service'
+import { stockAnalysisService } from './stock-analysis.service'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import type { ValidatedAuthRequest } from '../../middleware/validation.middleware'
 import { getAccessibleBranchIds, getAccessibleCompanyIds } from '../../utils/branch-access.util'
 import {
   createMovementSchema, createOpeningBalanceSchema, bulkOpeningBalanceSchema,
-  adjustStockSchema
+  adjustStockSchema, stockAnalysisSchema
 } from './stock.schema'
 
 type CreateMovementReq = ValidatedAuthRequest<typeof createMovementSchema>
 type OpeningBalanceReq = ValidatedAuthRequest<typeof createOpeningBalanceSchema>
 type BulkOpeningReq = ValidatedAuthRequest<typeof bulkOpeningBalanceSchema>
 type AdjustReq = ValidatedAuthRequest<typeof adjustStockSchema>
+type AnalysisReq = ValidatedAuthRequest<typeof stockAnalysisSchema>
 
 async function stockScope(req: Request) {
   const userId = req.user?.id ?? ''
@@ -202,6 +204,31 @@ export class StockController {
       sendSuccess(res, result, 'Reorder suggestions retrieved')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_reorder_suggestions' })
+    }
+  }
+
+  // ─── STOCK ANALYSIS CENTER ────────────────────────────────────────────────────
+
+  getAnalysis = async (req: Request, res: Response) => {
+    try {
+      const { query } = (req as AnalysisReq).validated
+      const { branchIds } = await stockScope(req)
+
+      const result = await stockAnalysisService.getAnalysis(branchIds, {
+        branch_id: query.branch_id,
+        date_from: query.date_from,
+        date_to: query.date_to,
+        warehouse_type: query.warehouse_type,
+        product_id: query.product_id,
+        category_id: query.category_id,
+        only_with_variance: query.only_with_variance,
+        page: query.page,
+        limit: query.limit,
+      })
+
+      sendSuccess(res, { rows: result.data, summary: result.summary, warehouse_name: result.warehouse_name }, 'Stock analysis retrieved', 200, result.pagination)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_stock_analysis' })
     }
   }
 }

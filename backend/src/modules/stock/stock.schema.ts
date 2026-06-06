@@ -92,3 +92,19 @@ export const upsertStockConfigSchema = z.object({
     notes: z.string().nullable().optional(),
   }),
 })
+
+// ─── STOCK ANALYSIS ──────────────────────────────────────────────────────────
+
+export const stockAnalysisSchema = z.object({
+  query: z.object({
+    branch_id: z.string().uuid(),
+    date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    warehouse_type: z.enum(['READY', 'MAIN', 'FINISHED_GOODS']).optional().default('READY'),
+    product_id: z.string().uuid().optional(),
+    category_id: z.string().uuid().optional(),
+    only_with_variance: z.coerce.boolean().optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  }),
+})
