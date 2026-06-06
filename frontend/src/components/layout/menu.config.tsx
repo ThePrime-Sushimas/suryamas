@@ -1,50 +1,52 @@
 import {
+  Activity,
+  AlertTriangle,
+  ArrowLeftRight,
+  Banknote,
+  BarChart3,
+  Beaker,
+  Bell,
+  BookOpen,
+  Building2,
+  Calculator,
+  CalendarDays,
+  ChefHat,
+  ClipboardList,
+  Coins,
+  CreditCard,
+  Database,
+  DollarSign,
+  Factory,
+  FileCheck,
+  FileSpreadsheet,
+  FileText,
+  FlaskConical,
+  FolderKanban,
+  GitMerge,
+  Layers,
   LayoutDashboard,
   Package,
   PackageCheck,
-  Factory,
-  Printer,
-  Warehouse,
-  ShoppingCart,
-  Building2,
-  DollarSign,
-  Calculator,
-  FileSpreadsheet,
-  AlertTriangle,
-  ShieldCheck,
-  Users,
-  Settings,
-  UserCog,
-  Shield,
-  Activity,
-  Coins,
-  Scale,
-  CalendarDays,
-  TrendingUp,
-  Layers,
-  BookOpen,
-  ArrowLeftRight,
-  ClipboardList,
-  GitMerge,
-  Banknote,
-  BarChart3,
-  Tag,
-  Ruler,
-  Receipt,
-  ScanLine,
-  Database,
-  FolderKanban,
-  RefreshCcw,
-  FileCheck,
   PieChart,
-  Bell,
+  Printer,
+  Receipt,
+  RefreshCcw,
+  Ruler,
+  Scale,
+  ScanLine,
+  Settings,
+  Shield,
+  ShieldCheck,
+  ShoppingBag,
+  ShoppingCart,
+  Store,
+  Tag,
+  TrendingUp,
+  UserCog,
+  Users,
   UtensilsCrossed,
-  Beaker,
-  ChefHat,
-  FileText,
-  FlaskConical,
-  CreditCard,
-  Wallet,  
+  Wallet,
+  Warehouse,
 } from "lucide-react";
 import type { MenuItem } from "./types";
 
@@ -89,388 +91,491 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 2. MASTER DATA — setup awal, jarang diubah
+  // 2. SETUP
   // ─────────────────────────────────────────────
   {
-    id: "master-data",
-    name: "Master Data",
+    id: "setup",
+    name: "Setup",
     icon: <Database size={18} />,
     submenu: [
+      // ── 2a. Master Data ──────────────────────
       {
-        id: "companies",
-        name: "Companies",
-        href: "/companies",
-        icon: <Factory size={16} />,
-        module: "companies",
-      },
-      {
-        id: "branches",
-        name: "Branches",
-        href: "/branches",
-        icon: <Warehouse size={16} />,
-        module: "branches",
-      },
-      {
-        id: "categories",
-        name: "Categories",
-        href: "/categories",
-        icon: <FolderKanban size={16} />,
-        module: "categories",
-      },
-      {
-        id: "sub-categories",
-        name: "Sub Categories",
-        href: "/sub-categories",
-        icon: <Tag size={16} />,
-        module: "sub_categories",
-      },
-      {
-        id: "metric-units",
-        name: "Metric Units",
-        href: "/metric-units",
-        icon: <Ruler size={16} />,
-        module: "metric_units",
-      },
-      {
-        id: "payment-terms",
-        name: "Payment Terms",
-        href: "/payment-terms",
-        icon: <ClipboardList size={16} />,
-        module: "payment_terms",
-      },
-      {
-        id: "payment-methods",
-        name: "Payment Methods",
-        href: "/payment-methods",
-        icon: <CreditCard size={16} />,
-        module: "payment_methods",
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // 3. PRODUK & SUPPLIER
-  // ─────────────────────────────────────────────
-  {
-    id: "products",
-    name: "Products & Suppliers",
-    icon: <ShoppingCart size={18} />,
-    submenu: [
-      {
-        id: "products",
-        name: "Products",
-        href: "/products",
-        icon: <Package size={16} />,
-        module: "products",
-      },
-      {
-        id: "suppliers",
-        name: "Suppliers",
-        href: "/suppliers",
-        icon: <Building2 size={16} />,
-        module: "suppliers",
-      },
-      {
-        id: "supplier-products",
-        name: "Supplier Products",
-        href: "/supplier-products",
-        icon: <Layers size={16} />,
-        module: "supplier_products",
-      },
-      {
-        id: "pricelists",
-        name: "Pricelists",
-        href: "/pricelists",
-        icon: <Receipt size={16} />,
-        module: "pricelists",
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // 4. FOOD PRODUCTION — Menu, Resep, COGS
-  // ─────────────────────────────────────────────
-  {
-    id: "food-production",
-    name: "Food Production",
-    icon: <ChefHat size={18} />,
-    submenu: [
-      {
-        id: "fp-menus",
-        name: "Master Menu",
-        href: "/food-production/menus",
-        icon: <UtensilsCrossed size={16} />,
-        module: "menus",
-      },
-      {
-        id: "fp-categories",
-        name: "Kategori Menu",
-        href: "/food-production/categories",
-        icon: <FolderKanban size={16} />,
-        module: "menu_categories",
-      },
-      {
-        id: "fp-groups",
-        name: "Group Menu",
-        href: "/food-production/groups",
-        icon: <Layers size={16} />,
-        module: "menu_groups",
-      },
-      {
-        id: "fp-wip",
-        name: "WIP (Setengah Jadi)",
-        href: "/food-production/wip",
-        icon: <Beaker size={16} />,
-        module: "wip_items",
-      },
-      {
-        id: "fp-production",
-        name: "Produksi Harian",
-        href: "/food-production/production",
-        icon: <Factory size={16} />,
-        module: "production_orders",
-      },
-      {
-        id: "fp-cogs",
-        name: "COGS Calculation",
-        href: "/food-production/cogs",
-        icon: <Calculator size={16} />,
-        module: "cogs",
-      },
-      {
-        id: "fp-cogs-breakdown",
-        name: "COGS Breakdown",
-        href: "/food-production/cogs/breakdown",
-        icon: <BarChart3 size={16} />,
-        module: "cogs_breakdown",
-      },
-      {
-        id: "fp-consumption",
-        name: "Analisa Konsumsi",
-        href: "/food-production/consumption",
-        icon: <FlaskConical size={16} />,
-        module: "consumption_analysis",
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // 5. POS MANAGEMENT — input data harian
-  //    Flow: Import → Staging → Transactions → Aggregates
-  // ─────────────────────────────────────────────
-  {
-    id: "pos",
-    name: "POS Management",
-    icon: <ScanLine size={18} />,
-    submenu: [
-      {
-        id: "pos-imports",
-        name: "POS Imports",
-        href: "/pos-imports",
-        icon: <FileSpreadsheet size={16} />,
-        module: "pos_imports",
-      },
-      {
-        id: "pos-staging",
-        name: "POS Staging",
-        href: "/pos-staging",
+        id: "master-data",
+        name: "Master Data",
         icon: <Database size={16} />,
-        module: "pos_imports",
+        submenu: [
+          {
+            id: "companies",
+            name: "Companies",
+            href: "/companies",
+            icon: <Factory size={16} />,
+            module: "companies",
+          },
+          {
+            id: "branches",
+            name: "Branches",
+            href: "/branches",
+            icon: <Warehouse size={16} />,
+            module: "branches",
+          },
+          {
+            id: "categories",
+            name: "Categories",
+            href: "/categories",
+            icon: <FolderKanban size={16} />,
+            module: "categories",
+          },
+          {
+            id: "sub-categories",
+            name: "Sub Categories",
+            href: "/sub-categories",
+            icon: <Tag size={16} />,
+            module: "sub_categories",
+          },
+          {
+            id: "metric-units",
+            name: "Metric Units",
+            href: "/metric-units",
+            icon: <Ruler size={16} />,
+            module: "metric_units",
+          },
+          {
+            id: "payment-terms",
+            name: "Payment Terms",
+            href: "/payment-terms",
+            icon: <ClipboardList size={16} />,
+            module: "payment_terms",
+          },
+          {
+            id: "payment-methods",
+            name: "Payment Methods",
+            href: "/payment-methods",
+            icon: <CreditCard size={16} />,
+            module: "payment_methods",
+          },
+        ],
       },
+
+      // ── 2b. Products & Suppliers ─────────────
       {
-        id: "pos-transactions",
-        name: "POS Transactions",
-        href: "/pos-transactions",
-        icon: <ClipboardList size={16} />,
-        module: "pos_imports",
+        id: "setup-products",         // FIX: was "products" — duplicate id dengan child-nya
+        name: "Products & Suppliers",
+        icon: <Store size={16} />,    // FIX: was ShoppingCart — sama dengan Purchasing
+        submenu: [
+          {
+            id: "products",
+            name: "Products",
+            href: "/products",
+            icon: <Package size={16} />,
+            module: "products",
+          },
+          {
+            id: "suppliers",
+            name: "Suppliers",
+            href: "/suppliers",
+            icon: <Building2 size={16} />,
+            module: "suppliers",
+          },
+          {
+            id: "supplier-products",
+            name: "Supplier Products",
+            href: "/supplier-products",
+            icon: <Layers size={16} />,
+            module: "supplier_products",
+          },
+          {
+            id: "pricelists",
+            name: "Pricelists",
+            href: "/pricelists",
+            icon: <Receipt size={16} />,
+            module: "pricelists",
+          },
+        ],
       },
+
+      // ── 2c. HR Management ────────────────────
       {
-        id: "pos-sync-aggregates",
-        name: "POS Sync Aggregates",
-        href: "/pos-sync-aggregates",
-        icon: <RefreshCcw size={16} />,
-        module: "pos_imports",
+        id: "hr-management",
+        name: "HR Management",
+        icon: <Users size={16} />,
+        submenu: [
+          {
+            id: "employees",
+            name: "Data Karyawan",
+            href: "/employees",
+            icon: <Users size={16} />,
+            module: "employees",
+          },
+          {
+            id: "employee_branches",
+            name: "Penempatan Cabang",
+            href: "/employee-branches",
+            icon: <Building2 size={16} />,
+            module: "employee_branches",
+          },
+          {
+            id: "users",
+            name: "User Accounts",
+            href: "/users",
+            icon: <UserCog size={16} />,
+            module: "users",
+          },
+          {
+            id: "departments",
+            name: "Departemen",
+            href: "/settings/departments",
+            icon: <Layers size={16} />,
+            module: "departments",
+          },
+          {
+            id: "positions",
+            name: "Posisi & Jabatan",
+            href: "/settings/positions",
+            icon: <Shield size={16} />,
+            module: "positions",
+          },
+        ],
       },
+
+      // ── 2d. System Settings ──────────────────
       {
-        id: "pos-aggregates",
-        name: "POS Aggregates",
-        href: "/pos-aggregates",
-        icon: <GitMerge size={16} />,
-        module: "pos_aggregates",
-      },
-      {
-        id: "failed-transactions",
-        name: "Failed Transactions",
-        href: "/pos-aggregates/failed-transactions",
-        icon: <AlertTriangle size={16} />,
-        module: "pos_aggregates",
+        id: "system-settings",
+        name: "System Settings",
+        icon: <Settings size={16} />,
+        submenu: [
+          {
+            id: "permissions",
+            name: "Permissions",
+            href: "/permissions",
+            icon: <Shield size={16} />,
+            module: "permissions",
+          },
+          {
+            id: "owner-credit-cards",
+            name: "Kartu Kredit Owner",
+            href: "/settings/owner-credit-cards",
+            icon: <CreditCard size={16} />,
+            module: "owner_credit_cards",
+          },
+          {
+            id: "alert-threshold",
+            name: "Alert Threshold",
+            href: "/settings/alerts",
+            icon: <Bell size={16} />,
+            module: "payment_method_alerts",
+          },
+          {
+            id: "notification-routing",
+            name: "Routing Notifikasi",
+            href: "/settings/notification-routing",
+            icon: <Bell size={16} />,
+            module: "notifications",
+          },
+          {
+            id: "printers",
+            name: "Printers",
+            href: "/settings/printers",
+            icon: <Printer size={16} />,
+            module: "printers",
+          },
+          {
+            id: "monitoring",
+            name: "System Monitoring",
+            href: "/monitoring",
+            icon: <Activity size={16} />,
+            module: "monitoring",
+          },
+        ],
       },
     ],
   },
 
   // ─────────────────────────────────────────────
-  // 6. INVENTORY — Gudang, Stok, Mutasi
+  // 3. OPERATIONS — POS, Inventory, Food Prod, Purchasing
   // ─────────────────────────────────────────────
   {
-    id: "inventory",
-    name: "Inventory Management",
-    icon: <Warehouse size={18} />,
+    id: "operations",
+    name: "Operations",
+    icon: <Factory size={18} />,
     submenu: [
+      // ── 3a. POS Management ───────────────────
       {
-        id: "inv-warehouses",
-        name: "Gudang",
-        href: "/inventory/warehouses",
+        id: "pos",
+        name: "POS Management",
+        icon: <ScanLine size={16} />,
+        submenu: [
+          {
+            id: "pos-imports",
+            name: "POS Imports",
+            href: "/pos-imports",
+            icon: <FileSpreadsheet size={16} />,
+            module: "pos_imports",
+          },
+          {
+            id: "pos-staging",
+            name: "POS Staging",
+            href: "/pos-staging",
+            icon: <Database size={16} />,
+            module: "pos_imports",
+          },
+          {
+            id: "pos-transactions",
+            name: "POS Transactions",
+            href: "/pos-transactions",
+            icon: <ClipboardList size={16} />,
+            module: "pos_imports",
+          },
+          {
+            id: "pos-sync-aggregates",
+            name: "POS Sync Aggregates",
+            href: "/pos-sync-aggregates",
+            icon: <RefreshCcw size={16} />,
+            module: "pos_imports",
+          },
+          {
+            id: "pos-aggregates",
+            name: "POS Aggregates",
+            href: "/pos-aggregates",
+            icon: <GitMerge size={16} />,
+            module: "pos_aggregates",
+          },
+          {
+            id: "failed-transactions",
+            name: "Failed Transactions",
+            href: "/pos-aggregates/failed-transactions",
+            icon: <AlertTriangle size={16} />,
+            module: "pos_aggregates",
+          },
+        ],
+      },
+
+      // ── 3b. Inventory Management ─────────────
+      // FIX: flatten — tidak lagi 4 level deep
+      {
+        id: "inventory",
+        name: "Inventory Management",
         icon: <Warehouse size={16} />,
-        module: "warehouses",
+        submenu: [
+          {
+            id: "inv-warehouses",
+            name: "Gudang",
+            href: "/inventory/warehouses",
+            icon: <Warehouse size={16} />,
+            module: "warehouses",
+          },
+          {
+            id: "inv-stock",
+            name: "Stok Gudang",
+            href: "/inventory/stock",
+            icon: <Package size={16} />,
+            module: "stock",
+          },
+          {
+            id: "inv-movements",
+            name: "Mutasi Stok",
+            href: "/inventory/movements",
+            icon: <ArrowLeftRight size={16} />,
+            module: "stock",
+          },
+          {
+            id: "inv-goods-receipts",
+            name: "Penerimaan Barang",
+            href: "/inventory/goods-receipts",
+            icon: <PackageCheck size={16} />,
+            module: "goods_receipts",
+          },
+          {
+            id: "inv-goods-processing",
+            name: "Barang diproses",
+            href: "/inventory/goods-processing",
+            icon: <Package size={16} />,
+            module: "goods_processing",
+          },
+          {
+            id: "inv-stock-transfers",
+            name: "Stock Transfer",
+            href: "/inventory/stock-transfers",
+            icon: <ArrowLeftRight size={16} />,
+            module: "stock_transfers",
+          },
+          {
+            id: "inv-stock-config",
+            name: "Konfigurasi Stok",
+            href: "/inventory/stock-config",
+            icon: <Settings size={16} />,
+            module: "stock",
+          },
+          {
+            id: "inv-stock-adjustments",
+            name: "Waste & Breakdown",
+            href: "/inventory/stock-adjustments",
+            icon: <AlertTriangle size={16} />,
+            module: "stock_adjustments",
+          },
+          {
+            id: "inv-daily-stock-opname",
+            name: "Stock Opname",
+            href: "/inventory/daily-stock-opname",
+            icon: <ClipboardList size={16} />,
+            module: "daily_stock_opname",
+          },
+          {
+            id: "inv-opname-config",
+            name: "Opname Config",
+            href: "/inventory/daily-stock-opname/config",
+            icon: <Settings size={16} />,
+            module: "daily_stock_opname",
+          },
+          {
+            id: "inv-reorder-suggestions",
+            name: "Reorder Suggestions",
+            href: "/inventory/reorder-suggestions",
+            icon: <AlertTriangle size={16} />,
+            module: "stock",
+          },
+          {
+            id: "inv-daily-prep-orders",
+            name: "Daily Prep Orders",
+            href: "/inventory/daily-prep-orders",
+            icon: <ClipboardList size={16} />,
+            module: "daily_prep_orders",
+          },
+          {
+            id: "inv-dpo-config",
+            name: "DPO Forecast Config",
+            href: "/inventory/daily-prep-orders/config",
+            icon: <Settings size={16} />,
+            module: "daily_prep_orders",
+          },
+          {
+            id: "inv-dpo-holidays",
+            name: "DPO Holidays",
+            href: "/inventory/daily-prep-orders/holidays",
+            icon: <CalendarDays size={16} />,
+            module: "daily_prep_orders",
+          },
+          {
+            id: "inv-stock-analysis",
+            name: "Analisa Stok",
+            href: "/inventory/stock-analysis",
+            icon: <BarChart3 size={16} />,
+            module: "stock_analysis",
+          },
+        ],
       },
+
+      // ── 3c. Food Production ──────────────────
+      // FIX: flatten — tidak lagi 4 level deep
       {
-        id: "inv-stock",
-        name: "Stok Gudang",
-        href: "/inventory/stock",
-        icon: <Package size={16} />,
-        module: "stock",
+        id: "food-production",
+        name: "Food Production",
+        icon: <ChefHat size={16} />,
+        submenu: [
+          {
+            id: "fp-menus",
+            name: "Master Menu",
+            href: "/food-production/menus",
+            icon: <UtensilsCrossed size={16} />,
+            module: "menus",
+          },
+          {
+            id: "fp-categories",
+            name: "Kategori Menu",
+            href: "/food-production/categories",
+            icon: <FolderKanban size={16} />,
+            module: "menu_categories",
+          },
+          {
+            id: "fp-groups",
+            name: "Group Menu",
+            href: "/food-production/groups",
+            icon: <Layers size={16} />,
+            module: "menu_groups",
+          },
+          {
+            id: "fp-wip",
+            name: "WIP (Setengah Jadi)",
+            href: "/food-production/wip",
+            icon: <Beaker size={16} />,
+            module: "wip_items",
+          },
+          {
+            id: "fp-production",
+            name: "Produksi Harian",
+            href: "/food-production/production",
+            icon: <Factory size={16} />,
+            module: "production_orders",
+          },
+          {
+            id: "fp-cogs",
+            name: "COGS Calculation",
+            href: "/food-production/cogs",
+            icon: <Calculator size={16} />,
+            module: "cogs",
+          },
+          {
+            id: "fp-cogs-breakdown",
+            name: "COGS Breakdown",
+            href: "/food-production/cogs/breakdown",
+            icon: <BarChart3 size={16} />,
+            module: "cogs_breakdown",
+          },
+          {
+            id: "fp-consumption",
+            name: "Analisa Konsumsi",
+            href: "/food-production/consumption",
+            icon: <FlaskConical size={16} />,
+            module: "consumption_analysis",
+          },
+        ],
       },
+
+      // ── 3d. Purchasing ───────────────────────
       {
-        id: "inv-movements",
-        name: "Mutasi Stok",
-        href: "/inventory/movements",
-        icon: <ArrowLeftRight size={16} />,
-        module: "stock",
-      },
-      {
-        id: "inv-stock-config",
-        name: "Konfigurasi Stok",
-        href: "/inventory/stock-config",
-        icon: <Settings size={16} />,
-        module: "stock",
-      },
-      {
-        id: "inv-reorder-suggestions",
-        name: "Reorder Suggestions",
-        href: "/inventory/reorder-suggestions",
-        icon: <AlertTriangle size={16} />,
-        module: "stock",
-      },
-      {
-        id: "inv-stock-analysis",
-        name: "Analisa Stok",
-        href: "/inventory/stock-analysis",
-        icon: <BarChart3 size={16} />,
-        module: "stock_analysis",
-      },
-      {
-        id: "inv-goods-receipts",
-        name: "Penerimaan Barang",
-        href: "/inventory/goods-receipts",
-        icon: <PackageCheck size={16} />,
-        module: "goods_receipts",
-      },
-      {
-        id: "inv-goods-processing",
-        name: "Barang diproses",
-        href: "/inventory/goods-processing",
-        icon: <Package size={16} />,
-        module: "goods_processing",
-      },
-      {
-        id: "inv-daily-prep-orders",
-        name: "Daily Prep Orders",
-        href: "/inventory/daily-prep-orders",
-        icon: <ClipboardList size={16} />,
-        module: "daily_prep_orders",
-      },
-      {
-        id: "inv-dpo-config",
-        name: "DPO Forecast Config",
-        href: "/inventory/daily-prep-orders/config",
-        icon: <Settings size={16} />,
-        module: "daily_prep_orders",
-      },
-      {
-        id: "inv-dpo-holidays",
-        name: "DPO Holidays",
-        href: "/inventory/daily-prep-orders/holidays",
-        icon: <CalendarDays size={16} />,
-        module: "daily_prep_orders",
-      },
-      {
-        id: "inv-stock-transfers",
-        name: "Stock Transfer",
-        href: "/inventory/stock-transfers",
-        icon: <ArrowLeftRight size={16} />,
-        module: "stock_transfers",
-      },
-      {
-        id: "inv-stock-adjustments",
-        name: "Waste & Breakdown",
-        href: "/inventory/stock-adjustments",
-        icon: <AlertTriangle size={16} />,
-        module: "stock_adjustments",
-      },
-      {
-        id: "inv-daily-stock-opname",
-        name: "Stock Opname",
-        href: "/inventory/daily-stock-opname",
-        icon: <ClipboardList size={16} />,
-        module: "daily_stock_opname",
-      },
-      {
-        id: "inv-opname-config",
-        name: "Opname Config",
-        href: "/inventory/daily-stock-opname/config",
-        icon: <Settings size={16} />,
-        module: "daily_stock_opname",
+        id: "purchasing",
+        name: "Purchasing",
+        icon: <ShoppingCart size={16} />,
+        submenu: [
+          {
+            id: "inv-purchase-requests",
+            name: "Purchase Request",
+            href: "/inventory/purchase-requests",
+            icon: <ClipboardList size={16} />,
+            module: "purchase_requests",
+          },
+          {
+            id: "inv-purchase-orders",
+            name: "Purchase Order",
+            href: "/inventory/purchase-orders",
+            icon: <ShoppingCart size={16} />,
+            module: "purchase_orders",
+          },
+          {
+            id: "inv-marketplace-po",
+            name: "Marketplace PO",
+            href: "/inventory/marketplace-po",
+            icon: <ShoppingBag size={16} />,  // FIX: was ShoppingCart — sama dengan Purchase Order
+            module: "marketplace_po",
+          },
+          {
+            id: "cc-settlements",
+            name: "Pelunasan CC Owner",
+            href: "/inventory/marketplace-po/cc-settlements",
+            icon: <CreditCard size={16} />,
+            module: "cc_owner_settlements",
+            permissionAction: "view",
+          },
+        ],
       },
     ],
   },
 
   // ─────────────────────────────────────────────
-  // 7. PURCHASING — Alur Pengadaan Barang
-  //    Flow: PR → PO → Marketplace PO → CC Settlement
+  // 4. CONTROL — Approvals
   // ─────────────────────────────────────────────
   {
-    id: "purchasing",
-    name: "Purchasing",
-    icon: <ShoppingCart size={18} />,
-    submenu: [
-      {
-        id: "inv-purchase-requests",
-        name: "Purchase Request",
-        href: "/inventory/purchase-requests",
-        icon: <ClipboardList size={16} />,
-        module: "purchase_requests",
-      },
-      {
-        id: "inv-purchase-orders",
-        name: "Purchase Order",
-        href: "/inventory/purchase-orders",
-        icon: <ShoppingCart size={16} />,
-        module: "purchase_orders",
-      },
-      {
-        id: "inv-marketplace-po",
-        name: "Marketplace PO",
-        href: "/inventory/marketplace-po",
-        icon: <ShoppingCart size={16} />,
-        module: "marketplace_po",
-      },
-      {
-        id: "cc-settlements",
-        name: "Pelunasan CC Owner",
-        href: "/inventory/marketplace-po/cc-settlements",
-        icon: <CreditCard size={16} />,
-        module: "cc_owner_settlements",
-        permissionAction: "view",
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // 8. APPROVALS — Persetujuan PR
-  // ─────────────────────────────────────────────
-  {
-    id: "approvals",
-    name: "Approvals",
+    id: "control",
+    name: "Control",
     icon: <ShieldCheck size={18} />,
     submenu: [
       {
@@ -485,121 +590,141 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 9. FINANCE & BANKING — Keuangan & Rekonsiliasi (Finance / Accounting Staff)
-  //    Flow: Invoices → Payments → Bank Reconciliation → Cash Flow
+  // 5. FINANCE & BANKING
   // ─────────────────────────────────────────────
   {
     id: "finance-banking",
     name: "Finance & Banking",
     icon: <DollarSign size={18} />,
     submenu: [
-      // Invoices & Payments
+      // ── 5a. Invoices & Payments ──────────────
       {
-        id: "inv-purchase-invoices",
-        name: "Purchase Invoices",
-        href: "/inventory/purchase-invoices",
-        icon: <FileText size={16} />,
-        module: "purchase_invoices",
-      },
-      {
-        id: "ap-payments",
-        name: "AP Payments",
-        href: "/finance/ap-payments/dashboard",
+        id: "finance-payables",
+        name: "Invoices & Payments",
         icon: <Wallet size={16} />,
-        module: "ap_payments",
+        submenu: [
+          {
+            id: "inv-purchase-invoices",
+            name: "Purchase Invoices",
+            href: "/inventory/purchase-invoices",
+            icon: <FileText size={16} />,
+            module: "purchase_invoices",
+          },
+          {
+            id: "ap-payments",
+            name: "AP Payments",
+            href: "/finance/ap-payments/dashboard",
+            icon: <Wallet size={16} />,
+            module: "ap_payments",
+          },
+          {
+            id: "general-invoices",
+            name: "General Invoices",
+            href: "/finance/general-invoices",
+            icon: <Receipt size={16} />,
+            module: "general_invoices",
+          },
+          {
+            id: "general-invoice-payments",
+            name: "Payments",
+            href: "/finance/general-invoices/payments",
+            icon: <Banknote size={16} />,
+            module: "general_invoices",
+          },
+          {
+            id: "general-invoices-templates",
+            name: "PR Utility",
+            href: "/finance/general-invoices/templates",
+            icon: <RefreshCcw size={16} />,
+            module: "general_invoices",
+          },
+          {
+            id: "vendors",
+            name: "Vendors",
+            href: "/finance/general-invoices/vendors",
+            icon: <Building2 size={16} />,
+            module: "general_invoices",
+          },
+        ],
       },
+
+      // ── 5b. Bank Reconciliation ──────────────
       {
-        id: "general-invoices",
-        name: "General Invoices",
-        href: "/finance/general-invoices",
-        icon: <Receipt size={16} />,
-        module: "general_invoices",
-      },
-      {
-        id: "general-invoice-payments",
-        name: "Payments",
-        href: "/finance/general-invoices/payments",
-        icon: <Banknote size={16} />,
-        module: "general_invoices",
-      },
-      {
-        id: "general-invoices-templates",
-        name: "PR Utility",
-        href: "/finance/general-invoices/templates",
-        icon: <RefreshCcw size={16} />,
-        module: "general_invoices",
-      },
-      {
-        id: "vendors",
-        name: "Vendors",
-        href: "/finance/general-invoices/vendors",
-        icon: <Building2 size={16} />,
-        module: "general_invoices",
-      },
-      // Bank Reconciliation
-      {
-        id: "bank-statement-imports",
-        name: "Bank Statement Imports",
-        href: "/bank-statement-imports",
-        icon: <FileSpreadsheet size={16} />,
-        module: "bank_statement_imports",
-      },
-      {
-        id: "bank-reconciliation",
+        id: "finance-bank-reconciliation",
         name: "Bank Reconciliation",
-        href: "/bank-reconciliation",
         icon: <ArrowLeftRight size={16} />,
-        module: "bank_reconciliation",
+        submenu: [
+          {
+            id: "bank-statement-imports",
+            name: "Bank Statement Imports",
+            href: "/bank-statement-imports",
+            icon: <FileSpreadsheet size={16} />,
+            module: "bank_statement_imports",
+          },
+          {
+            id: "bank-reconciliation",
+            name: "Bank Reconciliation",
+            href: "/bank-reconciliation",
+            icon: <ArrowLeftRight size={16} />,
+            module: "bank_reconciliation",
+          },
+          {
+            id: "settlement-groups",
+            name: "Settlement Groups",
+            href: "/bank-reconciliation/settlement-groups",
+            icon: <FileCheck size={16} />,
+            module: "bank_reconciliation",
+          },
+          {
+            id: "fee_discrepancy-review",
+            name: "Fee Discrepancy Review",
+            href: "/bank-reconciliation/fee-discrepancy-review", // FIX: missing leading slash
+            icon: <ShieldCheck size={16} />,
+            module: "fee_discrepancy_review",
+          },
+        ],
       },
+
+      // ── 5c. Cash Management ──────────────────
       {
-        id: "settlement-groups",
-        name: "Settlement Groups",
-        href: "/bank-reconciliation/settlement-groups",
-        icon: <FileCheck size={16} />,
-        module: "bank_reconciliation",
-      },
-      {
-        id: "fee_discrepancy-review",
-        name: "Fee Discrepancy Review",
-        href: "bank-reconciliation/fee-discrepancy-review",
-        icon: <ShieldCheck size={16} />,
-        module: "fee_discrepancy_review",
-      },
-      // Cash Management
-      {
-        id: "cash-flow",
-        name: "Cash Flow In-Out",
-        href: "/cash-flow",
+        id: "finance-cash-management",
+        name: "Cash Management",
         icon: <Activity size={16} />,
-        module: "cash_flow",
-      },
-      {
-        id: "cash-counts",
-        name: "Cash Count",
-        href: "/cash-counts",
-        icon: <Coins size={16} />,
-        module: "cash_counts",
-      },
-      {
-        id: "expense-categorization",
-        name: "Expense Categorization",
-        href: "/expense-categorization",
-        icon: <Tag size={16} />,
-        module: "cash_flow",
+        submenu: [
+          {
+            id: "cash-flow",
+            name: "Cash Flow In-Out",
+            href: "/cash-flow",
+            icon: <Activity size={16} />,
+            module: "cash_flow",
+          },
+          {
+            id: "cash-counts",
+            name: "Cash Count",
+            href: "/cash-counts",
+            icon: <Coins size={16} />,
+            module: "cash_counts",
+          },
+          {
+            id: "expense-categorization",
+            name: "Expense Categorization",
+            href: "/expense-categorization",
+            icon: <Tag size={16} />,
+            module: "cash_flow",
+          },
+        ],
       },
     ],
   },
 
   // ─────────────────────────────────────────────
-  // 10. ACCOUNTING & LAPORAN — output/hasil akhir
-  //     Flow: Setup CoA → Jurnal → Laporan
+  // 6. ACCOUNTING
   // ─────────────────────────────────────────────
   {
     id: "accounting",
     name: "Accounting",
     icon: <BookOpen size={18} />,
     submenu: [
-      // Chart of Accounts & Setup
       {
         id: "accounting-core",
         name: "Chart of Accounts",
@@ -628,7 +753,6 @@ export const menuItems: MenuItem[] = [
           },
         ],
       },
-      // Period & Jurnal
       {
         id: "accounting-periods",
         name: "Period & Journals",
@@ -650,7 +774,6 @@ export const menuItems: MenuItem[] = [
           },
         ],
       },
-      // Laporan Keuangan
       {
         id: "accounting-reports",
         name: "Financial Reports",
@@ -692,105 +815,6 @@ export const menuItems: MenuItem[] = [
             module: "balance_sheet",
           },
         ],
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // 11. PENGATURAN KARYAWAN & HRD (HRD Only)
-  // ─────────────────────────────────────────────
-  {
-    id: "hr-management",
-    name: "HR Management",
-    icon: <Users size={18} />,
-    submenu: [
-      {
-        id: "employees",
-        name: "Data Karyawan",
-        href: "/employees",
-        icon: <Users size={16} />,
-        module: "employees",
-      },
-      {
-        id: "employee_branches",
-        name: "Penempatan Cabang",
-        href: "/employee-branches",
-        icon: <Building2 size={16} />,
-        module: "employee_branches",
-      },
-      {
-        id: "users",
-        name: "User Accounts",
-        href: "/users",
-        icon: <UserCog size={16} />,
-        module: "users",
-      },
-      {
-        id: "departments",
-        name: "Departemen",
-        href: "/settings/departments",
-        icon: <Layers size={16} />,
-        module: "departments",
-      },
-      {
-        id: "positions",
-        name: "Posisi & Jabatan",
-        href: "/settings/positions",
-        icon: <Shield size={16} />,
-        module: "positions",
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // 12. PENGATURAN SISTEM & MENU (Admin / Owner Only)
-  // ─────────────────────────────────────────────
-  {
-    id: "system-settings",
-    name: "System Settings",
-    icon: <Settings size={18} />,
-    submenu: [
-      {
-        id: "permissions",
-        name: "Permissions",
-        href: "/permissions",
-        icon: <Shield size={16} />,
-        module: "permissions",
-      },
-      {
-        id: "owner-credit-cards",
-        name: "Kartu Kredit Owner",
-        href: "/settings/owner-credit-cards",
-        icon: <CreditCard size={16} />,
-        module: "owner_credit_cards",
-      },
-      {
-        id: "alert-threshold",
-        name: "Alert Threshold",
-        href: "/settings/alerts",
-        icon: <Bell size={16} />,
-        module: "payment_method_alerts",
-      },
-      {
-        id: "notification-routing",
-        name: "Routing Notifikasi",
-        href: "/settings/notification-routing",
-        icon: <Bell size={16} />,
-        module: "notifications",
-      },
-      {
-        id: "printers",
-        name: "Printers",
-        href: "/settings/printers",
-        icon: <Printer size={16} />,
-        module: "printers",
-      },
-      {
-        id: "monitoring",
-        name: "System Monitoring",
-        href: "/monitoring",
-        icon: <Activity size={16} />,
-        module: "monitoring",
       },
     ],
   },
