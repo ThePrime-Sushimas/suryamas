@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
-import { BarChart3, TrendingDown, TrendingUp, AlertTriangle, Target, Loader2, Search, X } from 'lucide-react'
+import { BarChart3, Loader2, Search, X, AlertTriangle } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 import { useBranches } from '@/features/branches/api/branches.api'
 import { useStockAnalysis } from '../api/stockAnalysis.api'
-import type { StockAnalysisRow, StockAnalysisSummary } from '../api/stockAnalysis.api'
+import type { StockAnalysisRow } from '../api/stockAnalysis.api'
 
 const fmt = (n: number | null | undefined) =>
   n == null ? '-' : new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
@@ -16,58 +16,6 @@ const fmtPct = (n: number | null | undefined) =>
 
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
-
-// ─── SUMMARY CARDS ──────────────────────────────────────────────────────────
-
-function SummaryCards({ summary }: { summary: StockAnalysisSummary | undefined }) {
-  if (!summary) return null
-
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-red-200 dark:border-red-800">
-        <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-1">
-          <TrendingDown className="w-4 h-4" />
-          <span className="text-xs font-medium">Kerugian (Kurang)</span>
-        </div>
-        <p className="text-lg font-bold text-red-700 dark:text-red-300">{fmtRp(summary.total_variance_cost_negative)}</p>
-        <p className="text-xs text-gray-500 mt-1">{summary.products_with_negative_variance} produk</p>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
-        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
-          <TrendingUp className="w-4 h-4" />
-          <span className="text-xs font-medium">Surplus (Lebih)</span>
-        </div>
-        <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{fmtRp(summary.total_variance_cost_positive)}</p>
-        <p className="text-xs text-gray-500 mt-1">{summary.products_with_positive_variance} produk</p>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-1">
-          <Target className="w-4 h-4" />
-          <span className="text-xs font-medium">Akurasi Rata-rata</span>
-        </div>
-        <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{fmtPct(summary.avg_accuracy_pct)}</p>
-        <p className="text-xs text-gray-500 mt-1">{summary.total_products} produk total</p>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 mb-1">
-          <AlertTriangle className="w-4 h-4" />
-          <span className="text-xs font-medium">Worst by Cost</span>
-        </div>
-        {summary.worst_by_cost ? (
-          <>
-            <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{summary.worst_by_cost.product_name}</p>
-            <p className="text-xs text-red-600 dark:text-red-400">{fmtRp(summary.worst_by_cost.total_rp)}</p>
-          </>
-        ) : (
-          <p className="text-sm text-gray-400">-</p>
-        )}
-      </div>
-    </div>
-  )
-}
 
 // ─── MAIN PAGE ──────────────────────────────────────────────────────────────
 
@@ -95,7 +43,6 @@ export default function StockAnalysisPage() {
 
   const { data: result, isLoading, isFetching } = useStockAnalysis(params)
   const allRows = result?.data?.rows ?? []
-  const summary = result?.data?.summary
   const warehouseName = result?.data?.warehouse_name
   const pagination = result?.pagination
 
@@ -231,8 +178,7 @@ export default function StockAnalysisPage() {
         )}
       </div>
 
-      {/* Summary Cards */}
-      <SummaryCards summary={summary} />
+      {/* Warehouse label */}
       {warehouseName && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Menampilkan data gudang: <span className="font-medium text-gray-700 dark:text-gray-300">{warehouseName}</span></p>
       )}
