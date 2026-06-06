@@ -309,6 +309,7 @@ export class DailyPrepOrdersService {
             reference_type: 'transfer_order',
             reference_id: id,
             notes: `DPO ${detail.dpo_number} → ${detail.target_warehouse_name}`,
+            movement_date: detail.prep_date,
             created_by: dto.confirmed_by,
           },
           newMainQty
@@ -341,6 +342,7 @@ export class DailyPrepOrdersService {
             reference_type: 'transfer_order',
             reference_id: id,
             notes: `DPO ${detail.dpo_number} ← ${detail.source_warehouse_name}`,
+            movement_date: detail.prep_date,
             created_by: dto.confirmed_by,
           },
           newReadyQty
