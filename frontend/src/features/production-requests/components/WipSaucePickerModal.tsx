@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Search, Package, Loader2 } from 'lucide-react'
+import { X, Search, Package } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from '@/hooks/_shared/useDebounce'
 import api from '@/lib/axios'
