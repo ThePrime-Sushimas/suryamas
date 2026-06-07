@@ -507,13 +507,6 @@ export const menuItems: MenuItem[] = [
             module: "production_orders",
           },
           {
-            id: "fp-production-requests",
-            name: "Request Produksi",
-            href: "/food-production/production-requests",
-            icon: <ClipboardList size={16} />,
-            module: "production_requests",
-          },
-          {
             id: "fp-cogs",
             name: "COGS Calculation",
             href: "/food-production/cogs",
@@ -549,6 +542,13 @@ export const menuItems: MenuItem[] = [
             href: "/inventory/purchase-requests",
             icon: <ClipboardList size={16} />,
             module: "purchase_requests",
+          },
+          {
+            id: "fp-production-requests",
+            name: "PR Saos",
+            href: "/food-production/production-requests",
+            icon: <ClipboardList size={16} />,
+            module: "production_requests",
           },
           {
             id: "inv-purchase-orders",
