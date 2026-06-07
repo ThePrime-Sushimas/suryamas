@@ -60,7 +60,7 @@ export default function ProductionRequestDetailPage() {
     try {
       const linesPayload = request.lines?.map(l => ({
         id: l.id,
-        qty_batch_approved: lineApprovals[l.id] ?? l.qty_batch,
+        qty_approved: lineApprovals[l.id] ?? l.qty,
       }))
       await acceptMutation.mutateAsync({
         id: request.id,
@@ -236,36 +236,28 @@ export default function ProductionRequestDetailPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 dark:bg-gray-800/80">
               <tr>
-                <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500">WIP</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500">Batch Diminta</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500">Batch Disetujui</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500">Hasil/Batch</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500">Total Hasil</th>
+                <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500">Produk</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500">Qty Diminta</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500">Qty Disetujui</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">Satuan</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">Catatan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {request.lines?.map(line => {
-                const approvedBatch = line.qty_batch_approved ?? line.qty_batch
-                const totalYield = approvedBatch * line.yield_qty
-                return (
-                  <tr key={line.id}>
-                    <td className="px-5 py-3">
-                      <div className="font-medium text-gray-900 dark:text-white">{line.wip_name}</div>
-                      <div className="text-xs text-gray-400">{line.wip_code}</div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{line.qty_batch}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
-                      {line.qty_batch_approved !== null ? line.qty_batch_approved : (request.status !== 'DRAFT' ? line.qty_batch : '-')}
-                    </td>
-                    <td className="px-4 py-3 text-right text-xs text-gray-500">{line.yield_qty} {line.uom}</td>
-                    <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
-                      {totalYield.toFixed(1)} {line.uom}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{line.notes ?? '-'}</td>
-                  </tr>
-                )
-              })}
+              {request.lines?.map(line => (
+                <tr key={line.id}>
+                  <td className="px-5 py-3">
+                    <div className="font-medium text-gray-900 dark:text-white">{line.product_name}</div>
+                    <div className="text-xs text-gray-400">{line.product_code}</div>
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{line.qty}</td>
+                  <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
+                    {line.qty_approved !== null ? line.qty_approved : (request.status !== 'DRAFT' ? line.qty : '-')}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">{line.uom}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{line.notes ?? '-'}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -290,25 +282,25 @@ export default function ProductionRequestDetailPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Terima & Proses Request</h3>
-            <p className="text-sm text-gray-500 mb-4">Atur jumlah batch yang disetujui per item:</p>
+            <p className="text-sm text-gray-500 mb-4">Atur jumlah yang disetujui per item:</p>
 
             <div className="space-y-3 mb-4 max-h-60 overflow-auto">
               {request.lines?.map(line => (
                 <div key={line.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{line.wip_name}</p>
-                    <p className="text-xs text-gray-400">Diminta: {line.qty_batch} batch × {line.yield_qty} {line.uom}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{line.product_name}</p>
+                    <p className="text-xs text-gray-400">Diminta: {line.qty} {line.uom}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <input
                       type="number"
                       min="0"
-                      step="1"
-                      value={lineApprovals[line.id] ?? line.qty_batch}
+                      step="any"
+                      value={lineApprovals[line.id] ?? line.qty}
                       onChange={e => setLineApprovals(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
                       className="w-20 px-2 py-1.5 text-right border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:border-blue-500"
                     />
-                    <span className="text-xs text-gray-500">batch</span>
+                    <span className="text-xs text-gray-500">{line.uom}</span>
                   </div>
                 </div>
               ))}

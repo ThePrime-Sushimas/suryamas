@@ -30,10 +30,11 @@ export const createProductionRequestSchema = z.object({
     request_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     notes: z.string().nullable().optional(),
     lines: z.array(z.object({
-      wip_id: z.string().uuid(),
-      qty_batch: z.number().gt(0, 'Jumlah batch harus lebih dari 0'),
+      product_id: z.string().uuid(),
+      qty: z.number().gt(0, 'Qty harus lebih dari 0'),
+      uom: z.string().min(1, 'UOM wajib diisi'),
       notes: z.string().nullable().optional(),
-    })).min(1, 'Minimal 1 WIP harus ditambahkan'),
+    })).min(1, 'Minimal 1 produk harus ditambahkan'),
   }).refine(b => b.requesting_branch_id !== b.fulfilling_branch_id, {
     message: 'Cabang peminta dan cabang penerima order tidak boleh sama',
     path: ['fulfilling_branch_id'],
@@ -49,10 +50,11 @@ export const updateProductionRequestSchema = z.object({
     request_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     notes: z.string().nullable().optional(),
     lines: z.array(z.object({
-      wip_id: z.string().uuid(),
-      qty_batch: z.number().gt(0, 'Jumlah batch harus lebih dari 0'),
+      product_id: z.string().uuid(),
+      qty: z.number().gt(0, 'Qty harus lebih dari 0'),
+      uom: z.string().min(1, 'UOM wajib diisi'),
       notes: z.string().nullable().optional(),
-    })).min(1, 'Minimal 1 WIP').optional(),
+    })).min(1, 'Minimal 1 produk').optional(),
   }),
 })
 
@@ -64,7 +66,7 @@ export const acceptProductionRequestSchema = z.object({
     accept_notes: z.string().nullable().optional(),
     lines: z.array(z.object({
       id: z.string().uuid(),
-      qty_batch_approved: z.number().gte(0, 'Qty batch approved tidak boleh negatif'),
+      qty_approved: z.number().gte(0, 'Qty approved tidak boleh negatif'),
     })).optional(),
   }),
 })

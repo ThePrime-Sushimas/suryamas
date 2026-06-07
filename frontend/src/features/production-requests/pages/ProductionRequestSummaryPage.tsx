@@ -10,20 +10,19 @@ import { parseApiError } from '@/lib/errorParser'
 interface SummaryBranch {
   branch_id: string
   branch_name: string
-  qty_batch: number
-  qty_batch_approved: number | null
-  request_number: string
-  request_id: string
+  qty: number
+  qty_approved: number
 }
 
 interface SummaryItem {
-  wip_id: string
-  wip_code: string
-  wip_name: string
-  yield_qty: number
+  product_id: string
+  product_code: string
+  product_name: string
   uom: string
-  total_batch_requested: number
-  total_batch_approved: number
+  base_unit_name: string | null
+  conversion_factor: number | null
+  total_qty: number
+  total_qty_approved: number
   request_count: number
   branches: SummaryBranch[]
 }
@@ -61,8 +60,6 @@ export default function ProductionRequestSummaryPage() {
     onSuccess: () => toast.success('Print job terkirim'),
     onError: (err) => toast.error(parseApiError(err, 'Gagal print')),
   })
-
-  const totalBatch = summary.reduce((s, item) => s + item.total_batch_requested, 0)
 
   return (
     <div className="h-full flex flex-col">
@@ -129,26 +126,23 @@ export default function ProductionRequestSummaryPage() {
             {/* Summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {summary.map(item => (
-                <div key={item.wip_id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
+                <div key={item.product_id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{item.wip_name}</h3>
-                      <p className="text-xs text-gray-400">{item.wip_code}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{item.product_name}</h3>
+                      <p className="text-xs text-gray-400">{item.product_code}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-blue-600">{item.total_batch_requested}</p>
-                      <p className="text-xs text-gray-500">batch</p>
+                      <p className="text-2xl font-bold text-blue-600">{item.total_qty}</p>
+                      <p className="text-xs text-gray-500">{item.uom}</p>
                     </div>
-                  </div>
-                  <div className="text-xs text-gray-500 mb-2">
-                    Hasil/batch: {item.yield_qty} {item.uom} • Total: <span className="font-medium text-gray-900 dark:text-white">{(item.total_batch_requested * item.yield_qty).toLocaleString('id-ID')} {item.uom}</span>
                   </div>
                   <div className="border-t border-gray-100 dark:border-gray-700/60 pt-2 space-y-1">
                     <p className="text-xs font-medium text-gray-500 uppercase">Per Cabang:</p>
                     {item.branches.map((b, idx) => (
                       <div key={idx} className="flex items-center justify-between text-xs">
                         <span className="text-gray-600 dark:text-gray-300">{b.branch_name}</span>
-                        <span className="font-mono text-gray-900 dark:text-white">{b.qty_batch} batch</span>
+                        <span className="font-mono text-gray-900 dark:text-white">{b.qty} {item.uom}</span>
                       </div>
                     ))}
                   </div>
@@ -159,9 +153,8 @@ export default function ProductionRequestSummaryPage() {
             {/* Total footer */}
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 flex items-center justify-between">
               <span className="text-sm font-medium text-blue-900 dark:text-blue-300">
-                Total: {summary.length} WIP • {summary.reduce((s, i) => s + i.request_count, 0)} request dari cabang
+                {summary.length} produk • {summary.reduce((s, i) => s + i.request_count, 0)} request dari cabang
               </span>
-              <span className="text-lg font-bold text-blue-700 dark:text-blue-300">{totalBatch} batch</span>
             </div>
           </div>
         )}

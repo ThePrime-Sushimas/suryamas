@@ -9,12 +9,11 @@ import { useWarehouses } from '@/features/inventory/api/inventory.api'
 import { WipSaucePickerModal } from '../components/WipSaucePickerModal'
 
 interface LineItem {
-  wip_id: string
-  wip_code: string
-  wip_name: string
-  yield_qty: number
+  product_id: string
+  product_code: string
+  product_name: string
+  qty: number
   uom: string
-  qty_batch: number
   notes: string
 }
 
@@ -30,10 +29,9 @@ export default function EditProductionRequestPage() {
   const [requestDate, setRequestDate] = useState('')
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineItem[]>([])
-  const [showWipModal, setShowWipModal] = useState(false)
+  const [showProductModal, setShowProductModal] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
-  // Fetch FINISHED_GOODS warehouses
   const { data: fgWarehousesData } = useWarehouses({ limit: 200, warehouse_type: 'FINISHED_GOODS' })
   const fgWarehouses = fgWarehousesData?.data ?? []
 
@@ -42,38 +40,26 @@ export default function EditProductionRequestPage() {
     return branches.filter(b => branchIdsWithFG.has(b.branch_id) && b.branch_id !== request?.requesting_branch_id)
   }, [branches, fgWarehouses, request?.requesting_branch_id])
 
-  // Initialize form
   useEffect(() => {
     if (request && !initialized) {
       setFulfillingBranchId(request.fulfilling_branch_id)
       setRequestDate(request.request_date)
       setNotes(request.notes ?? '')
-      setLines(
-        request.lines?.map(l => ({
-          wip_id: l.wip_id,
-          wip_code: l.wip_code,
-          wip_name: l.wip_name,
-          yield_qty: l.yield_qty,
-          uom: l.uom,
-          qty_batch: l.qty_batch,
-          notes: l.notes ?? '',
-        })) ?? []
-      )
+      setLines(request.lines?.map(l => ({
+        product_id: l.product_id,
+        product_code: l.product_code,
+        product_name: l.product_name,
+        qty: l.qty,
+        uom: l.uom,
+        notes: l.notes ?? '',
+      })) ?? [])
       setInitialized(true)
     }
   }, [request, initialized])
 
-  const handleAddWip = (wip: { id: string; wip_code: string; wip_name: string; yield_qty: number; uom: string }) => {
-    if (lines.some(l => l.wip_id === wip.id)) return
-    setLines(prev => [...prev, {
-      wip_id: wip.id,
-      wip_code: wip.wip_code,
-      wip_name: wip.wip_name,
-      yield_qty: wip.yield_qty,
-      uom: wip.uom,
-      qty_batch: 1,
-      notes: '',
-    }])
+  const handleAddProduct = (product: { id: string; product_code: string; product_name: string; transfer_unit: string }) => {
+    if (lines.some(l => l.product_id === product.id)) return
+    setLines(prev => [...prev, { product_id: product.id, product_code: product.product_code, product_name: product.product_name, qty: 1, uom: product.transfer_unit, notes: '' }])
   }
 
   const removeLine = (index: number) => setLines(prev => prev.filter((_, i) => i !== index))
@@ -84,22 +70,16 @@ export default function EditProductionRequestPage() {
   const handleSubmit = async () => {
     if (!fulfillingBranchId) { toast.error('Pilih central/pabrik'); return }
     if (!requestDate) { toast.error('Pilih tanggal request'); return }
-    if (lines.length === 0) { toast.error('Tambahkan minimal 1 WIP'); return }
-    if (lines.some(l => l.qty_batch <= 0)) { toast.error('Semua jumlah batch harus lebih dari 0'); return }
-
+    if (lines.length === 0) { toast.error('Tambahkan minimal 1 produk'); return }
+    if (lines.some(l => l.qty <= 0)) { toast.error('Semua qty harus lebih dari 0'); return }
     try {
       await updateRequest.mutateAsync({
-        id: id!,
-        fulfilling_branch_id: fulfillingBranchId,
-        request_date: requestDate,
-        notes: notes || null,
-        lines: lines.map(l => ({ wip_id: l.wip_id, qty_batch: l.qty_batch, notes: l.notes || null })),
+        id: id!, fulfilling_branch_id: fulfillingBranchId, request_date: requestDate, notes: notes || null,
+        lines: lines.map(l => ({ product_id: l.product_id, qty: l.qty, uom: l.uom, notes: l.notes || null })),
       })
       toast.success('Request berhasil diupdate')
       navigate(`/food-production/production-requests/${id}`)
-    } catch (err) {
-      toast.error(parseApiError(err, 'Gagal mengupdate request'))
-    }
+    } catch (err) { toast.error(parseApiError(err, 'Gagal mengupdate request')) }
   }
 
   if (loadingRequest) return <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
@@ -107,7 +87,7 @@ export default function EditProductionRequestPage() {
   if (request.status !== 'DRAFT') {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-        <p>Request ini sudah tidak bisa diedit (status: {request.status})</p>
+        <p>Request tidak bisa diedit (status: {request.status})</p>
         <button onClick={() => navigate(`/food-production/production-requests/${id}`)} className="mt-3 text-blue-500 underline text-sm">Kembali</button>
       </div>
     )
@@ -115,27 +95,23 @@ export default function EditProductionRequestPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
-      {/* Topbar */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6 py-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(`/food-production/production-requests/${id}`)}
-            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+          <button onClick={() => navigate(`/food-production/production-requests/${id}`)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Edit {request.request_number}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Ubah detail request produksi</p>
+            <p className="text-sm text-gray-500">Ubah detail request produksi</p>
           </div>
         </div>
       </div>
 
-      {/* Form */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6 py-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Cabang Peminta</label>
-            <input type="text" value={request.requesting_branch_name} disabled
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-500" />
+            <input type="text" value={request.requesting_branch_name} disabled className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Central / Pabrik *</label>
@@ -158,59 +134,41 @@ export default function EditProductionRequestPage() {
         </div>
       </div>
 
-      {/* Add button */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6 py-3">
-        <button onClick={() => setShowWipModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-          <Plus className="w-4 h-4" /> Tambah WIP
+        <button onClick={() => setShowProductModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+          <Plus className="w-4 h-4" /> Tambah Produk
         </button>
       </div>
 
-      {/* Lines */}
       <div className="p-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
           {lines.length === 0 ? (
-            <div className="px-4 py-12 text-center text-gray-400">
-              <Package className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Belum ada item.</p>
-            </div>
+            <div className="px-4 py-12 text-center text-gray-400"><Package className="w-10 h-10 mx-auto mb-2 opacity-40" /><p className="text-sm">Belum ada item.</p></div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700/60">
                 <tr>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">WIP</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase w-28">Batch</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase w-32">Hasil/Batch</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase w-28">Total Hasil</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Produk</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase w-28">Qty</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase w-24">Satuan</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Catatan</th>
                   <th className="px-4 py-3 w-12"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {lines.map((line, idx) => (
-                  <tr key={line.wip_id}>
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-gray-900 dark:text-white">{line.wip_name}</p>
-                      <p className="text-xs text-gray-400 font-mono">{line.wip_code}</p>
-                    </td>
+                  <tr key={line.product_id}>
+                    <td className="px-5 py-3"><p className="font-medium text-gray-900 dark:text-white">{line.product_name}</p><p className="text-xs text-gray-400">{line.product_code}</p></td>
                     <td className="px-4 py-3 text-right">
-                      <input type="number" min="1" step="1" value={line.qty_batch || ''}
-                        onChange={e => updateLine(idx, 'qty_batch', parseFloat(e.target.value) || 0)}
+                      <input type="number" min="0.01" step="any" value={line.qty || ''} onChange={e => updateLine(idx, 'qty', parseFloat(e.target.value) || 0)}
                         className="w-20 px-2 py-1.5 text-right border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:border-blue-500" />
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{line.yield_qty} {line.uom}</td>
-                    <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
-                      {(line.qty_batch * line.yield_qty).toFixed(1)} {line.uom}
-                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{line.uom}</td>
                     <td className="px-4 py-3">
                       <input type="text" value={line.notes} onChange={e => updateLine(idx, 'notes', e.target.value)} placeholder="opsional"
                         className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:border-blue-500" />
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <button onClick={() => removeLine(idx)} className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
+                    <td className="px-4 py-3 text-center"><button onClick={() => removeLine(idx)} className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50"><Trash2 className="w-4 h-4" /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -219,7 +177,6 @@ export default function EditProductionRequestPage() {
         </div>
       </div>
 
-      {/* Bottom bar */}
       <div className="fixed bottom-0 inset-x-0 z-40 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-900 dark:text-white">{lines.length > 0 ? `${lines.length} item` : 'Belum ada item'}</p>
@@ -233,8 +190,7 @@ export default function EditProductionRequestPage() {
         </div>
       </div>
 
-      {/* WIP Picker Modal */}
-      <WipSaucePickerModal open={showWipModal} onClose={() => setShowWipModal(false)} onSelect={handleAddWip} excludeWipIds={lines.map(l => l.wip_id)} />
+      <WipSaucePickerModal open={showProductModal} onClose={() => setShowProductModal(false)} onSelect={handleAddProduct} excludeProductIds={lines.map(l => l.product_id)} />
     </div>
   )
 }

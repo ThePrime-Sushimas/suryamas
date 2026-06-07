@@ -1,5 +1,7 @@
 -- Production Requests: Branch requests production items (e.g. sauce) from central
 -- Flow: DRAFT → ACCEPTED → RECEIVED
+-- Lines reference products (finished goods linked to WIP via wip_items.output_product_id)
+-- Qty is in transfer unit (Tin, Pack, Batch, etc.)
 
 CREATE TABLE production_requests (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -53,9 +55,10 @@ CREATE INDEX idx_production_requests_fulfilling ON production_requests(fulfillin
 CREATE TABLE production_request_lines (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   production_request_id UUID NOT NULL REFERENCES production_requests(id) ON DELETE CASCADE,
-  wip_id                UUID NOT NULL REFERENCES wip_items(id),
-  qty_batch             NUMERIC(20,4) NOT NULL CHECK (qty_batch > 0),
-  qty_batch_approved    NUMERIC(20,4),
+  product_id            UUID NOT NULL REFERENCES products(id),
+  qty                   NUMERIC(20,4) NOT NULL CHECK (qty > 0),
+  qty_approved          NUMERIC(20,4),
+  uom                   VARCHAR(50) NOT NULL,
   notes                 TEXT,
   sort_order            INT NOT NULL DEFAULT 0,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now()

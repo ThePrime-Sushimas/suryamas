@@ -39,19 +39,21 @@ export interface ProductionRequestWithRelations extends ProductionRequest {
 export interface ProductionRequestLine {
   id: string
   production_request_id: string
-  wip_id: string
-  qty_batch: number
-  qty_batch_approved: number | null
+  product_id: string
+  qty: number
+  qty_approved: number | null
+  uom: string
   notes: string | null
   sort_order: number
   created_at: string
 }
 
 export interface ProductionRequestLineWithRelations extends ProductionRequestLine {
-  wip_code: string
-  wip_name: string
-  yield_qty: number
-  uom: string
+  product_code: string
+  product_name: string
+  base_unit_name: string | null
+  /** conversion factor from transfer unit to base unit (e.g. 1 Tin = 3000 ML → factor = 3000) */
+  conversion_factor: number | null
 }
 
 export interface ProductionRequestDetail extends ProductionRequestWithRelations {
@@ -60,8 +62,9 @@ export interface ProductionRequestDetail extends ProductionRequestWithRelations 
 
 // DTOs
 export interface CreateProductionRequestLineDto {
-  wip_id: string
-  qty_batch: number
+  product_id: string
+  qty: number
+  uom: string
   notes?: string | null
 }
 
@@ -84,7 +87,7 @@ export interface UpdateProductionRequestDto {
 
 export interface AcceptProductionRequestDto {
   accept_notes?: string | null
-  lines?: { id: string; qty_batch_approved: number }[]
+  lines?: { id: string; qty_approved: number }[]
   accepted_by: string
 }
 

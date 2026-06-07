@@ -8,13 +8,14 @@ export type ProductionRequestStatus = 'DRAFT' | 'ACCEPTED' | 'RECEIVED' | 'CANCE
 export interface ProductionRequestLine {
   id: string
   production_request_id: string
-  wip_id: string
-  wip_code: string
-  wip_name: string
-  yield_qty: number
+  product_id: string
+  product_code: string
+  product_name: string
+  base_unit_name: string | null
+  conversion_factor: number | null
+  qty: number
+  qty_approved: number | null
   uom: string
-  qty_batch: number
-  qty_batch_approved: number | null
   notes: string | null
   sort_order: number
 }
@@ -76,7 +77,6 @@ export const useProductionRequests = (params: {
       if (params.date_from) queryParams.date_from = params.date_from
       if (params.date_to) queryParams.date_to = params.date_to
       if (params.search) queryParams.search = params.search
-
       const { data } = await api.get('/production-requests', { params: queryParams })
       return { data: data.data as ProductionRequest[], pagination: data.pagination }
     },
@@ -105,7 +105,7 @@ export const useCreateProductionRequest = () => {
       fulfilling_branch_id: string
       request_date: string
       notes?: string | null
-      lines: { wip_id: string; qty_batch: number; notes?: string | null }[]
+      lines: { product_id: string; qty: number; uom: string; notes?: string | null }[]
     }) => {
       const { data } = await api.post('/production-requests', body)
       return data.data as ProductionRequest
@@ -124,7 +124,7 @@ export const useUpdateProductionRequest = () => {
       fulfilling_branch_id?: string
       request_date?: string
       notes?: string | null
-      lines?: { wip_id: string; qty_batch: number; notes?: string | null }[]
+      lines?: { product_id: string; qty: number; uom: string; notes?: string | null }[]
     }) => {
       const { data } = await api.put(`/production-requests/${id}`, body)
       return data.data as ProductionRequest
@@ -141,7 +141,7 @@ export const useAcceptProductionRequest = () => {
     mutationFn: async ({ id, ...body }: {
       id: string
       accept_notes?: string | null
-      lines?: { id: string; qty_batch_approved: number }[]
+      lines?: { id: string; qty_approved: number }[]
     }) => {
       const { data } = await api.post(`/production-requests/${id}/accept`, body)
       return data.data as ProductionRequest
@@ -191,8 +191,6 @@ export const useDeleteProductionRequest = () => {
 export const usePrintProductionRequest = () =>
   useMutation({
     mutationFn: async (payload: { prId: string; printer_id: string }) => {
-      await api.post(`/printers/print/production-request/${payload.prId}`, {
-        printer_id: payload.printer_id,
-      })
+      await api.post(`/printers/print/production-request/${payload.prId}`, { printer_id: payload.printer_id })
     },
   })
