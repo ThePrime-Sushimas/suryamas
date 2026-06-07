@@ -260,7 +260,6 @@ class ProductionRequestsRepository {
     let idx = 2
 
     if (filter?.status) { params.push(filter.status); conditions.push(`pr.status = $${idx++}`) }
-    else { conditions.push(`pr.status IN ('DRAFT', 'ACCEPTED')`) }
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`pr.request_date >= $${idx++}::date`) }
     if (filter?.date_to) { params.push(filter.date_to); conditions.push(`pr.request_date <= $${idx++}::date`) }
 

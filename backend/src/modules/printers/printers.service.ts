@@ -384,16 +384,15 @@ export class PrintersService {
     if (detail.accept_notes) header.push({ key: 'Catatan CK', value: detail.accept_notes })
 
     const items = detail.lines.map((l, idx) => {
-      const approved = l.qty_batch_approved ?? l.qty_batch
-      const totalYield = approved * l.yield_qty
+      const approved = l.qty_approved ?? l.qty
       return {
-        label: `${idx + 1}. ${l.wip_name}`,
-        detail: `${l.qty_batch} batch diminta`,
-        amount: `${approved} batch (${totalYield} ${l.uom})`,
+        label: `${idx + 1}. ${l.product_name}`,
+        detail: `Diminta: ${l.qty} ${l.uom}`,
+        amount: `Setuju: ${approved} ${l.uom}`,
       }
     })
 
-    const totalBatch = detail.lines.reduce((s, l) => s + (l.qty_batch_approved ?? l.qty_batch), 0)
+    const totalItems = detail.lines.length
 
     const receipt = buildDocReceipt({
       paper_width: printer.paper_width,
@@ -401,7 +400,7 @@ export class PrintersService {
       header,
       items,
       total_label: 'Total',
-      total_amount: `${totalBatch} batch`,
+      total_amount: `${totalItems} item`,
       footer: `Dicetak: ${printedByName ?? '-'} · ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
     })
 
@@ -433,18 +432,16 @@ export class PrintersService {
     ]
     if (filter?.date_from) header.push({ key: 'Dari', value: fmtDate(filter.date_from) })
     if (filter?.date_to) header.push({ key: 'Sampai', value: fmtDate(filter.date_to) })
-    header.push({ key: 'Status', value: filter?.status ?? 'DRAFT + ACCEPTED' })
+    header.push({ key: 'Status', value: filter?.status ?? 'Semua' })
 
     const items = summary.map((s, idx) => {
-      const branchList = s.branches.map(b => `${b.branch_name}: ${b.qty_batch}`).join(', ')
+      const branchList = s.branches.map(b => `${b.branch_name}: ${b.qty}`).join(', ')
       return {
-        label: `${idx + 1}. ${s.wip_name}`,
+        label: `${idx + 1}. ${s.product_name}`,
         detail: `${branchList}`,
-        amount: `${s.total_batch_requested} batch`,
+        amount: `${s.total_qty} ${s.uom}`,
       }
     })
-
-    const totalBatch = summary.reduce((sum, s) => sum + s.total_batch_requested, 0)
 
     const receipt = buildDocReceipt({
       paper_width: printer.paper_width,
@@ -452,7 +449,7 @@ export class PrintersService {
       header,
       items,
       total_label: 'Total',
-      total_amount: `${totalBatch} batch · ${summary.length} WIP`,
+      total_amount: `${summary.length} produk`,
       footer: `Dicetak: ${printedByName ?? '-'} · ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
     })
 

@@ -32,14 +32,16 @@ export default function ProductionRequestSummaryPage() {
   const toast = useToast()
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [selectedPrinter, setSelectedPrinter] = useState('')
 
   const { data: printers = [] } = usePrinters()
 
   const { data: summary = [], isLoading } = useQuery({
-    queryKey: ['production-requests', 'summary', dateFrom, dateTo],
+    queryKey: ['production-requests', 'summary', statusFilter, dateFrom, dateTo],
     queryFn: async () => {
       const params: Record<string, string> = {}
+      if (statusFilter) params.status = statusFilter
       if (dateFrom) params.date_from = dateFrom
       if (dateTo) params.date_to = dateTo
       const { data } = await api.get('/production-requests/summary', { params })
@@ -53,6 +55,7 @@ export default function ProductionRequestSummaryPage() {
       if (!selectedPrinter) throw new Error('Pilih printer dulu')
       await api.post('/printers/print/production-request-summary', {
         printer_id: selectedPrinter,
+        status: statusFilter || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
       })
@@ -94,21 +97,27 @@ export default function ProductionRequestSummaryPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700/60 px-6 py-3">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">Filter tanggal:</span>
+          {/* Status filter */}
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white">
+            <option value="">Semua Status</option>
+            <option value="DRAFT">Draft</option>
+            <option value="ACCEPTED">Diproses</option>
+            <option value="RECEIVED">Diterima</option>
+            <option value="CANCELLED">Dibatalkan</option>
+          </select>
+          <span className="text-sm text-gray-400">|</span>
+          <span className="text-sm text-gray-500">Tanggal:</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
             className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white" />
           <span className="text-gray-400">—</span>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
             className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white" />
-          {(dateFrom || dateTo) && (
-            <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-xs text-gray-500 hover:text-gray-700">Reset</button>
+          {(statusFilter || dateFrom || dateTo) && (
+            <button onClick={() => { setStatusFilter(''); setDateFrom(''); setDateTo('') }} className="text-xs text-gray-500 hover:text-gray-700">Reset</button>
           )}
-          <span className="ml-auto text-sm text-gray-500">
-            Status: <span className="font-medium text-gray-900 dark:text-white">DRAFT + ACCEPTED</span>
-          </span>
         </div>
       </div>
 
