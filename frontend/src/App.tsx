@@ -520,6 +520,13 @@ const ProductionOrderForm = lazy(() => import('./features/food-production/pages/
 const ProductionOrderDetailPage = lazy(() => import('./features/food-production/pages/ProductionOrderDetailPage'))
 const TheoreticalConsumptionPage = lazy(() => import('./features/food-production/pages/TheoreticalConsumptionPage'))
 
+// Production Requests
+const ProductionRequestsPage = lazy(() => import('./features/production-requests/pages/ProductionRequestsPage'))
+const CreateProductionRequestPage = lazy(() => import('./features/production-requests/pages/CreateProductionRequestPage'))
+const EditProductionRequestPage = lazy(() => import('./features/production-requests/pages/EditProductionRequestPage'))
+const ProductionRequestSummaryPage = lazy(() => import('./features/production-requests/pages/ProductionRequestSummaryPage'))
+const ProductionRequestDetailPage = lazy(() => import('./features/production-requests/pages/ProductionRequestDetailPage'))
+
 // Inventory
 const WarehousesPage = lazy(() => import('./features/inventory/pages/WarehousesPage'))
 const StockBalancesPage = lazy(() => import('./features/inventory/pages/StockBalancesPage'))
@@ -1863,6 +1870,56 @@ function App() {
                       <RequirePermission module="consumption_analysis">
                         <Suspense fallback={<LoadingFallback />}>
                           <TheoreticalConsumptionPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/production-requests"
+                    element={
+                      <RequirePermission module="production_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ProductionRequestsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/production-requests/create"
+                    element={
+                      <RequirePermission module="production_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <CreateProductionRequestPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/production-requests/summary"
+                    element={
+                      <RequirePermission module="production_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ProductionRequestSummaryPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/production-requests/:id/edit"
+                    element={
+                      <RequirePermission module="production_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <EditProductionRequestPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="food-production/production-requests/:id"
+                    element={
+                      <RequirePermission module="production_requests">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <ProductionRequestDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }

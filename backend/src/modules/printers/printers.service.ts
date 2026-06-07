@@ -10,6 +10,7 @@ import { dailyPrepOrdersRepository } from '../daily-prep-orders/daily-prep-order
 import { DpoNotFoundError } from '../daily-prep-orders/daily-prep-orders.errors'
 import { stockTransfersRepository } from '../stock-transfers/stock-transfers.repository'
 import { StockTransferNotFoundError } from '../stock-transfers/stock-transfers.errors'
+import { productionRequestsRepository } from '../production-requests/production-requests.repository'
 import type { GoodsReceiptLineWithRelations } from '../goods-receipts/goods-receipts.types'
 import { BusinessRuleError } from '../../utils/errors.base'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
@@ -353,6 +354,111 @@ export class PrintersService {
       printer_id: printerId,
       line_count: lineIds.length,
     })
+  }
+  // ─── PRINT PRODUCTION REQUEST (single detail) ────────────────────────────────
+
+  async printProductionRequest(
+    printerId: string,
+    prId: string,
+    companyId: string,
+    userId: string,
+  ) {
+    const printer = await printersRepository.findById(printerId, companyId)
+    if (!printer) throw new PrinterNotFoundError(printerId)
+    if (!printer.is_active) throw new PrinterConnectionError(printer.ip_address, printer.port, 'Printer is inactive')
+
+    const branchIds = await getAccessibleBranchIds(userId)
+    const detail = await productionRequestsRepository.findById(prId, branchIds)
+    if (!detail) throw new BusinessRuleError('Production request tidak ditemukan')
+
+    const printedByName = await printersRepository.getEmployeeName(userId)
+
+    const header: Array<{ key: string; value: string }> = [
+      { key: 'No', value: detail.request_number },
+      { key: 'Status', value: detail.status },
+      { key: 'Tanggal', value: new Date(detail.request_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) },
+      { key: 'Peminta', value: detail.requesting_branch_name },
+      { key: 'Central', value: detail.fulfilling_branch_name },
+    ]
+    if (detail.notes) header.push({ key: 'Catatan', value: detail.notes })
+    if (detail.accept_notes) header.push({ key: 'Catatan CK', value: detail.accept_notes })
+
+    const items = detail.lines.map((l, idx) => {
+      const approved = l.qty_batch_approved ?? l.qty_batch
+      const totalYield = approved * l.yield_qty
+      return {
+        label: `${idx + 1}. ${l.wip_name}`,
+        detail: `${l.qty_batch} batch diminta`,
+        amount: `${approved} batch (${totalYield} ${l.uom})`,
+      }
+    })
+
+    const totalBatch = detail.lines.reduce((s, l) => s + (l.qty_batch_approved ?? l.qty_batch), 0)
+
+    const receipt = buildDocReceipt({
+      paper_width: printer.paper_width,
+      doc_title: 'Request Produksi',
+      header,
+      items,
+      total_label: 'Total',
+      total_amount: `${totalBatch} batch`,
+      footer: `Dicetak: ${printedByName ?? '-'} · ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
+    })
+
+    await sendToPrinter(printer.ip_address, printer.port, receipt)
+    logInfo('Production request printed', { pr_id: prId, printer_id: printerId })
+    await AuditService.log('PRINT', 'production_request', prId, userId, undefined, { printer_id: printerId })
+  }
+
+  // ─── PRINT PRODUCTION REQUEST SUMMARY ────────────────────────────────────────
+
+  async printProductionRequestSummary(
+    printerId: string,
+    companyId: string,
+    userId: string,
+    filter?: { status?: string; date_from?: string; date_to?: string }
+  ) {
+    const printer = await printersRepository.findById(printerId, companyId)
+    if (!printer) throw new PrinterNotFoundError(printerId)
+    if (!printer.is_active) throw new PrinterConnectionError(printer.ip_address, printer.port, 'Printer is inactive')
+
+    const summary = await productionRequestsRepository.getSummary(companyId, filter)
+    if (summary.length === 0) throw new BusinessRuleError('Tidak ada request produksi untuk diprint')
+
+    const printedByName = await printersRepository.getEmployeeName(userId)
+    const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+
+    const header: Array<{ key: string; value: string }> = [
+      { key: 'Tanggal', value: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }) },
+    ]
+    if (filter?.date_from) header.push({ key: 'Dari', value: fmtDate(filter.date_from) })
+    if (filter?.date_to) header.push({ key: 'Sampai', value: fmtDate(filter.date_to) })
+    header.push({ key: 'Status', value: filter?.status ?? 'DRAFT + ACCEPTED' })
+
+    const items = summary.map((s, idx) => {
+      const branchList = s.branches.map(b => `${b.branch_name}: ${b.qty_batch}`).join(', ')
+      return {
+        label: `${idx + 1}. ${s.wip_name}`,
+        detail: `${branchList}`,
+        amount: `${s.total_batch_requested} batch`,
+      }
+    })
+
+    const totalBatch = summary.reduce((sum, s) => sum + s.total_batch_requested, 0)
+
+    const receipt = buildDocReceipt({
+      paper_width: printer.paper_width,
+      doc_title: 'Rekap Request Produksi',
+      header,
+      items,
+      total_label: 'Total',
+      total_amount: `${totalBatch} batch · ${summary.length} WIP`,
+      footer: `Dicetak: ${printedByName ?? '-'} · ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
+    })
+
+    await sendToPrinter(printer.ip_address, printer.port, receipt)
+    logInfo('Production request summary printed', { printer_id: printerId, wip_count: summary.length })
+    await AuditService.log('PRINT', 'production_request_summary', companyId, userId, undefined, { printer_id: printerId, wip_count: summary.length })
   }
 }
 

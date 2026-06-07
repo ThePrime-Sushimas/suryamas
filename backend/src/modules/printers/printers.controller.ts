@@ -159,6 +159,38 @@ export class PrintersController {
       await handleError(res, error, req, { action: 'print_stock_transfer' })
     }
   }
+
+  printProductionRequestSummary = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { companyId, userId } = await printerWriteScope(req)
+      const printerId = req.body?.printer_id
+      if (!printerId) { sendSuccess(res, null, 'printer_id required', 400); return }
+
+      const filter: Record<string, string> = {}
+      if (req.body.status) filter.status = req.body.status
+      if (req.body.date_from) filter.date_from = req.body.date_from
+      if (req.body.date_to) filter.date_to = req.body.date_to
+
+      await printersService.printProductionRequestSummary(printerId, companyId, userId, filter)
+      sendSuccess(res, null, 'Print job sent successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'print_production_request_summary' })
+    }
+  }
+
+  printProductionRequest = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { companyId, userId } = await printerWriteScope(req)
+      const prId = req.params.id as string
+      const printerId = req.body?.printer_id as string
+      if (!printerId) { sendSuccess(res, null, 'printer_id required', 400); return }
+
+      await printersService.printProductionRequest(printerId, prId, companyId, userId)
+      sendSuccess(res, null, 'Print job sent successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'print_production_request', id: req.params.id })
+    }
+  }
 }
 
 export const printersController = new PrintersController()

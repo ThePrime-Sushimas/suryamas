@@ -507,6 +507,13 @@ export const menuItems: MenuItem[] = [
             module: "production_orders",
           },
           {
+            id: "fp-production-requests",
+            name: "Request Produksi",
+            href: "/food-production/production-requests",
+            icon: <ClipboardList size={16} />,
+            module: "production_requests",
+          },
+          {
             id: "fp-cogs",
             name: "COGS Calculation",
             href: "/food-production/cogs",
@@ -565,6 +572,14 @@ export const menuItems: MenuItem[] = [
             module: "cc_owner_settlements",
             permissionAction: "view",
           },
+          {
+            id: "inv-pr-approval",
+            name: "PR Approval",
+            href: "/inventory/pr-approval",
+            icon: <ShieldCheck size={16} />,
+            module: "purchase_requests",
+            permissionAction: "approve",
+          },
         ],
       },
     ],
@@ -573,21 +588,14 @@ export const menuItems: MenuItem[] = [
   // ─────────────────────────────────────────────
   // 4. CONTROL — Approvals
   // ─────────────────────────────────────────────
-  {
-    id: "control",
-    name: "Control",
-    icon: <ShieldCheck size={18} />,
-    submenu: [
-      {
-        id: "inv-pr-approval",
-        name: "PR Approval",
-        href: "/inventory/pr-approval",
-        icon: <ShieldCheck size={16} />,
-        module: "purchase_requests",
-        permissionAction: "approve",
-      },
-    ],
-  },
+  // {
+  //   id: "control",
+  //   name: "Control",
+  //   icon: <ShieldCheck size={18} />,
+  //   submenu: [
+
+  //   ],
+  // },
 
   // ─────────────────────────────────────────────
   // 5. FINANCE & BANKING
