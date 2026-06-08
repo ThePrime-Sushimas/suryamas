@@ -99,8 +99,8 @@ export function JournalHeaderTable({
                   {journal.branch_name || '-'}
                 </td>
 
-                {/* Description — truncated */}
-                <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300 max-w-[220px] truncate" title={journal.description}>
+                {/* Description — full width */}
+                <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap" title={journal.description}>
                   {journal.description}
                 </td>
 

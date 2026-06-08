@@ -1,0 +1,36 @@
+---
+type: table
+table: cash_deposits
+module: ""
+columns_count: 0
+soft_delete: true
+multi_tenant: true
+audit: true
+indexes: []
+unique_constraints: []
+fk_to: []
+fk_from: []
+migrations:
+  - "migration_cash_deposits.sql"
+---
+
+# cash_deposits
+
+## Schema (Mermaid)
+
+```mermaid
+erDiagram
+  cash_deposits {} ||--o{ CHILD_TABLE : ""
+```
+
+## Key Columns
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| id | UUID | PK |
+| company_id | UUID | Multi-tenant |
+| ... | | |
+
+## Migration History
+
+- migration_cash_deposits.sql
