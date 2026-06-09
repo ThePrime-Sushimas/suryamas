@@ -79,7 +79,7 @@ function ProductMultiSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex items-center gap-1.5 min-w-[160px]"
+        className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex items-center gap-1.5 min-w-40"
       >
         <span className="truncate text-left flex-1">
           {selected.length === 0 ? (
@@ -155,65 +155,98 @@ function ProductMultiSelect({
 // ─── MAIN PAGE ──────────────────────────────────────────────────────────────
 
 export default function StockAnalysisPage() {
+  // Draft filter state (not yet applied)
   const [branchId, setBranchId] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [warehouseType, setWarehouseType] = useState<'READY' | 'MAIN' | 'FINISHED_GOODS'>('READY')
   const [onlyVariance, setOnlyVariance] = useState(false)
   const [productSearch, setProductSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([])
-  const [page, setPage] = useState(1)
 
-  // Debounce product search (400ms)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(productSearch.trim())
-      setPage(1)
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [productSearch])
+  // Applied filter state (triggers API)
+  const [appliedFilters, setAppliedFilters] = useState<{
+    branch_id: string
+    date_from: string
+    date_to: string
+    warehouse_type: 'READY' | 'MAIN' | 'FINISHED_GOODS'
+    search: string
+    product_ids: string[]
+    only_with_variance: boolean
+  } | null>(null)
+  const [page, setPage] = useState(1)
 
   const { data: branchesData } = useBranches({ limit: 100, filter: { status: 'active' } })
   const branches = branchesData?.data ?? []
 
-  const params = useMemo(() => ({
-    branch_id: branchId,
-    date_from: dateFrom,
-    date_to: dateTo,
-    warehouse_type: warehouseType,
-    search: debouncedSearch || undefined,
-    product_ids: selectedProducts.length > 0 ? selectedProducts.map(p => p.id) : undefined,
-    only_with_variance: onlyVariance || undefined,
-    page,
-    limit: 20,
-  }), [branchId, dateFrom, dateTo, warehouseType, debouncedSearch, selectedProducts, onlyVariance, page])
+  // Apply all filters at once
+  const applyFilters = () => {
+    if (!branchId || !dateFrom || !dateTo) return
+    setAppliedFilters({
+      branch_id: branchId,
+      date_from: dateFrom,
+      date_to: dateTo,
+      warehouse_type: warehouseType,
+      search: productSearch.trim(),
+      product_ids: selectedProducts.map(p => p.id),
+      only_with_variance: onlyVariance,
+    })
+    setPage(1)
+  }
 
-  const { data: result, isLoading, isFetching } = useStockAnalysis(params)
-  const rows = result?.data?.rows ?? []
-  const warehouseName = result?.data?.warehouse_name
-  const pagination = result?.pagination
+  const params = useMemo(() => {
+    if (!appliedFilters) return null
+    return {
+      branch_id: appliedFilters.branch_id,
+      date_from: appliedFilters.date_from,
+      date_to: appliedFilters.date_to,
+      warehouse_type: appliedFilters.warehouse_type,
+      search: appliedFilters.search || undefined,
+      product_ids: appliedFilters.product_ids.length > 0 ? appliedFilters.product_ids : undefined,
+      only_with_variance: appliedFilters.only_with_variance || undefined,
+      page,
+      limit: 20,
+    }
+  }, [appliedFilters, page])
 
-  // Quick date helpers
+  const { data: result, isLoading, isFetching } = useStockAnalysis(params ?? {
+    branch_id: '', date_from: '', date_to: '',
+  })
+  const rows = params ? (result?.data?.rows ?? []) : []
+  const warehouseName = params ? result?.data?.warehouse_name : undefined
+  const pagination = params ? result?.pagination : undefined
+
+  // Quick date helpers (set draft state only)
   const setYesterday = () => {
     const d = new Date(); d.setDate(d.getDate() - 1)
     const str = d.toISOString().split('T')[0]
-    setDateFrom(str); setDateTo(str); setPage(1)
+    setDateFrom(str); setDateTo(str)
   }
   const setLast7Days = () => {
     const end = new Date()
     const start = new Date(); start.setDate(start.getDate() - 7)
     setDateFrom(start.toISOString().split('T')[0])
-    setDateTo(end.toISOString().split('T')[0]); setPage(1)
+    setDateTo(end.toISOString().split('T')[0])
   }
   const setLast30Days = () => {
     const end = new Date()
     const start = new Date(); start.setDate(start.getDate() - 30)
     setDateFrom(start.toISOString().split('T')[0])
-    setDateTo(end.toISOString().split('T')[0]); setPage(1)
+    setDateTo(end.toISOString().split('T')[0])
   }
 
   const canQuery = branchId && dateFrom && dateTo
+
+  // Check if draft filters differ from applied filters
+  const isDirty = appliedFilters != null && (
+    branchId !== appliedFilters.branch_id ||
+    dateFrom !== appliedFilters.date_from ||
+    dateTo !== appliedFilters.date_to ||
+    warehouseType !== appliedFilters.warehouse_type ||
+    onlyVariance !== appliedFilters.only_with_variance ||
+    productSearch.trim() !== appliedFilters.search ||
+    selectedProducts.map(p => p.id).join() !== appliedFilters.product_ids.join()
+  )
 
   return (
     <div className="h-full flex flex-col p-4 md:p-6 bg-gray-50 dark:bg-gray-900">
@@ -227,7 +260,7 @@ export default function StockAnalysisPage() {
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
         <div className="flex flex-wrap gap-3 items-end">
-        <div className="relative">
+          <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Cari Produk</label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -236,7 +269,8 @@ export default function StockAnalysisPage() {
                 placeholder="Nama / kode produk..."
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
-                className="border border-gray-300 dark:border-gray-600 rounded-lg pl-8 pr-7 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-[200px]"
+                onKeyDown={e => { if (e.key === 'Enter') applyFilters() }}
+                className="border border-gray-300 dark:border-gray-600 rounded-lg pl-8 pr-7 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-[180px]"
               />
               {productSearch && (
                 <button
@@ -250,13 +284,13 @@ export default function StockAnalysisPage() {
           </div>
           <ProductMultiSelect
             selected={selectedProducts}
-            onChange={(items) => { setSelectedProducts(items); setPage(1) }}
+            onChange={setSelectedProducts}
           />
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Cabang *</label>
             <select
               value={branchId}
-              onChange={e => { setBranchId(e.target.value); setPage(1) }}
+              onChange={e => setBranchId(e.target.value)}
               className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]"
             >
               <option value="">Pilih Cabang</option>
@@ -268,7 +302,7 @@ export default function StockAnalysisPage() {
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gudang</label>
             <select
               value={warehouseType}
-              onChange={e => { setWarehouseType(e.target.value as 'READY' | 'MAIN' | 'FINISHED_GOODS'); setPage(1) }}
+              onChange={e => setWarehouseType(e.target.value as 'READY' | 'MAIN' | 'FINISHED_GOODS')}
               className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="READY">Ready</option>
@@ -282,7 +316,7 @@ export default function StockAnalysisPage() {
             <input
               type="date"
               value={dateFrom}
-              onChange={e => { setDateFrom(e.target.value); setPage(1) }}
+              onChange={e => setDateFrom(e.target.value)}
               className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
@@ -292,7 +326,7 @@ export default function StockAnalysisPage() {
             <input
               type="date"
               value={dateTo}
-              onChange={e => { setDateTo(e.target.value); setPage(1) }}
+              onChange={e => setDateTo(e.target.value)}
               className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
@@ -307,11 +341,21 @@ export default function StockAnalysisPage() {
             <input
               type="checkbox"
               checked={onlyVariance}
-              onChange={e => { setOnlyVariance(e.target.checked); setPage(1) }}
+              onChange={e => setOnlyVariance(e.target.checked)}
               className="rounded"
             />
             Hanya selisih
           </label>
+
+          <button
+            onClick={applyFilters}
+            disabled={!canQuery}
+            className={`px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+              isDirty ? 'bg-amber-500 hover:bg-amber-600 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {isDirty ? '↻ Update' : 'Tampilkan'}
+          </button>
 
         </div>
 
@@ -370,18 +414,18 @@ export default function StockAnalysisPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {isLoading ? (
+              {isLoading && params ? (
                 <tr>
                   <td colSpan={14} className="text-center py-12 text-gray-500">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Memuat data analisa...
                   </td>
                 </tr>
-              ) : !canQuery ? (
+              ) : !appliedFilters ? (
                 <tr>
                   <td colSpan={14} className="text-center py-12 text-gray-400">
                     <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                    Pilih cabang dan tanggal untuk memulai analisa
+                    Pilih filter dan klik Tampilkan untuk memulai analisa
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
