@@ -703,7 +703,7 @@ export class GeneralInvoicePaymentService {
         throw new BusinessRuleError('CC_OWNER payment harus memiliki owner_credit_card_id')
       }
       const ccCoaId = await generalPaymentRepository.findCcOwnerCoaId(existing.owner_credit_card_id, companyId)
-      if (!ccCoaId) throw new BusinessRuleError('COA untuk kartu kredit owner tidak ditemukan. Pastikan coa_code di owner_credit_cards sudah terdaftar di chart_of_accounts.')
+      if (!ccCoaId) throw new BusinessRuleError('COA untuk kartu kredit tidak ditemukan. Pastikan coa_code di owner_credit_cards sudah terdaftar di chart_of_accounts.')
       creditAccountId = ccCoaId
     } else {
       if (!existing.bank_account_id) {

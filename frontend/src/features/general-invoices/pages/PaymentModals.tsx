@@ -77,7 +77,7 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
   const validate = () => {
     const errs: Record<string, string> = {}
     if (paymentMethod === 'CC_OWNER') {
-      if (!ownerCreditCardId) errs.ownerCreditCardId = 'Kartu kredit owner wajib dipilih'
+      if (!ownerCreditCardId) errs.ownerCreditCardId = 'Kartu kredit wajib dipilih'
     } else {
       if (!bankAccountId) errs.bankAccountId = 'Rekening bank wajib dipilih'
     }
@@ -150,7 +150,7 @@ export function CreatePaymentModal({ open, onClose, invoice, bankAccounts = [] }
             </div>
           ) : (
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600">Kartu Kredit Owner *</label>
+              <label className="text-xs font-semibold text-gray-600">Kartu Kredit*</label>
               <select
                 value={ownerCreditCardId}
                 onChange={(e) => setOwnerCreditCardId(e.target.value)}

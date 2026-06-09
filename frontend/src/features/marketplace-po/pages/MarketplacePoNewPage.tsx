@@ -110,7 +110,7 @@ export default function MarketplacePoNewPage() {
       return
     }
     if (!ccId) {
-      toast.warning('Pilih kartu kredit owner')
+      toast.warning('Pilih kartu kredit')
       return
     }
     if (selectedLines.size === 0) {
