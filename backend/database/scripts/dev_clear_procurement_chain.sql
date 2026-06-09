@@ -1,5 +1,7 @@
--- Dev-only: clear PR → PO → GR → GP → Purchase Invoice → AP Payments → Marketplace transactional data.
--- Keeps master: suppliers, products, branches, warehouses, owner_credit_cards, COA, users, bank_accounts, etc.
+-- Dev-only: clear PR → PO → GR → GP → Purchase Invoice → AP Payments → Marketplace
+--           + Production Requests + Pricelist Price Changes + ALL Stock Movements.
+-- Keeps master: suppliers, products, branches, warehouses, owner_credit_cards, COA,
+--               users, bank_accounts, pricelists (masters), etc.
 -- Run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/database/scripts/dev_clear_procurement_chain.sql
 
 BEGIN;
@@ -32,7 +34,14 @@ DELETE FROM ap_payment_invoice_lines;
 DELETE FROM ap_payment_batches;
 DELETE FROM ap_payments;
 
--- ── 4. Purchase invoices (depends on GR lines) ──────────────────────────────
+-- ── 4a. Pricelist price changes (FK to purchase_invoices) ───────────────────
+DELETE FROM pricelist_price_changes;
+
+-- ── 4b. Pricelists — nullify PI source references ───────────────────────────
+UPDATE pricelists SET purchase_invoice_id = NULL
+WHERE purchase_invoice_id IS NOT NULL;
+
+-- ── 5. Purchase invoices (depends on GR lines) ──────────────────────────────
 UPDATE goods_processing_outputs SET purchase_invoice_line_id = NULL
 WHERE purchase_invoice_line_id IS NOT NULL;
 
@@ -42,73 +51,67 @@ DELETE FROM purchase_invoice_gr_links;
 DELETE FROM purchase_invoice_attachments;
 DELETE FROM purchase_invoices;
 
--- ── 5. Stock from goods processing ──────────────────────────────────────────
-CREATE TEMP TABLE _gp_stock_pairs ON COMMIT DROP AS
-SELECT DISTINCT warehouse_id, product_id
-FROM stock_movements
-WHERE reference_type = 'goods_processing';
+-- ── 6. Stock movements (ALL) — collect affected products first ──────────────
+CREATE TEMP TABLE _all_stock_pairs ON COMMIT DROP AS
+SELECT DISTINCT warehouse_id, product_id FROM stock_movements;
 
+-- 6a. Nullify all FK references to stock_movements
 UPDATE goods_processing_outputs SET stock_movement_id = NULL
 WHERE stock_movement_id IS NOT NULL;
 
-DELETE FROM stock_movements WHERE reference_type = 'goods_processing';
+UPDATE stock_transfer_lines SET
+  out_movement_id = NULL,
+  in_movement_id = NULL,
+  return_out_movement_id = NULL,
+  return_in_movement_id = NULL
+WHERE out_movement_id IS NOT NULL
+   OR in_movement_id IS NOT NULL
+   OR return_out_movement_id IS NOT NULL
+   OR return_in_movement_id IS NOT NULL;
 
-WITH recalc AS (
-  SELECT
-    a.warehouse_id,
-    a.product_id,
-    COALESCE((
-      SELECT sm.balance_after
-      FROM stock_movements sm
-      WHERE sm.warehouse_id = a.warehouse_id
-        AND sm.product_id = a.product_id
-      ORDER BY sm.movement_date DESC, sm.created_at DESC, sm.id DESC
-      LIMIT 1
-    ), 0)::numeric AS new_qty
-  FROM _gp_stock_pairs a
-)
+UPDATE stock_adjustments SET input_movement_id = NULL
+WHERE input_movement_id IS NOT NULL;
+
+UPDATE stock_adjustment_lines SET movement_id = NULL
+WHERE movement_id IS NOT NULL;
+
+UPDATE stock_adjustment_outputs SET movement_id = NULL
+WHERE movement_id IS NOT NULL;
+
+UPDATE production_order_materials SET
+  stock_movement_out_id = NULL,
+  stock_movement_in_id = NULL
+WHERE stock_movement_out_id IS NOT NULL
+   OR stock_movement_in_id IS NOT NULL;
+
+UPDATE daily_prep_order_lines SET
+  out_movement_id = NULL,
+  in_movement_id = NULL
+WHERE out_movement_id IS NOT NULL
+   OR in_movement_id IS NOT NULL;
+
+UPDATE daily_closing_count_lines SET
+  out_movement_id = NULL,
+  in_movement_id = NULL
+WHERE out_movement_id IS NOT NULL
+   OR in_movement_id IS NOT NULL;
+
+-- 6b. Delete ALL stock_movements
+DELETE FROM stock_movements;
+
+-- 6c. Reset stock_balances for all affected products to zero
 UPDATE stock_balances sb
-SET qty = r.new_qty,
-    avg_cost = CASE WHEN r.new_qty = 0 THEN 0 ELSE sb.avg_cost END,
+SET qty = 0,
+    avg_cost = 0,
     updated_at = now()
-FROM recalc r
-WHERE sb.warehouse_id = r.warehouse_id
-  AND sb.product_id = r.product_id;
+FROM _all_stock_pairs p
+WHERE sb.warehouse_id = p.warehouse_id
+  AND sb.product_id = p.product_id;
 
--- ── 6. Goods processing ─────────────────────────────────────────────────────
+-- ── 7. Goods processing ─────────────────────────────────────────────────────
 DELETE FROM goods_processing_outputs;
 DELETE FROM goods_processing_inputs;
 DELETE FROM goods_processing;
-
--- ── 7. Stock from goods receipts ────────────────────────────────────────────
-CREATE TEMP TABLE _gr_stock_pairs ON COMMIT DROP AS
-SELECT DISTINCT warehouse_id, product_id
-FROM stock_movements
-WHERE reference_type = 'goods_receipt';
-
-DELETE FROM stock_movements WHERE reference_type = 'goods_receipt';
-
-WITH recalc AS (
-  SELECT
-    a.warehouse_id,
-    a.product_id,
-    COALESCE((
-      SELECT sm.balance_after
-      FROM stock_movements sm
-      WHERE sm.warehouse_id = a.warehouse_id
-        AND sm.product_id = a.product_id
-      ORDER BY sm.movement_date DESC, sm.created_at DESC, sm.id DESC
-      LIMIT 1
-    ), 0)::numeric AS new_qty
-  FROM _gr_stock_pairs a
-)
-UPDATE stock_balances sb
-SET qty = r.new_qty,
-    avg_cost = CASE WHEN r.new_qty = 0 THEN 0 ELSE sb.avg_cost END,
-    updated_at = now()
-FROM recalc r
-WHERE sb.warehouse_id = r.warehouse_id
-  AND sb.product_id = r.product_id;
 
 -- ── 8. Goods receipts ───────────────────────────────────────────────────────
 DELETE FROM goods_receipt_lines;
@@ -136,7 +139,9 @@ DELETE FROM purchase_orders;
 DELETE FROM purchase_request_lines;
 DELETE FROM purchase_requests;
 
--- ── 12. (removed — pricelists.qty_invoiced column does not exist) ────────────
+-- ── 12. Production requests (spinoff from procurement) ──────────────────────
+DELETE FROM production_request_lines;
+DELETE FROM production_requests;
 
 COMMIT;
 
@@ -149,4 +154,7 @@ UNION ALL SELECT 'purchase_invoices', COUNT(*)::int FROM purchase_invoices
 UNION ALL SELECT 'ap_payments', COUNT(*)::int FROM ap_payments
 UNION ALL SELECT 'marketplace_sessions', COUNT(*)::int FROM marketplace_checkout_sessions
 UNION ALL SELECT 'stock_movements', COUNT(*)::int FROM stock_movements
-UNION ALL SELECT 'proc_journals', COUNT(*)::int FROM journal_headers WHERE source_module = 'marketplace_po' AND deleted_at IS NULL;
+UNION ALL SELECT 'proc_journals', COUNT(*)::int FROM journal_headers WHERE source_module = 'marketplace_po' AND deleted_at IS NULL
+UNION ALL SELECT 'production_requests', COUNT(*)::int FROM production_requests
+UNION ALL SELECT 'pricelist_price_changes', COUNT(*)::int FROM pricelist_price_changes
+UNION ALL SELECT 'stock_balances_zero', COUNT(*)::int AS zero_count FROM stock_balances WHERE qty = 0;

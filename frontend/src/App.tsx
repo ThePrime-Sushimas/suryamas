@@ -787,6 +787,16 @@ function App() {
                     }
                   />
                   <Route
+                    path="bank-statement-imports"
+                    element={
+                      <RequirePermission module="bank_statement_imports">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <BankStatementImportListPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
                     path="bank-statement-import/:id"
                     element={
                       <RequirePermission module="bank_statement_imports">
@@ -1588,26 +1598,6 @@ function App() {
                       <RequirePermission module="pos_aggregates">
                         <Suspense fallback={<LoadingFallback />}>
                           <FailedTransactionsPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="bank-statement-import"
-                    element={
-                      <RequirePermission module="bank_statement_imports">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <BankStatementImportListPage />
-                        </Suspense>
-                      </RequirePermission>
-                    }
-                  />
-                  <Route
-                    path="bank-statement-import/:id"
-                    element={
-                      <RequirePermission module="bank_statement_imports">
-                        <Suspense fallback={<LoadingFallback />}>
-                          <BankStatementImportDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }

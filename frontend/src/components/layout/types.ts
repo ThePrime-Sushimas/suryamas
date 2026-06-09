@@ -11,6 +11,8 @@ export interface MenuItem {
   module?: string;
   /** When set, menu item requires this permission (default: view) */
   permissionAction?: 'view' | 'insert' | 'update' | 'delete' | 'approve' | 'release';
+  /** Color indicator for the menu item */
+  color?: "red" | "green";
 }
 
 export type PermissionMap = Record<
@@ -24,4 +26,3 @@ export type PermissionMap = Record<
     release?: boolean;
   }
 >;
-
