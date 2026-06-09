@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase'
+import { pool } from '../config/db'
 
 const COMPANY_ID = '3576839e-d83a-4061-8551-fe9b5d971111'
 const CREATED_BY = '8a130a3e-0490-48b9-abe5-769af0dee345'
@@ -83,21 +83,21 @@ export async function seedAccountingPurposeAccounts() {
     console.log('🌱 Seeding accounting purpose accounts...')
     
     // Clear existing data
-    await supabase
-      .from('accounting_purpose_accounts')
-      .delete()
-      .eq('company_id', COMPANY_ID)
+    await pool.query(
+      `DELETE FROM accounting_purpose_accounts WHERE company_id = $1`,
+      [COMPANY_ID]
+    )
     
     // Get purpose and account IDs
-    const { data: purposes } = await supabase
-      .from('accounting_purposes')
-      .select('id, purpose_code')
-      .eq('company_id', COMPANY_ID)
+    const { rows: purposes } = await pool.query(
+      `SELECT id, purpose_code FROM accounting_purposes WHERE company_id = $1`,
+      [COMPANY_ID]
+    )
     
-    const { data: accounts } = await supabase
-      .from('chart_of_accounts')
-      .select('id, account_code')
-      .eq('company_id', COMPANY_ID)
+    const { rows: accounts } = await pool.query(
+      `SELECT id, account_code FROM chart_of_accounts WHERE company_id = $1`,
+      [COMPANY_ID]
+    )
     
     if (!purposes || !accounts) {
       throw new Error('Failed to fetch purposes or accounts')
@@ -118,26 +118,12 @@ export async function seedAccountingPurposeAccounts() {
         continue
       }
       
-      const { error } = await supabase
-        .from('accounting_purpose_accounts')
-        .insert({
-          company_id: COMPANY_ID,
-          purpose_id: purposeId,
-          account_id: accountId,
-          side: mapping.side,
-          priority: mapping.priority,
-          is_required: true,
-          is_auto: true,
-          is_active: true,
-          created_by: CREATED_BY,
-          updated_by: CREATED_BY
-        })
-      
-      if (error) {
-        console.error(`Error inserting: ${mapping.purpose_code} - ${mapping.account_code}`, error)
-      } else {
-        inserted++
-      }
+      await pool.query(
+        `INSERT INTO accounting_purpose_accounts (company_id, purpose_id, account_id, side, priority, is_required, is_auto, is_active, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [COMPANY_ID, purposeId, accountId, mapping.side, mapping.priority, true, true, true, CREATED_BY, CREATED_BY]
+      )
+      inserted++
     }
     
     console.log(`✅ Seeded ${inserted} accounting purpose account mappings`)

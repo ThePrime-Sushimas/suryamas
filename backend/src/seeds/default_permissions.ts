@@ -2,7 +2,7 @@
 // DEFAULT PERMISSIONS SEED SCRIPT
 // =====================================================
 
-import { supabase } from '../config/supabase'
+import { pool } from '../config/db'
 import { logInfo, logError } from '../config/logger'
 import { createDefaultPermissions } from '../utils/permissions.util'
 
@@ -44,26 +44,22 @@ export async function seedDefaultPermissions(): Promise<SeedResult> {
 
     for (const roleData of defaultRoles) {
       // Check if exists
-      const { data: existing } = await supabase
-        .from('perm_roles')
-        .select('*')
-        .eq('name', roleData.name)
-        .single()
+      const { rows: existing } = await pool.query(
+        `SELECT * FROM perm_roles WHERE name = $1 LIMIT 1`,
+        [roleData.name]
+      )
 
-      if (existing) {
+      if (existing[0]) {
         logInfo('Role already exists', { role: roleData.name })
-        createdRoles.push(existing)
+        createdRoles.push(existing[0])
       } else {
-        const { data: role, error } = await supabase
-          .from('perm_roles')
-          .insert(roleData)
-          .select()
-          .single()
+        const { rows: role } = await pool.query(
+          `INSERT INTO perm_roles (name, description, is_system_role) VALUES ($1, $2, $3) RETURNING *`,
+          [roleData.name, roleData.description, roleData.is_system_role]
+        )
 
-        if (error) throw error
-
-        logInfo('Role created', { role: roleData.name, id: role.id })
-        createdRoles.push(role)
+        logInfo('Role created', { role: roleData.name, id: role[0].id })
+        createdRoles.push(role[0])
       }
     }
 
@@ -122,60 +118,51 @@ export async function seedDefaultPermissions(): Promise<SeedResult> {
 
     for (const moduleData of defaultModules) {
       // Check if exists
-      const { data: existing } = await supabase
-        .from('perm_modules')
-        .select('*')
-        .eq('name', moduleData.name)
-        .single()
+      const { rows: existing } = await pool.query(
+        `SELECT * FROM perm_modules WHERE name = $1 LIMIT 1`,
+        [moduleData.name]
+      )
 
-      if (existing) {
+      if (existing[0]) {
         logInfo('Module already exists', { module: moduleData.name })
-        createdModules.push(existing)
+        createdModules.push(existing[0])
       } else {
-        const { data: module, error } = await supabase
-          .from('perm_modules')
-          .insert(moduleData)
-          .select()
-          .single()
+        const { rows: module } = await pool.query(
+          `INSERT INTO perm_modules (name, description, is_active) VALUES ($1, $2, $3) RETURNING *`,
+          [moduleData.name, moduleData.description, moduleData.is_active]
+        )
 
-        if (error) throw error
-
-        logInfo('Module created', { module: moduleData.name, id: module.id })
-        createdModules.push(module)
+        logInfo('Module created', { module: moduleData.name, id: module[0].id })
+        createdModules.push(module[0])
       }
     }
 
     // =====================================================
     // 3. CREATE DEFAULT PERMISSIONS
     // =====================================================
-    const permissions: any[] = []
+    let permissionsInserted = 0
 
     for (const role of createdRoles) {
       for (const module of createdModules) {
         // Check if permission exists
-        const { data: existing } = await supabase
-          .from('perm_role_permissions')
-          .select('*')
-          .eq('role_id', role.id)
-          .eq('module_id', module.id)
-          .single()
+        const { rows: existing } = await pool.query(
+          `SELECT * FROM perm_role_permissions WHERE role_id = $1 AND module_id = $2 LIMIT 1`,
+          [role.id, module.id]
+        )
 
-        if (!existing) {
-          permissions.push({
-            role_id: role.id,
-            module_id: module.id,
-            ...createDefaultPermissions(role.name),
-          })
+        if (!existing[0]) {
+          const permissions = createDefaultPermissions(role.name)
+          await pool.query(
+            `INSERT INTO perm_role_permissions (role_id, module_id, can_view, can_insert, can_update, can_delete, can_approve, can_release) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [role.id, module.id, permissions.can_view, permissions.can_insert, permissions.can_update, permissions.can_delete, permissions.can_approve, permissions.can_release]
+          )
+          permissionsInserted++
         }
       }
     }
 
-    if (permissions.length > 0) {
-      const { error } = await supabase.from('perm_role_permissions').insert(permissions)
-
-      if (error) throw error
-
-      logInfo('Permissions created', { count: permissions.length })
+    if (permissionsInserted > 0) {
+      logInfo('Permissions created', { count: permissionsInserted })
     } else {
       logInfo('All permissions already exist')
     }
@@ -186,7 +173,7 @@ export async function seedDefaultPermissions(): Promise<SeedResult> {
     const summary = {
       roles: createdRoles.map((r) => r.name),
       modules: createdModules.map((m) => m.name),
-      permissionsCreated: permissions.length,
+      permissionsCreated: permissionsInserted,
     }
 
     logInfo('Permission seed completed', summary)

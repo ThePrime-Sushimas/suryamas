@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase'
+import { pool } from '../config/db'
 
 const COMPANY_ID = '3576839e-d83a-4061-8551-fe9b5d971111'
 const CREATED_BY = '8a130a3e-0490-48b9-abe5-769af0dee345'
@@ -53,31 +53,18 @@ export async function seedAccountingPurposes() {
     console.log('🌱 Seeding accounting purposes...')
     
     // Clear existing data
-    await supabase
-      .from('accounting_purposes')
-      .delete()
-      .eq('company_id', COMPANY_ID)
+    await pool.query(
+      `DELETE FROM accounting_purposes WHERE company_id = $1`,
+      [COMPANY_ID]
+    )
     
     // Insert seed data
     for (const purpose of accountingPurposesData) {
-      const { error } = await supabase
-        .from('accounting_purposes')
-        .insert({
-          company_id: purpose.company_id,
-          purpose_code: purpose.purpose_code,
-          purpose_name: purpose.purpose_name,
-          description: purpose.description,
-          applied_to: purpose.applied_to,
-          is_system: purpose.is_system,
-          is_active: purpose.is_active,
-          created_by: CREATED_BY,
-          updated_by: CREATED_BY
-        })
-      
-      if (error) {
-        console.error('Error inserting purpose:', purpose.purpose_code, error)
-        throw error
-      }
+      await pool.query(
+        `INSERT INTO accounting_purposes (company_id, purpose_code, purpose_name, description, applied_to, is_system, is_active, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [purpose.company_id, purpose.purpose_code, purpose.purpose_name, purpose.description, purpose.applied_to, purpose.is_system, purpose.is_active, CREATED_BY, CREATED_BY]
+      )
     }
     
     console.log(`✅ Seeded ${accountingPurposesData.length} accounting purposes`)
