@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { BarChart3, Loader2, Search, X, AlertTriangle } from 'lucide-react'
+import { BarChart3, Loader2, Search, X, AlertTriangle, HelpCircle } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 import { useBranches } from '@/features/branches/api/branches.api'
 import { useStockAnalysis } from '../api/stockAnalysis.api'
@@ -16,6 +16,22 @@ const fmtPct = (n: number | null | undefined) =>
 
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+
+// ─── COLUMN HEADER WITH TOOLTIP ─────────────────────────────────────────────
+
+function ColHeader({ label, tip }: { label: string; tip: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {label}
+      <span className="relative group/tip">
+        <HelpCircle className="w-3 h-3 text-gray-400 cursor-help" />
+        <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2.5 py-1.5 text-xs font-normal text-white bg-gray-800 dark:bg-gray-700 rounded-md shadow-lg whitespace-normal w-48 text-left opacity-0 pointer-events-none group-hover/tip:opacity-100 group-hover/tip:pointer-events-auto transition-opacity z-50">
+          {tip}
+        </span>
+      </span>
+    </span>
+  )
+}
 
 // ─── MAIN PAGE ──────────────────────────────────────────────────────────────
 
@@ -193,17 +209,39 @@ export default function StockAnalysisPage() {
                 <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Tanggal</th>
                 <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Produk</th>
                 <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Kategori</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Stok Awal</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Opening</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Masuk Transfer</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Masuk Produksi</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Penjualan Teoritis</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Waste</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-blue-50 dark:bg-blue-900/20">Expected</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-green-50 dark:bg-green-900/20">Actual</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Selisih</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Selisih (Rp)</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Akurasi</th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Stok Awal" tip="Saldo stok di awal hari, diambil dari balance terakhir hari sebelumnya. Untuk produk baru, diambil dari opening balance." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Opening" tip="Jumlah opening balance atau adjustment yang dicatat di hari ini. Hanya informatif, sudah termasuk di Stok Awal." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Masuk Transfer" tip="Jumlah barang masuk dari transfer antar gudang (DPO, stock transfer) di hari ini." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Masuk Produksi" tip="Jumlah barang masuk dari hasil produksi (production order) di hari ini." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Penjualan Teoritis" tip="Estimasi pemakaian berdasarkan data penjualan POS × resep menu. Bukan pemakaian aktual." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Waste" tip="Jumlah barang yang tercatat sebagai waste/buang di hari ini." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-blue-50 dark:bg-blue-900/20">
+                  <ColHeader label="Expected" tip="Stok yang diharapkan tersisa = Stok Awal + Masuk Transfer + Masuk Produksi − Penjualan Teoritis − Waste." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-green-50 dark:bg-green-900/20">
+                  <ColHeader label="Actual" tip="Stok aktual hasil opname/stock count di hari ini. Kosong jika tidak ada opname." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Selisih" tip="Selisih qty = Actual − Expected. Negatif berarti stok hilang/kurang." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Selisih (Rp)" tip="Selisih qty × harga per unit. Menunjukkan dampak nilai rupiah dari selisih." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Akurasi" tip="(Actual / Expected) × 100%. Semakin mendekati 100% semakin akurat." />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
