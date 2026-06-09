@@ -263,6 +263,32 @@ export const handleError = async (res: Response, error: unknown, req?: Request, 
     return
   }
 
+  // ==========================================================================
+  // POSTGRESQL ERROR - Convert raw PG errors to user-friendly messages
+  // Prevents "Internal server error" from showing for FK/unique violations
+  // ==========================================================================
+  // PostgreSQL error codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
+  const PG_USER_MESSAGES: Record<string, { message: string; statusCode: number }> = {
+    '23503': { message: 'Data terkait tidak valid. Silakan refresh halaman.', statusCode: 422 },
+    '23505': { message: 'Data sudah ada. Gunakan data yang berbeda.', statusCode: 409 },
+    '23502': { message: 'Data tidak lengkap. Harap isi semua field yang wajib.', statusCode: 400 },
+    '22P02': { message: 'Format data tidak valid. Silakan cek input Anda.', statusCode: 400 },
+    '42P01': { message: 'Kesalahan sistem. Silakan hubungi admin.', statusCode: 500 },
+    '40001': { message: 'Sistem sedang sibuk. Silakan coba lagi.', statusCode: 503 },
+  }
+
+  if (error instanceof Error && 'code' in error && typeof (error as Record<string, unknown>).code === 'string') {
+    const pgCode = (error as Record<string, string>).code
+    const mapping = PG_USER_MESSAGES[pgCode]
+
+    if (mapping) {
+      logError('DATABASE_ERROR', { message: error.message, code: pgCode, context })
+      persistHandledError(error, mapping.statusCode, req, context)
+      sendError(res, mapping.message, mapping.statusCode)
+      return
+    }
+  }
+
   if (error instanceof Error) {
     logError('UNEXPECTED_ERROR', { message: error.message, stack: error.stack })
     persistHandledError(error, 500, req, context)
