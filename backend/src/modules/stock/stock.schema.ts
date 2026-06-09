@@ -105,8 +105,9 @@ export const stockAnalysisSchema = z.object({
     warehouse_type: z.enum(['READY', 'MAIN', 'FINISHED_GOODS']).optional().default('READY'),
     product_id: z.string().uuid().optional(),
     category_id: z.string().uuid().optional(),
+    search: z.string().max(100).optional(),
     only_with_variance: z.coerce.boolean().optional(),
     page: z.coerce.number().int().min(1).optional().default(1),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+    limit: z.coerce.number().int().min(1).max(200).optional().default(50),
   }),
 })

@@ -47,6 +47,7 @@ export interface StockAnalysisParams {
   warehouse_type?: 'READY' | 'MAIN' | 'FINISHED_GOODS'
   product_id?: string
   category_id?: string
+  search?: string
   only_with_variance?: boolean
   page?: number
   limit?: number
@@ -87,6 +88,7 @@ export const useStockAnalysis = (params: StockAnalysisParams) =>
       if (params.warehouse_type) queryParams.warehouse_type = params.warehouse_type
       if (params.product_id) queryParams.product_id = params.product_id
       if (params.category_id) queryParams.category_id = params.category_id
+      if (params.search) queryParams.search = params.search
       if (params.only_with_variance) queryParams.only_with_variance = true
 
       const { data } = await api.get('/stock/analysis', { params: queryParams })

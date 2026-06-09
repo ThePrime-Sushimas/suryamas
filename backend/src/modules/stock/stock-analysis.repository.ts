@@ -40,6 +40,14 @@ export class StockAnalysisRepository {
       categoryFilter = `AND p.sub_category_id = $${idx++}`
     }
 
+    // Server-side product name/code search
+    let searchFilter = ''
+    if (filter.search?.trim()) {
+      params.push(`%${filter.search.trim().toLowerCase()}%`)
+      searchFilter = `AND (LOWER(p.product_name) LIKE $${idx} OR LOWER(p.product_code) LIKE $${idx})`
+      idx++
+    }
+
     // Branch POS ID for theoretical consumption
     let branchPosFilter = ''
     if (branchPosId != null) {
@@ -71,6 +79,7 @@ export class StockAnalysisRepository {
         AND p.status = 'ACTIVE'
         ${productFilter}
         ${categoryFilter}
+        ${searchFilter}
         AND (
           EXISTS (SELECT 1 FROM stock_balances sb WHERE sb.product_id = p.id AND sb.warehouse_id = $3)
           OR EXISTS (

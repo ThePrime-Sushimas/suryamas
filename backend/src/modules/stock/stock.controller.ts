@@ -221,6 +221,7 @@ export class StockController {
         warehouse_type: query.warehouse_type,
         product_id: query.product_id,
         category_id: query.category_id,
+        search: query.search,
         only_with_variance: query.only_with_variance,
         page: query.page,
         limit: query.limit,

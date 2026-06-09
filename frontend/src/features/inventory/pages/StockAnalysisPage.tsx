@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { BarChart3, Loader2, Search, X, AlertTriangle } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 import { useBranches } from '@/features/branches/api/branches.api'
@@ -26,7 +26,17 @@ export default function StockAnalysisPage() {
   const [warehouseType, setWarehouseType] = useState<'READY' | 'MAIN' | 'FINISHED_GOODS'>('READY')
   const [onlyVariance, setOnlyVariance] = useState(false)
   const [productSearch, setProductSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+
+  // Debounce product search (400ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(productSearch.trim())
+      setPage(1)
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [productSearch])
 
   const { data: branchesData } = useBranches({ limit: 100 })
   const branches = branchesData?.data ?? []
@@ -36,25 +46,16 @@ export default function StockAnalysisPage() {
     date_from: dateFrom,
     date_to: dateTo,
     warehouse_type: warehouseType,
+    search: debouncedSearch || undefined,
     only_with_variance: onlyVariance || undefined,
     page,
-    limit: 50,
-  }), [branchId, dateFrom, dateTo, warehouseType, onlyVariance, page])
+    limit: 100,
+  }), [branchId, dateFrom, dateTo, warehouseType, debouncedSearch, onlyVariance, page])
 
   const { data: result, isLoading, isFetching } = useStockAnalysis(params)
-  const allRows = result?.data?.rows ?? []
+  const rows = result?.data?.rows ?? []
   const warehouseName = result?.data?.warehouse_name
   const pagination = result?.pagination
-
-  // Client-side product name filter
-  const rows = useMemo(() => {
-    if (!productSearch.trim()) return allRows
-    const q = productSearch.toLowerCase()
-    return allRows.filter(r =>
-      r.product_name.toLowerCase().includes(q) ||
-      r.product_code.toLowerCase().includes(q)
-    )
-  }, [allRows, productSearch])
 
   // Quick date helpers
   const setYesterday = () => {
