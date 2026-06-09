@@ -20,6 +20,25 @@
 
 set -euo pipefail
 
+# --- Telegram Notification ---
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-8598592104:AAE4biuIr9QdiqKgQpf5v8L3xDRQ9lO9RT4}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:--5202987932}"
+
+send_telegram() {
+  local message="$1"
+  curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    -H "Content-Type: application/json" \
+    -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": \"${message}\", \"parse_mode\": \"Markdown\"}" \
+    > /dev/null 2>&1 || true
+}
+
+# Trap errors — kirim notif gagal sebelum exit
+on_error() {
+  local exit_code=$?
+  send_telegram "🔴 *DB Backup GAGAL*%0A%0A📅 $(date '+%Y-%m-%d %H:%M')%0A💾 Database: ${DB_NAME:-suryamas_db}%0A❌ Exit code: ${exit_code}%0A%0ACek log: \`/var/log/suryamas-db-backup.log\`"
+}
+trap on_error ERR
+
 _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${_script_dir}/vps-db-credentials.sh" ]]; then
   # shellcheck source=./vps-db-credentials.sh
@@ -72,3 +91,6 @@ echo "[$(date -Iseconds)] Selesai (${SIZE}). Symlink: ${LATEST_LINK}"
 find "$BACKUP_DIR" -maxdepth 1 -name 'suryamas_db_*.sql.gz' ! -name 'suryamas_db_LATEST.sql.gz' -mtime +"$RETENTION_DAYS" -delete 2>/dev/null || true
 
 echo "[$(date -Iseconds)] Retensi: file > ${RETENTION_DAYS} hari dihapus."
+
+# --- Notif sukses ke Telegram ---
+send_telegram "✅ *DB Backup Berhasil*%0A%0A📅 $(date '+%Y-%m-%d %H:%M')%0A💾 Database: ${DB_NAME}%0A📦 Ukuran: ${SIZE}%0A🗂 File: \`$(basename "$OUT_FILE")\`%0A🧹 Retensi: ${RETENTION_DAYS} hari"
