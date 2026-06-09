@@ -5,7 +5,7 @@ export interface StockAnalysisFilter {
   date_from: string          // YYYY-MM-DD, wajib
   date_to: string            // YYYY-MM-DD, wajib, max 31 hari
   warehouse_type?: 'READY' | 'MAIN' | 'FINISHED_GOODS'  // default: 'READY'
-  product_id?: string
+  product_ids?: string[]     // filter specific products (array of UUIDs)
   category_id?: string
   search?: string            // server-side product name/code search
   only_with_variance?: boolean  // hanya tampilkan yang selisih ≠ 0

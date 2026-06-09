@@ -71,7 +71,7 @@ export class StockAnalysisService {
     if (summary.worst_by_accuracy) summary.worst_by_accuracy.branch_name = branchName
 
     const page = filter.page ?? 1
-    const limit = Math.min(filter.limit ?? 50, 100)
+    const limit = Math.min(filter.limit ?? 20, 100)
     const totalPages = Math.ceil(total / limit)
 
     return {

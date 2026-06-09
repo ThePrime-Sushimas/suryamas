@@ -46,7 +46,7 @@ export interface StockAnalysisParams {
   date_from: string
   date_to: string
   warehouse_type?: 'READY' | 'MAIN' | 'FINISHED_GOODS'
-  product_id?: string
+  product_ids?: string[]
   category_id?: string
   search?: string
   only_with_variance?: boolean
@@ -84,10 +84,10 @@ export const useStockAnalysis = (params: StockAnalysisParams) =>
         date_from: params.date_from,
         date_to: params.date_to,
         page: params.page ?? 1,
-        limit: params.limit ?? 50,
+        limit: params.limit ?? 20,
       }
       if (params.warehouse_type) queryParams.warehouse_type = params.warehouse_type
-      if (params.product_id) queryParams.product_id = params.product_id
+      if (params.product_ids?.length) queryParams.product_ids = params.product_ids.join(',')
       if (params.category_id) queryParams.category_id = params.category_id
       if (params.search) queryParams.search = params.search
       if (params.only_with_variance) queryParams.only_with_variance = true

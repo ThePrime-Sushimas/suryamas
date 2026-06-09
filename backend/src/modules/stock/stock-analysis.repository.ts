@@ -4,8 +4,12 @@ import type { StockAnalysisFilter, StockAnalysisRow, StockAnalysisSummary } from
 /**
  * Stock Analysis Repository
  *
+ * Paginate by product: relevant_products di-paginate (LIMIT/OFFSET),
+ * lalu cross join dengan full date range. Semua tanggal selalu lengkap per produk.
+ *
  * Single CTE-based query that assembles:
- * - stok_awal: balance_after dari movement terakhir hari sebelumnya, fallback opname terdekat
+ * - stok_awal: balance_after dari movement terakhir hari sebelumnya, fallback opname/opening
+ * - masuk_opening: SUM IN_OPENING + IN_ADJUSTMENT per product × date × warehouse (display only)
  * - masuk_transfer: SUM IN_TRANSFER per product × date × warehouse
  * - masuk_produksi: SUM IN_PRODUCTION (exclude VOID orders) per product × date × warehouse
  * - penjualan_teoritis: theoretical consumption dari POS sales
@@ -29,9 +33,9 @@ export class StockAnalysisRepository {
 
     // Optional filters
     let productFilter = ''
-    if (filter.product_id) {
-      params.push(filter.product_id)
-      productFilter = `AND p.id = $${idx++}`
+    if (filter.product_ids?.length) {
+      params.push(filter.product_ids)
+      productFilter = `AND p.id = ANY($${idx++}::uuid[])`
     }
 
     let categoryFilter = ''
@@ -55,6 +59,15 @@ export class StockAnalysisRepository {
       branchPosFilter = `AND sh.branch_id = $${idx++}`
     }
 
+    // Pagination params (paginate by product)
+    const page = filter.page ?? 1
+    const limit = Math.min(filter.limit ?? 20, 100)
+    const offset = (page - 1) * limit
+    params.push(limit)   // $idx for LIMIT
+    const limitIdx = idx++
+    params.push(offset)  // $idx for OFFSET
+    const offsetIdx = idx++
+
     const varianceFilter = filter.only_with_variance
       ? `AND actual_sisa IS NOT NULL AND COALESCE(stok_awal, 0) + masuk_transfer + masuk_produksi - penjualan_teoritis - waste != actual_sisa`
       : ''
@@ -67,7 +80,7 @@ export class StockAnalysisRepository {
       FROM generate_series($1::date, $2::date, '1 day'::interval) d
     ),
 
-    -- All products with stock or opname in this warehouse
+    -- All products with stock or opname in this warehouse (unpaginated, for total count)
     relevant_products AS (
       SELECT DISTINCT ON (p.id) p.id AS product_id, p.product_code, p.product_name,
              sc.sub_category_name AS category_name, mu.unit_name AS uom
@@ -92,11 +105,23 @@ export class StockAnalysisRepository {
       ORDER BY p.id
     ),
 
-    -- Cross join: every product × every date in range
+    -- Total product count (for pagination — counts ALL relevant products, not just paginated)
+    total_products_count AS (
+      SELECT COUNT(*) AS total FROM relevant_products
+    ),
+
+    -- Paginated products (early pagination — only these products get cross-joined with dates)
+    paginated_products AS (
+      SELECT * FROM relevant_products
+      ORDER BY product_name ASC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    ),
+
+    -- Cross join: every paginated product × every date in range
     product_dates AS (
-      SELECT ds.tanggal, rp.*
+      SELECT ds.tanggal, pp.*
       FROM date_series ds
-      CROSS JOIN relevant_products rp
+      CROSS JOIN paginated_products pp
     ),
 
     -- Stok Awal: balance_after dari movement terakhir SEBELUM tanggal ini
@@ -148,7 +173,7 @@ export class StockAnalysisRepository {
       ORDER BY pd.product_id, pd.tanggal, cc.closing_date DESC
     ),
 
-    -- Movements per product × date (aggregated)
+    -- Movements per product × date (aggregated) — only for paginated products
     daily_movements AS (
       SELECT
         sm.product_id,
@@ -167,10 +192,11 @@ export class StockAnalysisRepository {
       FROM stock_movements sm
       WHERE sm.warehouse_id = $3
         AND sm.movement_date BETWEEN $1 AND $2
+        AND sm.product_id IN (SELECT product_id FROM paginated_products)
       GROUP BY sm.product_id, sm.movement_date
     ),
 
-    -- Theoretical consumption: POS sales × recipe
+    -- Theoretical consumption: POS sales × recipe (only for paginated products)
     theoretical_cte AS (
       SELECT
         agg.product_id,
@@ -189,6 +215,7 @@ export class StockAnalysisRepository {
         WHERE sm2.status_id = '13'
           AND sh.sales_date BETWEEN $1 AND $2
           ${branchPosFilter}
+          AND rl.product_id IN (SELECT product_id FROM paginated_products)
         GROUP BY rl.product_id, sh.sales_date
 
         UNION ALL
@@ -207,6 +234,7 @@ export class StockAnalysisRepository {
         WHERE sm2.status_id = '13'
           AND sh.sales_date BETWEEN $1 AND $2
           ${branchPosFilter}
+          AND wi.product_id IN (SELECT product_id FROM paginated_products)
         GROUP BY wi.product_id, sh.sales_date
 
         UNION ALL
@@ -225,12 +253,13 @@ export class StockAnalysisRepository {
           AND sh.sales_date BETWEEN $1 AND $2
           ${branchPosFilter}
           AND wip.output_product_id IS NOT NULL
+          AND wip.output_product_id IN (SELECT product_id FROM paginated_products)
         GROUP BY wip.output_product_id, sh.sales_date
       ) agg
       GROUP BY agg.product_id, agg.tanggal
     ),
 
-    -- Opname actual_qty for each product × date (aggregate if multiple positions)
+    -- Opname actual_qty for each product × date (only for paginated products)
     opname_actual AS (
       SELECT DISTINCT ON (cl.product_id, cc.closing_date)
         cl.product_id,
@@ -244,6 +273,7 @@ export class StockAnalysisRepository {
         AND cc.closing_date BETWEEN $1 AND $2
         AND cc.is_deleted = false
         AND cc.status IN ('CONFIRMED', 'FLAGGED')
+        AND cl.product_id IN (SELECT product_id FROM paginated_products)
       ORDER BY cl.product_id, cc.closing_date, cc.confirmed_at DESC NULLS LAST
     ),
 
@@ -252,6 +282,7 @@ export class StockAnalysisRepository {
       SELECT product_id, avg_cost
       FROM stock_balances
       WHERE warehouse_id = $3
+        AND product_id IN (SELECT product_id FROM paginated_products)
     ),
 
     -- Final assembly
@@ -274,7 +305,7 @@ export class StockAnalysisRepository {
         COALESCE(oa.cost_per_unit, cc.avg_cost, 0)::numeric AS cost_per_unit,
         (oa.actual_qty IS NOT NULL) AS has_opname,
 
-        -- Computed fields for summary
+        -- Computed fields for summary (masuk_opening NOT included in formula)
         CASE WHEN oa.actual_qty IS NOT NULL AND COALESCE(sa.stok_awal, saf.stok_awal) IS NOT NULL
           THEN (oa.actual_qty - (COALESCE(sa.stok_awal, saf.stok_awal) + COALESCE(dm.masuk_transfer, 0) + COALESCE(dm.masuk_produksi, 0) - COALESCE(tc.penjualan_teoritis, 0) - COALESCE(dm.waste, 0)))
                * COALESCE(oa.cost_per_unit, cc.avg_cost, 0)
@@ -296,7 +327,12 @@ export class StockAnalysisRepository {
       LEFT JOIN current_costs cc ON cc.product_id = pd.product_id
     ),
 
-    -- Summary aggregation from ALL data (before pagination)
+    -- Summary aggregation (from filtered results)
+    filtered_assembled AS (
+      SELECT * FROM assembled
+      WHERE 1=1 ${varianceFilter}
+    ),
+
     summary_agg AS (
       SELECT
         COALESCE(SUM(CASE WHEN selisih_rp < 0 THEN selisih_rp ELSE 0 END), 0) AS total_negative,
@@ -305,30 +341,24 @@ export class StockAnalysisRepository {
         COUNT(CASE WHEN selisih_rp < 0 THEN 1 END) AS count_negative,
         COUNT(CASE WHEN selisih_rp > 0 THEN 1 END) AS count_positive,
         ROUND(AVG(CASE WHEN akurasi_pct IS NOT NULL THEN akurasi_pct END)::numeric, 2) AS avg_accuracy,
-        (SELECT product_name FROM assembled WHERE selisih_rp IS NOT NULL ORDER BY selisih_rp ASC LIMIT 1) AS worst_cost_product,
-        (SELECT selisih_rp FROM assembled WHERE selisih_rp IS NOT NULL ORDER BY selisih_rp ASC LIMIT 1) AS worst_cost_rp,
-        (SELECT product_name FROM assembled WHERE akurasi_pct IS NOT NULL ORDER BY akurasi_pct ASC LIMIT 1) AS worst_acc_product,
-        (SELECT akurasi_pct FROM assembled WHERE akurasi_pct IS NOT NULL ORDER BY akurasi_pct ASC LIMIT 1) AS worst_acc_pct,
-        COUNT(*) AS filtered_total
-      FROM assembled
-      WHERE 1=1 ${varianceFilter}
+        (SELECT product_name FROM filtered_assembled WHERE selisih_rp IS NOT NULL ORDER BY selisih_rp ASC LIMIT 1) AS worst_cost_product,
+        (SELECT selisih_rp FROM filtered_assembled WHERE selisih_rp IS NOT NULL ORDER BY selisih_rp ASC LIMIT 1) AS worst_cost_rp,
+        (SELECT product_name FROM filtered_assembled WHERE akurasi_pct IS NOT NULL ORDER BY akurasi_pct ASC LIMIT 1) AS worst_acc_product,
+        (SELECT akurasi_pct FROM filtered_assembled WHERE akurasi_pct IS NOT NULL ORDER BY akurasi_pct ASC LIMIT 1) AS worst_acc_pct
+      FROM filtered_assembled
     )
 
-    SELECT a.*, s.*
-    FROM assembled a
+    SELECT fa.*, s.*, tpc.total AS total_products_all
+    FROM filtered_assembled fa
     CROSS JOIN summary_agg s
-    WHERE 1=1
-      ${varianceFilter}
-    ORDER BY a.tanggal DESC, a.product_name ASC
-    LIMIT $${idx} OFFSET $${idx + 1}
+    CROSS JOIN total_products_count tpc
+    ORDER BY fa.product_name ASC, fa.tanggal DESC
     `
 
-    const page = filter.page ?? 1
-    const limit = Math.min(filter.limit ?? 50, 200)
-    const offset = (page - 1) * limit
-    params.push(limit, offset)
-
     const { rows } = await pool.query(query, params)
+
+    // Total = total distinct products (for pagination)
+    const total = rows.length > 0 ? Number(rows[0].total_products_all) : 0
 
     // Extract summary from first row (all rows carry same summary via CROSS JOIN)
     let summary: StockAnalysisSummary = {
@@ -341,7 +371,6 @@ export class StockAnalysisRepository {
       worst_by_cost: null,
       worst_by_accuracy: null,
     }
-    const total = rows.length > 0 ? Number(rows[0].filtered_total) : 0
 
     if (rows.length > 0) {
       const r = rows[0]
@@ -371,6 +400,7 @@ export class StockAnalysisRepository {
       const costPerUnit = Number(r.cost_per_unit)
       const actualSisa = r.actual_sisa != null ? Number(r.actual_sisa) : null
 
+      // masuk_opening NOT included — already in stok_awal via fallback
       const expectedSisa = stokAwal != null
         ? stokAwal + masukTransfer + masukProduksi - penjualanTeoritis - waste
         : null

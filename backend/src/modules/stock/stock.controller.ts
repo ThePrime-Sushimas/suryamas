@@ -219,7 +219,7 @@ export class StockController {
         date_from: query.date_from,
         date_to: query.date_to,
         warehouse_type: query.warehouse_type,
-        product_id: query.product_id,
+        product_ids: query.product_ids,
         category_id: query.category_id,
         search: query.search,
         only_with_variance: query.only_with_variance,

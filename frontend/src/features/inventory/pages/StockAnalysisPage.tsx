@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect } from 'react'
-import { BarChart3, Loader2, Search, X, AlertTriangle, HelpCircle } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { BarChart3, Loader2, Search, X, AlertTriangle, HelpCircle, ChevronDown, Check } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 import { useBranches } from '@/features/branches/api/branches.api'
+import { useProducts } from '@/features/products/api/products.api'
 import { useStockAnalysis } from '../api/stockAnalysis.api'
 import type { StockAnalysisRow } from '../api/stockAnalysis.api'
 
@@ -33,6 +34,124 @@ function ColHeader({ label, tip }: { label: string; tip: string }) {
   )
 }
 
+// ─── PRODUCT MULTI-SELECT PICKER ────────────────────────────────────────────
+
+interface SelectedProduct { id: string; name: string }
+
+function ProductMultiSelect({
+  selected,
+  onChange,
+}: {
+  selected: SelectedProduct[]
+  onChange: (items: SelectedProduct[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  const { data } = useProducts({ search, limit: 30, status: 'ACTIVE' })
+  const products = data?.data ?? []
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const selectedIds = new Set(selected.map(s => s.id))
+
+  const toggle = (id: string, name: string) => {
+    if (selectedIds.has(id)) {
+      onChange(selected.filter(s => s.id !== id))
+    } else {
+      onChange([...selected, { id, name }])
+    }
+  }
+
+  const remove = (id: string) => onChange(selected.filter(s => s.id !== id))
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Produk</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex items-center gap-1.5 min-w-[160px]"
+      >
+        <span className="truncate text-left flex-1">
+          {selected.length === 0 ? (
+            <span className="text-gray-400">Semua produk</span>
+          ) : (
+            <span>{selected.length} dipilih</span>
+          )}
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+      </button>
+
+      {/* Selected chips */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5 max-w-[300px]">
+          {selected.map(s => (
+            <span key={s.id} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded">
+              {s.name.length > 20 ? s.name.slice(0, 20) + '…' : s.name}
+              <button onClick={() => remove(s.id)} className="hover:text-blue-900 dark:hover:text-blue-100">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {selected.length > 1 && (
+            <button onClick={() => onChange([])} className="text-xs text-gray-400 hover:text-gray-600 px-1">
+              Hapus semua
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-50 max-h-64 flex flex-col">
+          <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Cari produk..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="overflow-y-auto flex-1 p-1">
+            {products.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-3">Tidak ada produk ditemukan</p>
+            ) : (
+              products.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggle(p.id, p.product_name)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selectedIds.has(p.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300 dark:border-gray-500'}`}>
+                    {selectedIds.has(p.id) && <Check className="w-3 h-3 text-white" />}
+                  </span>
+                  <span className="truncate text-gray-800 dark:text-gray-200">{p.product_name}</span>
+                  <span className="text-xs text-gray-400 shrink-0">{p.product_code}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── MAIN PAGE ──────────────────────────────────────────────────────────────
 
 export default function StockAnalysisPage() {
@@ -43,6 +162,7 @@ export default function StockAnalysisPage() {
   const [onlyVariance, setOnlyVariance] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([])
   const [page, setPage] = useState(1)
 
   // Debounce product search (400ms)
@@ -54,7 +174,7 @@ export default function StockAnalysisPage() {
     return () => clearTimeout(timer)
   }, [productSearch])
 
-  const { data: branchesData } = useBranches({ limit: 100 })
+  const { data: branchesData } = useBranches({ limit: 100, filter: { status: 'active' } })
   const branches = branchesData?.data ?? []
 
   const params = useMemo(() => ({
@@ -63,10 +183,11 @@ export default function StockAnalysisPage() {
     date_to: dateTo,
     warehouse_type: warehouseType,
     search: debouncedSearch || undefined,
+    product_ids: selectedProducts.length > 0 ? selectedProducts.map(p => p.id) : undefined,
     only_with_variance: onlyVariance || undefined,
     page,
-    limit: 100,
-  }), [branchId, dateFrom, dateTo, warehouseType, debouncedSearch, onlyVariance, page])
+    limit: 20,
+  }), [branchId, dateFrom, dateTo, warehouseType, debouncedSearch, selectedProducts, onlyVariance, page])
 
   const { data: result, isLoading, isFetching } = useStockAnalysis(params)
   const rows = result?.data?.rows ?? []
@@ -127,6 +248,10 @@ export default function StockAnalysisPage() {
               )}
             </div>
           </div>
+          <ProductMultiSelect
+            selected={selectedProducts}
+            onChange={(items) => { setSelectedProducts(items); setPage(1) }}
+          />
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Cabang *</label>
             <select
@@ -276,7 +401,10 @@ export default function StockAnalysisPage() {
 
         {/* Pagination */}
         {pagination && pagination.totalPages > 1 && (
-          <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3">
+          <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Produk {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} dari {pagination.total}
+            </span>
             <Pagination
               pagination={pagination}
               onPageChange={setPage}
