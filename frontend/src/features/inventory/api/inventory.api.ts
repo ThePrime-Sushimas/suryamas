@@ -138,7 +138,7 @@ export const useCreateOpeningBalance = () => {
 export const useBulkOpeningBalance = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { warehouse_id: string; items: { product_id: string; qty: number; cost_per_unit: number }[]; notes?: string }) => {
+    mutationFn: async (body: { warehouse_id: string; items: { product_id: string; qty: number; cost_per_unit: number }[]; notes?: string; movement_date?: string }) => {
       const { data } = await api.post('/stock/opening-balance/bulk', body)
       return data.data
     },

@@ -107,6 +107,7 @@ export class StockService {
       cost_per_unit: dto.cost_per_unit,
       reference_type: 'opening',
       notes: dto.notes ?? 'Opening balance',
+      movement_date: dto.movement_date,
       created_by: userId,
     }, userId, branchIds)
   }
@@ -117,6 +118,7 @@ export class StockService {
     notes: string | undefined,
     userId: string,
     branchIds?: string[],
+    movementDate?: string,
   ) {
     if (branchIds) await this.verifyWarehouseAccess(warehouseId, branchIds)
 
@@ -144,6 +146,7 @@ export class StockService {
               cost_per_unit: item.cost_per_unit,
               reference_type: 'opening',
               notes: notes ?? 'Opening balance',
+              movement_date: movementDate,
               created_by: userId,
             },
             newQty,

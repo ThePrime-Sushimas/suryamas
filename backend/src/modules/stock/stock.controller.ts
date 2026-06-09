@@ -138,7 +138,7 @@ export class StockController {
     try {
       const { body } = (req as BulkOpeningReq).validated
       const { branchIds, userId } = await stockScope(req)
-      const result = await stockService.bulkOpeningBalance(body.warehouse_id, body.items, body.notes, userId, branchIds)
+      const result = await stockService.bulkOpeningBalance(body.warehouse_id, body.items, body.notes, userId, branchIds, body.movement_date)
       sendSuccess(res, result, `Opening balance: ${result.success} success, ${result.skipped} skipped`, 201)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_opening_balance' })

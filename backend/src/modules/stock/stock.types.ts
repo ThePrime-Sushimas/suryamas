@@ -75,6 +75,7 @@ export interface CreateOpeningBalanceDto {
   qty: number
   cost_per_unit: number
   notes?: string
+  movement_date?: string
   created_by?: string
 }
 

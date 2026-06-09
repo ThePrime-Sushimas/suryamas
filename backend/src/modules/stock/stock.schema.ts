@@ -33,6 +33,7 @@ export const createOpeningBalanceSchema = z.object({
     qty: z.number().positive(),
     cost_per_unit: z.number().positive(),
     notes: z.string().max(500).optional(),
+    movement_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
 })
 
@@ -45,6 +46,7 @@ export const bulkOpeningBalanceSchema = z.object({
       cost_per_unit: z.number().positive(),
     })).min(1),
     notes: z.string().max(500).optional(),
+    movement_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
 })
 

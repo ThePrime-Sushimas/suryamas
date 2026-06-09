@@ -20,6 +20,7 @@ export default function OpeningBalancePage() {
 
   const [warehouseId, setWarehouseId] = useState('')
   const [notes, setNotes] = useState('')
+  const [movementDate, setMovementDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [lines, setLines] = useState<LineItem[]>([])
   const [showProductPicker, setShowProductPicker] = useState(false)
 
@@ -56,6 +57,7 @@ export default function OpeningBalancePage() {
 
   const handleSubmit = async () => {
     if (!warehouseId) { toast.error('Pilih gudang terlebih dahulu'); return }
+    if (!movementDate) { toast.error('Pilih tanggal terlebih dahulu'); return }
     if (lines.length === 0) { toast.error('Tambahkan minimal 1 produk'); return }
     const invalidLines = lines.filter(l => l.qty <= 0)
     if (invalidLines.length > 0) { toast.error('Semua qty harus lebih dari 0'); return }
@@ -65,9 +67,10 @@ export default function OpeningBalancePage() {
         warehouse_id: warehouseId,
         items: lines.map(l => ({ product_id: l.product_id, qty: l.qty, cost_per_unit: l.cost_per_unit })),
         notes: notes || undefined,
+        movement_date: movementDate,
       })
       toast.success(`Saldo awal berhasil: ${result.success} item, ${result.skipped} dilewati`)
-      setLines([])
+      navigate('/inventory/stock')
     } catch (err: unknown) {
       toast.error(parseApiError(err, 'Gagal menyimpan saldo awal'))
     }
@@ -99,7 +102,7 @@ export default function OpeningBalancePage() {
 
       {/* Warehouse + Notes */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gudang *</label>
             <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
@@ -107,6 +110,11 @@ export default function OpeningBalancePage() {
               <option value="">Pilih Gudang</option>
               {warehouses.map(w => <option key={w.id} value={w.id}>{w.warehouse_name} ({w.branch_name})</option>)}
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tanggal *</label>
+            <input type="date" value={movementDate} onChange={e => setMovementDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catatan</label>
