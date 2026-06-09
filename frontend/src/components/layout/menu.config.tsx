@@ -15,7 +15,7 @@ import {
   Coins,
   CreditCard,
   Database,
-  DollarSign,
+
   Factory,
   FileCheck,
   FileSpreadsheet,
@@ -47,7 +47,6 @@ import {
   UtensilsCrossed,
   Wallet,
   Warehouse,
-  TrendingDown,
   ArrowUpCircle,
   ArrowDownCircle,
 } from "lucide-react";
