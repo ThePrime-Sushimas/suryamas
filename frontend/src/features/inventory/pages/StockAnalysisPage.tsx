@@ -194,6 +194,7 @@ export default function StockAnalysisPage() {
                 <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Produk</th>
                 <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Kategori</th>
                 <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Stok Awal</th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Opening</th>
                 <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Masuk Transfer</th>
                 <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Masuk Produksi</th>
                 <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Penjualan Teoritis</th>
@@ -208,21 +209,21 @@ export default function StockAnalysisPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {isLoading ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-500">
+                  <td colSpan={14} className="text-center py-12 text-gray-500">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Memuat data analisa...
                   </td>
                 </tr>
               ) : !canQuery ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-400">
+                  <td colSpan={14} className="text-center py-12 text-gray-400">
                     <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     Pilih cabang dan tanggal untuk memulai analisa
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-400">
+                  <td colSpan={14} className="text-center py-12 text-gray-400">
                     Tidak ada data untuk filter yang dipilih
                   </td>
                 </tr>
@@ -265,6 +266,7 @@ function AnalysisRow({ row }: { row: StockAnalysisRow }) {
       </td>
       <td className="px-2 py-1.5 text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.category_name ?? '-'}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.stok_awal)}</td>
+      <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{row.masuk_opening ? fmt(row.masuk_opening) : '-'}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_transfer)}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_produksi)}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.penjualan_teoritis)}</td>

@@ -100,6 +100,7 @@ export class StockAnalysisRepository {
     ),
 
     -- Stok Awal: balance_after dari movement terakhir SEBELUM tanggal ini
+    -- Fallback: jika ada IN_OPENING/IN_ADJUSTMENT di hari yang sama dan belum ada movement sebelumnya
     -- Bounded to 90 days before date_from for performance
     stok_awal_cte AS (
       SELECT DISTINCT ON (pd.product_id, pd.tanggal)
@@ -110,7 +111,20 @@ export class StockAnalysisRepository {
       JOIN stock_movements sm
         ON sm.product_id = pd.product_id
         AND sm.warehouse_id = $3
-        AND sm.movement_date < pd.tanggal
+        AND (
+          sm.movement_date < pd.tanggal
+          OR (
+            sm.movement_date = pd.tanggal
+            AND sm.movement_type IN ('IN_OPENING', 'IN_ADJUSTMENT')
+            AND NOT EXISTS (
+              SELECT 1 FROM stock_movements sm2
+              WHERE sm2.product_id = pd.product_id
+                AND sm2.warehouse_id = $3
+                AND sm2.movement_date < pd.tanggal
+                AND sm2.movement_date >= ($1::date - INTERVAL '90 days')
+            )
+          )
+        )
         AND sm.movement_date >= ($1::date - INTERVAL '90 days')
       ORDER BY pd.product_id, pd.tanggal, sm.movement_date DESC, sm.created_at DESC
     ),
@@ -139,6 +153,7 @@ export class StockAnalysisRepository {
       SELECT
         sm.product_id,
         sm.movement_date AS tanggal,
+        SUM(CASE WHEN sm.movement_type IN ('IN_OPENING', 'IN_ADJUSTMENT') THEN sm.qty ELSE 0 END) AS masuk_opening,
         SUM(CASE WHEN sm.movement_type = 'IN_TRANSFER' THEN sm.qty ELSE 0 END) AS masuk_transfer,
         SUM(CASE WHEN sm.movement_type = 'IN_PRODUCTION'
                   AND sm.reference_type = 'production_order'
@@ -250,6 +265,7 @@ export class StockAnalysisRepository {
         pd.uom,
 
         COALESCE(sa.stok_awal, saf.stok_awal) AS stok_awal,
+        COALESCE(dm.masuk_opening, 0)::numeric AS masuk_opening,
         COALESCE(dm.masuk_transfer, 0)::numeric AS masuk_transfer,
         COALESCE(dm.masuk_produksi, 0)::numeric AS masuk_produksi,
         COALESCE(tc.penjualan_teoritis, 0)::numeric AS penjualan_teoritis,
@@ -308,7 +324,7 @@ export class StockAnalysisRepository {
     `
 
     const page = filter.page ?? 1
-    const limit = Math.min(filter.limit ?? 50, 100)
+    const limit = Math.min(filter.limit ?? 50, 200)
     const offset = (page - 1) * limit
     params.push(limit, offset)
 
@@ -347,6 +363,7 @@ export class StockAnalysisRepository {
 
     const data: StockAnalysisRow[] = rows.map(r => {
       const stokAwal = r.stok_awal != null ? Number(r.stok_awal) : null
+      const masukOpening = Math.abs(Number(r.masuk_opening))
       const masukTransfer = Math.abs(Number(r.masuk_transfer))
       const masukProduksi = Math.abs(Number(r.masuk_produksi))
       const penjualanTeoritis = Number(r.penjualan_teoritis)
@@ -378,6 +395,7 @@ export class StockAnalysisRepository {
         uom_warning: null,
 
         stok_awal: stokAwal,
+        masuk_opening: masukOpening,
         masuk_transfer: masukTransfer,
         masuk_produksi: masukProduksi,
         penjualan_teoritis: penjualanTeoritis,

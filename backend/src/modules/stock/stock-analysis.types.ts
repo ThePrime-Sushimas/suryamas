@@ -25,6 +25,7 @@ export interface StockAnalysisRow {
   uom_warning: string | null
 
   stok_awal: number | null
+  masuk_opening: number
   masuk_transfer: number
   masuk_produksi: number
   penjualan_teoritis: number
