@@ -27,13 +27,12 @@ export class PaymentMethodsService {
   constructor(private repository: PaymentMethodsRepository = paymentMethodsRepository) {}
 
   async list(
-    companyIds: string[],
     pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: PaymentMethodFilterParams
   ): Promise<PaginatedResponse<PaymentMethodWithDetails>> {
     const offset = (pagination.page - 1) * pagination.limit
-    const { data, total } = await this.repository.findAll(companyIds, { limit: pagination.limit, offset }, sort, filter)
+    const { data, total } = await this.repository.findAll({ limit: pagination.limit, offset }, sort, filter)
     return createPaginatedResponse(data, total, pagination.page, pagination.limit)
   }
 

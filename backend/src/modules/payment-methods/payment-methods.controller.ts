@@ -36,11 +36,10 @@ async function pmWriteScope(req: Request) {
 export class PaymentMethodsController {
   list = async (req: Request, res: Response) => {
     try {
-      const { companyIds } = await pmReadScope(req)
       const pagination = req.pagination!
       if (pagination.limit > 1000) pagination.limit = 1000
 
-      const result = await paymentMethodsService.list(companyIds, pagination, req.sort, req.filterParams)
+      const result = await paymentMethodsService.list(pagination, req.sort, req.filterParams)
       sendSuccess(res, result.data, 'Payment methods retrieved', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_payment_methods' })

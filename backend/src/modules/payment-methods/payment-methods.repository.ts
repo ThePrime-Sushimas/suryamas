@@ -61,12 +61,12 @@ export class PaymentMethodsRepository {
   }
 
   async findAll(
-    companyIds: string[], pagination: { limit: number; offset: number },
+    pagination: { limit: number; offset: number },
     sort?: { field: string; order: 'asc' | 'desc' }, filter?: FilterParams
   ): Promise<{ data: PaymentMethodWithDetails[]; total: number }> {
-    const conditions: string[] = ['pm.company_id = ANY($1::uuid[])', 'pm.deleted_at IS NULL']
-    const params: (string | boolean | string[])[] = [companyIds]
-    let idx = 2
+    const conditions: string[] = ['pm.deleted_at IS NULL']
+    const params: (string | boolean | string[])[] = []
+    let idx = 1
 
     if (filter?.payment_type) { params.push(filter.payment_type); conditions.push(`pm.payment_type = $${idx}`); idx++ }
     if (filter?.is_active !== undefined) { params.push(filter.is_active); conditions.push(`pm.is_active = $${idx}`); idx++ }
