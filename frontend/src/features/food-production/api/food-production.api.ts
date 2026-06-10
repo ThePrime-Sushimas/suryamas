@@ -283,6 +283,23 @@ export const useWipItem = (id: string) =>
     enabled: !!id,
   })
 
+export interface WipPosition {
+  id: string
+  position_code: string
+  position_name: string
+  department_name: string
+}
+
+export const useWipPositions = () =>
+  useQuery({
+    queryKey: ['food-production', 'wip-positions'],
+    queryFn: async () => {
+      const { data } = await api.get('/wip-items/positions-with-wip')
+      return (data.data || []) as WipPosition[]
+    },
+    staleTime: 5 * 60_000,
+  })
+
 export const useCreateWipItem = () => {
   const qc = useQueryClient()
   return useMutation({
@@ -534,7 +551,7 @@ export interface MaterialUsageItem {
 }
 
 export const useProductionOrders = (params: {
-  page?: number; limit?: number; branch_id?: string; status?: string; date_from?: string; date_to?: string
+  page?: number; limit?: number; branch_id?: string; status?: string; date_from?: string; date_to?: string; position_filter?: string
 }) =>
   useQuery({
     queryKey: ['production-orders', params],

@@ -18,6 +18,7 @@ router.use(authenticate, resolveBranchContext)
 
 router.get('/', canView('wip_items'), (req, res) => wipController.list(req, res))
 router.get('/search', canView('wip_items'), (req, res) => wipController.search(req, res))
+router.get('/positions-with-wip', canView('wip_items'), (req, res) => wipController.positionsWithWip(req, res))
 router.post('/bulk/delete', canDelete('wip_items'), validateSchema(bulkDeleteWipSchema), (req, res) => wipController.bulkDelete(req, res))
 router.post('/', canInsert('wip_items'), validateSchema(createWipItemSchema), (req, res) => wipController.create(req, res))
 router.get('/:id', canView('wip_items'), validateSchema(wipItemIdSchema), (req, res) => wipController.getById(req, res))

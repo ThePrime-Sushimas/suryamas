@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Factory, Plus, Package } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
-import { useProductionOrders, useProductionOrderSummary, useProductionOrderMaterials } from '../api/food-production.api'
+import { useProductionOrders, useProductionOrderSummary, useProductionOrderMaterials, useWipPositions } from '../api/food-production.api'
 import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 
 import { PRODUCTION_STATUS_COLORS, getProductionOrderDisplayCost } from '../components/production-order.constants'
@@ -18,15 +18,21 @@ export default function ProductionOrdersPage() {
   const [page, setPage] = useState(1)
   const [branchFilter, setBranchFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [positionFilter, setPositionFilter] = useState('')
   const [dateFrom, setDateFrom] = useState(today())
   const [dateTo, setDateTo] = useState(today())
+
+  const positions = useWipPositions()
+  const allPositions = positions.data || []
+  const selectedPositionIds = positionFilter ? positionFilter.split(',').filter(p => p) : []
 
   const listParams = useMemo(() => ({
     page, limit: 20,
     ...(branchFilter ? { branch_id: branchFilter } : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
+    ...(positionFilter ? { position_filter: positionFilter } : {}),
     date_from: dateFrom, date_to: dateTo,
-  }), [page, branchFilter, statusFilter, dateFrom, dateTo])
+  }), [page, branchFilter, statusFilter, positionFilter, dateFrom, dateTo])
 
   const orders = useProductionOrders(listParams)
   const summary = useProductionOrderSummary({ date_from: dateFrom, date_to: dateTo, branch_id: branchFilter || undefined })
@@ -83,6 +89,43 @@ export default function ProductionOrdersPage() {
           </select>
         )}
       </div>
+
+      {/* Position Filter */}
+      {allPositions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs text-gray-600 dark:text-gray-300">Posisi:</label>
+          {allPositions.map(p => {
+            const isSelected = selectedPositionIds.includes(p.id)
+            return (
+              <button
+                key={p.id}
+                onClick={() => {
+                  const newIds = isSelected
+                    ? selectedPositionIds.filter(id => id !== p.id)
+                    : [...selectedPositionIds, p.id]
+                  setPositionFilter(newIds.join(','))
+                  setPage(1)
+                }}
+                className={`px-3 py-1.5 text-xs rounded-lg transition ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {p.position_code}
+              </button>
+            )
+          })}
+          {selectedPositionIds.length > 0 && (
+            <button
+              onClick={() => { setPositionFilter(''); setPage(1) }}
+              className="px-2 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

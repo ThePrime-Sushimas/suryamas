@@ -61,7 +61,7 @@ export class WipController {
         sendSuccess(res, result.data, 'WIP items retrieved', 200, result.pagination)
       } else {
         const result = await wipService.list(companyIds, { page, limit }, {
-          is_active, positionIds, canAccessAll, companyId: companyIdFilter,
+          is_active, positionIds, canAccessAll, companyId: companyIdFilter, positionFilter,
         })
         sendSuccess(res, result.data, 'WIP items retrieved', 200, result.pagination)
       }
@@ -151,6 +151,16 @@ export class WipController {
       sendSuccess(res, null, `${ids.length} WIP items deleted`)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'bulk_delete_wip_items' })
+    }
+  }
+
+  positionsWithWip = async (req: Request, res: Response) => {
+    try {
+      const { companyIds } = await getReadScope(req)
+      const data = await wipService.getPositionsWithWip(companyIds)
+      sendSuccess(res, data, 'Positions with WIP retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'positions_with_wip' })
     }
   }
 }

@@ -23,10 +23,14 @@ const wipRepository = new WipRepository()
 class ProductionOrdersService {
 
   async list(companyIds: string[], pagination: { page: number; limit: number }, filter?: {
-    branch_id?: string; status?: string; date_from?: string; date_to?: string
+    branch_id?: string; status?: string; date_from?: string; date_to?: string; position_filter?: string
   }): Promise<{ data: ProductionOrderWithBranch[]; total: number }> {
     const offset = (pagination.page - 1) * pagination.limit
-    return productionOrdersRepository.findAll(companyIds, { limit: pagination.limit, offset }, filter)
+    const positionIds = filter?.position_filter ? filter.position_filter.split(',').filter(id => id) : undefined
+    return productionOrdersRepository.findAll(companyIds, { limit: pagination.limit, offset }, {
+      ...filter,
+      position_filter: positionIds,
+    })
   }
 
   async getById(id: string, companyIds: string[]): Promise<ProductionOrderWithDetails> {

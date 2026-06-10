@@ -260,7 +260,7 @@ export class ProductionOrdersRepository {
   async findAll(
     companyIds: string[],
     pagination: { limit: number; offset: number },
-    filter?: { branch_id?: string; status?: string; date_from?: string; date_to?: string }
+    filter?: { branch_id?: string; status?: string; date_from?: string; date_to?: string; position_filter?: string[] }
   ): Promise<{ data: ProductionOrderWithBranch[]; total: number }> {
     const conditions = ['po.company_id = ANY($1::uuid[])', 'po.is_deleted = false']
     const params: unknown[] = [companyIds]
@@ -270,6 +270,17 @@ export class ProductionOrdersRepository {
     if (filter?.status) { params.push(filter.status); conditions.push(`po.status = $${idx++}`) }
     if (filter?.date_from) { params.push(filter.date_from); conditions.push(`po.production_date >= $${idx++}::date`) }
     if (filter?.date_to) { params.push(filter.date_to); conditions.push(`po.production_date <= $${idx++}::date`) }
+
+    // Filter by position: only show orders that have at least one WIP line restricted to the selected positions
+    if (filter?.position_filter && filter.position_filter.length > 0) {
+      params.push(filter.position_filter)
+      conditions.push(`EXISTS (
+        SELECT 1 FROM production_order_lines pol
+        JOIN wip_position_access wpa ON wpa.wip_id = pol.wip_id
+        WHERE pol.production_order_id = po.id AND wpa.position_id = ANY($${idx}::uuid[])
+      )`)
+      idx++
+    }
 
     const where = `WHERE ${conditions.join(' AND ')}`
 

@@ -50,6 +50,19 @@ export class WipRepository {
     return { data: dataRes.rows, total: countRes.rows[0].total }
   }
 
+  async findPositionsWithWip(companyIds: string[]): Promise<Array<{ id: string; position_code: string; position_name: string; department_name: string }>> {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT p.id, p.position_code, p.position_name, d.department_name, d.sort_order, p.sort_order AS pos_sort_order
+       FROM positions p
+       JOIN wip_position_access wpa ON wpa.position_id = p.id
+       JOIN wip_items w ON w.id = wpa.wip_id AND w.company_id = ANY($1::uuid[]) AND w.deleted_at IS NULL
+       JOIN departments d ON d.id = p.department_id
+       ORDER BY d.sort_order, p.sort_order`,
+      [companyIds],
+    )
+    return rows
+  }
+
   async findAllWithPositions(companyIds: string[], pagination: { limit: number; offset: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean; companyId?: string; positionFilter?: string[] }): Promise<{ data: WipItemWithPositions[]; total: number }> {
     const scopedCompanyIds = filter?.companyId
       ? (companyIds.includes(filter.companyId) ? [filter.companyId] : [])

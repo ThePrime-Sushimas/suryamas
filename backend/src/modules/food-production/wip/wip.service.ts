@@ -6,11 +6,15 @@ import { recipesService } from '../recipes/recipes.service'
 import type { CreateWipItemDto, UpdateWipItemDto, WipItem, WipItemWithIngredients, WipItemWithPositions } from './wip.types'
 
 export class WipService {
-  async list(companyIds: string[], pagination: { page: number; limit: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean; companyId?: string }) {
+  async list(companyIds: string[], pagination: { page: number; limit: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean; companyId?: string; positionFilter?: string[] }) {
     const offset = (pagination.page - 1) * pagination.limit
     const { data, total } = await wipRepository.findAll(companyIds, { limit: pagination.limit, offset }, filter)
     const totalPages = Math.ceil(total / pagination.limit)
     return { data, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages, hasNext: pagination.page < totalPages, hasPrev: pagination.page > 1 } }
+  }
+
+  async getPositionsWithWip(companyIds: string[]) {
+    return wipRepository.findPositionsWithWip(companyIds)
   }
 
   async listWithPositions(companyIds: string[], pagination: { page: number; limit: number }, filter?: { is_active?: boolean; positionIds?: string[]; canAccessAll?: boolean; companyId?: string; positionFilter?: string[] }) {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useWipItems, useCreateProductionOrder } from '../api/food-production.api'
+import { useWipItems, useCreateProductionOrder, useWipPositions } from '../api/food-production.api'
 import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 
@@ -27,11 +27,16 @@ export default function ProductionOrderForm() {
   const [productionDate, setProductionDate] = useState(today())
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineInput[]>([{ wip_id: '', planned_batch_qty: 1 }])
+  const [positionFilter, setPositionFilter] = useState('')
 
   const selectedBranch = availableBranches.find(b => b.id === branchId)
 
+  const positions = useWipPositions()
+  const allPositions = positions.data || []
+  const selectedPositionIds = positionFilter ? positionFilter.split(',').filter(p => p) : []
+
   const wipItems = useWipItems(
-    { limit: 500, filter_by_position: true, branch_id: branchId || undefined },
+    { limit: 500, filter_by_position: true, branch_id: branchId || undefined, ...(positionFilter ? { position_filter: positionFilter } : {}) },
     { enabled: !!branchId },
   )
 
@@ -129,6 +134,43 @@ export default function ProductionOrderForm() {
             <Plus className="w-3 h-3" /> Tambah WIP
           </button>
         </div>
+
+        {/* Position Filter */}
+        {allPositions.length > 0 && (
+          <div className="px-4 py-2.5 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-2 bg-gray-50/50 dark:bg-gray-900/20">
+            <label className="text-xs text-gray-600 dark:text-gray-300 font-medium">Posisi:</label>
+            {allPositions.map(p => {
+              const isSelected = selectedPositionIds.includes(p.id)
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    const newIds = isSelected
+                      ? selectedPositionIds.filter(id => id !== p.id)
+                      : [...selectedPositionIds, p.id]
+                    setPositionFilter(newIds.join(','))
+                    setLines(prev => prev.map(l => ({ ...l, wip_id: '' })))
+                  }}
+                  className={`px-3 py-1 text-xs rounded-lg transition ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {p.position_code}
+                </button>
+              )
+            })}
+            {selectedPositionIds.length > 0 && (
+              <button
+                onClick={() => { setPositionFilter(''); setLines(prev => prev.map(l => ({ ...l, wip_id: '' }))) }}
+                className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        )}
 
         {wipEmptyHint && (
           <p className="px-4 py-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 border-b border-amber-100 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-900/10">

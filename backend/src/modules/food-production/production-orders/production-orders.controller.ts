@@ -22,7 +22,7 @@ class ProductionOrdersController {
 
   list = async (req: Request, res: Response) => {
     try {
-      const { branch_id, status, date_from, date_to, page, limit } = (req as ListReq).validated.query
+      const { branch_id, status, date_from, date_to, page, limit, position_filter } = (req as ListReq).validated.query
       let companyIds: string[]
 
       if (branch_id) {
@@ -33,7 +33,7 @@ class ProductionOrdersController {
         ({ companyIds } = await getReadScope(req))
       }
 
-      const result = await productionOrdersService.list(companyIds, { page, limit }, { branch_id, status, date_from, date_to })
+      const result = await productionOrdersService.list(companyIds, { page, limit }, { branch_id, status, date_from, date_to, position_filter })
       const totalPages = Math.ceil(result.total / limit)
       sendSuccess(res, result.data, 'Production orders retrieved', 200, { page, limit, total: result.total, totalPages })
     } catch (error: unknown) {
