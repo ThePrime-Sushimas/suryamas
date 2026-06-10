@@ -45,7 +45,7 @@ export default function StockBalancesPage() {
           <div className="flex items-center gap-3">
             <Package className="w-6 h-6 text-emerald-600 shrink-0" />
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Stok Gudang</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Stock Gudang</h1>
               <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} item</p>
             </div>
           </div>
@@ -89,9 +89,9 @@ export default function StockBalancesPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cabang</th>                
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gudang</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cabang</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qty</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Avg Cost</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total Value</th>
@@ -107,12 +107,12 @@ export default function StockBalancesPage() {
                   <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">Tidak ada data stok</td></tr>
                 ) : balances.map(b => (
                   <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{b.branch_name}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{b.warehouse_name}</td>                  
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900 dark:text-white">{b.product_name}</div>
                       <div className="text-xs text-gray-500">{b.product_code}</div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{b.warehouse_name}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{b.branch_name}</td>
+                    </td>                    
                     <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
                       {fmt(b.qty)} <span className="text-xs text-gray-400">{b.base_unit_name || ''}</span>
                     </td>
