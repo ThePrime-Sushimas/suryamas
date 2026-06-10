@@ -24,7 +24,7 @@
  *   CREDIT = gross + tax + fee_liability + SC + otherVat + orderFee + delivery
  *
  * Special payment_type handling:
- *   COMPLIMENT     → CREDIT to coa_account_id (reduces revenue)
+ *   COMPLIMENT     → DEBIT to coa_account_id (contra-revenue / discount account, e.g. 410305)
  *   MEMBER_DEPOSIT → DEBIT to coa_account_id (reduces liability)
  *   ASSET types    → DEBIT to coa_account_id
  */
@@ -811,11 +811,8 @@ export async function generateJournalsOptimized(
         const { pm, billTotal, feeTotal } = agg
         const pmDesc = pm.name
 
-        if (pm.paymentType === 'COMPLIMENT') {
-          pushLine(pm.coaAccountId, `POS Sales - ${pmDesc}`, 0, billTotal)
-        } else {
-          pushLine(pm.coaAccountId, `POS Sales - ${pmDesc}`, billTotal, 0)
-        }
+        // COMPLIMENT uses contra-revenue COA (e.g. Diskon Lainnya) — debit like bill_discount
+        pushLine(pm.coaAccountId, `POS Sales - ${pmDesc}`, billTotal, 0)
 
         // Fee lines: Full Accrual Model
         if (feeTotal > 0 && pm.feeCoaAccountId) {
