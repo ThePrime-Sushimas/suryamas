@@ -1,0 +1,17 @@
+export const MOVEMENT_LABELS: Record<string, string> = {
+  IN_PURCHASE: 'Pembelian (+)',
+  IN_TRANSFER: 'Transfer Masuk (+)',
+  IN_RETURN: 'Pengembalian (+)',
+  IN_PRODUCTION: 'Hasil Produksi (+)',
+  IN_ADJUSTMENT: 'Penyesuaian (+)',
+  IN_OPENING: 'Saldo Awal (+)',
+  IN_REVERSAL: 'Reversal Masuk (+)',
+  OUT_TRANSFER: 'Transfer Keluar (-)',
+  OUT_LOAN: 'Pinjam Cabang (-)',
+  OUT_DAILY: 'Daily Prep (-)',
+  OUT_ADJUSTMENT: 'Penyesuaian (-)',
+  OUT_WASTE: 'Waste/Terbuang (-)',
+  OUT_PRODUCTION: 'Bahan Produksi (-)',
+  OUT_PROCESSING: 'Proses/Breakdown (-)',
+  OUT_REVERSAL: 'Reversal Keluar (-)',
+}

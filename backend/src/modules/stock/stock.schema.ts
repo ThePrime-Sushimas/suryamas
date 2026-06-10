@@ -2,9 +2,9 @@ import { z } from '@/lib/openapi'
 
 const movementTypes = [
   'IN_PURCHASE', 'IN_TRANSFER', 'IN_RETURN', 'IN_PRODUCTION',
-  'IN_ADJUSTMENT', 'IN_OPENING',
+  'IN_ADJUSTMENT', 'IN_OPENING', 'IN_REVERSAL',
   'OUT_TRANSFER', 'OUT_LOAN', 'OUT_DAILY', 'OUT_ADJUSTMENT',
-  'OUT_WASTE', 'OUT_PRODUCTION',
+  'OUT_WASTE', 'OUT_PRODUCTION', 'OUT_PROCESSING', 'OUT_REVERSAL',
 ] as const
 
 const referenceTypes = [

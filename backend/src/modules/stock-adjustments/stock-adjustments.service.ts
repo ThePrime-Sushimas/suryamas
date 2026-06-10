@@ -217,14 +217,14 @@ export class StockAdjustmentsService {
     }
     const avgCost = balance ? Number(balance.avg_cost) : 0
 
-    // OUT movement for input
+    // OUT movement for input (use OUT_PROCESSING to distinguish from actual waste)
     const newQty = currentQty - inputQty
     const outMovement = await stockRepository.createMovement(
       client,
       {
         warehouse_id: detail.warehouse_id,
         product_id: detail.input_product_id!,
-        movement_type: 'OUT_WASTE',
+        movement_type: 'OUT_PROCESSING',
         qty: inputQty,
         cost_per_unit: avgCost,
         reference_type: 'adjustment',

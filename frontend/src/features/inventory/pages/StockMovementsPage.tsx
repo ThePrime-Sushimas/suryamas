@@ -2,23 +2,10 @@ import { useState, useMemo } from 'react'
 import { ArrowUpDown, ArrowDownLeft, ArrowUpRight, X } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 import { useStockMovements, useWarehouses } from '../api/inventory.api'
+import { MOVEMENT_LABELS } from '../constants/movementLabels'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-
-const MOVEMENT_LABELS: Record<string, string> = {
-  IN_PURCHASE: 'Pembelian (+)',
-  IN_TRANSFER: 'Transfer Masuk (+)',
-  IN_RETURN: 'Pengembalian (+)',
-  IN_PRODUCTION: 'Hasil Produksi (+)',
-  IN_ADJUSTMENT: 'Penyesuaian (+)',
-  IN_OPENING: 'Saldo Awal (+)',
-  OUT_TRANSFER: 'Transfer Keluar (-)',
-  OUT_LOAN: 'Pinjam Cabang (-)',
-  OUT_ADJUSTMENT: 'Penyesuaian (-)',
-  OUT_WASTE: 'Waste (-)',
-  OUT_PRODUCTION: 'Bahan Produksi (-)',
-}
 
 export default function StockMovementsPage() {
   const [page, setPage] = useState(1)
