@@ -130,9 +130,9 @@ export const PosAggregatesFilters: React.FC = () => {
       </div>
 
       {showFilters && (
-        <div className="flex flex-wrap gap-4 items-end">
-          {/* Search */}
-          <div className="flex-1 min-w-[200px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 items-end">
+          {/* Search - full width on mobile */}
+          <div className="sm:col-span-2">
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Pencarian</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
@@ -155,7 +155,7 @@ export const PosAggregatesFilters: React.FC = () => {
           </div>
 
           {/* Date From */}
-          <div className="w-36">
+          <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Dari</label>
             <input
               type="date"
@@ -166,7 +166,7 @@ export const PosAggregatesFilters: React.FC = () => {
           </div>
 
           {/* Date To */}
-          <div className="w-36">
+          <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sampai</label>
             <input
               type="date"
@@ -178,7 +178,7 @@ export const PosAggregatesFilters: React.FC = () => {
           </div>
 
           {/* Branch Dropdown */}
-          <div className="relative w-44" ref={branchDropdownRef}>
+          <div className="relative" ref={branchDropdownRef}>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Cabang</label>
             <button
               onClick={() => setShowBranchDropdown(!showBranchDropdown)}
@@ -209,7 +209,7 @@ export const PosAggregatesFilters: React.FC = () => {
           </div>
 
           {/* Payment Method Dropdown */}
-          <div className="relative w-44" ref={paymentDropdownRef}>
+          <div className="relative" ref={paymentDropdownRef}>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Metode Bayar</label>
             <button
               onClick={() => setShowPaymentDropdown(!showPaymentDropdown)}
@@ -240,7 +240,7 @@ export const PosAggregatesFilters: React.FC = () => {
           </div>
 
           {/* Status */}
-          <div className="w-36">
+          <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Status</label>
             <select
               value={filter.status || ''}
@@ -254,7 +254,7 @@ export const PosAggregatesFilters: React.FC = () => {
           </div>
 
           {/* Reconciliation */}
-          <div className="w-36">
+          <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Rekonsiliasi</label>
             <select
               value={filter.is_reconciled === undefined ? '' : filter.is_reconciled.toString()}
@@ -268,7 +268,7 @@ export const PosAggregatesFilters: React.FC = () => {
           </div>
 
           {/* Journal */}
-          <div className="w-36">
+          <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Jurnal</label>
             <select
               value={filter.has_journal === undefined ? '' : filter.has_journal.toString()}
@@ -282,7 +282,7 @@ export const PosAggregatesFilters: React.FC = () => {
           </div>
 
           {/* Show Deleted */}
-          <div className="flex items-center pb-1">
+          <div className="flex items-end pb-1">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -294,15 +294,17 @@ export const PosAggregatesFilters: React.FC = () => {
             </label>
           </div>
 
-          {/* Clear */}
-          {hasActiveFilters && (
-            <button
-              onClick={handleClearFilters}
-              className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-900/50"
-            >
-              Hapus Filter
-            </button>
-          )}
+          {/* Clear (Terapkan sudah ada di header) */}
+          <div className="flex items-end">
+            {hasActiveFilters && (
+              <button
+                onClick={handleClearFilters}
+                className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-900/50"
+              >
+                Hapus Filter
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

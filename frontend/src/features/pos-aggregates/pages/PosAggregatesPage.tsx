@@ -5,9 +5,9 @@
  * Features: list view, filters, pagination, bulk actions, summary.
  */
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, FileText, CheckCircle, Database, Calculator, RefreshCw } from "lucide-react";
+import { Plus, FileText, CheckCircle, Database, Calculator, RefreshCw, MoreHorizontal } from "lucide-react";
 import { usePosAggregatesStore } from "../store/posAggregates.store";
 import { useToast } from "@/contexts/ToastContext";
 import { useBranchContextStore } from "@/features/branch_context";
@@ -254,6 +254,35 @@ export const PosAggregatesPage: React.FC = () => {
   const [recalcDate, setRecalcDate] = useState(new Date().toISOString().split('T')[0]);
   const [isRecalculating, setIsRecalculating] = useState(false);
 
+  // Handle recalculate fee — shared between desktop and mobile
+  const handleRecalcFee = useCallback(async () => {
+    if (!recalcDate) return;
+    setIsRecalculating(true);
+    try {
+      const result = await posAggregatesApi.recalculateFee(recalcDate);
+      toast.success(`Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`);
+      fetchTransactions();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal recalculate fee');
+    } finally {
+      setIsRecalculating(false);
+    }
+  }, [recalcDate, toast, fetchTransactions]);
+
+  // Mobile: show/hide action dropdown in header
+  const [showMobileActions, setShowMobileActions] = useState(false);
+  const mobileActionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (mobileActionsRef.current && !mobileActionsRef.current.contains(event.target as Node)) {
+        setShowMobileActions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Handle select bank mutation
   const handleSelectBankMutation = useCallback(
     (transaction: AggregatedTransactionListItem) => {
@@ -309,7 +338,9 @@ export const PosAggregatesPage: React.FC = () => {
             Agregat POS
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Desktop buttons — hidden on small screens */}
+        <div className="hidden md:flex items-center gap-2">
           {/* Recalc Fee */}
           <input
             type="date"
@@ -318,19 +349,7 @@ export const PosAggregatesPage: React.FC = () => {
             className="px-2 py-2 text-sm border rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300"
           />
           <button
-            onClick={async () => {
-              if (!recalcDate) return
-              setIsRecalculating(true)
-              try {
-                const result = await posAggregatesApi.recalculateFee(recalcDate)
-                toast.success(`Fee recalculated: ${result.updated} updated, ${result.skipped} skipped`)
-                fetchTransactions()
-              } catch (err: unknown) {
-                toast.error(err instanceof Error ? err.message : 'Gagal recalculate fee')
-              } finally {
-                setIsRecalculating(false)
-              }
-            }}
+            onClick={handleRecalcFee}
             disabled={isRecalculating}
             className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:border-orange-700 dark:text-orange-300 disabled:opacity-50"
           >
@@ -373,6 +392,66 @@ export const PosAggregatesPage: React.FC = () => {
             <Plus size={15} />
             Tambah
           </button>
+        </div>
+
+        {/* Mobile hamburger — visible only on small screens */}
+        <div className="relative md:hidden" ref={mobileActionsRef}>
+          <button
+            onClick={() => setShowMobileActions((prev) => !prev)}
+            className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+          >
+            <MoreHorizontal size={20} />
+          </button>
+
+          {showMobileActions && (
+            <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl shadow-lg py-1 space-y-0.5">
+              <div className="px-3 py-1.5">
+                <input
+                  type="date"
+                  value={recalcDate}
+                  onChange={(e) => setRecalcDate(e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+                />
+              </div>
+              <button
+                onClick={() => { handleRecalcFee(); setShowMobileActions(false) }}
+                disabled={isRecalculating}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 disabled:opacity-50"
+              >
+                <Calculator size={16} className={isRecalculating ? 'animate-spin' : ''} />
+                Recalc Fee
+              </button>
+              <button
+                onClick={() => { setShowGenerateFromImportModal(true); setShowMobileActions(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              >
+                <Database size={16} />
+                Generate dari Import
+              </button>
+              <button
+                onClick={() => { setShowGenerateJournalModal(true); setShowMobileActions(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+              >
+                <FileText size={16} />
+                Buat Jurnal
+              </button>
+              <hr className="border-gray-200 dark:border-gray-700 my-1" />
+              <button
+                onClick={() => { fetchTransactions(); setShowMobileActions(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <RefreshCw size={16} />
+                Refresh
+              </button>
+              <button
+                onClick={() => { setShowForm(true); setShowMobileActions(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-none"
+              >
+                <Plus size={16} />
+                Tambah
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -437,7 +516,7 @@ export const PosAggregatesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filters — pass mobile-friendly class */}
       {!showForm && <PosAggregatesFilters />}
 
       {/* Table */}

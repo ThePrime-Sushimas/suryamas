@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Edit2, Trash2, RotateCcw, CheckCircle, FileText, Building2, ShieldCheck } from 'lucide-react'
+import { Edit2, Trash2, RotateCcw, CheckCircle, FileText, Building2, ShieldCheck, MoreHorizontal } from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { Pagination } from '@/components/ui/Pagination'
 import { PosAggregatesStatusBadge } from './PosAggregatesStatusBadge'
@@ -87,6 +87,117 @@ interface PosAggregatesTableProps {
   onToggleAllSelection: () => void
   onPageChange?: (page: number) => void
   onLimitChange?: (limit: number) => void
+}
+
+// =============================================================================
+// MOBILE ROW ACTIONS DROPDOWN
+// =============================================================================
+
+interface RowActionsDropdownProps {
+  transaction: AggregatedTransactionListItem
+  isDeleted: boolean
+  onEdit: (id: string) => void
+  onDelete: () => void
+  onRestore: () => void
+  onReconcile: (reason?: string) => void
+  onManualReconcile: () => void
+  onSelectBankMutation: () => void
+}
+
+const RowActionsDropdown: React.FC<RowActionsDropdownProps> = ({
+  transaction,
+  isDeleted,
+  onEdit,
+  onDelete,
+  onRestore,
+  onReconcile,
+  onManualReconcile,
+  onSelectBankMutation,
+}) => {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((prev) => !prev) }}
+        className="p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-0.5 z-50 w-44 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl shadow-lg py-1 space-y-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isDeleted ? (
+            <button
+              onClick={() => { onRestore(); setOpen(false) }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+            >
+              <RotateCcw size={14} />
+              Pulihkan
+            </button>
+          ) : (
+            <>
+              {!transaction.is_reconciled && (
+                <button
+                  onClick={() => { onManualReconcile(); setOpen(false) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                >
+                  <ShieldCheck size={14} />
+                  Reconcile Manual
+                </button>
+              )}
+              {!transaction.is_reconciled && (
+                <button
+                  onClick={() => { onSelectBankMutation(); setOpen(false) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                >
+                  <Building2 size={14} />
+                  Pilih Mutasi Bank
+                </button>
+              )}
+              <button
+                onClick={() => { onEdit(transaction.id); setOpen(false) }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              >
+                <Edit2 size={14} />
+                Edit
+              </button>
+              {!transaction.is_reconciled && transaction.journal_number && (
+                <button
+                  onClick={() => { onReconcile(); setOpen(false) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                >
+                  <CheckCircle size={14} />
+                  Rekonsiliasi
+                </button>
+              )}
+              <hr className="border-gray-200 dark:border-gray-700" />
+              <button
+                onClick={() => { onDelete(); setOpen(false) }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                <Trash2 size={14} />
+                Hapus
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // =============================================================================
@@ -250,8 +361,8 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Jurnal
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
-                aksi
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10 md:w-32">
+                <span className="hidden md:inline">aksi</span>
               </th>
             </tr>
           </thead>
@@ -472,7 +583,8 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                     className="px-4 py-3 whitespace-nowrap text-right"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="flex items-center justify-end gap-2" role="group" aria-label="Aksi transaksi">
+                    {/* Desktop: row of icon buttons */}
+                    <div className="hidden md:flex items-center justify-end gap-2" role="group" aria-label="Aksi transaksi">
                       {/* Restore - show this FIRST for deleted items */}
                       {isDeleted && (
                         <button
@@ -599,6 +711,24 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
+                    </div>
+
+                    {/* Mobile: single dropdown button */}
+                    <div className="md:hidden relative">
+                      <RowActionsDropdown
+                        transaction={transaction}
+                        isDeleted={isDeleted}
+                        onEdit={onEdit}
+                        onDelete={() => setDeleteId(transaction.id)}
+                        onRestore={() => setRestoreId(transaction.id)}
+                        onReconcile={(reason) => onReconcile(transaction.id, reason)}
+                        onManualReconcile={() => {
+                          setReconcileId(transaction.id)
+                          setReconcilePaymentMethod(transaction.payment_method_name || (transaction.payment_method_id ? `ID: ${transaction.payment_method_id}` : 'VOID'))
+                          setReconcileReason('')
+                        }}
+                        onSelectBankMutation={() => onSelectBankMutation(transaction)}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -752,4 +882,3 @@ export const PosAggregatesTable: React.FC<PosAggregatesTableProps> = ({
 // Using global Pagination component from @/components/ui/Pagination
 
 export default PosAggregatesTable
-

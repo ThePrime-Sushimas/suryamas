@@ -305,13 +305,6 @@ export const menuItems: MenuItem[] = [
             module: "stock",
           },
           {
-            id: "inv-reorder-suggestions",
-            name: "Reorder Suggestions",
-            href: "/inventory/reorder-suggestions",
-            icon: <AlertTriangle size={16} />,
-            module: "stock",
-          },
-          {
             id: "inv-opname-config",
             name: "Setting Opname",
             href: "/inventory/daily-stock-opname/config",
@@ -791,6 +784,13 @@ export const menuItems: MenuItem[] = [
             href: "/inventory/stock-analysis",
             icon: <BarChart3 size={16} />,
             module: "stock_analysis",
+          },
+          {
+            id: "inv-reorder-suggestions",
+            name: "Reorder Suggestions",
+            href: "/inventory/reorder-suggestions",
+            icon: <AlertTriangle size={16} />,
+            module: "stock",
           },
         ],
       },
