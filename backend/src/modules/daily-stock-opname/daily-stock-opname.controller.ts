@@ -214,7 +214,7 @@ export class DailyStockOpnameController {
   requestBackdate = async (req: Request, res: Response) => {
     try {
       const { branchIds, userId } = await opnameScope(req)
-      const id = req.params.id
+      const id = req.params.id as string
       const result = await dailyStockOpnameService.requestBackdate(id, branchIds, userId)
       sendSuccess(res, result, 'Backdate request berhasil diajukan')
     } catch (error: unknown) {

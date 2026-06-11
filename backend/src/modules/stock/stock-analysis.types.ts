@@ -58,6 +58,8 @@ export interface StockAnalysisSummary {
 export interface StockAnalysisResponse {
   data: StockAnalysisRow[]
   summary: StockAnalysisSummary
+  warehouse_name: string
+  warehouse_type: string
   pagination: {
     page: number
     limit: number
