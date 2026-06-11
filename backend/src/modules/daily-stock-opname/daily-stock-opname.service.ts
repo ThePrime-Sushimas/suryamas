@@ -1,11 +1,13 @@
 import { dailyStockOpnameRepository } from './daily-stock-opname.repository'
 import type { InsertLineData } from './daily-stock-opname.repository'
+import { reopenRepository } from './daily-stock-opname-reopen.repository'
 import { theoreticalConsumptionRepository } from '../food-production/theoretical-consumption/theoretical-consumption.repository'
 import { resolveUserWipAccessForBranch } from '../food-production/wip/wip-access.util'
 import { requireBranchAccess, getCompanyIdForBranch } from '../../utils/branch-access.util'
 import { stockRepository } from '../stock/stock.repository'
 import { AuditService } from '../monitoring/monitoring.service'
 import { storageService } from '../../services/storage.service'
+import { pool } from '../../config/db'
 import {
   OpnameTimeExpiredError,
   OpnameDuplicateError,
@@ -330,7 +332,44 @@ export class DailyStockOpnameService {
       line_count: lines.length,
     })
 
-    // 14. Fetch and return the full detail
+    // 14. Handle backdate: auto-create reopen request for manager approval
+    const isBackdate = closingDate < todayJakarta()
+    if (isBackdate) {
+      // Mark session as backdate
+      await pool.query(
+        `UPDATE daily_closing_counts SET is_backdate = true WHERE id = $1`,
+        [sessionId],
+      )
+
+      // Auto-create reopen request
+      await reopenRepository.insertRequestDirect({
+        closing_id: sessionId,
+        requested_by: userId,
+        reason: `Backdate opname untuk tanggal ${closingDate}`,
+      })
+
+      // Dispatch notification (non-blocking: notification failure should not block creation)
+      try {
+        const { notificationDispatcher } = await import('../notifications/notification-dispatcher.service')
+        const companyIdForNotif = (await getCompanyIdForBranch(dto.branch_id)) ?? ''
+        const { rows: branchInfo } = await pool.query(`SELECT branch_name FROM branches WHERE id = $1`, [dto.branch_id])
+        const { rows: picInfo } = await pool.query(`SELECT full_name FROM employees WHERE user_id = $1 LIMIT 1`, [userId])
+        await notificationDispatcher.dispatch('OPNAME_REOPEN_REQUESTED', companyIdForNotif, {
+          entityId: sessionId,
+          variables: {
+            closing_date: closingDate,
+            reason: `Backdate opname untuk tanggal ${closingDate}`,
+            branch_name: branchInfo[0]?.branch_name ?? '',
+            pic_name: picInfo[0]?.full_name ?? '',
+          },
+          excludeUserIds: [userId],
+        })
+      } catch {
+        // Non-blocking: notification failure should not block creation
+      }
+    }
+
+    // 15. Fetch and return the full detail
     const detail = await dailyStockOpnameRepository.findByIdAccessible(sessionId, branchIds)
     if (!detail) {
       throw new BusinessRuleError('Gagal mengambil detail opname session setelah pembuatan')
@@ -1171,6 +1210,113 @@ export class DailyStockOpnameService {
 
     const today = todayJakarta()
     return session.closing_date < today
+  }
+
+  /**
+   * Converts a missed (expired DRAFT) session into a backdate session.
+   * Creates a reopen request for manager approval.
+   * After approval, session becomes REOPENED and can be filled/confirmed.
+   */
+  async requestBackdate(
+    sessionId: string,
+    branchIds: string[],
+    userId: string,
+  ): Promise<DailyClosingCountDetail> {
+    const session = await dailyStockOpnameRepository.findByIdAccessible(sessionId, branchIds)
+    if (!session) {
+      throw new OpnameNotFoundError(sessionId)
+    }
+
+    // Must be DRAFT and expired (missed)
+    if (session.status !== 'DRAFT') {
+      throw new BusinessRuleError('Hanya session DRAFT yang bisa diajukan backdate')
+    }
+    if (!this.isSessionExpired(session)) {
+      throw new BusinessRuleError('Session belum expired, tidak perlu backdate')
+    }
+    if (session.is_backdate) {
+      throw new BusinessRuleError('Session sudah diajukan sebagai backdate')
+    }
+
+    // Check no pending reopen request exists
+    const existingRequest = await reopenRepository.findPendingByClosingId(sessionId)
+    if (existingRequest) {
+      throw new BusinessRuleError('Sudah ada permintaan backdate yang menunggu persetujuan')
+    }
+
+    // Mark as backdate
+    await pool.query(
+      `UPDATE daily_closing_counts SET is_backdate = true, updated_at = now(), updated_by = $2 WHERE id = $1`,
+      [sessionId, userId],
+    )
+
+    // Create reopen request
+    await reopenRepository.insertRequestDirect({
+      closing_id: sessionId,
+      requested_by: userId,
+      reason: `Backdate opname untuk tanggal ${session.closing_date}`,
+    })
+
+    // Dispatch notification (non-blocking)
+    try {
+      const { notificationDispatcher } = await import('../notifications/notification-dispatcher.service')
+      const companyId = (await getCompanyIdForBranch(session.branch_id)) ?? ''
+      await notificationDispatcher.dispatch('OPNAME_REOPEN_REQUESTED', companyId, {
+        entityId: sessionId,
+        variables: {
+          closing_date: session.closing_date,
+          reason: `Backdate opname untuk tanggal ${session.closing_date}`,
+          branch_name: session.branch_name ?? '',
+          pic_name: session.pic_name ?? '',
+        },
+        excludeUserIds: [userId],
+      })
+    } catch {
+      // Non-blocking
+    }
+
+    await AuditService.log('UPDATE', 'daily_closing_counts', sessionId, userId,
+      { is_backdate: false }, { is_backdate: true })
+
+    const detail = await dailyStockOpnameRepository.findByIdAccessible(sessionId, branchIds)
+    if (!detail) throw new BusinessRuleError('Gagal mengambil detail setelah request backdate')
+    return detail
+  }
+
+  /**
+   * Recalculates theoretical_out (pemakaian POS) for all lines in a session.
+   * Called when a backdate session is approved — POS data should be available by then.
+   */
+  async recalculateTheoreticalForSession(sessionId: string): Promise<void> {
+    // Fetch session header
+    const { rows: headerRows } = await pool.query(
+      `SELECT branch_id, closing_date FROM daily_closing_counts WHERE id = $1`,
+      [sessionId],
+    )
+    if (!headerRows.length) return
+
+    const { branch_id: branchId, closing_date: closingDate } = headerRows[0]
+
+    // Recalculate theoretical consumption
+    const theoreticalMap = await this.getTheoreticalConsumptionForDate(branchId, closingDate)
+
+    // Fetch lines
+    const { rows: lines } = await pool.query(
+      `SELECT id, product_id FROM daily_closing_count_lines WHERE closing_id = $1`,
+      [sessionId],
+    )
+
+    // Batch update theoretical_out and expected_qty for each line
+    for (const line of lines) {
+      const theoreticalOut = theoreticalMap.get(line.product_id) ?? 0
+      await pool.query(
+        `UPDATE daily_closing_count_lines
+         SET theoretical_out = $2,
+             expected_qty = GREATEST(0, system_qty - $2)
+         WHERE id = $1`,
+        [line.id, theoreticalOut],
+      )
+    }
   }
 
   /**

@@ -211,7 +211,18 @@ export class DailyStockOpnameReopenService {
       })
     })
 
-    // 4. Audit log
+    // 4. If backdate session, recalculate theoretical_out on all lines (POS data might be available now)
+    if (session.is_backdate) {
+      try {
+        const { dailyStockOpnameService } = await import('./daily-stock-opname.service')
+        await dailyStockOpnameService.recalculateTheoreticalForSession(request.closing_id)
+      } catch (err) {
+        // Non-blocking: if recalculation fails, session is still usable
+        console.warn(`[ReopenApprove] Theoretical recalculation failed for backdate session ${request.closing_id}:`, err)
+      }
+    }
+
+    // 5. Audit log
     await AuditService.log(
       'UPDATE',
       'opname_reopen_request',
@@ -221,7 +232,7 @@ export class DailyStockOpnameReopenService {
       { status: 'APPROVED', response_note: dto.response_note ?? null },
     )
 
-    // 5. Return updated request with relations
+    // 6. Return updated request with relations
     const result = await reopenRepository.findByIdWithRelations(requestId)
     return result!
   }

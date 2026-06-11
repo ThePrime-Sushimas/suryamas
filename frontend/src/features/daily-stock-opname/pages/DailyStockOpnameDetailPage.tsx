@@ -19,6 +19,7 @@ import {
   useOpnameDetail,
   useConfirmOpname,
   useCancelOpname,
+  useRequestBackdate,
   useOpnameConfig,
   useBulkUpdateLines,
   useReopenRequests,
@@ -69,8 +70,9 @@ function todayJakarta(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 }
 
-function getDisplayStatus(status: string, closingDate: string): OpnameDisplayStatus {
+function getDisplayStatus(status: string, closingDate: string, isBackdate?: boolean): OpnameDisplayStatus {
   if (status === 'DRAFT') {
+    if (isBackdate) return 'DRAFT' // backdate awaiting approval, not "missed"
     const today = todayJakarta()
     if (closingDate < today) return 'MISSED'
   }
@@ -104,6 +106,7 @@ export default function DailyStockOpnameDetailPage() {
   // ── Mutations ─────────────────────────────────────────────────────────────
   const confirmOpname = useConfirmOpname()
   const cancelOpname = useCancelOpname()
+  const requestBackdate = useRequestBackdate()
   const bulkUpdateLines = useBulkUpdateLines()
 
   // ── Local state ───────────────────────────────────────────────────────────
@@ -117,7 +120,7 @@ export default function DailyStockOpnameDetailPage() {
 
   // ── Derived state ─────────────────────────────────────────────────────────
   const displayStatus = detail
-    ? getDisplayStatus(detail.status, detail.closing_date)
+    ? getDisplayStatus(detail.status, detail.closing_date, detail.is_backdate)
     : 'DRAFT'
   const isDraft = detail?.status === 'DRAFT'
   const isReopened = detail?.status === 'REOPENED'
@@ -278,6 +281,11 @@ export default function DailyStockOpnameDetailPage() {
                 {detail.branch_name}
               </h1>
               <OpnameStatusBadge status={displayStatus} />
+              {detail.is_backdate && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                  Backdate
+                </span>
+              )}
               {isConfirmedOrFlagged && (
                 <ClassificationSummary sessionId={detail.id} enabled={isConfirmedOrFlagged} />
               )}
@@ -307,6 +315,16 @@ export default function DailyStockOpnameDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Backdate Pending Approval Info ──────────────────────────────── */}
+      {detail.is_backdate && isDraft && (
+        <div className="px-6 py-3 bg-purple-50 dark:bg-purple-900/10 border-b border-purple-200 dark:border-purple-800/40">
+          <p className="text-sm text-purple-700 dark:text-purple-300 flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            Menunggu persetujuan manager untuk mengisi opname backdate ini.
+          </p>
+        </div>
+      )}
 
       {/* ── Reopen Approval Panel ──────────────────────────────────────────── */}
       {pendingReopenRequest && canApprove && (
@@ -559,6 +577,24 @@ export default function DailyStockOpnameDetailPage() {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            {isExpired && canUpdate && !detail.is_backdate && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await requestBackdate.mutateAsync(detail.id)
+                    toast.success('Permintaan backdate berhasil diajukan. Menunggu persetujuan manager.')
+                  } catch (err) {
+                    toast.error(parseApiError(err, 'Gagal mengajukan backdate'))
+                  }
+                }}
+                disabled={requestBackdate.isPending}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
+              >
+                {requestBackdate.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
+                Ajukan Backdate
+              </button>
+            )}
             {isConfirmedOrFlagged && detail && (
               <ReopenRequestButton
                 sessionId={detail.id}

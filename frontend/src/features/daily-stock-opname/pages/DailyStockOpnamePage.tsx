@@ -23,6 +23,7 @@ function todayJakarta(): string {
 
 function getDisplayStatus(item: DailyClosingCount): OpnameDisplayStatus {
   if (item.status === 'DRAFT') {
+    if (item.is_backdate) return 'DRAFT' // backdate DRAFT is not "missed" — it's waiting approval
     const today = todayJakarta()
     if (item.closing_date < today) return 'MISSED'
   }
@@ -257,7 +258,14 @@ export default function DailyStockOpnamePage() {
                         {session.pic_name}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <OpnameStatusBadge status={displayStatus} />
+                        <div className="flex items-center justify-center gap-1.5">
+                          <OpnameStatusBadge status={displayStatus} />
+                          {session.is_backdate && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                              Backdate
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center text-gray-600 dark:text-gray-400 font-mono">
                         {session.completed_count}/{session.line_count}

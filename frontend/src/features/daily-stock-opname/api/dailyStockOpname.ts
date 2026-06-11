@@ -230,6 +230,20 @@ export const useCancelOpname = () => {
   })
 }
 
+export const useRequestBackdate = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/daily-stock-opname/${id}/request-backdate`)
+      return data.data as DailyClosingCountDetail
+    },
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: ['daily-stock-opname'] })
+    },
+  })
+}
+
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 
 export const useOpnameConfig = (branchId: string) =>

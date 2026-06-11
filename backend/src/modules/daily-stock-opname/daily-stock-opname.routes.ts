@@ -81,6 +81,7 @@ router.delete('/:id/lines/:lineId/photo', canUpdate('daily_stock_opname'), valid
 
 router.post('/:id/confirm', canUpdate('daily_stock_opname'), validateSchema(confirmSchema), (req, res) => dailyStockOpnameController.confirm(req, res))
 router.post('/:id/resolve', canUpdate('daily_stock_opname'), validateSchema(resolveSchema), (req, res) => dailyStockOpnameController.resolve(req, res))
+router.post('/:id/request-backdate', canUpdate('daily_stock_opname'), validateSchema(getByIdSchema), (req, res) => dailyStockOpnameController.requestBackdate(req, res))
 router.delete('/:id', canUpdate('daily_stock_opname'), validateSchema(cancelSchema), (req, res) => dailyStockOpnameController.cancel(req, res))
 
 // ─── REOPEN REQUEST (session-scoped routes) ───────────────────────────────────

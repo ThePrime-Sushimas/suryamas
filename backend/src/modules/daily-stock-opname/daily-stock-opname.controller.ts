@@ -211,6 +211,17 @@ export class DailyStockOpnameController {
     }
   }
 
+  requestBackdate = async (req: Request, res: Response) => {
+    try {
+      const { branchIds, userId } = await opnameScope(req)
+      const id = req.params.id
+      const result = await dailyStockOpnameService.requestBackdate(id, branchIds, userId)
+      sendSuccess(res, result, 'Backdate request berhasil diajukan')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'request_backdate', id: req.params.id })
+    }
+  }
+
   // ─── CONFIG ─────────────────────────────────────────────────────────────────
 
   getConfig = async (req: Request, res: Response) => {

@@ -59,6 +59,7 @@ export interface DailyClosingCount {
   confirmed_at: string | null
   notes: string | null
   is_deleted: boolean
+  is_backdate: boolean
   deleted_at: string | null
   created_at: string
   updated_at: string
