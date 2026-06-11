@@ -394,10 +394,13 @@ export default function StockAnalysisPage() {
                   <ColHeader label="Penjualan Teoritis" tip="Estimasi pemakaian berdasarkan data penjualan POS × resep menu. Bukan pemakaian aktual." />
                 </th>
                 <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Waste" tip="Jumlah barang yang tercatat sebagai waste/buang di hari ini." />
+                  <ColHeader label="Waste" tip="Jumlah barang yang tercatat sebagai waste/buang di hari ini (expired, rusak, susut opname)." />
+                </th>
+                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+                  <ColHeader label="Proses" tip="Jumlah barang keluar untuk diproses/breakdown menjadi produk lain (bukan terbuang)." />
                 </th>
                 <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-blue-50 dark:bg-blue-900/20">
-                  <ColHeader label="Expected" tip="Stok yang diharapkan tersisa = Stok Awal + Masuk Transfer + Masuk Produksi − Penjualan Teoritis − Waste." />
+                  <ColHeader label="Expected" tip="Stok yang diharapkan tersisa = Stok Awal + Masuk Transfer + Masuk Produksi − Penjualan Teoritis − Waste − Proses." />
                 </th>
                 <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-green-50 dark:bg-green-900/20">
                   <ColHeader label="Actual" tip="Stok aktual hasil opname/stock count di hari ini. Kosong jika tidak ada opname." />
@@ -481,6 +484,7 @@ function AnalysisRow({ row }: { row: StockAnalysisRow }) {
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_produksi)}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.penjualan_teoritis)}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.waste)}</td>
+      <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_proses)}</td>
       <td className="px-2 py-1.5 text-right font-mono font-medium bg-blue-50/50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300">{fmt(row.expected_sisa)}</td>
       <td className="px-2 py-1.5 text-right font-mono font-medium bg-green-50/50 dark:bg-green-900/10 text-green-700 dark:text-green-300">{fmt(row.actual_sisa)}</td>
       <td className={`px-2 py-1.5 text-right font-mono font-bold ${isNegative ? 'text-red-600 dark:text-red-400' : isPositive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500'}`}>

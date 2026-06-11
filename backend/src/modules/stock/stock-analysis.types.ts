@@ -30,6 +30,7 @@ export interface StockAnalysisRow {
   masuk_produksi: number
   penjualan_teoritis: number
   waste: number
+  keluar_proses: number
   expected_sisa: number | null
   actual_sisa: number | null
   selisih_qty: number | null
