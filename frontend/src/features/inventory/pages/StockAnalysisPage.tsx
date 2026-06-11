@@ -214,6 +214,7 @@ export default function StockAnalysisPage() {
   })
   const rows = params ? (result?.data?.rows ?? []) : []
   const warehouseName = params ? result?.data?.warehouse_name : undefined
+  const activeWarehouseType = params ? (result?.data?.warehouse_type ?? appliedFilters?.warehouse_type ?? 'READY') : warehouseType
   const pagination = params ? result?.pagination : undefined
 
   // Quick date helpers (set draft state only)
@@ -373,88 +374,31 @@ export default function StockAnalysisPage() {
       <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
         <div className="flex-1 overflow-auto">
           <table className="w-full text-xs">
-            <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-              <tr className="text-gray-600 dark:text-gray-400">
-                <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Tanggal</th>
-                <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Produk</th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Stok Awal" tip="Saldo stok di awal hari, diambil dari balance terakhir hari sebelumnya. Untuk produk baru, diambil dari opening balance." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Opening" tip="Jumlah opening balance atau adjustment yang dicatat di hari ini. Hanya informatif, sudah termasuk di Stok Awal." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Masuk Transfer" tip="Jumlah barang masuk dari transfer antar gudang (DPO, stock transfer) di hari ini." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Masuk Produksi" tip="Jumlah barang masuk dari hasil produksi (production order) di hari ini." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Penjualan Teoritis" tip="Estimasi pemakaian berdasarkan data penjualan POS × resep menu. Bukan pemakaian aktual." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Waste" tip="Jumlah barang yang tercatat sebagai waste/buang di hari ini (expired, rusak, susut opname)." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Proses" tip="Jumlah barang keluar untuk diproses/breakdown menjadi produk lain (bukan terbuang)." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-blue-50 dark:bg-blue-900/20">
-                  <ColHeader label="Expected" tip="Stok yang diharapkan tersisa = Stok Awal + Masuk Transfer + Masuk Produksi − Penjualan Teoritis − Waste − Proses." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-green-50 dark:bg-green-900/20">
-                  <ColHeader label="Actual" tip="Stok aktual hasil opname/stock count di hari ini. Kosong jika tidak ada opname." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Selisih" tip="Selisih qty = Actual − Expected. Negatif berarti stok hilang/kurang." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Selisih (Rp)" tip="Selisih qty × harga per unit. Menunjukkan dampak nilai rupiah dari selisih." />
-                </th>
-                <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-                  <ColHeader label="Akurasi" tip="(Actual / Expected) × 100%. Semakin mendekati 100% semakin akurat." />
-                </th>
-              </tr>
-              {/* Formula guide row */}
-              <tr className="bg-gray-100/60 dark:bg-gray-800/60 text-[10px] text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
-                <td className="px-2 py-1" colSpan={2}></td>
-                <td className="px-2 py-1 text-right font-mono">A</td>
-                <td className="px-2 py-1 text-right"></td>
-                <td className="px-2 py-1 text-right font-mono text-green-600">+ B</td>
-                <td className="px-2 py-1 text-right font-mono text-green-600">+ C</td>
-                <td className="px-2 py-1 text-right font-mono text-red-500">− D</td>
-                <td className="px-2 py-1 text-right font-mono text-red-500">− E</td>
-                <td className="px-2 py-1 text-right font-mono text-red-500">− F</td>
-                <td className="px-2 py-1 text-right font-mono font-bold text-blue-600">= Expected</td>
-                <td className="px-2 py-1 text-right"></td>
-                <td className="px-2 py-1 text-right"></td>
-                <td className="px-2 py-1 text-right"></td>
-                <td className="px-2 py-1 text-right"></td>
-              </tr>
-            </thead>
+            <AnalysisTableHeader warehouseType={activeWarehouseType} />
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {isLoading && params ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-500">
+                  <td colSpan={20} className="text-center py-12 text-gray-500">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Memuat data analisa...
                   </td>
                 </tr>
               ) : !appliedFilters ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-400">
+                  <td colSpan={20} className="text-center py-12 text-gray-400">
                     <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     Pilih filter dan klik Tampilkan untuk memulai analisa
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-400">
+                  <td colSpan={20} className="text-center py-12 text-gray-400">
                     Tidak ada data untuk filter yang dipilih
                   </td>
                 </tr>
               ) : (
                 rows.map((row, idx) => (
-                  <AnalysisRow key={`${row.tanggal}-${row.product_id}-${idx}`} row={row} />
+                  <AnalysisRow key={`${row.tanggal}-${row.product_id}-${idx}`} row={row} warehouseType={activeWarehouseType} />
                 ))
               )}
             </tbody>
@@ -478,9 +422,123 @@ export default function StockAnalysisPage() {
   )
 }
 
+// ─── COLUMN VISIBILITY CONFIG ────────────────────────────────────────────────
+
+type WType = 'MAIN' | 'READY' | 'FINISHED_GOODS'
+
+function getVisibleColumns(wt: string) {
+  const t = wt as WType
+  return {
+    opening:           t === 'MAIN',
+    masuk_pembelian:   t === 'MAIN',
+    masuk_transfer:    t === 'READY' || t === 'FINISHED_GOODS',
+    masuk_produksi:    t === 'READY' || t === 'FINISHED_GOODS',
+    penjualan_teoritis: t === 'READY',
+    waste:             t === 'READY',
+    keluar_proses:     t === 'READY' || t === 'FINISHED_GOODS',
+    keluar_transfer:   t === 'MAIN' || t === 'FINISHED_GOODS',
+    keluar_produksi:   t === 'READY',
+    actual:            t === 'READY',
+    selisih:           t === 'READY',
+    selisih_rp:        t === 'READY',
+    akurasi:           t === 'READY',
+  }
+}
+
+// ─── TABLE HEADER ───────────────────────────────────────────────────────────
+
+function AnalysisTableHeader({ warehouseType }: { warehouseType: string }) {
+  const v = getVisibleColumns(warehouseType)
+
+  // Build dynamic formula indicators per visible column
+  let letter = 'A' // stok_awal
+  const nextLetter = () => { const l = letter; letter = String.fromCharCode(letter.charCodeAt(0) + 1); return l }
+  const stokLabel = nextLetter() // A
+  const formulaCols: { key: string; sign: '+' | '−'; label: string }[] = []
+  if (v.masuk_pembelian) formulaCols.push({ key: 'masuk_pembelian', sign: '+', label: nextLetter() })
+  if (v.masuk_transfer) formulaCols.push({ key: 'masuk_transfer', sign: '+', label: nextLetter() })
+  if (v.masuk_produksi) formulaCols.push({ key: 'masuk_produksi', sign: '+', label: nextLetter() })
+  if (v.penjualan_teoritis) formulaCols.push({ key: 'penjualan_teoritis', sign: '−', label: nextLetter() })
+  if (v.waste) formulaCols.push({ key: 'waste', sign: '−', label: nextLetter() })
+  if (v.keluar_proses) formulaCols.push({ key: 'keluar_proses', sign: '−', label: nextLetter() })
+  if (v.keluar_transfer) formulaCols.push({ key: 'keluar_transfer', sign: '−', label: nextLetter() })
+  if (v.keluar_produksi) formulaCols.push({ key: 'keluar_produksi', sign: '−', label: nextLetter() })
+
+  return (
+    <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+      <tr className="text-gray-600 dark:text-gray-400">
+        <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Tanggal</th>
+        <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Produk</th>
+        <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Stok Awal" tip="Saldo stok di awal hari." />
+        </th>
+        {v.opening && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Opening" tip="Opening balance/adjustment (informatif, tidak masuk formula)." />
+        </th>}
+        {v.masuk_pembelian && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Masuk Beli" tip="Barang masuk dari penerimaan pembelian (Goods Receipt)." />
+        </th>}
+        {v.masuk_transfer && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Masuk Transfer" tip="Barang masuk dari transfer antar gudang (DPO, stock transfer)." />
+        </th>}
+        {v.masuk_produksi && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Masuk Produksi" tip="Barang masuk dari hasil produksi (production order)." />
+        </th>}
+        {v.penjualan_teoritis && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Penj. Teoritis" tip="Estimasi pemakaian berdasarkan POS × resep menu." />
+        </th>}
+        {v.waste && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Waste" tip="Barang terbuang (expired, rusak, susut opname)." />
+        </th>}
+        {v.keluar_proses && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Proses" tip="Barang keluar untuk breakdown menjadi produk lain." />
+        </th>}
+        {v.keluar_transfer && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Keluar Transfer" tip="Barang keluar via transfer ke gudang lain (DPO ke READY, kirim cabang)." />
+        </th>}
+        {v.keluar_produksi && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Keluar Produksi" tip="Bahan terpakai untuk production order." />
+        </th>}
+        <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-blue-50 dark:bg-blue-900/20">
+          <ColHeader label="Expected" tip="Stok yang diharapkan tersisa berdasarkan formula." />
+        </th>
+        {v.actual && <th className="px-2 py-2 text-right font-medium whitespace-nowrap bg-green-50 dark:bg-green-900/20">
+          <ColHeader label="Actual" tip="Stok aktual hasil opname di hari ini." />
+        </th>}
+        {v.selisih && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Selisih" tip="Selisih qty = Actual − Expected." />
+        </th>}
+        {v.selisih_rp && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Selisih (Rp)" tip="Selisih × harga per unit." />
+        </th>}
+        {v.akurasi && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Akurasi" tip="(Actual / Expected) × 100%." />
+        </th>}
+      </tr>
+      {/* Formula guide row */}
+      <tr className="bg-gray-100/60 dark:bg-gray-800/60 text-[10px] text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
+        <td className="px-2 py-0.5" colSpan={2}></td>
+        <td className="px-2 py-0.5 text-right font-mono">{stokLabel}</td>
+        {v.opening && <td className="px-2 py-0.5 text-right"></td>}
+        {formulaCols.map(c => (
+          <td key={c.key} className={`px-2 py-0.5 text-right font-mono ${c.sign === '+' ? 'text-green-600' : 'text-red-500'}`}>
+            {c.sign} {c.label}
+          </td>
+        ))}
+        <td className="px-2 py-0.5 text-right font-mono font-bold text-blue-600">= Expected</td>
+        {v.actual && <td className="px-2 py-0.5"></td>}
+        {v.selisih && <td className="px-2 py-0.5"></td>}
+        {v.selisih_rp && <td className="px-2 py-0.5"></td>}
+        {v.akurasi && <td className="px-2 py-0.5"></td>}
+      </tr>
+    </thead>
+  )
+}
+
 // ─── TABLE ROW ──────────────────────────────────────────────────────────────
 
-function AnalysisRow({ row }: { row: StockAnalysisRow }) {
+function AnalysisRow({ row, warehouseType }: { row: StockAnalysisRow; warehouseType: string }) {
+  const v = getVisibleColumns(warehouseType)
   const isNegative = row.selisih_qty != null && row.selisih_qty < 0
   const isPositive = row.selisih_qty != null && row.selisih_qty > 0
   const noOpname = !row.has_opname
@@ -493,21 +551,24 @@ function AnalysisRow({ row }: { row: StockAnalysisRow }) {
         {row.uom_warning && <span title={row.uom_warning}><AlertTriangle className="w-3 h-3 inline ml-1 text-amber-500" /></span>}
       </td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.stok_awal)}</td>
-      <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{row.masuk_opening ? fmt(row.masuk_opening) : '-'}</td>
-      <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_transfer)}</td>
-      <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_produksi)}</td>
-      <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.penjualan_teoritis)}</td>
-      <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.waste)}</td>
-      <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_proses)}</td>
+      {v.opening && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{row.masuk_opening ? fmt(row.masuk_opening) : '-'}</td>}
+      {v.masuk_pembelian && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_pembelian)}</td>}
+      {v.masuk_transfer && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_transfer)}</td>}
+      {v.masuk_produksi && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_produksi)}</td>}
+      {v.penjualan_teoritis && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.penjualan_teoritis)}</td>}
+      {v.waste && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.waste)}</td>}
+      {v.keluar_proses && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_proses)}</td>}
+      {v.keluar_transfer && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_transfer)}</td>}
+      {v.keluar_produksi && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_produksi)}</td>}
       <td className="px-2 py-1.5 text-right font-mono font-medium bg-blue-50/50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300">{fmt(row.expected_sisa)}</td>
-      <td className="px-2 py-1.5 text-right font-mono font-medium bg-green-50/50 dark:bg-green-900/10 text-green-700 dark:text-green-300">{fmt(row.actual_sisa)}</td>
-      <td className={`px-2 py-1.5 text-right font-mono font-bold ${isNegative ? 'text-red-600 dark:text-red-400' : isPositive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500'}`}>
+      {v.actual && <td className="px-2 py-1.5 text-right font-mono font-medium bg-green-50/50 dark:bg-green-900/10 text-green-700 dark:text-green-300">{fmt(row.actual_sisa)}</td>}
+      {v.selisih && <td className={`px-2 py-1.5 text-right font-mono font-bold ${isNegative ? 'text-red-600 dark:text-red-400' : isPositive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500'}`}>
         {fmt(row.selisih_qty)}
-      </td>
-      <td className={`px-2 py-1.5 text-right font-mono text-xs ${isNegative ? 'text-red-600 dark:text-red-400' : isPositive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500'}`}>
+      </td>}
+      {v.selisih_rp && <td className={`px-2 py-1.5 text-right font-mono text-xs ${isNegative ? 'text-red-600 dark:text-red-400' : isPositive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500'}`}>
         {fmtRp(row.selisih_rp)}
-      </td>
-      <td className="px-2 py-1.5 text-right font-mono text-xs text-gray-500">{fmtPct(row.akurasi_pct)}</td>
+      </td>}
+      {v.akurasi && <td className="px-2 py-1.5 text-right font-mono text-xs text-gray-500">{fmtPct(row.akurasi_pct)}</td>}
     </tr>
   )
 }

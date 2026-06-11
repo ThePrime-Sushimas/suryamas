@@ -61,7 +61,7 @@ export class StockAnalysisService {
     const branchName = branchRows[0]?.branch_name ?? ''
 
     // ─── Get analysis data + summary ────────────────────────────────────────────
-    const { rows: data, total, summary } = await stockAnalysisRepository.getAnalysisData(filter, warehouseId, branchPosId)
+    const { rows: data, total, summary } = await stockAnalysisRepository.getAnalysisData(filter, warehouseId, branchPosId, warehouseType)
 
     // Fill branch_name in rows and summary
     for (const row of data) {
@@ -78,6 +78,7 @@ export class StockAnalysisService {
       data,
       summary,
       warehouse_name: warehouseName,
+      warehouse_type: warehouseType,
       pagination: { page, limit, total, totalPages },
     }
   }

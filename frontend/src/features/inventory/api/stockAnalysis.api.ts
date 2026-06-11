@@ -16,11 +16,14 @@ export interface StockAnalysisRow {
 
   stok_awal: number | null
   masuk_opening: number
+  masuk_pembelian: number
   masuk_transfer: number
   masuk_produksi: number
   penjualan_teoritis: number
   waste: number
   keluar_proses: number
+  keluar_transfer: number
+  keluar_produksi: number
   expected_sisa: number | null
   actual_sisa: number | null
   selisih_qty: number | null
@@ -59,6 +62,7 @@ interface StockAnalysisResponse {
   rows: StockAnalysisRow[]
   summary: StockAnalysisSummary
   warehouse_name: string
+  warehouse_type: 'MAIN' | 'READY' | 'FINISHED_GOODS'
 }
 
 interface Pagination {
