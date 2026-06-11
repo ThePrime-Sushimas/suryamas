@@ -11,6 +11,7 @@ import {
   Calculator,
   CalendarDays,
   ChefHat,
+  ClipboardCheck,
   ClipboardList,
   Coins,
   CreditCard,
@@ -655,6 +656,13 @@ export const menuItems: MenuItem[] = [
             href: "/inventory/daily-stock-opname",
             icon: <ClipboardList size={16} />,
             module: "daily_stock_opname",
+          },
+          {
+            id: "inv-monthly-stock-opname",
+            name: "SO Bulanan",
+            href: "/inventory/monthly-stock-opname",
+            icon: <ClipboardCheck size={16} />,
+            module: "monthly_stock_opname",
           },
           {
             id: "fp-production",

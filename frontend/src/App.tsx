@@ -572,6 +572,10 @@ const DailyStockOpnameDetailPage = lazy(() => import('./features/daily-stock-opn
 const OpnameVarianceReportPage = lazy(() => import('./features/daily-stock-opname/pages/OpnameVarianceReportPage'))
 const OpnameConfigPage = lazy(() => import('./features/daily-stock-opname/pages/OpnameConfigPage'))
 
+// Monthly Stock Opname
+const MonthlyStockOpnamePage = lazy(() => import('./features/monthly-stock-opname/pages/MonthlyStockOpnamePage'))
+const MonthlyStockOpnameDetailPage = lazy(() => import('./features/monthly-stock-opname/pages/MonthlyStockOpnameDetailPage'))
+
 // Purchase Invoices
 const PurchaseInvoicesPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoicesPage"))
 const PurchaseInvoiceFormPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceFormPage"))
@@ -2354,6 +2358,26 @@ function App() {
                       <RequirePermission module="daily_stock_opname">
                         <Suspense fallback={<LoadingFallback />}>
                           <DailyStockOpnameDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/monthly-stock-opname"
+                    element={
+                      <RequirePermission module="monthly_stock_opname">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MonthlyStockOpnamePage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/monthly-stock-opname/:id"
+                    element={
+                      <RequirePermission module="monthly_stock_opname">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <MonthlyStockOpnameDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }

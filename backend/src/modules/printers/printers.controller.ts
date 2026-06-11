@@ -11,6 +11,7 @@ import type {
   printGoodsReceiptSchema,
   printDailyPrepOrderSchema,
   printStockTransferSchema,
+  printMonthlyStockOpnameSchema,
 } from './printers.schema'
 import { getAccessibleCompanyIds, requireCompanyAccess, resolveContextCompanyId } from '../../utils/branch-access.util'
 
@@ -189,6 +190,17 @@ export class PrintersController {
       sendSuccess(res, null, 'Print job sent successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'print_production_request', id: req.params.id })
+    }
+  }
+
+  printMonthlyStockOpname = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { params, body } = (req as ValidatedAuthRequest<typeof printMonthlyStockOpnameSchema>).validated
+      const { companyId, userId } = await printerWriteScope(req)
+      await printersService.printMonthlyStockOpname(body.printer_id, params.id, companyId, userId)
+      sendSuccess(res, null, 'Print job sent successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'print_monthly_stock_opname', id: req.params.id })
     }
   }
 }

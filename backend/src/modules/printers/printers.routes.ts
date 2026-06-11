@@ -12,6 +12,7 @@ import {
   printGoodsReceiptSchema,
   printDailyPrepOrderSchema,
   printStockTransferSchema,
+  printMonthlyStockOpnameSchema,
 } from './printers.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -29,6 +30,7 @@ router.post('/print/purchase-request/:id', canView('purchase_requests'), validat
 router.post('/print/goods-receipt/:id', canView('goods_receipts'), validateSchema(printGoodsReceiptSchema), (req, res) => printersController.printGoodsReceipt(req, res))
 router.post('/print/daily-prep-order/:id', canView('daily_prep_orders'), validateSchema(printDailyPrepOrderSchema), (req, res) => printersController.printDailyPrepOrder(req, res))
 router.post('/print/stock-transfer/:id', canView('stock_transfers'), validateSchema(printStockTransferSchema), (req, res) => printersController.printStockTransfer(req, res))
+router.post('/print/monthly-stock-opname/:id', canView('monthly_stock_opname'), validateSchema(printMonthlyStockOpnameSchema), (req, res) => printersController.printMonthlyStockOpname(req, res))
 router.post('/print/production-request-summary', canView('production_requests'), (req, res) => printersController.printProductionRequestSummary(req, res))
 router.post('/print/production-request/:id', canView('production_requests'), (req, res) => printersController.printProductionRequest(req, res))
 

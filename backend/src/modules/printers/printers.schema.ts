@@ -60,3 +60,10 @@ export const printStockTransferSchema = z.object({
   }),
   params: z.object({ id: z.string().uuid() }),
 })
+
+export const printMonthlyStockOpnameSchema = z.object({
+  body: z.object({
+    printer_id: z.string().uuid(),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+})

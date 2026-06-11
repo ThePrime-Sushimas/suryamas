@@ -89,3 +89,12 @@ export const usePrintStockTransfer = () =>
       })
     },
   })
+
+export const usePrintMonthlyStockOpname = () =>
+  useMutation({
+    mutationFn: async (payload: { opnameId: string; printer_id: string }) => {
+      await api.post(`/printers/print/monthly-stock-opname/${payload.opnameId}`, {
+        printer_id: payload.printer_id,
+      })
+    },
+  })

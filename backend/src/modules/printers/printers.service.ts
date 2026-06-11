@@ -11,6 +11,8 @@ import { DpoNotFoundError } from '../daily-prep-orders/daily-prep-orders.errors'
 import { stockTransfersRepository } from '../stock-transfers/stock-transfers.repository'
 import { StockTransferNotFoundError } from '../stock-transfers/stock-transfers.errors'
 import { productionRequestsRepository } from '../production-requests/production-requests.repository'
+import { monthlyStockOpnameRepository } from '../monthly-stock-opname/monthly-stock-opname.repository'
+import { MonthlyOpnameNotFoundError } from '../monthly-stock-opname/monthly-stock-opname.errors'
 import type { GoodsReceiptLineWithRelations } from '../goods-receipts/goods-receipts.types'
 import { BusinessRuleError } from '../../utils/errors.base'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
@@ -456,6 +458,68 @@ export class PrintersService {
     await sendToPrinter(printer.ip_address, printer.port, receipt)
     logInfo('Production request summary printed', { printer_id: printerId, wip_count: summary.length })
     await AuditService.log('PRINT', 'production_request_summary', companyId, userId, undefined, { printer_id: printerId, wip_count: summary.length })
+  }
+
+  // ─── PRINT MONTHLY STOCK OPNAME ─────────────────────────────────────────────
+
+  async printMonthlyStockOpname(
+    printerId: string,
+    opnameId: string,
+    companyId: string,
+    userId: string,
+  ): Promise<void> {
+    const branchIds = await getAccessibleBranchIds(userId)
+    const detail = await monthlyStockOpnameRepository.findByIdAccessible(opnameId, branchIds)
+    if (!detail) throw new MonthlyOpnameNotFoundError(opnameId)
+
+    const printer = await printersRepository.findById(printerId, companyId)
+    if (!printer) throw new PrinterNotFoundError(printerId)
+    if (!printer.is_active) {
+      throw new PrinterConnectionError(printer.ip_address, printer.port, 'Printer is inactive')
+    }
+    await this.assertPrintAccess(printer, userId, detail.branch_id)
+
+    const printedByName = await printersRepository.getEmployeeName(userId)
+    const fmtDate = (d: string) =>
+      new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+    const formatQty = (n: number) => parseFloat(Number(n).toFixed(2)).toString()
+
+    const header = [
+      { key: 'No SO', value: detail.opname_number },
+      { key: 'Tgl', value: fmtDate(detail.opname_date) },
+      { key: 'Gudang', value: detail.warehouse_name },
+      { key: 'Cabang', value: detail.branch_name },
+      { key: 'PIC', value: detail.pic_name },
+      { key: 'Status', value: detail.status },
+    ]
+    if (detail.confirmed_by_name) header.push({ key: 'Konfirmasi', value: detail.confirmed_by_name })
+
+    // Only print lines with selisih for thermal (keep it compact)
+    const linesWithSelisih = detail.lines.filter(l => l.selisih_qty !== null && Math.abs(Number(l.selisih_qty)) > 0.0001)
+
+    const items = linesWithSelisih.map((l, idx) => ({
+      label: `${idx + 1}. ${l.product_name}`,
+      detail: `Exp:${formatQty(Number(l.expected_qty))} Act:${formatQty(Number(l.actual_qty))} Sel:${formatQty(Number(l.selisih_qty))}`,
+      amount: `${fmt(Number(l.selisih_value ?? 0))}`,
+    }))
+
+    const receipt = buildDocReceipt({
+      paper_width: printer.paper_width,
+      doc_title: 'SO Bulanan',
+      header,
+      items,
+      total_label: 'Total Selisih',
+      total_amount: fmt(Number(detail.total_selisih_value)),
+      footer: `Dicetak oleh: ${printedByName ?? '-'} · ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
+    })
+
+    await sendToPrinter(printer.ip_address, printer.port, receipt)
+
+    logInfo('Monthly stock opname printed', { opname_id: opnameId, printer_id: printerId })
+    await AuditService.log('PRINT', 'monthly_stock_opname', opnameId, userId, undefined, {
+      printer_id: printerId,
+      lines_with_selisih: linesWithSelisih.length,
+    })
   }
 }
 
