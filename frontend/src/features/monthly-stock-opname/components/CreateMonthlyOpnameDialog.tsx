@@ -20,7 +20,7 @@ interface Props {
 
 export function CreateMonthlyOpnameDialog({ onClose, onSubmit, isLoading }: Props) {
   const { currentBranch } = useBranchContextStore()
-  const [branchId, setBranchId] = useState(currentBranch?.id ?? '')
+  const [branchId, setBranchId] = useState(currentBranch?.branch_id ?? '')
   const [warehouseId, setWarehouseId] = useState('')
   const [opnameDate, setOpnameDate] = useState(
     new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date()),

@@ -71,7 +71,7 @@ export function PrintMonthlyOpnameModal({ opnameId, onClose }: Props) {
                 <option value="">Pilih Printer</option>
                 {activePrinters.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.ip_address}) {p.is_default ? '⭐' : ''}
+                    {p.printer_name} ({p.ip_address}) {p.is_default ? '⭐' : ''}
                   </option>
                 ))}
               </select>

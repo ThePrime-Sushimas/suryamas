@@ -4,11 +4,10 @@ import { useUrlFilters, useListNavigation } from '@/lib/urlFilters'
 import { useMonthlyOpnameList, useCreateMonthlyOpname } from '../api/monthlyStockOpname'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useBranches } from '@/features/branches/api/branches.api'
 import { monthlyOpnameFilterConfig } from '../utils/monthlyOpnameFilters.url'
 import { CreateMonthlyOpnameDialog } from '../components/CreateMonthlyOpnameDialog'
-import type { MonthlyStockOpname, MonthlyOpnameStatus } from '../types'
+import type { MonthlyOpnameStatus } from '../types'
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -32,7 +31,7 @@ function StatusBadge({ status }: { status: MonthlyOpnameStatus }) {
 export default function MonthlyStockOpnamePage() {
   const hasPermission = usePermissionStore(s => s.hasPermission)
   const canInsert = hasPermission('monthly_stock_opname', 'insert')
-  const { currentBranch } = useBranchContextStore()
+  
 
   const { filters, searchInput, setSearchInput, setFilters, resetFilters, setPage } =
     useUrlFilters({ ...monthlyOpnameFilterConfig, searchField: 'search' })
@@ -233,9 +232,16 @@ export default function MonthlyStockOpnamePage() {
         {pagination && pagination.totalPages > 1 && (
           <div className="px-4 py-3 border-t">
             <Pagination
-              currentPage={filters.page}
-              totalPages={pagination.totalPages}
+              pagination={{
+                page: filters.page,
+                limit: filters.limit,
+                total: pagination.total,
+                totalPages: pagination.totalPages,
+                hasNext: pagination.page < pagination.totalPages,
+                hasPrev: pagination.page > 1,
+              }}
               onPageChange={setPage}
+              showLimitSelect={false}
             />
           </div>
         )}
