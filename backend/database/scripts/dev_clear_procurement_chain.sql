@@ -10,7 +10,8 @@
 --                 product_output_templates, product_stock_configs,
 --                 warehouses, suppliers, pricelists, wip_items,
 --                 wip_ingredients, wip_position_access, menus,
---                 menu_categories, menu_groups, perm_roles, perm_modules,
+--                 menu_categories, menu_groups, recipe_lines,
+--                 menu_branch_prices, perm_roles, perm_modules,
 --                 perm_role_permissions, perm_user_profiles, printers,
 --                 owner_credit_cards, dpo_forecast_configs,
 --                 branch_opname_config, public_holidays,
@@ -186,10 +187,12 @@ DELETE FROM cogs_calculation_lines;
 DELETE FROM cogs_calculations;
 
 -- ============================================================
--- 15. MENU PRICING & RECIPE LINES (Transaction Data Only)
+-- 15. MENU PRICING (Transaction Data Only)
+--     NOTE: recipe_lines dan menu_branch_prices sekarang dianggap
+--     MASTER DATA dan TIDAK dihapus. Sudah ditambahkan ke daftar
+--     "DIPERTAHANKAN" di header.
 -- ============================================================
-DELETE FROM menu_branch_prices;
-DELETE FROM recipe_lines;
+-- (Tidak ada yang dihapus di step ini)
 
 -- ============================================================
 -- 16. BANK STATEMENTS & REKONSILIASI
