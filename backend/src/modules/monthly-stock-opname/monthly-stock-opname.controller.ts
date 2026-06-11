@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import type { AuthRequest } from '../../types/common.types'
 import { monthlyStockOpnameService } from './monthly-stock-opname.service'
 import { monthlyStockOpnameReopenService } from './monthly-stock-opname-reopen.service'
 import { sendSuccess } from '../../utils/response.util'
@@ -55,7 +56,7 @@ export class MonthlyStockOpnameController {
         totalPages: Math.ceil(result.total / result.limit),
       })
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'list_monthly_opname' })
     }
   }
 
@@ -68,7 +69,7 @@ export class MonthlyStockOpnameController {
       const detail = await monthlyStockOpnameService.getById(params.id, branchIds)
       sendSuccess(res, detail, 'Monthly stock opname detail retrieved')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'get_monthly_opname', id: req.params.id })
     }
   }
 
@@ -81,7 +82,7 @@ export class MonthlyStockOpnameController {
       const result = await monthlyStockOpnameService.createSession(body, branchIds, userId)
       sendSuccess(res, result, 'Monthly stock opname session created', 201)
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'create_monthly_opname' })
     }
   }
 
@@ -94,7 +95,7 @@ export class MonthlyStockOpnameController {
       const result = await monthlyStockOpnameService.updateLine(params.id, params.lineId, body, branchIds, userId)
       sendSuccess(res, result, 'Line updated')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'update_monthly_opname_line', id: req.params.id })
     }
   }
 
@@ -107,7 +108,7 @@ export class MonthlyStockOpnameController {
       const result = await monthlyStockOpnameService.bulkUpdateLines(params.id, body, branchIds, userId)
       sendSuccess(res, result, 'Lines updated')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'bulk_update_monthly_opname_lines', id: req.params.id })
     }
   }
 
@@ -120,7 +121,7 @@ export class MonthlyStockOpnameController {
       const result = await monthlyStockOpnameService.recalculateExpected(params.id, branchIds, userId)
       sendSuccess(res, result, 'Expected quantities recalculated')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'recalculate_monthly_opname', id: req.params.id })
     }
   }
 
@@ -133,7 +134,7 @@ export class MonthlyStockOpnameController {
       const result = await monthlyStockOpnameService.confirmSession(params.id, branchIds, userId)
       sendSuccess(res, result, 'Monthly stock opname confirmed')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'confirm_monthly_opname', id: req.params.id })
     }
   }
 
@@ -146,7 +147,7 @@ export class MonthlyStockOpnameController {
       await monthlyStockOpnameService.cancelSession(params.id, branchIds, userId)
       sendSuccess(res, null, 'Monthly stock opname cancelled')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'cancel_monthly_opname', id: req.params.id })
     }
   }
 
@@ -159,7 +160,7 @@ export class MonthlyStockOpnameController {
       const data = await monthlyStockOpnameService.getThermalPrintData(params.id, branchIds)
       sendSuccess(res, data, 'Thermal print data retrieved')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'get_monthly_opname_thermal', id: req.params.id })
     }
   }
 
@@ -172,7 +173,7 @@ export class MonthlyStockOpnameController {
       const result = await monthlyStockOpnameReopenService.createReopenRequest(params.id, branchIds, userId, body)
       sendSuccess(res, result, 'Reopen request created', 201)
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'create_monthly_opname_reopen', id: req.params.id })
     }
   }
 
@@ -180,13 +181,13 @@ export class MonthlyStockOpnameController {
     try {
       const { userId, branchIds } = await getScope(req)
       const { params, body } = (req as RespondReopenReq).validated
-      const userPermissions = req.user?.permissions
+      const userPermissions = (req as AuthRequest).permissions
       const result = await monthlyStockOpnameReopenService.approveReopenRequest(
         params.requestId, branchIds, userId, body, userPermissions,
       )
       sendSuccess(res, result, 'Reopen request approved')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'approve_monthly_opname_reopen', id: req.params.requestId })
     }
   }
 
@@ -194,13 +195,13 @@ export class MonthlyStockOpnameController {
     try {
       const { userId, branchIds } = await getScope(req)
       const { params, body } = (req as RespondReopenReq).validated
-      const userPermissions = req.user?.permissions
+      const userPermissions = (req as AuthRequest).permissions
       const result = await monthlyStockOpnameReopenService.rejectReopenRequest(
         params.requestId, branchIds, userId, body, userPermissions,
       )
       sendSuccess(res, result, 'Reopen request rejected')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'reject_monthly_opname_reopen', id: req.params.requestId })
     }
   }
 
@@ -211,7 +212,7 @@ export class MonthlyStockOpnameController {
       const result = await monthlyStockOpnameReopenService.getReopenRequests(params.id, branchIds)
       sendSuccess(res, result, 'Reopen requests retrieved')
     } catch (error: unknown) {
-      handleError(error, res)
+      await handleError(res, error, req, { action: 'get_monthly_opname_reopen_requests', id: req.params.id })
     }
   }
 }
