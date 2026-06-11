@@ -377,7 +377,6 @@ export default function StockAnalysisPage() {
               <tr className="text-gray-600 dark:text-gray-400">
                 <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Tanggal</th>
                 <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Produk</th>
-                <th className="px-2 py-2 text-left font-medium whitespace-nowrap">Kategori</th>
                 <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
                   <ColHeader label="Stok Awal" tip="Saldo stok di awal hari, diambil dari balance terakhir hari sebelumnya. Untuk produk baru, diambil dari opening balance." />
                 </th>
@@ -415,25 +414,41 @@ export default function StockAnalysisPage() {
                   <ColHeader label="Akurasi" tip="(Actual / Expected) × 100%. Semakin mendekati 100% semakin akurat." />
                 </th>
               </tr>
+              {/* Formula guide row */}
+              <tr className="bg-gray-100/60 dark:bg-gray-800/60 text-[10px] text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
+                <td className="px-2 py-1" colSpan={2}></td>
+                <td className="px-2 py-1 text-right font-mono">A</td>
+                <td className="px-2 py-1 text-right"></td>
+                <td className="px-2 py-1 text-right font-mono text-green-600">+ B</td>
+                <td className="px-2 py-1 text-right font-mono text-green-600">+ C</td>
+                <td className="px-2 py-1 text-right font-mono text-red-500">− D</td>
+                <td className="px-2 py-1 text-right font-mono text-red-500">− E</td>
+                <td className="px-2 py-1 text-right font-mono text-red-500">− F</td>
+                <td className="px-2 py-1 text-right font-mono font-bold text-blue-600">= Expected</td>
+                <td className="px-2 py-1 text-right"></td>
+                <td className="px-2 py-1 text-right"></td>
+                <td className="px-2 py-1 text-right"></td>
+                <td className="px-2 py-1 text-right"></td>
+              </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {isLoading && params ? (
                 <tr>
-                  <td colSpan={14} className="text-center py-12 text-gray-500">
+                  <td colSpan={13} className="text-center py-12 text-gray-500">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Memuat data analisa...
                   </td>
                 </tr>
               ) : !appliedFilters ? (
                 <tr>
-                  <td colSpan={14} className="text-center py-12 text-gray-400">
+                  <td colSpan={13} className="text-center py-12 text-gray-400">
                     <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     Pilih filter dan klik Tampilkan untuk memulai analisa
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="text-center py-12 text-gray-400">
+                  <td colSpan={13} className="text-center py-12 text-gray-400">
                     Tidak ada data untuk filter yang dipilih
                   </td>
                 </tr>
@@ -477,7 +492,6 @@ function AnalysisRow({ row }: { row: StockAnalysisRow }) {
         {row.product_name}
         {row.uom_warning && <span title={row.uom_warning}><AlertTriangle className="w-3 h-3 inline ml-1 text-amber-500" /></span>}
       </td>
-      <td className="px-2 py-1.5 text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.category_name ?? '-'}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.stok_awal)}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{row.masuk_opening ? fmt(row.masuk_opening) : '-'}</td>
       <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_transfer)}</td>
