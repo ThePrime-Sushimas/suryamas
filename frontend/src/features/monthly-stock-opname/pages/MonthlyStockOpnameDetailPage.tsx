@@ -329,7 +329,6 @@ export default function MonthlyStockOpnameDetailPage() {
                           if (e.key === 'Enter') handleSaveLine(line.id)
                           if (e.key === 'Escape') setEditingLine(null)
                         }}
-                        onBlur={() => handleSaveLine(line.id)}
                         autoFocus
                         className="w-20 text-right text-sm border-gray-300 rounded px-1 py-0.5"
                         min="0"
@@ -368,6 +367,7 @@ export default function MonthlyStockOpnameDetailPage() {
                           if (e.key === 'Enter') handleSaveLine(line.id)
                           if (e.key === 'Escape') setEditingLine(null)
                         }}
+                        onBlur={() => handleSaveLine(line.id)}
                         placeholder="Tulis investigasi..."
                         className="w-full text-sm border-gray-300 rounded px-1 py-0.5"
                         onClick={(e) => e.stopPropagation()}

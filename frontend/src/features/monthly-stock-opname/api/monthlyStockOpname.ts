@@ -53,6 +53,7 @@ export const useMonthlyOpnameDetail = (id: string) =>
       return data.data as MonthlyStockOpnameDetail
     },
     enabled: !!id,
+    staleTime: 15_000,
   })
 
 // ─── CREATE ──────────────────────────────────────────────────────────────────

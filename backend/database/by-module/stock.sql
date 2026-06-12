@@ -59,6 +59,8 @@ CREATE INDEX IF NOT EXISTS idx_stock_movements_product
     ON public.stock_movements(product_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_warehouse
     ON public.stock_movements(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_warehouse_created
+    ON public.stock_movements(warehouse_id, created_at DESC);
 
 ALTER TABLE IF EXISTS public.stock_movements
     ADD CONSTRAINT stock_movements_product_id_fkey FOREIGN KEY (product_id)
