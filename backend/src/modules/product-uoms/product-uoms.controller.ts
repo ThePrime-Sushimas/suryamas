@@ -89,6 +89,16 @@ export class ProductUomsController {
     }
   }
 
+  getTransferUnitsBatch = async (req: Request, res: Response) => {
+    try {
+      const { product_ids } = (req as BatchReq).validated.body
+      const result = await productUomsService.getTransferUnitsBatch(product_ids)
+      sendSuccess(res, result, 'Transfer units retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_transfer_units_batch' })
+    }
+  }
+
   getConversionsBatch = async (req: Request, res: Response) => {
     try {
       const { product_ids } = (req as BatchReq).validated.body

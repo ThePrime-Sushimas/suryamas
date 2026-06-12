@@ -98,6 +98,19 @@ export class ProductUomsRepository {
     return rows[0] ?? null
   }
 
+  async findTransferUnitsBatch(productIds: string[]): Promise<Array<{ product_id: string; unit_name: string }>> {
+    const { rows } = await pool.query(
+      `SELECT pu.product_id, mu.unit_name
+       FROM product_uoms pu
+       JOIN metric_units mu ON mu.id = pu.metric_unit_id
+       WHERE pu.product_id = ANY($1::uuid[])
+         AND pu.is_default_transfer_unit = true
+         AND pu.is_deleted = false`,
+      [productIds]
+    )
+    return rows
+  }
+
   async findPurchaseUnitsBatch(productIds: string[]): Promise<Array<{ product_id: string; unit_name: string }>> {
     const { rows } = await pool.query(
       `SELECT pu.product_id, mu.unit_name

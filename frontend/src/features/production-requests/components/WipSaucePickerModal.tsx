@@ -85,17 +85,8 @@ export function WipSaucePickerModal({ open, onClose, onSelect, excludeProductIds
   const { data: transferUoms } = useQuery({
     queryKey: ['product-uoms', 'transfer-unit', productIds],
     queryFn: async () => {
-      // Fetch transfer unit names per product — use product detail which includes UOM info
-      const results: Record<string, string> = {}
-      // Batch query: get all product_uoms that are default_transfer_unit
-      const { data } = await api.get('/product-uoms', { params: { product_ids: productIds.join(','), is_default_transfer_unit: true, limit: 200 } })
-      // Fallback: if the endpoint doesn't support batch, just use base_unit_name from products
-      if (data?.data) {
-        for (const uom of data.data as Array<{ product_id: string; unit_name?: string }>) {
-          if (uom.product_id && uom.unit_name) results[uom.product_id] = uom.unit_name
-        }
-      }
-      return results
+      const { data } = await api.post('/product-uoms/transfer-units-batch', { product_ids: productIds })
+      return (data.data ?? {}) as Record<string, string>
     },
     enabled: productIds.length > 0,
     staleTime: 60_000,

@@ -264,6 +264,21 @@ export class ProductUomsService {
     return map
   }
 
+  async getTransferUnitsBatch(productIds: string[]): Promise<Record<string, string>> {
+    const transferRows = await productUomsRepository.findTransferUnitsBatch(productIds)
+    const map: Record<string, string> = {}
+    for (const r of transferRows) map[r.product_id] = r.unit_name
+
+    // Fallback to base unit for products without transfer unit
+    const missing = productIds.filter(id => !map[id])
+    if (missing.length > 0) {
+      const baseRows = await productUomsRepository.findBaseUnitsBatch(missing)
+      for (const r of baseRows) if (!map[r.product_id]) map[r.product_id] = r.unit_name
+    }
+
+    return map
+  }
+
   async getConversionsBatch(productIds: string[]): Promise<Record<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>>> {
     const rows = await productUomsRepository.findAllUomsBatch(productIds)
     const map: Record<string, Array<{ unit_name: string; conversion_factor: number; is_base_unit: boolean }>> = {}
