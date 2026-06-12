@@ -55,7 +55,7 @@ export default function DailyPrepOrdersPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
-                Daily Prep Order
+                Pengambilan Harian
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 {pagination?.total ?? 0} dokumen
@@ -89,7 +89,7 @@ export default function DailyPrepOrdersPage() {
                 onClick={() => navigate('/inventory/daily-prep-orders/manual/create')}
                 className="flex items-center gap-2 px-4 py-2.5 border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-xl text-sm font-medium transition-all"
               >
-                <Plus className="w-4 h-4" /> Manual DPO
+                <Plus className="w-4 h-4" /> Manual Pengambilan Harian
               </button>
             )}
             {canInsert && (
@@ -195,7 +195,7 @@ export default function DailyPrepOrdersPage() {
                 ) : orders.length === 0 ? (
                   <tr><td colSpan={7} className="px-6 py-16 text-center">
                     <ClipboardList className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                    <p className="text-gray-500">Belum ada Daily Prep Order</p>
+                    <p className="text-gray-500">Belum ada Pengambilan Harian</p>
                   </td></tr>
                 ) : orders.map(dpo => (
                   <tr

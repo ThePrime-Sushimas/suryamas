@@ -97,7 +97,7 @@ export function DpoPrintModal({ dpoId, allLines, preSelectedLineIds, onClose }: 
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-teal-600" />
             <h3 className="font-bold text-gray-900 dark:text-white">
-              Print Thermal — Daily Prep Order
+              Print Thermal — Pengambilan Harian
             </h3>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">

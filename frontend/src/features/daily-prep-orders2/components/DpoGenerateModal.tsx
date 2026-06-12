@@ -96,7 +96,7 @@ export function DpoGenerateModal({ onClose, onGenerated }: Props) {
             <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h2 className="font-bold text-gray-900 dark:text-white">Generate Daily Prep Order</h2>
+            <h2 className="font-bold text-gray-900 dark:text-white">Hitung Pengambilan Harian</h2>
             <p className="text-xs text-gray-500">Hitung kebutuhan otomatis dari data POS</p>
           </div>
         </div>

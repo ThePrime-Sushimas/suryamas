@@ -170,10 +170,10 @@ export default function CreateManualDpoPage() {
         notes: notes || null,
         lines: lines.map(l => ({ product_id: l.product_id, qty: l.qty })),
       })
-      toast.success(`Manual DPO ${result.dpo_number} berhasil dibuat`)
+      toast.success(`Manual Pengambilan Harian ${result.dpo_number} berhasil dibuat`)
       navigate(`/inventory/daily-prep-orders/${result.id}`)
     } catch (err) {
-      toast.error(parseApiError(err, 'Gagal membuat Manual DPO'))
+      toast.error(parseApiError(err, 'Gagal membuat Manual Pengambilan Harian'))
     }
   }
 
@@ -192,7 +192,7 @@ export default function CreateManualDpoPage() {
             </button>
             <div>
               <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-                Buat Manual DPO
+                Buat Manual Pengambilan Harian
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Transfer stok tanpa perhitungan forecast
@@ -218,7 +218,7 @@ export default function CreateManualDpoPage() {
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Header Fields */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 p-6">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Informasi DPO</h2>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Informasi Pengambilan Harian</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Branch */}
               <div>
