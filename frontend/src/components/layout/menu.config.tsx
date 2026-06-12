@@ -326,6 +326,13 @@ export const menuItems: MenuItem[] = [
             icon: <CalendarDays size={16} />,
             module: "daily_prep_orders",
           },
+          {
+            id: "inv-reorder-suggestions",
+            name: "Reorder Suggestions",
+            href: "/inventory/reorder-suggestions",
+            icon: <AlertTriangle size={16} />,
+            module: "stock",
+          },
         ],
       },
 
@@ -690,6 +697,13 @@ export const menuItems: MenuItem[] = [
             permissionAction: "approve",
           },
           {
+            id: "inv-stock-transfers",
+            name: "Stock Transfer",
+            href: "/inventory/stock-transfers",
+            icon: <ArrowLeftRight size={16} />,
+            module: "stock_transfers",
+          },
+          {
             id: "inv-purchase-orders",
             name: "Purchase Order",
             href: "/inventory/purchase-orders",
@@ -780,25 +794,11 @@ export const menuItems: MenuItem[] = [
             module: "stock",
           },
           {
-            id: "inv-stock-transfers",
-            name: "Stock Transfer",
-            href: "/inventory/stock-transfers",
-            icon: <ArrowLeftRight size={16} />,
-            module: "stock_transfers",
-          },
-          {
             id: "inv-stock-analysis",
             name: "Analisa Stock",
             href: "/inventory/stock-analysis",
             icon: <BarChart3 size={16} />,
             module: "stock_analysis",
-          },
-          {
-            id: "inv-reorder-suggestions",
-            name: "Reorder Suggestions",
-            href: "/inventory/reorder-suggestions",
-            icon: <AlertTriangle size={16} />,
-            module: "stock",
           },
         ],
       },
