@@ -169,6 +169,7 @@ export class StockTransfersService {
             reference_type: referenceType,
             reference_id: id,
             notes: `${detail.transfer_number} → ${detail.target_warehouse_name}`,
+            movement_date: detail.transfer_date,
             created_by: dto.confirmed_by,
           },
           newSourceQty
@@ -198,6 +199,7 @@ export class StockTransfersService {
             reference_type: referenceType,
             reference_id: id,
             notes: `${detail.transfer_number} ← ${detail.source_warehouse_name}`,
+            movement_date: detail.transfer_date,
             created_by: dto.confirmed_by,
           },
           newTargetQty
@@ -269,6 +271,7 @@ export class StockTransfersService {
             reference_type: 'branch_loan',
             reference_id: id,
             notes: `Return ${detail.transfer_number} → ${detail.source_warehouse_name}`,
+            movement_date: dto.return_date,
             created_by: dto.returned_by,
           },
           newTargetQty
@@ -298,6 +301,7 @@ export class StockTransfersService {
             reference_type: 'branch_loan',
             reference_id: id,
             notes: `Return ${detail.transfer_number} ← ${detail.target_warehouse_name}`,
+            movement_date: dto.return_date,
             created_by: dto.returned_by,
           },
           newSourceQty

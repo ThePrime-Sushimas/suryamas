@@ -11,7 +11,6 @@ import {
 import { BusinessRuleError } from '../../utils/errors.base'
 import { AuditService } from '../monitoring/monitoring.service'
 import { getCompanyIdForBranch, getAccessibleCompanyIds } from '../../utils/branch-access.util'
-import { pool } from '../../config/db'
 import type {
   CreateProductionRequestDto, UpdateProductionRequestDto,
   AcceptProductionRequestDto, ReceiveProductionRequestDto, CancelProductionRequestDto,
