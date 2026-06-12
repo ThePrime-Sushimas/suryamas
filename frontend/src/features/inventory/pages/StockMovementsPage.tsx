@@ -3,6 +3,7 @@ import { ArrowUpDown, ArrowDownLeft, ArrowUpRight, X } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 import { useStockMovements, useWarehouses } from '../api/inventory.api'
 import { MOVEMENT_LABELS } from '../constants/movementLabels'
+import ProductSearchSelect from '../components/ProductSearchSelect'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -10,6 +11,7 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2
 export default function StockMovementsPage() {
   const [page, setPage] = useState(1)
   const [warehouseFilter, setWarehouseFilter] = useState('')
+  const [productFilter, setProductFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -20,17 +22,18 @@ export default function StockMovementsPage() {
   const queryParams = useMemo(() => ({
     page, limit: 50,
     warehouse_id: warehouseFilter || undefined,
+    product_id: productFilter || undefined,
     movement_type: typeFilter || undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
-  }), [page, warehouseFilter, typeFilter, dateFrom, dateTo])
+  }), [page, warehouseFilter, productFilter, typeFilter, dateFrom, dateTo])
 
   const { data, isLoading } = useStockMovements(queryParams)
   const movements = data?.data ?? []
   const pagination = data?.pagination
 
-  const resetFilters = () => { setWarehouseFilter(''); setTypeFilter(''); setDateFrom(''); setDateTo(''); setPage(1) }
-  const hasFilters = warehouseFilter || typeFilter || dateFrom || dateTo
+  const resetFilters = () => { setWarehouseFilter(''); setProductFilter(''); setTypeFilter(''); setDateFrom(''); setDateTo(''); setPage(1) }
+  const hasFilters = warehouseFilter || productFilter || typeFilter || dateFrom || dateTo
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -53,6 +56,12 @@ export default function StockMovementsPage() {
             <option value="">Semua Gudang</option>
             {warehouseOptions.map(w => <option key={w.id} value={w.id}>{w.warehouse_name}</option>)}
           </select>
+          <ProductSearchSelect
+            value={productFilter}
+            onChange={(id) => { setProductFilter(id); setPage(1) }}
+            onClear={() => { setProductFilter(''); setPage(1) }}
+            placeholder="Cari produk..."
+          />
           <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }}
             className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
             <option value="">Semua Tipe</option>
