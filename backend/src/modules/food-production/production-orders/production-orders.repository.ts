@@ -346,15 +346,21 @@ export class ProductionOrdersRepository {
       [id]
     )
 
-    // Fetch materials with ready stock balance for the branch
+    // Fetch materials with stock from BOTH source warehouses (READY and MAIN)
+    // Source depends on output_warehouse: FINISHED_GOODS → MAIN, READY → READY
     const materialsRes = await pool.query(
       `SELECT pom.*,
-              COALESCE(sb.qty, 0)::numeric AS ready_stock
+              COALESCE(sb_ready.qty, 0)::numeric AS ready_stock,
+              COALESCE(sb_main.qty, 0)::numeric AS main_stock
        FROM production_order_materials pom
-       LEFT JOIN warehouses wh
-         ON wh.branch_id = $2 AND wh.warehouse_type = 'READY' AND wh.deleted_at IS NULL
-       LEFT JOIN stock_balances sb
-         ON sb.warehouse_id = wh.id AND sb.product_id = pom.product_id
+       LEFT JOIN warehouses wh_ready
+         ON wh_ready.branch_id = $2 AND wh_ready.warehouse_type = 'READY' AND wh_ready.deleted_at IS NULL
+       LEFT JOIN stock_balances sb_ready
+         ON sb_ready.warehouse_id = wh_ready.id AND sb_ready.product_id = pom.product_id
+       LEFT JOIN warehouses wh_main
+         ON wh_main.branch_id = $2 AND wh_main.warehouse_type = 'MAIN' AND wh_main.deleted_at IS NULL
+       LEFT JOIN stock_balances sb_main
+         ON sb_main.warehouse_id = wh_main.id AND sb_main.product_id = pom.product_id
        WHERE pom.production_order_id = $1
        ORDER BY pom.sort_order, pom.created_at`,
       [id, order.branch_id]

@@ -520,6 +520,7 @@ export interface ProductionOrderMaterial {
   waste_qty: number
   waste_reason: string | null
   ready_stock: number
+  main_stock: number
 }
 
 export interface ProductionOrderDetail extends ProductionOrderListItem {

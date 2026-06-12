@@ -67,6 +67,7 @@ export interface ProductionOrderMaterial {
   sort_order: number
   created_at: string
   ready_stock: number
+  main_stock: number
 }
 
 export interface ProductionOrderWithDetails extends ProductionOrder {

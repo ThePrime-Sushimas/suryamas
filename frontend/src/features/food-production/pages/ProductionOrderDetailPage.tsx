@@ -170,6 +170,9 @@ export default function ProductionOrderDetailPage() {
                 }`}>
                   {line.output_warehouse === 'FINISHED_GOODS' ? '→ Finished Goods' : '→ Ready'}
                 </span>
+                <span className="text-[10px] text-gray-400">
+                  Bahan dari: <span className="font-semibold">{line.output_warehouse === 'FINISHED_GOODS' ? 'Gudang Utama' : 'Gudang Ready'}</span>
+                </span>
               </div>
             </div>
             <div className="text-right text-xs text-gray-500">
@@ -193,7 +196,9 @@ export default function ProductionOrderDetailPage() {
             <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bahan</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Stok Ready</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                  {line.output_warehouse === 'FINISHED_GOODS' ? 'Stok Main' : 'Stok Ready'}
+                </th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Planned</th>
                 {(isEditing || o.status !== 'DRAFT') && <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actual</th>}
                 {(isEditing || o.status !== 'DRAFT') && <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Waste</th>}
@@ -202,15 +207,17 @@ export default function ProductionOrderDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {line.materials.map((mat: ProductionOrderMaterial, matIdx: number) => (
+              {line.materials.map((mat: ProductionOrderMaterial, matIdx: number) => {
+                const sourceStock = line.output_warehouse === 'FINISHED_GOODS' ? mat.main_stock : mat.ready_stock
+                return (
                 <tr key={mat.id}>
                   <td className="px-3 py-2">
                     <span className="text-gray-900 dark:text-white">{mat.product_name}</span>
                     <span className="ml-1 text-xs text-gray-400">{mat.uom}</span>
                   </td>
                   <td className="px-3 py-2 text-right font-mono text-xs">
-                    <span className={mat.ready_stock < mat.planned_qty ? 'text-red-500 font-semibold' : 'text-emerald-600 dark:text-emerald-400'}>
-                      {fmt(mat.ready_stock)}
+                    <span className={sourceStock < mat.planned_qty ? 'text-red-500 font-semibold' : 'text-emerald-600 dark:text-emerald-400'}>
+                      {fmt(sourceStock)}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right font-mono text-xs">{fmt(mat.planned_qty)}</td>
@@ -241,7 +248,8 @@ export default function ProductionOrderDetailPage() {
                   ) : null}
                   <td className="px-3 py-2 text-right font-mono text-xs text-gray-500">{fmt(mat.cost_per_unit)}</td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
