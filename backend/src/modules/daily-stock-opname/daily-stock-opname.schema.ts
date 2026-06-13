@@ -83,6 +83,7 @@ export const listSchema = z.object({
     date_from: z.string().optional(),
     date_to: z.string().optional(),
     branch_id: z.string().uuid().optional(),
+    position_id: z.string().uuid().optional(),
     status: z.enum(['DRAFT', 'CONFIRMED', 'FLAGGED', 'MISSED', '']).optional(),
     search: z.string().optional(),
   }),

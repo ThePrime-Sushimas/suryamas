@@ -39,6 +39,7 @@ export const useOpnameList = (params: {
   page?: number
   limit?: number
   branch_id?: string
+  position_id?: string
   status?: OpnameDisplayStatus | ''
   date_from?: string
   date_to?: string

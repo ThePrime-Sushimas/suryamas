@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ClipboardCheck, Plus, RefreshCw, Filter, X, Search } from 'lucide-react'
 import { useUrlFilters, useListNavigation } from '@/lib/urlFilters'
-import { useOpnameList, useCreateOpname } from '../api/dailyStockOpname'
+import { useOpnameList, useCreateOpname, useOpnamePositions } from '../api/dailyStockOpname'
 import { OpnameStatusBadge } from '../components/OpnameStatusBadge'
 import { CreateOpnameDialog } from '../components/CreateOpnameDialog'
 import { Pagination } from '@/components/ui/Pagination'
@@ -45,6 +45,7 @@ export default function DailyStockOpnamePage() {
     page: filters.page,
     limit: filters.limit,
     branch_id: filters.branch_id || undefined,
+    position_id: filters.position_id || undefined,
     status: (filters.status || undefined) as OpnameDisplayStatus | undefined,
     date_from: filters.date_from || undefined,
     date_to: filters.date_to || undefined,
@@ -56,9 +57,12 @@ export default function DailyStockOpnamePage() {
   const { data: branchesData } = useBranches({ limit: 100 })
   const branches = branchesData?.data ?? []
 
+  const { data: positionsData } = useOpnamePositions(filters.branch_id || undefined)
+  const positions = positionsData ?? []
+
   const createOpname = useCreateOpname()
 
-  const hasActiveFilters = filters.status || filters.branch_id || filters.date_from || filters.date_to || filters.search
+  const hasActiveFilters = filters.status || filters.branch_id || filters.position_id || filters.date_from || filters.date_to || filters.search
 
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
@@ -131,17 +135,31 @@ export default function DailyStockOpnamePage() {
         {/* Filters */}
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/60">
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Branch</label>
                 <select
                   value={filters.branch_id}
-                  onChange={(e) => setFilters({ branch_id: e.target.value })}
+                  onChange={(e) => setFilters({ branch_id: e.target.value, position_id: '' })}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white"
                 >
                   <option value="">Semua Branch</option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>{b.branch_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Position</label>
+                <select
+                  value={filters.position_id}
+                  onChange={(e) => setFilters({ position_id: e.target.value })}
+                  disabled={!filters.branch_id}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white disabled:opacity-50"
+                >
+                  <option value="">{filters.branch_id ? 'Semua Position' : 'Pilih branch dulu'}</option>
+                  {positions.map((p) => (
+                    <option key={p.id} value={p.id}>{p.position_name}</option>
                   ))}
                 </select>
               </div>

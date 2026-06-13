@@ -66,6 +66,7 @@ export class DailyStockOpnameController {
         requireBranchAccess(query.branch_id, branchIds)
         filter.branch_id = query.branch_id
       }
+      if (query.position_id) filter.position_id = query.position_id
       if (query.status) filter.status = query.status
       if (query.date_from) filter.date_from = query.date_from
       if (query.date_to) filter.date_to = query.date_to

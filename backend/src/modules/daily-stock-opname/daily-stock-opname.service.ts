@@ -959,7 +959,7 @@ export class DailyStockOpnameService {
   async list(
     branchIds: string[],
     pagination: { page: number; limit: number },
-    filter?: { branch_id?: string; status?: string; date_from?: string; date_to?: string },
+    filter?: { branch_id?: string; position_id?: string; status?: string; date_from?: string; date_to?: string },
     search?: string,
   ): Promise<{ data: DailyClosingCountWithRelations[]; total: number; page: number; limit: number }> {
     const offset = (pagination.page - 1) * pagination.limit

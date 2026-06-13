@@ -94,7 +94,7 @@ export class DailyStockOpnameRepository {
   async findAll(
     branchIds: string[],
     pagination: { limit: number; offset: number },
-    filter?: { branch_id?: string; status?: string; date_from?: string; date_to?: string },
+    filter?: { branch_id?: string; position_id?: string; status?: string; date_from?: string; date_to?: string },
     search?: string,
   ): Promise<{ data: DailyClosingCountWithRelations[]; total: number }> {
     const scopedBranches = filter?.branch_id
@@ -122,6 +122,11 @@ export class DailyStockOpnameRepository {
     if (filter?.date_to) {
       params.push(filter.date_to)
       conditions.push(`dcc.closing_date <= $${idx++}::date`)
+    }
+
+    if (filter?.position_id) {
+      params.push(filter.position_id)
+      conditions.push(`dcc.position_id = $${idx++}`)
     }
 
     if (search) {
