@@ -11,9 +11,14 @@ import type { StockAnalysisFilter, StockAnalysisRow, StockAnalysisSummary } from
  * - stok_awal: balance_after dari movement terakhir hari sebelumnya, fallback opname/opening
  * - masuk_opening: SUM IN_OPENING + IN_ADJUSTMENT per product × date × warehouse (display only)
  * - masuk_transfer: SUM IN_TRANSFER per product × date × warehouse
+ * - masuk_daily: SUM IN_DAILY per product × date × warehouse (DPO incoming)
  * - masuk_produksi: SUM IN_PRODUCTION (exclude VOID orders) per product × date × warehouse
  * - penjualan_teoritis: theoretical consumption dari POS sales
  * - waste: SUM OUT_WASTE per product × date × warehouse
+ * - keluar_proses: SUM OUT_PROCESSING per product × date × warehouse
+ * - keluar_transfer: SUM OUT_TRANSFER per product × date × warehouse
+ * - keluar_daily: SUM OUT_DAILY per product × date × warehouse (DPO outgoing)
+ * - keluar_produksi: SUM OUT_PRODUCTION per product × date × warehouse
  * - actual_sisa: actual_qty dari opname hari itu (NULL jika tidak ada)
  */
 export class StockAnalysisRepository {
@@ -72,8 +77,11 @@ export class StockAnalysisRepository {
     params.push(offset)  // $idx for OFFSET
     const offsetIdx = idx++
 
+    // Variance filter: compare actual_sisa vs expected_sisa (all movement types included)
+    // Formula: stok_awal + masuk_pembelian + masuk_transfer + masuk_daily + masuk_produksi
+    //          - penjualan_teoritis - waste - keluar_proses - keluar_transfer - keluar_daily - keluar_produksi
     const varianceFilter = filter.only_with_variance
-      ? `AND actual_sisa IS NOT NULL AND COALESCE(stok_awal, 0) + masuk_pembelian + masuk_transfer + masuk_produksi - penjualan_teoritis - waste - keluar_proses - keluar_transfer - keluar_produksi != actual_sisa`
+      ? `AND actual_sisa IS NOT NULL AND COALESCE(stok_awal, 0) + masuk_pembelian + masuk_transfer + masuk_daily + masuk_produksi - penjualan_teoritis - waste - keluar_proses - keluar_transfer - keluar_daily - keluar_produksi != actual_sisa`
       : ''
 
     const query = `
@@ -111,7 +119,7 @@ export class StockAnalysisRepository {
 
     -- Total product count (for pagination — counts ALL relevant products, not just paginated)
     total_products_count AS (
-      SELECT COUNT(*) AS total FROM relevant_products
+      SELECT COUNT(*)::int AS total FROM relevant_products
     ),
 
     -- Paginated products (early pagination — only these products get cross-joined with dates)
@@ -189,6 +197,7 @@ export class StockAnalysisRepository {
                AND sm.reference_type = 'goods_processing_correction' THEN -sm.qty
           ELSE 0 END) AS masuk_pembelian,
         SUM(CASE WHEN sm.movement_type = 'IN_TRANSFER' THEN sm.qty ELSE 0 END) AS masuk_transfer,
+        SUM(CASE WHEN sm.movement_type = 'IN_DAILY' THEN sm.qty ELSE 0 END) AS masuk_daily,
         SUM(CASE WHEN sm.movement_type = 'IN_PRODUCTION'
                   AND sm.reference_type = 'production_order'
                   AND NOT EXISTS (
@@ -200,6 +209,7 @@ export class StockAnalysisRepository {
         SUM(CASE WHEN sm.movement_type = 'OUT_WASTE' THEN ABS(sm.qty) ELSE 0 END) AS waste,
         SUM(CASE WHEN sm.movement_type = 'OUT_PROCESSING' THEN ABS(sm.qty) ELSE 0 END) AS keluar_proses,
         SUM(CASE WHEN sm.movement_type = 'OUT_TRANSFER' THEN ABS(sm.qty) ELSE 0 END) AS keluar_transfer,
+        SUM(CASE WHEN sm.movement_type = 'OUT_DAILY' THEN ABS(sm.qty) ELSE 0 END) AS keluar_daily,
         SUM(CASE WHEN sm.movement_type = 'OUT_PRODUCTION' THEN ABS(sm.qty) ELSE 0 END) AS keluar_produksi
       FROM stock_movements sm
       WHERE sm.warehouse_id = $3
@@ -312,26 +322,30 @@ export class StockAnalysisRepository {
         COALESCE(dm.masuk_opening, 0)::numeric AS masuk_opening,
         COALESCE(dm.masuk_pembelian, 0)::numeric AS masuk_pembelian,
         COALESCE(dm.masuk_transfer, 0)::numeric AS masuk_transfer,
+        COALESCE(dm.masuk_daily, 0)::numeric AS masuk_daily,
         COALESCE(dm.masuk_produksi, 0)::numeric AS masuk_produksi,
         COALESCE(tc.penjualan_teoritis, 0)::numeric AS penjualan_teoritis,
         COALESCE(dm.waste, 0)::numeric AS waste,
         COALESCE(dm.keluar_proses, 0)::numeric AS keluar_proses,
         COALESCE(dm.keluar_transfer, 0)::numeric AS keluar_transfer,
+        COALESCE(dm.keluar_daily, 0)::numeric AS keluar_daily,
         COALESCE(dm.keluar_produksi, 0)::numeric AS keluar_produksi,
         oa.actual_qty AS actual_sisa,
         COALESCE(oa.cost_per_unit, cc.avg_cost, 0)::numeric AS cost_per_unit,
         (oa.actual_qty IS NOT NULL) AS has_opname,
 
         -- Computed fields for summary (masuk_opening NOT included in formula)
+        -- Formula: stok_awal + masuk_pembelian + masuk_transfer + masuk_daily + masuk_produksi
+        --          - penjualan_teoritis - waste - keluar_proses - keluar_transfer - keluar_daily - keluar_produksi
         CASE WHEN oa.actual_qty IS NOT NULL AND COALESCE(sa.stok_awal, saf.stok_awal) IS NOT NULL
-          THEN (oa.actual_qty - (COALESCE(sa.stok_awal, saf.stok_awal) + COALESCE(dm.masuk_pembelian, 0) + COALESCE(dm.masuk_transfer, 0) + COALESCE(dm.masuk_produksi, 0) - COALESCE(tc.penjualan_teoritis, 0) - COALESCE(dm.waste, 0) - COALESCE(dm.keluar_proses, 0) - COALESCE(dm.keluar_transfer, 0) - COALESCE(dm.keluar_produksi, 0)))
+          THEN (oa.actual_qty - (COALESCE(sa.stok_awal, saf.stok_awal) + COALESCE(dm.masuk_pembelian, 0) + COALESCE(dm.masuk_transfer, 0) + COALESCE(dm.masuk_daily, 0) + COALESCE(dm.masuk_produksi, 0) - COALESCE(tc.penjualan_teoritis, 0) - COALESCE(dm.waste, 0) - COALESCE(dm.keluar_proses, 0) - COALESCE(dm.keluar_transfer, 0) - COALESCE(dm.keluar_daily, 0) - COALESCE(dm.keluar_produksi, 0)))
                * COALESCE(oa.cost_per_unit, cc.avg_cost, 0)
           ELSE NULL
         END AS selisih_rp,
         CASE WHEN oa.actual_qty IS NOT NULL AND COALESCE(sa.stok_awal, saf.stok_awal) IS NOT NULL
-              AND (COALESCE(sa.stok_awal, saf.stok_awal) + COALESCE(dm.masuk_pembelian, 0) + COALESCE(dm.masuk_transfer, 0) + COALESCE(dm.masuk_produksi, 0) - COALESCE(tc.penjualan_teoritis, 0) - COALESCE(dm.waste, 0) - COALESCE(dm.keluar_proses, 0) - COALESCE(dm.keluar_transfer, 0) - COALESCE(dm.keluar_produksi, 0)) > 0
+              AND (COALESCE(sa.stok_awal, saf.stok_awal) + COALESCE(dm.masuk_pembelian, 0) + COALESCE(dm.masuk_transfer, 0) + COALESCE(dm.masuk_daily, 0) + COALESCE(dm.masuk_produksi, 0) - COALESCE(tc.penjualan_teoritis, 0) - COALESCE(dm.waste, 0) - COALESCE(dm.keluar_proses, 0) - COALESCE(dm.keluar_transfer, 0) - COALESCE(dm.keluar_daily, 0) - COALESCE(dm.keluar_produksi, 0)) > 0
           THEN (oa.actual_qty::numeric /
-                (COALESCE(sa.stok_awal, saf.stok_awal) + COALESCE(dm.masuk_pembelian, 0) + COALESCE(dm.masuk_transfer, 0) + COALESCE(dm.masuk_produksi, 0) - COALESCE(tc.penjualan_teoritis, 0) - COALESCE(dm.waste, 0) - COALESCE(dm.keluar_proses, 0) - COALESCE(dm.keluar_transfer, 0) - COALESCE(dm.keluar_produksi, 0))) * 100
+                (COALESCE(sa.stok_awal, saf.stok_awal) + COALESCE(dm.masuk_pembelian, 0) + COALESCE(dm.masuk_transfer, 0) + COALESCE(dm.masuk_daily, 0) + COALESCE(dm.masuk_produksi, 0) - COALESCE(tc.penjualan_teoritis, 0) - COALESCE(dm.waste, 0) - COALESCE(dm.keluar_proses, 0) - COALESCE(dm.keluar_transfer, 0) - COALESCE(dm.keluar_daily, 0) - COALESCE(dm.keluar_produksi, 0))) * 100
           ELSE NULL
         END AS akurasi_pct
       FROM product_dates pd
@@ -412,18 +426,22 @@ export class StockAnalysisRepository {
       const masukOpening = Math.abs(Number(r.masuk_opening))
       const masukPembelian = Number(r.masuk_pembelian)
       const masukTransfer = Math.abs(Number(r.masuk_transfer))
+      const masukDaily = Number(r.masuk_daily)
       const masukProduksi = Math.abs(Number(r.masuk_produksi))
       const penjualanTeoritis = Number(r.penjualan_teoritis)
       const waste = Number(r.waste)
       const keluarProses = Number(r.keluar_proses)
       const keluarTransfer = Number(r.keluar_transfer)
+      const keluarDaily = Number(r.keluar_daily)
       const keluarProduksi = Number(r.keluar_produksi)
       const costPerUnit = Number(r.cost_per_unit)
       const actualSisa = r.actual_sisa != null ? Number(r.actual_sisa) : null
 
       // masuk_opening NOT included — already in stok_awal via fallback
+      // Formula: stok_awal + masuk_pembelian + masuk_transfer + masuk_daily + masuk_produksi
+      //          - penjualan_teoritis - waste - keluar_proses - keluar_transfer - keluar_daily - keluar_produksi
       const expectedSisa = stokAwal != null
-        ? stokAwal + masukPembelian + masukTransfer + masukProduksi - penjualanTeoritis - waste - keluarProses - keluarTransfer - keluarProduksi
+        ? stokAwal + masukPembelian + masukTransfer + masukDaily + masukProduksi - penjualanTeoritis - waste - keluarProses - keluarTransfer - keluarDaily - keluarProduksi
         : null
 
       const selisihQty = (actualSisa != null && expectedSisa != null)
@@ -449,11 +467,13 @@ export class StockAnalysisRepository {
         masuk_opening: masukOpening,
         masuk_pembelian: masukPembelian,
         masuk_transfer: masukTransfer,
+        masuk_daily: masukDaily,
         masuk_produksi: masukProduksi,
         penjualan_teoritis: penjualanTeoritis,
         waste,
         keluar_proses: keluarProses,
         keluar_transfer: keluarTransfer,
+        keluar_daily: keluarDaily,
         keluar_produksi: keluarProduksi,
         expected_sisa: expectedSisa,
         actual_sisa: actualSisa,

@@ -303,7 +303,7 @@ export class DailyPrepOrdersService {
           {
             warehouse_id: detail.source_warehouse_id,
             product_id: line.product_id,
-            movement_type: 'OUT_TRANSFER',
+            movement_type: 'OUT_DAILY',
             qty: qty,
             cost_per_unit: mainAvgCost,
             reference_type: 'transfer_order',
@@ -336,7 +336,7 @@ export class DailyPrepOrdersService {
           {
             warehouse_id: detail.target_warehouse_id,
             product_id: line.product_id,
-            movement_type: 'IN_TRANSFER',
+            movement_type: 'IN_DAILY',
             qty: qty,
             cost_per_unit: mainAvgCost,
             reference_type: 'transfer_order',

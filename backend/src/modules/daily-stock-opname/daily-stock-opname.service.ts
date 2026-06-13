@@ -224,7 +224,7 @@ export class DailyStockOpnameService {
     // 8. Get theoretical consumption for the date
     const theoreticalMap = await this.getTheoreticalConsumptionForDate(dto.branch_id, closingDate)
 
-    // 9. Get DPO IN_TRANSFER movements for the date (display only)
+    // 9. Get DPO IN_DAILY movements for the date (display only)
     const dpoTransfers = await dailyStockOpnameRepository.getDpoTransfersForDate(readyWarehouse.id, closingDate)
 
     // 10. Get MAIN warehouse balances (snapshot)

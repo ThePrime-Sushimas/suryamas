@@ -6,6 +6,7 @@ export const MOVEMENT_LABELS: Record<string, string> = {
   IN_ADJUSTMENT: 'Penyesuaian (+)',
   IN_OPENING: 'Saldo Awal (+)',
   IN_REVERSAL: 'Reversal Masuk (+)',
+  IN_DAILY: 'Pengambilan Harian Masuk (+)',
   OUT_TRANSFER: 'Transfer Keluar (-)',
   OUT_LOAN: 'Pinjam Cabang (-)',
   OUT_DAILY: 'Daily Prep (-)',

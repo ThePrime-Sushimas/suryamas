@@ -18,11 +18,13 @@ export interface StockAnalysisRow {
   masuk_opening: number
   masuk_pembelian: number
   masuk_transfer: number
+  masuk_daily: number
   masuk_produksi: number
   penjualan_teoritis: number
   waste: number
   keluar_proses: number
   keluar_transfer: number
+  keluar_daily: number
   keluar_produksi: number
   expected_sisa: number | null
   actual_sisa: number | null

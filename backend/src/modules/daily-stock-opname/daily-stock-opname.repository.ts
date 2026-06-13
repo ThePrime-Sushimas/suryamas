@@ -600,7 +600,7 @@ export class DailyStockOpnameRepository {
   }
 
   /**
-   * Sum today's DPO IN_TRANSFER movements to the READY warehouse for display purposes.
+   * Sum today's DPO IN_DAILY movements to the READY warehouse for display purposes.
    * Returns Map<productId, totalQty>
    */
   async getDpoTransfersForDate(warehouseId: string, date: string): Promise<Map<string, number>> {
@@ -608,7 +608,7 @@ export class DailyStockOpnameRepository {
       `SELECT product_id, SUM(qty)::numeric AS total_qty
        FROM stock_movements
        WHERE warehouse_id = $1
-         AND movement_type = 'IN_TRANSFER'
+         AND movement_type = 'IN_DAILY'
          AND reference_type = 'transfer_order'
          AND movement_date = $2::date
        GROUP BY product_id`,

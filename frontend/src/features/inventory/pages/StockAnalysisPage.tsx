@@ -432,11 +432,13 @@ function getVisibleColumns(wt: string) {
     opening:           t === 'MAIN',
     masuk_pembelian:   t === 'MAIN',
     masuk_transfer:    t === 'READY' || t === 'FINISHED_GOODS',
+    masuk_daily:       t === 'READY',
     masuk_produksi:    t === 'READY' || t === 'FINISHED_GOODS',
     penjualan_teoritis: t === 'READY',
     waste:             t === 'READY',
     keluar_proses:     t === 'READY' || t === 'FINISHED_GOODS',
     keluar_transfer:   t === 'MAIN' || t === 'FINISHED_GOODS',
+    keluar_daily:      t === 'MAIN',
     keluar_produksi:   t === 'READY',
     actual:            t === 'READY',
     selisih:           t === 'READY',
@@ -457,11 +459,13 @@ function AnalysisTableHeader({ warehouseType }: { warehouseType: string }) {
   const formulaCols: { key: string; sign: '+' | '−'; label: string }[] = []
   if (v.masuk_pembelian) formulaCols.push({ key: 'masuk_pembelian', sign: '+', label: nextLetter() })
   if (v.masuk_transfer) formulaCols.push({ key: 'masuk_transfer', sign: '+', label: nextLetter() })
+  if (v.masuk_daily) formulaCols.push({ key: 'masuk_daily', sign: '+', label: nextLetter() })
   if (v.masuk_produksi) formulaCols.push({ key: 'masuk_produksi', sign: '+', label: nextLetter() })
   if (v.penjualan_teoritis) formulaCols.push({ key: 'penjualan_teoritis', sign: '−', label: nextLetter() })
   if (v.waste) formulaCols.push({ key: 'waste', sign: '−', label: nextLetter() })
   if (v.keluar_proses) formulaCols.push({ key: 'keluar_proses', sign: '−', label: nextLetter() })
   if (v.keluar_transfer) formulaCols.push({ key: 'keluar_transfer', sign: '−', label: nextLetter() })
+  if (v.keluar_daily) formulaCols.push({ key: 'keluar_daily', sign: '−', label: nextLetter() })
   if (v.keluar_produksi) formulaCols.push({ key: 'keluar_produksi', sign: '−', label: nextLetter() })
 
   return (
@@ -481,6 +485,9 @@ function AnalysisTableHeader({ warehouseType }: { warehouseType: string }) {
         {v.masuk_transfer && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
           <ColHeader label="Masuk Transfer" tip="Barang masuk dari transfer antar gudang (DPO, stock transfer)." />
         </th>}
+        {v.masuk_daily && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Pengambilan Harian Masuk" tip="Bahan masuk ke gudang READY dari proses pengambilan harian (IN_DAILY)." />
+        </th>}
         {v.masuk_produksi && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
           <ColHeader label="Masuk Produksi" tip="Barang masuk dari hasil produksi (production order)." />
         </th>}
@@ -494,7 +501,10 @@ function AnalysisTableHeader({ warehouseType }: { warehouseType: string }) {
           <ColHeader label="Proses" tip="Barang keluar untuk breakdown menjadi produk lain." />
         </th>}
         {v.keluar_transfer && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
-          <ColHeader label="Keluar Transfer" tip="Barang keluar via transfer ke gudang lain (DPO ke READY, kirim cabang)." />
+          <ColHeader label="Keluar Transfer" tip="Barang keluar via transfer ke gudang lain (stock transfer antar gudang/cabang)." />
+        </th>}
+        {v.keluar_daily && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
+          <ColHeader label="Pengambilan Harian Keluar" tip="Bahan keluar dari gudang MAIN karena Pengambilan Harian (OUT_DAILY)." />
         </th>}
         {v.keluar_produksi && <th className="px-2 py-2 text-right font-medium whitespace-nowrap">
           <ColHeader label="Keluar Produksi" tip="Bahan terpakai untuk production order." />
@@ -554,11 +564,13 @@ function AnalysisRow({ row, warehouseType }: { row: StockAnalysisRow; warehouseT
       {v.opening && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{row.masuk_opening ? fmt(row.masuk_opening) : '-'}</td>}
       {v.masuk_pembelian && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_pembelian)}</td>}
       {v.masuk_transfer && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_transfer)}</td>}
+      {v.masuk_daily && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_daily)}</td>}
       {v.masuk_produksi && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.masuk_produksi)}</td>}
       {v.penjualan_teoritis && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.penjualan_teoritis)}</td>}
       {v.waste && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.waste)}</td>}
       {v.keluar_proses && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_proses)}</td>}
       {v.keluar_transfer && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_transfer)}</td>}
+      {v.keluar_daily && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_daily)}</td>}
       {v.keluar_produksi && <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-300 font-mono">{fmt(row.keluar_produksi)}</td>}
       <td className="px-2 py-1.5 text-right font-mono font-medium bg-blue-50/50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300">{fmt(row.expected_sisa)}</td>
       {v.actual && <td className="px-2 py-1.5 text-right font-mono font-medium bg-green-50/50 dark:bg-green-900/10 text-green-700 dark:text-green-300">{fmt(row.actual_sisa)}</td>}
