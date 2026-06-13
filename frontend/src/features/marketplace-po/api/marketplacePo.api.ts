@@ -196,6 +196,46 @@ export function useCancelShippedSession() {
     },
   })
 }
+
+export function useRemoveSessionLine() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ sessionId, lineId }: { sessionId: string; lineId: string }) => {
+      const { data } = await api.delete(`/marketplace-sessions/${sessionId}/lines/${lineId}`)
+      return data.data as MarketplaceSessionDetail
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
+      qc.invalidateQueries({ queryKey: KEYS.session(vars.sessionId) })
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions', 'pending-po-lines'] })
+    },
+  })
+}
+
+export function useCancelSessionLine() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      lineId,
+      cancelReason,
+    }: {
+      sessionId: string
+      lineId: string
+      cancelReason: string
+    }) => {
+      const { data } = await api.post(`/marketplace-sessions/${sessionId}/lines/${lineId}/cancel`, {
+        cancel_reason: cancelReason,
+      })
+      return data.data as MarketplaceSessionDetail
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions'] })
+      qc.invalidateQueries({ queryKey: KEYS.session(vars.sessionId) })
+      qc.invalidateQueries({ queryKey: ['marketplace-sessions', 'pending-po-lines'] })
+    },
+  })
+}
 export function usePostReceiveJournal() {
   const qc = useQueryClient()
   return useMutation({

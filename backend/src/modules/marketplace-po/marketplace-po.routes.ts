@@ -26,6 +26,8 @@ import {
   cancelOrderedSessionSchema,
   cancelShippedSessionSchema,
   postReceiveJournalSchema,
+  cancelSessionLineSchema,
+  marketplaceSessionLineIdSchema,
 } from './marketplace-po.schema'
 import { unreconciledStatementsSchema } from './marketplace-po.schema'
 
@@ -55,6 +57,8 @@ router.get('/marketplace-sessions/pending-po-lines', canView('marketplace_po'), 
 router.get('/marketplace-sessions/:id', canView('marketplace_po'), validateSchema(marketplaceSessionIdSchema), (req, res) => marketplacePoController.getSessionDetail(req, res))
 router.post('/marketplace-sessions', canInsert('marketplace_po'), validateSchema(createMarketplaceSessionSchema), (req, res) => marketplacePoController.createSession(req, res))
 router.put('/marketplace-sessions/:id', canUpdate('marketplace_po'), validateSchema(updateMarketplaceSessionSchema), (req, res) => marketplacePoController.updateSession(req, res))
+router.delete('/marketplace-sessions/:id/lines/:lineId', canUpdate('marketplace_po'), validateSchema(marketplaceSessionLineIdSchema), (req, res) => marketplacePoController.removeLineFromDraftSession(req, res))
+router.post('/marketplace-sessions/:id/lines/:lineId/cancel', canUpdate('marketplace_po'), validateSchema(cancelSessionLineSchema), (req, res) => marketplacePoController.cancelLineFromShippedSession(req, res))
 router.delete('/marketplace-sessions/:id', canDelete('marketplace_po'), validateSchema(cancelMarketplaceSessionSchema), (req, res) => marketplacePoController.cancelSession(req, res))
 
 router.post(

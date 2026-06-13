@@ -10,6 +10,7 @@
   import { DOCUMENT_UPLOAD_EXTENSIONS, resolveDocumentUploadExtension } from '../../utils/document-upload.util'
   import type {
     CancelSessionDto,
+    CancelSessionLineDto,
     CreateOwnerCreditCardDto,
     OwnerCreditCardWithSettlement,
     UpdateOwnerCreditCardDto,
@@ -232,6 +233,47 @@
         if (!updated) throw new BusinessRuleError('Session not found or not in DRAFT')
         return updated
       })
+    }
+
+    async removeLineFromDraftSession(
+      companyIds: string[],
+      branchIds: string[],
+      userId: string,
+      sessionId: string,
+      lineId: string,
+    ): Promise<unknown> {
+      const { header } = await this.requireSessionDetail(sessionId, companyIds, branchIds)
+      const companyId = header.company_id as string
+
+      if (header.status !== 'DRAFT') {
+        throw new BusinessRuleError('Hanya session DRAFT yang bisa dihapus itemnya')
+      }
+
+      await marketplacePoRepository.withTransaction(async (client) => {
+        const locked = await marketplacePoRepository.getSessionForTransition(client, sessionId, companyId)
+        if (!locked || locked.status !== 'DRAFT') {
+          throw new BusinessRuleError('Session tidak ditemukan atau bukan DRAFT')
+        }
+
+        const line = await marketplacePoRepository.findActiveLineById(client, sessionId, lineId)
+        if (!line) throw new BusinessRuleError('Line tidak ditemukan atau sudah dihapus')
+
+        const activeCount = await marketplacePoRepository.countActiveLines(client, sessionId)
+        if (activeCount <= 1) {
+          throw new BusinessRuleError(
+            'Tidak bisa menghapus semua item. Batalkan session jika ingin membatalkan seluruhnya.',
+          )
+        }
+
+        await marketplacePoRepository.removeLineFromSession(client, lineId, sessionId)
+        await marketplacePoRepository.updateSessionTotalAmount(client, sessionId, companyId, userId)
+      })
+
+      await AuditService.log('REMOVE_LINE', 'marketplace_checkout_session', sessionId, userId, {
+        line_id: lineId,
+      })
+
+      return marketplacePoRepository.findSessionDetail(sessionId, companyIds)
     }
 
     async cancelSession(companyIds: string[], branchIds: string[], userId: string, id: string) {
@@ -482,6 +524,137 @@
         { status: 'CANCELLED', cancel_reason: dto.cancel_reason },
       )
       return marketplacePoRepository.findSessionDetail(id, companyIds)
+    }
+
+    async cancelLineFromShippedSession(
+      companyIds: string[],
+      branchIds: string[],
+      userId: string,
+      sessionId: string,
+      lineId: string,
+      dto: CancelSessionLineDto,
+    ): Promise<unknown> {
+      const detail = await this.requireSessionDetail(sessionId, companyIds, branchIds)
+      const companyId = detail.header.company_id as string
+      const session = detail.header
+
+      if (session.status !== 'SHIPPED') {
+        throw new BusinessRuleError('Hanya session SHIPPED yang bisa di-cancel per item')
+      }
+
+      const cancelledLineData = await marketplacePoRepository.withTransaction(async (client) => {
+        const locked = await marketplacePoRepository.getSessionForTransition(client, sessionId, companyId)
+        if (!locked || locked.status !== 'SHIPPED') {
+          throw new BusinessRuleError('Session tidak ditemukan atau bukan SHIPPED')
+        }
+
+        const line = await marketplacePoRepository.findActiveLineById(client, sessionId, lineId)
+        if (!line) throw new BusinessRuleError('Line tidak ditemukan atau sudah dibatalkan')
+
+        const activeCount = await marketplacePoRepository.countActiveLines(client, sessionId)
+        if (activeCount <= 1) {
+          throw new BusinessRuleError(
+            'Tidak bisa membatalkan semua item. Gunakan Cancel Session jika ingin membatalkan seluruhnya.',
+          )
+        }
+
+        const ccCoaCode = await marketplacePoRepository.findOwnerCreditCardCoaCode(
+          client, locked.cc_id, companyId,
+        )
+        if (!ccCoaCode) throw new BusinessRuleError('COA untuk CC tidak ditemukan')
+
+        const lineData = {
+          poLineId: line.po_line_id,
+          totalNetto: Number(line.total_netto),
+          ccCoaCode,
+          sessionNumber: locked.session_number as string,
+        }
+
+        await marketplacePoRepository.cancelLine(
+          client, lineId, sessionId, dto.cancel_reason,
+        )
+
+        await marketplacePoRepository.removeGrLineByPoLine(
+          client,
+          lineData.sessionNumber,
+          lineData.poLineId,
+          companyId,
+        )
+
+        await marketplacePoRepository.updateSessionTotalAmount(client, sessionId, companyId, userId)
+
+        return lineData
+      })
+
+      const coaCc = await chartOfAccountsRepository.findByCode(companyId, cancelledLineData.ccCoaCode)
+      if (!coaCc) throw new BusinessRuleError('COA CC tidak ditemukan')
+
+      const coa110598 = await chartOfAccountsRepository.findByCode(companyId, '110598')
+      if (!coa110598) throw new BusinessRuleError('COA 110598 tidak ditemukan')
+
+      const correctionAmount = cancelledLineData.totalNetto
+      const journalDesc = `Koreksi Cancel Item Marketplace - ${cancelledLineData.sessionNumber}`
+
+      const journalCreateDto = {
+        company_id: companyId,
+        journal_date: new Date().toISOString().slice(0, 10),
+        journal_type: 'INVENTORY',
+        description: journalDesc,
+        currency: 'IDR',
+        exchange_rate: 1,
+        reference_type: 'marketplace_checkout_session',
+        reference_id: sessionId,
+        reference_number: cancelledLineData.sessionNumber,
+        source_module: 'marketplace_po',
+        lines: [
+          {
+            line_number: 1,
+            account_id: coaCc.id,
+            description: journalDesc,
+            debit_amount: correctionAmount,
+            credit_amount: 0,
+          },
+          {
+            line_number: 2,
+            account_id: coa110598.id,
+            description: journalDesc,
+            debit_amount: 0,
+            credit_amount: correctionAmount,
+          },
+        ],
+      }
+
+      let correctionJournalId: string | null = null
+      try {
+        const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
+        correctionJournalId = posted.id
+      } catch (e) {
+        await this.cleanupPostedJournalsAfterFailure(
+          correctionJournalId ? [correctionJournalId] : [],
+          'cancelLineFromShippedSession',
+          userId,
+          companyId,
+          { sessionId, lineId },
+        )
+        throw e
+      }
+
+      await AuditService.log(
+        'CANCEL_LINE_SHIPPED',
+        'marketplace_checkout_session',
+        sessionId,
+        userId,
+        { line_id: lineId, status: 'ACTIVE' },
+        {
+          line_id: lineId,
+          status: 'CANCELLED',
+          cancel_reason: dto.cancel_reason,
+          correction_journal_id: correctionJournalId,
+          correction_amount: correctionAmount,
+        },
+      )
+
+      return marketplacePoRepository.findSessionDetail(sessionId, companyIds)
     }
 
     async postReceiveJournal(

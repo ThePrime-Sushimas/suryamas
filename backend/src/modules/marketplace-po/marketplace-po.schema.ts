@@ -66,6 +66,23 @@ export const marketplaceSessionIdSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
 })
 
+export const marketplaceSessionLineIdSchema = z.object({
+  params: z.object({
+    id: z.string().uuid(),
+    lineId: z.string().uuid(),
+  }),
+})
+
+export const cancelSessionLineSchema = z.object({
+  params: z.object({
+    id: z.string().uuid(),
+    lineId: z.string().uuid(),
+  }),
+  body: z.object({
+    cancel_reason: z.string().min(3, 'Alasan minimal 3 karakter'),
+  }),
+})
+
 export const createMarketplaceSessionSchema = z.object({
   body: z.object({
     platform: z.enum(['SHOPEE', 'TOKOPEDIA']),

@@ -9,6 +9,8 @@ import {
   useOrderSession,
   useSettleSession,
   useMarketplaceSessionGrs,
+  useRemoveSessionLine,
+  useCancelSessionLine,
 } from "../api/marketplacePo.api";
 import {
   SessionStatusBadge,
@@ -29,6 +31,7 @@ import {
   useCancelShippedSession,
 } from "../api/marketplacePo.api";
 import { CancelSessionModal } from "../components/CancelSessionModal";
+import { CancelLineModal } from "../components/CancelLineModal";
 
 type TabId = "items" | "shipments" | "attachments" | "journal";
 
@@ -70,8 +73,14 @@ export default function MarketplacePoDetailPage() {
     [lines],
   );
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelLineTarget, setCancelLineTarget] = useState<{
+    id: string;
+    productName: string;
+  } | null>(null);
   const cancelOrdered = useCancelOrderedSession();
   const cancelShipped = useCancelShippedSession();
+  const removeLineMutation = useRemoveSessionLine();
+  const cancelLineMutation = useCancelSessionLine();
 
   const handleCancel = async (payload: {
     cancel_reason: string;
@@ -92,6 +101,32 @@ export default function MarketplacePoDetailPage() {
   };
 
   const isCancelPending = cancelOrdered.isPending || cancelShipped.isPending;
+
+  const handleRemoveLine = async (lineId: string) => {
+    if (!header) return;
+    try {
+      await removeLineMutation.mutateAsync({ sessionId: header.id, lineId });
+      toast.success("Item berhasil dihapus dari session");
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, "Gagal menghapus item"));
+    }
+  };
+
+  const handleCancelLine = async (cancelReason: string) => {
+    if (!header || !cancelLineTarget) return;
+    try {
+      await cancelLineMutation.mutateAsync({
+        sessionId: header.id,
+        lineId: cancelLineTarget.id,
+        cancelReason,
+      });
+      toast.success("Item berhasil dibatalkan dan jurnal koreksi sudah dibuat");
+      setCancelLineTarget(null);
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, "Gagal membatalkan item"));
+    }
+  };
+
   const ccDisplay = useMemo(() => {
     if (!header) return "-";
     const label = header.card_label ?? header.cc_label ?? "";
@@ -350,7 +385,16 @@ export default function MarketplacePoDetailPage() {
             ))}
           </div>
           <div className="p-4 lg:p-6">
-            {activeTab === "items" && <SessionItemsTab lines={lines} />}
+            {activeTab === "items" && (
+              <SessionItemsTab
+                lines={lines}
+                sessionStatus={header.status}
+                canUpdate={canUpdate}
+                onRemoveLine={handleRemoveLine}
+                onCancelLine={setCancelLineTarget}
+                isRemovePending={removeLineMutation.isPending}
+              />
+            )}
             {activeTab === "shipments" && (
               <SessionShipmentsTab
                 sessionId={header.id}
@@ -387,6 +431,13 @@ export default function MarketplacePoDetailPage() {
         onConfirm={handleSettle}
         isLoading={settleSession.isPending}
         session={header}
+      />
+      <CancelLineModal
+        isOpen={!!cancelLineTarget}
+        productName={cancelLineTarget?.productName ?? ""}
+        onClose={() => setCancelLineTarget(null)}
+        onConfirm={handleCancelLine}
+        isLoading={cancelLineMutation.isPending}
       />
     </div>
   );

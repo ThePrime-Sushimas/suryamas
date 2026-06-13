@@ -41,10 +41,14 @@ import type { unreconciledStatementsSchema } from './marketplace-po.schema'
 import type {
   cancelOrderedSessionSchema,
   cancelShippedSessionSchema,
+  cancelSessionLineSchema,
+  marketplaceSessionLineIdSchema,
 } from './marketplace-po.schema'
 
 type CancelOrderedReq = ValidatedAuthRequest<typeof cancelOrderedSessionSchema>
 type CancelShippedReq = ValidatedAuthRequest<typeof cancelShippedSessionSchema>
+type CancelSessionLineReq = ValidatedAuthRequest<typeof cancelSessionLineSchema>
+type SessionLineIdReq = ValidatedAuthRequest<typeof marketplaceSessionLineIdSchema>
 type UnreconciledStatementsReq = ValidatedAuthRequest<typeof unreconciledStatementsSchema>
 type ListSessionsReq = ValidatedAuthRequest<typeof listMarketplaceSessionsSchema>
 type SessionIdReq = ValidatedAuthRequest<typeof marketplaceSessionIdSchema>
@@ -192,6 +196,42 @@ export class MarketplacePoController {
       sendSuccess(res, session, 'Marketplace session updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'update_marketplace_session', id: req.params.id })
+    }
+  }
+
+  removeLineFromDraftSession = async (req: Request, res: Response) => {
+    try {
+      const { id, lineId } = (req as SessionLineIdReq).validated.params
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const detail = await marketplacePoService.removeLineFromDraftSession(
+        companyIds,
+        branchIds,
+        userId,
+        id,
+        lineId,
+      )
+      sendSuccess(res, detail, 'Item berhasil dihapus dari session')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'remove_session_line', id: req.params.id })
+    }
+  }
+
+  cancelLineFromShippedSession = async (req: Request, res: Response) => {
+    try {
+      const { id, lineId } = (req as CancelSessionLineReq).validated.params
+      const { body } = (req as CancelSessionLineReq).validated
+      const { companyIds, branchIds, userId } = await mpScope(req)
+      const detail = await marketplacePoService.cancelLineFromShippedSession(
+        companyIds,
+        branchIds,
+        userId,
+        id,
+        lineId,
+        body,
+      )
+      sendSuccess(res, detail, 'Item berhasil dibatalkan')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'cancel_session_line', id: req.params.id })
     }
   }
 

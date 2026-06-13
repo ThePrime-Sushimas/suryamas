@@ -102,6 +102,9 @@ export interface MarketplaceCheckoutLine {
   total_netto: number
   platform_order_id: string | null
   notes: string | null
+  status?: 'ACTIVE' | 'CANCELLED'
+  cancelled_at?: string | null
+  cancel_reason?: string | null
 }
 
 export interface MarketplaceShipment {

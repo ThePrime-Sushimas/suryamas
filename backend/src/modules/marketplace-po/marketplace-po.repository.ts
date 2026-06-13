@@ -1013,6 +1013,106 @@ export class MarketplacePoRepository {
     return rows
   }
 
+  async findActiveLineById(
+    client: PoolClient,
+    sessionId: string,
+    lineId: string,
+  ): Promise<{
+    id: string
+    po_line_id: string
+    product_id: string
+    qty: number
+    unit_price_netto: number
+    total_netto: number
+    status: string
+  } | null> {
+    const { rows } = await client.query(
+      `SELECT id, po_line_id, product_id, qty::numeric AS qty,
+              unit_price_netto::numeric AS unit_price_netto,
+              total_netto::numeric AS total_netto, status
+       FROM marketplace_checkout_lines
+       WHERE id = $1 AND session_id = $2 AND status = 'ACTIVE'`,
+      [lineId, sessionId],
+    )
+    return rows[0] ?? null
+  }
+
+  async countActiveLines(client: PoolClient, sessionId: string): Promise<number> {
+    const { rows } = await client.query(
+      `SELECT COUNT(*)::int AS count
+       FROM marketplace_checkout_lines
+       WHERE session_id = $1 AND status = 'ACTIVE'`,
+      [sessionId],
+    )
+    return rows[0]?.count ?? 0
+  }
+
+  async cancelLine(
+    client: PoolClient,
+    lineId: string,
+    sessionId: string,
+    cancelReason: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE marketplace_checkout_lines
+       SET status = 'CANCELLED',
+           cancel_reason = $1,
+           cancelled_at = now()
+       WHERE id = $2 AND session_id = $3 AND status = 'ACTIVE'`,
+      [cancelReason, lineId, sessionId],
+    )
+  }
+
+  async removeLineFromSession(client: PoolClient, lineId: string, sessionId: string): Promise<void> {
+    await client.query(
+      `DELETE FROM marketplace_checkout_lines
+       WHERE id = $1 AND session_id = $2`,
+      [lineId, sessionId],
+    )
+  }
+
+  async updateSessionTotalAmount(
+    client: PoolClient,
+    sessionId: string,
+    companyId: string,
+    userId: string,
+  ): Promise<number> {
+    const { rows } = await client.query(
+      `UPDATE marketplace_checkout_sessions mcs
+       SET total_amount = (
+         SELECT COALESCE(SUM(total_netto), 0)
+         FROM marketplace_checkout_lines
+         WHERE session_id = mcs.id AND status = 'ACTIVE'
+       ),
+       updated_by = $1,
+       updated_at = now()
+       WHERE id = $2 AND company_id = $3
+       RETURNING total_amount::numeric AS total_amount`,
+      [userId, sessionId, companyId],
+    )
+    return Number(rows[0]?.total_amount ?? 0)
+  }
+
+  async removeGrLineByPoLine(
+    client: PoolClient,
+    sessionNumber: string,
+    poLineId: string,
+    companyId: string,
+  ): Promise<void> {
+    await client.query(
+      `DELETE FROM goods_receipt_lines grl
+       USING goods_receipts gr
+       WHERE grl.gr_id = gr.id
+         AND grl.po_line_id = $1
+         AND gr.invoice_number = $2
+         AND gr.company_id = $3
+         AND gr.source = 'MARKETPLACE'
+         AND gr.status = 'DRAFT'
+         AND gr.deleted_at IS NULL`,
+      [poLineId, sessionNumber, companyId],
+    )
+  }
+
   async findPendingPoLines(branchIds: string[], filter: { platform?: string; branch_id?: string }) {
     const params: unknown[] = [branchIds]
     let idx = 2
@@ -1026,6 +1126,8 @@ export class MarketplacePoRepository {
         JOIN marketplace_checkout_sessions mcs ON mcs.id = mcl.session_id
         WHERE mcl.po_line_id = pol.id
           AND mcs.status NOT IN ('CANCELLED')
+          AND mcs.deleted_at IS NULL
+          AND mcl.status = 'ACTIVE'
       )`,
     ]
 

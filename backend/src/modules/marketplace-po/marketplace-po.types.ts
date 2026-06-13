@@ -79,6 +79,9 @@ export type MarketplaceCheckoutLine = {
   platform_order_id: string | null
   platform_item_id: string | null
   notes: string | null
+  status: 'ACTIVE' | 'CANCELLED'
+  cancelled_at: string | null
+  cancel_reason: string | null
   created_at: string
 }
 
@@ -184,6 +187,12 @@ export type CancelSessionDto = {
   cancel_reason: string
   platform_cancel_ref?: string | null
 }
+
+export type CancelSessionLineDto = {
+  cancel_reason: string
+}
+
+export type RemoveSessionLineDto = Record<string, never>
 export type SettleSessionDto = {
   bank_account_id: string
   amount: number
