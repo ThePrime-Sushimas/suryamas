@@ -190,6 +190,69 @@ export function buildCalendarDaySummaries(
   })
 }
 
+/** Tanggal 1 dari bulan yang mengandung ref */
+export function getFirstDayOfMonth(ref: Date): Date {
+  const d = new Date(ref.getFullYear(), ref.getMonth(), 1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+export function formatMonthLabel(monthStart: Date): string {
+  return monthStart.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+}
+
+/**
+ * Bangun baris minggu untuk satu bulan (kalender grid standar).
+ * Baris pertama bisa berisi hari-hari dari bulan sebelumnya (padding).
+ * Baris terakhir bisa berisi hari-hari dari bulan berikutnya.
+ */
+export function buildCalendarMonthBlocks(
+  monthStart: Date,
+  pivot: ApDueDatePivotGroup[],
+): CalendarWeekBlock[] {
+  const todayKey = toDateKey(new Date())
+
+  // Hari pertama bulan ini jatuh di hari ke-N (0=Min, 1=Sen, ...)
+  // Kita pakai Senin sebagai kolom pertama (ISO)
+  const firstDow = monthStart.getDay() // 0=Min
+  const paddingDays = firstDow === 0 ? 6 : firstDow - 1 // berapa hari dari bulan lalu
+
+  const year = monthStart.getFullYear()
+  const month = monthStart.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const totalCells = Math.ceil((paddingDays + daysInMonth) / 7) * 7
+
+  const allDays: CalendarDayColumn[] = []
+  for (let i = 0; i < totalCells; i++) {
+    const date = addDays(new Date(year, month, 1 - paddingDays), i)
+    const dateKey = toDateKey(date)
+    const dow = date.getDay()
+    allDays.push({
+      dateKey,
+      date,
+      dayName: DAY_NAMES[dow === 0 ? 6 : dow - 1],
+      dayNum: date.getDate(),
+      monthShort: date.toLocaleDateString('id-ID', { month: 'short' }),
+      isToday: dateKey === todayKey,
+      isPast: dateKey < todayKey,
+    })
+  }
+
+  const summaries = buildCalendarDaySummaries(pivot, allDays)
+  const blocks: CalendarWeekBlock[] = []
+  for (let w = 0; w < totalCells / 7; w++) {
+    const start = w * 7
+    const weekStart = allDays[start].date
+    blocks.push({
+      weekStart,
+      weekLabel: formatSingleWeekLabel(weekStart),
+      days: allDays.slice(start, start + 7),
+      summaries: summaries.slice(start, start + 7),
+    })
+  }
+  return blocks
+}
+
 export function getNullDueDateSummary(
   pivot: ApDueDatePivotGroup[],
 ): CalendarDaySummary | null {

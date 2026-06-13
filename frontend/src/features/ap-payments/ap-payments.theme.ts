@@ -114,6 +114,8 @@ export const apTheme = {
     'border-2 border-rose-200 dark:border-gray-600 bg-[#faf0f4] dark:bg-gray-800/60',
   calFuture:
     'border-2 border-rose-300 dark:border-gray-600 bg-[#fdf2f6] dark:bg-gray-800 hover:border-rose-400 hover:bg-rose-50/80 dark:hover:border-gray-500',
+  calOutsideMonth:
+    'border-2 border-rose-100/60 dark:border-gray-700/50 bg-rose-50/20 dark:bg-gray-900/20',
   calDayLabelToday: 'text-rose-700 dark:text-blue-300',
   calDayLabel: 'text-rose-600/70 dark:text-gray-500',
   calDayNumToday: 'text-rose-800 dark:text-blue-200',

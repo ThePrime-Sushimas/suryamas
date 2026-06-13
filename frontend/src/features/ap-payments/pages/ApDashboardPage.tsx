@@ -24,8 +24,7 @@ import { ApDueDatePivotSection } from '../components/ApDueDatePivotSection'
 import { ApPaymentCalendarWeek } from '../components/ApPaymentCalendarWeek'
 import { ApPaymentDayDetailDrawer } from '../components/ApPaymentDayDetailDrawer'
 import { exportApDashboardExcel } from '../utils/apDashboardExport'
-import { getMondayOfWeek, summarizeDay } from '../utils/apCalendar.utils'
-import type { CalendarWeekSpan } from '../utils/apCalendar.utils'
+import { getFirstDayOfMonth, summarizeDay } from '../utils/apCalendar.utils'
 import { AP_PAYMENTS_LIST_PATH } from '../constants'
 import { ApPaymentsShell } from '../components/ApPaymentsShell'
 import { apTheme } from '../ap-payments.theme'
@@ -94,9 +93,8 @@ export default function ApDashboardPage() {
     useState<ApPivotLocationGrouping>('branch')
   const [dashboardView, setDashboardView] = useState<DashboardView>('calendar')
   const [weekStartMonday, setWeekStartMonday] = useState(() =>
-    getMondayOfWeek(new Date()),
+    getFirstDayOfMonth(new Date()),
   )
-  const [weekSpan, setWeekSpan] = useState<CalendarWeekSpan>(1)
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null)
 
   const summary = data?.summary
@@ -304,10 +302,8 @@ export default function ApDashboardPage() {
               <ApPaymentCalendarWeek
                 pivot={dueDatePivot}
                 weekStartMonday={weekStartMonday}
-                weekSpan={weekSpan}
                 locationGrouping={locationGrouping}
                 onWeekStartChange={setWeekStartMonday}
-                onWeekSpanChange={setWeekSpan}
                 onSelectDay={(key) => setSelectedDayKey(key)}
                 onSelectNullDue={() => setSelectedDayKey('__null__')}
               />

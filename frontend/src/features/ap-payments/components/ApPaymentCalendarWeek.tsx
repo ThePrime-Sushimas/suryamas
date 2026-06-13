@@ -2,12 +2,11 @@ import { useMemo } from 'react'
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
 import type { ApDueDatePivotGroup, ApPivotLocationGrouping } from '../api/apPayments.api'
 import {
-  buildCalendarWeekBlocks,
-  formatWeekRangeLabel,
-  getMondayOfWeek,
+  buildCalendarMonthBlocks,
+  formatMonthLabel,
+  getFirstDayOfMonth,
   getNullDueDateSummary,
   CALENDAR_DAY_HEADERS,
-  type CalendarWeekSpan,
   type CalendarDayColumn,
   type CalendarDaySummary,
 } from '../utils/apCalendar.utils'
@@ -23,15 +22,21 @@ const fmt = (n: number) =>
 interface ApPaymentCalendarWeekProps {
   pivot: ApDueDatePivotGroup[]
   weekStartMonday: Date
-  weekSpan: CalendarWeekSpan
   locationGrouping: ApPivotLocationGrouping
   onWeekStartChange: (monday: Date) => void
-  onWeekSpanChange: (span: CalendarWeekSpan) => void
   onSelectDay: (dateKey: string) => void
   onSelectNullDue: () => void
+  // kept for compat but unused
+  weekSpan?: number
+  onWeekSpanChange?: (span: number) => void
 }
 
-function dayCellClass(col: { isToday: boolean; isPast: boolean }, hasOverdue: boolean): string {
+function dayCellClass(
+  col: { isToday: boolean; isPast: boolean },
+  hasOverdue: boolean,
+  isOutsideMonth: boolean,
+): string {
+  if (isOutsideMonth) return apTheme.calOutsideMonth
   if (hasOverdue) return apTheme.calOverdue
   if (col.isToday) return apTheme.calToday
   if (col.isPast) return apTheme.calPast
@@ -41,41 +46,54 @@ function dayCellClass(col: { isToday: boolean; isPast: boolean }, hasOverdue: bo
 function DayCell({
   col,
   summary,
-  compact,
+  isOutsideMonth,
   onSelect,
 }: {
   col: CalendarDayColumn
   summary: CalendarDaySummary
-  compact: boolean
+  isOutsideMonth: boolean
   onSelect: (dateKey: string) => void
 }) {
   const hasItems = summary.supplierCount > 0
-  const minH = compact ? 'min-h-[100px]' : 'min-h-[140px]'
 
   return (
     <button
       type="button"
-      onClick={() => hasItems && onSelect(col.dateKey)}
-      disabled={!hasItems}
-      className={`${minH} rounded-2xl p-3 text-left transition-all flex flex-col w-full ${dayCellClass(col, summary.hasOverdue)} ${!hasItems ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
+      onClick={() => hasItems && !isOutsideMonth && onSelect(col.dateKey)}
+      disabled={!hasItems || isOutsideMonth}
+      className={`min-h-[110px] rounded-2xl p-2.5 text-left transition-all flex flex-col w-full
+        ${dayCellClass(col, summary.hasOverdue, isOutsideMonth)}
+        ${!hasItems ? 'cursor-default' : 'cursor-pointer'}
+      `}
     >
-      <div className="flex items-center justify-between gap-1 mb-1">
+      <div className="flex items-center justify-between gap-1 mb-0.5">
         <span
-          className={`text-xs font-semibold ${col.isToday ? apTheme.calDayLabelToday : apTheme.calDayLabel}`}
+          className={`text-[10px] font-semibold ${
+            isOutsideMonth
+              ? 'text-rose-300/50 dark:text-gray-600'
+              : col.isToday
+                ? apTheme.calDayLabelToday
+                : apTheme.calDayLabel
+          }`}
         >
-          {col.dayName}
+          {col.monthShort}
         </span>
         <span
-          className={`text-base font-bold tabular-nums ${col.isToday ? apTheme.calDayNumToday : apTheme.calDayNum}`}
+          className={`text-base font-bold tabular-nums ${
+            isOutsideMonth
+              ? 'text-rose-300/50 dark:text-gray-600'
+              : col.isToday
+                ? apTheme.calDayNumToday
+                : apTheme.calDayNum
+          }`}
         >
           {col.dayNum}
         </span>
       </div>
-      <span className="text-[10px] text-gray-400 mb-2">{col.monthShort}</span>
 
       {hasItems ? (
-        <div className="mt-auto space-y-1.5 w-full">
-          <p className="text-sm font-bold text-gray-900 dark:text-white tabular-nums leading-tight">
+        <div className="mt-auto space-y-1 w-full">
+          <p className="text-xs font-bold text-gray-900 dark:text-white tabular-nums leading-tight">
             {fmt(summary.totalOutstanding)}
           </p>
           <p className="text-[10px] text-gray-500">
@@ -110,37 +128,36 @@ function DayCell({
 export function ApPaymentCalendarWeek({
   pivot,
   weekStartMonday,
-  weekSpan,
   locationGrouping,
   onWeekStartChange,
-  onWeekSpanChange,
   onSelectDay,
   onSelectNullDue,
 }: ApPaymentCalendarWeekProps) {
+  const monthStart = useMemo(() => getFirstDayOfMonth(weekStartMonday), [weekStartMonday])
+
   const weekBlocks = useMemo(
-    () => buildCalendarWeekBlocks(weekStartMonday, weekSpan, pivot),
-    [weekStartMonday, weekSpan, pivot],
+    () => buildCalendarMonthBlocks(monthStart, pivot),
+    [monthStart, pivot],
   )
 
   const nullSummary = useMemo(() => getNullDueDateSummary(pivot), [pivot])
-  const rangeLabel = formatWeekRangeLabel(weekStartMonday, weekSpan)
-  const compact = weekSpan > 1
-
-  const shiftDays = weekSpan * 7
+  const monthLabel = formatMonthLabel(monthStart)
 
   const goPrev = () => {
-    const d = new Date(weekStartMonday)
-    d.setDate(d.getDate() - shiftDays)
+    const d = new Date(monthStart)
+    d.setMonth(d.getMonth() - 1)
     onWeekStartChange(d)
   }
 
   const goNext = () => {
-    const d = new Date(weekStartMonday)
-    d.setDate(d.getDate() + shiftDays)
+    const d = new Date(monthStart)
+    d.setMonth(d.getMonth() + 1)
     onWeekStartChange(d)
   }
 
-  const goToday = () => onWeekStartChange(getMondayOfWeek(new Date()))
+  const goToday = () => onWeekStartChange(getFirstDayOfMonth(new Date()))
+
+  const currentMonthNum = monthStart.getMonth()
 
   return (
     <section className={apTheme.cardOverflow}>
@@ -148,30 +165,17 @@ export function ApPaymentCalendarWeek({
         <div className="flex items-center gap-2">
           <CalendarDays className={`w-5 h-5 ${apTheme.spinner}`} />
           <div>
-            <h2 className={apTheme.sectionTitle}>
-              Kalender pembayaran
-            </h2>
-            <p className={`text-xs ${apTheme.muted}`}>
-              {rangeLabel} · {weekSpan * 7} hari (baris {weekSpan}×7)
-            </p>
+            <h2 className={apTheme.sectionTitle}>Kalender pembayaran</h2>
+            <p className={`text-xs ${apTheme.muted}`}>{monthLabel}</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={weekSpan}
-            onChange={(e) => onWeekSpanChange(Number(e.target.value) as CalendarWeekSpan)}
-            className={`text-xs rounded-xl px-3 py-2 ${apTheme.select}`}
-          >
-            <option value={1}>7 hari (1 minggu)</option>
-            <option value={2}>14 hari (2 minggu)</option>
-            <option value={4}>28 hari (4 minggu)</option>
-          </select>
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={goPrev}
             className={apTheme.btnIcon}
-            title="Periode sebelumnya"
+            title="Bulan sebelumnya"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -180,22 +184,23 @@ export function ApPaymentCalendarWeek({
             onClick={goToday}
             className={`px-3 py-2 rounded-xl text-xs font-medium border border-rose-200 dark:border-gray-600 ${apTheme.hoverRow}`}
           >
-            Minggu ini
+            Bulan ini
           </button>
           <button
             type="button"
             onClick={goNext}
             className={apTheme.btnIcon}
-            title="Periode berikutnya"
+            title="Bulan berikutnya"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      <div className="p-4 sm:p-5 space-y-4">
+      <div className="p-4 sm:p-5">
         <div className={apTheme.cardInset}>
-          <div className="grid grid-cols-7 gap-2 mb-3">
+          {/* Header hari */}
+          <div className="grid grid-cols-7 gap-2 mb-2">
             {CALENDAR_DAY_HEADERS.map((name) => (
               <div
                 key={name}
@@ -206,26 +211,22 @@ export function ApPaymentCalendarWeek({
             ))}
           </div>
 
-        {weekBlocks.map((block, blockIdx) => (
-          <div key={block.weekLabel} className="space-y-2">
-            {weekSpan > 1 && (
-              <p className={`text-xs font-medium px-0.5 ${apTheme.muted}`}>
-                Minggu {blockIdx + 1} · {block.weekLabel}
-              </p>
-            )}
-            <div className="grid grid-cols-7 gap-2 sm:gap-3">
-              {block.days.map((col, dayIdx) => (
-                <DayCell
-                  key={col.dateKey}
-                  col={col}
-                  summary={block.summaries[dayIdx]}
-                  compact={compact}
-                  onSelect={onSelectDay}
-                />
-              ))}
-            </div>
+          {/* Baris minggu */}
+          <div className="space-y-2">
+            {weekBlocks.map((block) => (
+              <div key={block.weekLabel} className="grid grid-cols-7 gap-2">
+                {block.days.map((col, dayIdx) => (
+                  <DayCell
+                    key={col.dateKey}
+                    col={col}
+                    summary={block.summaries[dayIdx]}
+                    isOutsideMonth={col.date.getMonth() !== currentMonthNum}
+                    onSelect={onSelectDay}
+                  />
+                ))}
+              </div>
+            ))}
           </div>
-        ))}
         </div>
       </div>
 
