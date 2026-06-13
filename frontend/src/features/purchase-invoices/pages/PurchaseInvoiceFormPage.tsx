@@ -440,11 +440,12 @@ export default function PurchaseInvoiceFormPage() {
       if (isEdit) {
         await updatePI.mutateAsync({ id: id!, body: payload });
         toast.success("Invoice diperbarui");
+        navigate(`/inventory/purchase-invoices/${id}`);
       } else {
         await createPI.mutateAsync(payload);
         toast.success("Invoice dibuat");
+        navigate("/inventory/purchase-invoices");
       }
-      navigate("/inventory/purchase-invoices");
     } catch (err) {
       toast.error(parseApiError(err, "Gagal menyimpan invoice"));
     }
