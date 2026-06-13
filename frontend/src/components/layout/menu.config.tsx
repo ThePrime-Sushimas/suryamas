@@ -665,13 +665,6 @@ export const menuItems: MenuItem[] = [
             module: "daily_stock_opname",
           },
           {
-            id: "inv-monthly-stock-opname",
-            name: "SO Bulanan",
-            href: "/inventory/monthly-stock-opname",
-            icon: <ClipboardCheck size={16} />,
-            module: "monthly_stock_opname",
-          },
-          {
             id: "fp-production",
             name: "Produksi Harian",
             href: "/food-production/production",
@@ -718,6 +711,13 @@ export const menuItems: MenuItem[] = [
             icon: <ShoppingBag size={16} />,
             module: "marketplace_po",
             color: "red",
+          },
+          {
+            id: "inv-monthly-stock-opname",
+            name: "SO Bulanan",
+            href: "/inventory/monthly-stock-opname",
+            icon: <ClipboardCheck size={16} />,
+            module: "monthly_stock_opname",
           },
         ],
       },

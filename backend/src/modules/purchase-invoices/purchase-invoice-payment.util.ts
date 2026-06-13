@@ -90,6 +90,7 @@ function buildTermDescription(term: PoPaymentTermSnapshot): string {
  * - Auto-draft: invoice_date = GR received_date; GR-based terms use PO due from GR confirm when set.
  * - Manual draft: same anchors when GR terhubung (tanggal terima + payment_due_date PO).
  * - from_invoice: always from PI invoice_date (recalc on save/post).
+ * - 0-day terms (COD, CBD, dll): due = tanggal acuan itu sendiri (bukan null).
  */
 export function computePurchaseInvoiceDueDate(input: {
   invoice_date: string
@@ -97,7 +98,15 @@ export function computePurchaseInvoiceDueDate(input: {
   po_payment_due_date?: string | null
   term: PoPaymentTermSnapshot | null
 }): string | null {
-  if (!input.term || isImmediateCashTerm(input.term)) return null
+  if (!input.term) return null
+
+  // 0-day terms (COD, CBD, dll): due date = tanggal acuan itu sendiri
+  if (isImmediateCashTerm(input.term)) {
+    const type = input.term.calculation_type ?? 'from_delivery'
+    if (type === 'from_invoice') return input.invoice_date.slice(0, 10)
+    // from_delivery atau undefined: pakai gr_received_date jika ada
+    return (input.gr_received_date ?? input.invoice_date).slice(0, 10)
+  }
 
   const type = input.term.calculation_type ?? 'from_delivery'
   const termInput = termToDueDateInput(input.term)
@@ -156,16 +165,24 @@ export function buildPiPaymentDueInfo(input: {
   }
 
   if (input.term != null && isImmediateCashTerm(input.term)) {
+    // due_date seharusnya sudah terisi (dari computePurchaseInvoiceDueDate),
+    // tapi fallback di sini jika karena alasan lain masih null
+    const type = input.term.calculation_type ?? 'from_delivery'
+    const baseDate =
+      type === 'from_invoice'
+        ? input.invoice_date.slice(0, 10)
+        : (input.gr_received_date ?? input.invoice_date).slice(0, 10)
+    const termLabel = termName ?? 'Tunai'
     return {
-      label: 'Pembayaran',
-      date: null,
-      text: 'Tunai / COD',
-      confirmed: false,
-      hint: termDesc ?? 'Term supplier: pembayaran langsung (0 hari).',
+      label: 'Jatuh tempo pembayaran',
+      date: baseDate,
+      text: null,
+      confirmed: input.status === 'POSTED',
+      hint: `${termDesc ?? termLabel}: pembayaran langsung (0 hari). Jatuh tempo = tanggal ${type === 'from_invoice' ? 'invoice' : 'terima barang'} (${baseDate}).`,
       term_name: termName,
       calculation_type: calculationType,
-      base_source: null,
-      base_date: null,
+      base_source: type === 'from_invoice' ? 'invoice' : 'gr',
+      base_date: baseDate,
     }
   }
 

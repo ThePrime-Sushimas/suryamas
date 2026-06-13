@@ -118,11 +118,17 @@ export function buildPoPaymentDueInfo(input: {
       !scheduleTypes.includes(input.term.calculation_type ?? 'from_delivery'))
 
   if (isCash) {
+    // 0-day terms: due date = tanggal acuan itu sendiri (order_date atau estimasi kirim)
+    const baseDateCash = (
+      input.base_date_override ??
+      input.expected_delivery_date ??
+      input.order_date
+    ).slice(0, 10)
     return {
-      label: 'Pembayaran',
-      date: null,
-      text: 'Tunai',
-      confirmed: false,
+      label: 'Jatuh tempo pembayaran',
+      date: baseDateCash,
+      text: null,
+      confirmed: !!input.payment_due_date,
       hint: termName
         ? `${buildTermDescription(input.term!)}.`
         : 'Term dari master supplier (tunai / 0 hari).',

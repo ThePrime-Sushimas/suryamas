@@ -295,6 +295,8 @@ export class GoodsReceiptsService {
       // 4b. Calculate payment due date for from_delivery-based terms.
       // NOTE: from_invoice is intentionally excluded here — its due_date is calculated
       // when Purchase Invoice is posted (baseDate = invoice_date), not at GR confirm.
+      // from_delivery + 0 hari (COD/tunai) sudah tercakup karena from_delivery ada di
+      // PAYMENT_DUE_AT_GR_CONFIRM_TYPES — calculateDueDate(days=0) = received_date itu sendiri.
       if (supplierId) {
         const supplierTerm = await purchaseOrdersRepository.findSupplierPaymentTerm(supplierId, client)
         if (
