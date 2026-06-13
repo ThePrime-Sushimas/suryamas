@@ -1,10 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { BarChart3, Loader2, Search, X, AlertTriangle, HelpCircle, ChevronDown, Check } from 'lucide-react'
+import { BarChart3, Loader2, Search, X, AlertTriangle, HelpCircle, ChevronDown, Check, Download } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
 import { useBranches } from '@/features/branches/api/branches.api'
 import { useProducts } from '@/features/products/api/products.api'
 import { useStockAnalysis } from '../api/stockAnalysis.api'
 import type { StockAnalysisRow } from '../api/stockAnalysis.api'
+import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
+import { exportStockAnalysisExcel } from '../utils/stockAnalysisExport'
 
 const fmt = (n: number | null | undefined) =>
   n == null ? '-' : new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
@@ -238,6 +241,24 @@ export default function StockAnalysisPage() {
 
   const canQuery = branchId && dateFrom && dateTo
 
+  const toast = useToast()
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExport = async () => {
+    if (!params) return
+    setIsExporting(true)
+    try {
+      await exportStockAnalysisExcel(params, warehouseName ?? 'gudang')
+    } catch (err: unknown) {
+      const message = err instanceof Error && err.message === 'NO_DATA'
+        ? 'Tidak ada data untuk diekspor'
+        : parseApiError(err, 'Gagal mengekspor data')
+      toast.error(message)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   // Check if draft filters differ from applied filters
   const isDirty = appliedFilters != null && (
     branchId !== appliedFilters.branch_id ||
@@ -256,6 +277,18 @@ export default function StockAnalysisPage() {
         <BarChart3 className="w-6 h-6 text-blue-600" />
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Stock Analysis Center</h1>
         {isFetching && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+        <div className="ml-auto">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={isExporting || !params}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={!params ? 'Tampilkan data terlebih dahulu sebelum export' : undefined}
+          >
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isExporting ? 'Mengekspor...' : 'Export Excel'}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
