@@ -25,6 +25,7 @@ export interface MonthlyOpnameReopenRequestWithRelations extends MonthlyOpnameRe
   requested_by_name: string
   responded_by_name: string | null
   opname_date: string
+  opname_number: string
   branch_name: string
 }
 

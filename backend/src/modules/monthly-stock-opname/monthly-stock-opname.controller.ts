@@ -9,7 +9,7 @@ import type { ValidatedAuthRequest } from '../../middleware/validation.middlewar
 import type {
   listSchema, getByIdSchema, createSchema, updateLineSchema,
   bulkUpdateLinesSchema, createReopenRequestSchema, respondReopenRequestSchema,
-  getReopenRequestsSchema,
+  getReopenRequestsSchema, listReopenRequestsSchema,
 } from './monthly-stock-opname.schema'
 
 type ListReq = ValidatedAuthRequest<typeof listSchema>
@@ -20,6 +20,7 @@ type BulkUpdateLinesReq = ValidatedAuthRequest<typeof bulkUpdateLinesSchema>
 type CreateReopenReq = ValidatedAuthRequest<typeof createReopenRequestSchema>
 type RespondReopenReq = ValidatedAuthRequest<typeof respondReopenRequestSchema>
 type GetReopenRequestsReq = ValidatedAuthRequest<typeof getReopenRequestsSchema>
+type ListReopenRequestsReq = ValidatedAuthRequest<typeof listReopenRequestsSchema>
 
 async function getScope(req: Request) {
   const userId = req.user?.id ?? ''
@@ -202,6 +203,18 @@ export class MonthlyStockOpnameController {
       sendSuccess(res, result, 'Reopen request rejected')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reject_monthly_opname_reopen', id: req.params.requestId })
+    }
+  }
+
+  listReopenRequests = async (req: Request, res: Response) => {
+    try {
+      const { branchIds } = await getScope(req)
+      const { query } = (req as ListReopenRequestsReq).validated
+      const status = query.status ? (query.status as 'PENDING' | 'APPROVED' | 'REJECTED') : undefined
+      const result = await monthlyStockOpnameReopenService.listReopenRequests(branchIds, status)
+      sendSuccess(res, result, 'Reopen requests list retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_monthly_opname_reopen_requests' })
     }
   }
 

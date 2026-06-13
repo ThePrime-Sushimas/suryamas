@@ -2126,7 +2126,7 @@ function App() {
                   <Route
                     path="inventory/pr-approval"
                     element={
-                      <RequirePermission module="purchase_requests" action="approve">
+                      <RequirePermission module={['purchase_requests', 'monthly_stock_opname']} action="approve">
                         <Suspense fallback={<LoadingFallback />}>
                           <PRApprovalListPage />
                         </Suspense>

@@ -5,7 +5,7 @@ import { usePermissionStore } from '@/features/branch_context'
 type PermissionAction = 'view' | 'insert' | 'update' | 'delete' | 'approve' | 'release'
 
 interface Props {
-  module?: string
+  module?: string | string[]
   action?: PermissionAction
   children: React.ReactNode
 }
@@ -28,7 +28,10 @@ export function RequirePermission({ module, action = 'view', children }: Props) 
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   }
 
-  if (!permissions[module]?.[action]) {
+  const modules = (Array.isArray(module) ? module : module ? [module] : []).filter(Boolean)
+  const hasPermission = modules.length === 0 || modules.some(m => permissions[m]?.[action])
+
+  if (!hasPermission) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">

@@ -4,12 +4,14 @@ import { ArrowLeft, RefreshCw, CheckCircle, Printer, RotateCcw, AlertTriangle } 
 import { useListNavigation } from '@/lib/urlFilters'
 import {
   useMonthlyOpnameDetail,
+  useMonthlyOpnameReopenRequests,
   useUpdateMonthlyOpnameLine,
   useRecalculateMonthlyOpname,
   useConfirmMonthlyOpname,
   useCancelMonthlyOpname,
   useCreateMonthlyOpnameReopenRequest,
 } from '../api/monthlyStockOpname'
+
 import { PrintMonthlyOpnameModal } from '../components/PrintMonthlyOpnameModal'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useToast } from '@/contexts/ToastContext'
@@ -51,6 +53,9 @@ export default function MonthlyStockOpnameDetailPage() {
   const canUpdate = hasPermission('monthly_stock_opname', 'update')
 
   const { data: detail, isLoading } = useMonthlyOpnameDetail(id ?? '')
+  const { data: reopenRequests } = useMonthlyOpnameReopenRequests(id ?? '')
+
+
   const updateLine = useUpdateMonthlyOpnameLine()
   const recalculate = useRecalculateMonthlyOpname()
   const confirm = useConfirmMonthlyOpname()
@@ -64,6 +69,12 @@ export default function MonthlyStockOpnameDetailPage() {
   const [showPrintModal, setShowPrintModal] = useState(false)
 
   const isEditable = detail?.status === 'DRAFT' || detail?.status === 'REOPENED'
+
+  const pendingReopenRequest = useMemo(() => {
+    if (!reopenRequests) return null
+    return reopenRequests.find(r => r.status === 'PENDING') ?? null
+  }, [reopenRequests])
+
 
   // Determine which lines are missing investigasi_note
   const linesNeedingInvestigasi = useMemo(() => {
@@ -229,12 +240,19 @@ export default function MonthlyStockOpnameDetailPage() {
               {canUpdate && (
                 <button
                   onClick={() => setShowReopenDialog(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-300 rounded-lg hover:bg-orange-100"
+                  disabled={!!pendingReopenRequest}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-orange-300 ${
+                    pendingReopenRequest
+                      ? 'bg-orange-100 text-orange-700'
+                      : 'text-orange-700 bg-orange-50 hover:bg-orange-100'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+
                 >
                   <RotateCcw className="h-4 w-4" />
-                  Request Reopen
+                  {pendingReopenRequest ? 'Reopen Requested' : 'Request Reopen'}
                 </button>
               )}
+
             </>
           )}
           {detail.status === 'DRAFT' && canUpdate && (
@@ -271,7 +289,24 @@ export default function MonthlyStockOpnameDetailPage() {
         </div>
       </div>
 
+      {/* Reopen request notice */}
+      {canUpdate && detail?.status === 'CONFIRMED' && pendingReopenRequest && (
+        <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+          <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-orange-900">
+            <p className="font-medium">Permintaan reopen sedang menunggu approval</p>
+            <p className="text-xs text-orange-800 mt-1">
+              Alasan: {pendingReopenRequest.reason}
+            </p>
+            <p className="text-xs text-orange-800 mt-1">
+              Diminta oleh: {pendingReopenRequest.requested_by_name}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Warning for missing investigasi */}
+
       {linesNeedingInvestigasi.length > 0 && isEditable && (
         <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -392,34 +427,51 @@ export default function MonthlyStockOpnameDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Request Reopen</h3>
-            <p className="text-sm text-gray-600">Jelaskan alasan reopen SO bulanan ini:</p>
-            <textarea
-              value={reopenReason}
-              onChange={(e) => setReopenReason(e.target.value)}
-              rows={3}
-              className="w-full text-sm border-gray-300 rounded-lg"
-              placeholder="Alasan reopen..."
-            />
+
+            {pendingReopenRequest ? (
+              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-sm font-medium text-orange-900">Permintaan reopen sudah ada dan menunggu approval.</p>
+                <p className="text-xs text-orange-800 mt-1">Alasan: {pendingReopenRequest.reason}</p>
+                <p className="text-xs text-orange-800 mt-1">Diminta oleh: {pendingReopenRequest.requested_by_name}</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">Jelaskan alasan reopen SO bulanan ini:</p>
+                <textarea
+                  value={reopenReason}
+                  onChange={(e) => setReopenReason(e.target.value)}
+                  rows={3}
+                  className="w-full text-sm border-gray-300 rounded-lg"
+                  placeholder="Alasan reopen..."
+                />
+              </>
+            )}
+
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => { setShowReopenDialog(false); setReopenReason('') }}
+                onClick={() => {
+                  setShowReopenDialog(false)
+                  setReopenReason('')
+                }}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                Batal
+                Tutup
               </button>
-              <button
-                onClick={handleRequestReopen}
-                disabled={!reopenReason.trim() || createReopenRequest.isPending}
-                className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50"
-              >
-                {createReopenRequest.isPending ? 'Mengirim...' : 'Kirim Request'}
-              </button>
+              {!pendingReopenRequest && (
+                <button
+                  onClick={handleRequestReopen}
+                  disabled={!reopenReason.trim() || createReopenRequest.isPending}
+                  className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {createReopenRequest.isPending ? 'Mengirim...' : 'Kirim Request'}
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Print Modal */}
+
       {showPrintModal && id && (
         <PrintMonthlyOpnameModal opnameId={id} onClose={() => setShowPrintModal(false)} />
       )}

@@ -11,6 +11,11 @@ export interface MenuItem {
   module?: string;
   /** When set, menu item requires this permission (default: view) */
   permissionAction?: 'view' | 'insert' | 'update' | 'delete' | 'approve' | 'release';
+  /**
+   * Multi-module OR permission gate. When set, the item is visible if the user has
+   * `permissionAction` on ANY of these modules. Overrides `module` for visibility checks.
+   */
+  modules?: string[];
   /** Color indicator for the menu item */
   color?: "red" | "green";
 }

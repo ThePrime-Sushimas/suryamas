@@ -210,6 +210,7 @@ export const useApproveMonthlyOpnameReopenRequest = () => {
     onSuccess: (_, { sessionId }) => {
       qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) })
       qc.invalidateQueries({ queryKey: KEYS.reopenRequests(sessionId) })
+      qc.invalidateQueries({ queryKey: ['monthly-stock-opname', 'reopen-requests', 'list'] })
     },
   })
 }
@@ -231,6 +232,23 @@ export const useRejectMonthlyOpnameReopenRequest = () => {
     onSuccess: (_, { sessionId }) => {
       qc.invalidateQueries({ queryKey: KEYS.detail(sessionId) })
       qc.invalidateQueries({ queryKey: KEYS.reopenRequests(sessionId) })
+      qc.invalidateQueries({ queryKey: ['monthly-stock-opname', 'reopen-requests', 'list'] })
     },
   })
 }
+
+export const usePendingReopenRequestsList = (
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED',
+  options?: { enabled?: boolean },
+) =>
+  useQuery({
+    queryKey: ['monthly-stock-opname', 'reopen-requests', 'list', status],
+    queryFn: async () => {
+      const { data } = await api.get('/monthly-stock-opname/reopen-requests', {
+        params: status ? { status } : undefined,
+      })
+      return data.data as MonthlyOpnameReopenRequestWithRelations[]
+    },
+    staleTime: 30_000,
+    enabled: options?.enabled ?? true,
+  })

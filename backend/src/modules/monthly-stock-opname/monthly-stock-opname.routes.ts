@@ -7,7 +7,7 @@ import { monthlyStockOpnameController } from './monthly-stock-opname.controller'
 import {
   listSchema, getByIdSchema, createSchema, updateLineSchema,
   bulkUpdateLinesSchema, createReopenRequestSchema, respondReopenRequestSchema,
-  getReopenRequestsSchema,
+  getReopenRequestsSchema, listReopenRequestsSchema,
 } from './monthly-stock-opname.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -27,6 +27,7 @@ router.post('/reopen-requests/:requestId/reject', canUpdate('monthly_stock_opnam
 
 router.get('/', canView('monthly_stock_opname'), validateSchema(listSchema), (req, res) => monthlyStockOpnameController.list(req, res))
 router.post('/', canInsert('monthly_stock_opname'), validateSchema(createSchema), (req, res) => monthlyStockOpnameController.create(req, res))
+router.get('/reopen-requests', canView('monthly_stock_opname'), validateSchema(listReopenRequestsSchema), (req, res) => monthlyStockOpnameController.listReopenRequests(req, res))
 
 // ─── DETAIL ───────────────────────────────────────────────────────────────────
 

@@ -67,6 +67,7 @@ export class MonthlyOpnameReopenRepository {
         req_emp.full_name AS requested_by_name,
         resp_emp.full_name AS responded_by_name,
         mso.opname_date,
+        mso.opname_number,
         b.branch_name
       FROM monthly_opname_reopen_requests orr
       JOIN monthly_stock_opname mso ON mso.id = orr.opname_id
@@ -86,6 +87,7 @@ export class MonthlyOpnameReopenRepository {
         req_emp.full_name AS requested_by_name,
         resp_emp.full_name AS responded_by_name,
         mso.opname_date,
+        mso.opname_number,
         b.branch_name
       FROM monthly_opname_reopen_requests orr
       JOIN monthly_stock_opname mso ON mso.id = orr.opname_id
@@ -96,6 +98,35 @@ export class MonthlyOpnameReopenRepository {
       ORDER BY orr.requested_at DESC`,
       [opnameId],
     )
+    return rows
+  }
+
+  async findRequestsWithRelations(
+    branchIds: string[],
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED',
+  ): Promise<MonthlyOpnameReopenRequestWithRelations[]> {
+    let query = `
+      SELECT
+        orr.*,
+        req_emp.full_name AS requested_by_name,
+        resp_emp.full_name AS responded_by_name,
+        mso.opname_date,
+        mso.opname_number,
+        b.branch_name
+      FROM monthly_opname_reopen_requests orr
+      JOIN monthly_stock_opname mso ON mso.id = orr.opname_id
+      JOIN branches b ON b.id = mso.branch_id
+      LEFT JOIN employees req_emp ON req_emp.user_id = orr.requested_by
+      LEFT JOIN employees resp_emp ON resp_emp.user_id = orr.responded_by
+      WHERE mso.branch_id = ANY($1::uuid[])
+    `
+    const params: any[] = [branchIds]
+    if (status) {
+      query += ` AND orr.status = $2`
+      params.push(status)
+    }
+    query += ` ORDER BY orr.requested_at DESC`
+    const { rows } = await pool.query(query, params)
     return rows
   }
 

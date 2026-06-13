@@ -21,8 +21,12 @@ export const filterMenuByPermission = (
     })
     .filter((item) => {
       if (item.submenu) return item.submenu.length > 0;
+      const action = item.permissionAction ?? 'view'
+      // Multi-module OR gate: visible if user has permission on ANY listed module
+      if (item.modules && item.modules.length > 0) {
+        return item.modules.some(m => permissions[m]?.[action])
+      }
       if (item.module) {
-        const action = item.permissionAction ?? 'view'
         return permissions[item.module]?.[action]
       }
       return true;

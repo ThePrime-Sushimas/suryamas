@@ -2,7 +2,7 @@ import { monthlyStockOpnameRepository } from './monthly-stock-opname.repository'
 import { monthlyOpnameReopenRepository } from './monthly-stock-opname-reopen.repository'
 import { stockRepository } from '../stock/stock.repository'
 import { AuditService } from '../monitoring/monitoring.service'
-import { PermissionError } from '../../utils/errors.base'
+import { PermissionError, ValidationError, BusinessRuleError } from '../../utils/errors.base'
 import {
   MonthlyOpnameNotFoundError,
   MonthlyOpnameNotConfirmedError,
@@ -97,7 +97,7 @@ export class MonthlyStockOpnameReopenService {
             : null
 
         if (!reversalType) {
-          throw new Error(`Unexpected movement type for reversal: ${movement.movement_type}`)
+          throw new BusinessRuleError(`Unexpected movement type for reversal: ${movement.movement_type}`)
         }
 
         const balance = await stockRepository.getBalanceForUpdate(client, session.warehouse_id, movement.product_id)
@@ -158,6 +158,10 @@ export class MonthlyStockOpnameReopenService {
     dto: RespondReopenRequestDto,
     userPermissions?: PermissionMatrix,
   ): Promise<MonthlyOpnameReopenRequestWithRelations> {
+    if (!dto.response_note || dto.response_note.trim().length === 0) {
+      throw new ValidationError('Catatan penolakan (response_note) wajib diisi saat menolak reopen request')
+    }
+
     const request = await monthlyOpnameReopenRepository.findById(requestId)
     if (!request) throw new MonthlyOpnameReopenNotFoundError(requestId)
     if (request.status !== 'PENDING') throw new MonthlyOpnameReopenAlreadyRespondedError()
@@ -192,6 +196,13 @@ export class MonthlyStockOpnameReopenService {
     if (!session) throw new MonthlyOpnameNotFoundError(opnameId)
 
     return monthlyOpnameReopenRepository.findByOpnameId(opnameId)
+  }
+
+  async listReopenRequests(
+    branchIds: string[],
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED',
+  ): Promise<MonthlyOpnameReopenRequestWithRelations[]> {
+    return monthlyOpnameReopenRepository.findRequestsWithRelations(branchIds, status)
   }
 
   // ─── PRIVATE HELPERS ────────────────────────────────────────────────────────

@@ -90,3 +90,9 @@ export const getReopenRequestsSchema = z.object({
     id: z.string().uuid(),
   }),
 })
+
+export const listReopenRequestsSchema = z.object({
+  query: z.object({
+    status: z.enum(['PENDING', 'APPROVED', 'REJECTED', '']).optional(),
+  }),
+})
