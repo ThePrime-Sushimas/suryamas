@@ -82,6 +82,7 @@ export type MarketplaceCheckoutLine = {
   status: 'ACTIVE' | 'CANCELLED'
   cancelled_at: string | null
   cancel_reason: string | null
+  correction_journal_id: string | null
   created_at: string
 }
 

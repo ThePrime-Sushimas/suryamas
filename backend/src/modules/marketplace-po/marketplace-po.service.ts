@@ -606,6 +606,13 @@
         reference_id: sessionId,
         reference_number: cancelledLineData.sessionNumber,
         source_module: 'marketplace_po',
+        tags: {
+          platform: session.platform,
+          session_number: cancelledLineData.sessionNumber,
+          correction_for_line_id: lineId,
+          correction_for_po_line_id: cancelledLineData.poLineId,
+          correction_amount: correctionAmount,
+        },
         lines: [
           {
             line_number: 1,
@@ -628,6 +635,12 @@
       try {
         const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
         correctionJournalId = posted.id
+
+        await marketplacePoRepository.withTransaction(async (client) => {
+          await marketplacePoRepository.saveCorrectionJournalToLine(
+            client, lineId, sessionId, correctionJournalId!,
+          )
+        })
       } catch (e) {
         await this.cleanupPostedJournalsAfterFailure(
           correctionJournalId ? [correctionJournalId] : [],
@@ -940,12 +953,13 @@
         throw new BusinessRuleError('Pilih minimal 1 sesi atau 1 payment')
       }
 
+      const settlementCompanyId = companyId
       const bulkId = randomUUID()
 
       // Fetch marketplace sessions
       let sessions: any[] = []
       if (sessionIds.length > 0) {
-        sessions = await marketplacePoRepository.findReceivedSessionsForBulkSettlement(companyId, sessionIds)
+        sessions = await marketplacePoRepository.findReceivedSessionsForBulkSettlement(settlementCompanyId, sessionIds)
         if (sessions.length !== sessionIds.length) {
           throw new BusinessRuleError('Beberapa sesi tidak ditemukan atau statusnya bukan RECEIVED')
         }
@@ -954,16 +968,16 @@
       // Fetch GI payments with CC COA codes
       let giPayments: Array<{ id: string; total_amount: number; cc_coa_code: string; owner_credit_card_id: string }> = []
       if (giPaymentIds.length > 0) {
-        giPayments = await marketplacePoRepository.findGiPaymentsForBulkSettlement(giPaymentIds, companyId)
+        giPayments = await marketplacePoRepository.findGiPaymentsForBulkSettlement(giPaymentIds, settlementCompanyId)
         if (giPayments.length !== giPaymentIds.length) {
           throw new BusinessRuleError('Beberapa general invoice payment tidak ditemukan atau sudah di-settle')
         }
       }
 
       // Get bank COA
-      const bankCoaCode = await marketplacePoRepository.findBankAccountCoaCodeForBulk(dto.bank_account_id, companyId)
+      const bankCoaCode = await marketplacePoRepository.findBankAccountCoaCodeForBulk(dto.bank_account_id, settlementCompanyId)
       if (!bankCoaCode) throw new BusinessRuleError('COA untuk bank account tidak ditemukan')
-      const coaCredit = await chartOfAccountsRepository.findByCode(companyId, bankCoaCode)
+      const coaCredit = await chartOfAccountsRepository.findByCode(settlementCompanyId, bankCoaCode)
       if (!coaCredit) throw new BusinessRuleError('COA bank tidak ditemukan di chart of accounts')
 
       // Group ALL items by CC COA code (sessions + GI payments)
@@ -986,7 +1000,7 @@
       try {
         // Create one journal per CC card (combining sessions + GI payments)
         for (const [ccCoaCode, group] of Object.entries(byCc)) {
-          const coaDebit = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
+          const coaDebit = await chartOfAccountsRepository.findByCode(settlementCompanyId, ccCoaCode)
           if (!coaDebit) throw new BusinessRuleError(`COA CC ${ccCoaCode} tidak ditemukan`)
 
           const ccTotal =
@@ -994,7 +1008,7 @@
             group.giPayments.reduce((sum, p) => sum + p.total_amount, 0)
 
           const journalCreateDto = {
-            company_id: companyId,
+            company_id: settlementCompanyId,
             journal_date: dto.settled_date,
             journal_type: 'FINANCING',
             description: `Pelunasan Bulk CC Owner - ${dto.reference_number}`,
@@ -1022,7 +1036,7 @@
             ],
           }
 
-          const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
+          const posted = await this.postJournalWorkflow(journalCreateDto, userId, settlementCompanyId)
           journalIdByCc.set(ccCoaCode, posted.id)
           journalIds.push(posted.id)
         }
@@ -1030,7 +1044,7 @@
         await marketplacePoRepository.withTransaction(async (client) => {
           // Handle marketplace sessions
           if (sessionIds.length > 0) {
-            const locked = await marketplacePoRepository.findReceivedSessionsForBulkSettlement(companyId, sessionIds, client)
+            const locked = await marketplacePoRepository.findReceivedSessionsForBulkSettlement(settlementCompanyId, sessionIds, client)
             if (locked.length !== sessionIds.length) {
               throw new BusinessRuleError('Beberapa sesi tidak ditemukan atau statusnya bukan RECEIVED')
             }
@@ -1047,7 +1061,7 @@
               if (!journalHeaderId) throw new BusinessRuleError(`Journal untuk CC ${ccCoaCode} tidak ditemukan`)
 
               for (const session of ccSessions) {
-                await marketplacePoRepository.markSessionSettledInBulk(client, session.id, companyId, userId, journalHeaderId)
+                await marketplacePoRepository.markSessionSettledInBulk(client, session.id, settlementCompanyId, userId, journalHeaderId)
                 await marketplacePoRepository.insertMarketplaceSettlement(client, {
                   sessionId: session.id,
                   settledDate: dto.settled_date,
@@ -1090,7 +1104,7 @@
           // Link bank statement if provided
           if (dto.bank_statement_id) {
             const stmtOk = await marketplacePoRepository.findUnreconciledBankStatementForLink(
-              client, dto.bank_statement_id, companyId, dto.bank_account_id,
+              client, dto.bank_statement_id, settlementCompanyId, dto.bank_account_id,
             )
             if (!stmtOk) {
               throw new BusinessRuleError('Bank statement tidak ditemukan, tidak sesuai bank account, atau sudah ter-rekonsiliasi')
@@ -1102,7 +1116,7 @@
         return { settled_count: sessionIds.length + giPaymentIds.length, journal_ids: journalIds }
       } catch (e) {
         await this.cleanupPostedJournalsAfterFailure(
-          journalIds, 'createBulkSettlement', userId, companyId,
+          journalIds, 'createBulkSettlement', userId, settlementCompanyId,
           { bulkId, sessionIds, giPaymentIds },
         )
         throw e

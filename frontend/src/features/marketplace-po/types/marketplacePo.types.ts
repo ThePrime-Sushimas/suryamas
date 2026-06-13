@@ -105,6 +105,7 @@ export interface MarketplaceCheckoutLine {
   status?: 'ACTIVE' | 'CANCELLED'
   cancelled_at?: string | null
   cancel_reason?: string | null
+  correction_journal_id?: string | null
 }
 
 export interface MarketplaceShipment {

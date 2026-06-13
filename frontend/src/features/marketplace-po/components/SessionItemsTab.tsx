@@ -84,6 +84,14 @@ export function SessionItemsTab({
                           {!isActive && line.cancel_reason && (
                             <p className="text-xs text-red-500 mt-1">{line.cancel_reason}</p>
                           )}
+                          {!isActive && line.correction_journal_id && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Jurnal koreksi:{' '}
+                              <span className="font-mono">
+                                {line.correction_journal_id.slice(0, 8)}...
+                              </span>
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right">{line.qty}</td>
                         <td className="px-4 py-3 text-right">{fmtCurrency(line.unit_price_netto)}</td>

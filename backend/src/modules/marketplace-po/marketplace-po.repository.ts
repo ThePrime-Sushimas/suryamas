@@ -1063,6 +1063,20 @@ export class MarketplacePoRepository {
     )
   }
 
+  async saveCorrectionJournalToLine(
+    client: PoolClient,
+    lineId: string,
+    sessionId: string,
+    correctionJournalId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE marketplace_checkout_lines
+       SET correction_journal_id = $1
+       WHERE id = $2 AND session_id = $3`,
+      [correctionJournalId, lineId, sessionId],
+    )
+  }
+
   async removeLineFromSession(client: PoolClient, lineId: string, sessionId: string): Promise<void> {
     await client.query(
       `DELETE FROM marketplace_checkout_lines
