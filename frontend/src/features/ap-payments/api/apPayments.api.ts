@@ -213,6 +213,8 @@ export interface OutstandingInvoicesQuery {
   branch_id?: string
   date_from?: string
   date_to?: string
+  due_date_from?: string
+  due_date_to?: string
   search?: string
   page?: number
   limit?: number

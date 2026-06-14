@@ -996,6 +996,14 @@ export class ApPaymentsRepository {
       conditions.push(`pi.invoice_date <= $${idx++}`)
       params.push(query.date_to)
     }
+    if (query.due_date_from) {
+      conditions.push(`pi.due_date >= $${idx++}`)
+      params.push(query.due_date_from)
+    }
+    if (query.due_date_to) {
+      conditions.push(`pi.due_date <= $${idx++}`)
+      params.push(query.due_date_to)
+    }
     if (query.search) {
       conditions.push(`(pi.invoice_number ILIKE $${idx} OR s.supplier_name ILIKE $${idx})`)
       params.push(`%${query.search}%`)

@@ -40,6 +40,8 @@ interface OutstandingInvoicesTabProps {
     search: string;
     dateFrom: string;
     dateTo: string;
+    dueFrom?: string;
+    dueTo?: string;
   };
 }
 
@@ -81,6 +83,8 @@ export function OutstandingInvoicesTab({
       ...(filters.search ? { search: filters.search } : {}),
       ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
       ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
+      ...(filters.dueFrom ? { due_date_from: filters.dueFrom } : {}),
+      ...(filters.dueTo ? { due_date_to: filters.dueTo } : {}),
     }),
     [page, limit, filters],
   );

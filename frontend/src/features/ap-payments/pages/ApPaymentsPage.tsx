@@ -214,6 +214,8 @@ export default function ApPaymentsPage() {
     search: globalSearch,
     dateFrom: outReceivedFrom,
     dateTo: outReceivedTo,
+    dueFrom: outDueFrom,
+    dueTo: outDueTo,
   }
 
   const handleDelete = async () => {
