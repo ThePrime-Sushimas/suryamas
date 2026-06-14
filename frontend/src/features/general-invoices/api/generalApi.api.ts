@@ -107,6 +107,9 @@ export interface GeneralInvoicePayment {
   invoice_total_amount: number | null
   invoice_due_date: string | null
   vendor_name: string
+  vendor_bank_name: string | null
+  vendor_bank_account_number: string | null
+  vendor_bank_account_name: string | null
   bank_account_id: number | null
   bank_account_name: string | null
   bank_account_number: string | null
@@ -198,6 +201,14 @@ export interface GeneralInvoiceTemplateLine {
   amortization_start_offset_days: number | null
 }
 
+export interface VendorBankAccount {
+  id: number
+  bank_name: string
+  account_number: string
+  account_name: string
+  is_primary: boolean
+}
+
 export interface GeneralInvoiceTemplate {
   id: string
   company_id: string
@@ -212,6 +223,8 @@ export interface GeneralInvoiceTemplate {
   notes: string | null
   is_active: boolean
   last_generated_at: string | null
+  preferred_vendor_bank_account_id: number | null
+  vendor_bank_accounts: VendorBankAccount[]
   lines: GeneralInvoiceTemplateLine[]
   created_at: string
   updated_at: string
@@ -656,6 +669,7 @@ export const useCreateGeneralInvoiceTemplate = () => {
       recurrence: RecurrenceType
       default_amount?: number | null
       due_date_offset_days?: number
+      preferred_vendor_bank_account_id?: number | null
       notes?: string | null
       lines: Array<{
         line_number: number
@@ -682,6 +696,27 @@ export const useDeleteGeneralInvoiceTemplate = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/general-invoice-templates/${id}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.templates })
+    },
+  })
+}
+
+export const useUpdateGeneralInvoiceTemplatePreferredBank = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      preferred_vendor_bank_account_id,
+    }: {
+      id: string
+      preferred_vendor_bank_account_id: number | null
+    }) => {
+      const { data } = await api.patch(`/general-invoice-templates/${id}`, {
+        preferred_vendor_bank_account_id,
+      })
+      return data.data as GeneralInvoiceTemplate
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.templates })

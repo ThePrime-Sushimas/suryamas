@@ -262,6 +262,7 @@ CREATE TABLE IF NOT EXISTS public.general_invoice_templates
     notes text COLLATE pg_catalog."default",
     is_active boolean NOT NULL DEFAULT true,
     last_generated_at date,
+    preferred_vendor_bank_account_id integer,
     is_deleted boolean NOT NULL DEFAULT false,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -294,6 +295,14 @@ ALTER TABLE IF EXISTS public.general_invoice_templates
     REFERENCES public.vendors (id) MATCH SIMPLE
     ON UPDATE NO ACTION
     ON DELETE NO ACTION;
+ALTER TABLE IF EXISTS public.general_invoice_templates
+    ADD CONSTRAINT gen_inv_templates_preferred_bank_fkey FOREIGN KEY (preferred_vendor_bank_account_id)
+    REFERENCES public.bank_accounts (id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION;
+
+COMMENT ON COLUMN public.general_invoice_templates.preferred_vendor_bank_account_id
+    IS 'Preferred vendor bank account to use when generating invoice. Null = use vendor default.';
 
 CREATE TABLE IF NOT EXISTS public.general_invoice_template_lines
 (

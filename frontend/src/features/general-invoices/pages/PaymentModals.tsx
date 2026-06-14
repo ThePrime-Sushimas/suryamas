@@ -814,7 +814,10 @@ export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
                     Metode
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Rekening
+                    Rek. Perusahaan
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Rek. Tujuan
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     Tgl Bayar
@@ -854,6 +857,13 @@ export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {pay.bank_account_name ?? pay.owner_credit_card_label ?? "-"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {pay.vendor_bank_name && pay.vendor_bank_account_number
+                        ? `${pay.vendor_bank_name} – ${pay.vendor_bank_account_number}`
+                        : pay.vendor_bank_account_number
+                          ? pay.vendor_bank_account_number
+                          : "-"}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {pay.payment_date ? formatDate(pay.payment_date) : "-"}

@@ -19,6 +19,7 @@ import type {
   GeneralInvoiceTemplateLine,
   CreateGeneralInvoiceTemplateDto,
   GeneralApDashboard,
+  VendorBankAccount,
 } from './general-invoices.types'
 
 // ============================================================
@@ -886,6 +887,9 @@ export const generalPaymentRepository = {
              gi.total_amount AS invoice_total_amount,
              gi.due_date AS invoice_due_date,
              v.vendor_name,
+             v.bank_name AS vendor_bank_name,
+             v.bank_account_number AS vendor_bank_account_number,
+             v.bank_account_name AS vendor_bank_account_name,
              b.branch_name,
              ba.account_name AS bank_account_name,
              ba.account_number AS bank_account_number,
@@ -1132,6 +1136,49 @@ export const generalPaymentRepository = {
 // ============================================================
 // TEMPLATE REPOSITORY
 // ============================================================
+// Helper for vendor bank accounts (used by template repository)
+async function getVendorBankAccounts(vendorIds: string[]): Promise<Map<string, VendorBankAccount[]>> {
+  if (vendorIds.length === 0) return new Map()
+  const { rows } = await pool.query(
+    `SELECT ba.id, ba.owner_id, ba.account_number, ba.account_name, ba.is_primary, bk.bank_name
+     FROM bank_accounts ba
+     LEFT JOIN banks bk ON bk.id = ba.bank_id
+     WHERE ba.owner_type = 'vendor'
+       AND ba.owner_id = ANY($1::text[])
+       AND ba.is_active = true
+       AND ba.deleted_at IS NULL
+     ORDER BY ba.is_primary DESC, ba.id ASC`,
+    [vendorIds],
+  )
+  const map = new Map<string, VendorBankAccount[]>()
+  for (const row of rows) {
+    const vid = row.owner_id as string
+    const list = map.get(vid) ?? []
+    list.push({
+      id: row.id,
+      bank_name: row.bank_name ?? '',
+      account_number: row.account_number,
+      account_name: row.account_name,
+      is_primary: row.is_primary,
+    })
+    map.set(vid, list)
+  }
+  return map
+}
+
+async function isVendorBankAccount(vendorId: string, bankAccountId: number): Promise<boolean> {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM bank_accounts
+     WHERE id = $1
+       AND owner_type = 'vendor'
+       AND owner_id = $2
+       AND is_active = true
+       AND deleted_at IS NULL`,
+    [bankAccountId, vendorId],
+  )
+  return rows.length > 0
+}
+
 export const generalTemplateRepository = {
   withTransaction,
 
@@ -1145,10 +1192,10 @@ export const generalTemplateRepository = {
       [companyIds],
     )
 
-    // attach lines
     const ids = rows.map((r) => r.id)
     if (ids.length === 0) return []
 
+    // attach lines
     const { rows: lines } = await pool.query<GeneralInvoiceTemplateLine>(
       `SELECT tl.*, coa.account_code, coa.account_name,
               coa_exp.account_code AS expense_account_code,
@@ -1171,7 +1218,15 @@ export const generalTemplateRepository = {
       lineMap.set(l.template_id, list)
     }
 
-    return rows.map((r) => ({ ...r, lines: lineMap.get(r.id) ?? [] }))
+    // attach vendor bank accounts
+    const vendorIds = [...new Set(rows.map((r) => r.vendor_id))]
+    const bankAccountMap = await getVendorBankAccounts(vendorIds)
+
+    return rows.map((r) => ({
+      ...r,
+      lines: lineMap.get(r.id) ?? [],
+      vendor_bank_accounts: bankAccountMap.get(r.vendor_id) ?? [],
+    }))
   },
 
   async findById(id: string, companyIds: string[]): Promise<GeneralInvoiceTemplate | null> {
@@ -1198,7 +1253,14 @@ export const generalTemplateRepository = {
       [id],
     )
 
-    return { ...rows[0], lines }
+    // attach vendor bank accounts
+    const bankAccountMap = await getVendorBankAccounts([rows[0].vendor_id])
+
+    return {
+      ...rows[0],
+      lines,
+      vendor_bank_accounts: bankAccountMap.get(rows[0].vendor_id) ?? [],
+    }
   },
 
   async create(
@@ -1213,13 +1275,15 @@ export const generalTemplateRepository = {
         company_id, branch_id, template_name, vendor_id,
         is_confidential, recurrence,
         default_amount, due_date_offset_days, notes,
+        preferred_vendor_bank_account_id,
         created_by, updated_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
       RETURNING id`,
       [
         companyId, branchId, dto.template_name, dto.vendor_id,
         dto.is_confidential ?? false, dto.recurrence,
         dto.default_amount ?? null, dto.due_date_offset_days ?? 14, dto.notes ?? null,
+        dto.preferred_vendor_bank_account_id ?? null,
         userId,
       ],
     )
@@ -1250,6 +1314,23 @@ export const generalTemplateRepository = {
     await client.query(
       `UPDATE general_invoice_templates SET last_generated_at = $1 WHERE id = $2`,
       [date, templateId],
+    )
+  },
+
+  isVendorBankAccount,
+
+  async updatePreferredBankAccount(
+    client: PoolClient,
+    id: string,
+    companyId: string,
+    bankAccountId: number | null,
+    userId: string,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE general_invoice_templates
+       SET preferred_vendor_bank_account_id = $1, updated_by = $2, updated_at = now()
+       WHERE id = $3 AND company_id = $4 AND is_deleted = false`,
+      [bankAccountId, userId, id, companyId],
     )
   },
 

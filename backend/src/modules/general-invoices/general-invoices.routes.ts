@@ -37,6 +37,7 @@ import {
   uploadProofGeneralPaymentSchema,
   generalTemplateParamSchema,
   createGeneralInvoiceTemplateSchema,
+  updateGeneralInvoiceTemplateSchema,
   generateFromTemplateSchema,
   listAmortizationsSchema,
   executeAmortizationSchema,
@@ -114,6 +115,7 @@ router.get(    '/general-invoice-templates',          canView('general_invoice_t
 router.get(    '/general-invoice-templates/:id',      canView('general_invoice_templates'),   validateSchema(generalTemplateParamSchema),          (req, res) => generalInvoiceTemplatesController.getById(req, res))
 router.post(   '/general-invoice-templates',          requireWriteAccess, canInsert('general_invoice_templates'), validateSchema(createGeneralInvoiceTemplateSchema),  (req, res) => generalInvoiceTemplatesController.create(req, res))
 router.post(   '/general-invoice-templates/generate', requireWriteAccess, canInsert('general_invoice_templates'), validateSchema(generateFromTemplateSchema),          (req, res) => generalInvoiceTemplatesController.generate(req, res))
+router.patch(  '/general-invoice-templates/:id',      requireWriteAccess, canUpdate('general_invoice_templates'), validateSchema(updateGeneralInvoiceTemplateSchema), (req, res) => generalInvoiceTemplatesController.update(req, res))
 router.delete( '/general-invoice-templates/:id',      requireWriteAccess, canDelete('general_invoice_templates'), validateSchema(generalTemplateParamSchema),          (req, res) => generalInvoiceTemplatesController.delete(req, res))
 
 // ============================================================

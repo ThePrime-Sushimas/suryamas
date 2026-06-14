@@ -467,6 +467,21 @@ export class GeneralInvoiceTemplatesController {
     }
   }
 
+  update = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { companyIds, userId } = await giScope(req)
+      const template = await generalInvoiceTemplateService.updatePreferredBankAccount(
+        req.params.id as string,
+        req.body,
+        companyIds,
+        userId,
+      )
+      sendSuccess(res, template, 'Template berhasil diperbarui')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'update_general_template', id: req.params.id })
+    }
+  }
+
   generate = async (req: Request, res: Response): Promise<void> => {
     try {
       const { companyIds, branchIds, contextBranchId, userId } = await giScope(req)

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
+import api from '@/lib/axios'
 import { useCreateGeneralInvoiceTemplate, useVendors } from '../api/generalApi.api'
 import { RECURRENCE_OPTIONS } from '../constants'
 import { AccountSelector } from '@/features/accounting/journals/shared/AccountSelector'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
-import type { RecurrenceType } from '../api/generalApi.api'
+import type { RecurrenceType, VendorBankAccount } from '../api/generalApi.api'
 
 interface LineForm {
   line_number: number
@@ -38,6 +39,9 @@ export function TemplateFormModal({ open, onClose }: Props) {
   const [branchId, setBranchId] = useState('')
   const [templateName, setTemplateName] = useState('')
   const [vendorId, setVendorId] = useState('')
+  const [vendorBankAccounts, setVendorBankAccounts] = useState<VendorBankAccount[]>([])
+  const [vendorBankAccountsError, setVendorBankAccountsError] = useState<string | null>(null)
+  const [preferredBankAccountId, setPreferredBankAccountId] = useState<number | ''>('')
   const [recurrence, setRecurrence] = useState<RecurrenceType>('MONTHLY')
   const [defaultAmount, setDefaultAmount] = useState('')
   const [dueOffset, setDueOffset] = useState('14')
@@ -45,11 +49,42 @@ export function TemplateFormModal({ open, onClose }: Props) {
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<LineForm[]>([emptyLine(1)])
 
+  // Fetch vendor bank accounts when vendor changes
+  useEffect(() => {
+    if (!vendorId) {
+      setVendorBankAccounts([])
+      setPreferredBankAccountId('')
+      setVendorBankAccountsError(null)
+      return
+    }
+    setVendorBankAccountsError(null)
+    api.get('/bank-accounts', {
+      params: { owner_type: 'vendor', owner_id: vendorId, is_active: true, limit: 50 },
+    })
+      .then((res) => {
+        const accounts = (res.data?.data ?? []) as VendorBankAccount[]
+        setVendorBankAccounts(accounts)
+        const primary = accounts.find((a) => a.is_primary)
+        setPreferredBankAccountId(primary?.id ?? accounts[0]?.id ?? '')
+        if (accounts.length === 0) {
+          setVendorBankAccountsError('Vendor ini belum punya rekening bank terdaftar.')
+        }
+      })
+      .catch(() => {
+        setVendorBankAccounts([])
+        setPreferredBankAccountId('')
+        setVendorBankAccountsError('Gagal memuat rekening vendor. Coba pilih vendor lain atau refresh.')
+      })
+  }, [vendorId])
+
   useEffect(() => {
     if (!open) return
     setBranchId(currentBranch?.branch_id ?? '')
     setTemplateName('')
     setVendorId('')
+    setVendorBankAccounts([])
+    setVendorBankAccountsError(null)
+    setPreferredBankAccountId('')
     setRecurrence('MONTHLY')
     setDefaultAmount('')
     setDueOffset('14')
@@ -85,6 +120,7 @@ export function TemplateFormModal({ open, onClose }: Props) {
         default_amount: defaultAmount ? parseFloat(defaultAmount) : null,
         due_date_offset_days: parseInt(dueOffset, 10) || 14,
         is_confidential: isConfidential,
+        preferred_vendor_bank_account_id: preferredBankAccountId ? Number(preferredBankAccountId) : null,
         notes: notes || null,
         lines: lines.map((l) => ({
           line_number: l.line_number,
@@ -126,6 +162,11 @@ export function TemplateFormModal({ open, onClose }: Props) {
               <option value="">-- Vendor --</option>
               {vendors.map((v) => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}
             </select>
+            {vendorBankAccountsError && (
+              <p className="col-span-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                {vendorBankAccountsError}
+              </p>
+            )}
             <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as RecurrenceType)} className="px-3 py-2 text-sm border rounded-lg">
               {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -134,6 +175,26 @@ export function TemplateFormModal({ open, onClose }: Props) {
             <input type="number" placeholder="Jatuh tempo +hari" value={dueOffset} onChange={(e) => setDueOffset(e.target.value)}
               className="px-3 py-2 text-sm border rounded-lg" />
           </div>
+
+          {/* Preferred Vendor Bank Account */}
+          {vendorBankAccounts.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600">Rekening Vendor (preferred)</label>
+              <select
+                value={preferredBankAccountId}
+                onChange={(e) => setPreferredBankAccountId(e.target.value ? Number(e.target.value) : '')}
+                className="w-full px-3 py-2 text-sm border rounded-lg"
+              >
+                <option value="">-- Pilih rekening --</option>
+                {vendorBankAccounts.map((ba) => (
+                  <option key={ba.id} value={ba.id}>
+                    {ba.bank_name} – {ba.account_number} ({ba.account_name})
+                    {ba.is_primary ? ' (utama)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="space-y-2 border rounded-xl p-3">
             <div className="flex justify-between items-center">

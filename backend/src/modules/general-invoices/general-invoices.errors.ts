@@ -109,3 +109,9 @@ export class GeneralTemplateNotFoundError extends NotFoundError {
     super('Template', id)
   }
 }
+
+export class GeneralTemplateInvalidBankAccountError extends BusinessRuleError {
+  constructor() {
+    super('Rekening bank tidak valid untuk vendor template ini')
+  }
+}

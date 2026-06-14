@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Zap, FileText } from 'lucide-react'
+import { X, Zap, FileText, Building2 } from 'lucide-react'
 import { useGenerateFromTemplate, type GeneralInvoiceTemplate } from '../api/generalApi.api'
 import { formatRupiah } from '../constants'
 import { useToast } from '@/contexts/ToastContext'
@@ -92,6 +92,29 @@ export function GenerateFromTemplateModal({ open, onClose, template }: Props) {
           <div className="bg-gray-50 rounded-xl p-4 space-y-1">
             <p className="font-bold text-gray-900">{template.template_name}</p>
             <p className="text-sm text-gray-500">{template.vendor_name}</p>
+            {/* Vendor Bank Account Info */}
+            {template.vendor_bank_accounts && template.vendor_bank_accounts.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-200">
+                <p className="text-[11px] text-gray-400 flex items-center gap-1">
+                  <Building2 size={11} />
+                  Rekening vendor:
+                </p>
+                {(() => {
+                  const preferred = template.preferred_vendor_bank_account_id
+                    ? template.vendor_bank_accounts.find((b) => b.id === template.preferred_vendor_bank_account_id)
+                    : null
+                  const display = preferred ?? template.vendor_bank_accounts[0]
+                  return display ? (
+                    <p className="text-xs text-gray-600">
+                      {display.bank_name} – {display.account_number}
+                      <span className="text-[10px] text-gray-400 ml-1">
+                        a.n. {display.account_name}
+                      </span>
+                    </p>
+                  ) : null
+                })()}
+              </div>
+            )}
           </div>
 
           {/* Nominal breakdown (read-only) */}

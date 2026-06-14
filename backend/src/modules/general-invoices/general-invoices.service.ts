@@ -28,6 +28,7 @@ import type {
   GeneralPaymentListFilter,
   GeneralInvoicePayment,
   CreateGeneralInvoiceTemplateDto,
+  UpdateGeneralInvoiceTemplateDto,
   GenerateFromTemplateDto,
   GeneralInvoiceTemplate,
   GeneralApDashboard,
@@ -46,6 +47,7 @@ import {
   GeneralPaymentJournalMissingError,
   VendorNotFoundError,
   GeneralTemplateNotFoundError,
+  GeneralTemplateInvalidBankAccountError,
 } from './general-invoices.errors'
 
 // ============================================================
@@ -832,11 +834,52 @@ export class GeneralInvoiceTemplateService {
   ): Promise<GeneralInvoiceTemplate> {
     const branchId = dto.branch_id ?? contextBranchId
     requireBranchAccess(branchId, branchIds)
+    if (dto.preferred_vendor_bank_account_id != null) {
+      const valid = await generalTemplateRepository.isVendorBankAccount(
+        dto.vendor_id,
+        dto.preferred_vendor_bank_account_id,
+      )
+      if (!valid) throw new GeneralTemplateInvalidBankAccountError()
+    }
     const companyId = (await getCompanyIdForBranch(branchId)) ?? ''
     const { id } = await generalTemplateRepository.withTransaction(async (client) => {
       return generalTemplateRepository.create(client, companyId, branchId, dto, userId)
     })
     await AuditService.log('CREATE', 'general_invoice_templates', id, userId, null, { template_name: dto.template_name })
+    return this.getById(id, companyIds)
+  }
+
+  async updatePreferredBankAccount(
+    id: string,
+    dto: UpdateGeneralInvoiceTemplateDto,
+    companyIds: string[],
+    userId: string,
+  ): Promise<GeneralInvoiceTemplate> {
+    const existing = await this.getById(id, companyIds)
+    if (dto.preferred_vendor_bank_account_id != null) {
+      const valid = await generalTemplateRepository.isVendorBankAccount(
+        existing.vendor_id,
+        dto.preferred_vendor_bank_account_id,
+      )
+      if (!valid) throw new GeneralTemplateInvalidBankAccountError()
+    }
+    await generalTemplateRepository.withTransaction(async (client) => {
+      await generalTemplateRepository.updatePreferredBankAccount(
+        client,
+        id,
+        existing.company_id,
+        dto.preferred_vendor_bank_account_id,
+        userId,
+      )
+    })
+    await AuditService.log(
+      'UPDATE',
+      'general_invoice_templates',
+      id,
+      userId,
+      { preferred_vendor_bank_account_id: existing.preferred_vendor_bank_account_id },
+      { preferred_vendor_bank_account_id: dto.preferred_vendor_bank_account_id },
+    )
     return this.getById(id, companyIds)
   }
 

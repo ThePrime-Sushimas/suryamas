@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Plus, RefreshCw, Trash2, Zap, Settings } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Zap, Settings, Building2 } from 'lucide-react'
 import {
   useGeneralInvoiceTemplates,
   useDeleteGeneralInvoiceTemplate,
+  useUpdateGeneralInvoiceTemplatePreferredBank,
   type GeneralInvoiceTemplate,
 } from '../api/generalApi.api'
 import { formatRupiah, RECURRENCE_OPTIONS } from '../constants'
@@ -21,9 +22,11 @@ export default function GeneralInvoiceTemplatesPage() {
   const toast = useToast()
   const { data: templates = [], isLoading, refetch } = useGeneralInvoiceTemplates()
   const deleteMutation = useDeleteGeneralInvoiceTemplate()
+  const updatePreferredBankMutation = useUpdateGeneralInvoiceTemplatePreferredBank()
 
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('general_invoice_templates', 'insert')
+  const canUpdate = hasPermission('general_invoice_templates', 'update')
   const canDelete = hasPermission('general_invoice_templates', 'delete')
 
   const branches = useBranchContextStore((s) => s.branches)
@@ -34,6 +37,8 @@ export default function GeneralInvoiceTemplatesPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [generateTarget, setGenerateTarget] = useState<GeneralInvoiceTemplate | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GeneralInvoiceTemplate | null>(null)
+  const [bankDraft, setBankDraft] = useState<Record<string, number | ''>>({})
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null)
 
   // Filter templates by branch — single-branch user only sees their branch
   const filteredTemplates = templates.filter((t) => {
@@ -41,6 +46,60 @@ export default function GeneralInvoiceTemplatesPage() {
     if (!filterBranch) return true
     return t.branch_id === filterBranch
   })
+
+  const getPreferredBankValue = (template: GeneralInvoiceTemplate): number | '' =>
+    bankDraft[template.id] ?? template.preferred_vendor_bank_account_id ?? ''
+
+  const hasBankDraft = (template: GeneralInvoiceTemplate) => {
+    const draft = bankDraft[template.id]
+    if (draft === undefined) return false
+    return draft !== (template.preferred_vendor_bank_account_id ?? '')
+  }
+
+  const handlePreferredBankDraft = (templateId: string, bankAccountId: string) => {
+    setBankDraft((prev) => ({
+      ...prev,
+      [templateId]: bankAccountId ? Number(bankAccountId) : '',
+    }))
+  }
+
+  const handlePreferredBankSave = async (template: GeneralInvoiceTemplate) => {
+    const nextId = getPreferredBankValue(template)
+    const normalized = nextId === '' ? null : nextId
+    if (normalized === template.preferred_vendor_bank_account_id) {
+      setBankDraft((prev) => {
+        const next = { ...prev }
+        delete next[template.id]
+        return next
+      })
+      return
+    }
+    setPendingTemplateId(template.id)
+    try {
+      await updatePreferredBankMutation.mutateAsync({
+        id: template.id,
+        preferred_vendor_bank_account_id: normalized,
+      })
+      setBankDraft((prev) => {
+        const next = { ...prev }
+        delete next[template.id]
+        return next
+      })
+      toast.success('Rekening preferred diperbarui')
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal memperbarui rekening'))
+    } finally {
+      setPendingTemplateId(null)
+    }
+  }
+
+  const handlePreferredBankCancel = (templateId: string) => {
+    setBankDraft((prev) => {
+      const next = { ...prev }
+      delete next[templateId]
+      return next
+    })
+  }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -143,7 +202,13 @@ export default function GeneralInvoiceTemplatesPage() {
           {filteredTemplates.map((t) => (
             <div
               key={t.id}
-              className="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col justify-between hover:shadow-md transition-shadow"
+              className={`bg-white rounded-2xl border p-5 flex flex-col justify-between hover:shadow-md transition-shadow ${
+                pendingTemplateId === t.id
+                  ? 'border-blue-300 ring-2 ring-blue-100'
+                  : hasBankDraft(t)
+                    ? 'border-amber-200 ring-1 ring-amber-100'
+                    : 'border-gray-200'
+              }`}
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -170,6 +235,58 @@ export default function GeneralInvoiceTemplatesPage() {
                     </span>
                   )}
                 </div>
+                {/* Vendor Bank Account Display */}
+                {t.vendor_bank_accounts && t.vendor_bank_accounts.length > 0 && (
+                  <div className="pt-1">
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Building2 size={12} className="shrink-0" />
+                      <span>Rekening vendor:</span>
+                    </div>
+                    {t.vendor_bank_accounts.length === 1 ? (
+                      <p className="text-xs text-gray-600 ml-5">
+                        {t.vendor_bank_accounts[0].bank_name} – {t.vendor_bank_accounts[0].account_number}
+                        {t.preferred_vendor_bank_account_id === t.vendor_bank_accounts[0].id ? ' (preferred)' : ''}
+                      </p>
+                    ) : (
+                      <div className="ml-5 space-y-1.5">
+                        <select
+                          value={getPreferredBankValue(t)}
+                          onChange={(e) => handlePreferredBankDraft(t.id, e.target.value)}
+                          disabled={!canUpdate || pendingTemplateId === t.id}
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-full bg-white disabled:opacity-60"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <option value="" disabled>Pilih rekening</option>
+                          {t.vendor_bank_accounts.map((ba) => (
+                            <option key={ba.id} value={ba.id}>
+                              {ba.bank_name} – {ba.account_number} ({ba.account_name})
+                            </option>
+                          ))}
+                        </select>
+                        {hasBankDraft(t) && canUpdate && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handlePreferredBankSave(t) }}
+                              disabled={pendingTemplateId === t.id}
+                              className="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                            >
+                              {pendingTemplateId === t.id ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handlePreferredBankCancel(t.id) }}
+                              disabled={pendingTemplateId === t.id}
+                              className="text-[11px] px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {t.last_generated_at && (
                   <p className="text-[11px] text-gray-400">
                     Terakhir: {new Date(t.last_generated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}

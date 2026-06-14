@@ -213,6 +213,9 @@ export interface GeneralInvoicePayment {
   invoice_total_amount: number | null // joined
   invoice_due_date: string | null     // joined
   vendor_name: string       // joined
+  vendor_bank_name: string | null      // joined (from vendors table)
+  vendor_bank_account_number: string | null  // joined (from vendors table)
+  vendor_bank_account_name: string | null   // joined (from vendors table)
   bank_account_id: number | null
   bank_account_name: string | null  // joined
   bank_account_number: string | null // joined
@@ -288,6 +291,14 @@ export interface GeneralInvoiceTemplateLine {
   amortization_start_offset_days: number | null
 }
 
+export interface VendorBankAccount {
+  id: number
+  bank_name: string
+  account_number: string
+  account_name: string
+  is_primary: boolean
+}
+
 export interface GeneralInvoiceTemplate {
   id: string
   company_id: string
@@ -302,9 +313,15 @@ export interface GeneralInvoiceTemplate {
   notes: string | null
   is_active: boolean
   last_generated_at: string | null
+  preferred_vendor_bank_account_id: number | null  // joined
+  vendor_bank_accounts: VendorBankAccount[]         // joined
   lines: GeneralInvoiceTemplateLine[]
   created_at: string
   updated_at: string
+}
+
+export interface UpdateGeneralInvoiceTemplateDto {
+  preferred_vendor_bank_account_id: number | null
 }
 
 export interface CreateGeneralInvoiceTemplateDto {
@@ -316,6 +333,7 @@ export interface CreateGeneralInvoiceTemplateDto {
   default_amount?: number
   due_date_offset_days?: number
   notes?: string
+  preferred_vendor_bank_account_id?: number | null
   lines: Array<{
     line_number: number
     account_id: string

@@ -26,9 +26,9 @@ import {
 import { isDateRangeInvalid } from '../utils/apPaymentFilters.url'
 import { ApPaymentsShell } from '../components/ApPaymentsShell'
 import { apTheme } from '../ap-payments.theme'
-import { exportCombinedExcel } from '../utils/apPaymentsCombinedExport'
 import {
   PAYMENT_STATUS_OPTIONS as GEN_PAYMENT_STATUS_OPTIONS,
+  PAYMENT_STATUS_LABELS as GENERAL_STATUS_LABELS,
 } from '@/features/general-invoices/constants'
 import type { GeneralPaymentStatus } from '@/features/general-invoices/api/generalApi.api'
 
@@ -41,8 +41,6 @@ const GENERAL_PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: 'Cash',
   CC_OWNER: 'CC Owner',
 }
-
-
 
 // ─── Unified row type ─────────────────────────────────────────────────────────
 
@@ -64,6 +62,14 @@ interface UnifiedRow {
   invoice_due_date: string | null
   invoice_status: string | null
   payment_status: string | null
+  // Bank source (company)
+  source_bank_name: string | null
+  source_account_number: string | null
+  source_account_name: string | null
+  // Bank destination (vendor/supplier)
+  dest_bank_name: string | null
+  dest_account_number: string | null
+  dest_account_name: string | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -75,6 +81,10 @@ const fmtCurrency = (v: number | null) =>
 
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+
+/** Raw YYYY-MM-DD for Excel sortability */
+const rawDate = (d: string | null | undefined): string =>
+  d ? d.slice(0, 10) : ''
 
 function fromCombinedRow(row: CombinedInvoicePaymentRow, idx: number): UnifiedRow {
   return {
@@ -95,10 +105,17 @@ function fromCombinedRow(row: CombinedInvoicePaymentRow, idx: number): UnifiedRo
     invoice_due_date: row.invoice_due_date,
     invoice_status: row.invoice_status,
     payment_status: row.payment_status,
+    source_bank_name: row.source_bank_name ?? null,
+    source_account_number: row.source_account_number ?? null,
+    source_account_name: row.source_account_name ?? null,
+    dest_bank_name: row.dest_bank_name ?? null,
+    dest_account_number: row.dest_account_number ?? null,
+    dest_account_name: row.dest_account_name ?? null,
   }
 }
 
 function fromGeneralPayment(pay: GeneralInvoicePayment): UnifiedRow {
+  const isCcOwner = pay.payment_method === 'CC_OWNER'
   return {
     _type: 'GENERAL',
     _id: `general-${pay.id}`,
@@ -107,9 +124,11 @@ function fromGeneralPayment(pay: GeneralInvoicePayment): UnifiedRow {
     branch_name: pay.branch_name,
     payment_number: pay.payment_number,
     payment_method: pay.payment_method,
-    rekening: pay.bank_name
-      ? `${pay.bank_name}${pay.bank_account_number ? ' · ' + pay.bank_account_number : ''}`
-      : pay.owner_credit_card_label ?? null,
+    rekening: isCcOwner
+      ? (pay.owner_credit_card_label ?? null)
+      : pay.bank_name
+        ? `${pay.bank_name}${pay.bank_account_number ? ' · ' + pay.bank_account_number : ''}`
+        : null,
     payment_date: pay.paid_at ?? pay.payment_date,
     nominal_bayar: pay.total_amount,
     invoice_total: pay.invoice_total_amount,
@@ -117,6 +136,14 @@ function fromGeneralPayment(pay: GeneralInvoicePayment): UnifiedRow {
     invoice_due_date: pay.invoice_due_date,
     invoice_status: pay.invoice_status,
     payment_status: pay.status,
+    source_bank_name: isCcOwner ? null : (pay.bank_name ?? null),
+    source_account_number: isCcOwner ? null : (pay.bank_account_number ?? null),
+    source_account_name: isCcOwner
+      ? (pay.owner_credit_card_label ?? null)
+      : (pay.bank_account_name ?? null),
+    dest_bank_name: pay.vendor_bank_name ?? null,
+    dest_account_number: pay.vendor_bank_account_number ?? null,
+    dest_account_name: pay.vendor_bank_account_name ?? null,
   }
 }
 
@@ -126,6 +153,27 @@ function sortByDate(rows: UnifiedRow[]): UnifiedRow[] {
     const db = b.payment_date ? new Date(b.payment_date).getTime() : 0
     return db - da
   })
+}
+
+function getPurchaseInvoiceStatusLabel(status: string | null): string {
+  if (status === 'APPROVED') return 'Approved'
+  if (status === 'POSTED') return 'Posted'
+  if (status === 'DRAFT') return 'Draft'
+  if (status === 'CANCELLED') return 'Cancelled'
+  return status ?? ''
+}
+
+function getPaymentMethodLabel(method: string | null, type: RowType): string {
+  if (!method) return '—'
+  return type === 'PURCHASE'
+    ? (AP_PAYMENT_METHOD_LABELS[method as keyof typeof AP_PAYMENT_METHOD_LABELS] ?? method)
+    : (GENERAL_PAYMENT_METHOD_LABELS[method] ?? method)
+}
+
+function getPaymentStatusLabel(status: string | null, type: RowType): string {
+  if (!status) return ''
+  if (type === 'GENERAL') return GENERAL_STATUS_LABELS[status as GeneralPaymentStatus] ?? status
+  return AP_STATUS_CONFIG[status as keyof typeof AP_STATUS_CONFIG]?.label ?? status
 }
 
 // ─── Filter state ─────────────────────────────────────────────────────────────
@@ -183,13 +231,6 @@ export default function UnifiedPaymentReportPage() {
   const hasActiveFilter = Object.entries(filters).some(([k, v]) => k !== 'rowType' && v !== '')
   const showPurchaseFilters = draft.rowType !== 'GENERAL'
   const showGeneralFilters  = draft.rowType !== 'PURCHASE'
-
-  // Purchase-specific date filter available for export validation
-  const purchaseHasAnyDateFilter = !!(
-    filters.receivedDateFrom || filters.receivedDateTo ||
-    filters.dueDateFrom || filters.dueDateTo ||
-    filters.dateFrom || filters.dateTo
-  )
 
   // ── AP combined query ──
   const apQuery = useMemo(() => ({
@@ -263,24 +304,72 @@ export default function UnifiedPaymentReportPage() {
   }, [])
 
   const handleExport = async () => {
+    if (allRows.length === 0) {
+      toast.warning('Tidak ada data untuk diekspor')
+      return
+    }
     setIsExporting(true)
     try {
-      await exportCombinedExcel({
-        ...(filters.branchId         ? { branch_id:          filters.branchId }         : {}),
-        ...(filters.supplierId       ? { supplier_id:         filters.supplierId }       : {}),
-        ...(filters.search           ? { search:              filters.search }           : {}),
-        ...(filters.receivedDateFrom ? { received_date_from: filters.receivedDateFrom }  : {}),
-        ...(filters.receivedDateTo   ? { received_date_to:   filters.receivedDateTo }    : {}),
-        ...(filters.dueDateFrom      ? { due_date_from:      filters.dueDateFrom }       : {}),
-        ...(filters.dueDateTo        ? { due_date_to:        filters.dueDateTo }         : {}),
-        ...(filters.dateFrom         ? { date_from:          filters.dateFrom }          : {}),
-        ...(filters.dateTo           ? { date_to:            filters.dateTo }            : {}),
+      // Dynamically load XLSX
+      const XLSX = await import('xlsx')
+
+      // Reconstruct full detail from raw data — for Purchase rows we have more info
+      const apRowsMap = new Map<string, CombinedInvoicePaymentRow>()
+      ;(apData?.data ?? []).forEach((r, i) => {
+        apRowsMap.set(`purchase-${r.invoice_id}-${r.payment_id ?? i}`, r)
       })
+
+      const excelRows = allRows.map((r) => {
+        const isPurchase = r._type === 'PURCHASE'
+        const purchaseRow = isPurchase ? apRowsMap.get(r._id) : undefined
+
+        return {
+          Tipe: isPurchase ? 'Purchase' : 'General',
+          'No. Invoice': r.invoice_number,
+          'Tgl Invoice': isPurchase ? rawDate(purchaseRow?.invoice_date) : '',
+          'Tgl Terima': isPurchase ? rawDate(purchaseRow?.earliest_received_date) : '',
+          'Jatuh Tempo': rawDate(r.invoice_due_date),
+          'Vendor / Supplier': r.vendor_name,
+          Cabang: r.branch_name,
+          'Status Invoice': getPurchaseInvoiceStatusLabel(r.invoice_status),
+          'Total Invoice': r.invoice_total ?? '',
+          'Sisa Outstanding': r.invoice_remaining ?? '',
+          'Aging (hari)': isPurchase ? (purchaseRow?.aging_days ?? '') : '',
+          Overdue: isPurchase ? (purchaseRow?.is_overdue ? 'Ya' : 'Tidak') : '',
+          'No. Pembayaran': r.payment_number ?? '',
+          'Status Pembayaran': getPaymentStatusLabel(r.payment_status, r._type),
+          'Metode Bayar': getPaymentMethodLabel(r.payment_method, r._type),
+          'Tgl Bayar': rawDate(r.payment_date),
+          'Nominal Bayar': r.nominal_bayar ?? '',
+          Rekening: r.rekening ?? '',
+          'Bank Sumber': r.source_bank_name ?? '',
+          'No. Rek Sumber': r.source_account_number ?? '',
+          'Nama Rek Sumber': r.source_account_name ?? '',
+          'Bank Tujuan': r.dest_bank_name ?? '',
+          'No. Rek Tujuan': r.dest_account_number ?? '',
+          'Nama Rek Tujuan': r.dest_account_name ?? '',
+        }
+      })
+
+      const ws = XLSX.utils.json_to_sheet(excelRows)
+
+      // Auto-width columns
+      const colWidths = Object.keys(excelRows[0]).map((key) => {
+        const maxLen = Math.max(
+          key.length,
+          ...excelRows.map((r) => String((r as Record<string, unknown>)[key] ?? '').length),
+        )
+        return { wch: Math.min(maxLen + 2, 40) }
+      })
+      ws['!cols'] = colWidths
+
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Report Pengeluaran')
+
+      const dateStr = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(wb, `pengeluaran-${dateStr}.xlsx`)
     } catch (err: unknown) {
-      const message = err instanceof Error && err.message === 'NO_DATA'
-        ? 'Tidak ada data untuk diekspor'
-        : parseApiError(err, 'Gagal mengekspor data')
-      toast.error(message)
+      toast.error(parseApiError(err, 'Gagal mengekspor data'))
     } finally {
       setIsExporting(false)
     }
@@ -313,23 +402,15 @@ export default function UnifiedPaymentReportPage() {
             <Link to={AP_PAYMENTS_LIST_PATH} className={apTheme.btnSecondary}>
               <ArrowLeft className="w-4 h-4" /> AP Payments
             </Link>
-            {/* Export only available for Purchase data */}
-            {filters.rowType !== 'GENERAL' && (
-              <button
-                type="button"
-                onClick={handleExport}
-                disabled={isExporting || !purchaseHasAnyDateFilter || !hasApplied}
-                className={apTheme.btnSecondary}
-                title={
-                  !purchaseHasAnyDateFilter
-                    ? 'Pilih minimal 1 rentang tanggal untuk export Purchase'
-                    : undefined
-                }
-              >
-                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {isExporting ? 'Mengekspor...' : 'Export Excel'}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={isExporting || !hasApplied || totalRows === 0}
+              className={apTheme.btnSecondary}
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isExporting ? 'Mengekspor...' : 'Export Excel'}
+            </button>
           </div>
         </div>
       </div>
@@ -612,8 +693,22 @@ function TypeBadge({ type }: { type: RowType }) {
   )
 }
 
-function PaymentStatusBadge({ status }: { status: string | null }) {
+function PaymentStatusBadge({ status, type }: { status: string | null; type: RowType }) {
   if (!status) return <span className="text-gray-400">—</span>
+  if (type === 'GENERAL') {
+    const colorMap: Record<string, string> = {
+      DRAFT:     'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300',
+      APPROVED:  'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      REJECTED:  'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+      PAID:      'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+      RECONCILED:'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    }
+    return (
+      <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${colorMap[status] ?? 'bg-gray-100 text-gray-600'}`}>
+        {GENERAL_STATUS_LABELS[status as GeneralPaymentStatus] ?? status}
+      </span>
+    )
+  }
   const config = AP_STATUS_CONFIG[status as keyof typeof AP_STATUS_CONFIG]
   if (!config) return <span className="text-gray-500 dark:text-gray-400 text-xs">{status}</span>
   return (
@@ -644,13 +739,6 @@ function InvoiceStatusBadge({ status }: { status: string | null }) {
   )
 }
 
-function getMethodLabel(method: string | null, type: RowType): string {
-  if (!method) return '—'
-  return type === 'PURCHASE'
-    ? (AP_PAYMENT_METHOD_LABELS[method as keyof typeof AP_PAYMENT_METHOD_LABELS] ?? method)
-    : (GENERAL_PAYMENT_METHOD_LABELS[method] ?? method)
-}
-
 function UnifiedTableRow({ row }: { row: UnifiedRow }) {
   return (
     <tr className={apTheme.hoverRow}>
@@ -659,7 +747,7 @@ function UnifiedTableRow({ row }: { row: UnifiedRow }) {
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{row.vendor_name}</td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{row.branch_name}</td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{row.payment_number ?? '—'}</td>
-      <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{getMethodLabel(row.payment_method, row._type)}</td>
+      <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{getPaymentMethodLabel(row.payment_method, row._type)}</td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{row.rekening ?? '—'}</td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{fmtDate(row.payment_date)}</td>
       <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{fmtCurrency(row.nominal_bayar)}</td>
@@ -667,7 +755,7 @@ function UnifiedTableRow({ row }: { row: UnifiedRow }) {
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{fmtCurrency(row.invoice_remaining)}</td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{fmtDate(row.invoice_due_date)}</td>
       <td className="px-3 py-3"><InvoiceStatusBadge status={row.invoice_status} /></td>
-      <td className="px-3 py-3"><PaymentStatusBadge status={row.payment_status} /></td>
+      <td className="px-3 py-3"><PaymentStatusBadge status={row.payment_status} type={row._type} /></td>
     </tr>
   )
 }

@@ -236,15 +236,23 @@ const templateLineSchema = z.object({
 
 export const createGeneralInvoiceTemplateSchema = z.object({
   body: z.object({
-    branch_id:            z.string().uuid().optional(),
-    template_name:        z.string().min(1).max(255),
-    vendor_id:            z.string().uuid(),
-    is_confidential:      z.boolean().default(false),
-    recurrence:           z.enum(recurrenceTypes),
-    default_amount:       z.number().positive().nullable().optional(),
-    due_date_offset_days: z.number().int().nonnegative().default(14),
-    notes:                z.string().max(1000).nullable().optional(),
-    lines:                z.array(templateLineSchema).min(1, 'Minimal 1 baris diperlukan'),
+    branch_id:                      z.string().uuid().optional(),
+    template_name:                  z.string().min(1).max(255),
+    vendor_id:                      z.string().uuid(),
+    is_confidential:                z.boolean().default(false),
+    recurrence:                     z.enum(recurrenceTypes),
+    default_amount:                 z.number().positive().nullable().optional(),
+    due_date_offset_days:           z.number().int().nonnegative().default(14),
+    notes:                          z.string().max(1000).nullable().optional(),
+    preferred_vendor_bank_account_id: z.number().int().positive().nullable().optional(),
+    lines:                          z.array(templateLineSchema).min(1, 'Minimal 1 baris diperlukan'),
+  }),
+})
+
+export const updateGeneralInvoiceTemplateSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    preferred_vendor_bank_account_id: z.number().int().positive().nullable(),
   }),
 })
 
