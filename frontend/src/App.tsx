@@ -584,7 +584,7 @@ const PurchaseInvoiceDetailPage = lazy(() => import("./features/purchase-invoice
 // AP Payments
 const ApDashboardPage = lazy(() => import('./features/ap-payments/pages/ApDashboardPage'))
 const ApPaymentsPage = lazy(() => import('./features/ap-payments/pages/ApPaymentsPage'))
-const ApPaymentReportPage = lazy(() => import('./features/ap-payments/pages/ApPaymentReportPage'))
+const ApPaymentReportPage = lazy(() => import('./features/ap-payments/pages/UnifiedPaymentReportPage'))
 const ApPaymentDetailPage = lazy(() => import('./features/ap-payments/pages/ApPaymentDetailPage'))
 const ApPaymentEditPage = lazy(() => import('./features/ap-payments/pages/ApPaymentEditPage'))
 const BulkCreatePage = lazy(() => import('./features/ap-payments/pages/BulkCreatePage'))

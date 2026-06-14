@@ -103,9 +103,14 @@ export interface GeneralInvoicePayment {
   payment_number: string
   general_invoice_id: string
   invoice_number: string
+  invoice_status: string | null
+  invoice_total_amount: number | null
+  invoice_due_date: string | null
   vendor_name: string
   bank_account_id: number | null
   bank_account_name: string | null
+  bank_account_number: string | null
+  bank_name: string | null
   owner_credit_card_id: string | null
   owner_credit_card_label: string | null
   owner_credit_card_coa_code: string | null
@@ -488,16 +493,19 @@ export const useForceDeleteGeneralInvoice = () => {
 // ============================================================
 // PAYMENT HOOKS
 // ============================================================
-export const useGeneralPayments = (params?: {
-  branch_id?: string
-  vendor_id?: string
-  status?: GeneralPaymentStatus
-  payment_date_from?: string
-  payment_date_to?: string
-  search?: string
-  page?: number
-  limit?: number
-}) =>
+export const useGeneralPayments = (
+  params?: {
+    branch_id?: string
+    vendor_id?: string
+    status?: GeneralPaymentStatus
+    payment_date_from?: string
+    payment_date_to?: string
+    search?: string
+    page?: number
+    limit?: number
+  },
+  options?: { enabled?: boolean },
+) =>
   useQuery({
     queryKey: KEYS.paymentList(params ?? {}),
     queryFn: async () => {
@@ -508,6 +516,7 @@ export const useGeneralPayments = (params?: {
       }
     },
     staleTime: 30_000,
+    ...options,
   })
 
 export const useGeneralPayment = (id: string) =>

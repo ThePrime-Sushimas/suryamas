@@ -1,5 +1,5 @@
 import { pool } from '../../config/db'
-import type { PoolClient } from 'pg'
+import type { PoolClient, QueryResultRow } from 'pg'
 import type {
   Vendor,
   CreateVendorDto,
@@ -864,26 +864,43 @@ export const generalPaymentRepository = {
       params.push(`%${filter.search}%`)
       idx++
     }
+    if (filter.payment_date_from) {
+      conditions.push(`gip.payment_date >= $${idx}`)
+      params.push(filter.payment_date_from)
+      idx++
+    }
+    if (filter.payment_date_to) {
+      conditions.push(`gip.payment_date <= $${idx}`)
+      params.push(filter.payment_date_to)
+      idx++
+    }
 
     const where = conditions.join(' AND ')
     const page = filter.page ?? 1
+    const isPaged = filter.limit !== -1
     const limit = filter.limit ?? 20
-    const offset = (page - 1) * limit
+    const offset = isPaged ? (page - 1) * limit : 0
 
     const sql = `
-      SELECT gip.*, gi.invoice_number, v.vendor_name,
+      SELECT gip.*, gi.invoice_number, gi.status AS invoice_status,
+             gi.total_amount AS invoice_total_amount,
+             gi.due_date AS invoice_due_date,
+             v.vendor_name,
              b.branch_name,
              ba.account_name AS bank_account_name,
+             ba.account_number AS bank_account_number,
+             bk.bank_name AS bank_name,
              jh.journal_number
       FROM general_invoice_payments gip
       JOIN general_invoices gi ON gi.id = gip.general_invoice_id
       JOIN vendors v ON v.id = gi.vendor_id
       JOIN branches b ON b.id = gip.branch_id
       LEFT JOIN bank_accounts ba ON ba.id = gip.bank_account_id
+      LEFT JOIN banks bk ON bk.id = ba.bank_id
       LEFT JOIN journal_headers jh ON jh.id = gip.journal_id
       WHERE ${where}
       ORDER BY gip.created_at DESC
-      LIMIT $${idx} OFFSET $${idx + 1}
+      ${isPaged ? `LIMIT $${idx} OFFSET $${idx + 1}` : ''}
     `
 
     const countSql = `
@@ -893,8 +910,9 @@ export const generalPaymentRepository = {
       WHERE ${where}
     `
 
+    const sqlParams = isPaged ? [...params, limit, offset] : params
     const [{ rows: data }, { rows: countRows }] = await Promise.all([
-      pool.query<GeneralInvoicePayment>(sql, [...params, limit, offset]),
+      pool.query<GeneralInvoicePayment & QueryResultRow>(sql, sqlParams),
       pool.query<{ count: string }>(countSql, params),
     ])
 
@@ -911,9 +929,14 @@ export const generalPaymentRepository = {
   },
 
   async findById(id: string, companyId: string): Promise<GeneralInvoicePayment | null> {
-    const { rows } = await pool.query<GeneralInvoicePayment>(
-      `SELECT gip.*, gi.invoice_number, v.vendor_name,
+    const { rows } = await pool.query<GeneralInvoicePayment & QueryResultRow>(
+      `SELECT gip.*, gi.invoice_number, gi.status AS invoice_status,
+              gi.total_amount AS invoice_total_amount,
+              gi.due_date AS invoice_due_date,
+              v.vendor_name,
               ba.account_name AS bank_account_name,
+              ba.account_number AS bank_account_number,
+              bk.bank_name AS bank_name,
               jh.journal_number,
               occ.card_label AS owner_credit_card_label,
               occ.coa_code AS owner_credit_card_coa_code
@@ -921,6 +944,7 @@ export const generalPaymentRepository = {
        JOIN general_invoices gi ON gi.id = gip.general_invoice_id
        JOIN vendors v ON v.id = gi.vendor_id
        LEFT JOIN bank_accounts ba ON ba.id = gip.bank_account_id
+       LEFT JOIN banks bk ON bk.id = ba.bank_id
        LEFT JOIN journal_headers jh ON jh.id = gip.journal_id
        LEFT JOIN owner_credit_cards occ ON occ.id = gip.owner_credit_card_id
        WHERE gip.id = $1 AND gip.company_id = $2 AND gip.is_deleted = false`,
@@ -930,9 +954,14 @@ export const generalPaymentRepository = {
   },
 
   async findByInvoiceId(invoiceId: string): Promise<GeneralInvoicePayment | null> {
-    const { rows } = await pool.query<GeneralInvoicePayment>(
-      `SELECT gip.*, gi.invoice_number, v.vendor_name,
+    const { rows } = await pool.query<GeneralInvoicePayment & QueryResultRow>(
+      `SELECT gip.*, gi.invoice_number, gi.status AS invoice_status,
+              gi.total_amount AS invoice_total_amount,
+              gi.due_date AS invoice_due_date,
+              v.vendor_name,
               ba.account_name AS bank_account_name,
+              ba.account_number AS bank_account_number,
+              bk.bank_name AS bank_name,
               jh.journal_number,
               occ.card_label AS owner_credit_card_label,
               occ.coa_code AS owner_credit_card_coa_code
@@ -940,6 +969,7 @@ export const generalPaymentRepository = {
        JOIN general_invoices gi ON gi.id = gip.general_invoice_id
        JOIN vendors v ON v.id = gi.vendor_id
        LEFT JOIN bank_accounts ba ON ba.id = gip.bank_account_id
+       LEFT JOIN banks bk ON bk.id = ba.bank_id
        LEFT JOIN journal_headers jh ON jh.id = gip.journal_id
        LEFT JOIN owner_credit_cards occ ON occ.id = gip.owner_credit_card_id
        WHERE gip.general_invoice_id = $1 AND gip.is_deleted = false

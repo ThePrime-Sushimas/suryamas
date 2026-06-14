@@ -1537,8 +1537,9 @@ export class ApPaymentsRepository {
 
     const where = conditions.join(' AND ')
     const page = query.page ?? 1
+    const isPaged = query.limit !== -1
     const limit = query.limit ?? 20
-    const offset = (page - 1) * limit
+    const offset = isPaged ? (page - 1) * limit : 0
 
     // Bug fix: Count query now uses same JOIN conditions as data query
     const countResult = await pool.query(
@@ -1611,8 +1612,8 @@ export class ApPaymentsRepository {
        ) gr_dates ON true
        WHERE ${where}
        ORDER BY pi.due_date ASC NULLS LAST, pi.invoice_date ASC, ap.created_at DESC
-       LIMIT $${idx} OFFSET $${idx + 1}`,
-      [...params, limit, offset],
+       ${isPaged ? `LIMIT $${idx} OFFSET $${idx + 1}` : ''}`,
+      isPaged ? [...params, limit, offset] : params,
     )
 
     return { data: rows, total }

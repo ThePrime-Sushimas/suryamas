@@ -209,9 +209,14 @@ export interface GeneralInvoicePayment {
   payment_number: string
   general_invoice_id: string
   invoice_number: string    // joined
+  invoice_status: string | null  // joined
+  invoice_total_amount: number | null // joined
+  invoice_due_date: string | null     // joined
   vendor_name: string       // joined
   bank_account_id: number | null
   bank_account_name: string | null  // joined
+  bank_account_number: string | null // joined
+  bank_name: string | null          // joined
   owner_credit_card_id: string | null
   owner_credit_card_label: string | null  // joined
   owner_credit_card_coa_code: string | null  // joined

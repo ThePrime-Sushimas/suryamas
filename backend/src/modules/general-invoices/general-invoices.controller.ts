@@ -322,7 +322,7 @@ export class GeneralInvoicePaymentsController {
         page:       result.page,
         limit:      result.limit,
         total:      result.total,
-        totalPages: Math.ceil(result.total / result.limit) || 1,
+        totalPages: result.limit === -1 ? 1 : (Math.ceil(result.total / result.limit) || 1),
       })
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list_general_payments' })

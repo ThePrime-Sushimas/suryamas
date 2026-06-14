@@ -506,7 +506,7 @@ export class ApPaymentsService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: limit === -1 ? 1 : Math.ceil(total / limit),
       },
     }
   }
