@@ -86,7 +86,7 @@ export const RECURRENCE_OPTIONS = [
 export const PAYMENT_METHOD_OPTIONS = [
   { value: 'TRANSFER', label: 'Transfer Bank' },
   { value: 'CASH', label: 'Tunai' },
-  { value: 'CC_OWNER', label: 'CC Owner (Marketplace)' },
+  { value: 'CC_OWNER', label: 'Credit Card' },
 ]
 
 /** Penjelasan field tanggal di form invoice (ditampilkan di UI). */
