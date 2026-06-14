@@ -680,7 +680,7 @@ export class MarketplacePoRepository {
 
     if (filter.platform) { params.push(filter.platform); conditions.push(`mcs.platform = $${idx}`); idx++ }
     if (filter.status) { params.push(filter.status); conditions.push(`mcs.status = $${idx}`); idx++ }
-    if (filter.branch_id) { params.push(filter.branch_id); conditions.push(`EXISTS (SELECT 1 FROM marketplace_checkout_lines l WHERE l.session_id = mcs.id AND l.branch_id = $${idx})`); idx++ }
+    if (filter.branch_id) { params.push(filter.branch_id); conditions.push(`mcs.branch_id = $${idx}`); idx++ }
     if (filter.cc_id) { params.push(filter.cc_id); conditions.push(`mcs.cc_id = $${idx}`); idx++ }
     if (filter.date_from) { params.push(filter.date_from); conditions.push(`mcs.checkout_date >= $${idx}::date`); idx++ }
     if (filter.date_to) { params.push(filter.date_to); conditions.push(`mcs.checkout_date <= $${idx}::date`); idx++ }
@@ -692,9 +692,11 @@ export class MarketplacePoRepository {
       pool.query(
         `SELECT mcs.*,
                 o.card_label AS cc_label,
-                o.settlement_bank_account_id AS cc_settlement_bank_account_id
+                o.settlement_bank_account_id AS cc_settlement_bank_account_id,
+                b.branch_name
          FROM marketplace_checkout_sessions mcs
          JOIN owner_credit_cards o ON o.id = mcs.cc_id
+         LEFT JOIN branches b ON b.id = mcs.branch_id
          ${where}
          ORDER BY mcs.created_at DESC
          LIMIT $${idx} OFFSET $${idx + 1}`,
@@ -900,11 +902,11 @@ export class MarketplacePoRepository {
     return rows[0] ?? null
   }
   
-  async createSessionAndLines(client: PoolClient, companyId: string, userId: string, data: { session_number: string; platform: string; cc_id: string; checkout_date: string; notes?: string | null; lines: any[]; total_amount: number }) {
+  async createSessionAndLines(client: PoolClient, companyId: string, userId: string, data: { session_number: string; platform: string; cc_id: string; checkout_date: string; notes?: string | null; lines: any[]; total_amount: number; branch_id: string }) {
     const { rows } = await client.query(
-      `INSERT INTO marketplace_checkout_sessions (company_id, session_number, platform, cc_id, checkout_date, total_amount, notes, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,
-      [companyId, data.session_number, data.platform, data.cc_id, data.checkout_date, data.total_amount, data.notes ?? null, userId],
+      `INSERT INTO marketplace_checkout_sessions (company_id, branch_id, session_number, platform, cc_id, checkout_date, total_amount, notes, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING *`,
+      [companyId, data.branch_id, data.session_number, data.platform, data.cc_id, data.checkout_date, data.total_amount, data.notes ?? null, userId],
     )
     const session = rows[0]
 

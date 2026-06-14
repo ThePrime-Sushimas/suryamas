@@ -37,8 +37,8 @@ type TabId = "items" | "shipments" | "attachments" | "journal";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "items", label: "Item" },
-  { id: "shipments", label: "Resi" },
   { id: "attachments", label: "Lampiran" },
+  { id: "shipments", label: "Resi" },
   { id: "journal", label: "Journal" },
 ];
 

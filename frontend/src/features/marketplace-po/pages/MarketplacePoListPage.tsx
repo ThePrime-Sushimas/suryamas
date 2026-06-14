@@ -6,6 +6,7 @@ import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { useBranches } from '@/features/branches/api/branches.api'
 import {
   useMarketplaceSessions,
   useCancelMarketplaceSession,
@@ -32,8 +33,12 @@ export default function MarketplacePoListPage() {
   const [page, setPage] = useState(1)
   const [platform, setPlatform] = useState('')
   const [status, setStatus] = useState('')
+  const [branchId, setBranchId] = useState('')
   const [search, setSearch] = useState('')
   const [cancelTarget, setCancelTarget] = useState<MarketplaceCheckoutSession | null>(null)
+
+  const { data: branchesData } = useBranches({ limit: 100 })
+  const branches = branchesData?.data ?? []
 
   const params = useMemo(
     () => ({
@@ -41,9 +46,10 @@ export default function MarketplacePoListPage() {
       limit: 25,
       platform: (platform || undefined) as MarketplacePlatform | undefined,
       status: (status || undefined) as MarketplaceSessionStatus | undefined,
+      branch_id: branchId || undefined,
       search: search || undefined,
     }),
-    [page, platform, status, search],
+    [page, platform, status, branchId, search],
   )
 
   const { data, isLoading } = useMarketplaceSessions(params)
@@ -155,6 +161,19 @@ export default function MarketplacePoListPage() {
           <option value="TOKOPEDIA">Tokopedia</option>
         </select>
         <select
+          value={branchId}
+          onChange={(e) => {
+            setBranchId(e.target.value)
+            setPage(1)
+          }}
+          className="px-3 py-2 border rounded-xl text-sm bg-white dark:bg-gray-800"
+        >
+          <option value="">Semua Cabang</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.branch_name}</option>
+          ))}
+        </select>
+        <select
           value={status}
           onChange={(e) => {
             setStatus(e.target.value)
@@ -179,6 +198,7 @@ export default function MarketplacePoListPage() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Session</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Platform</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Cabang</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">CC</th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Total</th>
@@ -190,14 +210,14 @@ export default function MarketplacePoListPage() {
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={7} className="px-6 py-4">
+                      <td colSpan={8} className="px-6 py-4">
                         <div className="h-5 bg-gray-100 rounded animate-pulse" />
                       </td>
                     </tr>
                   ))
                 ) : sessions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-16 text-center text-gray-500">
                       Belum ada checkout session
                     </td>
                   </tr>
@@ -214,6 +234,7 @@ export default function MarketplacePoListPage() {
                       <td className="px-6 py-4">
                         <PlatformBadge platform={s.platform} />
                       </td>
+                      <td className="px-6 py-4 text-gray-600 text-xs">{s.branch_name ?? '-'}</td>
                       <td className="px-6 py-4 text-gray-600">{fmtDate(s.checkout_date)}</td>
                       <td className="px-6 py-4 text-gray-600">{s.cc_label ?? '-'}</td>
                       <td className="px-6 py-4 text-right font-medium">{fmtCurrency(s.total_amount)}</td>

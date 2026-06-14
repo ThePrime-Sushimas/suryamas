@@ -183,7 +183,14 @@
       for (const l of lines) {
         requireBranchAccess(l.branch_id, branchIds)
       }
-      const companyId = await getCompanyIdForBranch(lines[0].branch_id)
+
+      // Validate all lines are from the same branch (single-branch per session)
+      const sessionBranchId = lines[0].branch_id
+      if (!sessionBranchId) throw new BusinessRuleError('branch_id is required on each line')
+      const mixedBranch = lines.find((l: any) => l.branch_id !== sessionBranchId)
+      if (mixedBranch) throw new BusinessRuleError('Semua item dalam satu session harus dari cabang yang sama')
+
+      const companyId = await getCompanyIdForBranch(sessionBranchId)
       if (!companyId) throw new BusinessRuleError('Branch not found')
       requireCompanyAccess(companyId, companyIds)
 
@@ -199,6 +206,7 @@
           cc_id: dto.cc_id,
           checkout_date: dto.checkout_date ?? new Date().toISOString().slice(0, 10),
           notes: dto.notes ?? null,
+          branch_id: sessionBranchId,
           lines: lines.map((l: any) => ({
             po_id: l.po_id,
             po_line_id: l.po_line_id,
@@ -597,6 +605,7 @@
 
       const journalCreateDto = {
         company_id: companyId,
+        branch_id: session.branch_id ?? null,
         journal_date: new Date().toISOString().slice(0, 10),
         journal_type: 'INVENTORY',
         description: journalDesc,
@@ -695,6 +704,7 @@
 
       const journalCreateDto = {
         company_id: companyId,
+        branch_id: session.branch_id ?? null,
         journal_date,
         journal_type: 'INVENTORY',
         description: journalDesc,
@@ -843,6 +853,7 @@
 
       const journalCreateDto = {
         company_id: companyId,
+        branch_id: session.branch_id ?? null,
         journal_date,
         journal_type: 'FINANCING',
         description: `Pelunasan CC Owner - ${session.session_number}`,

@@ -45,6 +45,7 @@ export type OwnerCreditCardWithSettlement = OwnerCreditCard & {
 export type MarketplaceCheckoutSession = {
   id: string
   company_id: string
+  branch_id: string | null
   session_number: string
   platform: MarketplacePlatform
   cc_id: string

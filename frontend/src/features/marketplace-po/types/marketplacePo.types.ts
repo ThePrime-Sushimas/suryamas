@@ -56,6 +56,8 @@ export type UpdateOwnerCreditCardPayload = Partial<CreateOwnerCreditCardPayload>
 export interface MarketplaceCheckoutSession {
   id: string
   company_id?: string
+  branch_id: string | null
+  branch_name?: string | null
   session_number: string
   platform: MarketplacePlatform
   cc_id: string
