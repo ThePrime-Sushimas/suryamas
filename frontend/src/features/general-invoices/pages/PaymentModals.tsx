@@ -645,12 +645,20 @@ export function PaymentActionsModal({
             {displayPayment.status === "APPROVED" && (
               <>
                 {!showMarkPaidForm ? (
-                  <button
-                    onClick={() => setShowMarkPaidForm(true)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-green-600 text-white text-sm rounded-lg font-medium hover:bg-green-700"
-                  >
-                    <Banknote size={14} /> Tandai Lunas
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setShowMarkPaidForm(true)}
+                      disabled={!displayPayment.proof_url}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-green-600 text-white text-sm rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Banknote size={14} /> Tandai Lunas
+                    </button>
+                    {!displayPayment.proof_url && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertCircle size={12} /> Upload bukti pembayaran terlebih dahulu sebelum tandai lunas
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-gray-600">
@@ -679,12 +687,6 @@ export function PaymentActionsModal({
                           : "Konfirmasi Lunas"}
                       </button>
                     </div>
-                    {!displayPayment.proof_url && (
-                      <p className="text-xs text-amber-600 flex items-center gap-1">
-                        <AlertCircle size={12} /> Perlu upload bukti pembayaran
-                        terlebih dahulu
-                      </p>
-                    )}
                   </div>
                 )}
               </>
@@ -809,6 +811,12 @@ export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
                     No. Invoice
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Metode
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Rekening
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     Tgl Bayar
                   </th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -840,6 +848,12 @@ export function GeneralPaymentsPage({ onSelectPayment }: PaymentListPageProps) {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">
                       {pay.invoice_number}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {pay.payment_method}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {pay.bank_account_name ?? pay.owner_credit_card_label ?? "-"}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {pay.payment_date ? formatDate(pay.payment_date) : "-"}
