@@ -490,6 +490,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 403,
     category: 'inventory',
   },
+  WasteReportError: {
+    name: 'WasteReportError',
+    importPath: '../modules/waste-report/waste-report.errors',
+    defaultStatusCode: 400,
+    category: 'inventory',
+  },
   InvalidReferenceError: {
     name: 'InvalidReferenceError',
     importPath: '../modules/stock/stock.errors',

@@ -763,7 +763,7 @@ export const menuItems: MenuItem[] = [
           },
           {
             id: "cc-settlements",
-            name: "Pelunasan CC Owner",
+            name: "Pelunasan Credit Card",
             href: "/inventory/marketplace-po/cc-settlements",
             icon: <CreditCard size={16} />,
             module: "cc_owner_settlements",
@@ -799,6 +799,13 @@ export const menuItems: MenuItem[] = [
             href: "/inventory/stock-analysis",
             icon: <BarChart3 size={16} />,
             module: "stock_analysis",
+          },
+          {
+            id: "inv-waste-report",
+            name: "Laporan Waste",
+            href: "/inventory/waste-report",
+            icon: <AlertTriangle size={16} />,
+            module: "waste_report",
           },
         ],
       },

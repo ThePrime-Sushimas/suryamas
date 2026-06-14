@@ -1,5 +1,6 @@
 import { pool } from '../../config/db'
 import type { PoolClient } from 'pg'
+import { logWarn } from '../../config/logger'
 import type {
   OwnerCreditCardCreateRepoData,
   OwnerCreditCardUpdateRepoData,
@@ -1228,6 +1229,22 @@ export class MarketplacePoRepository {
       [poId, companyId],
     )
     return rows[0] ?? null
+  }
+
+  /** Revert sessions back to RECEIVED if bulk settlement fails after eager status update */
+  async revertSessionsToReceived(sessionIds: string[]): Promise<void> {
+    const { rowCount } = await pool.query(
+      `UPDATE marketplace_checkout_sessions SET status = 'RECEIVED', updated_at = NOW()
+       WHERE id = ANY($1::uuid[]) AND status = 'SETTLED' AND journal_settled_id IS NULL`,
+      [sessionIds],
+    )
+    if (rowCount !== sessionIds.length) {
+      logWarn('revertSessionsToReceived: partial revert', {
+        expected: sessionIds.length,
+        reverted: rowCount,
+        sessionIds,
+      })
+    }
   }
 
 }

@@ -535,6 +535,7 @@ const OpeningBalancePage = lazy(() => import('./features/inventory/pages/Opening
 const StockConfigPage = lazy(() => import('./features/inventory/pages/StockConfigPage'))
 const ReorderSuggestionsPage = lazy(() => import('./features/inventory/pages/ReorderSuggestionsPage'))
 const StockAnalysisPage = lazy(() => import('./features/inventory/pages/StockAnalysisPage'))
+const WasteReportPage = lazy(() => import('./features/waste-report/pages/WasteReportPage'))
 
 // Purchase Requests
 const PurchaseRequestsPage = lazy(() => import('./features/purchase-requests/pages/PurchaseRequestsPage'))
@@ -2098,6 +2099,16 @@ function App() {
                       <RequirePermission module="stock_analysis">
                         <Suspense fallback={<LoadingFallback />}>
                           <StockAnalysisPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="inventory/waste-report"
+                    element={
+                      <RequirePermission module="waste_report">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <WasteReportPage />
                         </Suspense>
                       </RequirePermission>
                     }

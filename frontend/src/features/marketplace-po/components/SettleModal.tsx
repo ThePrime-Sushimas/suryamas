@@ -90,7 +90,7 @@ export function SettleModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Pelunasan CC Owner</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Pelunasan Credit Card</h2>
           <button type="button" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
