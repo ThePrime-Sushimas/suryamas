@@ -168,6 +168,39 @@ export function CreatePaymentModal({
             </p>
           </div>
 
+          {/* Method */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600">
+              Metode
+            </label>
+            <div className="flex gap-2">
+              {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod(
+                      opt.value as "TRANSFER" | "CASH" | "CC_OWNER",
+                    );
+                    // Reset selections when switching method
+                    if (opt.value === "CC_OWNER") {
+                      setBankAccountId("");
+                    } else {
+                      setOwnerCreditCardId("");
+                    }
+                  }}
+                  className={`flex-1 py-2 text-sm rounded-lg border font-medium transition-colors ${
+                    paymentMethod === opt.value
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Bank account or CC Owner */}
           {paymentMethod === "TRANSFER" && (
             <div className="space-y-1">
@@ -223,39 +256,6 @@ export function CreatePaymentModal({
               </p>
             </div>
           )}
-
-          {/* Method */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-600">
-              Metode
-            </label>
-            <div className="flex gap-2">
-              {PAYMENT_METHOD_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    setPaymentMethod(
-                      opt.value as "TRANSFER" | "CASH" | "CC_OWNER",
-                    );
-                    // Reset selections when switching method
-                    if (opt.value === "CC_OWNER") {
-                      setBankAccountId("");
-                    } else {
-                      setOwnerCreditCardId("");
-                    }
-                  }}
-                  className={`flex-1 py-2 text-sm rounded-lg border font-medium transition-colors ${
-                    paymentMethod === opt.value
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Amount */}
           <div className="space-y-1">
