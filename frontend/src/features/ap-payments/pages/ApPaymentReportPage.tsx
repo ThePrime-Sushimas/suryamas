@@ -18,8 +18,6 @@ import {
   type GeneralPaymentStatus,
 } from '@/features/general-invoices/api/generalApi.api'
 import {
-  PAYMENT_STATUS_LABELS as GEN_PAYMENT_STATUS_LABELS,
-  PAYMENT_STATUS_COLORS as GEN_PAYMENT_STATUS_COLORS,
   PAYMENT_STATUS_OPTIONS as GEN_PAYMENT_STATUS_OPTIONS,
   formatRupiah as genFormatRupiah,
   formatDate as genFormatDate,
