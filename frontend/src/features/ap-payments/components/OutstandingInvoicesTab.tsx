@@ -1,62 +1,76 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
-import { AlertCircle } from 'lucide-react'
-import { Pagination } from '@/components/ui/Pagination'
-import { useOutstandingInvoicesPaginated, useAssignBankAccount, useAssignSupplierBankAccount, type OutstandingInvoiceRow, type OutstandingInvoicesQuery } from '../api/apPayments.api'
-import { useCompanyBankAccounts } from '../hooks/useCompanyBankAccounts'
-import { AgingBadge } from './AgingBadge'
-import { BankAccountSelector } from './BankAccountSelector'
-import { BulkSelectionBar } from './BulkSelectionBar'
-import { apTheme } from '../ap-payments.theme'
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { AlertCircle } from "lucide-react";
+import { Pagination } from "@/components/ui/Pagination";
+import {
+  useOutstandingInvoicesPaginated,
+  useAssignBankAccount,
+  useAssignSupplierBankAccount,
+  type OutstandingInvoiceRow,
+  type OutstandingInvoicesQuery,
+} from "../api/apPayments.api";
+import { useCompanyBankAccounts } from "../hooks/useCompanyBankAccounts";
+import { AgingBadge } from "./AgingBadge";
+import { BankAccountSelector } from "./BankAccountSelector";
+import { BulkSelectionBar } from "./BulkSelectionBar";
+import { apTheme } from "../ap-payments.theme";
 
-const MAX_SELECTION = 50
-const DEFAULT_PAGE_SIZE = 20
+const MAX_SELECTION = 50;
+const DEFAULT_PAGE_SIZE = 20;
 
 const fmtCurrency = (v: number) =>
-  new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
     maximumFractionDigits: 0,
-  }).format(v)
+  }).format(v);
 
 const fmtDate = (d: string | null) =>
   d
-    ? new Date(d).toLocaleDateString('id-ID', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
+    ? new Date(d).toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
       })
-    : '—'
+    : "—";
 
 interface OutstandingInvoicesTabProps {
   filters: {
-    supplierId: string
-    branchId: string
-    search: string
-    dateFrom: string
-    dateTo: string
-  }
+    supplierId: string;
+    branchId: string;
+    search: string;
+    dateFrom: string;
+    dateTo: string;
+  };
 }
 
-export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps) {
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(DEFAULT_PAGE_SIZE)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+export function OutstandingInvoicesTab({
+  filters,
+}: OutstandingInvoicesTabProps) {
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_PAGE_SIZE);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Track remaining_amount for selected invoices across pages
-  const [selectedAmounts, setSelectedAmounts] = useState<Map<string, number>>(new Map())
+  const [selectedAmounts, setSelectedAmounts] = useState<Map<string, number>>(
+    new Map(),
+  );
   // V2: Track bank account assignments per invoice
-  const [bankAccountAssignments, setBankAccountAssignments] = useState<Map<string, number | null>>(new Map())
-  const [supplierBankAssignments, setSupplierBankAssignments] = useState<Map<string, number | null>>(new Map())
+  const [bankAccountAssignments, setBankAccountAssignments] = useState<
+    Map<string, number | null>
+  >(new Map());
+  const [supplierBankAssignments, setSupplierBankAssignments] = useState<
+    Map<string, number | null>
+  >(new Map());
 
   // Fetch company bank accounts for the Rekening Bayar column
   const {
     data: bankAccounts = [],
     isLoading: isBankAccountsLoading,
     isError: isBankAccountsError,
-  } = useCompanyBankAccounts()
+  } = useCompanyBankAccounts();
 
   // Mutation for auto-saving bank account assignment
-  const assignMutation = useAssignBankAccount()
-  const assignSupplierBankMutation = useAssignSupplierBankAccount()
+  const assignMutation = useAssignBankAccount();
+  const assignSupplierBankMutation = useAssignSupplierBankAccount();
 
   const query: OutstandingInvoicesQuery = useMemo(
     () => ({
@@ -69,188 +83,187 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
       ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
     }),
     [page, limit, filters],
-  )
+  );
 
-  const { data, isLoading, isError } = useOutstandingInvoicesPaginated(query)
+  const { data, isLoading, isError } = useOutstandingInvoicesPaginated(query);
 
-  const invoices = data?.data ?? []
-  const pagination = data?.pagination
+  const invoices = data?.data ?? [];
+  const pagination = data?.pagination;
 
   // Sync bankAccountAssignments from API data (persisted assignments)
   useEffect(() => {
-    if (!data?.data || data.data.length === 0) return
+    if (!data?.data || data.data.length === 0) return;
     setBankAccountAssignments((prev) => {
-      const next = new Map(prev)
+      const next = new Map(prev);
       for (const inv of data.data) {
         // Only set from API if not already locally overridden
         if (!next.has(inv.id) && inv.assigned_bank_account_id != null) {
-          next.set(inv.id, inv.assigned_bank_account_id)
+          next.set(inv.id, inv.assigned_bank_account_id);
         }
       }
-      return next
-    })
-  }, [data])
+      return next;
+    });
+  }, [data]);
 
   // Sync supplierBankAssignments from API data
   useEffect(() => {
-    if (!data?.data || data.data.length === 0) return
+    if (!data?.data || data.data.length === 0) return;
     setSupplierBankAssignments((prev) => {
-      const next = new Map(prev)
+      const next = new Map(prev);
       for (const inv of data.data) {
         if (!next.has(inv.id) && inv.supplier_bank_account_id != null) {
-          next.set(inv.id, inv.supplier_bank_account_id)
+          next.set(inv.id, inv.supplier_bank_account_id);
         }
       }
-      return next
-    })
-  }, [data])
+      return next;
+    });
+  }, [data]);
 
-  const isMaxReached = selectedIds.size >= MAX_SELECTION
+  const isMaxReached = selectedIds.size >= MAX_SELECTION;
 
   const handleToggle = useCallback(
     (invoiceId: string, checked: boolean) => {
       setSelectedIds((prev) => {
-        const next = new Set(prev)
+        const next = new Set(prev);
         if (checked) {
-          if (next.size >= MAX_SELECTION) return prev
-          next.add(invoiceId)
+          if (next.size >= MAX_SELECTION) return prev;
+          next.add(invoiceId);
         } else {
-          next.delete(invoiceId)
+          next.delete(invoiceId);
         }
-        return next
-      })
+        return next;
+      });
       // Track remaining_amount for total calculation
       if (checked) {
-        const inv = invoices.find((i) => i.id === invoiceId)
+        const inv = invoices.find((i) => i.id === invoiceId);
         if (inv) {
           setSelectedAmounts((prev) => {
-            const next = new Map(prev)
-            next.set(invoiceId, inv.remaining_amount)
-            return next
-          })
+            const next = new Map(prev);
+            next.set(invoiceId, inv.remaining_amount);
+            return next;
+          });
         }
       } else {
         setSelectedAmounts((prev) => {
-          const next = new Map(prev)
-          next.delete(invoiceId)
-          return next
-        })
+          const next = new Map(prev);
+          next.delete(invoiceId);
+          return next;
+        });
         // V2: Reset bank account assignment when unchecking
         setBankAccountAssignments((prev) => {
-          const next = new Map(prev)
-          next.delete(invoiceId)
-          return next
-        })
+          const next = new Map(prev);
+          next.delete(invoiceId);
+          return next;
+        });
         setSupplierBankAssignments((prev) => {
-          const next = new Map(prev)
-          next.delete(invoiceId)
-          return next
-        })
+          const next = new Map(prev);
+          next.delete(invoiceId);
+          return next;
+        });
       }
     },
     [invoices],
-  )
+  );
 
   const handleToggleAll = useCallback(
     (checked: boolean) => {
       setSelectedIds((prev) => {
-        const next = new Set(prev)
+        const next = new Set(prev);
         if (checked) {
           for (const inv of invoices) {
-            if (next.size >= MAX_SELECTION) break
-            next.add(inv.id)
+            if (next.size >= MAX_SELECTION) break;
+            next.add(inv.id);
           }
         } else {
           for (const inv of invoices) {
-            next.delete(inv.id)
+            next.delete(inv.id);
           }
         }
-        return next
-      })
+        return next;
+      });
       setSelectedAmounts((prev) => {
-        const next = new Map(prev)
+        const next = new Map(prev);
         if (checked) {
           for (const inv of invoices) {
-            if (next.size >= MAX_SELECTION) break
-            next.set(inv.id, inv.remaining_amount)
+            if (next.size >= MAX_SELECTION) break;
+            next.set(inv.id, inv.remaining_amount);
           }
         } else {
           for (const inv of invoices) {
-            next.delete(inv.id)
+            next.delete(inv.id);
           }
         }
-        return next
-      })
+        return next;
+      });
       // V2: Reset bank account assignments when unchecking all
       if (!checked) {
         setBankAccountAssignments((prev) => {
-          const next = new Map(prev)
+          const next = new Map(prev);
           for (const inv of invoices) {
-            next.delete(inv.id)
+            next.delete(inv.id);
           }
-          return next
-        })
+          return next;
+        });
       }
     },
     [invoices],
-  )
+  );
 
   const handlePageChange = useCallback((newPage: number) => {
-    setPage(newPage)
-  }, [])
+    setPage(newPage);
+  }, []);
 
   const handleLimitChange = useCallback((newLimit: number) => {
-    setLimit(newLimit)
-    setPage(1)
-  }, [])
+    setLimit(newLimit);
+    setPage(1);
+  }, []);
 
   const handleClearSelection = useCallback(() => {
-    setSelectedIds(new Set())
-    setSelectedAmounts(new Map())
-    setBankAccountAssignments(new Map())
-    setSupplierBankAssignments(new Map())
-  }, [])
+    setSelectedIds(new Set());
+    setSelectedAmounts(new Map());
+    setBankAccountAssignments(new Map());
+    setSupplierBankAssignments(new Map());
+  }, []);
 
   // V2: Handle bank account assignment change per invoice (auto-save to DB)
   const handleBankAccountChange = useCallback(
     (invoiceId: string, bankAccountId: number | null) => {
       setBankAccountAssignments((prev) => {
-        const next = new Map(prev)
-        next.set(invoiceId, bankAccountId)
-        return next
-      })
+        const next = new Map(prev);
+        next.set(invoiceId, bankAccountId);
+        return next;
+      });
       // Auto-save to database
-      assignMutation.mutate({ invoiceId, bankAccountId })
+      assignMutation.mutate({ invoiceId, bankAccountId });
     },
     [assignMutation],
-  )
-
+  );
 
   const handleSupplierBankAccountChange = useCallback(
     (invoiceId: string, supplierBankAccountId: number | null) => {
       setSupplierBankAssignments((prev) => {
-        const next = new Map(prev)
-        next.set(invoiceId, supplierBankAccountId)
-        return next
-      })
-      assignSupplierBankMutation.mutate({ invoiceId, supplierBankAccountId })
+        const next = new Map(prev);
+        next.set(invoiceId, supplierBankAccountId);
+        return next;
+      });
+      assignSupplierBankMutation.mutate({ invoiceId, supplierBankAccountId });
     },
     [assignSupplierBankMutation],
-  )
+  );
 
   const totalRemainingAmount = useMemo(() => {
-    let total = 0
+    let total = 0;
     selectedAmounts.forEach((amount) => {
-      total += amount
-    })
-    return total
-  }, [selectedAmounts])
+      total += amount;
+    });
+    return total;
+  }, [selectedAmounts]);
 
   // Check if all current page invoices are selected
   const allPageSelected =
-    invoices.length > 0 && invoices.every((inv) => selectedIds.has(inv.id))
+    invoices.length > 0 && invoices.every((inv) => selectedIds.has(inv.id));
   const somePageSelected =
-    invoices.some((inv) => selectedIds.has(inv.id)) && !allPageSelected
+    invoices.some((inv) => selectedIds.has(inv.id)) && !allPageSelected;
 
   if (isError) {
     return (
@@ -260,7 +273,7 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
           Gagal memuat data invoice outstanding
         </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -294,7 +307,7 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                       type="checkbox"
                       checked={allPageSelected}
                       ref={(el) => {
-                        if (el) el.indeterminate = somePageSelected
+                        if (el) el.indeterminate = somePageSelected;
                       }}
                       onChange={(e) => handleToggleAll(e.target.checked)}
                       disabled={isMaxReached && !allPageSelected}
@@ -303,16 +316,32 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                     />
                   </th>
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                    No. Invoice
+                    Nama Cabang
                   </th>
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Supplier
                   </th>
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                    Cabang
+                    Total
+                  </th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[200px]">
+                    <div className="flex items-center gap-1.5">
+                      <span>Rekening Bayar</span>
+                      {isBankAccountsError && (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs text-red-500"
+                          title="Gagal memuat data rekening"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[180px]">
+                    Rek. Tujuan
                   </th>
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                    Total
+                    No. Invoice
                   </th>
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Sisa
@@ -329,19 +358,6 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Pembayaran
                   </th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[180px]">
-                    Rek. Tujuan
-                  </th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300 min-w-[200px]">
-                    <div className="flex items-center gap-1.5">
-                      <span>Rekening Bayar</span>
-                      {isBankAccountsError && (
-                        <span className="inline-flex items-center gap-1 text-xs text-red-500" title="Gagal memuat data rekening">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                        </span>
-                      )}
-                    </div>
-                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rose-100 dark:divide-gray-700 whitespace-nowrap">
@@ -357,8 +373,12 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
                     onBankAccountChange={handleBankAccountChange}
                     isBankAccountsLoading={isBankAccountsLoading}
                     isBankAccountsError={isBankAccountsError}
-                    supplierBankAccountId={supplierBankAssignments.get(inv.id) ?? null}
-                    onSupplierBankAccountChange={handleSupplierBankAccountChange}
+                    supplierBankAccountId={
+                      supplierBankAssignments.get(inv.id) ?? null
+                    }
+                    onSupplierBankAccountChange={
+                      handleSupplierBankAccountChange
+                    }
                   />
                 ))}
               </tbody>
@@ -369,7 +389,9 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
 
       {/* Pagination */}
       {pagination && pagination.total > 0 && (
-        <div className={`border-t ${apTheme.divideBorder} bg-white/85 dark:bg-gray-800 backdrop-blur-md px-4 py-3`}>
+        <div
+          className={`border-t ${apTheme.divideBorder} bg-white/85 dark:bg-gray-800 backdrop-blur-md px-4 py-3`}
+        >
           <Pagination
             pagination={{
               ...pagination,
@@ -396,23 +418,29 @@ export function OutstandingInvoicesTab({ filters }: OutstandingInvoicesTabProps)
         bankAccountAssignments={bankAccountAssignments}
       />
     </div>
-  )
+  );
 }
 
 // --- Invoice Row sub-component ---
 
 interface InvoiceRowProps {
-  invoice: OutstandingInvoiceRow
-  selected: boolean
-  disabled: boolean
-  onToggle: (id: string, checked: boolean) => void
-  bankAccounts: import('../hooks/useCompanyBankAccounts').CompanyBankAccount[]
-  bankAccountId: number | null
-  onBankAccountChange: (invoiceId: string, bankAccountId: number | null) => void
-  supplierBankAccountId: number | null
-  onSupplierBankAccountChange: (invoiceId: string, supplierBankAccountId: number | null) => void
-  isBankAccountsLoading: boolean
-  isBankAccountsError: boolean
+  invoice: OutstandingInvoiceRow;
+  selected: boolean;
+  disabled: boolean;
+  onToggle: (id: string, checked: boolean) => void;
+  bankAccounts: import("../hooks/useCompanyBankAccounts").CompanyBankAccount[];
+  bankAccountId: number | null;
+  onBankAccountChange: (
+    invoiceId: string,
+    bankAccountId: number | null,
+  ) => void;
+  supplierBankAccountId: number | null;
+  onSupplierBankAccountChange: (
+    invoiceId: string,
+    supplierBankAccountId: number | null,
+  ) => void;
+  isBankAccountsLoading: boolean;
+  isBankAccountsError: boolean;
 }
 
 function InvoiceRow({
@@ -428,31 +456,35 @@ function InvoiceRow({
   isBankAccountsLoading,
   isBankAccountsError,
 }: InvoiceRowProps) {
-  const isPartiallyPaid = invoice.remaining_amount < invoice.total_amount
+  const isPartiallyPaid = invoice.remaining_amount < invoice.total_amount;
 
   // Invoice verification status (existing)
   const invoiceStatusLabel =
-    invoice.invoice_status === 'APPROVED' ? 'Siap Bayar' : 'Sudah Posting'
+    invoice.invoice_status === "APPROVED" ? "Siap Bayar" : "Sudah Posting";
   const invoiceStatusColor =
-    invoice.invoice_status === 'APPROVED'
-      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-      : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+    invoice.invoice_status === "APPROVED"
+      ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+      : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
 
   // AP Payment flow status (new column)
-  let paymentFlowLabel: string
-  let paymentFlowColor: string
+  let paymentFlowLabel: string;
+  let paymentFlowColor: string;
   if (isPartiallyPaid) {
-    paymentFlowLabel = 'Partial Paid'
-    paymentFlowColor = 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    paymentFlowLabel = "Partial Paid";
+    paymentFlowColor =
+      "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
   } else {
-    paymentFlowLabel = 'Belum Dibayar'
-    paymentFlowColor = 'bg-gray-50 text-gray-600 dark:bg-gray-700/50 dark:text-gray-400'
+    paymentFlowLabel = "Belum Dibayar";
+    paymentFlowColor =
+      "bg-gray-50 text-gray-600 dark:bg-gray-700/50 dark:text-gray-400";
   }
 
-  const isBankDropdownDisabled = isBankAccountsLoading || isBankAccountsError
+  const isBankDropdownDisabled = isBankAccountsLoading || isBankAccountsError;
 
   return (
-    <tr className={`${apTheme.hoverRow} ${selected ? 'bg-rose-50/50 dark:bg-gray-700/40' : ''}`}>
+    <tr
+      className={`${apTheme.hoverRow} ${selected ? "bg-rose-50/50 dark:bg-gray-700/40" : ""}`}
+    >
       <td className="px-2 py-2">
         <input
           type="checkbox"
@@ -463,19 +495,55 @@ function InvoiceRow({
           aria-label={`Pilih invoice ${invoice.invoice_number}`}
         />
       </td>
+      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+        {invoice.branch_name}
+      </td>
+      <td className="px-2 py-2">
+        <div className="text-gray-900 dark:text-white">
+          {invoice.supplier_name}
+        </div>
+      </td>
+      <td className="px-2 py-2 text-gray-900 dark:text-white whitespace-nowrap">
+        {fmtCurrency(invoice.total_amount)}
+      </td>
+      <td className="px-2 py-2">
+        <BankAccountSelector
+          accounts={bankAccounts}
+          value={bankAccountId}
+          onChange={(id) => onBankAccountChange(invoice.id, id)}
+          disabled={isBankDropdownDisabled}
+          canViewBalance={false}
+        />
+      </td>
+      <td className="px-2 py-2 max-w-[180px]">
+        {invoice.supplier_bank_accounts.length === 0 ? (
+          <span className="text-xs text-gray-400">—</span>
+        ) : (
+          <select
+            value={supplierBankAccountId ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              onSupplierBankAccountChange(
+                invoice.id,
+                v === "" ? null : Number(v),
+              );
+            }}
+            className={`${apTheme.select} w-full text-sm`}
+          >
+            <option value="">Pilih rekening...</option>
+            {invoice.supplier_bank_accounts.map((ba) => (
+              <option key={ba.id} value={ba.id}>
+                {ba.bank_name} — {ba.account_number}
+                {ba.account_name ? ` · ${ba.account_name}` : ""}
+              </option>
+            ))}
+          </select>
+        )}
+      </td>
       <td className="px-2 py-2 font-medium text-gray-900 dark:text-white max-w-[140px]">
         <span className="block truncate" title={invoice.invoice_number}>
           {invoice.invoice_number}
         </span>
-      </td>
-      <td className="px-2 py-2">
-        <div className="text-gray-900 dark:text-white">{invoice.supplier_name}</div>
-      </td>
-      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-        {invoice.branch_name}
-      </td>
-      <td className="px-2 py-2 text-gray-900 dark:text-white whitespace-nowrap">
-        {fmtCurrency(invoice.total_amount)}
       </td>
       <td className="px-2 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap">
         {fmtCurrency(invoice.remaining_amount)}
@@ -485,7 +553,9 @@ function InvoiceRow({
       </td>
       <td className="px-2 py-2 whitespace-nowrap">
         <div className="flex items-center gap-2">
-          <span className="text-gray-700 dark:text-gray-300">{fmtDate(invoice.due_date)}</span>
+          <span className="text-gray-700 dark:text-gray-300">
+            {fmtDate(invoice.due_date)}
+          </span>
           <AgingBadge dueDate={invoice.due_date} />
         </div>
       </td>
@@ -503,37 +573,6 @@ function InvoiceRow({
           {paymentFlowLabel}
         </span>
       </td>
-      <td className="px-2 py-2 min-w-[180px]">
-        {invoice.supplier_bank_accounts.length === 0 ? (
-          <span className="text-xs text-gray-400">—</span>
-        ) : (
-          <select
-            value={supplierBankAccountId ?? ''}
-            onChange={(e) => {
-              const v = e.target.value
-              onSupplierBankAccountChange(invoice.id, v === '' ? null : Number(v))
-            }}
-            className={`${apTheme.select} w-full text-sm`}
-          >
-            <option value="">Pilih rekening...</option>
-            {invoice.supplier_bank_accounts.map((ba) => (
-              <option key={ba.id} value={ba.id}>
-                {ba.bank_name} — {ba.account_number}
-                {ba.account_name ? ` · ${ba.account_name}` : ''}
-              </option>
-            ))}
-          </select>
-        )}
-      </td>
-      <td className="px-2 py-2">
-        <BankAccountSelector
-          accounts={bankAccounts}
-          value={bankAccountId}
-          onChange={(id) => onBankAccountChange(invoice.id, id)}
-          disabled={isBankDropdownDisabled}
-          canViewBalance={false}
-        />
-      </td>
     </tr>
-  )
+  );
 }
