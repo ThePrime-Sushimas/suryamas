@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
-import { Wallet, Search, X, LayoutDashboard, ShieldCheck, FileSpreadsheet } from 'lucide-react'
+import { Wallet, Search, X, LayoutDashboard, ShieldCheck, FileSpreadsheet, GripVertical } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -45,6 +45,11 @@ const fmtCurrency = (v: number) =>
 const fmtDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
+// ── Min/max ratio constraints for the split panels (as percentages) ──
+const SPLIT_MIN_PCT = 20
+const SPLIT_MAX_PCT = 80
+const SPLIT_DEFAULT_PCT = 42 // ~3/7 of original layout
+
 export default function ApPaymentsPage() {
   const { openDetail } = useListNavigation(AP_PAYMENTS_LIST_PATH)
   const toast = useToast()
@@ -84,6 +89,11 @@ export default function ApPaymentsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<ApPayment | null>(null)
   const [showVerify, setShowVerify] = useState(false)
+
+  // ── Resizable split state ──
+  const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
+  const isDraggingRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const { data: suppliersData } = useSuppliers({ limit: 100, is_active: true })
   const { data: branchesData } = useBranches({ limit: 100 })
@@ -144,6 +154,38 @@ export default function ApPaymentsPage() {
       else next.add(batchId)
       return next
     })
+  }, [])
+
+  // ── Drag-to-resize handlers ──
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDraggingRef.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current || !containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const rawPct = ((ev.clientX - rect.left) / rect.width) * 100
+      const clamped = Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, rawPct))
+      setSplitPct(clamped)
+    }
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [])
+
+  // Double-click handle → reset to default ratio
+  const handleDragDoubleClick = useCallback(() => {
+    setSplitPct(SPLIT_DEFAULT_PCT)
   }, [])
 
   const rowHandlers = {
@@ -249,10 +291,19 @@ export default function ApPaymentsPage() {
 
       {/* Split Panels */}
       <div className="flex-1 overflow-auto p-4 sm:p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-7 gap-4 h-full">
 
+        {/* ── Desktop: resizable side-by-side ── */}
+        {/* ── Mobile/tablet: stacked (handled via CSS — container is flex-col below lg) ── */}
+        <div
+          ref={containerRef}
+          className="hidden lg:flex h-full gap-0 rounded-xl overflow-hidden border border-rose-200/80 dark:border-gray-700"
+          style={{ minHeight: 500 }}
+        >
           {/* ═══ LEFT PANEL: Invoice Outstanding ═══ */}
-          <div className={`${apTheme.card} flex flex-col min-h-[500px] overflow-hidden lg:col-span-3`}>
+          <div
+            className={`${apTheme.card} flex flex-col overflow-hidden rounded-none border-0`}
+            style={{ width: `${splitPct}%`, minWidth: 0, flexShrink: 0 }}
+          >
             <div className="px-4 py-3 border-b border-rose-200/80 dark:border-gray-700">
               <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Invoice Outstanding</h2>
               {/* Panel-specific date filters */}
@@ -282,8 +333,32 @@ export default function ApPaymentsPage() {
             </div>
           </div>
 
+          {/* ═══ DRAG HANDLE ═══ */}
+          <div
+            role="separator"
+            aria-label="Geser untuk resize panel"
+            aria-orientation="vertical"
+            className="
+              shrink-0 w-2 flex items-center justify-center
+              bg-rose-50 dark:bg-gray-800
+              border-x border-rose-200/80 dark:border-gray-700
+              cursor-col-resize select-none
+              transition-colors
+              hover:bg-rose-100 dark:hover:bg-gray-700
+              active:bg-rose-200 dark:active:bg-gray-600
+              group
+            "
+            onMouseDown={handleDragStart}
+            onDoubleClick={handleDragDoubleClick}
+            title="Geser untuk resize · Klik dua kali untuk reset"
+          >
+            <GripVertical className="w-3 h-3 text-rose-300 dark:text-gray-500 group-hover:text-rose-500 dark:group-hover:text-gray-400 transition-colors" />
+          </div>
+
           {/* ═══ RIGHT PANEL: Pembayaran ═══ */}
-          <div className={`${apTheme.card} flex flex-col min-h-[500px] overflow-hidden lg:col-span-4`}>
+          <div
+            className={`${apTheme.card} flex flex-col overflow-hidden rounded-none border-0 flex-1 min-w-0`}
+          >
             <div className="px-4 py-3 border-b border-rose-200/80 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Pembayaran</h2>
@@ -295,7 +370,7 @@ export default function ApPaymentsPage() {
                     key={tab.id}
                     type="button"
                     onClick={() => { setPayTab(tab.id); setPayPage(1) }}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                       payTab === tab.id ? apTheme.listTabActive : apTheme.listTabInactive
                     }`}
                   >
@@ -387,6 +462,138 @@ export default function ApPaymentsPage() {
             )}
           </div>
         </div>
+
+        {/* ── Mobile/tablet: stacked layout (< lg) ── */}
+        <div className="flex lg:hidden flex-col gap-4">
+
+          {/* LEFT PANEL */}
+          <div className={`${apTheme.card} flex flex-col min-h-[400px] overflow-hidden`}>
+            <div className="px-4 py-3 border-b border-rose-200/80 dark:border-gray-700">
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Invoice Outstanding</h2>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tgl Terima:</span>
+                  <input type="date" value={outReceivedFrom} onChange={(e) => setOutReceivedFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-400">—</span>
+                  <input type="date" value={outReceivedTo} onChange={(e) => setOutReceivedTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
+                  <input type="date" value={outDueFrom} onChange={(e) => setOutDueFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-400">—</span>
+                  <input type="date" value={outDueTo} onChange={(e) => setOutDueTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                </div>
+              </div>
+              {isDateRangeInvalid(outReceivedFrom, outReceivedTo) && (
+                <p className="mt-1 text-xs text-red-600">Tanggal terima awal harus sebelum akhir</p>
+              )}
+              {isDateRangeInvalid(outDueFrom, outDueTo) && (
+                <p className="mt-1 text-xs text-red-600">Jatuh tempo awal harus sebelum akhir</p>
+              )}
+            </div>
+            <div className="flex-1 overflow-auto">
+              <OutstandingInvoicesTab filters={outstandingFilters} />
+            </div>
+          </div>
+
+          {/* RIGHT PANEL */}
+          <div className={`${apTheme.card} flex flex-col min-h-[400px] overflow-hidden`}>
+            <div className="px-4 py-3 border-b border-rose-200/80 dark:border-gray-700">
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Pembayaran</h2>
+              <div className="flex gap-1 mt-2 overflow-x-auto">
+                {PAYMENT_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => { setPayTab(tab.id); setPayPage(1) }}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                      payTab === tab.id ? apTheme.listTabActive : apTheme.listTabInactive
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tgl Bayar:</span>
+                  <input type="date" value={payDateFrom} onChange={(e) => setPayDateFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-400">—</span>
+                  <input type="date" value={payDateTo} onChange={(e) => setPayDateTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
+                  <input type="date" value={payDueFrom} onChange={(e) => setPayDueFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-400">—</span>
+                  <input type="date" value={payDueTo} onChange={(e) => setPayDueTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                </div>
+              </div>
+              {isDateRangeInvalid(payDateFrom, payDateTo) && (
+                <p className="mt-1 text-xs text-red-600">Tanggal bayar awal harus sebelum akhir</p>
+              )}
+              {isDateRangeInvalid(payDueFrom, payDueTo) && (
+                <p className="mt-1 text-xs text-red-600">Jatuh tempo awal harus sebelum akhir</p>
+              )}
+            </div>
+            <div className="flex-1 overflow-auto">
+              {payLoading ? (
+                <div className="p-4 space-y-3">
+                  {[1, 2, 3].map((i) => (<div key={i} className={apTheme.skeleton} />))}
+                </div>
+              ) : payments.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className={apTheme.muted}>Belum ada pembayaran</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-rose-200/80 dark:border-gray-700">
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">No. Pembayaran</th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Tgl Bayar</th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Supplier</th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Total</th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
+                        {isPaidTab && canUpdate && (
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Journal</th>
+                        )}
+                        {canDelete && <th className="px-2 py-2 w-8" />}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
+                      {paymentGroups.map((group) =>
+                        group.kind === 'batch' ? (
+                          <BulkPaymentBatchRows
+                            key={group.batchId}
+                            batchId={group.batchId}
+                            payments={group.payments}
+                            expanded={expandedBatches.has(group.batchId)}
+                            onToggle={() => toggleBatch(group.batchId)}
+                            {...rowHandlers}
+                          />
+                        ) : (
+                          <PaymentRow key={group.payment.id} payment={group.payment} {...rowHandlers} />
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            {payPagination && payPagination.total > 0 && (
+              <div className="border-t border-rose-200/80 dark:border-gray-700 px-3 py-2">
+                <Pagination
+                  pagination={payPagination}
+                  onPageChange={setPayPage}
+                  onLimitChange={(l) => { setPayLimit(l); setPayPage(1) }}
+                  currentLength={payments.length}
+                  loading={payLoading}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
 
       <ConfirmModal
