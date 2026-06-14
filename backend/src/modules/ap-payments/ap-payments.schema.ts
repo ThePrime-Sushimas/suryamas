@@ -113,6 +113,7 @@ export const outstandingInvoicesQuerySchema = z.object({
     date_to:     z.string().date().optional(),
     due_date_from: z.string().date().optional(),
     due_date_to:   z.string().date().optional(),
+    assigned_bank_account_id: z.coerce.number().int().optional(),
     search:      z.string().max(100).optional(),
     page:        z.coerce.number().int().min(1).default(1),
     limit:       z.coerce.number().int().min(1).max(100).default(20),

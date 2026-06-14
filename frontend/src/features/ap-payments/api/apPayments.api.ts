@@ -706,7 +706,10 @@ export interface CombinedInvoicePaymentRow {
   earliest_received_date: string | null
 }
 
-export const useCombinedInvoicePayments = (params: CombinedInvoicePaymentQuery) =>
+export const useCombinedInvoicePayments = (
+  params: CombinedInvoicePaymentQuery,
+  options?: { enabled?: boolean }
+) =>
   useQuery({
     queryKey: ['ap-payments', 'combined', params] as const,
     queryFn: async () => {
@@ -716,4 +719,5 @@ export const useCombinedInvoicePayments = (params: CombinedInvoicePaymentQuery) 
         pagination: data.pagination as PaginationMeta,
       }
     },
+    ...options,
   })

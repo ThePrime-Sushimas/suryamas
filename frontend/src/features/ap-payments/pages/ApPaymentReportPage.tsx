@@ -59,6 +59,7 @@ export default function ApPaymentReportPage() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(DEFAULT_PAGE_SIZE)
   const [isExporting, setIsExporting] = useState(false)
+  const [hasApplied, setHasApplied] = useState(false)
 
   const { data: suppliersData } = useSuppliers({ limit: 100, is_active: true })
   const { data: branchesData } = useBranches({ limit: 100 })
@@ -88,19 +89,21 @@ export default function ApPaymentReportPage() {
     [page, limit, filters],
   )
 
-  const { data, isLoading, isError } = useCombinedInvoicePayments(query)
+  const { data, isLoading, isError } = useCombinedInvoicePayments(query, { enabled: hasApplied })
   const rows = data?.data ?? []
   const pagination = data?.pagination
 
   const applyFilters = useCallback(() => {
     setFilters({ ...draft })
     setPage(1)
+    setHasApplied(true)
   }, [draft])
 
   const resetFilters = useCallback(() => {
     setDraft(EMPTY_FILTERS)
     setFilters(EMPTY_FILTERS)
     setPage(1)
+    setHasApplied(false)
   }, [])
 
   const handleExport = async () => {
@@ -241,6 +244,11 @@ export default function ApPaymentReportPage() {
             <AlertCircle className="w-10 h-10 text-red-400" />
             <p className="text-sm text-gray-600 dark:text-gray-400">Gagal memuat data</p>
           </div>
+        ) : !hasApplied ? (
+          <div className={`text-center py-16 ${apTheme.card} p-8`}>
+            <Filter className="mx-auto w-12 h-12 text-rose-200 dark:text-gray-600 mb-4" />
+            <p className={apTheme.muted}>Silakan atur filter dan tekan "Terapkan" untuk menampilkan data.</p>
+          </div>
         ) : isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -250,7 +258,7 @@ export default function ApPaymentReportPage() {
         ) : rows.length === 0 ? (
           <div className={`text-center py-16 ${apTheme.card} p-8`}>
             <FileSpreadsheet className="mx-auto w-12 h-12 text-rose-200 dark:text-gray-600 mb-4" />
-            <p className={apTheme.muted}>Tidak ada data. Pilih filter tanggal untuk memulai.</p>
+            <p className={apTheme.muted}>Tidak ada data yang sesuai dengan filter Anda.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -332,6 +332,7 @@ export interface OutstandingInvoicesQuery {
   date_to?: string
   due_date_from?: string
   due_date_to?: string
+  assigned_bank_account_id?: number
   search?: string
   page?: number
   limit?: number

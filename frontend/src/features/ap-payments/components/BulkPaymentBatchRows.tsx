@@ -42,6 +42,14 @@ function PaymentRow({
       onClick={() => onOpen(p.id)}
       className={`${apTheme.hoverRow} cursor-pointer ${nested ? 'bg-violet-50/40 dark:bg-violet-950/20' : ''}`}
     >
+      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{p.supplier_name}</td>
+      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(p.paid_at)}</td>
+      <td className="px-2 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+        {fmtCurrency(Number(p.total_amount))}
+      </td>
+      <td className="px-2 py-2 whitespace-nowrap">
+        <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>{st.label}</span>
+      </td>
       <td className={`px-2 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap ${nested ? 'pl-6' : ''}`}>
         <div className="flex flex-col gap-0.5">
           <span>{p.payment_number}</span>
@@ -51,14 +59,6 @@ function PaymentRow({
             </span>
           )}
         </div>
-      </td>
-      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(p.paid_at)}</td>
-      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{p.supplier_name}</td>
-      <td className="px-2 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap">
-        {fmtCurrency(Number(p.total_amount))}
-      </td>
-      <td className="px-2 py-2 whitespace-nowrap">
-        <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>{st.label}</span>
       </td>
       {isPaidTab && canUpdate && (
         <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -154,11 +154,13 @@ export function BulkPaymentBatchRows({
             ) : (
               <ChevronRight className="w-4 h-4 text-violet-600 shrink-0" />
             )}
-            <BulkBadge batchId={batchId} />
-            <span className="text-xs font-semibold text-gray-900 dark:text-white">
+            <span className="text-xs font-semibold text-gray-900 dark:text-white truncate max-w-[250px]">
+              {supplierLabel}
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               {paymentCount} pembayaran · {invoiceCount} invoice
             </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{supplierLabel}</span>
+            <BulkBadge batchId={batchId} />
             <span className="text-xs font-semibold text-gray-900 dark:text-white ml-auto whitespace-nowrap">
               {rowProps.fmtCurrency(totalAmount)}
             </span>

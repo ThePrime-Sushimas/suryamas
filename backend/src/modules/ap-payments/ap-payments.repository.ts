@@ -1004,6 +1004,14 @@ export class ApPaymentsRepository {
       conditions.push(`pi.due_date <= $${idx++}`)
       params.push(query.due_date_to)
     }
+    if (query.assigned_bank_account_id !== undefined) {
+      if (query.assigned_bank_account_id === -1) {
+        conditions.push(`pi.assigned_bank_account_id IS NULL`)
+      } else {
+        conditions.push(`pi.assigned_bank_account_id = $${idx++}`)
+        params.push(query.assigned_bank_account_id)
+      }
+    }
     if (query.search) {
       conditions.push(`(pi.invoice_number ILIKE $${idx} OR s.supplier_name ILIKE $${idx})`)
       params.push(`%${query.search}%`)

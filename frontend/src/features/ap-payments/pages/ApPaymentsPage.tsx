@@ -1,105 +1,136 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { useListNavigation } from '@/lib/urlFilters'
-import { Wallet, Search, X, LayoutDashboard, ShieldCheck, FileSpreadsheet, GripVertical } from 'lucide-react'
-import { useToast } from '@/contexts/ToastContext'
-import { parseApiError } from '@/lib/errorParser'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import { Pagination } from '@/components/ui/Pagination'
-import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { useSuppliers } from '@/features/suppliers/api/suppliers.api'
-import { useBranches } from '@/features/branches/api/branches.api'
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { Link } from "react-router-dom";
+import { useListNavigation } from "@/lib/urlFilters";
+import {
+  Wallet,
+  Search,
+  X,
+  LayoutDashboard,
+  ShieldCheck,
+  FileSpreadsheet,
+  GripVertical,
+} from "lucide-react";
+import { useToast } from "@/contexts/ToastContext";
+import { parseApiError } from "@/lib/errorParser";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePermissionStore } from "@/features/branch_context/store/permission.store";
+import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
+import { useBranches } from "@/features/branches/api/branches.api";
+import { useCompanyBankAccounts } from "../hooks/useCompanyBankAccounts";
 import {
   AP_PAYMENTS_LIST_PATH,
   AP_DASHBOARD_PATH,
   AP_PAYMENTS_PAY_TAB_KEY,
-} from '../constants'
-import { isDateRangeInvalid } from '../utils/apPaymentFilters.url'
+} from "../constants";
+import { isDateRangeInvalid } from "../utils/apPaymentFilters.url";
 import {
   useApPayments,
   useApPayment,
   useDeleteApPayment,
   usePostApPaymentJournal,
   type ApPayment,
-} from '../api/apPayments.api'
-import { ApPaymentDeleteConfirmMessage } from '../components/ApPaymentDeleteConfirmMessage'
-import { ApPaymentsShell } from '../components/ApPaymentsShell'
-import { BulkPaymentBatchRows, PaymentRow } from '../components/BulkPaymentBatchRows'
-import { groupApPaymentsForList } from '../utils/groupPaymentsByBatch'
-import { OutstandingInvoicesTab } from '../components/OutstandingInvoicesTab'
-import { VerifyScreenshotModal } from '../components/VerifyScreenshotModal'
-import { apTheme } from '../ap-payments.theme'
+} from "../api/apPayments.api";
+import { ApPaymentDeleteConfirmMessage } from "../components/ApPaymentDeleteConfirmMessage";
+import { ApPaymentsShell } from "../components/ApPaymentsShell";
+import {
+  BulkPaymentBatchRows,
+  PaymentRow,
+} from "../components/BulkPaymentBatchRows";
+import { groupApPaymentsForList } from "../utils/groupPaymentsByBatch";
+import { OutstandingInvoicesTab } from "../components/OutstandingInvoicesTab";
+import { VerifyScreenshotModal } from "../components/VerifyScreenshotModal";
+import { apTheme } from "../ap-payments.theme";
 
 const PAYMENT_TABS = [
-  { id: 'draft', label: 'Draft', status: 'DRAFT' },
-  { id: 'pending', label: 'Menunggu Pembayaran', status: 'APPROVED' },
-  { id: 'paid', label: 'Paid', status: 'PAID' },
-  { id: 'all', label: 'Semua', status: '' },
-] as const
+  { id: "draft", label: "Draft", status: "DRAFT" },
+  { id: "pending", label: "Menunggu Pembayaran", status: "APPROVED" },
+  { id: "paid", label: "Paid", status: "PAID" },
+  { id: "all", label: "Semua", status: "" },
+] as const;
 
-type PaymentTabId = (typeof PAYMENT_TABS)[number]['id']
+type PaymentTabId = (typeof PAYMENT_TABS)[number]["id"];
 
 const fmtCurrency = (v: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v)
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(v);
 
 const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  d
+    ? new Date(d).toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
 // ── Min/max ratio constraints for the split panels (as percentages) ──
-const SPLIT_MIN_PCT = 20
-const SPLIT_MAX_PCT = 80
-const SPLIT_DEFAULT_PCT = 42 // ~3/7 of original layout
+const SPLIT_MIN_PCT = 20;
+const SPLIT_MAX_PCT = 80;
+const SPLIT_DEFAULT_PCT = 42; // ~3/7 of original layout
 
 export default function ApPaymentsPage() {
-  const { openDetail } = useListNavigation(AP_PAYMENTS_LIST_PATH)
-  const toast = useToast()
-  const hasPermission = usePermissionStore((s) => s.hasPermission)
-  const canDelete = hasPermission('ap_payments', 'delete')
-  const canUpdate = hasPermission('ap_payments', 'update')
+  const { openDetail } = useListNavigation(AP_PAYMENTS_LIST_PATH);
+  const toast = useToast();
+  const hasPermission = usePermissionStore((s) => s.hasPermission);
+  const canDelete = hasPermission("ap_payments", "delete");
+  const canUpdate = hasPermission("ap_payments", "update");
 
   // ── Global filters (shared between panels) ──
-  const [globalSearch, setGlobalSearch] = useState('')
-  const [globalSupplierId, setGlobalSupplierId] = useState('')
-  const [globalBranchId, setGlobalBranchId] = useState('')
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [globalSupplierId, setGlobalSupplierId] = useState("");
+  const [globalBranchId, setGlobalBranchId] = useState("");
 
   // ── Left panel (Outstanding) filters ──
-  const [outReceivedFrom, setOutReceivedFrom] = useState('')
-  const [outReceivedTo, setOutReceivedTo] = useState('')
-  const [outDueFrom, setOutDueFrom] = useState('')
-  const [outDueTo, setOutDueTo] = useState('')
+  const [outReceivedFrom, setOutReceivedFrom] = useState("");
+  const [outReceivedTo, setOutReceivedTo] = useState("");
+  const [outDueFrom, setOutDueFrom] = useState("");
+  const [outDueTo, setOutDueTo] = useState("");
+  const [outBankAccountId, setOutBankAccountId] = useState("");
 
   // ── Right panel (Payments) filters ──
   const [payTab, setPayTab] = useState<PaymentTabId>(() => {
-    const stored = sessionStorage.getItem(AP_PAYMENTS_PAY_TAB_KEY)
-    if (stored === 'draft' || stored === 'pending' || stored === 'paid' || stored === 'all') {
-      sessionStorage.removeItem(AP_PAYMENTS_PAY_TAB_KEY)
-      return stored
+    const stored = sessionStorage.getItem(AP_PAYMENTS_PAY_TAB_KEY);
+    if (
+      stored === "draft" ||
+      stored === "pending" ||
+      stored === "paid" ||
+      stored === "all"
+    ) {
+      sessionStorage.removeItem(AP_PAYMENTS_PAY_TAB_KEY);
+      return stored;
     }
-    return 'all'
-  })
-  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(() => new Set())
+    return "all";
+  });
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(
+    () => new Set(),
+  );
   /** Batch IDs already auto-expanded once; avoids re-opening on refetch after user collapses */
-  const autoExpandedBatchesRef = useRef<Set<string>>(new Set())
-  const [payDateFrom, setPayDateFrom] = useState('')
-  const [payDateTo, setPayDateTo] = useState('')
-  const [payDueFrom, setPayDueFrom] = useState('')
-  const [payDueTo, setPayDueTo] = useState('')
-  const [payPage, setPayPage] = useState(1)
-  const [payLimit, setPayLimit] = useState(20)
+  const autoExpandedBatchesRef = useRef<Set<string>>(new Set());
+  const [payDateFrom, setPayDateFrom] = useState("");
+  const [payDateTo, setPayDateTo] = useState("");
+  const [payDueFrom, setPayDueFrom] = useState("");
+  const [payDueTo, setPayDueTo] = useState("");
+  const [payPage, setPayPage] = useState(1);
+  const [payLimit, setPayLimit] = useState(20);
 
-  const [deleteTarget, setDeleteTarget] = useState<ApPayment | null>(null)
-  const [showVerify, setShowVerify] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<ApPayment | null>(null);
+  const [showVerify, setShowVerify] = useState(false);
 
   // ── Resizable split state ──
-  const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
-  const isDraggingRef = useRef(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT);
+  const isDraggingRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: suppliersData } = useSuppliers({ limit: 100, is_active: true })
-  const { data: branchesData } = useBranches({ limit: 100 })
+  const { data: suppliersData } = useSuppliers({ limit: 100, is_active: true });
+  const { data: branchesData } = useBranches({ limit: 100 });
+  const { data: bankAccounts = [] } = useCompanyBankAccounts();
 
   // ── Right panel query ──
-  const payStatus = PAYMENT_TABS.find((t) => t.id === payTab)?.status ?? ''
+  const payStatus = PAYMENT_TABS.find((t) => t.id === payTab)?.status ?? "";
   const { data: payData, isLoading: payLoading } = useApPayments({
     page: payPage,
     limit: payLimit,
@@ -111,101 +142,113 @@ export default function ApPaymentsPage() {
     ...(payDateTo ? { date_to: payDateTo } : {}),
     ...(payDueFrom ? { due_date_from: payDueFrom } : {}),
     ...(payDueTo ? { due_date_to: payDueTo } : {}),
-  })
-  const deletePayment = useDeleteApPayment()
-  const postJournal = usePostApPaymentJournal()
-  const deletePaymentId = deleteTarget?.id
-  const { data: deleteDetail, isLoading: deleteDetailLoading } = useApPayment(deletePaymentId ?? '')
-  const deleteInvoiceNumbers = deleteDetail?.lines?.map((l) => l.invoice_number)
-  const isDeleteDetailLoading = !!deletePaymentId && deleteDetailLoading && !deleteDetail
+  });
+  const deletePayment = useDeleteApPayment();
+  const postJournal = usePostApPaymentJournal();
+  const deletePaymentId = deleteTarget?.id;
+  const { data: deleteDetail, isLoading: deleteDetailLoading } = useApPayment(
+    deletePaymentId ?? "",
+  );
+  const deleteInvoiceNumbers = deleteDetail?.lines?.map(
+    (l) => l.invoice_number,
+  );
+  const isDeleteDetailLoading =
+    !!deletePaymentId && deleteDetailLoading && !deleteDetail;
 
-  const payments = payData?.data ?? []
-  const payPagination = payData?.pagination
-  const isPaidTab = payTab === 'paid'
-  const groupBulkRows = payTab === 'draft' || payTab === 'all'
+  const payments = payData?.data ?? [];
+  const payPagination = payData?.pagination;
+  const isPaidTab = payTab === "paid";
+  const groupBulkRows = payTab === "draft" || payTab === "all";
 
   const paymentGroups = useMemo(
-    () => (groupBulkRows ? groupApPaymentsForList(payments) : payments.map((p) => ({ kind: 'single' as const, payment: p }))),
+    () =>
+      groupBulkRows
+        ? groupApPaymentsForList(payments)
+        : payments.map((p) => ({ kind: "single" as const, payment: p })),
     [payments, groupBulkRows],
-  )
+  );
 
   useEffect(() => {
-    if (!groupBulkRows) return
+    if (!groupBulkRows) return;
     const newlySeen = [
       ...new Set(
         payments
           .map((p) => p.bulk_payment_batch_id)
-          .filter((id): id is string => !!id && !autoExpandedBatchesRef.current.has(id)),
+          .filter(
+            (id): id is string =>
+              !!id && !autoExpandedBatchesRef.current.has(id),
+          ),
       ),
-    ]
-    if (newlySeen.length === 0) return
-    for (const id of newlySeen) autoExpandedBatchesRef.current.add(id)
+    ];
+    if (newlySeen.length === 0) return;
+    for (const id of newlySeen) autoExpandedBatchesRef.current.add(id);
     setExpandedBatches((prev) => {
-      const next = new Set(prev)
-      for (const id of newlySeen) next.add(id)
-      return next
-    })
-  }, [payments, groupBulkRows])
+      const next = new Set(prev);
+      for (const id of newlySeen) next.add(id);
+      return next;
+    });
+  }, [payments, groupBulkRows]);
 
   const toggleBatch = useCallback((batchId: string) => {
     setExpandedBatches((prev) => {
-      const next = new Set(prev)
-      if (next.has(batchId)) next.delete(batchId)
-      else next.add(batchId)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(batchId)) next.delete(batchId);
+      else next.add(batchId);
+      return next;
+    });
+  }, []);
 
   // ── Drag-to-resize handlers ──
   const handleDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    isDraggingRef.current = true
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
+    e.preventDefault();
+    isDraggingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
 
     const onMouseMove = (ev: MouseEvent) => {
-      if (!isDraggingRef.current || !containerRef.current) return
-      const rect = containerRef.current.getBoundingClientRect()
-      const rawPct = ((ev.clientX - rect.left) / rect.width) * 100
-      const clamped = Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, rawPct))
-      setSplitPct(clamped)
-    }
+      if (!isDraggingRef.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const rawPct = ((ev.clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, rawPct));
+      setSplitPct(clamped);
+    };
 
     const onMouseUp = () => {
-      isDraggingRef.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-    }
+      isDraggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
 
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-  }, [])
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, []);
 
   // Double-click handle → reset to default ratio
   const handleDragDoubleClick = useCallback(() => {
-    setSplitPct(SPLIT_DEFAULT_PCT)
-  }, [])
+    setSplitPct(SPLIT_DEFAULT_PCT);
+  }, []);
 
   const rowHandlers = {
     isPaidTab,
     canUpdate,
     canDelete,
-    onOpen: (paymentId: string) => openDetail(`${AP_PAYMENTS_LIST_PATH}/${paymentId}`),
+    onOpen: (paymentId: string) =>
+      openDetail(`${AP_PAYMENTS_LIST_PATH}/${paymentId}`),
     onDelete: setDeleteTarget,
     onPostJournal: async (p: ApPayment) => {
       try {
-        await postJournal.mutateAsync(p.id)
-        toast.success(`Journal ${p.payment_number} di-post`)
+        await postJournal.mutateAsync(p.id);
+        toast.success(`Journal ${p.payment_number} di-post`);
       } catch (err: unknown) {
-        toast.error(parseApiError(err, 'Gagal post journal'))
+        toast.error(parseApiError(err, "Gagal post journal"));
       }
     },
     postJournalPending: postJournal.isPending,
     fmtCurrency,
     fmtDate,
-  }
+  };
 
   // ── Outstanding filters object (passed to OutstandingInvoicesTab) ──
   const outstandingFilters = {
@@ -216,19 +259,22 @@ export default function ApPaymentsPage() {
     dateTo: outReceivedTo,
     dueFrom: outDueFrom,
     dueTo: outDueTo,
-  }
+    assignedBankAccountId: outBankAccountId
+      ? Number(outBankAccountId)
+      : undefined,
+  };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget) return;
     try {
-      await deletePayment.mutateAsync(deleteTarget.id)
-      toast.success('Pembayaran dihapus')
+      await deletePayment.mutateAsync(deleteTarget.id);
+      toast.success("Pembayaran dihapus");
     } catch (err: unknown) {
-      toast.error(parseApiError(err, 'Gagal menghapus'))
+      toast.error(parseApiError(err, "Gagal menghapus"));
     } finally {
-      setDeleteTarget(null)
+      setDeleteTarget(null);
     }
-  }
+  };
 
   return (
     <ApPaymentsShell className="flex flex-col h-full">
@@ -240,18 +286,31 @@ export default function ApPaymentsPage() {
               <Wallet className="w-6 h-6 shrink-0" />
             </div>
             <div className="min-w-0">
-              <h1 className={`text-lg sm:text-xl font-bold truncate ${apTheme.title}`}>AP Payments</h1>
-              <p className={`text-xs sm:text-sm ${apTheme.subtitle}`}>Pembayaran hutang dagang</p>
+              <h1
+                className={`text-lg sm:text-xl font-bold truncate ${apTheme.title}`}
+              >
+                AP Payments
+              </h1>
+              <p className={`text-xs sm:text-sm ${apTheme.subtitle}`}>
+                Pembayaran hutang dagang
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <Link to={AP_DASHBOARD_PATH} className={apTheme.btnSecondary}>
               <LayoutDashboard className="w-4 h-4" /> Dashboard
             </Link>
-            <Link to="/finance/ap-payments/report" className={apTheme.btnSecondary}>
+            <Link
+              to="/finance/ap-payments/report"
+              className={apTheme.btnSecondary}
+            >
               <FileSpreadsheet className="w-4 h-4" /> Report
             </Link>
-            <button type="button" onClick={() => setShowVerify(true)} className={apTheme.btnSecondary}>
+            <button
+              type="button"
+              onClick={() => setShowVerify(true)}
+              className={apTheme.btnSecondary}
+            >
               <ShieldCheck className="w-4 h-4" /> Verifikasi BCA
             </button>
           </div>
@@ -271,21 +330,37 @@ export default function ApPaymentsPage() {
               className={apTheme.inputSearch}
             />
             {globalSearch && (
-              <button type="button" onClick={() => setGlobalSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button
+                type="button"
+                onClick={() => setGlobalSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
-          <select value={globalSupplierId} onChange={(e) => setGlobalSupplierId(e.target.value)} className={apTheme.select}>
+          <select
+            value={globalSupplierId}
+            onChange={(e) => setGlobalSupplierId(e.target.value)}
+            className={apTheme.select}
+          >
             <option value="">Semua supplier</option>
             {(suppliersData?.data ?? []).map((s) => (
-              <option key={s.id} value={s.id}>{s.supplier_name}</option>
+              <option key={s.id} value={s.id}>
+                {s.supplier_name}
+              </option>
             ))}
           </select>
-          <select value={globalBranchId} onChange={(e) => setGlobalBranchId(e.target.value)} className={apTheme.select}>
+          <select
+            value={globalBranchId}
+            onChange={(e) => setGlobalBranchId(e.target.value)}
+            className={apTheme.select}
+          >
             <option value="">Semua cabang</option>
             {(branchesData?.data ?? []).map((b) => (
-              <option key={b.id} value={b.id}>{b.branch_name}</option>
+              <option key={b.id} value={b.id}>
+                {b.branch_name}
+              </option>
             ))}
           </select>
         </div>
@@ -293,7 +368,6 @@ export default function ApPaymentsPage() {
 
       {/* Split Panels */}
       <div className="flex-1 overflow-auto p-4 sm:p-6">
-
         {/* ── Desktop: resizable side-by-side ── */}
         {/* ── Mobile/tablet: stacked (handled via CSS — container is flex-col below lg) ── */}
         <div
@@ -307,27 +381,75 @@ export default function ApPaymentsPage() {
             style={{ width: `${splitPct}%`, minWidth: 0, flexShrink: 0 }}
           >
             <div className="px-4 py-3 border-b border-rose-200/80 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Invoice Outstanding</h2>
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                Invoice Outstanding
+              </h2>
               {/* Panel-specific date filters */}
               <div className="flex flex-wrap gap-2 mt-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tgl Terima:</span>
-                  <input type="date" value={outReceivedFrom} onChange={(e) => setOutReceivedFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Tgl Terima:
+                  </span>
+                  <input
+                    type="date"
+                    value={outReceivedFrom}
+                    onChange={(e) => setOutReceivedFrom(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={outReceivedTo} onChange={(e) => setOutReceivedTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <input
+                    type="date"
+                    value={outReceivedTo}
+                    onChange={(e) => setOutReceivedTo(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
-                  <input type="date" value={outDueFrom} onChange={(e) => setOutDueFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Jatuh Tempo:
+                  </span>
+                  <input
+                    type="date"
+                    value={outDueFrom}
+                    onChange={(e) => setOutDueFrom(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={outDueTo} onChange={(e) => setOutDueTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <input
+                    type="date"
+                    value={outDueTo}
+                    onChange={(e) => setOutDueTo(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Rek. Bayar:
+                  </span>
+                  <select
+                    value={outBankAccountId}
+                    onChange={(e) => setOutBankAccountId(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  >
+                    <option value="">Semua</option>
+                    <option value="-1">Belum diset</option>
+                    {bankAccounts.map((ba) => (
+                      <option key={ba.id} value={ba.id}>
+                        {ba.bank_name} - {ba.account_number} - {ba.account_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               {isDateRangeInvalid(outReceivedFrom, outReceivedTo) && (
-                <p className="mt-1 text-xs text-red-600">Tanggal terima awal harus sebelum akhir</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Tanggal terima awal harus sebelum akhir
+                </p>
               )}
               {isDateRangeInvalid(outDueFrom, outDueTo) && (
-                <p className="mt-1 text-xs text-red-600">Jatuh tempo awal harus sebelum akhir</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Jatuh tempo awal harus sebelum akhir
+                </p>
               )}
             </div>
             <div className="flex-1 overflow-auto">
@@ -363,7 +485,9 @@ export default function ApPaymentsPage() {
           >
             <div className="px-4 py-3 border-b border-rose-200/80 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Pembayaran</h2>
+                <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                  Pembayaran
+                </h2>
               </div>
               {/* Payment sub-tabs */}
               <div className="flex gap-1 mt-2 overflow-x-auto">
@@ -371,9 +495,14 @@ export default function ApPaymentsPage() {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => { setPayTab(tab.id); setPayPage(1) }}
+                    onClick={() => {
+                      setPayTab(tab.id);
+                      setPayPage(1);
+                    }}
                     className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                      payTab === tab.id ? apTheme.listTabActive : apTheme.listTabInactive
+                      payTab === tab.id
+                        ? apTheme.listTabActive
+                        : apTheme.listTabInactive
                     }`}
                   >
                     {tab.label}
@@ -383,23 +512,51 @@ export default function ApPaymentsPage() {
               {/* Panel-specific date filters */}
               <div className="flex flex-wrap gap-2 mt-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tgl Bayar:</span>
-                  <input type="date" value={payDateFrom} onChange={(e) => setPayDateFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Tgl Bayar:
+                  </span>
+                  <input
+                    type="date"
+                    value={payDateFrom}
+                    onChange={(e) => setPayDateFrom(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={payDateTo} onChange={(e) => setPayDateTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <input
+                    type="date"
+                    value={payDateTo}
+                    onChange={(e) => setPayDateTo(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
-                  <input type="date" value={payDueFrom} onChange={(e) => setPayDueFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Jatuh Tempo:
+                  </span>
+                  <input
+                    type="date"
+                    value={payDueFrom}
+                    onChange={(e) => setPayDueFrom(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={payDueTo} onChange={(e) => setPayDueTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <input
+                    type="date"
+                    value={payDueTo}
+                    onChange={(e) => setPayDueTo(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                 </div>
               </div>
               {isDateRangeInvalid(payDateFrom, payDateTo) && (
-                <p className="mt-1 text-xs text-red-600">Tanggal bayar awal harus sebelum akhir</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Tanggal bayar awal harus sebelum akhir
+                </p>
               )}
               {isDateRangeInvalid(payDueFrom, payDueTo) && (
-                <p className="mt-1 text-xs text-red-600">Jatuh tempo awal harus sebelum akhir</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Jatuh tempo awal harus sebelum akhir
+                </p>
               )}
             </div>
 
@@ -407,7 +564,9 @@ export default function ApPaymentsPage() {
             <div className="flex-1 overflow-auto">
               {payLoading ? (
                 <div className="p-4 space-y-3">
-                  {[1, 2, 3].map((i) => (<div key={i} className={apTheme.skeleton} />))}
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className={apTheme.skeleton} />
+                  ))}
                 </div>
               ) : payments.length === 0 ? (
                 <div className="text-center py-12">
@@ -418,20 +577,32 @@ export default function ApPaymentsPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-rose-200/80 dark:border-gray-700">
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">No. Pembayaran</th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Tgl Bayar</th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Supplier</th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Total</th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Supplier
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Tgl Bayar
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Total
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Status
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          No. Pembayaran
+                        </th>
                         {isPaidTab && canUpdate && (
-                          <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Journal</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                            Journal
+                          </th>
                         )}
                         {canDelete && <th className="px-2 py-2 w-8" />}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
                       {paymentGroups.map((group) =>
-                        group.kind === 'batch' ? (
+                        group.kind === "batch" ? (
                           <BulkPaymentBatchRows
                             key={group.batchId}
                             batchId={group.batchId}
@@ -441,7 +612,11 @@ export default function ApPaymentsPage() {
                             {...rowHandlers}
                           />
                         ) : (
-                          <PaymentRow key={group.payment.id} payment={group.payment} {...rowHandlers} />
+                          <PaymentRow
+                            key={group.payment.id}
+                            payment={group.payment}
+                            {...rowHandlers}
+                          />
                         ),
                       )}
                     </tbody>
@@ -456,7 +631,10 @@ export default function ApPaymentsPage() {
                 <Pagination
                   pagination={payPagination}
                   onPageChange={setPayPage}
-                  onLimitChange={(l) => { setPayLimit(l); setPayPage(1) }}
+                  onLimitChange={(l) => {
+                    setPayLimit(l);
+                    setPayPage(1);
+                  }}
                   currentLength={payments.length}
                   loading={payLoading}
                 />
@@ -467,30 +645,79 @@ export default function ApPaymentsPage() {
 
         {/* ── Mobile/tablet: stacked layout (< lg) ── */}
         <div className="flex lg:hidden flex-col gap-4">
-
           {/* LEFT PANEL */}
-          <div className={`${apTheme.card} flex flex-col min-h-[400px] overflow-hidden`}>
+          <div
+            className={`${apTheme.card} flex flex-col min-h-[400px] overflow-hidden`}
+          >
             <div className="px-4 py-3 border-b border-rose-200/80 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Invoice Outstanding</h2>
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                Invoice Outstanding
+              </h2>
               <div className="flex flex-wrap gap-2 mt-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tgl Terima:</span>
-                  <input type="date" value={outReceivedFrom} onChange={(e) => setOutReceivedFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Tgl Terima:
+                  </span>
+                  <input
+                    type="date"
+                    value={outReceivedFrom}
+                    onChange={(e) => setOutReceivedFrom(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={outReceivedTo} onChange={(e) => setOutReceivedTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <input
+                    type="date"
+                    value={outReceivedTo}
+                    onChange={(e) => setOutReceivedTo(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
-                  <input type="date" value={outDueFrom} onChange={(e) => setOutDueFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Jatuh Tempo:
+                  </span>
+                  <input
+                    type="date"
+                    value={outDueFrom}
+                    onChange={(e) => setOutDueFrom(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={outDueTo} onChange={(e) => setOutDueTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <input
+                    type="date"
+                    value={outDueTo}
+                    onChange={(e) => setOutDueTo(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Rek. Bayar:
+                  </span>
+                  <select
+                    value={outBankAccountId}
+                    onChange={(e) => setOutBankAccountId(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  >
+                    <option value="">Semua</option>
+                    <option value="-1">Belum diset</option>
+                    {bankAccounts.map((ba) => (
+                      <option key={ba.id} value={ba.id}>
+                        {ba.bank_name} - {ba.account_number} - {ba.account_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               {isDateRangeInvalid(outReceivedFrom, outReceivedTo) && (
-                <p className="mt-1 text-xs text-red-600">Tanggal terima awal harus sebelum akhir</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Tanggal terima awal harus sebelum akhir
+                </p>
               )}
               {isDateRangeInvalid(outDueFrom, outDueTo) && (
-                <p className="mt-1 text-xs text-red-600">Jatuh tempo awal harus sebelum akhir</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Jatuh tempo awal harus sebelum akhir
+                </p>
               )}
             </div>
             <div className="flex-1 overflow-auto">
@@ -499,17 +726,26 @@ export default function ApPaymentsPage() {
           </div>
 
           {/* RIGHT PANEL */}
-          <div className={`${apTheme.card} flex flex-col min-h-[400px] overflow-hidden`}>
+          <div
+            className={`${apTheme.card} flex flex-col min-h-[400px] overflow-hidden`}
+          >
             <div className="px-4 py-3 border-b border-rose-200/80 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Pembayaran</h2>
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                Pembayaran
+              </h2>
               <div className="flex gap-1 mt-2 overflow-x-auto">
                 {PAYMENT_TABS.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => { setPayTab(tab.id); setPayPage(1) }}
+                    onClick={() => {
+                      setPayTab(tab.id);
+                      setPayPage(1);
+                    }}
                     className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                      payTab === tab.id ? apTheme.listTabActive : apTheme.listTabInactive
+                      payTab === tab.id
+                        ? apTheme.listTabActive
+                        : apTheme.listTabInactive
                     }`}
                   >
                     {tab.label}
@@ -518,29 +754,59 @@ export default function ApPaymentsPage() {
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Tgl Bayar:</span>
-                  <input type="date" value={payDateFrom} onChange={(e) => setPayDateFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Tgl Bayar:
+                  </span>
+                  <input
+                    type="date"
+                    value={payDateFrom}
+                    onChange={(e) => setPayDateFrom(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={payDateTo} onChange={(e) => setPayDateTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <input
+                    type="date"
+                    value={payDateTo}
+                    onChange={(e) => setPayDateTo(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Jatuh Tempo:</span>
-                  <input type="date" value={payDueFrom} onChange={(e) => setPayDueFrom(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    Jatuh Tempo:
+                  </span>
+                  <input
+                    type="date"
+                    value={payDueFrom}
+                    onChange={(e) => setPayDueFrom(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                   <span className="text-xs text-gray-400">—</span>
-                  <input type="date" value={payDueTo} onChange={(e) => setPayDueTo(e.target.value)} className={`${apTheme.select} text-xs py-1!`} />
+                  <input
+                    type="date"
+                    value={payDueTo}
+                    onChange={(e) => setPayDueTo(e.target.value)}
+                    className={`${apTheme.select} text-xs py-1!`}
+                  />
                 </div>
               </div>
               {isDateRangeInvalid(payDateFrom, payDateTo) && (
-                <p className="mt-1 text-xs text-red-600">Tanggal bayar awal harus sebelum akhir</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Tanggal bayar awal harus sebelum akhir
+                </p>
               )}
               {isDateRangeInvalid(payDueFrom, payDueTo) && (
-                <p className="mt-1 text-xs text-red-600">Jatuh tempo awal harus sebelum akhir</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Jatuh tempo awal harus sebelum akhir
+                </p>
               )}
             </div>
             <div className="flex-1 overflow-auto">
               {payLoading ? (
                 <div className="p-4 space-y-3">
-                  {[1, 2, 3].map((i) => (<div key={i} className={apTheme.skeleton} />))}
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className={apTheme.skeleton} />
+                  ))}
                 </div>
               ) : payments.length === 0 ? (
                 <div className="text-center py-12">
@@ -551,20 +817,32 @@ export default function ApPaymentsPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-rose-200/80 dark:border-gray-700">
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">No. Pembayaran</th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Tgl Bayar</th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Supplier</th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Total</th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Supplier
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Tgl Bayar
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Total
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Status
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          No. Pembayaran
+                        </th>
                         {isPaidTab && canUpdate && (
-                          <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Journal</th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                            Journal
+                          </th>
                         )}
                         {canDelete && <th className="px-2 py-2 w-8" />}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
                       {paymentGroups.map((group) =>
-                        group.kind === 'batch' ? (
+                        group.kind === "batch" ? (
                           <BulkPaymentBatchRows
                             key={group.batchId}
                             batchId={group.batchId}
@@ -574,7 +852,11 @@ export default function ApPaymentsPage() {
                             {...rowHandlers}
                           />
                         ) : (
-                          <PaymentRow key={group.payment.id} payment={group.payment} {...rowHandlers} />
+                          <PaymentRow
+                            key={group.payment.id}
+                            payment={group.payment}
+                            {...rowHandlers}
+                          />
                         ),
                       )}
                     </tbody>
@@ -587,7 +869,10 @@ export default function ApPaymentsPage() {
                 <Pagination
                   pagination={payPagination}
                   onPageChange={setPayPage}
-                  onLimitChange={(l) => { setPayLimit(l); setPayPage(1) }}
+                  onLimitChange={(l) => {
+                    setPayLimit(l);
+                    setPayPage(1);
+                  }}
                   currentLength={payments.length}
                   loading={payLoading}
                 />
@@ -595,7 +880,6 @@ export default function ApPaymentsPage() {
             )}
           </div>
         </div>
-
       </div>
 
       <ConfirmModal
@@ -612,14 +896,16 @@ export default function ApPaymentsPage() {
               isLoadingDetails={isDeleteDetailLoading}
             />
           ) : (
-            ''
+            ""
           )
         }
         confirmText="Hapus"
         variant="danger"
         isLoading={deletePayment.isPending}
       />
-      {showVerify && <VerifyScreenshotModal onClose={() => setShowVerify(false)} />}
+      {showVerify && (
+        <VerifyScreenshotModal onClose={() => setShowVerify(false)} />
+      )}
     </ApPaymentsShell>
-  )
+  );
 }

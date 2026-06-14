@@ -42,6 +42,7 @@ interface OutstandingInvoicesTabProps {
     dateTo: string;
     dueFrom?: string;
     dueTo?: string;
+    assignedBankAccountId?: number;
   };
 }
 
@@ -85,6 +86,9 @@ export function OutstandingInvoicesTab({
       ...(filters.dateTo ? { date_to: filters.dateTo } : {}),
       ...(filters.dueFrom ? { due_date_from: filters.dueFrom } : {}),
       ...(filters.dueTo ? { due_date_to: filters.dueTo } : {}),
+      ...(filters.assignedBankAccountId !== undefined
+        ? { assigned_bank_account_id: filters.assignedBankAccountId }
+        : {}),
     }),
     [page, limit, filters],
   );
@@ -320,6 +324,9 @@ export function OutstandingInvoicesTab({
                     />
                   </th>
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                    Jatuh Tempo
+                  </th>
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Nama Cabang
                   </th>
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
@@ -353,9 +360,7 @@ export function OutstandingInvoicesTab({
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Tgl Terima
                   </th>
-                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                    Jatuh Tempo
-                  </th>
+
                   <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                     Status
                   </th>
@@ -499,6 +504,14 @@ function InvoiceRow({
           aria-label={`Pilih invoice ${invoice.invoice_number}`}
         />
       </td>
+      <td className="px-2 py-2 whitespace-nowrap">
+        <div className="flex flex-col items-start gap-1">
+          <span className="text-gray-700 dark:text-gray-300">
+            {fmtDate(invoice.due_date)}
+          </span>
+          <AgingBadge dueDate={invoice.due_date} />
+        </div>
+      </td>
       <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
         {invoice.branch_name}
       </td>
@@ -555,14 +568,7 @@ function InvoiceRow({
       <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
         {fmtDate(invoice.earliest_received_date)}
       </td>
-      <td className="px-2 py-2 whitespace-nowrap">
-        <div className="flex items-center gap-2">
-          <span className="text-gray-700 dark:text-gray-300">
-            {fmtDate(invoice.due_date)}
-          </span>
-          <AgingBadge dueDate={invoice.due_date} />
-        </div>
-      </td>
+
       <td className="px-2 py-2">
         <span
           className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${invoiceStatusColor}`}
