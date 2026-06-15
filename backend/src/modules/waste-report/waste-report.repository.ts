@@ -1,5 +1,5 @@
 import { pool } from '../../config/db'
-import type { WasteQueryContext } from './waste-report.types'
+import type { WasteBranchSourceRow, WasteQueryContext, WasteSource } from './waste-report.types'
 
 function itemFilter(alias: string, ctx: WasteQueryContext, params: unknown[], idx: { n: number }): string {
   const parts: string[] = []
@@ -251,6 +251,141 @@ export class WasteReportRepository {
       [branchIds],
     )
     return new Map(rows.map((r) => [r.id as string, r.branch_name as string]))
+  }
+
+  async getWasteGroupedByBranch(ctx: WasteQueryContext): Promise<WasteBranchSourceRow[]> {
+    const params: unknown[] = [ctx.branchIds, ctx.startDate, ctx.endDate]
+    const idx = { n: 4 }
+    const gpExtra = itemFilter('gpo', ctx, params, idx)
+    const saExtra = itemFilter('sal', ctx, params, idx)
+
+    const poExtraParts: string[] = []
+    if (ctx.itemId) {
+      params.push(ctx.itemId)
+      poExtraParts.push(`pom.product_id = $${idx.n++}`)
+    }
+    if (ctx.categoryId) {
+      params.push(ctx.categoryId)
+      poExtraParts.push(`p.category_id = $${idx.n++}`)
+    }
+    const poExtra = poExtraParts.length ? `AND ${poExtraParts.join(' AND ')}` : ''
+
+    const doExtraParts: string[] = []
+    if (ctx.itemId) {
+      params.push(ctx.itemId)
+      doExtraParts.push(`dccl.product_id = $${idx.n++}`)
+    }
+    if (ctx.categoryId) {
+      params.push(ctx.categoryId)
+      doExtraParts.push(`p.category_id = $${idx.n++}`)
+    }
+    const doExtra = doExtraParts.length ? `AND ${doExtraParts.join(' AND ')}` : ''
+
+    const { rows } = await pool.query(
+      `SELECT
+        branch_id,
+        MAX(branch_name) AS branch_name,
+        source,
+        SUM(qty)::numeric AS total_qty,
+        SUM(total_cost)::numeric AS total_cost,
+        COUNT(*)::int AS record_count
+      FROM (
+        SELECT
+          gp.branch_id,
+          b.branch_name,
+          'GOODS_PROCESSING'::text AS source,
+          COALESCE(gpo.actual_qty, gpo.qty_output, 0)::numeric AS qty,
+          CASE
+            WHEN COALESCE(gpo.unit_cost, 0) = 0 THEN 0
+            ELSE COALESCE(
+              gpo.allocated_cost,
+              COALESCE(gpo.unit_cost, 0) * COALESCE(gpo.actual_qty, gpo.qty_output, 0),
+              0
+            )
+          END::numeric AS total_cost
+        FROM goods_processing_outputs gpo
+        JOIN goods_processing gp ON gp.id = gpo.goods_processing_id
+        JOIN products p ON p.id = gpo.product_id
+        JOIN goods_receipts gr ON gr.id = gp.goods_receipt_id
+        JOIN purchase_orders po ON po.id = gr.po_id
+        JOIN branches b ON b.id = gp.branch_id
+        WHERE gpo.is_waste = true
+          AND gp.branch_id = ANY($1::uuid[])
+          AND gp.processing_date BETWEEN $2::date AND $3::date
+          AND gp.deleted_at IS NULL
+          AND gp.status = 'CONFIRMED'
+          ${gpExtra}
+
+        UNION ALL
+
+        SELECT
+          sa.branch_id,
+          b.branch_name,
+          'STOCK_ADJUSTMENT'::text AS source,
+          ABS(sal.qty)::numeric AS qty,
+          (ABS(sal.qty) * COALESCE(sal.cost_per_unit, 0))::numeric AS total_cost
+        FROM stock_adjustments sa
+        JOIN stock_adjustment_lines sal ON sal.stock_adjustment_id = sa.id
+        JOIN products p ON p.id = sal.product_id
+        JOIN branches b ON b.id = sa.branch_id
+        WHERE sa.adjustment_type = 'WASTE'
+          AND sa.status = 'CONFIRMED'
+          AND sa.branch_id = ANY($1::uuid[])
+          AND sa.adjustment_date BETWEEN $2::date AND $3::date
+          AND sa.deleted_at IS NULL
+          ${saExtra}
+
+        UNION ALL
+
+        SELECT
+          po.branch_id,
+          b.branch_name,
+          'PRODUCTION_ORDER'::text AS source,
+          pom.waste_qty::numeric AS qty,
+          (pom.waste_qty * COALESCE(pom.cost_per_unit, 0))::numeric AS total_cost
+        FROM production_order_materials pom
+        JOIN production_orders po ON po.id = pom.production_order_id
+        JOIN branches b ON b.id = po.branch_id
+        LEFT JOIN products p ON p.id = pom.product_id
+        WHERE pom.waste_qty > 0
+          AND po.branch_id = ANY($1::uuid[])
+          AND po.production_date BETWEEN $2::date AND $3::date
+          AND po.is_deleted = false
+          ${poExtra}
+
+        UNION ALL
+
+        SELECT
+          dcc.branch_id,
+          b.branch_name,
+          'DAILY_OPNAME'::text AS source,
+          vcl.qty::numeric AS qty,
+          (vcl.qty * COALESCE(dccl.cost_per_unit, 0))::numeric AS total_cost
+        FROM variance_classification_lines vcl
+        JOIN daily_closing_count_lines dccl ON dccl.id = vcl.line_id
+        JOIN daily_closing_counts dcc ON dcc.id = vcl.closing_id
+        JOIN branches b ON b.id = dcc.branch_id
+        LEFT JOIN products p ON p.id = dccl.product_id
+        WHERE vcl.variance_category = 'WASTE'
+          AND dcc.branch_id = ANY($1::uuid[])
+          AND dcc.closing_date BETWEEN $2::date AND $3::date
+          AND dcc.status IN ('CONFIRMED', 'FLAGGED')
+          AND dcc.deleted_at IS NULL
+          ${doExtra}
+      ) combined
+      GROUP BY branch_id, source
+      ORDER BY SUM(total_cost) DESC`,
+      params,
+    )
+
+    return rows.map((row) => ({
+      branch_id: row.branch_id as string,
+      branch_name: (row.branch_name as string | null) ?? null,
+      source: row.source as WasteSource,
+      total_qty: Number(row.total_qty) || 0,
+      total_cost: Number(row.total_cost) || 0,
+      record_count: Number(row.record_count) || 0,
+    }))
   }
 }
 

@@ -65,6 +65,41 @@ export interface WasteByItemGroup {
   breakdown_by_source: Record<WasteSource, { qty: number; cost: number }>
 }
 
+export interface WasteBranchGroup {
+  branch_id: string
+  branch_name?: string
+  total_qty: number
+  total_cost: number
+  record_count: number
+  breakdown_by_source: Record<WasteSource, { qty: number; cost: number }>
+  percentage_of_total?: number
+}
+
+export interface WasteComparePeriod {
+  total_cost: number
+  total_qty: number
+  record_count: number
+  breakdown_by_source: Record<WasteSource, { qty: number; cost: number }>
+  percentage_of_purchase?: number
+}
+
+export interface WasteCompareResponse {
+  period_a: WasteComparePeriod
+  period_b: WasteComparePeriod
+  diff_cost: number
+  diff_cost_pct: number | null
+  diff_qty: number
+}
+
+export interface WasteBranchSourceRow {
+  branch_id: string
+  branch_name: string | null
+  source: WasteSource
+  total_qty: number
+  total_cost: number
+  record_count: number
+}
+
 export const WASTE_SOURCES: WasteSource[] = [
   'GOODS_PROCESSING',
   'STOCK_ADJUSTMENT',

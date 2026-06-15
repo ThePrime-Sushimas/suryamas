@@ -57,6 +57,42 @@ export interface WasteByItemGroup {
   breakdown_by_source: Record<WasteSource, { qty: number; cost: number }>
 }
 
+export interface WasteBranchGroup {
+  branch_id: string
+  branch_name?: string
+  total_qty: number
+  total_cost: number
+  record_count: number
+  breakdown_by_source: Record<WasteSource, { qty: number; cost: number }>
+  percentage_of_total?: number
+}
+
+export interface WasteComparePeriod {
+  total_cost: number
+  total_qty: number
+  record_count: number
+  breakdown_by_source: Record<WasteSource, { qty: number; cost: number }>
+  percentage_of_purchase?: number
+}
+
+export interface WasteCompareResponse {
+  period_a: WasteComparePeriod
+  period_b: WasteComparePeriod
+  diff_cost: number
+  diff_cost_pct: number | null
+  diff_qty: number
+}
+
+export interface WasteCompareParams {
+  period_a_start: string
+  period_a_end: string
+  period_b_start: string
+  period_b_end: string
+  branch_id?: string
+  category_id?: string
+  source?: WasteSource
+}
+
 export interface WasteReportParams {
   start_date: string
   end_date: string
@@ -69,6 +105,8 @@ export interface WasteReportParams {
 export const wasteReportKeys = {
   report: (p: WasteReportParams) => ['waste-report', p] as const,
   byItem: (p: WasteReportParams) => ['waste-report', 'by-item', p] as const,
+  byBranch: (p: WasteReportParams) => ['waste-report', 'by-branch', p] as const,
+  compare: (p: WasteCompareParams) => ['waste-report', 'compare', p] as const,
 }
 
 export const useWasteReport = (params: WasteReportParams | null) =>
@@ -89,4 +127,29 @@ export const useWasteReportByItem = (params: WasteReportParams | null) =>
       return data.data as WasteByItemGroup[]
     },
     enabled: !!params?.start_date && !!params?.end_date,
+  })
+
+export const useWasteReportByBranch = (params: WasteReportParams | null) =>
+  useQuery({
+    queryKey: wasteReportKeys.byBranch(params ?? { start_date: '', end_date: '' }),
+    queryFn: async () => {
+      const { data } = await api.get('/waste-report/by-branch', { params })
+      return data.data as WasteBranchGroup[]
+    },
+    enabled: !!params?.start_date && !!params?.end_date && !params?.branch_id,
+  })
+
+export const useWasteCompare = (params: WasteCompareParams | null) =>
+  useQuery({
+    queryKey: wasteReportKeys.compare(params ?? {
+      period_a_start: '',
+      period_a_end: '',
+      period_b_start: '',
+      period_b_end: '',
+    }),
+    queryFn: async () => {
+      const { data } = await api.get('/waste-report/compare', { params })
+      return data.data as WasteCompareResponse
+    },
+    enabled: !!params,
   })

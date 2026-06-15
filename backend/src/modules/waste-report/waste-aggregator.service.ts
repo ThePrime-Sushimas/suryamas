@@ -6,7 +6,10 @@ import { monthlyOpnameAdapter } from './adapters/monthly-opname.adapter'
 import { wasteReportRepository } from './waste-report.repository'
 import { WasteReportError } from './waste-report.errors'
 import type {
+  WasteBranchGroup,
   WasteByItemGroup,
+  WasteComparePeriod,
+  WasteCompareResponse,
   WasteQueryContext,
   WasteRecord,
   WasteReportFilter,
@@ -154,6 +157,81 @@ export class WasteAggregatorService {
     validateFilter(filter)
     const ctx = buildQueryContext(filter)
     return this.monthlyOpnameAdapterRef.getMonthlySelisih(ctx)
+  }
+
+  async getByBranch(filter: WasteReportFilter): Promise<WasteBranchGroup[]> {
+    validateFilter(filter)
+    const ctx: WasteQueryContext = {
+      branchIds: filter.branch_ids,
+      startDate: toDateString(filter.start_date),
+      endDate: toDateString(filter.end_date),
+      itemId: filter.item_id,
+      categoryId: filter.category_id,
+    }
+
+    const rows = await wasteReportRepository.getWasteGroupedByBranch(ctx)
+    const filteredRows = filter.source ? rows.filter((r) => r.source === filter.source) : rows
+
+    const grouped = new Map<string, WasteBranchGroup>()
+
+    for (const row of filteredRows) {
+      let group = grouped.get(row.branch_id)
+      if (!group) {
+        group = {
+          branch_id: row.branch_id,
+          branch_name: row.branch_name ?? undefined,
+          total_qty: 0,
+          total_cost: 0,
+          record_count: 0,
+          breakdown_by_source: emptyBreakdownBySource(),
+        }
+        grouped.set(row.branch_id, group)
+      }
+      group.total_qty += row.total_qty
+      group.total_cost += row.total_cost
+      group.record_count += row.record_count
+      group.breakdown_by_source[row.source].qty += row.total_qty
+      group.breakdown_by_source[row.source].cost += row.total_cost
+      if (!group.branch_name && row.branch_name) group.branch_name = row.branch_name
+    }
+
+    const result = [...grouped.values()].sort((a, b) => b.total_cost - a.total_cost)
+    const grandTotal = result.reduce((sum, g) => sum + g.total_cost, 0)
+
+    if (grandTotal > 0) {
+      for (const group of result) {
+        group.percentage_of_total = Math.round((group.total_cost / grandTotal) * 10000) / 100
+      }
+    }
+
+    return result
+  }
+
+  async compare(filterA: WasteReportFilter, filterB: WasteReportFilter): Promise<WasteCompareResponse> {
+    const [reportA, reportB] = await Promise.all([
+      this.getWasteReport(filterA),
+      this.getWasteReport(filterB),
+    ])
+
+    const period_a = this.toComparePeriod(reportA)
+    const period_b = this.toComparePeriod(reportB)
+
+    const diff_cost = period_a.total_cost - period_b.total_cost
+    const diff_qty = period_a.total_qty - period_b.total_qty
+    const diff_cost_pct =
+      period_b.total_cost === 0 ? null : Math.round((diff_cost / period_b.total_cost) * 10000) / 100
+
+    return { period_a, period_b, diff_cost, diff_cost_pct, diff_qty }
+  }
+
+  private toComparePeriod(report: WasteReportResponse): WasteComparePeriod {
+    return {
+      total_cost: report.summary.total_waste_cost,
+      total_qty: report.summary.total_waste_qty,
+      record_count: report.records.length,
+      breakdown_by_source: report.summary.breakdown_by_source,
+      percentage_of_purchase: report.summary.percentage_of_purchase,
+    }
   }
 
   private calculateSummary(records: WasteRecord[], totalPurchaseCost: number): WasteReportSummary {

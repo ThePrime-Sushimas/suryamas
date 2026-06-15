@@ -4,7 +4,7 @@ import { resolveBranchContext } from '../../middleware/branch-context.middleware
 import { canView } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { wasteReportController } from './waste-report.controller'
-import { wasteReportQuerySchema } from './waste-report.schema'
+import { wasteReportQuerySchema, wasteReportByBranchSchema, wasteReportCompareSchema } from './waste-report.schema'
 import { PermissionService } from '../../services/permission.service'
 
 PermissionService.registerModule('waste_report', 'Waste Report').catch((err) => {
@@ -26,6 +26,12 @@ router.get('/by-item', canView('waste_report'), validateSchema(wasteReportQueryS
 )
 router.get('/monthly-selisih', canView('waste_report'), validateSchema(wasteReportQuerySchema), (req, res) =>
   wasteReportController.getMonthlySelisih(req, res),
+)
+router.get('/by-branch', canView('waste_report'), validateSchema(wasteReportByBranchSchema), (req, res) =>
+  wasteReportController.getByBranch(req, res),
+)
+router.get('/compare', canView('waste_report'), validateSchema(wasteReportCompareSchema), (req, res) =>
+  wasteReportController.compare(req, res),
 )
 
 export default router
