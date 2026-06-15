@@ -100,6 +100,17 @@ export class WasteReportController {
     }
   }
 
+  getByReason = async (req: Request, res: Response) => {
+    try {
+      const { branchIds } = await getBranchReadScope(req)
+      const filter = buildFilter(req, branchIds)
+      const groups = await wasteReportService.getByReason(filter)
+      sendSuccess(res, groups, 'Waste report by reason retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_waste_report_by_reason' })
+    }
+  }
+
   getMonthlySelisih = async (req: Request, res: Response) => {
     try {
       const { branchIds } = await getBranchReadScope(req)
