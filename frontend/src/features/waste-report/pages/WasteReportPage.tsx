@@ -4,14 +4,12 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  BarChart3,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
   ChevronUp,
   Download,
   Loader2,
-  Package,
   Search,
   Trash2,
   X,
@@ -422,35 +420,6 @@ export default function WasteReportPage() {
           </div>
         ) : (
           <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <SummaryCard
-                label="Total Qty Waste"
-                value={fmt(report?.summary.total_waste_qty)}
-                icon={<Package className="w-5 h-5 text-red-500" />}
-              />
-              <SummaryCard
-                label="Total Nilai Waste"
-                value={fmtRp(report?.summary.total_waste_cost)}
-                icon={<BarChart3 className="w-5 h-5 text-red-500" />}
-              />
-              <SummaryCard
-                label="% dari Pembelian"
-                value={
-                  report?.summary.percentage_of_purchase != null
-                    ? `${fmt(report.summary.percentage_of_purchase)}%`
-                    : '-'
-                }
-                sub="vs invoice pembelian posted"
-                icon={<AlertTriangle className="w-5 h-5 text-amber-500" />}
-              />
-              <SummaryCard
-                label="Jumlah Transaksi"
-                value={fmt(report?.records.length)}
-                icon={<Trash2 className="w-5 h-5 text-gray-500" />}
-              />
-            </div>
-
             {/* Period comparison panel */}
             <ComparePanel
               open={compareOpen}
@@ -561,33 +530,6 @@ export default function WasteReportPage() {
             </div>
           </>
         )}
-      </div>
-    </div>
-  )
-}
-
-function SummaryCard({
-  label,
-  value,
-  sub,
-  icon,
-}: {
-  label: string
-  value: string
-  sub?: string
-  icon: React.ReactNode
-}) {
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-sm p-5">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-            {label}
-          </p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{value}</p>
-          {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
-        </div>
-        <div className="p-2 rounded-xl bg-gray-50 dark:bg-gray-900/50">{icon}</div>
       </div>
     </div>
   )
