@@ -10,7 +10,7 @@ import { BusinessRuleError } from '../../utils/errors.base'
 import { AuditService } from '../monitoring/monitoring.service'
 import type {
   CreateStockAdjustmentDto, ConfirmStockAdjustmentDto, CancelStockAdjustmentDto,
-  StockAdjustmentDetail
+  StockAdjustmentDetail, CreateStockAdjustmentFromShortageDto,
 } from './stock-adjustments.types'
 
 export class StockAdjustmentsService {
@@ -103,6 +103,56 @@ export class StockAdjustmentsService {
     return this.getById(adjustmentId, branchIds)
   }
 
+  // ─── CREATE FROM SHORTAGE CONVERSION ─────────────────────────────────────────
+
+  async createFromShortage(
+    branchIds: string[],
+    dto: CreateStockAdjustmentFromShortageDto,
+  ): Promise<string> {
+    const warehouseType = await stockAdjustmentsRepository.getWarehouseType(dto.warehouse_id)
+    if (warehouseType !== 'READY') {
+      throw new BusinessRuleError(`Adjustment hanya dapat dilakukan di gudang tipe READY, bukan ${warehouseType}`)
+    }
+    if (!branchIds.includes(dto.branch_id)) {
+      throw new BusinessRuleError('Anda tidak memiliki akses ke cabang ini')
+    }
+
+    return stockRepository.withTransaction(async (client) => {
+      const branchCode = await stockAdjustmentsRepository.getBranchCode(client, dto.branch_id)
+      if (!branchCode) throw new Error('Branch code tidak ditemukan')
+
+      const adjustmentNumber = await stockAdjustmentsRepository.generateAdjustmentNumber(
+        client, dto.company_id, branchCode, dto.adjustment_date, 'WASTE',
+      )
+
+      const createDto: CreateStockAdjustmentDto = {
+        adjustment_type: 'WASTE',
+        warehouse_id: dto.warehouse_id,
+        adjustment_date: dto.adjustment_date,
+        reason: 'OTHER',
+        notes: dto.notes,
+        lines: dto.lines,
+        created_by: dto.created_by,
+        source_closing_id: dto.source_closing_id ?? null,
+        source_position_id: dto.source_position_id ?? null,
+        source_monthly_opname_id: dto.source_monthly_opname_id ?? null,
+      }
+
+      const { id } = await stockAdjustmentsRepository.create(
+        client, dto.company_id, dto.branch_id, createDto, adjustmentNumber,
+      )
+      await stockAdjustmentsRepository.createLines(client, id, dto.lines)
+
+      await AuditService.log('CREATE', 'stock_adjustment', id, dto.created_by, undefined, {
+        adjustment_number: adjustmentNumber,
+        adjustment_type: 'WASTE',
+        source: 'shortage_conversion',
+      })
+
+      return id
+    })
+  }
+
   // ─── CONFIRM ──────────────────────────────────────────────────────────────────
 
   async confirm(id: string, branchIds: string[], dto: ConfirmStockAdjustmentDto): Promise<StockAdjustmentDetail & { journal_pending?: boolean }> {
@@ -118,7 +168,10 @@ export class StockAdjustmentsService {
       }
 
       if (detail.adjustment_type === 'WASTE') {
-        totalWasteValue = await this.confirmWaste(client, detail, dto.confirmed_by, lineCosts)
+        const isShortageConversion = !!(detail.source_closing_id || detail.source_monthly_opname_id)
+        totalWasteValue = isShortageConversion
+          ? await this.confirmWasteJournalOnly(client, detail, lineCosts)
+          : await this.confirmWaste(client, detail, dto.confirmed_by, lineCosts)
       } else {
         totalWasteValue = await this.confirmBreakdown(client, detail, dto.confirmed_by)
       }
@@ -195,6 +248,35 @@ export class StockAdjustmentsService {
     await client.query(
       `UPDATE stock_adjustments SET waste_qty = $2, waste_value = $3, updated_at = now() WHERE id = $1`,
       [detail.id, totalWasteQty, totalWasteValue]
+    )
+
+    return totalWasteValue
+  }
+
+  /**
+   * Shortage conversion: stock already reduced at opname (OUT_ADJUSTMENT / OUT_WASTE).
+   * Persists line costs + header totals for waste report; journal generated in confirm().
+   */
+  private async confirmWasteJournalOnly(
+    client: import('pg').PoolClient,
+    detail: StockAdjustmentDetail,
+    lineCosts: Map<string, number>,
+  ): Promise<number> {
+    let totalWasteValue = 0
+
+    for (const line of detail.lines) {
+      const qty = Number(line.qty)
+      const balance = await stockRepository.getBalanceForUpdate(client, detail.warehouse_id, line.product_id)
+      const avgCost = balance ? Number(balance.avg_cost) : 0
+      lineCosts.set(line.id, avgCost)
+      await stockAdjustmentsRepository.updateLineCost(client, line.id, avgCost)
+      totalWasteValue += qty * avgCost
+    }
+
+    const totalWasteQty = detail.lines.reduce((sum, l) => sum + Number(l.qty), 0)
+    await client.query(
+      `UPDATE stock_adjustments SET waste_qty = $2, waste_value = $3, updated_at = now() WHERE id = $1`,
+      [detail.id, totalWasteQty, totalWasteValue],
     )
 
     return totalWasteValue
@@ -427,6 +509,7 @@ export class StockAdjustmentsService {
     const typeLabel = detail.adjustment_type === 'WASTE' ? 'Waste' : 'Breakdown susut'
     const reasonLabel = detail.reason ?? '-'
     const description = `${typeLabel} ${detail.adjustment_number} (${reasonLabel})`
+    const positionName = detail.source_position_name ?? null
 
     const journalId = await stockAdjustmentsRepository.insertJournalHeader(client, {
       companyId,
@@ -447,10 +530,10 @@ export class StockAdjustmentsService {
     if (detail.adjustment_type === 'WASTE') {
       // ─── WASTE: DR grouped by station, CR per product ─────────────────
 
-      // Group lines by station for DR side
+      // Group lines by station for DR side (V1.5: opname position overrides product.station)
       const stationGroups = new Map<string, number>()
       for (const line of detail.lines) {
-        const station = line.station || 'GENERAL'
+        const station = positionName ?? line.station ?? 'GENERAL'
         const cost = lineCosts.get(line.id) ?? 0
         const value = Number(line.qty) * cost
         stationGroups.set(station, (stationGroups.get(station) ?? 0) + value)

@@ -496,6 +496,12 @@ export const ERROR_REGISTRY = {
     defaultStatusCode: 400,
     category: 'inventory',
   },
+  ShortageReportError: {
+    name: 'ShortageReportError',
+    importPath: '../modules/shortage-report/shortage-report.errors',
+    defaultStatusCode: 400,
+    category: 'inventory',
+  },
   InvalidReferenceError: {
     name: 'InvalidReferenceError',
     importPath: '../modules/stock/stock.errors',

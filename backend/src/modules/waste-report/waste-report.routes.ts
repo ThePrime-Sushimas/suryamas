@@ -24,9 +24,6 @@ router.get('/summary', canView('waste_report'), validateSchema(wasteReportQueryS
 router.get('/by-item', canView('waste_report'), validateSchema(wasteReportQuerySchema), (req, res) =>
   wasteReportController.getByItem(req, res),
 )
-router.get('/by-reason', canView('waste_report'), validateSchema(wasteReportQuerySchema), (req, res) =>
-  wasteReportController.getByReason(req, res),
-)
 router.get('/monthly-selisih', canView('waste_report'), validateSchema(wasteReportQuerySchema), (req, res) =>
   wasteReportController.getMonthlySelisih(req, res),
 )

@@ -85,7 +85,7 @@ export class DailyStockOpnameClassificationRepository {
       FROM variance_classification_lines vcl
       JOIN daily_closing_count_lines dccl ON dccl.id = vcl.line_id
       JOIN daily_closing_counts dcc ON dcc.id = vcl.closing_id
-      LEFT JOIN employees e ON e.user_id = vcl.shortage_assigned_to
+      LEFT JOIN employees e ON e.id = vcl.shortage_assigned_to
       WHERE vcl.closing_id = $1
         AND dcc.branch_id = ANY($2::uuid[])
         AND dcc.is_deleted = false

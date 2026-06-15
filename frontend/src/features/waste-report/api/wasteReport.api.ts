@@ -117,7 +117,6 @@ export const wasteReportKeys = {
   report: (p: WasteReportParams) => ['waste-report', p] as const,
   byItem: (p: WasteReportParams) => ['waste-report', 'by-item', p] as const,
   byBranch: (p: WasteReportParams) => ['waste-report', 'by-branch', p] as const,
-  byReason: (p: WasteReportParams) => ['waste-report', 'by-reason', p] as const,
   compare: (p: WasteCompareParams) => ['waste-report', 'compare', p] as const,
 }
 
@@ -149,16 +148,6 @@ export const useWasteReportByBranch = (params: WasteReportParams | null) =>
       return data.data as WasteBranchGroup[]
     },
     enabled: !!params?.start_date && !!params?.end_date && !params?.branch_id,
-  })
-
-export const useWasteReportByReason = (params: WasteReportParams | null) =>
-  useQuery({
-    queryKey: wasteReportKeys.byReason(params ?? { start_date: '', end_date: '' }),
-    queryFn: async () => {
-      const { data } = await api.get('/waste-report/by-reason', { params })
-      return data.data as WasteReasonGroup[]
-    },
-    enabled: !!params?.start_date && !!params?.end_date,
   })
 
 export const useWasteCompare = (params: WasteCompareParams | null) =>

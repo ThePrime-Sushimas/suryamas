@@ -10,6 +10,7 @@ const HEADER_SELECT = `
   sa.*,
   b.branch_name,
   w.warehouse_name,
+  src_pos.position_name AS source_position_name,
   ip.product_code AS input_product_code,
   ip.product_name AS input_product_name,
   imu.unit_name AS input_base_unit_name,
@@ -21,6 +22,7 @@ const HEADER_FROM = `
   FROM stock_adjustments sa
   JOIN branches b ON b.id = sa.branch_id
   JOIN warehouses w ON w.id = sa.warehouse_id
+  LEFT JOIN positions src_pos ON src_pos.id = sa.source_position_id
   LEFT JOIN products ip ON ip.id = sa.input_product_id
   LEFT JOIN product_uoms ipu ON ipu.product_id = ip.id AND ipu.is_base_unit = true AND ipu.is_deleted = false
   LEFT JOIN metric_units imu ON imu.id = ipu.metric_unit_id
@@ -134,13 +136,16 @@ export class StockAdjustmentsRepository {
     const { rows } = await client.query(
       `INSERT INTO stock_adjustments
         (company_id, branch_id, warehouse_id, adjustment_number, adjustment_type,
-         adjustment_date, reason, notes, input_product_id, input_qty, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         adjustment_date, reason, notes, input_product_id, input_qty, created_by,
+         source_closing_id, source_position_id, source_monthly_opname_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id`,
       [
         companyId, branchId, dto.warehouse_id, adjustmentNumber, dto.adjustment_type,
         dto.adjustment_date, dto.reason ?? null, dto.notes ?? null,
         dto.input_product_id ?? null, dto.input_qty ?? null, dto.created_by ?? null,
+        dto.source_closing_id ?? null, dto.source_position_id ?? null,
+        dto.source_monthly_opname_id ?? null,
       ]
     )
     return rows[0]
@@ -265,6 +270,13 @@ export class StockAdjustmentsRepository {
     await client.query(
       `UPDATE stock_adjustment_lines SET movement_id = $2, cost_per_unit = $3 WHERE id = $1`,
       [lineId, movementId, costPerUnit]
+    )
+  }
+
+  async updateLineCost(client: PoolClient, lineId: string, costPerUnit: number): Promise<void> {
+    await client.query(
+      `UPDATE stock_adjustment_lines SET cost_per_unit = $2 WHERE id = $1`,
+      [lineId, costPerUnit],
     )
   }
 

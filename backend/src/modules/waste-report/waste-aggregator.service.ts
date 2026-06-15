@@ -12,7 +12,6 @@ import type {
   WasteCompareResponse,
   WasteQueryContext,
   WasteRecord,
-  WasteReasonGroup,
   WasteReportFilter,
   WasteReportResponse,
   WasteReportSummary,
@@ -152,11 +151,6 @@ export class WasteAggregatorService {
     }
 
     return [...grouped.values()].sort((a, b) => b.total_cost - a.total_cost)
-  }
-
-  async getByReason(filter: WasteReportFilter): Promise<WasteReasonGroup[]> {
-    const report = await this.getWasteReport(filter)
-    return wasteReportRepository.getWasteGroupedByReason(report.records)
   }
 
   async getMonthlySelisih(filter: WasteReportFilter): Promise<MonthlyOpnameSelisih[]> {

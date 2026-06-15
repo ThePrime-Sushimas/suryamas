@@ -75,17 +75,6 @@ export interface WasteBranchGroup {
   percentage_of_total?: number
 }
 
-export interface WasteReasonGroup {
-  reason: string
-  reason_key: string
-  is_unspecified: boolean
-  source_hint?: WasteSource
-  total_cost: number
-  total_qty: number
-  record_count: number
-  percentage_of_total: number
-}
-
 export interface WasteComparePeriod {
   total_cost: number
   total_qty: number

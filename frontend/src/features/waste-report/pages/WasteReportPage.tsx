@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
+  AlertOctagon,
   AlertTriangle,
   ArrowDown,
   ArrowUp,
@@ -34,7 +36,6 @@ import {
   useWasteCompare,
   useWasteReport,
   useWasteReportByBranch,
-  useWasteReportByReason,
   type WasteBranchGroup,
   type WasteCompareParams,
   type WasteCompareResponse,
@@ -44,7 +45,10 @@ import {
   type WasteSource,
   type MonthlyOpnameSelisih,
 } from '../api/wasteReport.api'
+import { useShortageSummary, type ShortageReportParams } from '@/features/shortage-report/api/shortageReport.api'
 import { groupWasteByItem } from '../utils/groupWasteByItem'
+import { groupWasteByReason, OPNAME_REASON_KEY } from '../utils/groupWasteByReason'
+import { formatChartAxisRp } from '../utils/chartAxisFormat'
 import { exportWasteDetailExcel } from '../utils/wasteReportExport'
 import {
   aggregateTrendDaily,
@@ -173,6 +177,7 @@ function ModuleBreakdownBar({ records }: { records: WasteRecord[] }) {
 }
 
 export default function WasteReportPage() {
+  const navigate = useNavigate()
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [branchId, setBranchId] = useState('')
@@ -200,6 +205,17 @@ export default function WasteReportPage() {
 
   const { data: report, isLoading, isFetching } = useWasteReport(params)
 
+  const shortageSummaryParams = useMemo<ShortageReportParams | null>(() => {
+    if (!applied) return null
+    return {
+      start_date: applied.start_date,
+      end_date: applied.end_date,
+      ...(applied.branch_id ? { branch_id: applied.branch_id } : {}),
+    }
+  }, [applied])
+
+  const { data: shortageSummary } = useShortageSummary(shortageSummaryParams ?? { start_date: '', end_date: '' }, !!shortageSummaryParams)
+
   const byBranchParams = useMemo<WasteReportParams | null>(() => {
     if (!applied || applied.branch_id) return null
     const { branch_id: _, ...rest } = applied
@@ -207,13 +223,6 @@ export default function WasteReportPage() {
   }, [applied])
 
   const { data: byBranchData, isLoading: byBranchLoading } = useWasteReportByBranch(byBranchParams)
-
-  const byReasonParams = useMemo<WasteReportParams | null>(() => {
-    if (!applied || activeTab !== 'by-reason') return null
-    return applied
-  }, [applied, activeTab])
-
-  const { data: byReasonData, isLoading: byReasonLoading } = useWasteReportByReason(byReasonParams)
 
   const compareParams = useMemo<WasteCompareParams | null>(() => {
     if (!applied || !compareB) return null
@@ -233,6 +242,11 @@ export default function WasteReportPage() {
 
   const byItemGroups = useMemo(
     () => groupWasteByItem(report?.records ?? []),
+    [report?.records],
+  )
+
+  const byReasonGroups = useMemo(
+    () => groupWasteByReason(report?.records ?? []),
     [report?.records],
   )
 
@@ -455,6 +469,27 @@ export default function WasteReportPage() {
               </div>
             )}
 
+            {(shortageSummary?.unresolved_count ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => navigate('/inventory/shortage-report')}
+                className="w-full flex items-center gap-4 p-5 rounded-2xl border border-orange-200 dark:border-orange-800/50 bg-orange-50/80 dark:bg-orange-950/20 hover:shadow-md transition-shadow text-left"
+              >
+                <AlertOctagon className="w-8 h-8 text-orange-500 shrink-0" />
+                <div>
+                  <p className="text-xs font-medium text-orange-700 dark:text-orange-300">
+                    Shortage Belum Terselesaikan
+                  </p>
+                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100 tabular-nums">
+                    {fmtRp(shortageSummary?.unresolved_cost)}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {shortageSummary?.unresolved_count} kejadian · Klik untuk investigasi →
+                  </p>
+                </div>
+              </button>
+            )}
+
             {/* Tabs */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-sm overflow-hidden">
               <div className="flex flex-wrap gap-1 p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30">
@@ -519,7 +554,7 @@ export default function WasteReportPage() {
                 {activeTab === 'by-item' && <ByItemTab groups={byItemGroups} />}
 
                 {activeTab === 'by-reason' && (
-                  <ByReasonTab groups={byReasonData ?? []} isLoading={byReasonLoading} />
+                  <ByReasonTab groups={byReasonGroups} isLoading={isLoading} />
                 )}
 
                 {activeTab === 'by-branch' && (
@@ -988,8 +1023,6 @@ function ByItemTab({ groups }: { groups: ReturnType<typeof groupWasteByItem> }) 
   )
 }
 
-const OPNAME_REASON_KEY = 'opname harian (tanpa alasan)'
-
 function ReasonParetoTooltip({
   active,
   payload,
@@ -1071,7 +1104,7 @@ function ByReasonTab({
                 <XAxis
                   type="number"
                   tick={{ fontSize: 11 }}
-                  tickFormatter={(v) => (Number(v) >= 1_000_000 ? `${Number(v) / 1_000_000}jt` : String(v))}
+                  tickFormatter={formatChartAxisRp}
                 />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
                 <Tooltip content={<ReasonParetoTooltip />} />
@@ -1291,7 +1324,7 @@ function WasteTrendChart({
             />
             <YAxis
               tick={{ fontSize: 11 }}
-              tickFormatter={(v) => (Number(v) >= 1_000_000 ? `${Number(v) / 1_000_000}jt` : String(v))}
+              tickFormatter={formatChartAxisRp}
               className="text-gray-500"
             />
             <Tooltip
@@ -1525,7 +1558,7 @@ function ComparePanel({
                       <BarChart data={compareChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="source" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => (Number(v) >= 1_000_000 ? `${Number(v) / 1_000_000}jt` : String(v))} />
+                        <YAxis tick={{ fontSize: 10 }} tickFormatter={formatChartAxisRp} />
                         <Tooltip formatter={(v: number) => fmtRp(v)} />
                         <Bar dataKey="period_a" name="Nilai" fill="#dc2626" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -1537,7 +1570,7 @@ function ComparePanel({
                       <BarChart data={compareChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="source" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => (Number(v) >= 1_000_000 ? `${Number(v) / 1_000_000}jt` : String(v))} />
+                        <YAxis tick={{ fontSize: 10 }} tickFormatter={formatChartAxisRp} />
                         <Tooltip formatter={(v: number) => fmtRp(v)} />
                         <Bar dataKey="period_b" name="Nilai" fill="#64748b" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -1606,7 +1639,7 @@ function ByBranchTab({
             <XAxis
               type="number"
               tick={{ fontSize: 11 }}
-              tickFormatter={(v) => (Number(v) >= 1_000_000 ? `${Number(v) / 1_000_000}jt` : String(v))}
+              tickFormatter={formatChartAxisRp}
             />
             <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
             <Tooltip formatter={(v: number) => fmtRp(v)} />

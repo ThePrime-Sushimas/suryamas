@@ -21,6 +21,9 @@ export interface StockAdjustment {
   waste_qty: number
   waste_value: number
   journal_id: string | null
+  source_closing_id: string | null
+  source_position_id: string | null
+  source_monthly_opname_id: string | null
   confirmed_at: string | null
   confirmed_by: string | null
   cancelled_at: string | null
@@ -35,6 +38,7 @@ export interface StockAdjustment {
 export interface StockAdjustmentWithRelations extends StockAdjustment {
   branch_name: string
   warehouse_name: string
+  source_position_name: string | null
   // BREAKDOWN: input product info
   input_product_code: string | null
   input_product_name: string | null
@@ -110,6 +114,22 @@ export interface CreateStockAdjustmentDto {
     notes?: string | null
   }[]
   created_by?: string
+  source_closing_id?: string | null
+  source_position_id?: string | null
+  source_monthly_opname_id?: string | null
+}
+
+export interface CreateStockAdjustmentFromShortageDto {
+  warehouse_id: string
+  branch_id: string
+  company_id: string
+  adjustment_date: string
+  notes: string
+  source_closing_id?: string | null
+  source_monthly_opname_id?: string | null
+  source_position_id?: string | null
+  lines: { product_id: string; qty: number; notes?: string | null }[]
+  created_by: string
 }
 
 export interface ConfirmStockAdjustmentDto {

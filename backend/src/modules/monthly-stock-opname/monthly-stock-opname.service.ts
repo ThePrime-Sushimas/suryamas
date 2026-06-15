@@ -351,6 +351,7 @@ export class MonthlyStockOpnameService {
     let totalSelisihValue = 0
 
     await monthlyStockOpnameRepository.withTransaction(async (client) => {
+      const deptId = await monthlyStockOpnameRepository.getPositionDepartmentId(client, header.position_id)
       // Recalculate inside transaction to get consistent movement data
       const movementMap = await monthlyStockOpnameRepository.getNetMovementsSince(
         header.warehouse_id, snapshotAt, productIds,
@@ -401,25 +402,36 @@ export class MonthlyStockOpnameService {
         let inMovementId: string | null = null
 
         if (selisihQty < 0) {
-          // Selisih negatif → OUT_WASTE
+          // Selisih negatif → shortage queue (stock OUT_ADJUSTMENT, bukan waste)
           const absSelisih = Math.abs(selisihQty)
           const newQty = currentQty - absSelisih
 
           const movement = await stockRepository.createMovement(client, {
             warehouse_id: header.warehouse_id,
             product_id: line.product_id,
-            movement_type: 'OUT_WASTE',
+            movement_type: 'OUT_ADJUSTMENT',
             qty: absSelisih,
             cost_per_unit: costPerUnit,
             reference_type: 'monthly_stock_opname',
             reference_id: opnameId,
-            notes: `SO Bulanan ${header.opname_date} - waste: ${line.product_name}`,
+            notes: `SO Bulanan ${header.opname_date} - shortage: ${line.product_name}`,
             movement_date: header.opname_date,
             created_by: userId,
           }, newQty)
           outMovementId = movement.id
 
           await stockRepository.upsertBalance(client, header.warehouse_id, line.product_id, newQty, currentAvgCost)
+
+          await monthlyStockOpnameRepository.insertMonthlyShortageEntry(client, {
+            monthly_opname_id: opnameId,
+            monthly_opname_line_id: line.id,
+            qty: absSelisih,
+            shortage_note: line.investigasi_note,
+            classified_by: userId,
+            company_id: header.company_id,
+            branch_id: header.branch_id,
+            department_id: deptId,
+          })
         } else {
           // Selisih positif → IN_ADJUSTMENT
           const newQty = currentQty + selisihQty

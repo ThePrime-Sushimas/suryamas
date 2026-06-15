@@ -1,5 +1,6 @@
 import {
   Activity,
+  AlertOctagon,
   AlertTriangle,
   ArrowLeftRight,
   Banknote,
@@ -806,6 +807,13 @@ export const menuItems: MenuItem[] = [
             href: "/inventory/waste-report",
             icon: <AlertTriangle size={16} />,
             module: "waste_report",
+          },
+          {
+            id: "inv-shortage-report",
+            name: "Laporan Shortage",
+            href: "/inventory/shortage-report",
+            icon: <AlertOctagon size={16} />,
+            module: "shortage_report",
           },
         ],
       },

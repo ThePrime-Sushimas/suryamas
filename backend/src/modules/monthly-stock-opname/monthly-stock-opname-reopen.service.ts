@@ -92,6 +92,8 @@ export class MonthlyStockOpnameReopenService {
       for (const movement of movements) {
         const reversalType = movement.movement_type === 'OUT_WASTE'
           ? 'IN_REVERSAL'
+          : movement.movement_type === 'OUT_ADJUSTMENT'
+            ? 'IN_REVERSAL'
           : movement.movement_type === 'IN_ADJUSTMENT'
             ? 'OUT_REVERSAL'
             : null
@@ -140,6 +142,8 @@ export class MonthlyStockOpnameReopenService {
         reopened_at: new Date().toISOString(),
         updated_by: userId,
       })
+
+      await monthlyStockOpnameRepository.deleteUnresolvedShortageByOpnameId(client, request.opname_id)
     })
 
     await AuditService.log('UPDATE', 'monthly_opname_reopen_request', requestId, userId,

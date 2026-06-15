@@ -601,10 +601,64 @@ export class MonthlyStockOpnameRepository {
        FROM stock_movements
        WHERE reference_type = 'monthly_stock_opname'
          AND reference_id = $1
-         AND movement_type IN ('OUT_WASTE', 'IN_ADJUSTMENT')`,
+         AND movement_type IN ('OUT_WASTE', 'OUT_ADJUSTMENT', 'IN_ADJUSTMENT')`,
       [opnameId],
     )
     return rows
+  }
+
+  async getPositionDepartmentId(client: PoolClient, positionId: string | null): Promise<string | null> {
+    if (!positionId) return null
+    const { rows } = await client.query(
+      `SELECT department_id FROM positions WHERE id = $1`,
+      [positionId],
+    )
+    return rows[0]?.department_id ?? null
+  }
+
+  async insertMonthlyShortageEntry(
+    client: PoolClient,
+    data: {
+      monthly_opname_id: string
+      monthly_opname_line_id: string
+      qty: number
+      shortage_note: string | null
+      classified_by: string
+      company_id: string
+      branch_id: string
+      department_id: string | null
+    },
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO variance_classification_lines (
+         source_type, monthly_opname_id, monthly_opname_line_id,
+         variance_category, qty, shortage_note, classified_by,
+         company_id, branch_id, department_id, resolve_status
+       ) VALUES (
+         'MONTHLY_OPNAME', $1, $2, 'SHORTAGE', $3, $4, $5, $6, $7, $8, 'UNRESOLVED'
+       )`,
+      [
+        data.monthly_opname_id,
+        data.monthly_opname_line_id,
+        data.qty,
+        data.shortage_note,
+        data.classified_by,
+        data.company_id,
+        data.branch_id,
+        data.department_id,
+      ],
+    )
+  }
+
+  async deleteUnresolvedShortageByOpnameId(client: PoolClient, opnameId: string): Promise<void> {
+    await client.query(
+      `DELETE FROM variance_classification_lines
+       WHERE monthly_opname_id = $1
+         AND source_type = 'MONTHLY_OPNAME'
+         AND variance_category = 'SHORTAGE'
+         AND COALESCE(resolve_status, 'UNRESOLVED') = 'UNRESOLVED'`,
+      [opnameId],
+    )
   }
 
   // ─── HELPERS ────────────────────────────────────────────────────────────────

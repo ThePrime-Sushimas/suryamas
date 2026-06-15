@@ -86,6 +86,7 @@ import stockAdjustmentsRoutes from './modules/stock-adjustments/stock-adjustment
 import generalInvoicesRouter from './modules/general-invoices/general-invoices.routes';
 import monthlyStockOpnameRoutes from './modules/monthly-stock-opname/monthly-stock-opname.routes';
 import wasteReportRoutes from './modules/waste-report/waste-report.routes';
+import shortageReportRoutes from './modules/shortage-report/shortage-report.routes';
 import { pool } from "./config/db";
 
 const app = express();
@@ -204,6 +205,7 @@ app.use('/api/v1/stock-adjustments', stockAdjustmentsRoutes);
 app.use('/api/v1', generalInvoicesRouter);
 app.use('/api/v1/monthly-stock-opname', monthlyStockOpnameRoutes);
 app.use('/api/v1/waste-report', wasteReportRoutes);
+app.use('/api/v1/shortage-report', shortageReportRoutes);
 app.use("/api/v1/printers", printersRoutes);
 app.use("/api/v1/storage", storageRoutes);
 app.use("/api/v1/notifications", notificationsRoutes);
