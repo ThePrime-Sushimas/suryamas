@@ -183,7 +183,7 @@ export default function ShortageReportPage() {
               </p>
             </div>
           </div>
-          {isFetching && <Loader2 className="w-5 h-5 animate-spin text-orange-500" />}
+          {isFetching && !report && <Loader2 className="w-5 h-5 animate-spin text-orange-500" />}
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-sm p-5">
@@ -801,13 +801,15 @@ function ByDepartmentTab({
                           <button
                             type="button"
                             onClick={() => onMarkPaid(d.allocation_id!, !d.deduction_paid_at)}
-                            className={`text-xs px-2 py-1 rounded-lg ${
+                            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-colors ${
                               d.deduction_paid_at
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
+                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                             }`}
+                            title={d.deduction_paid_at ? 'Klik untuk tandai belum dibayar' : 'Klik untuk tandai sudah dibayar'}
                           >
-                            {d.deduction_paid_at ? 'Sudah' : 'Belum'}
+                            <span className={`w-2 h-2 rounded-full ${d.deduction_paid_at ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            {d.deduction_paid_at ? 'Sudah dibayar' : 'Belum dibayar'}
                           </button>
                         ) : (
                           <span className="text-xs text-gray-400">-</span>

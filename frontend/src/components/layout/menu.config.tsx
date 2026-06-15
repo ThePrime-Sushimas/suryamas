@@ -599,7 +599,7 @@ export const menuItems: MenuItem[] = [
         submenu: [
           {
             id: "inv-purchase-requests",
-            name: "Request Barang",
+            name: "Request Bahan Baku",
             href: "/inventory/purchase-requests",
             icon: <ClipboardList size={16} />,
             module: "purchase_requests",
