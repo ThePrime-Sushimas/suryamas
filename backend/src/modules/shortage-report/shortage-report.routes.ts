@@ -11,6 +11,7 @@ import {
   shortageDepartmentEmployeesSchema,
   shortageResolveSchema,
   shortageDeductionPaidSchema,
+  shortageEditResolutionSchema,
 } from './shortage-report.schema'
 import { PermissionService } from '../../services/permission.service'
 
@@ -42,6 +43,9 @@ router.post('/resolve', requireWriteAccess, canUpdate('shortage_report'), valida
 )
 router.patch('/:id/deduction-paid', requireWriteAccess, canUpdate('shortage_report'), validateSchema(shortageDeductionPaidSchema), (req, res) =>
   shortageReportController.markDeductionPaid(req, res),
+)
+router.patch('/:id/edit-resolution', requireWriteAccess, canUpdate('shortage_report'), validateSchema(shortageEditResolutionSchema), (req, res) =>
+  shortageReportController.editResolution(req, res),
 )
 
 export default router

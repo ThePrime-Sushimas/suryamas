@@ -355,8 +355,28 @@ export class ShortageReportRepository {
     client: PoolClient | typeof pool,
     branchId: string,
     departmentId: string,
+    positionId?: string,
   ): Promise<DepartmentEmployeePreview[]> {
     const db = 'query' in client ? client : pool
+
+    // If positionId provided, filter by position directly (more specific)
+    if (positionId) {
+      const { rows } = await db.query(
+        `SELECT DISTINCT e.id, e.full_name
+         FROM employees e
+         JOIN employee_branches eb ON eb.employee_id = e.id
+           AND eb.branch_id = $1
+           AND eb.status = 'active'
+           AND eb.position_id = $2
+         WHERE e.is_active = true
+           AND e.deleted_at IS NULL
+         ORDER BY e.full_name`,
+        [branchId, positionId],
+      )
+      return rows as DepartmentEmployeePreview[]
+    }
+
+    // Fallback: filter by department (all positions within department)
     const { rows } = await db.query(
       `SELECT DISTINCT e.id, e.full_name
        FROM employees e
@@ -367,7 +387,7 @@ export class ShortageReportRepository {
          AND p.department_id = $2
          AND p.is_deleted = false
        WHERE e.is_active = true
-         AND e.is_deleted = false
+         AND e.deleted_at IS NULL
        ORDER BY e.full_name`,
       [branchId, departmentId],
     )
@@ -475,6 +495,60 @@ export class ShortageReportRepository {
            OR (vcl.source_type = 'MONTHLY_OPNAME' AND mso.branch_id = ANY($2::uuid[]))
          )`,
       [id, branchIds, paid],
+    )
+    return (rowCount ?? 0) > 0
+  }
+
+  /**
+   * Update deduction info on an already-RESOLVED shortage row.
+   * Deletes old division allocations and allows re-allocation.
+   */
+  async updateResolvedRow(
+    client: PoolClient,
+    vclId: string,
+    branchIds: string[],
+    data: {
+      resolved_by: string
+      resolved_notes: string | null
+      deducted_employee_id: string | null
+      deduction_amount: number | null
+      deduction_notes: string | null
+      deduction_mode: 'INDIVIDUAL' | 'DIVISION' | null
+      department_id: string | null
+    },
+  ): Promise<boolean> {
+    // Delete old allocations first
+    await client.query(
+      `DELETE FROM shortage_deduction_allocations WHERE vcl_id = $1`,
+      [vclId],
+    )
+
+    const { rowCount } = await client.query(
+      `UPDATE variance_classification_lines vcl
+       SET resolved_at = now(),
+           resolved_by = $2,
+           resolved_notes = $3,
+           deducted_employee_id = $4,
+           deduction_amount = $5,
+           deduction_notes = $6,
+           deduction_mode = $7,
+           department_id = $8,
+           deduction_paid_at = NULL
+       WHERE vcl.id = $1
+         AND vcl.variance_category = 'SHORTAGE'
+         AND COALESCE(vcl.resolve_status, 'UNRESOLVED') = 'RESOLVED'
+         AND (
+           EXISTS (
+             SELECT 1 FROM daily_closing_counts dcc
+             WHERE dcc.id = vcl.closing_id AND dcc.branch_id = ANY($9::uuid[])
+           )
+           OR EXISTS (
+             SELECT 1 FROM monthly_stock_opname mso
+             WHERE mso.id = vcl.monthly_opname_id AND mso.branch_id = ANY($9::uuid[])
+           )
+         )`,
+      [vclId, data.resolved_by, data.resolved_notes, data.deducted_employee_id,
+       data.deduction_amount, data.deduction_notes, data.deduction_mode, data.department_id, branchIds],
     )
     return (rowCount ?? 0) > 0
   }

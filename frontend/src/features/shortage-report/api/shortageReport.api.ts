@@ -215,16 +215,25 @@ export function useShortageReportByDepartment(
   })
 }
 
-export function useDepartmentEmployees(branchId: string, departmentId: string, enabled = true) {
+export function useDepartmentEmployees(
+  branchId: string,
+  id: string,
+  enabled = true,
+  mode: 'department' | 'position' = 'department',
+) {
   return useQuery({
-    queryKey: shortageReportKeys.departmentEmployees(branchId, departmentId),
+    queryKey: ['shortage-department-employees', branchId, id, mode] as const,
     queryFn: async () => {
-      const { data } = await api.get('/shortage-report/department-employees', {
-        params: { branch_id: branchId, department_id: departmentId },
-      })
+      const params: Record<string, string> = { branch_id: branchId }
+      if (mode === 'position') {
+        params.position_id = id
+      } else {
+        params.department_id = id
+      }
+      const { data } = await api.get('/shortage-report/department-employees', { params })
       return data.data as DepartmentEmployeePreview[]
     },
-    enabled: enabled && !!branchId && !!departmentId,
+    enabled: enabled && !!branchId && !!id,
   })
 }
 
@@ -267,6 +276,22 @@ export function useMarkDeductionPaid() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['shortage-report'] })
+      qc.invalidateQueries({ queryKey: ['shortage-report-by-employee'] })
+      qc.invalidateQueries({ queryKey: ['shortage-report-by-department'] })
+    },
+  })
+}
+
+export function useEditResolution() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: ShortageResolvePayload & { id: string }) => {
+      const { data } = await api.patch(`/shortage-report/${id}/edit-resolution`, payload)
+      return data.data as ShortageResolveResult
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shortage-report'] })
+      qc.invalidateQueries({ queryKey: ['shortage-summary'] })
       qc.invalidateQueries({ queryKey: ['shortage-report-by-employee'] })
       qc.invalidateQueries({ queryKey: ['shortage-report-by-department'] })
     },

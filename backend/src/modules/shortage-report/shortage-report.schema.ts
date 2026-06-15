@@ -32,8 +32,12 @@ export const shortageReportByEmployeeSchema = z.object({
 export const shortageDepartmentEmployeesSchema = z.object({
   query: z.object({
     branch_id: z.string().uuid(),
-    department_id: z.string().uuid(),
-  }),
+    department_id: z.string().uuid().optional(),
+    position_id: z.string().uuid().optional(),
+  }).refine(
+    (d) => d.department_id || d.position_id,
+    { message: 'Either department_id or position_id is required' },
+  ),
 })
 
 export const shortageResolveSchema = z.object({
@@ -61,5 +65,17 @@ export const shortageDeductionPaidSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
     paid: z.boolean(),
+  }),
+})
+
+export const shortageEditResolutionSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    allocation_mode: z.enum(['INDIVIDUAL', 'DIVISION']).optional(),
+    department_id: z.string().uuid().nullable().optional(),
+    resolved_notes: z.string().nullable().optional(),
+    deducted_employee_id: z.string().uuid().nullable().optional(),
+    deduction_amount: z.number().nonnegative().nullable().optional(),
+    deduction_notes: z.string().nullable().optional(),
   }),
 })

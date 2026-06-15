@@ -5,6 +5,7 @@ import { dailyOpnameWasteAdapter } from './adapters/daily-opname.adapter'
 import { monthlyOpnameAdapter } from './adapters/monthly-opname.adapter'
 import { wasteReportRepository } from './waste-report.repository'
 import { WasteReportError } from './waste-report.errors'
+import { theoreticalConsumptionRepository } from '../food-production/theoretical-consumption/theoretical-consumption.repository'
 import type {
   WasteBranchGroup,
   WasteByItemGroup,
@@ -15,6 +16,9 @@ import type {
   WasteReportFilter,
   WasteReportResponse,
   WasteReportSummary,
+  WasteVarianceSummary,
+  WasteVarianceSummaryResponse,
+  VarianceSeverity,
   MonthlyOpnameSelisih,
 } from './waste-report.types'
 import { emptyBreakdownBySource, WASTE_SOURCES } from './waste-report.types'
@@ -205,6 +209,138 @@ export class WasteAggregatorService {
     }
 
     return result
+  }
+
+  /**
+   * Variance Summary: join theoretical-consumption variance with waste records from 4 sources.
+   * Shows per-item: actual, theoretical, variance, waste, and unexplained qty.
+   */
+  async getVarianceSummary(filter: WasteReportFilter): Promise<WasteVarianceSummaryResponse> {
+    validateFilter(filter)
+    const ctx = buildQueryContext(filter)
+    const startDate = toDateString(filter.start_date)
+    const endDate = toDateString(filter.end_date)
+
+    // Resolve branch for theoretical (needs POS int ID)
+    let branchPosId: number | undefined
+    let branchUuid: string | undefined
+    if (filter.branch_id) {
+      try {
+        const resolved = await theoreticalConsumptionRepository.resolveBranchIds(filter.branch_id)
+        branchPosId = resolved.branchPosId
+        branchUuid = resolved.branchUuid
+      } catch {
+        // Branch tidak punya POS mapping — theoretical akan kosong, hanya waste yang tampil
+        branchPosId = undefined
+        branchUuid = filter.branch_id
+      }
+    }
+
+    // Fetch both sources in parallel
+    const [varianceItems, wasteByItem] = await Promise.all([
+      theoreticalConsumptionRepository.getVariance(startDate, endDate, branchPosId, branchUuid),
+      this.getByItem(filter),
+    ])
+
+    // Build waste lookup by item_id
+    const wasteMap = new Map(wasteByItem.map((w) => [w.item_id, w]))
+
+    // Build merged result — start from variance items
+    const mergedMap = new Map<string, WasteVarianceSummary>()
+
+    for (const v of varianceItems) {
+      const waste = wasteMap.get(v.product_id)
+      const varianceQty = v.variance_qty
+      const wasteQty = waste?.total_qty ?? 0
+      const unexplainedRaw = varianceQty - wasteQty
+      const unexplainedQty = Math.max(0, unexplainedRaw)
+
+      const severity = this.toVarianceSeverity(v.variance_pct)
+
+      mergedMap.set(v.product_id, {
+        product_id: v.product_id,
+        product_name: v.product_name,
+        product_code: v.product_code,
+        uom: v.uom,
+        actual_qty: v.actual_qty,
+        theoretical_qty: v.theoretical_qty,
+        variance_qty: varianceQty,
+        variance_pct: v.variance_pct,
+        severity,
+        waste_qty: wasteQty,
+        waste_cost: waste?.total_cost ?? 0,
+        waste_breakdown: waste?.breakdown_by_source ?? emptyBreakdownBySource(),
+        unexplained_qty: unexplainedQty,
+        unexplained_pct: v.theoretical_qty > 0
+          ? Math.round((unexplainedQty / v.theoretical_qty) * 10000) / 100
+          : null,
+      })
+    }
+
+    // Add waste-only items (tidak ada di theoretical, misal EXPIRED via stock adj)
+    for (const w of wasteByItem) {
+      if (mergedMap.has(w.item_id)) continue
+      mergedMap.set(w.item_id, {
+        product_id: w.item_id,
+        product_name: w.item_name ?? '',
+        product_code: '',
+        uom: '',
+        actual_qty: 0,
+        theoretical_qty: 0,
+        variance_qty: 0,
+        variance_pct: null,
+        severity: null,
+        waste_qty: w.total_qty,
+        waste_cost: w.total_cost,
+        waste_breakdown: w.breakdown_by_source,
+        unexplained_qty: 0,
+        unexplained_pct: null,
+      })
+    }
+
+    // Filter by category if specified (theoretical doesn't support category natively)
+    let items = [...mergedMap.values()]
+    if (filter.category_id) {
+      const productIdsInCategory = await wasteReportRepository.getProductIdsByCategory(
+        filter.category_id,
+      )
+      const categorySet = new Set(productIdsInCategory)
+      items = items.filter((i) => categorySet.has(i.product_id))
+    }
+
+    // Sort by variance_qty DESC (biggest over-usage first)
+    items.sort((a, b) => b.variance_qty - a.variance_qty)
+
+    // Calculate totals
+    let totalVarianceQty = 0
+    let totalWasteQty = 0
+    let totalUnexplainedQty = 0
+    let itemsWithUnexplained = 0
+
+    for (const item of items) {
+      totalVarianceQty += item.variance_qty
+      totalWasteQty += item.waste_qty
+      totalUnexplainedQty += item.unexplained_qty
+      if (item.unexplained_qty > 0) itemsWithUnexplained++
+    }
+
+    return {
+      items,
+      totals: {
+        total_variance_qty: totalVarianceQty,
+        total_waste_qty: totalWasteQty,
+        total_unexplained_qty: totalUnexplainedQty,
+        items_with_unexplained: itemsWithUnexplained,
+      },
+    }
+  }
+
+  private toVarianceSeverity(variancePct: number | null): VarianceSeverity | null {
+    if (variancePct === null) return null
+    const abs = Math.abs(variancePct)
+    if (abs > 15) return 'CRITICAL'
+    if (abs > 5) return 'WARNING'
+    return 'OK'
   }
 
   async compare(filterA: WasteReportFilter, filterB: WasteReportFilter): Promise<WasteCompareResponse> {

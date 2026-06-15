@@ -113,6 +113,7 @@ export class ShortageReportController {
       const employees = await shortageReportService.getDepartmentEmployees(
         query.branch_id,
         query.department_id,
+        query.position_id,
       )
       sendSuccess(res, employees, 'Department employees retrieved')
     } catch (error: unknown) {
@@ -143,6 +144,29 @@ export class ShortageReportController {
       sendSuccess(res, result, 'Deduction payment status updated')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'mark_shortage_deduction_paid', id: req.params.id })
+    }
+  }
+
+  editResolution = async (req: Request, res: Response) => {
+    try {
+      const { branchIds } = await getBranchReadScope(req)
+      const { params, body } = (req as ValidatedAuthRequest<typeof import('./shortage-report.schema').shortageEditResolutionSchema>).validated
+      const userId = getAuthUserId(req)
+      const result = await shortageReportService.editResolution(
+        params.id, branchIds, {
+          vcl_ids: [params.id],
+          action: 'RESOLVE',
+          allocation_mode: body.allocation_mode,
+          department_id: body.department_id ?? undefined,
+          resolved_notes: body.resolved_notes ?? undefined,
+          deducted_employee_id: body.deducted_employee_id ?? undefined,
+          deduction_amount: body.deduction_amount ?? undefined,
+          deduction_notes: body.deduction_notes ?? undefined,
+        }, userId,
+      )
+      sendSuccess(res, result, 'Resolution updated successfully')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'edit_shortage_resolution', id: req.params.id })
     }
   }
 }

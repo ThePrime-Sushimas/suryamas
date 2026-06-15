@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { useBranches } from '@/features/branches/api/branches.api'
 import { useCategories } from '@/features/categories/api/categories.api'
-import { usePositions, useDepartments } from '@/features/settings/api/settings.api'
+import { usePositions } from '@/features/settings/api/settings.api'
 import { employeesApi } from '@/features/employees/api/employees.api'
 import { usePermission } from '@/features/branch_context/hooks/usePermission'
 import { useToast } from '@/contexts/ToastContext'
@@ -25,6 +25,7 @@ import {
   useShortageReportByItem,
   useResolveShortage,
   useMarkDeductionPaid,
+  useEditResolution,
   type ShortageRecord,
   type ShortageReportParams,
   type ShortageResolveStatus,
@@ -103,6 +104,7 @@ export default function ShortageReportPage() {
   const [applied, setApplied] = useState<ShortageReportParams | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('list')
   const [resolveModal, setResolveModal] = useState<ShortageRecord | null>(null)
+  const [editModal, setEditModal] = useState<ShortageRecord | null>(null)
   const [convertModal, setConvertModal] = useState<ShortageRecord | null>(null)
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
   const [expandedDepartment, setExpandedDepartment] = useState<string | null>(null)
@@ -115,7 +117,7 @@ export default function ShortageReportPage() {
   const positions = positionsData ?? []
 
   const params = useMemo(() => applied, [applied])
-  const { data: report, isLoading, isFetching } = useShortageReport(params, !!params)
+  const { data: report, isLoading, isFetching } = useShortageReport(params ?? { start_date: '', end_date: '' }, !!params)
   const { data: byItem = [], isLoading: byItemLoading } = useShortageReportByItem(
     params ?? { start_date: '', end_date: '' },
     !!params && activeTab === 'by-item',
@@ -138,6 +140,7 @@ export default function ShortageReportPage() {
 
   const resolveMutation = useResolveShortage()
   const markPaidMutation = useMarkDeductionPaid()
+  const editMutation = useEditResolution()
 
   useEffect(() => {
     const end = new Date()
@@ -298,6 +301,7 @@ export default function ShortageReportPage() {
                     canEdit={canEdit}
                     onResolve={setResolveModal}
                     onConvert={setConvertModal}
+                    onEdit={setEditModal}
                   />
                 )}
                 {activeTab === 'by-item' && (
@@ -324,7 +328,7 @@ export default function ShortageReportPage() {
                           { id, paid },
                           {
                             onSuccess: () => toast.success(paid ? 'Ditandai sudah dibayar' : 'Ditandai belum dibayar'),
-                            onError: (e) => toast.error(parseApiError(e)),
+                            onError: (e) => toast.error(parseApiError(e, "Terjadi kesalahan")),
                           },
                         )
                       }}
@@ -345,7 +349,7 @@ export default function ShortageReportPage() {
                           { id, paid },
                           {
                             onSuccess: () => toast.success(paid ? 'Ditandai sudah dibayar' : 'Ditandai belum dibayar'),
-                            onError: (e) => toast.error(parseApiError(e)),
+                            onError: (e) => toast.error(parseApiError(e, "Terjadi kesalahan")),
                           },
                         )
                       }}
@@ -372,7 +376,27 @@ export default function ShortageReportPage() {
                   toast.success('Shortage berhasil diselesaikan')
                   setResolveModal(null)
                 },
-                onError: (e) => toast.error(parseApiError(e)),
+                onError: (e) => toast.error(parseApiError(e, "Terjadi kesalahan")),
+              },
+            )
+          }}
+        />
+      )}
+
+      {editModal && (
+        <ResolveModal
+          record={editModal}
+          onClose={() => setEditModal(null)}
+          loading={editMutation.isPending}
+          onSubmit={(payload) => {
+            editMutation.mutate(
+              { id: editModal.id, vcl_ids: [editModal.id], action: 'RESOLVE', ...payload },
+              {
+                onSuccess: () => {
+                  toast.success('Potongan berhasil diperbarui')
+                  setEditModal(null)
+                },
+                onError: (e) => toast.error(parseApiError(e, "Gagal mengupdate")),
               },
             )
           }}
@@ -401,7 +425,7 @@ export default function ShortageReportPage() {
                     navigate(`/inventory/stock-adjustments/${result.converted_sa_id}`)
                   }
                 },
-                onError: (e) => toast.error(parseApiError(e)),
+                onError: (e) => toast.error(parseApiError(e, "Terjadi kesalahan")),
               },
             )
           }}
@@ -455,11 +479,13 @@ function ListTab({
   canEdit,
   onResolve,
   onConvert,
+  onEdit,
 }: {
   records: ShortageRecord[]
   canEdit: boolean
   onResolve: (r: ShortageRecord) => void
   onConvert: (r: ShortageRecord) => void
+  onEdit: (r: ShortageRecord) => void
 }) {
   if (records.length === 0) {
     return <p className="text-center py-12 text-gray-500">Tidak ada data shortage untuk filter ini.</p>
@@ -536,6 +562,15 @@ function ListTab({
                         Jadikan Waste
                       </button>
                     </div>
+                  )}
+                  {r.resolve_status === 'RESOLVED' && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(r)}
+                      className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    >
+                      Edit
+                    </button>
                   )}
                 </td>
               )}
@@ -815,17 +850,19 @@ function ResolveModal({
   )
   const [notes, setNotes] = useState(record.shortage_note ?? '')
   const [hasDeduction, setHasDeduction] = useState(defaultDivision || !!record.shortage_assigned_to)
-  const [departmentId, setDepartmentId] = useState(record.department_id ?? '')
+  const [positionId, setPositionId] = useState(record.position_id ?? '')
   const [employeeId, setEmployeeId] = useState(record.shortage_assigned_to ?? record.deducted_employee_id ?? '')
   const [amount, setAmount] = useState(String(record.deduction_amount ?? record.total_cost))
   const [deductionNotes, setDeductionNotes] = useState('')
   const [employees, setEmployees] = useState<{ id: string; full_name: string }[]>([])
 
-  const { data: departments = [] } = useDepartments()
+  const { data: positionsData } = usePositions()
+  const allPositions = positionsData ?? []
   const { data: deptEmployees = [], isLoading: deptEmployeesLoading } = useDepartmentEmployees(
     record.branch_id,
-    departmentId,
-    allocationMode === 'DIVISION' && !!departmentId,
+    positionId,
+    allocationMode === 'DIVISION' && !!positionId,
+    'position',
   )
 
   const splitPreview = useMemo(() => {
@@ -844,7 +881,7 @@ function ResolveModal({
     }).catch(() => {})
   }, [])
 
-  const canSubmitDivision = allocationMode === 'DIVISION' && !!departmentId && deptEmployees.length > 0
+  const canSubmitDivision = allocationMode === 'DIVISION' && !!positionId && deptEmployees.length > 0
   const canSubmitIndividual = allocationMode === 'INDIVIDUAL' && (!hasDeduction || !!employeeId)
 
   return (
@@ -926,19 +963,19 @@ function ResolveModal({
           ) : (
             <>
               <select
-                value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
+                value={positionId}
+                onChange={(e) => setPositionId(e.target.value)}
                 className="w-full border rounded-xl px-3 py-2 text-sm dark:bg-gray-700"
               >
-                <option value="">Pilih divisi</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.department_name}</option>
+                <option value="">Pilih position</option>
+                {allPositions.map((p) => (
+                  <option key={p.id} value={p.id}>{p.position_name}</option>
                 ))}
               </select>
               {deptEmployeesLoading ? (
-                <p className="text-xs text-gray-500">Memuat karyawan divisi...</p>
-              ) : departmentId && deptEmployees.length === 0 ? (
-                <p className="text-xs text-red-600">Tidak ada karyawan aktif di divisi ini pada cabang terkait.</p>
+                <p className="text-xs text-gray-500">Memuat karyawan position...</p>
+              ) : positionId && deptEmployees.length === 0 ? (
+                <p className="text-xs text-red-600">Tidak ada karyawan aktif di position ini pada cabang terkait.</p>
               ) : splitPreview.length > 0 ? (
                 <div className="rounded-xl border border-gray-200 dark:border-gray-600 p-3 space-y-1 max-h-40 overflow-y-auto">
                   <p className="text-xs font-medium text-gray-500 mb-2">
@@ -968,14 +1005,15 @@ function ResolveModal({
         <button
           type="button"
           disabled={loading || (hasDeduction && !(canSubmitDivision || canSubmitIndividual))}
-          onClick={() =>
+          onClick={() => {
+            const selectedPosition = allPositions.find((p) => p.id === positionId)
             onSubmit({
               resolved_notes: notes || undefined,
               ...(hasDeduction
                 ? allocationMode === 'DIVISION'
                   ? {
                       allocation_mode: 'DIVISION' as const,
-                      department_id: departmentId,
+                      department_id: selectedPosition?.department_id ?? positionId,
                       deduction_notes: deductionNotes || undefined,
                     }
                   : {
@@ -986,7 +1024,7 @@ function ResolveModal({
                     }
                 : {}),
             })
-          }
+          }}
           className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 disabled:opacity-50"
         >
           {loading ? 'Menyimpan...' : 'Simpan'}

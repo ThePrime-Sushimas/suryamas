@@ -371,9 +371,10 @@ export class ShortageReportService {
 
   async getDepartmentEmployees(
     branchId: string,
-    departmentId: string,
+    departmentId?: string,
+    positionId?: string,
   ): Promise<DepartmentEmployeePreview[]> {
-    return shortageReportRepository.getActiveEmployeesInDepartment(pool, branchId, departmentId)
+    return shortageReportRepository.getActiveEmployeesInDepartment(pool, branchId, departmentId ?? '', positionId)
   }
 
   async resolve(
@@ -604,6 +605,72 @@ export class ShortageReportService {
     }
     await AuditService.log('UPDATE', 'shortage_report', id, userId, undefined, { deduction_paid: paid })
     return updated
+  }
+
+  async editResolution(
+    vclId: string,
+    branchIds: string[],
+    payload: ShortageResolvePayload,
+    userId: string,
+  ): Promise<ShortageResolveResult> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      if (payload.allocation_mode === 'DIVISION' && payload.department_id) {
+        // Get employees by position or department
+        const employees = await shortageReportRepository.getActiveEmployeesInDepartment(
+          client, branchIds[0], payload.department_id,
+        )
+        if (employees.length === 0) {
+          throw new ShortageReportError('Tidak ada karyawan aktif di position/divisi ini')
+        }
+
+        // Get the row to know total_cost
+        const row = await shortageReportRepository.getShortageRowById(vclId, branchIds)
+        if (!row) throw new ShortageReportError('Baris shortage tidak ditemukan')
+        const totalCost = Number(row.total_cost) || 0
+        const amounts = splitEquallyIdr(totalCost, employees.length)
+
+        await shortageReportRepository.updateResolvedRow(client, vclId, branchIds, {
+          resolved_by: userId,
+          resolved_notes: payload.resolved_notes?.trim() ?? null,
+          deducted_employee_id: null,
+          deduction_amount: totalCost,
+          deduction_notes: payload.deduction_notes?.trim() ?? null,
+          deduction_mode: 'DIVISION',
+          department_id: payload.department_id,
+        })
+
+        await shortageReportRepository.insertDivisionAllocations(
+          client, vclId, payload.department_id, employees, amounts, payload.deduction_notes ?? null,
+        )
+      } else {
+        await shortageReportRepository.updateResolvedRow(client, vclId, branchIds, {
+          resolved_by: userId,
+          resolved_notes: payload.resolved_notes?.trim() ?? null,
+          deducted_employee_id: payload.deducted_employee_id ?? null,
+          deduction_amount: payload.deduction_amount ?? null,
+          deduction_notes: payload.deduction_notes?.trim() ?? null,
+          deduction_mode: payload.deducted_employee_id ? 'INDIVIDUAL' : null,
+          department_id: null,
+        })
+      }
+
+      await client.query('COMMIT')
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+
+    await AuditService.log(
+      'UPDATE', 'shortage_report', vclId, userId, undefined,
+      { action: 'EDIT_RESOLUTION', vcl_id: vclId },
+    )
+
+    return { success: true }
   }
 }
 

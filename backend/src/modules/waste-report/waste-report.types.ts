@@ -123,3 +123,42 @@ export interface WasteQueryContext {
   itemId?: string
   categoryId?: string
 }
+
+// ── Variance Summary (Aktual vs Teoretis) ──
+
+export type VarianceSeverity = 'OK' | 'WARNING' | 'CRITICAL'
+
+export interface WasteVarianceSummary {
+  product_id: string
+  product_name: string
+  product_code: string
+  uom: string
+  category_id?: string
+  category_name?: string
+
+  // Dari theoretical-consumption variance
+  actual_qty: number
+  theoretical_qty: number
+  variance_qty: number          // actual - theoretical (positif = over usage)
+  variance_pct: number | null   // variance_qty / theoretical_qty × 100
+  severity: VarianceSeverity | null
+
+  // Dari waste-report (4 source verified)
+  waste_qty: number
+  waste_cost: number
+  waste_breakdown: Record<WasteSource, { qty: number; cost: number }>
+
+  // Derived
+  unexplained_qty: number       // max(0, variance_qty - waste_qty)
+  unexplained_pct: number | null
+}
+
+export interface WasteVarianceSummaryResponse {
+  items: WasteVarianceSummary[]
+  totals: {
+    total_variance_qty: number
+    total_waste_qty: number
+    total_unexplained_qty: number
+    items_with_unexplained: number
+  }
+}

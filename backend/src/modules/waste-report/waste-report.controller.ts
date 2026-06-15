@@ -132,6 +132,17 @@ export class WasteReportController {
       await handleError(res, error, req, { action: 'get_waste_report_compare' })
     }
   }
+
+  getVarianceSummary = async (req: Request, res: Response) => {
+    try {
+      const { branchIds } = await getBranchReadScope(req)
+      const filter = buildFilter(req, branchIds)
+      const result = await wasteReportService.getVarianceSummary(filter)
+      sendSuccess(res, result, 'Variance summary retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_waste_variance_summary' })
+    }
+  }
 }
 
 export const wasteReportController = new WasteReportController()

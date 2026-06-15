@@ -164,3 +164,46 @@ export const useWasteCompare = (params: WasteCompareParams | null) =>
     },
     enabled: !!params,
   })
+
+// ── Variance Summary (Aktual vs Teoretis) ──
+
+export type VarianceSeverity = 'OK' | 'WARNING' | 'CRITICAL'
+
+export interface WasteVarianceSummary {
+  product_id: string
+  product_name: string
+  product_code: string
+  uom: string
+  category_id?: string
+  category_name?: string
+  actual_qty: number
+  theoretical_qty: number
+  variance_qty: number
+  variance_pct: number | null
+  severity: VarianceSeverity | null
+  waste_qty: number
+  waste_cost: number
+  waste_breakdown: Record<WasteSource, { qty: number; cost: number }>
+  unexplained_qty: number
+  unexplained_pct: number | null
+}
+
+export interface WasteVarianceSummaryResponse {
+  items: WasteVarianceSummary[]
+  totals: {
+    total_variance_qty: number
+    total_waste_qty: number
+    total_unexplained_qty: number
+    items_with_unexplained: number
+  }
+}
+
+export const useWasteVarianceSummary = (params: WasteReportParams | null) =>
+  useQuery({
+    queryKey: ['waste-report', 'variance-summary', params] as const,
+    queryFn: async () => {
+      const { data } = await api.get('/waste-report/variance-summary', { params })
+      return data.data as WasteVarianceSummaryResponse
+    },
+    enabled: !!params?.start_date && !!params?.end_date,
+  })

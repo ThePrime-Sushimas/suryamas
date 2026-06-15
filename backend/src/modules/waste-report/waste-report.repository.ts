@@ -259,6 +259,14 @@ export class WasteReportRepository {
     return new Map(rows.map((r) => [r.id as string, r.branch_name as string]))
   }
 
+  async getProductIdsByCategory(categoryId: string): Promise<string[]> {
+    const { rows } = await pool.query(
+      `SELECT id FROM products WHERE category_id = $1 AND deleted_at IS NULL`,
+      [categoryId],
+    )
+    return rows.map((r) => r.id as string)
+  }
+
   async getWasteGroupedByBranch(ctx: WasteQueryContext): Promise<WasteBranchSourceRow[]> {
     const params: unknown[] = [ctx.branchIds, ctx.startDate, ctx.endDate]
     const idx = { n: 4 }

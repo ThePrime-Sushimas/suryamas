@@ -33,5 +33,8 @@ router.get('/by-branch', canView('waste_report'), validateSchema(wasteReportByBr
 router.get('/compare', canView('waste_report'), validateSchema(wasteReportCompareSchema), (req, res) =>
   wasteReportController.compare(req, res),
 )
+router.get('/variance-summary', canView('waste_report'), validateSchema(wasteReportQuerySchema), (req, res) =>
+  wasteReportController.getVarianceSummary(req, res),
+)
 
 export default router
