@@ -27,6 +27,7 @@ import {
 } from 'recharts'
 import { useBranches } from '@/features/branches/api/branches.api'
 import { useCategories } from '@/features/categories/api/categories.api'
+import { usePositions } from '@/features/settings/api/settings.api'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import {
@@ -42,7 +43,7 @@ import {
   type MonthlyOpnameSelisih,
 } from '../api/wasteReport.api'
 import { groupWasteByItem } from '../utils/groupWasteByItem'
-import { exportWasteReportExcel } from '../utils/wasteReportExport'
+import { exportWasteDetailExcel } from '../utils/wasteReportExport'
 import {
   aggregateTrendDaily,
   aggregateTrendWeekly,
@@ -69,9 +70,9 @@ const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 
 const SOURCE_LABELS: Record<WasteSource, string> = {
-  GOODS_PROCESSING: 'Bongkar Barang',
-  STOCK_ADJUSTMENT: 'Penyesuaian Stok',
-  PRODUCTION_ORDER: 'Produksi',
+  GOODS_PROCESSING: 'Barang Diproses',
+  STOCK_ADJUSTMENT: 'Waste & Breakdown',
+  PRODUCTION_ORDER: 'Produksi Harian',
   DAILY_OPNAME: 'Opname Harian',
 }
 
@@ -123,6 +124,52 @@ function ProductionOrderStatusBadge({ record }: { record: WasteRecord }) {
 
 type TabId = 'summary' | 'detail' | 'by-item' | 'by-branch' | 'monthly'
 
+function ModuleBreakdownBar({ records }: { records: WasteRecord[] }) {
+  const breakdown = useMemo(() => {
+    const empty = () => ({ qty: 0, cost: 0 })
+    const result: Record<WasteSource, { qty: number; cost: number }> = {
+      GOODS_PROCESSING: empty(),
+      STOCK_ADJUSTMENT: empty(),
+      PRODUCTION_ORDER: empty(),
+      DAILY_OPNAME: empty(),
+    }
+    for (const r of records) {
+      result[r.source].qty += r.qty
+      result[r.source].cost += r.total_cost
+    }
+    return result
+  }, [records])
+
+  const totalCost = useMemo(
+    () => Object.values(breakdown).reduce((sum, b) => sum + b.cost, 0),
+    [breakdown],
+  )
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex items-stretch min-w-max divide-x divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/30 text-xs">
+        {(Object.keys(SOURCE_LABELS) as WasteSource[]).map((s) => {
+          const b = breakdown[s]
+          return (
+            <div key={s} className="px-3 py-2 flex flex-col gap-0.5 min-w-30">
+              <span className={`self-start px-1.5 py-0.5 rounded font-medium ${SOURCE_COLORS[s]}`}>
+                {SOURCE_LABELS[s]}
+              </span>
+              <span className="font-semibold text-gray-900 dark:text-white tabular-nums">{fmtRp(b.cost)}</span>
+              <span className="text-gray-500 tabular-nums">{fmt(b.qty)} qty</span>
+            </div>
+          )
+        })}
+        <div className="px-3 py-2 flex flex-col gap-0.5 min-w-22 bg-white/60 dark:bg-gray-800/40">
+          <span className="text-gray-500 font-medium">Total</span>
+          <span className="font-bold text-gray-900 dark:text-white tabular-nums">{fmtRp(totalCost)}</span>
+          <span className="text-gray-500 tabular-nums">{records.length} trx</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function WasteReportPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -132,7 +179,6 @@ export default function WasteReportPage() {
   const [recordSearch, setRecordSearch] = useState('')
   const [activeTab, setActiveTab] = useState<TabId>('summary')
   const [applied, setApplied] = useState<WasteReportParams | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
   const [compareOpen, setCompareOpen] = useState(false)
   const [compareBStart, setCompareBStart] = useState('')
   const [compareBEnd, setCompareBEnd] = useState('')
@@ -229,22 +275,6 @@ export default function WasteReportPage() {
       (categoryId || undefined) !== applied.category_id ||
       (source || undefined) !== applied.source)
 
-  const handleExport = async () => {
-    if (!params) return
-    setIsExporting(true)
-    try {
-      await exportWasteReportExcel(params)
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error && err.message === 'NO_DATA'
-          ? 'Tidak ada data untuk diekspor'
-          : parseApiError(err, 'Gagal mengekspor laporan waste')
-      toast.error(message)
-    } finally {
-      setIsExporting(false)
-    }
-  }
-
   const provisionalPoCount = useMemo(
     () =>
       (report?.records ?? []).filter(
@@ -290,23 +320,7 @@ export default function WasteReportPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isFetching && <Loader2 className="w-5 h-5 animate-spin text-red-500" />}
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={isExporting || !params}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title={!params ? 'Tampilkan data terlebih dahulu sebelum export' : undefined}
-            >
-              {isExporting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {isExporting ? 'Mengekspor...' : 'Export Excel'}
-            </button>
-          </div>
+          {isFetching && <Loader2 className="w-5 h-5 animate-spin text-red-500" />}
         </div>
 
         {/* Filters */}
@@ -370,7 +384,7 @@ export default function WasteReportPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
-                Sumber
+                Modul
               </label>
               <select
                 value={source}
@@ -420,22 +434,6 @@ export default function WasteReportPage() {
           </div>
         ) : (
           <>
-            {/* Period comparison panel */}
-            <ComparePanel
-              open={compareOpen}
-              onToggle={() => setCompareOpen((v) => !v)}
-              periodALabel={`${fmtDate(applied.start_date)} – ${fmtDate(applied.end_date)}`}
-              compareBStart={compareBStart}
-              compareBEnd={compareBEnd}
-              onCompareBStartChange={setCompareBStart}
-              onCompareBEndChange={setCompareBEnd}
-              onCompare={handleCompare}
-              compareData={compareData}
-              isLoading={compareLoading || compareFetching}
-              hasCompareB={!!compareB}
-            />
-
-            {/* Source breakdown */}
             {provisionalPoCount > 0 && (
               <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
                 <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -446,30 +444,6 @@ export default function WasteReportPage() {
                 </p>
               </div>
             )}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
-                Breakdown per Sumber
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {(Object.keys(SOURCE_LABELS) as WasteSource[]).map((s) => {
-                  const b = report?.summary.breakdown_by_source[s]
-                  return (
-                    <div
-                      key={s}
-                      className="rounded-xl border border-gray-100 dark:border-gray-700 p-4 hover:shadow-sm transition-shadow"
-                    >
-                      <span
-                        className={`inline-block text-xs font-medium px-2 py-0.5 rounded-lg mb-2 ${SOURCE_COLORS[s]}`}
-                      >
-                        {SOURCE_LABELS[s]}
-                      </span>
-                      <p className="text-lg font-bold text-gray-900 dark:text-white">{fmtRp(b?.cost)}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Qty: {fmt(b?.qty)}</p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
 
             {/* Tabs */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-sm overflow-hidden">
@@ -497,19 +471,38 @@ export default function WasteReportPage() {
 
               <div className="p-5">
                 {activeTab === 'summary' && applied && (
-                  <WasteTrendChart
-                    records={report?.records ?? []}
-                    startDate={applied.start_date}
-                    endDate={applied.end_date}
-                  />
+                  <div className="space-y-0">
+                    <WasteTrendChart
+                      records={report?.records ?? []}
+                      startDate={applied.start_date}
+                      endDate={applied.end_date}
+                    />
+                    <ComparePanel
+                      embedded
+                      open={compareOpen}
+                      onToggle={() => setCompareOpen((v) => !v)}
+                      periodALabel={`${fmtDate(applied.start_date)} – ${fmtDate(applied.end_date)}`}
+                      compareBStart={compareBStart}
+                      compareBEnd={compareBEnd}
+                      onCompareBStartChange={setCompareBStart}
+                      onCompareBEndChange={setCompareBEnd}
+                      onCompare={handleCompare}
+                      compareData={compareData}
+                      isLoading={compareLoading || compareFetching}
+                      hasCompareB={!!compareB}
+                    />
+                  </div>
                 )}
 
-                {activeTab === 'detail' && (
+                {activeTab === 'detail' && applied && (
                   <DetailTab
                     records={filteredRecords}
                     search={recordSearch}
                     onSearchChange={setRecordSearch}
                     branchNameById={branchNameById}
+                    branches={branches}
+                    startDate={applied.start_date}
+                    endDate={applied.end_date}
                   />
                 )}
 
@@ -544,24 +537,120 @@ function EmptyState({ message }: { message: string }) {
   )
 }
 
+function DetailFilters({
+  branchFilter,
+  positionFilter,
+  onBranchChange,
+  onPositionChange,
+  branches,
+  positions,
+}: {
+  branchFilter: string
+  positionFilter: string
+  onBranchChange: (v: string) => void
+  onPositionChange: (v: string) => void
+  branches: { id: string; branch_name: string }[]
+  positions: { id: string; position_name: string }[]
+}) {
+  return (
+    <div className="flex flex-wrap gap-3 items-end">
+      <div>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+          Cabang
+        </label>
+        <select
+          value={branchFilter}
+          onChange={(e) => onBranchChange(e.target.value)}
+          className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]"
+        >
+          <option value="">Semua cabang</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.branch_name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+          Position
+        </label>
+        <select
+          value={positionFilter}
+          onChange={(e) => onPositionChange(e.target.value)}
+          className="border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]"
+        >
+          <option value="">Semua position</option>
+          {positions.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.position_name}
+            </option>
+          ))}
+        </select>
+        <p className="text-[10px] text-gray-400 mt-1">Hanya berlaku untuk Opname Harian</p>
+      </div>
+      {(branchFilter || positionFilter) && (
+        <button
+          type="button"
+          onClick={() => {
+            onBranchChange('')
+            onPositionChange('')
+          }}
+          className="px-3 py-2.5 text-xs font-medium rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          Reset filter
+        </button>
+      )}
+    </div>
+  )
+}
+
+function recordPositionId(r: WasteRecord): string | undefined {
+  const id = r.metadata?.position_id
+  return typeof id === 'string' ? id : undefined
+}
+
 function DetailTab({
   records,
   search,
   onSearchChange,
   branchNameById,
+  branches,
+  startDate,
+  endDate,
 }: {
   records: WasteRecord[]
   search: string
   onSearchChange: (v: string) => void
   branchNameById: Map<string, string>
+  branches: { id: string; branch_name: string }[]
+  startDate: string
+  endDate: string
 }) {
   const [sortColumn, setSortColumn] = useState<DetailSortColumn | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [page, setPage] = useState(1)
+  const [branchFilter, setBranchFilter] = useState('')
+  const [positionFilter, setPositionFilter] = useState('')
+  const [isExporting, setIsExporting] = useState(false)
+  const toast = useToast()
+
+  const { data: positions = [] } = usePositions()
+
+  const scopedRecords = useMemo(() => {
+    return records.filter((r) => {
+      if (branchFilter && r.branch_id !== branchFilter) return false
+      if (positionFilter) {
+        if (r.source !== 'DAILY_OPNAME') return false
+        if (recordPositionId(r) !== positionFilter) return false
+      }
+      return true
+    })
+  }, [records, branchFilter, positionFilter])
 
   useEffect(() => {
     setPage(1)
-  }, [records, sortColumn, sortDirection])
+  }, [scopedRecords, sortColumn, sortDirection])
 
   const handleSort = (column: DetailSortColumn) => {
     if (sortColumn !== column) {
@@ -578,7 +667,7 @@ function DetailTab({
   }
 
   const sortedRecords = useMemo(() => {
-    const base = [...records]
+    const base = [...scopedRecords]
     if (!sortColumn) {
       return base.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     }
@@ -604,7 +693,22 @@ function DetailTab({
           return 0
       }
     })
-  }, [records, sortColumn, sortDirection, branchNameById])
+  }, [scopedRecords, sortColumn, sortDirection, branchNameById])
+
+  const handleExport = () => {
+    setIsExporting(true)
+    try {
+      exportWasteDetailExcel(sortedRecords, { startDate, endDate, branchNameById })
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error && err.message === 'NO_DATA'
+          ? 'Tidak ada data untuk diekspor'
+          : parseApiError(err, 'Gagal mengekspor detail transaksi')
+      toast.error(message)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(sortedRecords.length / DETAIL_PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -615,26 +719,66 @@ function DetailTab({
     return <EmptyState message="Tidak ada transaksi waste pada periode ini." />
   }
 
+  if (scopedRecords.length === 0) {
+    return (
+      <div className="space-y-4">
+        <DetailFilters
+          branchFilter={branchFilter}
+          positionFilter={positionFilter}
+          onBranchChange={setBranchFilter}
+          onPositionChange={setPositionFilter}
+          branches={branches}
+          positions={positions}
+        />
+        <EmptyState message="Tidak ada transaksi yang cocok dengan filter cabang / position." />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Cari produk, cabang, nomor dokumen, alasan..."
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700"
-        />
-        {search && (
-          <button
-            type="button"
-            onClick={() => onSearchChange('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+      <DetailFilters
+        branchFilter={branchFilter}
+        positionFilter={positionFilter}
+        onBranchChange={setBranchFilter}
+        onPositionChange={setPositionFilter}
+        branches={branches}
+        positions={positions}
+      />
+      <ModuleBreakdownBar records={scopedRecords} />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Cari produk, cabang, nomor dokumen, alasan..."
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => onSearchChange('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={isExporting || sortedRecords.length === 0}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+        >
+          {isExporting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+          {isExporting ? 'Mengekspor...' : 'Export Excel'}
+        </button>
       </div>
       <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
         <table className="w-full text-sm">
@@ -642,7 +786,7 @@ function DetailTab({
             <tr className="bg-gray-50 dark:bg-gray-900/50 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
               <SortableTh label="Tanggal" column="date" active={sortColumn} direction={sortDirection} onSort={handleSort} />
               <SortableTh label="Cabang" column="branch" active={sortColumn} direction={sortDirection} onSort={handleSort} />
-              <SortableTh label="Sumber" column="source" active={sortColumn} direction={sortDirection} onSort={handleSort} />
+              <SortableTh label="Modul" column="source" active={sortColumn} direction={sortDirection} onSort={handleSort} />
               <SortableTh label="Produk" column="product" active={sortColumn} direction={sortDirection} onSort={handleSort} />
               <SortableTh label="Qty" column="qty" active={sortColumn} direction={sortDirection} onSort={handleSort} align="right" />
               <SortableTh label="Nilai" column="value" active={sortColumn} direction={sortDirection} onSort={handleSort} align="right" />
@@ -1064,6 +1208,7 @@ function TrendTooltipContent({
 }
 
 function ComparePanel({
+  embedded = false,
   open,
   onToggle,
   periodALabel,
@@ -1076,6 +1221,7 @@ function ComparePanel({
   isLoading,
   hasCompareB,
 }: {
+  embedded?: boolean
   open: boolean
   onToggle: () => void
   periodALabel: string
@@ -1107,19 +1253,27 @@ function ComparePanel({
   }, [compareData])
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-sm overflow-hidden">
+    <div
+      className={
+        embedded
+          ? 'mt-6 pt-5 border-t border-gray-100 dark:border-gray-700'
+          : 'bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-sm overflow-hidden'
+      }
+    >
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors"
+        className={`w-full flex items-center justify-between gap-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors ${
+          embedded ? 'py-1' : 'px-5 py-4'
+        }`}
       >
         <span>Bandingkan dengan periode lain</span>
         {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
 
       {open && (
-        <div className="px-5 pb-5 space-y-5 border-t border-gray-100 dark:border-gray-700">
-          <div className="flex flex-wrap gap-4 items-end pt-4">
+        <div className={`space-y-5 ${embedded ? 'pt-4' : 'px-5 pb-5 border-t border-gray-100 dark:border-gray-700'}`}>
+          <div className={`flex flex-wrap gap-4 items-end ${embedded ? '' : 'pt-4'}`}>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
                 Periode pembanding — Dari
@@ -1205,7 +1359,7 @@ function ComparePanel({
 
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                  Breakdown per Sumber
+                  Breakdown per Modul
                 </h3>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="h-[220px]">
