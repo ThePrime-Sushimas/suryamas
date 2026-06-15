@@ -177,7 +177,7 @@ export default function WasteReportPage() {
   const [categoryId, setCategoryId] = useState('')
   const [source, setSource] = useState<WasteSource | ''>('')
   const [recordSearch, setRecordSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<TabId>('summary')
+  const [activeTab, setActiveTab] = useState<TabId>('detail')
   const [applied, setApplied] = useState<WasteReportParams | null>(null)
   const [compareOpen, setCompareOpen] = useState(false)
   const [compareBStart, setCompareBStart] = useState('')
@@ -286,8 +286,8 @@ export default function WasteReportPage() {
   )
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'summary', label: 'Ringkasan' },
     { id: 'detail', label: 'Detail Transaksi' },
+    { id: 'summary', label: 'Ringkasan' },    
     { id: 'by-item', label: 'Per Produk' },
     { id: 'by-branch', label: 'Benchmark Cabang' },
     { id: 'monthly', label: 'Indikasi Kebocoran Bulanan' },
@@ -316,7 +316,7 @@ export default function WasteReportPage() {
                 Laporan Waste
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Agregasi waste terverifikasi dari bongkar barang, penyesuaian, produksi, dan opname harian
+                Agregasi waste terverifikasi dari Barang diproses, waste & breakdown, produksi harian, dan opname harian
               </p>
             </div>
           </div>
