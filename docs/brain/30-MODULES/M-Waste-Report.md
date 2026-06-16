@@ -8,16 +8,15 @@ frontend_path: frontend/src/features/waste-report
 api_base: /api/v1/waste-report
 permission_module: waste_report
 depends_on:
-  - "[[30-MODULES/M-goods-processing]]"
-  - "[[30-MODULES/M-stock-adjustments]]"
-  - "[[30-MODULES/M-production-orders]]"
-  - "[[30-MODULES/M-daily-stock-opname]]"
-  - "[[30-MODULES/M-monthly-stock-opname]]"
-  - "[[30-MODULES/M-food-production]]"
-  - "[[30-MODULES/M-products]]"
-  - "[[30-MODULES/M-warehouses]]"
-  - "[[30-MODULES/M-branches]]"
-  - "[[30-MODULES/M-shortage-report]]"
+  - "[[30-MODULES/M-Goods-Processing|M-Goods Processing]]"
+  - "[[30-MODULES/M-Stock-Adjustments|M-Stock Adjustments]]"
+  - "[[30-MODULES/M-Production-Orders|M-Production Orders]]"
+  - "[[30-MODULES/M-Daily-Stock-Opname|M-Daily Stock Opname]]"
+  - "[[30-MODULES/M-Food-Production|M-Food Production]]"
+  - "[[30-MODULES/M-Products|M-Products]]"
+  - "[[30-MODULES/M-Warehouses|M-Warehouses]]"
+  - "[[30-MODULES/M-Branches|M-Branches]]"
+  - "[[30-MODULES/M-Shortage-Report|M-Shortage Report]]"
 used_by:
   - "[[70-FLOWS/Waste-Analysis-Flow]]"
 related_tables:
@@ -28,7 +27,7 @@ related_tables:
   - production_order_materials (waste per material in production)
   - daily_stock_opname (selisih harian — qty aktual < qty sistem)
   - monthly_stock_opname (selisih bulanan untuk indikasi kebocoran)
-last_updated: 2026-06-15
+last_updated: 2026-06-16
 ---
 
 # M-Waste Report
@@ -257,4 +256,4 @@ Frontend render 7 tabs
 - **Data:** [[_Data-Model]]
 - **Relations:** [[_Relations]]
 - **Flow:** [[70-FLOWS/Waste-Analysis-Flow]]
-- **Related Module:** [[30-MODULES/M-shortage-report/_Overview|M-Shortage Report]]
+- **Related Module:** [[30-MODULES/M-Shortage-Report|M-Shortage Report]]

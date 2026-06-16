@@ -26,7 +26,7 @@
 | `ap-payments` | [[30-MODULES/M-ap-payments/_Overview\|M-Ap Payments]] | `/api/v1/ap-payments` | R·C·S·Repo·Z |
 | `goods-processing` | [[30-MODULES/M-goods-processing/_Overview\|M-Goods Processing]] | `/api/v1/goods-processing` | R·C·S·Repo·Z |
 | `goods-receipts` | [[30-MODULES/M-goods-receipts/_Overview\|M-Goods Receipts]] | `/api/v1/goods-receipts` | R·C·S·Repo·Z |
-| `marketplace-po` | [[30-MODULES/M-marketplace-po/_Overview\|M-Marketplace Po]] | `/api/v1/marketplace-po` | R·C·S·Repo·Z |
+| `marketplace-po` | [[30-MODULES/M-Marketplace-PO\|M-Marketplace PO]] | `/api/v1/marketplace-po` | R·C·S·Repo·Z |
 | `purchase-invoices` | [[30-MODULES/M-purchase-invoices/_Overview\|M-Purchase Invoices]] | `/api/v1/purchase-invoices` | R·C·S·Repo·Z |
 | `purchase-orders` | [[30-MODULES/M-purchase-orders/_Overview\|M-Purchase Orders]] | `/api/v1/purchase-orders` | R·C·S·Repo·Z |
 | `purchase-requests` | [[30-MODULES/M-purchase-requests/_Overview\|M-Purchase Requests]] | `/api/v1/purchase-requests` | R·C·S·Repo·Z |
@@ -48,6 +48,8 @@
 | `stock-transfers` | [[30-MODULES/M-stock-transfers/_Overview\|M-Stock Transfers]] | `/api/v1/stock-transfers` | R·C·S·Repo·Z |
 | `sub-categories` | [[30-MODULES/M-sub-categories/_Overview\|M-Sub Categories]] | `/api/v1/sub-categories` | R·C·S·Repo·Z |
 | `warehouses` | [[30-MODULES/M-warehouses/_Overview\|M-Warehouses]] | `/api/v1/warehouses` | R·C·S·Repo·Z |
+| | `shortage-report` | [[30-MODULES/M-Shortage-Report\|M-Shortage Report]] | `/api/v1/shortage-report` | R·C·S·Repo·Z |
+| | `waste-report` | [[30-MODULES/M-Waste-Report\|M-Waste Report]] | `/api/v1/waste-report` | R·C·S·Repo·Z |
 
 ## 🏷️ Production
 

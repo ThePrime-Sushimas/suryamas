@@ -8,22 +8,21 @@ frontend_path: frontend/src/features/shortage-report
 api_base: /api/v1/shortage-report
 permission_module: shortage_report
 depends_on:
-  - "[[30-MODULES/M-stock]]"
-  - "[[30-MODULES/M-daily-stock-opname]]"
-  - "[[30-MODULES/M-monthly-stock-opname]]"
-  - "[[30-MODULES/M-stock-adjustments]]"
-  - "[[30-MODULES/M-products]]"
-  - "[[30-MODULES/M-employees]]"
-  - "[[30-MODULES/M-departments]]"
-  - "[[30-MODULES/M-warehouses]]"
-  - "[[30-MODULES/M-branches]]"
+  - "[[30-MODULES/M-Stock|M-Stock]]"
+  - "[[30-MODULES/M-Daily-Stock-Opname|M-Daily Stock Opname]]"
+  - "[[30-MODULES/M-Stock-Adjustments|M-Stock Adjustments]]"
+  - "[[30-MODULES/M-Products|M-Products]]"
+  - "[[30-MODULES/M-Employees|M-Employees]]"
+  - "[[30-MODULES/M-Departments|M-Departments]]"
+  - "[[30-MODULES/M-Warehouses|M-Warehouses]]"
+  - "[[30-MODULES/M-Branches|M-Branches]]"
 used_by:
   - "[[70-FLOWS/Stock-Opname-Flow]]"
 related_tables:
   - shortage_vcl (variance control lines — per-item shortage records from opname)
   - shortage_division_allocations (bagi rata antar karyawan per divisi)
   - stock_adjustments (when shortage converted to waste)
-last_updated: 2026-06-15
+last_updated: 2026-06-16
 ---
 
 # M-Shortage Report
@@ -42,11 +41,11 @@ Laporan **selisih kurang** (shortage) hasil dari stock opname — baik harian (d
 
 | Modul | Peran |
 |-------|-------|
-| **daily-stock-opname** | Sumber `source_type = 'DAILY_OPNAME'` — shortage muncul dari closing harian |
-| **monthly-stock-opname** | Sumber `source_type = 'MONTHLY_OPNAME'` — shortage muncul dari opname bulanan |
-| **stock-adjustments** | Saat `CONVERT_TO_WASTE`, shortage membuat stock adjustment + jurnal |
-| **employees, departments** | Data karyawan/divisi untuk potongan gaji |
-| **warehouses, branches** | Filter cabang & gudang |
+| **Daily Stock Opname** | Sumber `source_type = 'DAILY_OPNAME'` — shortage muncul dari closing harian |
+| **Monthly Stock Opname** | Sumber `source_type = 'MONTHLY_OPNAME'` — shortage muncul dari opname bulanan |
+| **Stock Adjustments** | Saat `CONVERT_TO_WASTE`, shortage membuat stock adjustment + jurnal |
+| **Employees, Departments** | Data karyawan/divisi untuk potongan gaji |
+| **Warehouses, Branches** | Filter cabang & gudang |
 
 ## Layer Map
 
@@ -150,16 +149,6 @@ Semua CREATE / UPDATE / DELETE / RESTORE tercatat via `AuditService.log` dengan 
 - Mode resolusi bisa diganti (individu ↔ divisi).
 - Notes bisa diperbarui.
 
-## Komponen Frontend
-
-| File | Path |
-|------|------|
-| Pages | `frontend/src/features/shortage-report/pages/ShortageReportPage.tsx` |
-| API | `frontend/src/features/shortage-report/api/shortageReport.api.ts` |
-| Export | `frontend/src/features/shortage-report/utils/shortageReportExport.ts` |
-
-Halaman menggunakan URL-synced filters (`useUrlFilters`) — filter, search, pagination tersimpan di query params URL.
-
 ## Query Flow Diagram
 
 ```
@@ -203,3 +192,4 @@ Frontend render tabel + summary cards
 - **Data:** [[_Data-Model]]
 - **Relations:** [[_Relations]]
 - **Flow:** [[70-FLOWS/Stock-Opname-Flow]]
+- **Related Module:** [[30-MODULES/M-Waste-Report|M-Waste Report]]
