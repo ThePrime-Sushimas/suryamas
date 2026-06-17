@@ -10,6 +10,8 @@ import {
 } from './production-requests.errors'
 import { BusinessRuleError } from '../../utils/errors.base'
 import { AuditService } from '../monitoring/monitoring.service'
+import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
+import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 import { getCompanyIdForBranch, getAccessibleCompanyIds } from '../../utils/branch-access.util'
 import type {
   CreateProductionRequestDto, UpdateProductionRequestDto,
@@ -83,7 +85,23 @@ export class ProductionRequestsService {
       return id
     })
 
-    return this.getById(requestId, branchIds)
+    const detail = await this.getById(requestId, branchIds)
+
+    // Dispatch notification: Request Sauce baru
+    notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PRODUCTION_REQUEST_CREATED,
+      companyId,
+      {
+        entityId: requestId,
+        variables: {
+          request_number: detail.request_number,
+          requesting_branch: detail.requesting_branch_name,
+        },
+        excludeUserIds: [dto.created_by ?? ''],
+      }
+    )
+
+    return detail
   }
 
   // ─── UPDATE (DRAFT only) ─────────────────────────────────────────────────────
@@ -247,7 +265,21 @@ export class ProductionRequestsService {
       await AuditService.log('ACCEPT', 'production_request', id, dto.accepted_by, undefined, { request_number: detail.request_number })
     })
 
-    return this.getById(id, branchIds)
+    const updated = await this.getById(id, branchIds)
+    notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PRODUCTION_REQUEST_ACCEPTED,
+      updated.company_id,
+      {
+        entityId: id,
+        variables: {
+          request_number: updated.request_number,
+          requesting_branch: updated.requesting_branch_name,
+          fulfilling_branch: updated.fulfilling_branch_name,
+        },
+        excludeUserIds: [dto.accepted_by],
+      }
+    )
+    return updated
   }
 
   // ─── RECEIVE ──────────────────────────────────────────────────────────────────
@@ -265,12 +297,27 @@ export class ProductionRequestsService {
       await productionRequestsRepository.receive(client, id, dto.received_by, dto.receive_notes ?? null)
       await AuditService.log('RECEIVE', 'production_request', id, dto.received_by, undefined, { request_number: detail.request_number })
     })
-    return this.getById(id, branchIds)
+    const updated = await this.getById(id, branchIds)
+    notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PRODUCTION_REQUEST_RECEIVED,
+      updated.company_id,
+      {
+        entityId: id,
+        variables: {
+          request_number: updated.request_number,
+          requesting_branch: updated.requesting_branch_name,
+        },
+        excludeUserIds: [dto.received_by],
+      }
+    )
+    return updated
   }
 
   // ─── CANCEL ───────────────────────────────────────────────────────────────────
 
   async cancel(id: string, branchIds: string[], dto: CancelProductionRequestDto): Promise<ProductionRequestDetail> {
+    let companyIdForNotification: string | undefined
+    let requestNumber: string | undefined
     await stockRepository.withTransaction(async (client) => {
       const detail = await productionRequestsRepository.lockAndFindById(client, id, branchIds)
       if (!detail) throw new ProductionRequestNotFoundError(id)
@@ -278,10 +325,26 @@ export class ProductionRequestsService {
         throw new ProductionRequestInvalidStatusError(detail.status, 'DRAFT atau ACCEPTED')
       }
 
+      companyIdForNotification = detail.company_id
+      requestNumber = detail.request_number
+
       await productionRequestsRepository.cancel(client, id, dto.cancelled_by, dto.cancel_reason ?? null)
       await AuditService.log('CANCEL', 'production_request', id, dto.cancelled_by, undefined, { request_number: detail.request_number })
     })
-    return this.getById(id, branchIds)
+    const updated = await this.getById(id, branchIds)
+    notificationDispatcher.dispatch(
+      NOTIFICATION_EVENT_KEYS.PRODUCTION_REQUEST_CANCELLED,
+      companyIdForNotification ?? updated.company_id,
+      {
+        entityId: id,
+        variables: {
+          request_number: requestNumber ?? updated.request_number,
+          cancel_reason: dto.cancel_reason ?? '',
+        },
+        excludeUserIds: [dto.cancelled_by],
+      }
+    )
+    return updated
   }
 
   // ─── SOFT DELETE ──────────────────────────────────────────────────────────────

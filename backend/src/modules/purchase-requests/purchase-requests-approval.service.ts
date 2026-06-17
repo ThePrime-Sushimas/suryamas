@@ -277,8 +277,13 @@ export class PurchaseRequestApprovalService {
       }
 
       const creatorId = updatedPr.created_by ?? updatedPr.requested_by
+      const isAssetRequest = updatedPr.notes?.startsWith('[ASSET REQUEST]')
+      const eventKey = isAssetRequest
+        ? NOTIFICATION_EVENT_KEYS.ASSET_REQUEST_APPROVED
+        : NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_APPROVED
+
       await notificationDispatcher.dispatch(
-        NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_APPROVED,
+        eventKey,
         companyId,
         {
           entityId: prId,

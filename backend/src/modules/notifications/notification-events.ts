@@ -36,6 +36,15 @@ export const NOTIFICATION_EVENT_KEYS = {
   // Daily Stock Opname
   OPNAME_SHORTAGE_ASSIGNED: 'opname.shortage_assigned',
   OPNAME_REOPEN_REQUESTED: 'opname.reopen_requested',
+  // Production Request (Request Sauce)
+  PRODUCTION_REQUEST_CREATED: 'production_request.created',
+  PRODUCTION_REQUEST_ACCEPTED: 'production_request.accepted',
+  PRODUCTION_REQUEST_RECEIVED: 'production_request.received',
+  PRODUCTION_REQUEST_CANCELLED: 'production_request.cancelled',
+  // Asset Request
+  ASSET_REQUEST_SUBMITTED: 'asset_request.submitted',
+  ASSET_REQUEST_APPROVED: 'asset_request.approved',
+  ASSET_REQUEST_REJECTED: 'asset_request.rejected',
 } as const
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[keyof typeof NOTIFICATION_EVENT_KEYS]
@@ -281,6 +290,78 @@ export const NOTIFICATION_EVENT_CATALOG: NotificationEventDefinition[] = [
     default_title_template: 'Permintaan Edit Ulang Opname',
     default_message_template: '{{pic_name}} meminta izin edit ulang opname {{branch_name}} tanggal {{closing_date}}. Alasan: {{reason}}',
     default_redirect_url_template: '/inventory/daily-stock-opname/{{session_id}}',
+  },
+  // ─── Production Request (Request Sauce) ──────────────────────────────────
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.PRODUCTION_REQUEST_CREATED,
+    label: 'Request Sauce baru',
+    description: 'Production Request (Request Sauce) dibuat — menunggu diterima oleh central kitchen',
+    category: 'production_request',
+    default_type: 'approval_required',
+    default_title_template: 'Request Sauce baru',
+    default_message_template: '{{request_number}} — {{requesting_branch}} meminta sauce ke central kitchen.',
+    default_redirect_url_template: '/food-production/production-requests/{{id}}',
+  },
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.PRODUCTION_REQUEST_ACCEPTED,
+    label: 'Request Sauce diterima',
+    description: 'Central kitchen menerima dan memproses Request Sauce',
+    category: 'production_request',
+    default_type: 'success',
+    default_title_template: 'Request Sauce diproses',
+    default_message_template: '{{request_number}} telah diterima oleh central kitchen dan sedang diproses.',
+    default_redirect_url_template: '/food-production/production-requests/{{id}}',
+  },
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.PRODUCTION_REQUEST_RECEIVED,
+    label: 'Request Sauce diterima cabang',
+    description: 'Cabang peminta sudah menerima barang dari Request Sauce',
+    category: 'production_request',
+    default_type: 'info',
+    default_title_template: 'Request Sauce selesai',
+    default_message_template: '{{request_number}} sudah diterima oleh {{requesting_branch}}.',
+    default_redirect_url_template: '/food-production/production-requests/{{id}}',
+  },
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.PRODUCTION_REQUEST_CANCELLED,
+    label: 'Request Sauce dibatalkan',
+    description: 'Request Sauce dibatalkan',
+    category: 'production_request',
+    default_type: 'warning',
+    default_title_template: 'Request Sauce dibatalkan',
+    default_message_template: '{{request_number}} dibatalkan. Alasan: {{cancel_reason}}',
+    default_redirect_url_template: '/food-production/production-requests/{{id}}',
+  },
+  // ─── Asset Request ────────────────────────────────────────────────────────
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.ASSET_REQUEST_SUBMITTED,
+    label: 'Request Aset baru',
+    description: 'Asset Request diajukan (via PR) — menunggu approval',
+    category: 'asset_request',
+    default_type: 'approval_required',
+    default_title_template: 'Request Aset baru',
+    default_message_template: 'Request aset dari {{branch_name}} menunggu approval.',
+    default_redirect_url_template: '/inventory/pr-approval',
+  },
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.ASSET_REQUEST_APPROVED,
+    label: 'Request Aset disetujui',
+    description: 'Asset Request di-approve dan PO dibuat',
+    category: 'asset_request',
+    default_type: 'success',
+    default_title_template: 'Request Aset disetujui',
+    default_message_template: 'Request aset {{request_number}} telah disetujui dan PO dibuat.',
+    default_redirect_url_template: '/inventory/purchase-requests/{{id}}',
+  },
+  {
+    event_key: NOTIFICATION_EVENT_KEYS.ASSET_REQUEST_REJECTED,
+    label: 'Request Aset ditolak',
+    description: 'Asset Request ditolak',
+    category: 'asset_request',
+    default_type: 'warning',
+    default_title_template: 'Request Aset ditolak',
+    default_message_template: 'Request aset {{request_number}} ditolak. Alasan: {{rejected_reason}}',
+    default_redirect_url_template: '/inventory/purchase-requests/{{id}}',
   },
 ]
 

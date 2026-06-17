@@ -6,7 +6,7 @@ export interface NotificationRow {
   title: string
   message: string
   type: 'info' | 'success' | 'warning' | 'error' | 'approval_required'
-  category: 'system' | 'purchase_request' | 'purchase_order' | 'purchase_invoice' | 'inventory' | 'accounting' | 'hrd'
+  category: 'system' | 'purchase_request' | 'purchase_order' | 'purchase_invoice' | 'inventory' | 'accounting' | 'hrd' | 'production_request' | 'asset_request'
   is_read: boolean
   read_at: Date | null
   data: Record<string, unknown>
@@ -21,7 +21,7 @@ export interface CreateNotificationInput {
   message: string
   eventKey?: string
   type?: 'info' | 'success' | 'warning' | 'error' | 'approval_required'
-  category?: 'system' | 'purchase_request' | 'purchase_order' | 'purchase_invoice' | 'inventory' | 'accounting' | 'hrd'
+  category?: 'system' | 'purchase_request' | 'purchase_order' | 'purchase_invoice' | 'inventory' | 'accounting' | 'hrd' | 'production_request' | 'asset_request'
   data?: Record<string, unknown>
 }
 

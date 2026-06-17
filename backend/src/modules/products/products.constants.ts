@@ -19,6 +19,7 @@ export const PRODUCT_DEFAULTS = {
   AVERAGE_COST: 0,
   IS_REQUESTABLE: true,
   IS_PURCHASABLE: true,
+  IS_ASSET: false,
   PAGE_SIZE: 10,
   MAX_PAGE_SIZE: 1000,
 } as const
@@ -50,4 +51,5 @@ export const PRODUCT_FILTER_FIELDS = [
   'sub_category_id',
   'is_requestable',
   'is_purchasable',
+  'is_asset',
 ] as const

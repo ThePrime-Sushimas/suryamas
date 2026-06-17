@@ -63,8 +63,13 @@ export class PurchaseRequestsService {
       await AuditService.log('CREATE', 'purchase_request', pr.id, userId, undefined, pr)
       const createdWithLines = await purchaseRequestsRepository.findWithLines(pr.id, branchIds)
       if (createdWithLines) {
+        const isAssetRequest = createdWithLines.notes?.startsWith('[ASSET REQUEST]')
+        const eventKey = isAssetRequest
+          ? NOTIFICATION_EVENT_KEYS.ASSET_REQUEST_SUBMITTED
+          : NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_SUBMITTED
+
         await notificationDispatcher.dispatch(
-          NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_SUBMITTED,
+          eventKey,
           companyId,
           {
             entityId: pr.id,
@@ -117,8 +122,13 @@ export class PurchaseRequestsService {
 
     const pr = await purchaseRequestsRepository.findWithLines(id, branchIds)
     if (pr) {
+      const isAssetRequest = pr.notes?.startsWith('[ASSET REQUEST]')
+      const eventKey = isAssetRequest
+        ? NOTIFICATION_EVENT_KEYS.ASSET_REQUEST_SUBMITTED
+        : NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_SUBMITTED
+
       await notificationDispatcher.dispatch(
-        NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_SUBMITTED,
+        eventKey,
         companyId,
         {
           entityId: id,
@@ -146,8 +156,13 @@ export class PurchaseRequestsService {
     const pr = await purchaseRequestsRepository.findWithLines(id, branchIds)
     if (pr) {
       const creatorId = pr.created_by ?? pr.requested_by
+      const isAssetRequest = pr.notes?.startsWith('[ASSET REQUEST]')
+      const eventKey = isAssetRequest
+        ? NOTIFICATION_EVENT_KEYS.ASSET_REQUEST_REJECTED
+        : NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_REJECTED
+
       await notificationDispatcher.dispatch(
-        NOTIFICATION_EVENT_KEYS.PURCHASE_REQUEST_REJECTED,
+        eventKey,
         companyId,
         {
           entityId: id,

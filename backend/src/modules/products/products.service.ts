@@ -88,6 +88,7 @@ export class ProductsService {
       average_cost: productDto.average_cost || PRODUCT_DEFAULTS.AVERAGE_COST,
       is_requestable: productDto.is_requestable ?? PRODUCT_DEFAULTS.IS_REQUESTABLE,
       is_purchasable: productDto.is_purchasable ?? PRODUCT_DEFAULTS.IS_PURCHASABLE,
+      is_asset: productDto.is_asset ?? PRODUCT_DEFAULTS.IS_ASSET,
       created_by: userId,
       updated_by: userId,
     }

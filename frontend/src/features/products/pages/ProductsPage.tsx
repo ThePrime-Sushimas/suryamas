@@ -212,7 +212,10 @@ export default function ProductsPage() {
                         className="rounded border-gray-300 dark:border-gray-600 text-blue-600 bg-white dark:bg-gray-700" />
                     </td>
                     <td className="px-3 py-3 font-mono text-gray-900 dark:text-gray-200">{p.product_code}</td>
-                    <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{p.product_name}</td>
+                    <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">
+                      {p.product_name}
+                      {p.is_asset && <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">AST</span>}
+                    </td>
                     <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.category_name || '—'}</td>
                     <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.sub_category_name || '—'}</td>
                     <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{p.station_name || '—'}</td>

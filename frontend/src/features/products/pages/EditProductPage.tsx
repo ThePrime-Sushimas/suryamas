@@ -101,7 +101,8 @@ export default function EditProductPage() {
           <div className="flex gap-1 mt-1">
             {p.is_requestable && <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">REQ</span>}
             {p.is_purchasable && <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">PUR</span>}
-            {!p.is_requestable && !p.is_purchasable && <span className="text-sm text-gray-400">—</span>}
+            {p.is_asset && <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">AST</span>}
+            {!p.is_requestable && !p.is_purchasable && !p.is_asset && <span className="text-sm text-gray-400">—</span>}
           </div>
         </div>
       </div>

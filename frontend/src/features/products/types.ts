@@ -16,6 +16,7 @@ export interface Product {
   station_name: string | null
   is_requestable: boolean
   is_purchasable: boolean
+  is_asset: boolean
   requires_processing: boolean
   notes: string | null
   status: ProductStatus
@@ -57,6 +58,7 @@ export interface CreateProductDto {
   average_cost?: number
   is_requestable?: boolean
   is_purchasable?: boolean
+  is_asset?: boolean
   notes?: string
   status?: ProductStatus
   base_unit_id?: string
@@ -70,6 +72,7 @@ export interface UpdateProductDto {
   station?: string | null
   is_requestable?: boolean
   is_purchasable?: boolean
+  is_asset?: boolean
   requires_processing?: boolean
   notes?: string
   status?: ProductStatus
