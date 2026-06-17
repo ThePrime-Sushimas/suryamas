@@ -192,6 +192,23 @@ export class GoodsReceiptsRepository {
     return new Map(rows.map((r) => [r.id, r.requires_processing]))
   }
 
+  async findProductsAssetInfo(
+    client: PoolClient,
+    productIds: string[],
+  ): Promise<Map<string, { is_asset: boolean; asset_category_id: string | null; product_name: string }>> {
+    if (productIds.length === 0) return new Map()
+    const { rows } = await client.query<{
+      id: string
+      is_asset: boolean
+      asset_category_id: string | null
+      product_name: string
+    }>(
+      'SELECT id, COALESCE(is_asset, false) AS is_asset, asset_category_id, product_name FROM products WHERE id = ANY($1::uuid[])',
+      [productIds],
+    )
+    return new Map(rows.map((r) => [r.id, { is_asset: r.is_asset, asset_category_id: r.asset_category_id, product_name: r.product_name }]))
+  }
+
   async insertGoodsProcessingInput(
     client: PoolClient,
     gpId: string,

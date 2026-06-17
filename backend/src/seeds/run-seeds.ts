@@ -4,6 +4,7 @@
  */
 
 import { seedDefaultPermissions } from './default_permissions'
+import { seedFixedAssets } from './seed-fixed-assets'
 import { logInfo } from '../config/logger'
 
 async function runAllSeeds() {
@@ -15,6 +16,10 @@ async function runAllSeeds() {
     // Run permission seed
     const permResult = await seedDefaultPermissions()
     console.log('\n✅ Permission Seed:', permResult.message)
+
+    // Run fixed assets seed
+    const fixedAssetsResult = await seedFixedAssets()
+    console.log('\n✅ Fixed Assets Seed:', fixedAssetsResult.message)
 
     logInfo('========================================')
     logInfo('All seeds completed successfully!')

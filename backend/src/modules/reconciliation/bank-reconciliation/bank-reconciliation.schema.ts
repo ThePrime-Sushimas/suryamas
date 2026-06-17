@@ -149,7 +149,7 @@ export const getStatementsQuerySchema = z.object({
  */
 export const getSummaryQuerySchema = z.object({
   query: z.object({
-    companyId: companyIdSchema.optional(),
+    companyId: companyIdSchema,
     startDate: datetimeFormat,
     endDate: datetimeFormat,
   }),

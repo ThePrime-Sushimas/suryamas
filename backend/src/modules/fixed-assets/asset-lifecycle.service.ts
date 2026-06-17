@@ -1,0 +1,812 @@
+import { pool } from '../../config/db'
+import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
+import { chartOfAccountsRepository } from '../accounting/chart-of-accounts/chart-of-accounts.repository'
+import type { CreateJournalLineDto } from '../accounting/journals/journal-headers/journal-headers.types'
+import * as repository from './fixed-assets.repository'
+import {
+  AssetNotActiveError,
+  CrossCompanyTransferError,
+  DisposalInvalidStatusError,
+  FixedAssetNotFoundError,
+  AssetCategoryNotFoundError,
+  MaintenanceNotFoundError,
+  MaintenanceInvalidStatusError,
+  DisposalNotFoundError,
+  DisposalAlreadyPostedError,
+  CoaNotFoundError,
+} from './fixed-assets.errors'
+import type {
+  CreateTransferDto,
+  CreateMaintenanceDto,
+  CreateDisposalDto,
+  AssetDisposal,
+  FixedAsset,
+} from './fixed-assets.types'
+import { logInfo, logError } from '../../config/logger'
+import { AuditService } from '../monitoring/monitoring.service'
+
+// ─── COA Code Constants ──────────────────────────────────────────────────────
+
+const ACCOUNTS_PAYABLE_COA_CODE = '210101'
+const REPAIR_MAINTENANCE_COA_CODE = '620201'
+const GAIN_ON_DISPOSAL_COA_CODE = '770101'
+const LOSS_ON_DISPOSAL_COA_CODE = '770201'
+const CASH_RECEIVABLE_COA_CODE = '110201'
+
+// ─── Helper: Resolve COA ID by code ──────────────────────────────────────────
+
+async function resolveCoaId(companyId: string, coaCode: string): Promise<string> {
+  const coa = await chartOfAccountsRepository.findByCode(companyId, coaCode)
+  if (!coa) throw new CoaNotFoundError(coaCode)
+  return coa.id
+}
+
+// ─── Helper: Auto-post journal (create → submit → approve → post) ────────────
+
+async function createAndPostJournal(
+  params: {
+    company_id: string
+    branch_id?: string
+    journal_date: string
+    source_module: string
+    reference_type: string
+    reference_id?: string
+    reference_number?: string
+    description: string
+    lines: CreateJournalLineDto[]
+  },
+  userId: string,
+): Promise<string> {
+  const journal = await journalHeadersService.create(
+    {
+      company_id: params.company_id,
+      branch_id: params.branch_id,
+      journal_date: params.journal_date,
+      journal_type: 'ASSET',
+      source_module: params.source_module,
+      reference_type: params.reference_type,
+      reference_id: params.reference_id,
+      reference_number: params.reference_number,
+      description: params.description,
+      currency: 'IDR',
+      exchange_rate: 1,
+      lines: params.lines,
+    },
+    userId,
+  )
+
+  await journalHeadersService.submitAsUser(journal.id, userId)
+  await journalHeadersService.approveAsUser(journal.id, userId)
+  await journalHeadersService.postAsUser(journal.id, userId)
+
+  return journal.id
+}
+
+// ─── 1. Capitalization from Invoice ──────────────────────────────────────────
+
+interface CapitalizeWorkItem {
+  asset: FixedAsset
+  unitCost: number
+  categoryAssetCoaId: string
+  originalCost: number
+}
+
+/**
+ * Called after Purchase Invoice is posted (outside PI transaction).
+ * Phase 1: update assets + movements in a DB transaction.
+ * Phase 2: post capitalization journals; revert asset state if journal posting fails.
+ */
+export async function capitalizeAssetsFromInvoice(
+  invoiceId: string,
+  invoiceDate: string,
+  userId: string,
+): Promise<void> {
+  const readClient = await pool.connect()
+  let workItems: CapitalizeWorkItem[]
+
+  try {
+    const { rows: assetLines } = await readClient.query<{
+      gr_line_id: string
+      product_id: string
+      product_name: string
+      unit_price: number
+    }>(
+      `SELECT pil.gr_line_id, pil.product_id, p.product_name, pil.unit_price
+       FROM purchase_invoice_lines pil
+       JOIN products p ON p.id = pil.product_id
+       WHERE pil.purchase_invoice_id = $1
+         AND pil.deleted_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM fixed_assets fa
+           WHERE fa.gr_line_id = pil.gr_line_id AND fa.deleted_at IS NULL
+         )`,
+      [invoiceId],
+    )
+
+    workItems = []
+
+    for (const line of assetLines) {
+      const { rows: draftAssets } = await readClient.query<FixedAsset>(
+        `SELECT * FROM fixed_assets
+         WHERE gr_line_id = $1 AND status = 'DRAFT' AND deleted_at IS NULL`,
+        [line.gr_line_id],
+      )
+
+      for (const asset of draftAssets) {
+        const category = await repository.findCategoryById(asset.asset_category_id, asset.company_id, readClient)
+        if (!category) continue
+
+        workItems.push({
+          asset,
+          unitCost: line.unit_price,
+          categoryAssetCoaId: category.asset_coa_id,
+          originalCost: asset.cost,
+        })
+      }
+    }
+  } finally {
+    readClient.release()
+  }
+
+  if (workItems.length === 0) return
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    for (const item of workItems) {
+      await repository.capitalize(
+        item.asset.id,
+        item.asset.company_id,
+        {
+          cost: item.unitCost,
+          capitalized_date: invoiceDate,
+          purchase_invoice_id: invoiceId,
+          status: 'ACTIVE',
+          updated_by: userId,
+        },
+        client,
+      )
+
+      await repository.createMovement(
+        {
+          company_id: item.asset.company_id,
+          fixed_asset_id: item.asset.id,
+          movement_type: 'CAPITALIZE',
+          movement_date: invoiceDate,
+          from_value: 'DRAFT',
+          to_value: 'ACTIVE',
+          reference_id: invoiceId,
+          reference_type: 'purchase_invoice',
+          notes: `Cost: ${item.unitCost}`,
+          created_by: userId,
+        },
+        client,
+      )
+    }
+
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+
+  const apCoaIdByCompany = new Map<string, string>()
+  const journalPosted: CapitalizeWorkItem[] = []
+
+  try {
+    for (const item of workItems) {
+      let apCoaId = apCoaIdByCompany.get(item.asset.company_id)
+      if (!apCoaId) {
+        apCoaId = await resolveCoaId(item.asset.company_id, ACCOUNTS_PAYABLE_COA_CODE)
+        apCoaIdByCompany.set(item.asset.company_id, apCoaId)
+      }
+
+      const journalId = await createAndPostJournal(
+        {
+          company_id: item.asset.company_id,
+          branch_id: item.asset.branch_id,
+          journal_date: invoiceDate,
+          source_module: 'fixed_assets',
+          reference_type: 'fixed_asset',
+          reference_id: item.asset.id,
+          reference_number: item.asset.asset_code,
+          description: `Kapitalisasi Aset ${item.asset.asset_code} - ${item.asset.asset_name}`,
+          lines: [
+            {
+              line_number: 1,
+              account_id: item.categoryAssetCoaId,
+              description: item.asset.asset_name,
+              debit_amount: item.unitCost,
+              credit_amount: 0,
+            },
+            {
+              line_number: 2,
+              account_id: apCoaId,
+              description: 'Hutang Dagang',
+              debit_amount: 0,
+              credit_amount: item.unitCost,
+            },
+          ],
+        },
+        userId,
+      )
+
+      await repository.updateJournalId(item.asset.id, journalId)
+      journalPosted.push(item)
+
+      await AuditService.log(
+        'UPDATE',
+        'fixed_asset',
+        item.asset.id,
+        userId,
+        { status: 'DRAFT' },
+        { status: 'ACTIVE', journal_id: journalId, cost: item.unitCost },
+      )
+    }
+  } catch (e) {
+    const revertClient = await pool.connect()
+    try {
+      await revertClient.query('BEGIN')
+      for (const item of journalPosted) {
+        await repository.revertCapitalization(
+          item.asset.id,
+          item.asset.company_id,
+          { cost: item.originalCost, updated_by: userId },
+          revertClient,
+        )
+      }
+      for (const item of workItems) {
+        if (journalPosted.some((p) => p.asset.id === item.asset.id)) continue
+        await repository.revertCapitalization(
+          item.asset.id,
+          item.asset.company_id,
+          { cost: item.originalCost, updated_by: userId },
+          revertClient,
+        )
+      }
+      await revertClient.query('COMMIT')
+    } catch (revErr: unknown) {
+      await revertClient.query('ROLLBACK')
+      logError('Failed to revert asset capitalization after journal error', {
+        invoice_id: invoiceId,
+        error: revErr instanceof Error ? revErr.message : revErr,
+      })
+    } finally {
+      revertClient.release()
+    }
+    throw e
+  }
+
+  logInfo('Assets capitalized from invoice', { invoice_id: invoiceId, user_id: userId, count: workItems.length })
+}
+
+// ─── 2. Transfer Asset ───────────────────────────────────────────────────────
+
+/**
+ * Transfer asset between branches within the same company.
+ * - Validates asset is ACTIVE
+ * - Validates source and destination branches belong to same company
+ * - Updates branch_id on asset
+ * - Records TRANSFER movement
+ * - NO journal entry
+ */
+export async function transferAsset(
+  dto: CreateTransferDto,
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Find and validate asset
+    const asset = await repository.findById(dto.fixed_asset_id, companyId, client)
+    if (!asset) throw new FixedAssetNotFoundError(dto.fixed_asset_id)
+    if (asset.status !== 'ACTIVE') {
+      throw new AssetNotActiveError(asset.asset_code, asset.status)
+    }
+
+    // Validate destination branch belongs to same company
+    const { rows: destBranch } = await client.query<{ company_id: string }>(
+      `SELECT company_id FROM branches WHERE id = $1`,
+      [dto.destination_branch_id],
+    )
+    if (!destBranch[0] || destBranch[0].company_id !== companyId) {
+      throw new CrossCompanyTransferError()
+    }
+
+    const sourceBranchId = asset.branch_id
+    const transferDate = dto.transfer_date || new Date().toISOString().split('T')[0]
+
+    // Update branch_id on asset
+    await repository.updateBranchId(asset.id, dto.destination_branch_id, userId, client)
+
+    // Create transfer record
+    await repository.createTransfer(
+      {
+        company_id: companyId,
+        fixed_asset_id: asset.id,
+        transfer_date: transferDate,
+        source_branch_id: sourceBranchId,
+        destination_branch_id: dto.destination_branch_id,
+        reason: dto.reason ?? null,
+        transferred_by: userId,
+        created_by: userId,
+      },
+      client,
+    )
+
+    // Record TRANSFER movement
+    await repository.createMovement(
+      {
+        company_id: companyId,
+        fixed_asset_id: asset.id,
+        movement_type: 'TRANSFER',
+        movement_date: transferDate,
+        from_value: sourceBranchId,
+        to_value: dto.destination_branch_id,
+        reference_type: 'asset_transfer',
+        notes: dto.reason ?? null,
+        created_by: userId,
+      },
+      client,
+    )
+
+    await client.query('COMMIT')
+
+    await AuditService.log('UPDATE', 'fixed_asset', asset.id, userId, { branch_id: sourceBranchId }, { branch_id: dto.destination_branch_id })
+
+    logInfo('Asset transferred', {
+      asset_id: asset.id,
+      from_branch: sourceBranchId,
+      to_branch: dto.destination_branch_id,
+      user_id: userId,
+    })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+// ─── 3. Record Maintenance ───────────────────────────────────────────────────
+
+/**
+ * Record maintenance on an active asset.
+ * - Validates asset is ACTIVE
+ * - Sets asset status to MAINTENANCE
+ * - Creates maintenance record
+ * - Records MAINTENANCE movement
+ */
+export async function recordMaintenance(
+  dto: CreateMaintenanceDto,
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Find and validate asset
+    const asset = await repository.findById(dto.fixed_asset_id, companyId, client)
+    if (!asset) throw new FixedAssetNotFoundError(dto.fixed_asset_id)
+    if (asset.status !== 'ACTIVE') {
+      throw new AssetNotActiveError(asset.asset_code, asset.status)
+    }
+
+    // Set asset status to MAINTENANCE
+    await repository.updateStatus(asset.id, 'MAINTENANCE', userId, client)
+
+    // Create maintenance record
+    const maintenance = await repository.createMaintenance(
+      {
+        company_id: companyId,
+        fixed_asset_id: asset.id,
+        maintenance_date: dto.maintenance_date,
+        description: dto.description,
+        vendor_name: dto.vendor_name ?? null,
+        cost: dto.cost,
+        reference_number: dto.reference_number ?? null,
+        created_by: userId,
+      },
+      client,
+    )
+
+    // Record MAINTENANCE movement
+    await repository.createMovement(
+      {
+        company_id: companyId,
+        fixed_asset_id: asset.id,
+        movement_type: 'MAINTENANCE',
+        movement_date: dto.maintenance_date,
+        from_value: 'ACTIVE',
+        to_value: 'MAINTENANCE',
+        reference_id: maintenance.id,
+        reference_type: 'asset_maintenance',
+        notes: dto.description,
+        created_by: userId,
+      },
+      client,
+    )
+
+    await client.query('COMMIT')
+
+    await AuditService.log('CREATE', 'asset_maintenance', maintenance.id, userId, undefined, maintenance)
+
+    logInfo('Asset maintenance recorded', {
+      asset_id: asset.id,
+      maintenance_id: maintenance.id,
+      user_id: userId,
+    })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+// ─── 4. Complete Maintenance ─────────────────────────────────────────────────
+
+/**
+ * Complete maintenance: set asset back to ACTIVE and mark maintenance as COMPLETED.
+ */
+export async function completeMaintenance(
+  maintenanceId: string,
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Find maintenance record
+    const maintenance = await repository.findMaintenanceById(maintenanceId, companyId, client)
+    if (!maintenance) throw new MaintenanceNotFoundError(maintenanceId)
+    if (maintenance.status !== 'IN_PROGRESS') {
+      throw new MaintenanceInvalidStatusError('IN_PROGRESS', maintenance.status)
+    }
+
+    // Complete the maintenance record
+    const completionDate = new Date().toISOString().split('T')[0]
+    await repository.completeMaintenance(
+      maintenanceId,
+      companyId,
+      { completion_date: completionDate, updated_by: userId },
+      client,
+    )
+
+    // Set asset back to ACTIVE
+    await repository.updateStatus(maintenance.fixed_asset_id, 'ACTIVE', userId, client)
+
+    // Record MAINTENANCE_COMPLETE movement
+    await repository.createMovement(
+      {
+        company_id: companyId,
+        fixed_asset_id: maintenance.fixed_asset_id,
+        movement_type: 'MAINTENANCE_COMPLETE',
+        movement_date: completionDate,
+        from_value: 'MAINTENANCE',
+        to_value: 'ACTIVE',
+        reference_id: maintenanceId,
+        reference_type: 'asset_maintenance',
+        notes: `Maintenance completed`,
+        created_by: userId,
+      },
+      client,
+    )
+
+    await client.query('COMMIT')
+
+    await AuditService.log('UPDATE', 'asset_maintenance', maintenanceId, userId, { status: 'IN_PROGRESS' }, { status: 'COMPLETED' })
+
+    logInfo('Asset maintenance completed', {
+      maintenance_id: maintenanceId,
+      asset_id: maintenance.fixed_asset_id,
+      user_id: userId,
+    })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+// ─── 5. Post Maintenance ─────────────────────────────────────────────────────
+
+/**
+ * Post maintenance journal: Dr 620201 (Repair & Maintenance Expense) / Cr 210101 (AP)
+ * Updates maintenance record to POSTED.
+ */
+export async function postMaintenance(
+  maintenanceId: string,
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  // Find maintenance record
+  const maintenance = await repository.findMaintenanceById(maintenanceId, companyId)
+  if (!maintenance) throw new MaintenanceNotFoundError(maintenanceId)
+  if (maintenance.status !== 'COMPLETED') {
+    throw new MaintenanceInvalidStatusError('COMPLETED', maintenance.status)
+  }
+
+  // Find asset for branch info
+  const asset = await repository.findById(maintenance.fixed_asset_id, companyId)
+  if (!asset) throw new FixedAssetNotFoundError(maintenance.fixed_asset_id)
+
+  // Resolve COAs
+  const repairCoaId = await resolveCoaId(companyId, REPAIR_MAINTENANCE_COA_CODE)
+  const apCoaId = await resolveCoaId(companyId, ACCOUNTS_PAYABLE_COA_CODE)
+
+  // Post journal
+  const journalId = await createAndPostJournal(
+    {
+      company_id: companyId,
+      branch_id: asset.branch_id,
+      journal_date: maintenance.maintenance_date,
+      source_module: 'fixed_assets',
+      reference_type: 'asset_maintenance',
+      reference_id: maintenanceId,
+      description: `Pemeliharaan Aset ${asset.asset_code} - ${maintenance.description}`,
+      lines: [
+        {
+          line_number: 1,
+          account_id: repairCoaId,
+          description: `Beban Perbaikan - ${asset.asset_code}`,
+          debit_amount: maintenance.cost,
+          credit_amount: 0,
+        },
+        {
+          line_number: 2,
+          account_id: apCoaId,
+          description: 'Hutang Dagang',
+          debit_amount: 0,
+          credit_amount: maintenance.cost,
+        },
+      ],
+    },
+    userId,
+  )
+
+  // Update maintenance record to POSTED with journal_id
+  await pool.query(
+    `UPDATE asset_maintenance
+     SET status = 'POSTED', journal_id = $1, updated_by = $2, updated_at = now()
+     WHERE id = $3 AND company_id = $4`,
+    [journalId, userId, maintenanceId, companyId],
+  )
+
+  await AuditService.log('UPDATE', 'asset_maintenance', maintenanceId, userId, { status: 'COMPLETED' }, { status: 'POSTED', journal_id: journalId })
+
+  logInfo('Asset maintenance posted', {
+    maintenance_id: maintenanceId,
+    journal_id: journalId,
+    user_id: userId,
+  })
+}
+
+// ─── 6. Create Disposal ──────────────────────────────────────────────────────
+
+/**
+ * Create a disposal draft:
+ * - Validate asset status is ACTIVE or MAINTENANCE
+ * - Calculate book_value = cost - accumulated_depreciation
+ * - Calculate gain_loss = proceeds - book_value
+ * - Create disposal record (status DRAFT)
+ */
+export async function createDisposal(
+  dto: CreateDisposalDto,
+  companyId: string,
+  userId: string,
+): Promise<AssetDisposal> {
+  // Find and validate asset
+  const asset = await repository.findById(dto.fixed_asset_id, companyId)
+  if (!asset) throw new FixedAssetNotFoundError(dto.fixed_asset_id)
+
+  if (asset.status !== 'ACTIVE' && asset.status !== 'MAINTENANCE') {
+    throw new DisposalInvalidStatusError(asset.asset_code, asset.status)
+  }
+
+  // Calculate book value and gain/loss
+  const bookValue = asset.cost - asset.accumulated_depreciation
+  const gainLoss = dto.proceeds_amount - bookValue
+
+  // Create disposal record (DRAFT)
+  const disposal = await repository.createDisposal({
+    company_id: companyId,
+    fixed_asset_id: asset.id,
+    disposal_date: dto.disposal_date,
+    disposal_method: dto.disposal_method,
+    proceeds_amount: dto.proceeds_amount,
+    book_value_at_disposal: bookValue,
+    gain_loss_amount: gainLoss,
+    notes: dto.notes ?? null,
+    created_by: userId,
+  })
+
+  await AuditService.log('CREATE', 'asset_disposal', disposal.id, userId, undefined, disposal)
+
+  logInfo('Asset disposal created', {
+    disposal_id: disposal.id,
+    asset_id: asset.id,
+    book_value: bookValue,
+    gain_loss: gainLoss,
+    user_id: userId,
+  })
+
+  return disposal
+}
+
+// ─── 7. Post Disposal ────────────────────────────────────────────────────────
+
+/**
+ * Post disposal journal:
+ *   Dr Accumulated Depreciation (full amount)
+ *   Dr Cash/Receivable (proceeds, if > 0)
+ *   Dr Loss on Disposal 770201 (if loss)
+ *   Cr Asset Cost COA (original cost)
+ *   Cr Gain on Disposal 770101 (if gain)
+ * Set asset status to DISPOSED.
+ * Record DISPOSAL movement.
+ */
+export async function postDisposal(
+  disposalId: string,
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  const disposal = await repository.findDisposalById(disposalId, companyId)
+  if (!disposal) throw new DisposalNotFoundError(disposalId)
+  if (disposal.status !== 'DRAFT') {
+    throw new DisposalAlreadyPostedError()
+  }
+
+  const asset = await repository.findById(disposal.fixed_asset_id, companyId)
+  if (!asset) throw new FixedAssetNotFoundError(disposal.fixed_asset_id)
+
+  const category = await repository.findCategoryById(asset.asset_category_id, companyId)
+  if (!category) throw new AssetCategoryNotFoundError(asset.asset_category_id)
+
+  const cashCoaId = await resolveCoaId(companyId, CASH_RECEIVABLE_COA_CODE)
+  const gainCoaId = await resolveCoaId(companyId, GAIN_ON_DISPOSAL_COA_CODE)
+  const lossCoaId = await resolveCoaId(companyId, LOSS_ON_DISPOSAL_COA_CODE)
+
+  const gainLoss = disposal.gain_loss_amount
+  const priorAssetStatus = asset.status
+
+  const lines: CreateJournalLineDto[] = []
+  let lineNum = 1
+
+  if (asset.accumulated_depreciation > 0) {
+    lines.push({
+      line_number: lineNum++,
+      account_id: category.accumulated_depreciation_coa_id,
+      description: `Akumulasi Penyusutan - ${asset.asset_code}`,
+      debit_amount: asset.accumulated_depreciation,
+      credit_amount: 0,
+    })
+  }
+
+  if (disposal.proceeds_amount > 0) {
+    lines.push({
+      line_number: lineNum++,
+      account_id: cashCoaId,
+      description: `Hasil Penjualan Aset - ${asset.asset_code}`,
+      debit_amount: disposal.proceeds_amount,
+      credit_amount: 0,
+    })
+  }
+
+  if (gainLoss < 0) {
+    lines.push({
+      line_number: lineNum++,
+      account_id: lossCoaId,
+      description: `Rugi Pelepasan Aset - ${asset.asset_code}`,
+      debit_amount: Math.abs(gainLoss),
+      credit_amount: 0,
+    })
+  }
+
+  lines.push({
+    line_number: lineNum++,
+    account_id: category.asset_coa_id,
+    description: `Pelepasan Aset - ${asset.asset_code}`,
+    debit_amount: 0,
+    credit_amount: asset.cost,
+  })
+
+  if (gainLoss > 0) {
+    lines.push({
+      line_number: lineNum++,
+      account_id: gainCoaId,
+      description: `Laba Pelepasan Aset - ${asset.asset_code}`,
+      debit_amount: 0,
+      credit_amount: gainLoss,
+    })
+  }
+
+  const journalId = await createAndPostJournal(
+    {
+      company_id: companyId,
+      branch_id: asset.branch_id,
+      journal_date: disposal.disposal_date,
+      source_module: 'fixed_assets',
+      reference_type: 'asset_disposal',
+      reference_id: disposal.id,
+      description: `Pelepasan Aset ${asset.asset_code} - ${asset.asset_name}`,
+      lines,
+    },
+    userId,
+  )
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    const posted = await repository.postDisposal(
+      disposalId,
+      companyId,
+      { journal_id: journalId, posted_by: userId },
+      client,
+    )
+    if (!posted) throw new DisposalNotFoundError(disposalId)
+
+    await repository.updateStatus(asset.id, 'DISPOSED', userId, client)
+
+    await repository.createMovement(
+      {
+        company_id: companyId,
+        fixed_asset_id: asset.id,
+        movement_type: 'DISPOSAL',
+        movement_date: disposal.disposal_date,
+        from_value: priorAssetStatus,
+        to_value: 'DISPOSED',
+        reference_id: disposalId,
+        reference_type: 'asset_disposal',
+        notes: `${disposal.disposal_method} - Proceeds: ${disposal.proceeds_amount}`,
+        created_by: userId,
+      },
+      client,
+    )
+
+    await client.query('COMMIT')
+
+    await AuditService.log(
+      'UPDATE',
+      'asset_disposal',
+      disposalId,
+      userId,
+      { status: 'DRAFT' },
+      { status: 'POSTED', journal_id: journalId },
+    )
+
+    logInfo('Asset disposal posted', {
+      disposal_id: disposalId,
+      asset_id: asset.id,
+      journal_id: journalId,
+      gain_loss: gainLoss,
+      user_id: userId,
+    })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    try {
+      await journalHeadersService.reverseAsUser(
+        journalId,
+        `Rollback failed disposal post ${disposalId}`,
+        userId,
+      )
+    } catch (revErr: unknown) {
+      logError('Failed to reverse disposal journal after rollback', {
+        journal_id: journalId,
+        error: revErr instanceof Error ? revErr.message : revErr,
+      })
+    }
+    throw e
+  } finally {
+    client.release()
+  }
+}

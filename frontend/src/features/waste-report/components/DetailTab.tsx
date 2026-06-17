@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Download, Loader2, Search, X } from 'lucide-
 import { usePositions } from '@/features/settings/api/settings.api'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import type { WasteRecord, WasteSource } from '../api/wasteReport.api'
+import type { WasteRecord } from '../api/wasteReport.api'
 import { exportWasteDetailExcel } from '../utils/wasteReportExport'
 import { EmptyState } from './EmptyState'
 import { ModuleBreakdownBar, ProductionOrderStatusBadge } from './ModuleBreakdownBar'

@@ -1,4 +1,5 @@
 import { goodsReceiptsRepository } from './goods-receipts.repository'
+import * as fixedAssetsService from '../fixed-assets/fixed-assets.service'
 import { goodsProcessingRepository } from '../goods-processing/goods-processing.repository'
 import { productOutputTemplateRepository } from '../product-output-template/product-output-template.repository'
 import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.repository'
@@ -342,7 +343,12 @@ export class GoodsReceiptsService {
 
       const lineProductIds = [...new Set(gr.lines.map((l) => l.product_id))]
       const requiresProcessingByProduct = await goodsReceiptsRepository.findProductsRequiresProcessing(client, lineProductIds)
-      const disassemblyProductIds = lineProductIds.filter((id) => requiresProcessingByProduct.get(id))
+      const assetInfoByProduct = await goodsReceiptsRepository.findProductsAssetInfo(client, lineProductIds)
+      const disassemblyProductIds = lineProductIds.filter((id) => {
+        const assetInfo = assetInfoByProduct.get(id)
+        if (assetInfo?.is_asset) return false // asset products skip processing entirely
+        return requiresProcessingByProduct.get(id)
+      })
       const outputTemplatesByProduct =
         disassemblyProductIds.length > 0
           ? await productOutputTemplateRepository.findByProductIds(disassemblyProductIds)
@@ -350,6 +356,51 @@ export class GoodsReceiptsService {
       const productUomsMap = buildProductUomsMap(await productUomsRepository.findAllUomsBatch(lineProductIds))
 
       for (const line of gr.lines) {
+        const assetInfo = assetInfoByProduct.get(line.product_id)
+
+        // ─── Asset product: create Fixed_Asset DRAFT records, skip GP ─────────
+        if (assetInfo?.is_asset) {
+          if (!assetInfo.asset_category_id) {
+            throw new Error(
+              `Product "${assetInfo.product_name}" (${line.product_id}) is marked as asset but has no asset_category_id configured`
+            )
+          }
+
+          const qtyAccepted = line.qty_po_uom - (line.qty_rejected ?? 0)
+
+          // Asset products must be received in whole units — each unit becomes
+          // one fixed_asset record.  We reject fractional quantities (with a
+          // small epsilon for floating-point jitter, e.g. 1.9999999 → OK as 2,
+          // but 1.5 → error).
+          const EPSILON = 1e-9
+          const rounded = Math.round(qtyAccepted)
+          if (Math.abs(qtyAccepted - rounded) > EPSILON) {
+            throw new Error(
+              `Product "${assetInfo.product_name}" (${line.product_id}) is an asset product ` +
+              `and must be received in whole units, but received quantity is ${qtyAccepted}. ` +
+              `Please correct the GR line before confirming.`
+            )
+          }
+
+          const unitCount = Math.max(rounded, 0)
+
+          for (let i = 0; i < unitCount; i++) {
+            await fixedAssetsService.createFromGr(client, {
+              company_id: companyId,
+              branch_id: gr.branch_id,
+              product_id: line.product_id,
+              asset_category_id: assetInfo.asset_category_id,
+              acquisition_date: gr.received_date ?? new Date().toISOString().slice(0, 10),
+              cost: Number(line.unit_price_po),
+              gr_line_id: line.id,
+              asset_name: assetInfo.product_name ?? line.product_name ?? 'Asset',
+              created_by: userId,
+            })
+          }
+          continue // skip GP input/output for asset products
+        }
+
+        // ─── Non-asset product: normal GP input/output creation ───────────────
         const uomReceived = line.uom_received ?? line.uom ?? 'kg'
         const { qty: qtyInput, uom: uomInput } = toProductBaseQty(
           line.product_id,

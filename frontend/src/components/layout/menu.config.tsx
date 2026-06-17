@@ -852,7 +852,70 @@ export const menuItems: MenuItem[] = [
   },
 
   // ─────────────────────────────────────────────
-  // 5. ACCOUNTING
+  // 5. ASET TETAP (Fixed Assets)
+  // ─────────────────────────────────────────────
+  {
+    id: "fixed-assets",
+    name: "Aset Tetap",
+    icon: <Package size={18} />,
+    submenu: [
+      {
+        id: "fixed-assets-list",
+        name: "Daftar Aset",
+        href: "/fixed-assets",
+        icon: <Package size={16} />,
+        module: "fixed_assets",
+      },
+      {
+        id: "fixed-assets-categories",
+        name: "Kategori Aset",
+        href: "/fixed-assets/categories",
+        icon: <FolderKanban size={16} />,
+        module: "fixed_assets",
+      },
+      {
+        id: "fixed-assets-request",
+        name: "Request Aset",
+        href: "/fixed-assets/request",
+        icon: <ClipboardList size={16} />,
+        module: "fixed_assets",
+        permissionAction: "insert",
+      },
+      {
+        id: "fixed-assets-depreciation",
+        name: "Penyusutan",
+        href: "/fixed-assets/depreciation",
+        icon: <TrendingUp size={16} />,
+        module: "fixed_assets",
+        permissionAction: "approve",
+      },
+      {
+        id: "fixed-assets-transfers",
+        name: "Transfer Aset",
+        href: "/fixed-assets/transfers",
+        icon: <ArrowLeftRight size={16} />,
+        module: "fixed_assets",
+      },
+      {
+        id: "fixed-assets-maintenance",
+        name: "Pemeliharaan",
+        href: "/fixed-assets/maintenance",
+        icon: <Settings size={16} />,
+        module: "fixed_assets",
+      },
+      {
+        id: "fixed-assets-disposals",
+        name: "Pelepasan",
+        href: "/fixed-assets/disposals",
+        icon: <AlertTriangle size={16} />,
+        module: "fixed_assets",
+        permissionAction: "approve",
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // 6. ACCOUNTING
   // ─────────────────────────────────────────────
   {
     id: "accounting",

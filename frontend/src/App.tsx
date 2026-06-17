@@ -583,6 +583,16 @@ const PurchaseInvoicesPage = lazy(() => import("./features/purchase-invoices/pag
 const PurchaseInvoiceFormPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceFormPage"))
 const PurchaseInvoiceDetailPage = lazy(() => import("./features/purchase-invoices/pages/PurchaseInvoiceDetailPage"))
 
+// Fixed Assets
+const FixedAssetsPage = lazy(() => import('./features/fixed-assets/pages/FixedAssetsPage'))
+const FixedAssetDetailPage = lazy(() => import('./features/fixed-assets/pages/FixedAssetDetailPage'))
+const AssetCategoriesPage = lazy(() => import('./features/fixed-assets/pages/AssetCategoriesPage'))
+const AssetRequestPage = lazy(() => import('./features/fixed-assets/pages/AssetRequestPage'))
+const DepreciationRunPage = lazy(() => import('./features/fixed-assets/pages/DepreciationRunPage'))
+const AssetTransfersPage = lazy(() => import('./features/fixed-assets/pages/AssetTransfersPage'))
+const AssetMaintenancePage = lazy(() => import('./features/fixed-assets/pages/AssetMaintenancePage'))
+const AssetDisposalsPage = lazy(() => import('./features/fixed-assets/pages/AssetDisposalsPage'))
+
 // AP Payments
 const ApDashboardPage = lazy(() => import('./features/ap-payments/pages/ApDashboardPage'))
 const ApPaymentsPage = lazy(() => import('./features/ap-payments/pages/ApPaymentsPage'))
@@ -2480,6 +2490,88 @@ function App() {
                       <RequirePermission module="printers">
                         <Suspense fallback={<LoadingFallback />}>
                           <PrintersPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+
+                  {/* Fixed Assets */}
+                  <Route
+                    path="fixed-assets"
+                    element={
+                      <RequirePermission module="fixed_assets">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <FixedAssetsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="fixed-assets/categories"
+                    element={
+                      <RequirePermission module="fixed_assets">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AssetCategoriesPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="fixed-assets/request"
+                    element={
+                      <RequirePermission module="fixed_assets" action="insert">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AssetRequestPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="fixed-assets/depreciation"
+                    element={
+                      <RequirePermission module="fixed_assets" action="approve">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <DepreciationRunPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="fixed-assets/transfers"
+                    element={
+                      <RequirePermission module="fixed_assets">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AssetTransfersPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="fixed-assets/maintenance"
+                    element={
+                      <RequirePermission module="fixed_assets">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AssetMaintenancePage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="fixed-assets/disposals"
+                    element={
+                      <RequirePermission module="fixed_assets" action="approve">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AssetDisposalsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="fixed-assets/:id"
+                    element={
+                      <RequirePermission module="fixed_assets">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <FixedAssetDetailPage />
                         </Suspense>
                       </RequirePermission>
                     }

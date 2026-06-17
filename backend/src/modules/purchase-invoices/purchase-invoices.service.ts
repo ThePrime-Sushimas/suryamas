@@ -64,6 +64,8 @@ import { suppliersRepository } from '../suppliers/suppliers.repository'
 import type { CalculationType } from '../payment-terms/payment-terms.types'
 import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
+import * as assetLifecycleService from '../fixed-assets/asset-lifecycle.service'
+import { pool } from '../../config/db'
 
 function computeLineTotals(qtyInvoiced: number, unitPrice: number, taxRate: number) {
   const subtotal = qtyInvoiced * unitPrice
@@ -1166,6 +1168,9 @@ export class PurchaseInvoicesService {
         }
       }
 
+      // ─── Fixed Asset Capitalization Hook ─────────────────────────────────────────
+      // Deferred until after PI transaction commits (see post() after withTransaction)
+
       await purchaseInvoicesRepository.updateStatus(client, id, 'POSTED', {
         posted_by: userId,
         posted_at: new Date().toISOString(),
@@ -1173,6 +1178,22 @@ export class PurchaseInvoicesService {
         journal_id: journalHeader.id,
       })
     })
+
+    const { rows: assetCheck } = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS(
+         SELECT 1 FROM purchase_invoice_lines pil
+         JOIN products p ON p.id = pil.product_id
+         WHERE pil.purchase_invoice_id = $1 AND p.is_asset = true AND pil.deleted_at IS NULL
+       ) AS exists`,
+      [id],
+    )
+    if (assetCheck[0]?.exists) {
+      await assetLifecycleService.capitalizeAssetsFromInvoice(
+        id,
+        String(detail.invoice_date).slice(0, 10),
+        userId,
+      )
+    }
 
     await this.recalculateRecipesAfterPricelistChange(recipeProductIds, companyId, {
       invoiceId: id,
