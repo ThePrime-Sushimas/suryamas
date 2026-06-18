@@ -311,21 +311,63 @@
         return { session: locked, ccCoaCode: code }
       })
 
-      const coa110598 = await chartOfAccountsRepository.findByCode(companyId, '110598')
-      if (!coa110598) throw new BusinessRuleError('COA 110598 not found')
-
       const coaCc = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
       if (!coaCc) throw new BusinessRuleError('COA for CC not found')
 
-      const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
+      // Split amounts by product nature (inventory vs asset)
+      const { inventory_total, asset_total } = await marketplacePoRepository.findSessionAmountsByNature(id)
       const total = Number(session.total_amount)
+
+      // Guard: computed sum must match session total (catches rounding, cancelled lines not reflected in header, etc.)
+      const computedTotal = inventory_total + asset_total
+      if (Math.abs(computedTotal - total) > 0.01) {
+        throw new BusinessRuleError(
+          `Amount mismatch: session total_amount=${total} != sum active lines (inventory=${inventory_total} + asset=${asset_total} = ${computedTotal}). Pastikan total session sudah ter-update.`,
+        )
+      }
+
+      const coa110598 = inventory_total > 0
+        ? await chartOfAccountsRepository.findByCode(companyId, '110598')
+        : null
+      if (inventory_total > 0 && !coa110598) throw new BusinessRuleError('COA 110598 (Persediaan Dalam Perjalanan) not found')
+
+      const coa120105 = asset_total > 0
+        ? await chartOfAccountsRepository.findByCode(companyId, '120105')
+        : null
+      if (asset_total > 0 && !coa120105) throw new BusinessRuleError('COA 120105 (Aset Dalam Perjalanan) not found')
+
+      const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
+      const journalDesc = `Checkout Marketplace ${session.platform} - ${session.session_number}`
+
+      // Build debit lines split by nature
+      const debitLines: Array<{ line_number: number; account_id: string; description: string; debit_amount: number; credit_amount: number }> = []
+      let lineNum = 1
+
+      if (inventory_total > 0) {
+        debitLines.push({
+          line_number: lineNum++,
+          account_id: coa110598!.id,
+          description: `${journalDesc} - Persediaan`,
+          debit_amount: inventory_total,
+          credit_amount: 0,
+        })
+      }
+      if (asset_total > 0) {
+        debitLines.push({
+          line_number: lineNum++,
+          account_id: coa120105!.id,
+          description: `${journalDesc} - Aset`,
+          debit_amount: asset_total,
+          credit_amount: 0,
+        })
+      }
 
       const journalCreateDto = {
         company_id: companyId,
         branch_id: session.branch_id ?? null,
         journal_date,
         journal_type: 'INVENTORY',
-        description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
+        description: journalDesc,
         currency: 'IDR',
         exchange_rate: 1,
         reference_type: 'marketplace_checkout_session',
@@ -334,17 +376,11 @@
         source_module: 'marketplace_po',
         tags: { platform: session.platform, session_number: session.session_number },
         lines: [
+          ...debitLines,
           {
-            line_number: 1,
-            account_id: coa110598.id,
-            description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
-            debit_amount: total,
-            credit_amount: 0,
-          },
-          {
-            line_number: 2,
+            line_number: lineNum,
             account_id: coaCc.id,
-            description: `Checkout Marketplace ${session.platform} - ${session.session_number}`,
+            description: journalDesc,
             debit_amount: 0,
             credit_amount: total,
           },
@@ -698,9 +734,43 @@
       const coaCredit = await chartOfAccountsRepository.findByCode(companyId, '110598')
       if (!coaCredit) throw new BusinessRuleError('COA 110598 tidak ditemukan')
 
-      const total = Number(session.total_amount)
+      // Only the inventory portion goes through 110501/110598 flow.
+      // Asset portion is handled separately by capitalizeMarketplaceAssets (Dr Fixed Asset / Cr 120105).
+      const { inventory_total } = await marketplacePoRepository.findSessionAmountsByNature(id)
+
+      // Asset-only sessions don't need a receive journal — capitalization handles the accounting.
+      // Mark as journal-posted (no-op) and return.
+      if (inventory_total <= 0) {
+        await AuditService.log('POST_RECEIVE_JOURNAL_SKIPPED', 'marketplace_checkout_session', id, userId,
+          { reason: 'asset_only_session' },
+          { journal_received_id: null },
+        )
+        return marketplacePoRepository.findSessionDetail(id, companyIds)
+      }
+
       const journal_date = dto?.journal_date ?? new Date().toISOString().slice(0, 10)
       const journalDesc = `Barang Masuk Marketplace - ${session.session_number}`
+
+      // Build journal lines — inventory portion only
+      const lines: Array<{ line_number: number; account_id: string; description: string; debit_amount: number; credit_amount: number }> = [
+        {
+          line_number: 1,
+          account_id: coaDebit.id,
+          description: journalDesc,
+          debit_amount: inventory_total,
+          credit_amount: 0,
+        },
+        {
+          line_number: 2,
+          account_id: coaCredit.id,
+          description: journalDesc,
+          debit_amount: 0,
+          credit_amount: inventory_total,
+        },
+      ]
+
+      // Note: asset portion (Dr Fixed Asset / Cr 120105) is created by capitalizeMarketplaceAssets
+      // during GR confirmation — no action needed here for asset lines.
 
       const journalCreateDto = {
         company_id: companyId,
@@ -714,22 +784,7 @@
         reference_id: id,
         reference_number: session.session_number,
         source_module: 'marketplace_po',
-        lines: [
-          {
-            line_number: 1,
-            account_id: coaDebit.id,
-            description: journalDesc,
-            debit_amount: total,
-            credit_amount: 0,
-          },
-          {
-            line_number: 2,
-            account_id: coaCredit.id,
-            description: journalDesc,
-            debit_amount: 0,
-            credit_amount: total,
-          },
-        ],
+        lines,
       }
 
       let journalId: string | null = null

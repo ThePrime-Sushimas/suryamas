@@ -1247,6 +1247,26 @@ export class MarketplacePoRepository {
     }
   }
 
+  /**
+   * Returns total amounts for a session split by product nature (inventory vs asset).
+   * Used to create split journal lines at checkout (ORDERED) and receive.
+   */
+  async findSessionAmountsByNature(sessionId: string): Promise<{ inventory_total: number; asset_total: number }> {
+    const { rows } = await pool.query(
+      `SELECT
+         COALESCE(SUM(CASE WHEN p.is_asset = false THEN l.total_netto ELSE 0 END), 0)::numeric AS inventory_total,
+         COALESCE(SUM(CASE WHEN p.is_asset = true  THEN l.total_netto ELSE 0 END), 0)::numeric AS asset_total
+       FROM marketplace_checkout_lines l
+       JOIN products p ON p.id = l.product_id
+       WHERE l.session_id = $1 AND l.status = 'ACTIVE'`,
+      [sessionId],
+    )
+    return {
+      inventory_total: Number(rows[0]?.inventory_total ?? 0),
+      asset_total: Number(rows[0]?.asset_total ?? 0),
+    }
+  }
+
 }
 export const marketplacePoRepository = new MarketplacePoRepository()
 
