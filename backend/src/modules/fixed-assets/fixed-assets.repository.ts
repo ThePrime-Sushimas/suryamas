@@ -348,7 +348,8 @@ export async function findAssets(
       `SELECT fa.*,
          b.branch_name,
          ac.category_name,
-         ac.category_code
+         ac.category_code,
+         ap.file_path AS thumbnail_path
        FROM (
          SELECT fa.* FROM fixed_assets fa
          ${where}
@@ -356,7 +357,13 @@ export async function findAssets(
          LIMIT $${limitIdx} OFFSET $${offsetIdx}
        ) fa
        LEFT JOIN branches b ON b.id = fa.branch_id
-       LEFT JOIN asset_categories ac ON ac.id = fa.asset_category_id`,
+       LEFT JOIN asset_categories ac ON ac.id = fa.asset_category_id
+       LEFT JOIN LATERAL (
+         SELECT file_path FROM asset_photos
+         WHERE fixed_asset_id = fa.id
+         ORDER BY sort_order ASC, created_at ASC
+         LIMIT 1
+       ) ap ON true`,
       params,
     ),
     db.query<{ total: number }>(
@@ -1391,4 +1398,86 @@ export async function deleteRun(
     `DELETE FROM asset_depreciation_runs WHERE id = $1`,
     [runId],
   )
+}
+
+
+// ─── Asset Photos ────────────────────────────────────────────────────────────
+
+export interface AssetPhoto {
+  id: string
+  fixed_asset_id: string
+  company_id: string
+  file_path: string
+  file_name: string
+  file_size: number
+  sort_order: number
+  uploaded_by: string | null
+  created_at: string
+}
+
+export async function listAssetPhotos(
+  fixedAssetId: string,
+  companyId: string,
+  client?: PoolClient,
+): Promise<AssetPhoto[]> {
+  const db = client ?? pool
+  const { rows } = await db.query<AssetPhoto>(
+    `SELECT * FROM asset_photos
+     WHERE fixed_asset_id = $1 AND company_id = $2
+     ORDER BY sort_order ASC, created_at ASC`,
+    [fixedAssetId, companyId],
+  )
+  return rows
+}
+
+export async function countAssetPhotos(
+  fixedAssetId: string,
+  companyId: string,
+  client?: PoolClient,
+): Promise<number> {
+  const db = client ?? pool
+  const { rows } = await db.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM asset_photos
+     WHERE fixed_asset_id = $1 AND company_id = $2`,
+    [fixedAssetId, companyId],
+  )
+  return rows[0]?.count ?? 0
+}
+
+export async function insertAssetPhoto(
+  data: {
+    fixed_asset_id: string
+    company_id: string
+    file_path: string
+    file_name: string
+    file_size: number
+    sort_order: number
+    uploaded_by: string
+  },
+  client?: PoolClient,
+): Promise<AssetPhoto> {
+  const db = client ?? pool
+  const { rows } = await db.query<AssetPhoto>(
+    `INSERT INTO asset_photos (fixed_asset_id, company_id, file_path, file_name, file_size, sort_order, uploaded_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [data.fixed_asset_id, data.company_id, data.file_path, data.file_name, data.file_size, data.sort_order, data.uploaded_by],
+  )
+  return rows[0]
+}
+
+export async function deleteAssetPhoto(
+  photoId: string,
+  fixedAssetId: string,
+  companyId: string,
+  client?: PoolClient,
+): Promise<AssetPhoto | null> {
+  const db = client ?? pool
+  const { rows } = await db.query<AssetPhoto>(
+    `DELETE FROM asset_photos
+     WHERE id = $1 AND fixed_asset_id = $2 AND company_id = $3
+     RETURNING *`,
+    [photoId, fixedAssetId, companyId],
+  )
+  return rows[0] ?? null
 }

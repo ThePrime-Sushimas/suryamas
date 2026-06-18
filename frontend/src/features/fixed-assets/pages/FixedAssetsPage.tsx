@@ -222,6 +222,7 @@ export default function FixedAssetsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700/60 sticky top-0">
                 <tr>
+                  <th className="px-3 py-4 w-14"></th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kode Aset</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nama Aset</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kategori</th>
@@ -234,12 +235,12 @@ export default function FixedAssetsPage() {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}><td colSpan={7} className="px-6 py-5">
+                    <tr key={i}><td colSpan={8} className="px-6 py-5">
                       <div className="h-5 bg-gray-100 dark:bg-gray-700/50 rounded-lg animate-pulse" />
                     </td></tr>
                   ))
                 ) : assets.length === 0 ? (
-                  <tr><td colSpan={7} className="px-6 py-16 text-center">
+                  <tr><td colSpan={8} className="px-6 py-16 text-center">
                     <Package className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                     <p className="text-gray-500">Belum ada aset tetap</p>
                   </td></tr>
@@ -249,6 +250,19 @@ export default function FixedAssetsPage() {
                     onClick={() => openDetail(`/fixed-assets/${asset.id}`)}
                     className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 cursor-pointer transition-colors"
                   >
+                    <td className="px-3 py-2">
+                      {asset.thumbnail_url ? (
+                        <img
+                          src={asset.thumbnail_url}
+                          alt=""
+                          className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-gray-700"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                          <Package className="w-4 h-4 text-gray-400" />
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 font-mono font-bold text-blue-700 dark:text-blue-400">
                       {asset.asset_code}
                     </td>

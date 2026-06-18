@@ -756,3 +756,58 @@ export const useReverseDepreciation = () => {
     },
   })
 }
+
+// ─── Asset Photos ────────────────────────────────────────────────────────────
+
+export interface AssetPhoto {
+  id: string
+  fixed_asset_id: string
+  company_id: string
+  file_path: string
+  file_name: string
+  file_size: number
+  sort_order: number
+  uploaded_by: string | null
+  created_at: string
+  url: string
+}
+
+export const useAssetPhotos = (assetId: string) =>
+  useQuery({
+    queryKey: ['fixed-assets', assetId, 'photos'],
+    queryFn: async () => {
+      const { data } = await api.get(`/fixed-assets/${assetId}/photos`)
+      return data.data as AssetPhoto[]
+    },
+    enabled: !!assetId,
+    staleTime: 30_000,
+  })
+
+export const useUploadAssetPhoto = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ assetId, file }: { assetId: string; file: File }) => {
+      const formData = new FormData()
+      formData.append('photo', file)
+      const { data } = await api.post(`/fixed-assets/${assetId}/photos`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data.data as AssetPhoto
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['fixed-assets', vars.assetId, 'photos'] })
+    },
+  })
+}
+
+export const useDeleteAssetPhoto = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ assetId, photoId }: { assetId: string; photoId: string }) => {
+      await api.delete(`/fixed-assets/${assetId}/photos/${photoId}`)
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['fixed-assets', vars.assetId, 'photos'] })
+    },
+  })
+}

@@ -16,6 +16,8 @@ import { generateQrCode, generateBulkQrPdf } from './qr-code.util'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { AuditService } from '../monitoring/monitoring.service'
 import { logError } from '../../config/logger'
+import { storageService } from '../../services/storage.service'
+import { resolveDocumentUploadExtension } from '../../utils/document-upload.util'
 import type {
   AssetCategory,
   FixedAsset,
@@ -246,7 +248,14 @@ export async function getAssets(
     },
   )
 
-  return { data, pagination: buildPagination(filters.page, filters.limit, total) }
+  const enriched = data.map((asset) => ({
+    ...asset,
+    thumbnail_url: asset.thumbnail_path
+      ? storageService.getPublicUrl(asset.thumbnail_path, ASSET_PHOTOS_BUCKET)
+      : null,
+  }))
+
+  return { data: enriched, pagination: buildPagination(filters.page, filters.limit, total) }
 }
 
 export async function getAssetById(
@@ -636,4 +645,95 @@ export async function listDepreciationRuns(
     { status: filters.status, fiscal_period_id: filters.fiscal_period_id },
   )
   return { data, pagination: buildPagination(filters.page, filters.limit, total) }
+}
+
+// ─── Asset Photos ────────────────────────────────────────────────────────────
+
+const ASSET_PHOTOS_BUCKET = 'asset-photos'
+const MAX_PHOTOS_PER_ASSET = 5
+
+export async function listPhotos(assetId: string, companyId: string) {
+  const asset = await repository.findById(assetId, companyId)
+  if (!asset) throw new FixedAssetNotFoundError(assetId)
+
+  const photos = await repository.listAssetPhotos(assetId, companyId)
+  return photos.map((p) => ({
+    ...p,
+    url: storageService.getPublicUrl(p.file_path, ASSET_PHOTOS_BUCKET),
+  }))
+}
+
+export async function uploadPhoto(
+  assetId: string,
+  companyId: string,
+  userId: string,
+  file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+) {
+  const asset = await repository.findById(assetId, companyId)
+  if (!asset) throw new FixedAssetNotFoundError(assetId)
+
+  const count = await repository.countAssetPhotos(assetId, companyId)
+  if (count >= MAX_PHOTOS_PER_ASSET) {
+    throw new Error(`Maksimal ${MAX_PHOTOS_PER_ASSET} foto per aset. Hapus foto lama terlebih dahulu.`)
+  }
+
+  const ext = resolveDocumentUploadExtension(file)
+  if (!ext) {
+    throw new Error('Format file tidak didukung. Gunakan JPG, PNG, WEBP, atau HEIC.')
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('File terlalu besar. Maksimal 10MB.')
+  }
+
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const path = `${companyId}/${assetId}/${fileName}`
+
+  await storageService.uploadToPath(file.buffer, path, file.mimetype, ASSET_PHOTOS_BUCKET)
+
+  const photo = await repository.insertAssetPhoto({
+    fixed_asset_id: assetId,
+    company_id: companyId,
+    file_path: path,
+    file_name: file.originalname,
+    file_size: file.size,
+    sort_order: count,
+    uploaded_by: userId,
+  })
+
+  return {
+    ...photo,
+    url: storageService.getPublicUrl(photo.file_path, ASSET_PHOTOS_BUCKET),
+  }
+}
+
+export async function deletePhoto(
+  assetId: string,
+  photoId: string,
+  companyId: string,
+  userId: string,
+) {
+  const asset = await repository.findById(assetId, companyId)
+  if (!asset) throw new FixedAssetNotFoundError(assetId)
+
+  const deleted = await repository.deleteAssetPhoto(photoId, assetId, companyId)
+  if (!deleted) throw new Error('Foto tidak ditemukan')
+
+  // Delete from R2
+  try {
+    await storageService.delete(deleted.file_path, ASSET_PHOTOS_BUCKET)
+  } catch (e) {
+    logError('Failed to delete asset photo from R2', {
+      photo_id: photoId,
+      file_path: deleted.file_path,
+      error: e instanceof Error ? e.message : e,
+    })
+  }
+
+  await AuditService.log('DELETE', 'asset_photo', photoId, userId, {
+    fixed_asset_id: assetId,
+    file_path: deleted.file_path,
+  })
+
+  return deleted
 }

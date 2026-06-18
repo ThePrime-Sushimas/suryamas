@@ -20,6 +20,8 @@ import {
   PlayCircle,
   Loader2,
   X,
+  Camera,
+  ImagePlus,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
@@ -31,6 +33,9 @@ import {
   useCreateMaintenance,
   useCreateTransfer,
   useUpdateAsset,
+  useAssetPhotos,
+  useUploadAssetPhoto,
+  useDeleteAssetPhoto,
 } from '../api/fixed-assets.api'
 import type {
   AssetStatus,
@@ -279,6 +284,9 @@ export default function FixedAssetDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Asset Photos */}
+            <AssetPhotoGallery assetId={asset.id} canEdit={!!canUpdate} />
 
             {/* Movement Timeline */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -1018,6 +1026,159 @@ function AssetMovementTimeline({ movements }: { movements: AssetMovement[] }) {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// ─── Asset Photo Gallery Component ───────────────────────────────────────────
+
+function AssetPhotoGallery({ assetId, canEdit }: { assetId: string; canEdit: boolean }) {
+  const toast = useToast()
+  const { data: photos, isLoading } = useAssetPhotos(assetId)
+  const uploadMutation = useUploadAssetPhoto()
+  const deleteMutation = useDeleteAssetPhoto()
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File terlalu besar. Maksimal 10MB.')
+      return
+    }
+
+    uploadMutation.mutate(
+      { assetId, file },
+      {
+        onSuccess: () => toast.success('Foto berhasil diupload'),
+        onError: (err) => toast.error(parseApiError(err, 'Gagal upload foto')),
+      },
+    )
+  }
+
+  const confirmDelete = (photoId: string) => {
+    setDeleteConfirmId(photoId)
+  }
+
+  const handleDelete = () => {
+    if (!deleteConfirmId) return
+    deleteMutation.mutate(
+      { assetId, photoId: deleteConfirmId },
+      {
+        onSuccess: () => {
+          toast.success('Foto berhasil dihapus')
+          setDeleteConfirmId(null)
+        },
+        onError: (err) => {
+          toast.error(parseApiError(err, 'Gagal hapus foto'))
+          setDeleteConfirmId(null)
+        },
+      },
+    )
+  }
+
+  const photoCount = photos?.length ?? 0
+  const canUploadMore = canEdit && photoCount < 5
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-700/30 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Camera className="w-4 h-4 text-gray-500" />
+          <h2 className="text-sm font-bold text-gray-900 dark:text-white">Foto Aset</h2>
+          <span className="text-xs text-gray-400">({photoCount}/5)</span>
+        </div>
+        {canUploadMore && (
+          <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium cursor-pointer transition-colors">
+            {uploadMutation.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ImagePlus className="w-3.5 h-3.5" />
+            )}
+            Upload
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic"
+              onChange={handleUpload}
+              className="hidden"
+              disabled={uploadMutation.isPending}
+            />
+          </label>
+        )}
+      </div>
+
+      <div className="p-5">
+        {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="aspect-square bg-gray-100 dark:bg-gray-700/50 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : !photos || photos.length === 0 ? (
+          <div className="text-center py-8">
+            <Camera className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+            <p className="text-sm text-gray-400">Belum ada foto</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {photos.map((photo) => (
+              <div key={photo.id} className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                <img
+                  src={photo.url}
+                  alt={photo.file_name}
+                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                  onClick={() => setPreviewUrl(photo.url)}
+                />
+                {canEdit && (
+                  <button
+                    onClick={() => confirmDelete(photo.id)}
+                    className="absolute top-1.5 right-1.5 p-1 bg-red-600/80 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirmation */}
+      {deleteConfirmId && (
+        <ConfirmModal
+          isOpen={!!deleteConfirmId}
+          onClose={() => setDeleteConfirmId(null)}
+          onConfirm={handleDelete}
+          title="Hapus Foto"
+          message="Apakah Anda yakin ingin menghapus foto ini? Tindakan ini tidak dapat dibatalkan."
+          confirmText={deleteMutation.isPending ? 'Menghapus...' : 'Ya, Hapus'}
+          variant="danger"
+        />
+      )}
+
+      {/* Fullscreen Preview */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <button
+            onClick={() => setPreviewUrl(null)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={previewUrl}
+            alt="Preview"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }

@@ -81,6 +81,8 @@ export interface FixedAsset {
   branch_name?: string
   category_name?: string
   category_code?: string
+  thumbnail_path?: string | null
+  thumbnail_url?: string | null
 }
 
 export interface AssetTransfer {

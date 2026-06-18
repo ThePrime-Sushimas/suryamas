@@ -401,3 +401,48 @@ export const reverseDepreciation = async (req: Request, res: Response) => {
     await handleError(res, error, req, { action: 'reverse_depreciation', id: req.params.id })
   }
 }
+
+// ─── Asset Photos ────────────────────────────────────────────────────────────
+
+export const listPhotos = async (req: Request, res: Response) => {
+  try {
+    const { companyId } = await assetScope(req)
+    const { id } = req.params
+    const photos = await fixedAssetsService.listPhotos(id, companyId)
+    sendSuccess(res, photos, 'Asset photos retrieved')
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'list_asset_photos', id: req.params.id })
+  }
+}
+
+export const uploadPhoto = async (req: Request, res: Response) => {
+  try {
+    const { companyId, userId } = await assetScope(req)
+    const { id } = req.params
+    const file = req.file
+    if (!file) {
+      res.status(400).json({ success: false, message: 'File is required' })
+      return
+    }
+    const photo = await fixedAssetsService.uploadPhoto(id, companyId, userId, {
+      buffer: file.buffer,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+    })
+    sendSuccess(res, photo, 'Photo uploaded', 201)
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'upload_asset_photo', id: req.params.id })
+  }
+}
+
+export const deletePhoto = async (req: Request, res: Response) => {
+  try {
+    const { companyId, userId } = await assetScope(req)
+    const { id, photoId } = req.params
+    await fixedAssetsService.deletePhoto(id, photoId, companyId, userId)
+    sendSuccess(res, null, 'Photo deleted')
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'delete_asset_photo', id: req.params.id })
+  }
+}

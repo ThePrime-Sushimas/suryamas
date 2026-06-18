@@ -4,6 +4,7 @@ import { resolveBranchContext } from '../../middleware/branch-context.middleware
 import { requireWriteAccess } from '../../middleware/write-guard.middleware'
 import { canView, canUpdate, canDelete, canApprove } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
+import { documentUploadSingle } from '../../middleware/upload-document.middleware'
 import { PermissionService } from '../../services/permission.service'
 import * as controller from './fixed-assets.controller'
 import {
@@ -65,6 +66,11 @@ router.put(    '/fixed-assets/:id',               requireWriteAccess, canUpdate(
 router.post(   '/fixed-assets/:id/activate',      requireWriteAccess, canUpdate('fixed_assets'), validateSchema(activateAssetSchema),      (req, res) => controller.activateAsset(req, res))
 router.get(    '/fixed-assets/:id/movements',     canView('fixed_assets'),   validateSchema(listMovementsSchema),      (req, res) => controller.getMovements(req, res))
 router.post(   '/fixed-assets/:id/qr-code',       requireWriteAccess, canUpdate('fixed_assets'), validateSchema(regenerateQrCodeSchema),   (req, res) => controller.regenerateQrCode(req, res))
+
+// ── Asset Photos ──
+router.get(    '/fixed-assets/:id/photos',         canView('fixed_assets'),   (req, res) => controller.listPhotos(req, res))
+router.post(   '/fixed-assets/:id/photos',         requireWriteAccess, canUpdate('fixed_assets'), documentUploadSingle('photo'), (req, res) => controller.uploadPhoto(req, res))
+router.delete( '/fixed-assets/:id/photos/:photoId', requireWriteAccess, canUpdate('fixed_assets'), (req, res) => controller.deletePhoto(req, res))
 
 // ============================================================
 // ASSET TRANSFERS  →  /api/v1/asset-transfers
