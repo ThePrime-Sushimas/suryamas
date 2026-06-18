@@ -47,6 +47,7 @@ export default function FixedAssetsPage() {
   const { openDetail } = useListNavigation('/fixed-assets')
 
   const [showFilters, setShowFilters] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const { data, isLoading, refetch, isFetching } = useAssets({
     page: filters.page,
@@ -255,7 +256,8 @@ export default function FixedAssetsPage() {
                         <img
                           src={asset.thumbnail_url}
                           alt=""
-                          className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-gray-700"
+                          className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-gray-700 cursor-zoom-in hover:ring-2 hover:ring-blue-400 transition-all"
+                          onClick={(e) => { e.stopPropagation(); setPreviewUrl(asset.thumbnail_url!) }}
                         />
                       ) : (
                         <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
@@ -334,6 +336,27 @@ export default function FixedAssetsPage() {
           )}
         </div>
       </div>
+
+      {/* Photo Preview Modal */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <button
+            onClick={() => setPreviewUrl(null)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={previewUrl}
+            alt="Preview"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }

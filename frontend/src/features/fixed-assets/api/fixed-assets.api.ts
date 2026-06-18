@@ -80,6 +80,7 @@ export interface FixedAsset {
   category_code?: string
   branch_name?: string
   branch_code?: string
+  thumbnail_url?: string | null
 }
 
 export interface AssetTransfer {
