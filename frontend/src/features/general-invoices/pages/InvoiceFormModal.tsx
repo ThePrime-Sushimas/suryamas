@@ -36,6 +36,7 @@ interface Props {
   initialVendorId?: string
   initialNotes?: string
   initialAccountCode?: string
+  initialBranchId?: string
 }
 
 const emptyLine = (n: number): LineForm => ({
@@ -51,7 +52,7 @@ const emptyLine = (n: number): LineForm => ({
   amortization_start_date: '',
 })
 
-export default function InvoiceFormModal({ open, onClose, invoice, initialVendorId, initialNotes, initialAccountCode }: Props) {
+export default function InvoiceFormModal({ open, onClose, invoice, initialVendorId, initialNotes, initialAccountCode, initialBranchId }: Props) {
   const isEdit = !!invoice
   const toast = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -64,6 +65,7 @@ export default function InvoiceFormModal({ open, onClose, invoice, initialVendor
   const { fetchPostableAccounts } = useChartOfAccountsStore()
 
   const [vendorId, setVendorId] = useState('')
+  const [branchId, setBranchId] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
   const [dueDate, setDueDate] = useState('')
   const [periodStart, setPeriodStart] = useState('')
@@ -105,10 +107,11 @@ export default function InvoiceFormModal({ open, onClose, invoice, initialVendor
       resetForm()
     }
     setErrors({})
-  }, [open, invoice])
+  }, [open, invoice, initialVendorId, initialNotes, initialAccountCode, initialBranchId])
 
   const resetForm = () => {
     setVendorId(initialVendorId ?? '')
+    setBranchId(initialBranchId ?? '')
     setInvoiceDate(new Date().toISOString().slice(0, 10))
     setDueDate('')
     setPeriodStart('')
@@ -184,6 +187,7 @@ export default function InvoiceFormModal({ open, onClose, invoice, initialVendor
       is_confidential: isConfidential,
       notes: notes || null,
       attachment_url: attachmentPath,
+      ...(branchId ? { branch_id: branchId } : {}),
       lines: lines.map((l) => ({
         line_number: l.line_number,
         account_id: l.account_id,

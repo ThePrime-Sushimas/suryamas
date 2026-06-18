@@ -246,6 +246,7 @@ export default function AssetMaintenancePage() {
       // Navigate to general invoice create with pre-fill
       const params = new URLSearchParams()
       if (pendingCompleteRec.vendor_id) params.set('vendor_id', pendingCompleteRec.vendor_id)
+      if (pendingCompleteRec.asset_branch_id) params.set('branch_id', pendingCompleteRec.asset_branch_id)
       const notes = `Pemeliharaan Aset ${pendingCompleteRec.asset_code ?? ''} - ${pendingCompleteRec.asset_name ?? ''}: ${pendingCompleteRec.description}`
       params.set('notes', notes)
       params.set('source', 'maintenance')
@@ -261,6 +262,7 @@ export default function AssetMaintenancePage() {
   const handleNavigateToInvoice = (rec: typeof records[number]) => {
     const params = new URLSearchParams()
     if (rec.vendor_id) params.set('vendor_id', rec.vendor_id)
+    if (rec.asset_branch_id) params.set('branch_id', rec.asset_branch_id)
     const notes = `Pemeliharaan Aset ${rec.asset_code ?? ''} - ${rec.asset_name ?? ''}: ${rec.description}`
     params.set('notes', notes)
     params.set('source', 'maintenance')

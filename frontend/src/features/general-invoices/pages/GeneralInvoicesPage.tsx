@@ -46,6 +46,7 @@ export default function GeneralInvoicesPage() {
   const [prefillVendorId, setPrefillVendorId] = useState<string | undefined>(undefined)
   const [prefillNotes, setPrefillNotes] = useState<string | undefined>(undefined)
   const [prefillAccountCode, setPrefillAccountCode] = useState<string | undefined>(undefined)
+  const [prefillBranchId, setPrefillBranchId] = useState<string | undefined>(undefined)
 
   // Auto-open create modal when navigated from maintenance
   useEffect(() => {
@@ -53,11 +54,13 @@ export default function GeneralInvoicesPage() {
     const notes = searchParams.get('notes') ?? undefined
     const source = searchParams.get('source')
     const accountCode = searchParams.get('account_code') ?? undefined
+    const branchId = searchParams.get('branch_id') ?? undefined
 
     if (source === 'maintenance' && vendorId) {
       setPrefillVendorId(vendorId)
       setPrefillNotes(notes)
       setPrefillAccountCode(accountCode)
+      setPrefillBranchId(branchId)
       setCreateOpen(true)
       // Clear query params to keep URL clean
       setSearchParams({}, { replace: true })
@@ -70,6 +73,7 @@ export default function GeneralInvoicesPage() {
     setPrefillVendorId(undefined)
     setPrefillNotes(undefined)
     setPrefillAccountCode(undefined)
+    setPrefillBranchId(undefined)
   }
   const [paymentInvoice, setPaymentInvoice] = useState<GeneralInvoice | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<GeneralInvoice | null>(null)
@@ -450,7 +454,7 @@ export default function GeneralInvoicesPage() {
         />
       )}
 
-      <InvoiceFormModal open={createOpen} onClose={handleCreateClose} initialVendorId={prefillVendorId} initialNotes={prefillNotes} initialAccountCode={prefillAccountCode} />
+      <InvoiceFormModal open={createOpen} onClose={handleCreateClose} initialVendorId={prefillVendorId} initialNotes={prefillNotes} initialAccountCode={prefillAccountCode} initialBranchId={prefillBranchId} />
       <InvoiceFormModal
         open={!!editId && !!editInvoice}
         invoice={editInvoice ?? null}

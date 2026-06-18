@@ -123,6 +123,7 @@ export interface AssetMaintenance {
   // Joined fields
   asset_code?: string
   asset_name?: string
+  asset_branch_id?: string
 }
 
 export interface AssetDisposal {

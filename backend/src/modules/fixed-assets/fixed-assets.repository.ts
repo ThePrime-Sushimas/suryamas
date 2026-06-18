@@ -939,7 +939,8 @@ export async function findMaintenance(
       `SELECT am.*,
               v.vendor_name,
               fa.asset_code,
-              fa.asset_name
+              fa.asset_name,
+              fa.branch_id AS asset_branch_id
        FROM asset_maintenance am
        LEFT JOIN vendors v ON v.id = am.vendor_id
        LEFT JOIN fixed_assets fa ON fa.id = am.fixed_asset_id
@@ -970,7 +971,8 @@ export async function findMaintenanceById(
     `SELECT am.*,
             v.vendor_name,
             fa.asset_code,
-            fa.asset_name
+            fa.asset_name,
+            fa.branch_id AS asset_branch_id
      FROM asset_maintenance am
      LEFT JOIN vendors v ON v.id = am.vendor_id
      LEFT JOIN fixed_assets fa ON fa.id = am.fixed_asset_id

@@ -385,6 +385,7 @@ export const useCreateGeneralInvoice = () => {
     mutationFn: async (body: {
       vendor_id: string
       invoice_date: string
+      branch_id?: string
       due_date?: string | null
       period_start?: string | null
       period_end?: string | null
