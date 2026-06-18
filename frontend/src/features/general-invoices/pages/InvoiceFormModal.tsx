@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Plus, Trash2, AlertCircle, Upload, ExternalLink } from 'lucide-react'
+import { X, Plus, Trash2, AlertCircle, Upload, ExternalLink, HelpCircle } from 'lucide-react'
 import {
   useCreateGeneralInvoice,
   useUpdateGeneralInvoice,
@@ -10,6 +10,7 @@ import { INVOICE_DATE_FIELD_HELP } from '../constants'
 import { FieldHint } from '../components/FieldHint'
 import { InvoiceSummaryPanel } from '../components/InvoiceSummaryPanel'
 import { AccountSelector } from '@/features/accounting/journals/shared/AccountSelector'
+import { useChartOfAccountsStore } from '@/features/accounting/chart-of-accounts/store/chartOfAccounts.store'
 import { getSignedStorageUrl } from '@/lib/storage'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -32,6 +33,9 @@ interface Props {
   open: boolean
   onClose: () => void
   invoice?: GeneralInvoiceDetail | null
+  initialVendorId?: string
+  initialNotes?: string
+  initialAccountCode?: string
 }
 
 const emptyLine = (n: number): LineForm => ({
@@ -47,7 +51,7 @@ const emptyLine = (n: number): LineForm => ({
   amortization_start_date: '',
 })
 
-export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
+export default function InvoiceFormModal({ open, onClose, invoice, initialVendorId, initialNotes, initialAccountCode }: Props) {
   const isEdit = !!invoice
   const toast = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -57,6 +61,7 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
   const uploadAttachment = useUploadGeneralInvoiceAttachment()
   const { data: vendorsData } = useVendors({ is_active: true, limit: 200 })
   const vendors = vendorsData?.data ?? []
+  const { fetchPostableAccounts } = useChartOfAccountsStore()
 
   const [vendorId, setVendorId] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
@@ -103,16 +108,31 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
   }, [open, invoice])
 
   const resetForm = () => {
-    setVendorId('')
+    setVendorId(initialVendorId ?? '')
     setInvoiceDate(new Date().toISOString().slice(0, 10))
     setDueDate('')
     setPeriodStart('')
     setPeriodEnd('')
     setIsConfidential(false)
-    setNotes('')
+    setNotes(initialNotes ?? '')
     setAttachmentPath(null)
     setPendingFile(null)
-    setLines([emptyLine(1)])
+
+    // Pre-fill first line with account if code provided (e.g. from maintenance)
+    if (initialAccountCode) {
+      const existing = useChartOfAccountsStore.getState().postableAccounts
+      const resolve = (accounts: typeof existing) => {
+        const account = accounts.find((a) => a.account_code === initialAccountCode)
+        setLines([{ ...emptyLine(1), account_id: account?.id ?? '', description: initialNotes ?? '' }])
+      }
+      if (existing.length > 0) {
+        resolve(existing)
+      } else {
+        fetchPostableAccounts().then(() => resolve(useChartOfAccountsStore.getState().postableAccounts))
+      }
+    } else {
+      setLines([emptyLine(1)])
+    }
   }
 
   const addLine = () => setLines((prev) => [...prev, emptyLine(prev.length + 1)])
@@ -285,7 +305,38 @@ export default function InvoiceFormModal({ open, onClose, invoice }: Props) {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-gray-600">Baris Invoice *</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Baris Invoice *</label>
+                <div className="relative group">
+                  <button type="button" className="p-0.5 text-gray-400 hover:text-blue-600 transition-colors" aria-label="Panduan penggunaan akun">
+                    <HelpCircle size={14} />
+                  </button>
+                  <div className="absolute left-0 bottom-full mb-2 w-80 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                    <p className="font-semibold mb-2">Pilih akun beban sesuai jenis tagihan:</p>
+                    <div className="space-y-1.5 text-gray-200">
+                      <div>
+                        <p className="text-gray-400 font-medium text-[10px] uppercase tracking-wider">Tempat Usaha</p>
+                        <p><span className="font-mono text-green-300">610301</span> Sewa Tempat</p>
+                        <p><span className="font-mono text-green-300">610303</span> Listrik</p>
+                        <p><span className="font-mono text-green-300">610304</span> Air (PDAM)</p>
+                        <p><span className="font-mono text-green-300">610305</span> Gas</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 font-medium text-[10px] uppercase tracking-wider">Pemeliharaan</p>
+                        <p><span className="font-mono text-green-300">610601</span> Perbaikan & Pemeliharaan</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 font-medium text-[10px] uppercase tracking-wider">Jasa & Umum</p>
+                        <p><span className="font-mono text-green-300">610504</span> Biaya Teknologi</p>
+                        <p><span className="font-mono text-green-300">610705</span> Telekomunikasi</p>
+                        <p><span className="font-mono text-green-300">610701</span> Asuransi</p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-gray-400 border-t border-gray-700 pt-1.5">Akun hutang (AP) otomatis saat invoice di-post. Cukup pilih akun beban saja.</p>
+                    <div className="absolute left-3 -bottom-1.5 w-3 h-3 bg-gray-900 rotate-45" />
+                  </div>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={addLine}

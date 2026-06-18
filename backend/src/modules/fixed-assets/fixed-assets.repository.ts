@@ -842,8 +842,6 @@ export async function createMaintenance(
     maintenance_date: string
     description: string
     vendor_id: string
-    cost: number
-    reference_number?: string | null
     created_by?: string | null
   },
   client?: PoolClient,
@@ -852,8 +850,8 @@ export async function createMaintenance(
   const { rows } = await db.query<AssetMaintenance>(
     `INSERT INTO asset_maintenance
        (company_id, fixed_asset_id, maintenance_date, description,
-        vendor_id, cost, reference_number, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+        vendor_id, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $6)
      RETURNING *`,
     [
       data.company_id,
@@ -861,8 +859,6 @@ export async function createMaintenance(
       data.maintenance_date,
       data.description,
       data.vendor_id,
-      data.cost,
-      data.reference_number ?? null,
       data.created_by ?? null,
     ],
   )
@@ -943,13 +939,10 @@ export async function findMaintenance(
       `SELECT am.*,
               v.vendor_name,
               fa.asset_code,
-              fa.asset_name,
-              gi.invoice_number AS invoice_number,
-              gi.status AS invoice_status
+              fa.asset_name
        FROM asset_maintenance am
        LEFT JOIN vendors v ON v.id = am.vendor_id
        LEFT JOIN fixed_assets fa ON fa.id = am.fixed_asset_id
-       LEFT JOIN general_invoices gi ON gi.id = am.general_invoice_id
        ${where}
        ORDER BY am.maintenance_date DESC, am.created_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
@@ -977,32 +970,12 @@ export async function findMaintenanceById(
     `SELECT am.*,
             v.vendor_name,
             fa.asset_code,
-            fa.asset_name,
-            gi.invoice_number AS invoice_number,
-            gi.status AS invoice_status
+            fa.asset_name
      FROM asset_maintenance am
      LEFT JOIN vendors v ON v.id = am.vendor_id
      LEFT JOIN fixed_assets fa ON fa.id = am.fixed_asset_id
-     LEFT JOIN general_invoices gi ON gi.id = am.general_invoice_id
      WHERE am.id = $1 AND am.company_id = $2 AND am.deleted_at IS NULL`,
     [id, companyId],
-  )
-  return rows[0] ?? null
-}
-
-export async function markMaintenanceInvoiced(
-  id: string,
-  companyId: string,
-  data: { general_invoice_id: string; updated_by: string },
-  client?: PoolClient,
-): Promise<AssetMaintenance | null> {
-  const db = client ?? pool
-  const { rows } = await db.query<AssetMaintenance>(
-    `UPDATE asset_maintenance
-     SET status = 'INVOICED', general_invoice_id = $1, updated_by = $2, updated_at = now()
-     WHERE id = $3 AND company_id = $4 AND status = 'COMPLETED' AND deleted_at IS NULL
-     RETURNING *`,
-    [data.general_invoice_id, data.updated_by, id, companyId],
   )
   return rows[0] ?? null
 }

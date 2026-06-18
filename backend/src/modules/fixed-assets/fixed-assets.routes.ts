@@ -22,7 +22,6 @@ import {
   listMaintenanceSchema,
   createMaintenanceSchema,
   completeMaintenanceSchema,
-  postMaintenanceSchema,
   listDisposalsSchema,
   createDisposalSchema,
   postDisposalSchema,
@@ -84,7 +83,6 @@ router.post(   '/asset-transfers',  requireWriteAccess, canUpdate('fixed_assets'
 router.get(    '/asset-maintenance',              canView('fixed_assets'),    validateSchema(listMaintenanceSchema),    (req, res) => controller.listMaintenance(req, res))
 router.post(   '/asset-maintenance',              requireWriteAccess, canUpdate('fixed_assets'),  validateSchema(createMaintenanceSchema),  (req, res) => controller.createMaintenance(req, res))
 router.post(   '/asset-maintenance/:id/complete', requireWriteAccess, canUpdate('fixed_assets'),  validateSchema(completeMaintenanceSchema), (req, res) => controller.completeMaintenance(req, res))
-router.post(   '/asset-maintenance/:id/create-invoice', requireWriteAccess, canApprove('fixed_assets'), validateSchema(postMaintenanceSchema),   (req, res) => controller.postMaintenance(req, res))
 
 // ============================================================
 // ASSET DISPOSALS  →  /api/v1/asset-disposals

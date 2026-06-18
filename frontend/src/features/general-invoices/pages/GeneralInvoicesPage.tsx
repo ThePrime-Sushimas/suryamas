@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useCallback, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2, Send, XCircle, Receipt, RefreshCw, ArrowRight, AlertTriangle, Clock } from 'lucide-react'
 
 import {
@@ -40,6 +40,37 @@ export default function GeneralInvoicesPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
+
+  // Pre-fill state from query params (maintenance → invoice flow)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [prefillVendorId, setPrefillVendorId] = useState<string | undefined>(undefined)
+  const [prefillNotes, setPrefillNotes] = useState<string | undefined>(undefined)
+  const [prefillAccountCode, setPrefillAccountCode] = useState<string | undefined>(undefined)
+
+  // Auto-open create modal when navigated from maintenance
+  useEffect(() => {
+    const vendorId = searchParams.get('vendor_id') ?? undefined
+    const notes = searchParams.get('notes') ?? undefined
+    const source = searchParams.get('source')
+    const accountCode = searchParams.get('account_code') ?? undefined
+
+    if (source === 'maintenance' && vendorId) {
+      setPrefillVendorId(vendorId)
+      setPrefillNotes(notes)
+      setPrefillAccountCode(accountCode)
+      setCreateOpen(true)
+      // Clear query params to keep URL clean
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear pre-fill when modal closes
+  const handleCreateClose = () => {
+    setCreateOpen(false)
+    setPrefillVendorId(undefined)
+    setPrefillNotes(undefined)
+    setPrefillAccountCode(undefined)
+  }
   const [paymentInvoice, setPaymentInvoice] = useState<GeneralInvoice | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<GeneralInvoice | null>(null)
   const [confirmPost, setConfirmPost] = useState<GeneralInvoice | null>(null)
@@ -419,7 +450,7 @@ export default function GeneralInvoicesPage() {
         />
       )}
 
-      <InvoiceFormModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <InvoiceFormModal open={createOpen} onClose={handleCreateClose} initialVendorId={prefillVendorId} initialNotes={prefillNotes} initialAccountCode={prefillAccountCode} />
       <InvoiceFormModal
         open={!!editId && !!editInvoice}
         invoice={editInvoice ?? null}

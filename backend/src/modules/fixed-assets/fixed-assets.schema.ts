@@ -113,8 +113,6 @@ export const createMaintenanceSchema = z.object({
     maintenance_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     description: z.string().min(1).max(500),
     vendor_id: z.string().uuid(),
-    cost: z.coerce.number().min(0),
-    reference_number: z.string().max(100).optional(),
   }),
 })
 
@@ -136,7 +134,7 @@ export const listMaintenanceSchema = z.object({
       .string()
       .refine((val) => {
         const list = val.split(',').map((s) => s.trim())
-        return list.every((s) => ['IN_PROGRESS', 'COMPLETED', 'POSTED', 'INVOICED'].includes(s))
+        return list.every((s) => ['IN_PROGRESS', 'COMPLETED', 'POSTED'].includes(s))
       }, { message: 'Invalid maintenance status value' })
       .optional(),
     date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -145,11 +143,7 @@ export const listMaintenanceSchema = z.object({
   }),
 })
 
-export const postMaintenanceSchema = z.object({
-  params: z.object({
-    id: z.string().uuid(),
-  }),
-})
+// (postMaintenanceSchema removed — create-invoice endpoint no longer exists)
 
 // ─── Asset Disposals ─────────────────────────────────────────────────────────
 

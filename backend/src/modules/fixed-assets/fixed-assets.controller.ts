@@ -21,7 +21,6 @@ import type {
   listMaintenanceSchema,
   createMaintenanceSchema,
   completeMaintenanceSchema,
-  postMaintenanceSchema,
   listDisposalsSchema,
   createDisposalSchema,
   postDisposalSchema,
@@ -284,17 +283,6 @@ export const completeMaintenance = async (req: Request, res: Response) => {
     sendSuccess(res, null, 'Maintenance completed')
   } catch (error: unknown) {
     await handleError(res, error, req, { action: 'complete_maintenance', id: req.params.id })
-  }
-}
-
-export const postMaintenance = async (req: Request, res: Response) => {
-  try {
-    const { companyId, userId } = await assetScope(req)
-    const { id } = (req as ValidatedAuthRequest<typeof postMaintenanceSchema>).validated.params
-    const result = await assetLifecycleService.createInvoiceFromMaintenance(id, companyId, userId)
-    sendSuccess(res, result, 'General invoice created from maintenance')
-  } catch (error: unknown) {
-    await handleError(res, error, req, { action: 'create_invoice_from_maintenance', id: req.params.id })
   }
 }
 

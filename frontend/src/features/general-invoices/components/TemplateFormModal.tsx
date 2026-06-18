@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { X, Plus, Trash2, HelpCircle } from 'lucide-react'
 import api from '@/lib/axios'
 import { useCreateGeneralInvoiceTemplate, useVendors } from '../api/generalApi.api'
 import { RECURRENCE_OPTIONS } from '../constants'
@@ -198,7 +198,38 @@ export function TemplateFormModal({ open, onClose }: Props) {
 
           <div className="space-y-2 border rounded-xl p-3">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-semibold text-gray-600">Baris COA</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-gray-600">Baris COA Hanya isi Beban saja 610xxx</span>
+                <div className="relative group">
+                  <button type="button" className="p-0.5 text-gray-400 hover:text-blue-600 transition-colors" aria-label="Panduan penggunaan akun">
+                    <HelpCircle size={14} />
+                  </button>
+                  <div className="absolute left-0 bottom-full mb-2 w-80 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                    <p className="font-semibold mb-2">Pilih akun beban sesuai jenis tagihan:</p>
+                    <div className="space-y-1.5 text-gray-200">
+                      <div>
+                        <p className="text-gray-400 font-medium text-[10px] uppercase tracking-wider">Tempat Usaha</p>
+                        <p><span className="font-mono text-green-300">610301</span> Sewa Tempat</p>
+                        <p><span className="font-mono text-green-300">610303</span> Listrik</p>
+                        <p><span className="font-mono text-green-300">610304</span> Air (PDAM)</p>
+                        <p><span className="font-mono text-green-300">610305</span> Gas</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 font-medium text-[10px] uppercase tracking-wider">Pemeliharaan</p>
+                        <p><span className="font-mono text-green-300">610601</span> Perbaikan & Pemeliharaan</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 font-medium text-[10px] uppercase tracking-wider">Jasa & Umum</p>
+                        <p><span className="font-mono text-green-300">610504</span> Biaya Teknologi</p>
+                        <p><span className="font-mono text-green-300">610705</span> Telekomunikasi</p>
+                        <p><span className="font-mono text-green-300">610701</span> Asuransi</p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-gray-400 border-t border-gray-700 pt-1.5">Akun hutang (AP) otomatis saat invoice di-post. Cukup pilih akun beban saja.</p>
+                    <div className="absolute left-3 -bottom-1.5 w-3 h-3 bg-gray-900 rotate-45" />
+                  </div>
+                </div>
+              </div>
               <button type="button" onClick={() => setLines((p) => [...p, emptyLine(p.length + 1)])} className="text-xs text-blue-600">
                 <Plus size={12} className="inline" /> Baris
               </button>
