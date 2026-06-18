@@ -437,6 +437,15 @@ export class JournalHeadersService {
           journal_id: id,
         })
       }
+    } else if (
+      journal.reference_type === 'depreciation_run' &&
+      journal.source_module === 'fixed_assets' &&
+      journal.reference_id
+    ) {
+      // Depreciation run hard-delete cascade:
+      // Rollback accumulated_depreciation, delete movements, entries, run, and sibling journals
+      const { reverseDepreciationRunFromJournal } = await import('../../../fixed-assets/depreciation.service')
+      await reverseDepreciationRunFromJournal(journal.reference_id, companyId, id, userId)
     }
 
     await journalHeadersRepository.clearReversalReferences(id)

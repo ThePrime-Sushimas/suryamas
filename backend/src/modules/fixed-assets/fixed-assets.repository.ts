@@ -1359,3 +1359,36 @@ export async function findAllMovementsByAsset(
   )
   return rows
 }
+
+// ─── Hard Delete Helpers (for depreciation run reversal) ─────────────────────
+
+export async function deleteRunEntries(
+  runId: string,
+  client: PoolClient,
+): Promise<void> {
+  await client.query(
+    `DELETE FROM asset_depreciation_entries WHERE depreciation_run_id = $1`,
+    [runId],
+  )
+}
+
+export async function deleteDepreciationMovements(
+  runId: string,
+  client: PoolClient,
+): Promise<void> {
+  await client.query(
+    `DELETE FROM asset_movements
+     WHERE reference_id = $1 AND reference_type = 'depreciation_run' AND movement_type = 'DEPRECIATION'`,
+    [runId],
+  )
+}
+
+export async function deleteRun(
+  runId: string,
+  client: PoolClient,
+): Promise<void> {
+  await client.query(
+    `DELETE FROM asset_depreciation_runs WHERE id = $1`,
+    [runId],
+  )
+}

@@ -1,4 +1,5 @@
 import { pool } from '../../../../config/db'
+import type { PoolClient } from 'pg'
 import { JournalHeader, JournalHeaderWithLines, CreateJournalDto, JournalFilter, SortParams } from './journal-headers.types'
 import { JournalStatus } from '../shared/journal.types'
 import { logError, logInfo } from '../../../../config/logger'
@@ -203,6 +204,12 @@ export class JournalHeadersRepository {
   async delete(id: string, _userId: string): Promise<void> {
     await pool.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [id])
     await pool.query('DELETE FROM journal_headers WHERE id = $1', [id])
+  }
+
+  async bulkHardDelete(journalIds: string[], client: PoolClient): Promise<void> {
+    if (journalIds.length === 0) return
+    await client.query('DELETE FROM journal_lines WHERE journal_header_id = ANY($1::uuid[])', [journalIds])
+    await client.query('DELETE FROM journal_headers WHERE id = ANY($1::uuid[])', [journalIds])
   }
 
   async getNextSequence(companyId: string, type: string, period: string): Promise<number> {

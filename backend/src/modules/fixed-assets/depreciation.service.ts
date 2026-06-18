@@ -1,5 +1,6 @@
 import { pool } from '../../config/db'
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
+import { journalHeadersRepository } from '../accounting/journals/journal-headers/journal-headers.repository'
 import { fiscalPeriodsRepository } from '../accounting/fiscal-periods/fiscal-periods.repository'
 import type { FiscalPeriod } from '../accounting/fiscal-periods/fiscal-periods.types'
 import type { CreateJournalLineDto } from '../accounting/journals/journal-headers/journal-headers.types'
@@ -357,11 +358,19 @@ async function postDepreciationJournals(
 // ─── Depreciation Run Reversal ───────────────────────────────────────────────
 
 /**
- * Reverse a posted depreciation run:
- * 1. Find posted run
- * 2. Create counter-journal (negate original)
- * 3. Rollback accumulated_depreciation on each asset
- * 4. Update run status to REVERSED
+ * Reverse a posted depreciation run (hard-delete pattern):
+ * 1. Validate run is POSTED and fiscal period is still open
+ * 2. Decrement accumulated_depreciation on each asset
+ * 3. Delete depreciation movements (reference_id = run)
+ * 4. Delete depreciation entries
+ * 5. Hard delete journal_lines + journal_headers
+ * 6. Delete run record
+ *
+ * Uses hard-delete instead of counter-journals to keep the journal ledger clean —
+ * reversal journals cause user confusion in financial reports and are unnecessary
+ * for internal depreciation corrections.
+ *
+ * Result: state is identical to before the run was posted — no trace in journals.
  */
 export async function reverseDepreciationRun(
   runId: string,
@@ -375,30 +384,23 @@ export async function reverseDepreciationRun(
     throw new DepreciationRunInvalidStatusError('POSTED', run.status)
   }
 
-  // Get run entries to rollback
+  // Guard: cannot reverse if fiscal period is already closed
+  const period = await fiscalPeriodsRepository.findById(run.fiscal_period_id, companyId)
+  if (period && !period.is_open) {
+    throw new PeriodNotOpenError()
+  }
+
+  // Get run entries to rollback accumulated_depreciation
   const entries = await repository.findRunEntries(runId)
   if (entries.length === 0) {
     throw new DepreciationRunNotFoundError(runId)
   }
 
-  // Reverse all original journals
-  const reversalJournalIds: string[] = []
-  if (run.journal_ids && run.journal_ids.length > 0) {
-    for (const jId of run.journal_ids) {
-      const reversalJournal = await journalHeadersService.reverseAsUser(
-        jId,
-        `Reversal penyusutan periode ${run.fiscal_period_id}`,
-        userId,
-      )
-      reversalJournalIds.push(reversalJournal.id)
-    }
-  }
-
-  // Rollback accumulated_depreciation on each asset
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
 
+    // 1. Rollback accumulated_depreciation on each asset
     for (const entry of entries) {
       await repository.decrementAccumulatedDepreciation(
         entry.fixed_asset_id,
@@ -407,25 +409,137 @@ export async function reverseDepreciationRun(
       )
     }
 
-    // Update run status to REVERSED
-    await client.query(
-      `UPDATE asset_depreciation_runs
-       SET status = 'REVERSED',
-           reversed_at = now(),
-           reversed_by = $1,
-           reversal_journal_ids = $2
-       WHERE id = $3 AND company_id = $4`,
-      [userId, reversalJournalIds, runId, companyId],
-    )
+    // 2. Delete movement records for this run
+    await repository.deleteDepreciationMovements(runId, client)
+
+    // 3. Delete depreciation entries
+    await repository.deleteRunEntries(runId, client)
+
+    // 4. Hard delete journals (lines + headers)
+    const journalIds = run.journal_ids ?? []
+    await journalHeadersRepository.bulkHardDelete(journalIds, client)
+
+    // 5. Delete the run record itself
+    await repository.deleteRun(runId, client)
 
     await client.query('COMMIT')
 
-    await AuditService.log('UPDATE', 'depreciation_run', runId, userId, { status: 'POSTED' }, { status: 'REVERSED', reversal_journal_ids: reversalJournalIds })
+    await AuditService.log('DELETE', 'depreciation_run', runId, userId, {
+      status: 'POSTED',
+      journal_ids: journalIds,
+      asset_count: entries.length,
+      total_amount: run.total_depreciation_amount,
+    })
 
-    logInfo('Depreciation run reversed', {
+    logInfo('Depreciation run hard-deleted (reversed)', {
       run_id: runId,
       company_id: companyId,
-      reversal_journal_ids: reversalJournalIds,
+      journal_ids: journalIds,
+      asset_count: entries.length,
+      user_id: userId,
+    })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+// ─── Depreciation Run Reversal from Journal ForceDelete ──────────────────────
+
+/**
+ * Called when a depreciation journal is force-deleted from the journal page.
+ * Finds the owning depreciation run, rolls back all side-effects, and deletes
+ * the run + sibling journals (since a run can have multiple journals, one per branch).
+ *
+ * @param runId - The depreciation run ID (from journal.reference_id)
+ * @param companyId - Company scope
+ * @param triggerJournalId - The journal being deleted (will be excluded from sibling cleanup since it's already being deleted by the caller)
+ * @param userId - User performing the action
+ */
+export async function reverseDepreciationRunFromJournal(
+  runId: string,
+  companyId: string,
+  triggerJournalId: string,
+  userId: string,
+): Promise<void> {
+  const run = await repository.findRunById(runId, companyId)
+  if (!run || run.status !== 'POSTED') {
+    // Run already reversed/deleted or not found — nothing to do
+    return
+  }
+
+  // Guard: cannot reverse if fiscal period is already closed
+  const period = await fiscalPeriodsRepository.findById(run.fiscal_period_id, companyId)
+  if (period && !period.is_open) {
+    throw new PeriodNotOpenError()
+  }
+
+  const entries = await repository.findRunEntries(runId)
+  if (entries.length === 0) {
+    // No entries found — data may be corrupt; still delete the orphan run record
+    logError('reverseDepreciationRunFromJournal: run has no entries (possible data corruption)', {
+      run_id: runId,
+      company_id: companyId,
+    })
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await repository.deleteRun(runId, client)
+      await client.query('COMMIT')
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+    return
+  }
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // 1. Rollback accumulated_depreciation on each asset
+    for (const entry of entries) {
+      await repository.decrementAccumulatedDepreciation(
+        entry.fixed_asset_id,
+        entry.depreciation_amount,
+        client,
+      )
+    }
+
+    // 2. Delete movement records for this run
+    await repository.deleteDepreciationMovements(runId, client)
+
+    // 3. Delete depreciation entries
+    await repository.deleteRunEntries(runId, client)
+
+    // 4. Hard delete sibling journals (excluding the one already being deleted by caller)
+    const siblingJournalIds = (run.journal_ids ?? []).filter(jId => jId !== triggerJournalId)
+    await journalHeadersRepository.bulkHardDelete(siblingJournalIds, client)
+
+    // 5. Delete the run record itself
+    await repository.deleteRun(runId, client)
+
+    await client.query('COMMIT')
+
+    await AuditService.log('DELETE', 'depreciation_run', runId, userId, {
+      status: 'POSTED',
+      trigger: 'journal_force_delete',
+      trigger_journal_id: triggerJournalId,
+      journal_ids: run.journal_ids,
+      asset_count: entries.length,
+      total_amount: run.total_depreciation_amount,
+    })
+
+    logInfo('Depreciation run cascade-deleted from journal forceDelete', {
+      run_id: runId,
+      company_id: companyId,
+      trigger_journal_id: triggerJournalId,
+      sibling_journals_deleted: siblingJournalIds,
+      asset_count: entries.length,
       user_id: userId,
     })
   } catch (e) {
