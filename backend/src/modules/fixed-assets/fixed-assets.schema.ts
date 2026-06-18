@@ -112,7 +112,7 @@ export const createMaintenanceSchema = z.object({
     fixed_asset_id: z.string().uuid(),
     maintenance_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     description: z.string().min(1).max(500),
-    vendor_name: z.string().max(200).optional(),
+    vendor_id: z.string().uuid(),
     cost: z.coerce.number().min(0),
     reference_number: z.string().max(100).optional(),
   }),
@@ -136,7 +136,7 @@ export const listMaintenanceSchema = z.object({
       .string()
       .refine((val) => {
         const list = val.split(',').map((s) => s.trim())
-        return list.every((s) => ['IN_PROGRESS', 'COMPLETED', 'POSTED'].includes(s))
+        return list.every((s) => ['IN_PROGRESS', 'COMPLETED', 'POSTED', 'INVOICED'].includes(s))
       }, { message: 'Invalid maintenance status value' })
       .optional(),
     date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

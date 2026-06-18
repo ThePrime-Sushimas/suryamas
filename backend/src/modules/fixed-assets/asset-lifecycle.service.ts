@@ -1,6 +1,7 @@
 import { pool } from '../../config/db'
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { chartOfAccountsRepository } from '../accounting/chart-of-accounts/chart-of-accounts.repository'
+import { generalInvoiceService } from '../general-invoices/general-invoices.service'
 import type { CreateJournalLineDto } from '../accounting/journals/journal-headers/journal-headers.types'
 import * as repository from './fixed-assets.repository'
 import {
@@ -24,6 +25,7 @@ import type {
 } from './fixed-assets.types'
 import { logInfo, logError } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
+import { getAccessibleBranchIds } from '../../utils/branch-access.util'
 
 // ─── COA Code Constants ──────────────────────────────────────────────────────
 
@@ -601,7 +603,7 @@ export async function recordMaintenance(
         fixed_asset_id: asset.id,
         maintenance_date: dto.maintenance_date,
         description: dto.description,
-        vendor_name: dto.vendor_name ?? null,
+        vendor_id: dto.vendor_id,
         cost: dto.cost,
         reference_number: dto.reference_number ?? null,
         created_by: userId,
@@ -710,77 +712,78 @@ export async function completeMaintenance(
   }
 }
 
-// ─── 5. Post Maintenance ─────────────────────────────────────────────────────
+// ─── 5. Create Invoice from Maintenance ──────────────────────────────────────
 
 /**
- * Post maintenance journal: Dr 620201 (Repair & Maintenance Expense) / Cr 210101 (AP)
- * Updates maintenance record to POSTED.
+ * Generate a General Invoice (DRAFT) from a completed maintenance record.
+ * - Validates maintenance is COMPLETED
+ * - Creates a general invoice with line: Repair & Maintenance expense (620201)
+ * - Updates maintenance record to INVOICED with general_invoice_id
  */
-export async function postMaintenance(
+export async function createInvoiceFromMaintenance(
   maintenanceId: string,
   companyId: string,
   userId: string,
-): Promise<void> {
+): Promise<{ general_invoice_id: string }> {
   // Find maintenance record
   const maintenance = await repository.findMaintenanceById(maintenanceId, companyId)
   if (!maintenance) throw new MaintenanceNotFoundError(maintenanceId)
   if (maintenance.status !== 'COMPLETED') {
     throw new MaintenanceInvalidStatusError('COMPLETED', maintenance.status)
   }
+  if (!maintenance.vendor_id) {
+    throw new Error('Maintenance record has no vendor_id. Cannot create invoice.')
+  }
 
   // Find asset for branch info
   const asset = await repository.findById(maintenance.fixed_asset_id, companyId)
   if (!asset) throw new FixedAssetNotFoundError(maintenance.fixed_asset_id)
 
-  // Resolve COAs
-  const repairCoaId = await resolveCoaId(companyId, REPAIR_MAINTENANCE_COA_CODE)
-  const apCoaId = await resolveCoaId(companyId, ACCOUNTS_PAYABLE_COA_CODE)
+  // Resolve Repair & Maintenance COA for the invoice line
+  const repairCoa = await chartOfAccountsRepository.findByCode(companyId, REPAIR_MAINTENANCE_COA_CODE)
+  if (!repairCoa) throw new CoaNotFoundError(REPAIR_MAINTENANCE_COA_CODE)
 
-  // Post journal
-  const journalId = await createAndPostJournal(
+  // Get branch access for the user to pass to general invoice service
+  const branchIds = await getAccessibleBranchIds(userId)
+
+  // Create general invoice via the general-invoices service
+  const invoice = await generalInvoiceService.create(
     {
-      company_id: companyId,
       branch_id: asset.branch_id,
-      journal_date: maintenance.maintenance_date,
-      source_module: 'fixed_assets',
-      reference_type: 'asset_maintenance',
-      reference_id: maintenanceId,
-      description: `Pemeliharaan Aset ${asset.asset_code} - ${maintenance.description}`,
+      vendor_id: maintenance.vendor_id,
+      invoice_date: maintenance.completion_date ?? maintenance.maintenance_date,
+      notes: `Pemeliharaan Aset ${asset.asset_code} - ${asset.asset_name}: ${maintenance.description}`,
       lines: [
         {
           line_number: 1,
-          account_id: repairCoaId,
-          description: `Beban Perbaikan - ${asset.asset_code}`,
-          debit_amount: maintenance.cost,
-          credit_amount: 0,
-        },
-        {
-          line_number: 2,
-          account_id: apCoaId,
-          description: 'Hutang Dagang',
-          debit_amount: 0,
-          credit_amount: maintenance.cost,
+          account_id: repairCoa.id,
+          description: `Beban Perbaikan & Pemeliharaan - ${asset.asset_code}`,
+          amount: maintenance.cost,
+          tax_amount: 0,
         },
       ],
     },
+    branchIds,
+    asset.branch_id,
     userId,
   )
 
-  // Update maintenance record to POSTED with journal_id
-  await pool.query(
-    `UPDATE asset_maintenance
-     SET status = 'POSTED', journal_id = $1, updated_by = $2, updated_at = now()
-     WHERE id = $3 AND company_id = $4`,
-    [journalId, userId, maintenanceId, companyId],
+  // Mark maintenance as INVOICED
+  await repository.markMaintenanceInvoiced(
+    maintenanceId,
+    companyId,
+    { general_invoice_id: invoice.id, updated_by: userId },
   )
 
-  await AuditService.log('UPDATE', 'asset_maintenance', maintenanceId, userId, { status: 'COMPLETED' }, { status: 'POSTED', journal_id: journalId })
+  await AuditService.log('UPDATE', 'asset_maintenance', maintenanceId, userId, { status: 'COMPLETED' }, { status: 'INVOICED', general_invoice_id: invoice.id })
 
-  logInfo('Asset maintenance posted', {
+  logInfo('General invoice created from maintenance', {
     maintenance_id: maintenanceId,
-    journal_id: journalId,
+    general_invoice_id: invoice.id,
     user_id: userId,
   })
+
+  return { general_invoice_id: invoice.id }
 }
 
 // ─── 6. Create Disposal ──────────────────────────────────────────────────────

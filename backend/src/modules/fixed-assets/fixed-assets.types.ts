@@ -15,7 +15,7 @@ export type MovementType =
   | 'DISPOSAL'
   | 'COST_ADJUSTMENT'
 
-export type MaintenanceStatus = 'IN_PROGRESS' | 'COMPLETED' | 'POSTED'
+export type MaintenanceStatus = 'IN_PROGRESS' | 'COMPLETED' | 'POSTED' | 'INVOICED'
 
 export type DepreciationRunStatus = 'PREVIEW' | 'POSTED' | 'REVERSED'
 
@@ -113,17 +113,24 @@ export interface AssetMaintenance {
   maintenance_date: string
   completion_date: string | null
   description: string
+  vendor_id: string | null
   vendor_name: string | null
   cost: number
   reference_number: string | null
   status: MaintenanceStatus
   journal_id: string | null
+  general_invoice_id: string | null
   is_deleted: boolean
   deleted_at: string | null
   created_at: string
   updated_at: string
   created_by: string | null
   updated_by: string | null
+  // Joined fields
+  asset_code?: string
+  asset_name?: string
+  invoice_number?: string | null
+  invoice_status?: string | null
 }
 
 export interface AssetDisposal {
@@ -213,7 +220,7 @@ export interface CreateMaintenanceDto {
   fixed_asset_id: string
   maintenance_date: string
   description: string
-  vendor_name?: string
+  vendor_id: string
   cost: number
   reference_number?: string
 }

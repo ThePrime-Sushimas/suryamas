@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Wrench, Plus, RefreshCw, Loader2, X, CheckCircle2, FileText } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Wrench, Plus, RefreshCw, Loader2, X, CheckCircle2, FileText, ExternalLink } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -8,11 +9,12 @@ import {
   useMaintenance,
   useCreateMaintenance,
   useCompleteMaintenance,
-  usePostMaintenance,
+  useCreateMaintenanceInvoice,
   useAssets,
   type MaintenanceStatus,
   type CreateMaintenanceDto,
 } from '../api/fixed-assets.api'
+import { useVendors } from '@/features/general-invoices/api/generalApi.api'
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 
@@ -20,12 +22,14 @@ const STATUS_STYLES: Record<MaintenanceStatus, string> = {
   IN_PROGRESS: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   COMPLETED: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
   POSTED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  INVOICED: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 }
 
 const STATUS_LABELS: Record<MaintenanceStatus, string> = {
   IN_PROGRESS: 'In Progress',
   COMPLETED: 'Completed',
   POSTED: 'Posted',
+  INVOICED: 'Invoiced',
 }
 
 function MaintenanceStatusBadge({ status }: { status: MaintenanceStatus }) {
@@ -59,7 +63,7 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
     fixed_asset_id: '',
     maintenance_date: new Date().toISOString().split('T')[0],
     description: '',
-    vendor_name: '',
+    vendor_id: '',
     cost: 0,
     reference_number: '',
   })
@@ -69,13 +73,17 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
   const { data: assetsData } = useAssets({ status: 'ACTIVE', limit: 100 })
   const activeAssets = assetsData?.data ?? []
 
+  // Fetch vendors for selection
+  const { data: vendorsData } = useVendors({ is_active: true, limit: 200 })
+  const vendors = vendorsData?.data ?? []
+
   useEffect(() => {
     if (!open) return
     setForm({
       fixed_asset_id: '',
       maintenance_date: new Date().toISOString().split('T')[0],
       description: '',
-      vendor_name: '',
+      vendor_id: '',
       cost: 0,
       reference_number: '',
     })
@@ -87,6 +95,7 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
     if (!form.fixed_asset_id) errs.fixed_asset_id = 'Pilih aset terlebih dahulu'
     if (!form.maintenance_date) errs.maintenance_date = 'Tanggal wajib diisi'
     if (!form.description.trim()) errs.description = 'Deskripsi wajib diisi'
+    if (!form.vendor_id) errs.vendor_id = 'Pilih vendor terlebih dahulu'
     if (!form.cost || form.cost <= 0) errs.cost = 'Biaya harus lebih dari 0'
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -99,9 +108,9 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
         fixed_asset_id: form.fixed_asset_id,
         maintenance_date: form.maintenance_date,
         description: form.description,
+        vendor_id: form.vendor_id,
         cost: form.cost,
       }
-      if (form.vendor_name.trim()) body.vendor_name = form.vendor_name.trim()
       if (form.reference_number.trim()) body.reference_number = form.reference_number.trim()
 
       await createMutation.mutateAsync(body)
@@ -119,7 +128,7 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-base font-bold text-gray-900 dark:text-white">
-            Catat Maintenance Baru
+            Request Maintenance Baru
           </h2>
           <button type="button" onClick={onClose} disabled={createMutation.isPending} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
             <X size={18} className="text-gray-500 dark:text-gray-400" />
@@ -145,6 +154,26 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
               ))}
             </select>
             {errors.fixed_asset_id && <p className="text-xs text-red-500">{errors.fixed_asset_id}</p>}
+          </div>
+
+          {/* Vendor Selection */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Vendor *</label>
+            <select
+              value={form.vendor_id}
+              onChange={(e) => setForm(prev => ({ ...prev, vendor_id: e.target.value }))}
+              className={`w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                errors.vendor_id ? 'border-red-400' : 'border-gray-200 dark:border-gray-600'
+              }`}
+            >
+              <option value="">Pilih vendor...</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.vendor_code} - {v.vendor_name}
+                </option>
+              ))}
+            </select>
+            {errors.vendor_id && <p className="text-xs text-red-500">{errors.vendor_id}</p>}
           </div>
 
           {/* Date & Cost */}
@@ -192,28 +221,16 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
             {errors.description && <p className="text-xs text-red-500">{errors.description}</p>}
           </div>
 
-          {/* Vendor & Reference */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Vendor</label>
-              <input
-                type="text"
-                value={form.vendor_name}
-                onChange={(e) => setForm(prev => ({ ...prev, vendor_name: e.target.value }))}
-                placeholder="Nama vendor"
-                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">No. Referensi</label>
-              <input
-                type="text"
-                value={form.reference_number}
-                onChange={(e) => setForm(prev => ({ ...prev, reference_number: e.target.value }))}
-                placeholder="e.g. INV-001"
-                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
-            </div>
+          {/* Reference Number */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">No. Referensi</label>
+            <input
+              type="text"
+              value={form.reference_number}
+              onChange={(e) => setForm(prev => ({ ...prev, reference_number: e.target.value }))}
+              placeholder="e.g. INV-001"
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
           </div>
         </div>
 
@@ -246,12 +263,13 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
 
 export default function AssetMaintenancePage() {
   const toast = useToast()
+  const navigate = useNavigate()
 
   // State
   const [formOpen, setFormOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [confirmCompleteId, setConfirmCompleteId] = useState<string | null>(null)
-  const [confirmPostId, setConfirmPostId] = useState<string | null>(null)
+  const [confirmInvoiceId, setConfirmInvoiceId] = useState<string | null>(null)
 
   // Queries
   const { data, isLoading, refetch, isFetching } = useMaintenance({ page, limit: 25 })
@@ -260,7 +278,7 @@ export default function AssetMaintenancePage() {
 
   // Mutations
   const completeMutation = useCompleteMaintenance()
-  const postMutation = usePostMaintenance()
+  const invoiceMutation = useCreateMaintenanceInvoice()
 
   // Handlers
   const handleComplete = async () => {
@@ -275,15 +293,17 @@ export default function AssetMaintenancePage() {
     }
   }
 
-  const handlePost = async () => {
-    if (!confirmPostId) return
+  const handleCreateInvoice = async () => {
+    if (!confirmInvoiceId) return
     try {
-      await postMutation.mutateAsync(confirmPostId)
-      toast.success('Jurnal maintenance berhasil diposting')
-      setConfirmPostId(null)
+      const result = await invoiceMutation.mutateAsync(confirmInvoiceId)
+      toast.success('Invoice berhasil dibuat')
+      setConfirmInvoiceId(null)
+      // Navigate to the created invoice
+      navigate(`/finance/general-invoices/${result.general_invoice_id}`)
     } catch (err) {
-      toast.error(parseApiError(err, 'Gagal posting jurnal maintenance'))
-      setConfirmPostId(null)
+      toast.error(parseApiError(err, 'Gagal membuat invoice'))
+      setConfirmInvoiceId(null)
     }
   }
 
@@ -312,7 +332,7 @@ export default function AssetMaintenancePage() {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              Tambah Maintenance
+              Request Maintenance
             </button>
             <button
               type="button"
@@ -396,15 +416,25 @@ export default function AssetMaintenancePage() {
                         {rec.status === 'COMPLETED' && (
                           <button
                             type="button"
-                            onClick={() => setConfirmPostId(rec.id)}
-                            disabled={postMutation.isPending}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50"
+                            onClick={() => setConfirmInvoiceId(rec.id)}
+                            disabled={invoiceMutation.isPending}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
                           >
                             <FileText className="w-3.5 h-3.5" />
-                            Post
+                            Buat Invoice
                           </button>
                         )}
-                        {rec.status === 'POSTED' && (
+                        {rec.status === 'INVOICED' && rec.general_invoice_id && (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/finance/general-invoices/${rec.general_invoice_id}`)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            Lihat Invoice
+                          </button>
+                        )}
+                        {(rec.status === 'POSTED' || (rec.status === 'INVOICED' && !rec.general_invoice_id)) && (
                           <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
                         )}
                       </div>
@@ -457,10 +487,19 @@ export default function AssetMaintenancePage() {
                     {rec.status === 'COMPLETED' && (
                       <button
                         type="button"
-                        onClick={() => setConfirmPostId(rec.id)}
-                        className="text-xs text-green-700 dark:text-green-400 font-medium"
+                        onClick={() => setConfirmInvoiceId(rec.id)}
+                        className="text-xs text-purple-700 dark:text-purple-400 font-medium"
                       >
-                        Post
+                        Buat Invoice
+                      </button>
+                    )}
+                    {rec.status === 'INVOICED' && rec.general_invoice_id && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/finance/general-invoices/${rec.general_invoice_id}`)}
+                        className="text-xs text-purple-700 dark:text-purple-400 font-medium"
+                      >
+                        Lihat Invoice
                       </button>
                     )}
                   </div>
@@ -499,16 +538,16 @@ export default function AssetMaintenancePage() {
         isLoading={completeMutation.isPending}
       />
 
-      {/* ─── Post Confirmation Modal ────────────────────────────────────── */}
+      {/* ─── Create Invoice Confirmation Modal ──────────────────────────── */}
       <ConfirmModal
-        isOpen={!!confirmPostId}
-        onClose={() => setConfirmPostId(null)}
-        onConfirm={handlePost}
-        title="Posting Jurnal Maintenance"
-        message="Jurnal untuk biaya maintenance akan dibuat (Dr Beban Perbaikan / Cr Hutang Dagang). Lanjutkan?"
-        confirmText="Posting"
+        isOpen={!!confirmInvoiceId}
+        onClose={() => setConfirmInvoiceId(null)}
+        onConfirm={handleCreateInvoice}
+        title="Buat Invoice Pembayaran"
+        message="General Invoice akan dibuat untuk pembayaran maintenance ini. Anda akan diarahkan ke halaman invoice setelah berhasil. Lanjutkan?"
+        confirmText="Buat Invoice"
         variant="success"
-        isLoading={postMutation.isPending}
+        isLoading={invoiceMutation.isPending}
       />
     </div>
   )

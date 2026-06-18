@@ -841,7 +841,7 @@ export async function createMaintenance(
     fixed_asset_id: string
     maintenance_date: string
     description: string
-    vendor_name?: string | null
+    vendor_id: string
     cost: number
     reference_number?: string | null
     created_by?: string | null
@@ -852,7 +852,7 @@ export async function createMaintenance(
   const { rows } = await db.query<AssetMaintenance>(
     `INSERT INTO asset_maintenance
        (company_id, fixed_asset_id, maintenance_date, description,
-        vendor_name, cost, reference_number, created_by, updated_by)
+        vendor_id, cost, reference_number, created_by, updated_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
      RETURNING *`,
     [
@@ -860,7 +860,7 @@ export async function createMaintenance(
       data.fixed_asset_id,
       data.maintenance_date,
       data.description,
-      data.vendor_name ?? null,
+      data.vendor_id,
       data.cost,
       data.reference_number ?? null,
       data.created_by ?? null,
@@ -899,38 +899,38 @@ export async function findMaintenance(
   client?: PoolClient,
 ): Promise<{ data: AssetMaintenance[]; total: number }> {
   const db = client ?? pool
-  const conditions = ['company_id = $1', 'deleted_at IS NULL']
+  const conditions = ['am.company_id = $1', 'am.deleted_at IS NULL']
   const params: unknown[] = [companyId]
   let idx = 2
 
   if (filter?.fixed_asset_id) {
     params.push(filter.fixed_asset_id)
-    conditions.push(`fixed_asset_id = $${idx++}`)
+    conditions.push(`am.fixed_asset_id = $${idx++}`)
   }
   if (filter?.status) {
     const trimmed = filter.status.trim()
     if (trimmed.includes(',')) {
       params.push(trimmed.split(',').map((s) => s.trim()))
-      conditions.push(`status = ANY($${idx++}::text[])`)
+      conditions.push(`am.status = ANY($${idx++}::text[])`)
     } else {
       params.push(trimmed)
-      conditions.push(`status = $${idx++}`)
+      conditions.push(`am.status = $${idx++}`)
     }
   }
   if (filter?.search?.trim()) {
     params.push(`%${filter.search.trim()}%`)
     conditions.push(
-      `(description ILIKE $${idx} OR vendor_name ILIKE $${idx} OR reference_number ILIKE $${idx})`,
+      `(am.description ILIKE $${idx} OR v.vendor_name ILIKE $${idx} OR am.reference_number ILIKE $${idx})`,
     )
     idx++
   }
   if (filter?.date_from) {
     params.push(filter.date_from)
-    conditions.push(`maintenance_date >= $${idx++}`)
+    conditions.push(`am.maintenance_date >= $${idx++}`)
   }
   if (filter?.date_to) {
     params.push(filter.date_to)
-    conditions.push(`maintenance_date <= $${idx++}`)
+    conditions.push(`am.maintenance_date <= $${idx++}`)
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`
@@ -940,13 +940,26 @@ export async function findMaintenance(
 
   const [dataRes, countRes] = await Promise.all([
     db.query<AssetMaintenance>(
-      `SELECT * FROM asset_maintenance ${where}
-       ORDER BY maintenance_date DESC, created_at DESC
+      `SELECT am.*,
+              v.vendor_name,
+              fa.asset_code,
+              fa.asset_name,
+              gi.invoice_number AS invoice_number,
+              gi.status AS invoice_status
+       FROM asset_maintenance am
+       LEFT JOIN vendors v ON v.id = am.vendor_id
+       LEFT JOIN fixed_assets fa ON fa.id = am.fixed_asset_id
+       LEFT JOIN general_invoices gi ON gi.id = am.general_invoice_id
+       ${where}
+       ORDER BY am.maintenance_date DESC, am.created_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params,
     ),
     db.query<{ total: number }>(
-      `SELECT COUNT(*)::int AS total FROM asset_maintenance ${where}`,
+      `SELECT COUNT(*)::int AS total
+       FROM asset_maintenance am
+       LEFT JOIN vendors v ON v.id = am.vendor_id
+       ${where}`,
       params.slice(0, idx - 1),
     ),
   ])
@@ -961,9 +974,35 @@ export async function findMaintenanceById(
 ): Promise<AssetMaintenance | null> {
   const db = client ?? pool
   const { rows } = await db.query<AssetMaintenance>(
-    `SELECT * FROM asset_maintenance
-     WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+    `SELECT am.*,
+            v.vendor_name,
+            fa.asset_code,
+            fa.asset_name,
+            gi.invoice_number AS invoice_number,
+            gi.status AS invoice_status
+     FROM asset_maintenance am
+     LEFT JOIN vendors v ON v.id = am.vendor_id
+     LEFT JOIN fixed_assets fa ON fa.id = am.fixed_asset_id
+     LEFT JOIN general_invoices gi ON gi.id = am.general_invoice_id
+     WHERE am.id = $1 AND am.company_id = $2 AND am.deleted_at IS NULL`,
     [id, companyId],
+  )
+  return rows[0] ?? null
+}
+
+export async function markMaintenanceInvoiced(
+  id: string,
+  companyId: string,
+  data: { general_invoice_id: string; updated_by: string },
+  client?: PoolClient,
+): Promise<AssetMaintenance | null> {
+  const db = client ?? pool
+  const { rows } = await db.query<AssetMaintenance>(
+    `UPDATE asset_maintenance
+     SET status = 'INVOICED', general_invoice_id = $1, updated_by = $2, updated_at = now()
+     WHERE id = $3 AND company_id = $4 AND status = 'COMPLETED' AND deleted_at IS NULL
+     RETURNING *`,
+    [data.general_invoice_id, data.updated_by, id, companyId],
   )
   return rows[0] ?? null
 }
