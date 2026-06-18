@@ -1,16 +1,21 @@
 import type { PoolClient } from 'pg'
+import { pool } from '../../config/db'
 import * as repository from './fixed-assets.repository'
+import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
+import type { CreateJournalLineDto } from '../accounting/journals/journal-headers/journal-headers.types'
 import {
   AssetCategoryNotFoundError,
   AssetCategoryInUseError,
   AssetCategoryDuplicateError,
   FixedAssetNotFoundError,
   BranchNotFoundError,
+  AssetAlreadyActiveError,
 } from './fixed-assets.errors'
 import { generateAssetCode } from './asset-code-generator.util'
 import { generateQrCode, generateBulkQrPdf } from './qr-code.util'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { AuditService } from '../monitoring/monitoring.service'
+import { logError } from '../../config/logger'
 import type {
   AssetCategory,
   FixedAsset,
@@ -280,6 +285,209 @@ export async function updateAsset(
   await AuditService.log('UPDATE', 'fixed_asset', id, userId, existing, updated)
   return updated
 }
+
+// ─── Manual Activation (DRAFT → ACTIVE) ────────────────────────────────────
+
+export async function activateAsset(
+  id: string,
+  companyId: string,
+  userId: string,
+  capitalizedDate?: string,
+): Promise<FixedAsset> {
+  const existing = await repository.findById(id, companyId)
+  if (!existing) throw new FixedAssetNotFoundError(id)
+  if (existing.status !== 'DRAFT') throw new AssetAlreadyActiveError(existing.asset_code)
+
+  const date = capitalizedDate ?? new Date().toISOString().split('T')[0]
+
+  await repository.activateAsset(id, companyId, { capitalized_date: date, updated_by: userId })
+  await repository.createMovement({
+    company_id: companyId,
+    fixed_asset_id: id,
+    movement_type: 'CAPITALIZE',
+    movement_date: date,
+    from_value: 'DRAFT',
+    to_value: 'ACTIVE',
+    notes: 'Manual activation without invoice',
+    created_by: userId,
+  })
+  await AuditService.log(
+    'UPDATE',
+    'fixed_asset',
+    id,
+    userId,
+    { status: 'DRAFT' },
+    { status: 'ACTIVE', capitalized_date: date },
+  )
+
+  const asset = await repository.findById(id, companyId)
+  if (!asset) throw new FixedAssetNotFoundError(id)
+  return asset
+}
+
+// ─── Marketplace Auto-Capitalize ─────────────────────────────────────────────
+
+export interface MarketplaceCapitalizeWorkItem {
+  asset: FixedAsset
+  categoryAssetCoaId: string
+}
+
+/**
+ * Phase 1: Activate assets + create movements (runs INSIDE GR transaction).
+ * Returns work items for Phase 2 journal creation.
+ */
+export async function capitalizeMarketplaceAssets(
+  client: PoolClient,
+  companyId: string,
+  grLineIds: string[],
+  capitalizedDate: string,
+  userId: string,
+): Promise<MarketplaceCapitalizeWorkItem[]> {
+  if (grLineIds.length === 0) return []
+
+  const { rows: draftAssets } = await client.query<FixedAsset>(
+    `SELECT * FROM fixed_assets
+     WHERE gr_line_id = ANY($1::uuid[])
+       AND company_id = $2
+       AND status = 'DRAFT'
+       AND deleted_at IS NULL`,
+    [grLineIds, companyId],
+  )
+
+  const workItems: MarketplaceCapitalizeWorkItem[] = []
+
+  for (const asset of draftAssets) {
+    const category = await repository.findCategoryById(asset.asset_category_id, companyId, client)
+    if (!category) {
+      throw new AssetCategoryNotFoundError(asset.asset_category_id)
+    }
+
+    await repository.activateAsset(
+      asset.id,
+      companyId,
+      { capitalized_date: capitalizedDate, updated_by: userId },
+      client,
+    )
+
+    await repository.createMovement(
+      {
+        company_id: companyId,
+        fixed_asset_id: asset.id,
+        movement_type: 'CAPITALIZE',
+        movement_date: capitalizedDate,
+        from_value: 'DRAFT',
+        to_value: 'ACTIVE',
+        reference_id: asset.gr_line_id,
+        reference_type: 'goods_receipt',
+        notes: 'Auto-capitalize from marketplace GR',
+        created_by: userId,
+      },
+      client,
+    )
+
+    workItems.push({ asset, categoryAssetCoaId: category.asset_coa_id })
+  }
+
+  return workItems
+}
+
+/**
+ * Phase 2: Create & post capitalization journals for marketplace assets.
+ * Runs AFTER the GR transaction commits. On failure, reverts assets back to DRAFT.
+ */
+export async function postMarketplaceCapitalizationJournals(
+  workItems: MarketplaceCapitalizeWorkItem[],
+  companyId: string,
+  ccCoaId: string,
+  capitalizedDate: string,
+  userId: string,
+): Promise<void> {
+  if (workItems.length === 0) return
+
+  const journalPosted: MarketplaceCapitalizeWorkItem[] = []
+
+  try {
+    for (const item of workItems) {
+      const lines: CreateJournalLineDto[] = [
+        {
+          line_number: 1,
+          account_id: item.categoryAssetCoaId,
+          description: item.asset.asset_name,
+          debit_amount: item.asset.cost,
+          credit_amount: 0,
+        },
+        {
+          line_number: 2,
+          account_id: ccCoaId,
+          description: 'Kartu Kredit Marketplace',
+          debit_amount: 0,
+          credit_amount: item.asset.cost,
+        },
+      ]
+
+      const journal = await journalHeadersService.create(
+        {
+          company_id: companyId,
+          branch_id: item.asset.branch_id,
+          journal_date: capitalizedDate,
+          journal_type: 'ASSET',
+          source_module: 'fixed_assets',
+          reference_type: 'fixed_asset',
+          reference_id: item.asset.id,
+          reference_number: item.asset.asset_code,
+          description: `Kapitalisasi Aset Marketplace ${item.asset.asset_code} - ${item.asset.asset_name}`,
+          currency: 'IDR',
+          exchange_rate: 1,
+          lines,
+        },
+        userId,
+      )
+
+      await journalHeadersService.submitAsUser(journal.id, userId)
+      await journalHeadersService.approveAsUser(journal.id, userId)
+      await journalHeadersService.postAsUser(journal.id, userId)
+
+      await repository.updateJournalId(item.asset.id, journal.id)
+      journalPosted.push(item)
+
+      await AuditService.log(
+        'UPDATE',
+        'fixed_asset',
+        item.asset.id,
+        userId,
+        { status: 'DRAFT' },
+        { status: 'ACTIVE', capitalized_date: capitalizedDate, journal_id: journal.id },
+      )
+    }
+  } catch (e) {
+    // Revert only assets that did NOT get a successfully posted journal
+    const revertClient = await pool.connect()
+    try {
+      await revertClient.query('BEGIN')
+      const postedIds = new Set(journalPosted.map((p) => p.asset.id))
+      for (const item of workItems) {
+        if (postedIds.has(item.asset.id)) continue // has journal, don't revert
+        await repository.revertCapitalization(
+          item.asset.id,
+          companyId,
+          { cost: item.asset.cost, updated_by: userId },
+          revertClient,
+        )
+      }
+      await revertClient.query('COMMIT')
+    } catch (revErr: unknown) {
+      await revertClient.query('ROLLBACK')
+      logError('Failed to revert marketplace asset capitalization after journal error', {
+        company_id: companyId,
+        error: revErr instanceof Error ? revErr.message : revErr,
+      })
+    } finally {
+      revertClient.release()
+    }
+    throw e
+  }
+}
+
 
 // ─── Movements / QR ──────────────────────────────────────────────────────────
 

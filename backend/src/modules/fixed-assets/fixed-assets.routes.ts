@@ -29,6 +29,7 @@ import {
   previewDepreciationSchema,
   confirmDepreciationSchema,
   reverseDepreciationSchema,
+  activateAssetSchema,
 } from './fixed-assets.schema'
 
 // ─── Module registration ──────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ router.post(   '/fixed-assets/bulk-qr',          canView('fixed_assets'),   vali
 router.get(    '/fixed-assets',                   canView('fixed_assets'),   validateSchema(listFixedAssetsSchema),    (req, res) => controller.listAssets(req, res))
 router.get(    '/fixed-assets/:id',               canView('fixed_assets'),   validateSchema(fixedAssetIdParamSchema),  (req, res) => controller.getAssetById(req, res))
 router.put(    '/fixed-assets/:id',               requireWriteAccess, canUpdate('fixed_assets'), validateSchema(updateFixedAssetSchema),   (req, res) => controller.updateAsset(req, res))
+router.post(   '/fixed-assets/:id/activate',      requireWriteAccess, canUpdate('fixed_assets'), validateSchema(activateAssetSchema),      (req, res) => controller.activateAsset(req, res))
 router.get(    '/fixed-assets/:id/movements',     canView('fixed_assets'),   validateSchema(listMovementsSchema),      (req, res) => controller.getMovements(req, res))
 router.post(   '/fixed-assets/:id/qr-code',       requireWriteAccess, canUpdate('fixed_assets'), validateSchema(regenerateQrCodeSchema),   (req, res) => controller.regenerateQrCode(req, res))
 

@@ -29,6 +29,7 @@ import type {
   previewDepreciationSchema,
   confirmDepreciationSchema,
   reverseDepreciationSchema,
+  activateAssetSchema,
 } from './fixed-assets.schema'
 
 async function assetScope(req: Request) {
@@ -195,6 +196,20 @@ export const bulkQrPdf = async (req: Request, res: Response) => {
     res.send(pdf)
   } catch (error: unknown) {
     await handleError(res, error, req, { action: 'bulk_qr_pdf' })
+  }
+}
+
+// ─── Activate Asset (DRAFT → ACTIVE) ─────────────────────────────────────────
+
+export const activateAsset = async (req: Request, res: Response) => {
+  try {
+    const { companyId, userId } = await assetScope(req)
+    const { id } = (req as ValidatedAuthRequest<typeof activateAssetSchema>).validated.params
+    const body = (req as ValidatedAuthRequest<typeof activateAssetSchema>).validated.body
+    const asset = await fixedAssetsService.activateAsset(id, companyId, userId, body?.capitalized_date)
+    sendSuccess(res, asset, 'Asset activated')
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'activate_asset', id: req.params.id })
   }
 }
 

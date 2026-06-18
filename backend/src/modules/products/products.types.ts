@@ -17,6 +17,7 @@ export interface Product {
   is_requestable: boolean
   is_purchasable: boolean
   is_asset: boolean
+  asset_category_id: string | null
   notes: string | null
   status: ProductStatus
   is_deleted: boolean
@@ -57,6 +58,7 @@ export interface CreateProductDto {
   is_requestable?: boolean
   is_purchasable?: boolean
   is_asset?: boolean
+  asset_category_id?: string | null
   notes?: string
   status?: ProductStatus
 }
@@ -71,6 +73,7 @@ export interface UpdateProductDto {
   is_requestable?: boolean
   is_purchasable?: boolean
   is_asset?: boolean
+  asset_category_id?: string | null
   notes?: string
   status?: ProductStatus
 }

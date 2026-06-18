@@ -37,6 +37,13 @@ export interface AssetCategory {
   updated_at: string
   created_by: string | null
   updated_by: string | null
+  // Joined COA info
+  asset_coa_code?: string
+  asset_coa_name?: string
+  depreciation_expense_coa_code?: string
+  depreciation_expense_coa_name?: string
+  accumulated_depreciation_coa_code?: string
+  accumulated_depreciation_coa_name?: string
 }
 
 export interface FixedAsset {

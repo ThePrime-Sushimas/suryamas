@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
+import { parseApiError } from '@/lib/errorParser'
 import {
   ArrowLeft,
   ArrowRightLeft,
@@ -14,10 +16,13 @@ import {
   Hash,
   MapPin,
   FileText,
+  PlayCircle,
 } from 'lucide-react'
-import { useAsset, useAssetMovements } from '../api/fixed-assets.api'
+import { useAsset, useAssetMovements, useActivateAsset } from '../api/fixed-assets.api'
 import type { AssetStatus, MovementType, AssetMovement } from '../api/fixed-assets.api'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { useToast } from '@/contexts/ToastContext'
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 
@@ -61,17 +66,22 @@ export default function FixedAssetDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { backToList } = useListNavigation('/fixed-assets')
   const hasPermission = usePermissionStore((state) => state.hasPermission)
+  const toast = useToast()
 
   const canUpdate = hasPermission('fixed_assets', 'update')
   const canApprove = hasPermission('fixed_assets', 'approve')
 
   const { data: asset, isLoading } = useAsset(id ?? '')
   const { data: movementsResult, isLoading: movementsLoading } = useAssetMovements(id ?? '')
+  const { mutateAsync: activateAsset, isPending: isActivating } = useActivateAsset()
+
+  const [showActivateConfirm, setShowActivateConfirm] = useState(false)
 
   if (isLoading) return <div className="p-8 text-center text-gray-500">Loading detail...</div>
   if (!asset) return <div className="p-8 text-center text-gray-500">Aset tidak ditemukan</div>
 
   // Action button visibility based on status
+  const isDraft = asset.status === 'DRAFT'
   const canTransfer = asset.status === 'ACTIVE' && canUpdate
   const canMaintenance = asset.status === 'ACTIVE' && canUpdate
   const canDispose = (asset.status === 'ACTIVE' || asset.status === 'MAINTENANCE') && canApprove
@@ -80,6 +90,16 @@ export default function FixedAssetDetailPage() {
   const sortedMovements = [...(movementsResult?.data ?? [])].sort(
     (a, b) => new Date(b.movement_date).getTime() - new Date(a.movement_date).getTime()
   )
+
+  const handleActivate = async () => {
+    try {
+      await activateAsset({ id: asset.id })
+      toast.success('Aset berhasil diaktifkan')
+      setShowActivateConfirm(false)
+    } catch (err: unknown) {
+      toast.error(parseApiError(err, 'Gagal mengaktifkan aset'))
+    }
+  }
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -110,6 +130,15 @@ export default function FixedAssetDetailPage() {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-2">
+            {isDraft && canUpdate && (
+              <button
+                onClick={() => setShowActivateConfirm(true)}
+                disabled={isActivating}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium transition-colors"
+              >
+                <PlayCircle className="w-4 h-4" /> Aktifkan
+              </button>
+            )}
             {canTransfer && (
               <button className="flex items-center gap-2 px-3 py-2 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-sm font-medium transition-colors">
                 <ArrowRightLeft className="w-4 h-4" /> Transfer
@@ -214,6 +243,19 @@ export default function FixedAssetDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Activate Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showActivateConfirm}
+        onClose={() => setShowActivateConfirm(false)}
+        onConfirm={handleActivate}
+        title="Aktifkan Aset"
+        message={`Apakah Anda yakin ingin mengaktifkan ${asset.asset_code} - ${asset.asset_name}? Aset akan berubah status dari Draft menjadi Aktif dan dapat digunakan.`}
+        confirmText={isActivating ? 'Mengaktifkan...' : 'Ya, Aktifkan'}
+        cancelText="Batal"
+        variant="info"
+        isLoading={isActivating}
+      />
     </div>
   )
 }

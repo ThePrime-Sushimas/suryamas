@@ -5,6 +5,8 @@ import { productOutputTemplateRepository } from '../product-output-template/prod
 import { purchaseOrdersRepository } from '../purchase-orders/purchase-orders.repository'
 import { PAYMENT_DUE_AT_GR_CONFIRM_TYPES } from '../payment-terms/payment-terms.constants'
 import { BusinessRuleError } from '../../utils/errors.base'
+import { chartOfAccountsRepository } from '../accounting/chart-of-accounts/chart-of-accounts.repository'
+import { logError } from '../../config/logger'
 import {
   GoodsReceiptNotFoundError, GoodsReceiptDuplicateError, GoodsReceiptAlreadyConfirmedError,
   GoodsReceiptInvalidPOStatusError, GoodsReceiptExceedsOrderedError, GoodsReceiptMarketplaceSupplierError,
@@ -254,6 +256,8 @@ export class GoodsReceiptsService {
       throw new BusinessRuleError('Minimal 1 item harus memiliki qty diterima lebih dari 0')
     }
 
+    let marketplaceWorkItems: import('../fixed-assets/fixed-assets.service').MarketplaceCapitalizeWorkItem[] = []
+
     await goodsReceiptsRepository.withTransaction(async (client) => {
       const supplierId = await goodsReceiptsRepository.findPoSupplierId(client, gr.po_id)
 
@@ -355,6 +359,9 @@ export class GoodsReceiptsService {
           : {}
       const productUomsMap = buildProductUomsMap(await productUomsRepository.findAllUomsBatch(lineProductIds))
 
+      // For marketplace GRs, track asset line IDs to auto-capitalize after creation
+      const assetLineIds: string[] = []
+
       for (const line of gr.lines) {
         const assetInfo = assetInfoByProduct.get(line.product_id)
 
@@ -397,6 +404,10 @@ export class GoodsReceiptsService {
               created_by: userId,
             })
           }
+
+          // Track asset line IDs for marketplace auto-capitalize
+          assetLineIds.push(line.id)
+
           continue // skip GP input/output for asset products
         }
 
@@ -444,12 +455,62 @@ export class GoodsReceiptsService {
         }
       }
 
+      // Auto-capitalize marketplace asset products immediately (no PI needed)
+      if (gr.source === 'MARKETPLACE' && assetLineIds.length > 0) {
+        const capitalizedDate = gr.received_date ?? new Date().toISOString().slice(0, 10)
+        marketplaceWorkItems = await fixedAssetsService.capitalizeMarketplaceAssets(
+          client,
+          companyId,
+          assetLineIds,
+          capitalizedDate,
+          userId,
+        )
+      }
+
       if (supplierRequiresPurchaseInvoice(gr)) {
         await purchaseInvoicesService.createDraftFromGr(client, companyId, id, userId)
       }
     })
 
     await AuditService.log('UPDATE', 'goods_receipt', id, userId, { status: 'DRAFT' }, { status: 'CONFIRMED' })
+
+    // Phase 2: Post capitalization journals AFTER the GR transaction commits
+    if (marketplaceWorkItems.length > 0) {
+      const capitalizedDate = gr.received_date ?? new Date().toISOString().slice(0, 10)
+      const sessionNumber = gr.invoice_number
+
+      if (!sessionNumber) {
+        logError('Marketplace GR missing invoice_number, cannot post capitalization journals', {
+          gr_id: id,
+          company_id: companyId,
+        })
+        throw new BusinessRuleError(
+          'GR marketplace tidak memiliki invoice_number (session_number), tidak dapat membuat jurnal kapitalisasi',
+        )
+      }
+
+      const ccCoaCode = await goodsReceiptsRepository.findMarketplaceCcCoaCode(companyId, sessionNumber)
+      if (!ccCoaCode) {
+        throw new BusinessRuleError(
+          `COA kartu kredit tidak ditemukan untuk session marketplace "${sessionNumber}"`,
+        )
+      }
+
+      const ccCoa = await chartOfAccountsRepository.findByCode(companyId, ccCoaCode)
+      if (!ccCoa) {
+        throw new BusinessRuleError(
+          `COA dengan kode "${ccCoaCode}" tidak ditemukan di chart of accounts`,
+        )
+      }
+
+      await fixedAssetsService.postMarketplaceCapitalizationJournals(
+        marketplaceWorkItems,
+        companyId,
+        ccCoa.id,
+        capitalizedDate,
+        userId,
+      )
+    }
 
     const confirmed = await goodsReceiptsRepository.findWithLines(id, companyId)
     if (confirmed) {

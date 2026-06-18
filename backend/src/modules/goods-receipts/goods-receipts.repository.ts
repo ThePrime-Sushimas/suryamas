@@ -93,6 +93,22 @@ export class GoodsReceiptsRepository {
     return rows[0]?.supplier_id ?? null
   }
 
+  async findMarketplaceCcCoaCode(
+    companyId: string,
+    sessionNumber: string,
+  ): Promise<string | null> {
+    const { rows } = await pool.query<{ coa_code: string }>(
+      `SELECT occ.coa_code
+       FROM marketplace_checkout_sessions mcs
+       JOIN owner_credit_cards occ ON occ.id = mcs.cc_id AND occ.company_id = mcs.company_id
+       WHERE mcs.session_number = $1
+         AND mcs.company_id = $2
+         AND mcs.deleted_at IS NULL`,
+      [sessionNumber, companyId],
+    )
+    return rows[0]?.coa_code ?? null
+  }
+
   async findMarketplaceSessionStatusForGr(
     client: PoolClient,
     grId: string,

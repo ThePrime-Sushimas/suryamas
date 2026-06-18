@@ -175,7 +175,7 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
 
           {/* COA Selectors */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Akun Aset (COA) *</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Akun Aset (COA) 1201**</label>
             <AccountSelector
               value={form.asset_coa_id}
               onChange={(id) => setForm(prev => ({ ...prev, asset_coa_id: id }))}
@@ -186,7 +186,7 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Akun Beban Penyusutan (COA) *</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Akun Beban Penyusutan (COA) 6201**</label>
             <AccountSelector
               value={form.depreciation_expense_coa_id}
               onChange={(id) => setForm(prev => ({ ...prev, depreciation_expense_coa_id: id }))}
@@ -197,7 +197,7 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Akun Akumulasi Penyusutan (COA) *</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Akun Akumulasi Penyusutan (COA) 1202**</label>
             <AccountSelector
               value={form.accumulated_depreciation_coa_id}
               onChange={(id) => setForm(prev => ({ ...prev, accumulated_depreciation_coa_id: id }))}
@@ -333,7 +333,10 @@ export default function AssetCategoriesPage() {
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Kode</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Nama Kategori</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Umur Manfaat</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Akun Aset (DB)</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Beban Penyusutan (DB)</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Akum. Penyusutan (CR)</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Umur</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
                     <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-right">Aksi</th>
                   </tr>
@@ -343,7 +346,19 @@ export default function AssetCategoriesPage() {
                     <tr key={cat.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <td className="px-4 py-3 font-mono text-xs text-gray-900 dark:text-gray-100">{cat.category_code}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{cat.category_name}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{cat.default_useful_life_months} bulan</td>
+                      <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+                        {cat.asset_coa_code && <span className="font-mono">{cat.asset_coa_code}</span>}
+                        {cat.asset_coa_name && <span className="ml-1 text-gray-400">· {cat.asset_coa_name}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+                        {cat.depreciation_expense_coa_code && <span className="font-mono">{cat.depreciation_expense_coa_code}</span>}
+                        {cat.depreciation_expense_coa_name && <span className="ml-1 text-gray-400">· {cat.depreciation_expense_coa_name}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+                        {cat.accumulated_depreciation_coa_code && <span className="font-mono">{cat.accumulated_depreciation_coa_code}</span>}
+                        {cat.accumulated_depreciation_coa_name && <span className="ml-1 text-gray-400">· {cat.accumulated_depreciation_coa_name}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{cat.default_useful_life_months} bln</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           cat.is_active

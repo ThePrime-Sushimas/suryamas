@@ -9,6 +9,7 @@ import {
   InvalidProductStatusError,
   ProductCodeUpdateError,
   BulkOperationLimitError,
+  ProductValidationError,
 } from './products.errors'
 import { VALID_PRODUCT_STATUSES, VALID_PRODUCT_TYPES, PRODUCT_DEFAULTS, PRODUCT_LIMITS } from './products.constants'
 import { calculatePagination, calculateOffset } from '../../utils/pagination.util'
@@ -81,6 +82,11 @@ export class ProductsService {
 
     const { base_unit_id, ...productDto } = dto
 
+    // Validate: if is_asset=true, asset_category_id is required
+    if (productDto.is_asset && !productDto.asset_category_id) {
+      throw new ProductValidationError('asset_category_id is required when is_asset is true')
+    }
+
     const data = {
       ...productDto,
       status: productDto.status || PRODUCT_DEFAULTS.STATUS,
@@ -137,6 +143,13 @@ export class ProductsService {
       if (existingName) {
         throw new DuplicateProductNameError(dto.product_name)
       }
+    }
+
+    // Validate: if is_asset=true, asset_category_id must be provided (or already set)
+    const willBeAsset = dto.is_asset ?? existing.is_asset
+    const willHaveCategory = dto.asset_category_id !== undefined ? dto.asset_category_id : existing.asset_category_id
+    if (willBeAsset && !willHaveCategory) {
+      throw new ProductValidationError('asset_category_id is required when is_asset is true')
     }
 
     const data = { ...dto, updated_by: userId }

@@ -22,6 +22,12 @@ export class AssetNotActiveError extends BusinessRuleError {
   }
 }
 
+export class AssetAlreadyActiveError extends BusinessRuleError {
+  constructor(assetCode: string) {
+    super(`Asset '${assetCode}' is already ACTIVE`)
+  }
+}
+
 export class AssetNotFoundForInvoiceError extends NotFoundError {
   constructor(productName: string, grLineId: string) {
     super(`Fixed asset for product '${productName}' (GR line: ${grLineId})`)

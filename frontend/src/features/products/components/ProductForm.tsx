@@ -4,6 +4,7 @@ import type { Product, ProductStatus, CreateProductDto, UpdateProductDto } from 
 import api from '@/lib/axios'
 import { CardSkeleton } from '@/components/ui/Skeleton'
 import { usePositions } from '@/features/settings/api/settings.api'
+import { useCategories as useAssetCategories } from '@/features/fixed-assets/api/fixed-assets.api'
 
 interface ProductFormProps {
   initialData?: Product
@@ -26,6 +27,7 @@ interface SubCategory {
 
 export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading }: ProductFormProps) => {
   const positions = usePositions()
+  const { data: assetCategoriesData } = useAssetCategories({ limit: 100, is_active: true })
   const [formData, setFormData] = useState({
     product_code: initialData?.product_code || '',
     product_name: initialData?.product_name || '',
@@ -37,6 +39,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     is_requestable: initialData?.is_requestable ?? true,
     is_purchasable: initialData?.is_purchasable ?? true,
     is_asset: initialData?.is_asset ?? false,
+    asset_category_id: initialData?.asset_category_id || '',
     requires_processing: initialData?.requires_processing ?? false,
     notes: initialData?.notes || '',
     status: (initialData?.status || 'ACTIVE') as ProductStatus,
@@ -77,7 +80,8 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     setFormData(prev => ({
       ...prev,
       [name]: newValue,
-      ...(name === 'category_id' ? { sub_category_id: '' } : {})
+      ...(name === 'category_id' ? { sub_category_id: '' } : {}),
+      ...(name === 'is_asset' && !newValue ? { asset_category_id: '' } : {}),
     }))
     
     if (errors[name]) {
@@ -103,6 +107,9 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
     if (!isEdit && !formData.base_unit_id) {
       newErrors.base_unit_id = 'Satuan dasar wajib dipilih'
     }
+    if (formData.is_asset && !formData.asset_category_id) {
+      newErrors.asset_category_id = 'Kategori aset wajib dipilih jika produk adalah aset tetap'
+    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -124,6 +131,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
       is_asset: formData.is_asset,
+      asset_category_id: formData.is_asset ? formData.asset_category_id || null : null,
       requires_processing: formData.requires_processing,
       notes: formData.notes || undefined,
       status: formData.status
@@ -137,6 +145,7 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
       is_requestable: formData.is_requestable,
       is_purchasable: formData.is_purchasable,
       is_asset: formData.is_asset,
+      asset_category_id: formData.is_asset ? formData.asset_category_id || null : null,
       notes: formData.notes || undefined,
       status: formData.status,
       base_unit_id: formData.base_unit_id || undefined,
@@ -350,6 +359,31 @@ export const ProductForm = ({ initialData, isEdit, onSubmit, onCancel, isLoading
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Perlu Proses (Potong/Trim)</span>
         </label>
       </div>
+
+      {/* Asset Category dropdown - only shown when is_asset is checked */}
+      {formData.is_asset && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Kategori Aset <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="asset_category_id"
+            value={formData.asset_category_id}
+            onChange={handleChange}
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+              errors.asset_category_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+            }`}
+          >
+            <option value="">Pilih kategori aset</option>
+            {(assetCategoriesData?.data || []).map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.category_name}</option>
+            ))}
+          </select>
+          {errors.asset_category_id && (
+            <p className="mt-1 text-sm text-red-600">{errors.asset_category_id}</p>
+          )}
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>

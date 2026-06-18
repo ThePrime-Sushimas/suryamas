@@ -243,6 +243,17 @@ export const listMovementsSchema = z.object({
   }),
 })
 
+// ─── Activate Asset (DRAFT → ACTIVE) ─────────────────────────────────────────
+
+export const activateAssetSchema = z.object({
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+  body: z.object({
+    capitalized_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  }).optional(),
+})
+
 // ─── QR Code ─────────────────────────────────────────────────────────────────
 
 export const regenerateQrCodeSchema = z.object({

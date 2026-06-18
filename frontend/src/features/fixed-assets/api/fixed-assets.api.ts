@@ -35,6 +35,13 @@ export interface AssetCategory {
   updated_at: string
   created_by: string | null
   updated_by: string | null
+  // Joined COA info
+  asset_coa_code?: string
+  asset_coa_name?: string
+  depreciation_expense_coa_code?: string
+  depreciation_expense_coa_name?: string
+  accumulated_depreciation_coa_code?: string
+  accumulated_depreciation_coa_name?: string
 }
 
 export interface FixedAsset {
@@ -455,6 +462,26 @@ export const useAssetMovements = (
     },
     enabled: !!assetId,
   })
+
+// ─── Activate Asset (DRAFT → ACTIVE) ─────────────────────────────────────────
+
+export interface ActivateAssetDto {
+  capitalized_date?: string
+}
+
+export const useActivateAsset = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body?: ActivateAssetDto }) => {
+      const { data } = await api.post(`/fixed-assets/${id}/activate`, body)
+      return data.data as FixedAsset
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['fixed-assets'] })
+      qc.invalidateQueries({ queryKey: KEYS.assetDetail(vars.id) })
+    },
+  })
+}
 
 // ─── QR Code ─────────────────────────────────────────────────────────────────
 

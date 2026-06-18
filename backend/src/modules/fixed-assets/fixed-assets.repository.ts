@@ -13,6 +13,7 @@ import type {
   MovementType,
   DepreciationPreviewEntry,
 } from './fixed-assets.types'
+import { FixedAssetNotFoundError } from './fixed-assets.errors'
 
 // ─── Asset Categories ────────────────────────────────────────────────────────
 
@@ -22,9 +23,19 @@ export async function findCategories(
 ): Promise<AssetCategory[]> {
   const db = client ?? pool
   const { rows } = await db.query<AssetCategory>(
-    `SELECT * FROM asset_categories
-     WHERE company_id = $1 AND deleted_at IS NULL
-     ORDER BY category_code ASC`,
+    `SELECT ac.*,
+       coa_asset.account_code AS asset_coa_code,
+       coa_asset.account_name AS asset_coa_name,
+       coa_depr.account_code AS depreciation_expense_coa_code,
+       coa_depr.account_name AS depreciation_expense_coa_name,
+       coa_accum.account_code AS accumulated_depreciation_coa_code,
+       coa_accum.account_name AS accumulated_depreciation_coa_name
+     FROM asset_categories ac
+     LEFT JOIN chart_of_accounts coa_asset ON coa_asset.id = ac.asset_coa_id
+     LEFT JOIN chart_of_accounts coa_depr ON coa_depr.id = ac.depreciation_expense_coa_id
+     LEFT JOIN chart_of_accounts coa_accum ON coa_accum.id = ac.accumulated_depreciation_coa_id
+     WHERE ac.company_id = $1 AND ac.deleted_at IS NULL
+     ORDER BY ac.category_code ASC`,
     [companyId],
   )
   return rows
@@ -204,34 +215,52 @@ export async function findCategoriesPaginated(
   client?: PoolClient,
 ): Promise<{ data: AssetCategory[]; total: number }> {
   const db = client ?? pool
-  const conditions = ['company_id = $1', 'deleted_at IS NULL']
+  // For COUNT query (no alias needed)
+  const countConditions = ['company_id = $1', 'deleted_at IS NULL']
+  // For data query (needs ac. prefix due to joins)
+  const dataConditions = ['ac.company_id = $1', 'ac.deleted_at IS NULL']
   const params: unknown[] = [companyId]
   let idx = 2
 
   if (filter?.is_active !== undefined) {
     params.push(filter.is_active)
-    conditions.push(`is_active = $${idx++}`)
+    countConditions.push(`is_active = $${idx}`)
+    dataConditions.push(`ac.is_active = $${idx}`)
+    idx++
   }
   if (filter?.search?.trim()) {
     params.push(`%${filter.search.trim()}%`)
-    conditions.push(`(category_code ILIKE $${idx} OR category_name ILIKE $${idx})`)
+    countConditions.push(`(category_code ILIKE $${idx} OR category_name ILIKE $${idx})`)
+    dataConditions.push(`(ac.category_code ILIKE $${idx} OR ac.category_name ILIKE $${idx})`)
     idx++
   }
 
-  const where = `WHERE ${conditions.join(' AND ')}`
+  const countWhere = `WHERE ${countConditions.join(' AND ')}`
+  const dataWhere = `WHERE ${dataConditions.join(' AND ')}`
   const limitIdx = idx
   const offsetIdx = idx + 1
   params.push(pagination.limit, pagination.offset)
 
   const [dataRes, countRes] = await Promise.all([
     db.query<AssetCategory>(
-      `SELECT * FROM asset_categories ${where}
-       ORDER BY category_code ASC
+      `SELECT ac.*,
+         coa_asset.account_code AS asset_coa_code,
+         coa_asset.account_name AS asset_coa_name,
+         coa_depr.account_code AS depreciation_expense_coa_code,
+         coa_depr.account_name AS depreciation_expense_coa_name,
+         coa_accum.account_code AS accumulated_depreciation_coa_code,
+         coa_accum.account_name AS accumulated_depreciation_coa_name
+       FROM asset_categories ac
+       LEFT JOIN chart_of_accounts coa_asset ON coa_asset.id = ac.asset_coa_id
+       LEFT JOIN chart_of_accounts coa_depr ON coa_depr.id = ac.depreciation_expense_coa_id
+       LEFT JOIN chart_of_accounts coa_accum ON coa_accum.id = ac.accumulated_depreciation_coa_id
+       ${dataWhere}
+       ORDER BY ac.category_code ASC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params,
     ),
     db.query<{ total: number }>(
-      `SELECT COUNT(*)::int AS total FROM asset_categories ${where}`,
+      `SELECT COUNT(*)::int AS total FROM asset_categories ${countWhere}`,
       params.slice(0, idx - 1),
     ),
   ])
@@ -316,13 +345,18 @@ export async function findAssets(
 
   const [dataRes, countRes] = await Promise.all([
     db.query<FixedAsset>(
-      `SELECT fa.*
+      `SELECT fa.*,
+         b.branch_name,
+         ac.category_name,
+         ac.category_code
        FROM (
          SELECT fa.* FROM fixed_assets fa
          ${where}
          ORDER BY fa.created_at DESC
          LIMIT $${limitIdx} OFFSET $${offsetIdx}
-       ) fa`,
+       ) fa
+       LEFT JOIN branches b ON b.id = fa.branch_id
+       LEFT JOIN asset_categories ac ON ac.id = fa.asset_category_id`,
       params,
     ),
     db.query<{ total: number }>(
@@ -341,8 +375,14 @@ export async function findById(
 ): Promise<FixedAsset | null> {
   const db = client ?? pool
   const { rows } = await db.query<FixedAsset>(
-    `SELECT * FROM fixed_assets
-     WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+    `SELECT fa.*,
+       b.branch_name,
+       ac.category_name,
+       ac.category_code
+     FROM fixed_assets fa
+     LEFT JOIN branches b ON b.id = fa.branch_id
+     LEFT JOIN asset_categories ac ON ac.id = fa.asset_category_id
+     WHERE fa.id = $1 AND fa.company_id = $2 AND fa.deleted_at IS NULL`,
     [id, companyId],
   )
   return rows[0] ?? null
@@ -402,8 +442,7 @@ export async function findDepreciableAssets(
      WHERE company_id = $1
        AND deleted_at IS NULL
        AND status IN ('ACTIVE', 'MAINTENANCE')
-       AND (cost - salvage_value) > accumulated_depreciation
-       AND journal_id IS NOT NULL`,
+       AND (cost - salvage_value) > accumulated_depreciation`,
     [companyId],
   )
   return rows
@@ -429,6 +468,24 @@ export async function capitalize(
      WHERE id = $6 AND company_id = $7 AND deleted_at IS NULL`,
     [data.cost, data.capitalized_date, data.purchase_invoice_id, data.status, data.updated_by, id, companyId],
   )
+}
+
+export async function activateAsset(
+  id: string,
+  companyId: string,
+  data: { capitalized_date: string; updated_by: string },
+  client?: PoolClient,
+): Promise<void> {
+  const db = client ?? pool
+  const { rowCount } = await db.query(
+    `UPDATE fixed_assets
+     SET status = 'ACTIVE', capitalized_date = $1, updated_by = $2, updated_at = now()
+     WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL AND status = 'DRAFT'`,
+    [data.capitalized_date, data.updated_by, id, companyId],
+  )
+  if ((rowCount ?? 0) === 0) {
+    throw new FixedAssetNotFoundError(id)
+  }
 }
 
 export async function revertCapitalization(
