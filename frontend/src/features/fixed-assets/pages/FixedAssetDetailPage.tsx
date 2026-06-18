@@ -667,35 +667,41 @@ function MaintenanceAssetModal({
 }) {
   const [maintenanceDate, setMaintenanceDate] = useState(today())
   const [description, setDescription] = useState('')
-  const [vendorName, setVendorName] = useState('')
-  const [cost, setCost] = useState('')
-  const [referenceNumber, setReferenceNumber] = useState('')
+  const [vendorId, setVendorId] = useState('')
+
+  // Fetch vendors
+  const { data: vendorsData } = useQuery({
+    queryKey: ['vendors', { is_active: true, limit: 200 }],
+    queryFn: async () => {
+      const { data } = await api.get('/vendors', { params: { is_active: true, limit: 200 } })
+      return data.data as Array<{ id: string; vendor_code: string; vendor_name: string }>
+    },
+    staleTime: 30_000,
+  })
+  const vendors = vendorsData ?? []
 
   useEffect(() => {
     if (!open) return
     setMaintenanceDate(today())
     setDescription('')
-    setVendorName('')
-    setCost('')
-    setReferenceNumber('')
+    setVendorId('')
   }, [open])
 
   if (!open) return null
 
   const handleSubmit = () => {
+    if (!vendorId || !description.trim()) return
     const body: CreateMaintenanceDto = {
       fixed_asset_id: asset.id,
       maintenance_date: maintenanceDate,
       description: description.trim(),
-      cost: Number(cost) || 0,
+      vendor_id: vendorId,
     }
-    if (vendorName.trim()) body.vendor_name = vendorName.trim()
-    if (referenceNumber.trim()) body.reference_number = referenceNumber.trim()
     onSubmit(body)
   }
 
   return (
-    <ModalShell title="Catat Maintenance" onClose={onClose}>
+    <ModalShell title="Request Maintenance" onClose={onClose}>
       <div className="p-6 space-y-4">
         <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-sm text-gray-700 dark:text-gray-300">
           {asset.asset_code} - {asset.asset_name}
@@ -711,15 +717,19 @@ function MaintenanceAssetModal({
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Biaya</label>
-            <input
-              type="number"
-              min={0}
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              placeholder="0"
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Vendor *</label>
+            <select
+              value={vendorId}
+              onChange={(e) => setVendorId(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
+            >
+              <option value="">Pilih vendor...</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.vendor_code} - {v.vendor_name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="space-y-1">
@@ -728,32 +738,15 @@ function MaintenanceAssetModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
+            placeholder="Deskripsi pekerjaan maintenance..."
             className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
           />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Vendor</label>
-            <input
-              value={vendorName}
-              onChange={(e) => setVendorName(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">No. Referensi</label>
-            <input
-              value={referenceNumber}
-              onChange={(e) => setReferenceNumber(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </div>
         </div>
       </div>
       <ModalActions
         onClose={onClose}
         onSubmit={handleSubmit}
-        disabled={!maintenanceDate || !description.trim() || isSaving}
+        disabled={!maintenanceDate || !description.trim() || !vendorId || isSaving}
         isSaving={isSaving}
         submitLabel="Simpan"
       />
