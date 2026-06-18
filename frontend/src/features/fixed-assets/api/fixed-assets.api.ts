@@ -154,8 +154,8 @@ export interface DepreciationRun {
   status: DepreciationRunStatus
   total_depreciation_amount: number
   asset_count: number
-  journal_id: string | null
-  reversal_journal_id: string | null
+  journal_ids: string[]
+  reversal_journal_ids: string[]
   reversed_at: string | null
   reversed_by: string | null
   created_at: string
@@ -184,7 +184,7 @@ export interface DepreciationRunResult {
   total_depreciation_amount: number
   asset_count: number
   entries: DepreciationPreviewEntry[]
-  journal_id?: string
+  journal_ids?: string[]
 }
 
 export interface AssetMovement {

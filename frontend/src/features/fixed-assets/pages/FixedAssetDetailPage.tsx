@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useListNavigation } from '@/lib/urlFilters'
 import { parseApiError } from '@/lib/errorParser'
 import {
   ArrowLeft,
   ArrowRightLeft,
+  Edit2,
   Wrench,
   Trash2,
   QrCode,
@@ -17,12 +18,58 @@ import {
   MapPin,
   FileText,
   PlayCircle,
+  Loader2,
+  X,
 } from 'lucide-react'
-import { useAsset, useAssetMovements, useActivateAsset } from '../api/fixed-assets.api'
-import type { AssetStatus, MovementType, AssetMovement } from '../api/fixed-assets.api'
+import { useQuery } from '@tanstack/react-query'
+import api from '@/lib/axios'
+import {
+  useAsset,
+  useAssetMovements,
+  useActivateAsset,
+  useCreateDisposal,
+  useCreateMaintenance,
+  useCreateTransfer,
+  useUpdateAsset,
+} from '../api/fixed-assets.api'
+import type {
+  AssetStatus,
+  CreateDisposalDto,
+  CreateMaintenanceDto,
+  CreateTransferDto,
+  DisposalMethod,
+  FixedAsset,
+  MovementType,
+  AssetMovement,
+  UpdateAssetDto,
+} from '../api/fixed-assets.api'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { useToast } from '@/contexts/ToastContext'
+
+interface BranchOption {
+  id: string
+  branch_name: string
+  branch_code: string
+  company_id: string
+}
+
+const today = () => new Date().toISOString().split('T')[0]
+
+const useCompanyBranches = (companyId: string | undefined) =>
+  useQuery({
+    queryKey: ['branches', 'active', companyId],
+    queryFn: async () => {
+      const { data } = await api.get('/branches', {
+        params: { limit: 100, status: 'active' },
+      })
+      return ((data.data || []) as BranchOption[]).filter(
+        (branch) => branch.company_id === companyId
+      )
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  })
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
 
@@ -71,11 +118,19 @@ export default function FixedAssetDetailPage() {
   const canUpdate = hasPermission('fixed_assets', 'update')
   const canApprove = hasPermission('fixed_assets', 'approve')
 
-  const { data: asset, isLoading } = useAsset(id ?? '')
-  const { data: movementsResult, isLoading: movementsLoading } = useAssetMovements(id ?? '')
+  const { data: asset, isLoading, refetch: refetchAsset } = useAsset(id ?? '')
+  const { data: movementsResult, isLoading: movementsLoading, refetch: refetchMovements } = useAssetMovements(id ?? '')
   const { mutateAsync: activateAsset, isPending: isActivating } = useActivateAsset()
+  const updateAssetMutation = useUpdateAsset()
+  const createTransferMutation = useCreateTransfer()
+  const createMaintenanceMutation = useCreateMaintenance()
+  const createDisposalMutation = useCreateDisposal()
 
   const [showActivateConfirm, setShowActivateConfirm] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false)
+  const [disposeOpen, setDisposeOpen] = useState(false)
 
   if (isLoading) return <div className="p-8 text-center text-gray-500">Loading detail...</div>
   if (!asset) return <div className="p-8 text-center text-gray-500">Aset tidak ditemukan</div>
@@ -96,9 +151,16 @@ export default function FixedAssetDetailPage() {
       await activateAsset({ id: asset.id })
       toast.success('Aset berhasil diaktifkan')
       setShowActivateConfirm(false)
+      refetchAsset()
+      refetchMovements()
     } catch (err: unknown) {
       toast.error(parseApiError(err, 'Gagal mengaktifkan aset'))
     }
+  }
+
+  const refreshDetail = () => {
+    refetchAsset()
+    refetchMovements()
   }
 
   return (
@@ -130,6 +192,14 @@ export default function FixedAssetDetailPage() {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-2">
+            {canUpdate && (
+              <button
+                onClick={() => setEditOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors"
+              >
+                <Edit2 className="w-4 h-4" /> Edit
+              </button>
+            )}
             {isDraft && canUpdate && (
               <button
                 onClick={() => setShowActivateConfirm(true)}
@@ -140,17 +210,26 @@ export default function FixedAssetDetailPage() {
               </button>
             )}
             {canTransfer && (
-              <button className="flex items-center gap-2 px-3 py-2 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-sm font-medium transition-colors">
+              <button
+                onClick={() => setTransferOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-sm font-medium transition-colors"
+              >
                 <ArrowRightLeft className="w-4 h-4" /> Transfer
               </button>
             )}
             {canMaintenance && (
-              <button className="flex items-center gap-2 px-3 py-2 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300 rounded-lg hover:bg-yellow-50 dark:hover:bg-yellow-900/20 text-sm font-medium transition-colors">
+              <button
+                onClick={() => setMaintenanceOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300 rounded-lg hover:bg-yellow-50 dark:hover:bg-yellow-900/20 text-sm font-medium transition-colors"
+              >
                 <Wrench className="w-4 h-4" /> Maintenance
               </button>
             )}
             {canDispose && (
-              <button className="flex items-center gap-2 px-3 py-2 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium transition-colors">
+              <button
+                onClick={() => setDisposeOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium transition-colors"
+              >
                 <Trash2 className="w-4 h-4" /> Dispose
               </button>
             )}
@@ -256,6 +335,578 @@ export default function FixedAssetDetailPage() {
         variant="info"
         isLoading={isActivating}
       />
+
+      <EditAssetModal
+        asset={asset}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        isSaving={updateAssetMutation.isPending}
+        onSubmit={async (body) => {
+          try {
+            await updateAssetMutation.mutateAsync({ id: asset.id, body })
+            toast.success('Aset berhasil diperbarui')
+            setEditOpen(false)
+            refreshDetail()
+          } catch (err) {
+            toast.error(parseApiError(err, 'Gagal memperbarui aset'))
+          }
+        }}
+      />
+
+      <TransferAssetModal
+        asset={asset}
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        isSaving={createTransferMutation.isPending}
+        onSubmit={async (body) => {
+          try {
+            await createTransferMutation.mutateAsync(body)
+            toast.success('Transfer aset berhasil')
+            setTransferOpen(false)
+            refreshDetail()
+          } catch (err) {
+            toast.error(parseApiError(err, 'Gagal transfer aset'))
+          }
+        }}
+      />
+
+      <MaintenanceAssetModal
+        asset={asset}
+        open={maintenanceOpen}
+        onClose={() => setMaintenanceOpen(false)}
+        isSaving={createMaintenanceMutation.isPending}
+        onSubmit={async (body) => {
+          try {
+            await createMaintenanceMutation.mutateAsync(body)
+            toast.success('Maintenance berhasil dicatat')
+            setMaintenanceOpen(false)
+            refreshDetail()
+          } catch (err) {
+            toast.error(parseApiError(err, 'Gagal mencatat maintenance'))
+          }
+        }}
+      />
+
+      <DisposeAssetModal
+        asset={asset}
+        open={disposeOpen}
+        onClose={() => setDisposeOpen(false)}
+        isSaving={createDisposalMutation.isPending}
+        onSubmit={async (body) => {
+          try {
+            await createDisposalMutation.mutateAsync(body)
+            toast.success('Draft disposisi berhasil dibuat')
+            setDisposeOpen(false)
+            refreshDetail()
+          } catch (err) {
+            toast.error(parseApiError(err, 'Gagal membuat disposisi'))
+          }
+        }}
+      />
+    </div>
+  )
+}
+
+function ModalShell({
+  title,
+  children,
+  onClose,
+}: {
+  title: string
+  children: React.ReactNode
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 dark:bg-black/70 overflow-y-auto py-6 px-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            <X size={18} className="text-gray-500 dark:text-gray-400" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function EditAssetModal({
+  asset,
+  open,
+  onClose,
+  onSubmit,
+  isSaving,
+}: {
+  asset: FixedAsset
+  open: boolean
+  onClose: () => void
+  onSubmit: (body: UpdateAssetDto) => Promise<void>
+  isSaving: boolean
+}) {
+  const [form, setForm] = useState({
+    asset_name: asset.asset_name,
+    serial_number: asset.serial_number ?? '',
+    location_note: asset.location_note ?? '',
+    description: asset.description ?? '',
+    salvage_value: String(asset.salvage_value),
+    useful_life_months: String(asset.useful_life_months),
+  })
+
+  useEffect(() => {
+    if (!open) return
+    setForm({
+      asset_name: asset.asset_name,
+      serial_number: asset.serial_number ?? '',
+      location_note: asset.location_note ?? '',
+      description: asset.description ?? '',
+      salvage_value: String(asset.salvage_value),
+      useful_life_months: String(asset.useful_life_months),
+    })
+  }, [asset, open])
+
+  if (!open) return null
+
+  const handleSubmit = () => {
+    const body: UpdateAssetDto = {
+      asset_name: form.asset_name.trim(),
+      serial_number: form.serial_number.trim() || null,
+      location_note: form.location_note.trim() || null,
+      description: form.description.trim() || null,
+      salvage_value: Number(form.salvage_value) || 0,
+      useful_life_months: Number(form.useful_life_months) || 1,
+    }
+    onSubmit(body)
+  }
+
+  return (
+    <ModalShell title="Edit Aset" onClose={onClose}>
+      <div className="p-6 space-y-4">
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Nama Aset *</label>
+          <input
+            value={form.asset_name}
+            onChange={(e) => setForm((prev) => ({ ...prev, asset_name: e.target.value }))}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Nilai Sisa</label>
+            <input
+              type="number"
+              min={0}
+              value={form.salvage_value}
+              onChange={(e) => setForm((prev) => ({ ...prev, salvage_value: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Masa Manfaat (bulan)</label>
+            <input
+              type="number"
+              min={1}
+              value={form.useful_life_months}
+              onChange={(e) => setForm((prev) => ({ ...prev, useful_life_months: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Serial Number</label>
+            <input
+              value={form.serial_number}
+              onChange={(e) => setForm((prev) => ({ ...prev, serial_number: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Lokasi</label>
+            <input
+              value={form.location_note}
+              onChange={(e) => setForm((prev) => ({ ...prev, location_note: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Deskripsi</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+            rows={3}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+          />
+        </div>
+      </div>
+      <ModalActions
+        onClose={onClose}
+        onSubmit={handleSubmit}
+        disabled={!form.asset_name.trim() || isSaving}
+        isSaving={isSaving}
+        submitLabel="Simpan"
+      />
+    </ModalShell>
+  )
+}
+
+function TransferAssetModal({
+  asset,
+  open,
+  onClose,
+  onSubmit,
+  isSaving,
+}: {
+  asset: FixedAsset
+  open: boolean
+  onClose: () => void
+  onSubmit: (body: CreateTransferDto) => Promise<void>
+  isSaving: boolean
+}) {
+  const { data } = useCompanyBranches(asset.company_id)
+  const branches = (data ?? []).filter((branch) => branch.id !== asset.branch_id)
+  const [destinationBranchId, setDestinationBranchId] = useState('')
+  const [transferDate, setTransferDate] = useState(today())
+  const [reason, setReason] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setDestinationBranchId('')
+    setTransferDate(today())
+    setReason('')
+  }, [open])
+
+  if (!open) return null
+
+  const handleSubmit = () => {
+    onSubmit({
+      fixed_asset_id: asset.id,
+      destination_branch_id: destinationBranchId,
+      transfer_date: transferDate || undefined,
+      reason: reason.trim() || undefined,
+    })
+  }
+
+  return (
+    <ModalShell title="Transfer Aset" onClose={onClose}>
+      <div className="p-6 space-y-4">
+        <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-sm text-gray-700 dark:text-gray-300">
+          {asset.asset_code} - {asset.asset_name}
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Cabang saat ini: {asset.branch_name ?? '-'}</div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Cabang Tujuan *</label>
+          <select
+            value={destinationBranchId}
+            onChange={(e) => setDestinationBranchId(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          >
+            <option value="">Pilih cabang tujuan...</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.branch_code} - {branch.branch_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Tanggal Transfer</label>
+          <input
+            type="date"
+            value={transferDate}
+            onChange={(e) => setTransferDate(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Alasan</label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+          />
+        </div>
+      </div>
+      <ModalActions
+        onClose={onClose}
+        onSubmit={handleSubmit}
+        disabled={!destinationBranchId || isSaving}
+        isSaving={isSaving}
+        submitLabel="Transfer"
+      />
+    </ModalShell>
+  )
+}
+
+function MaintenanceAssetModal({
+  asset,
+  open,
+  onClose,
+  onSubmit,
+  isSaving,
+}: {
+  asset: FixedAsset
+  open: boolean
+  onClose: () => void
+  onSubmit: (body: CreateMaintenanceDto) => Promise<void>
+  isSaving: boolean
+}) {
+  const [maintenanceDate, setMaintenanceDate] = useState(today())
+  const [description, setDescription] = useState('')
+  const [vendorName, setVendorName] = useState('')
+  const [cost, setCost] = useState('')
+  const [referenceNumber, setReferenceNumber] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setMaintenanceDate(today())
+    setDescription('')
+    setVendorName('')
+    setCost('')
+    setReferenceNumber('')
+  }, [open])
+
+  if (!open) return null
+
+  const handleSubmit = () => {
+    const body: CreateMaintenanceDto = {
+      fixed_asset_id: asset.id,
+      maintenance_date: maintenanceDate,
+      description: description.trim(),
+      cost: Number(cost) || 0,
+    }
+    if (vendorName.trim()) body.vendor_name = vendorName.trim()
+    if (referenceNumber.trim()) body.reference_number = referenceNumber.trim()
+    onSubmit(body)
+  }
+
+  return (
+    <ModalShell title="Catat Maintenance" onClose={onClose}>
+      <div className="p-6 space-y-4">
+        <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-sm text-gray-700 dark:text-gray-300">
+          {asset.asset_code} - {asset.asset_name}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Tanggal *</label>
+            <input
+              type="date"
+              value={maintenanceDate}
+              onChange={(e) => setMaintenanceDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Biaya</label>
+            <input
+              type="number"
+              min={0}
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              placeholder="0"
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Deskripsi *</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Vendor</label>
+            <input
+              value={vendorName}
+              onChange={(e) => setVendorName(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">No. Referensi</label>
+            <input
+              value={referenceNumber}
+              onChange={(e) => setReferenceNumber(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+      </div>
+      <ModalActions
+        onClose={onClose}
+        onSubmit={handleSubmit}
+        disabled={!maintenanceDate || !description.trim() || isSaving}
+        isSaving={isSaving}
+        submitLabel="Simpan"
+      />
+    </ModalShell>
+  )
+}
+
+function DisposeAssetModal({
+  asset,
+  open,
+  onClose,
+  onSubmit,
+  isSaving,
+}: {
+  asset: FixedAsset
+  open: boolean
+  onClose: () => void
+  onSubmit: (body: CreateDisposalDto) => Promise<void>
+  isSaving: boolean
+}) {
+  const [disposalDate, setDisposalDate] = useState(today())
+  const [method, setMethod] = useState<DisposalMethod>('SOLD')
+  const [proceedsAmount, setProceedsAmount] = useState('')
+  const [notes, setNotes] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setDisposalDate(today())
+    setMethod('SOLD')
+    setProceedsAmount('')
+    setNotes('')
+  }, [open])
+
+  const preview = useMemo(() => {
+    const proceeds = Number(proceedsAmount) || 0
+    const bookValue = asset.cost - asset.accumulated_depreciation
+    return { proceeds, bookValue, gainLoss: proceeds - bookValue }
+  }, [asset, proceedsAmount])
+
+  if (!open) return null
+
+  const handleSubmit = () => {
+    onSubmit({
+      fixed_asset_id: asset.id,
+      disposal_date: disposalDate,
+      disposal_method: method,
+      proceeds_amount: Number(proceedsAmount) || 0,
+      notes: notes.trim() || undefined,
+    })
+  }
+
+  return (
+    <ModalShell title="Dispose Aset" onClose={onClose}>
+      <div className="p-6 space-y-4">
+        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/40 p-3 text-sm text-red-800 dark:text-red-300">
+          Draft disposisi akan dibuat untuk {asset.asset_code} - {asset.asset_name}. Posting jurnal dilakukan dari halaman Disposisi Aset.
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Tanggal *</label>
+            <input
+              type="date"
+              value={disposalDate}
+              onChange={(e) => setDisposalDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Metode *</label>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value as DisposalMethod)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="SOLD">Dijual</option>
+              <option value="SCRAPPED">Dibuang</option>
+              <option value="DONATED">Didonasikan</option>
+            </select>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Nilai Hasil</label>
+          <input
+            type="number"
+            min={0}
+            value={proceedsAmount}
+            onChange={(e) => setProceedsAmount(e.target.value)}
+            placeholder="0"
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          />
+        </div>
+        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4 text-sm">
+          <div className="flex justify-between gap-4">
+            <span className="text-gray-600 dark:text-gray-400">Nilai buku</span>
+            <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(preview.bookValue)}</span>
+          </div>
+          <div className="flex justify-between gap-4 mt-1">
+            <span className="text-gray-600 dark:text-gray-400">{preview.gainLoss >= 0 ? 'Gain' : 'Loss'}</span>
+            <span className={preview.gainLoss >= 0 ? 'font-bold text-green-700 dark:text-green-400' : 'font-bold text-red-700 dark:text-red-400'}>
+              {fmtCurrency(Math.abs(preview.gainLoss))}
+            </span>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Catatan</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+          />
+        </div>
+      </div>
+      <ModalActions
+        onClose={onClose}
+        onSubmit={handleSubmit}
+        disabled={!disposalDate || isSaving}
+        isSaving={isSaving}
+        submitLabel="Buat Draft"
+        danger
+      />
+    </ModalShell>
+  )
+}
+
+function ModalActions({
+  onClose,
+  onSubmit,
+  disabled,
+  isSaving,
+  submitLabel,
+  danger = false,
+}: {
+  onClose: () => void
+  onSubmit: () => void
+  disabled: boolean
+  isSaving: boolean
+  submitLabel: string
+  danger?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={isSaving}
+        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+      >
+        Batal
+      </button>
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={disabled}
+        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 ${
+          danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+        }`}
+      >
+        {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+        {submitLabel}
+      </button>
     </div>
   )
 }

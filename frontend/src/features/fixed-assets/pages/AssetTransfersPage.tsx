@@ -32,7 +32,7 @@ const useCompanyBranches = (companyId: string | undefined) =>
     queryKey: ['branches', 'active', companyId],
     queryFn: async () => {
       const { data } = await api.get('/branches', {
-        params: { limit: 200, status: 'active' },
+        params: { limit: 100, status: 'active' },
       })
       // Filter branches to only those in same company
       return ((data.data || []) as BranchOption[]).filter(
@@ -73,7 +73,7 @@ export default function AssetTransfersPage() {
   // Active assets for the picker
   const { data: assetsData } = useAssets({
     status: 'ACTIVE',
-    limit: 200,
+    limit: 100,
   })
   const activeAssets = assetsData?.data ?? []
 

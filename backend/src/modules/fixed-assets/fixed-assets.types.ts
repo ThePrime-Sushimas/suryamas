@@ -92,8 +92,16 @@ export interface AssetTransfer {
   destination_branch_id: string
   reason: string | null
   transferred_by: string | null
+  journal_posted: boolean
+  source_journal_id: string | null
+  target_journal_id: string | null
   created_at: string
   created_by: string | null
+  // Joined fields
+  asset_code?: string
+  asset_name?: string
+  source_branch_name?: string
+  destination_branch_name?: string
 }
 
 export interface AssetMaintenance {
@@ -144,8 +152,8 @@ export interface DepreciationRun {
   status: DepreciationRunStatus
   total_depreciation_amount: number
   asset_count: number
-  journal_id: string | null
-  reversal_journal_id: string | null
+  journal_ids: string[]
+  reversal_journal_ids: string[]
   reversed_at: string | null
   reversed_by: string | null
   created_at: string
@@ -236,5 +244,5 @@ export interface DepreciationRunResult {
   total_depreciation_amount: number
   asset_count: number
   entries: DepreciationPreviewEntry[]
-  journal_id?: string
+  journal_ids?: string[]
 }

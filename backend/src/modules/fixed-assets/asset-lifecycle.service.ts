@@ -32,6 +32,7 @@ const REPAIR_MAINTENANCE_COA_CODE = '620201'
 const GAIN_ON_DISPOSAL_COA_CODE = '770101'
 const LOSS_ON_DISPOSAL_COA_CODE = '770201'
 const CASH_RECEIVABLE_COA_CODE = '110201'
+const INTER_BRANCH_TRANSFER_COA_CODE = '110598' // Persediaan/Aset Transit (shared with stock transfers)
 
 // ─── Helper: Resolve COA ID by code ──────────────────────────────────────────
 
@@ -291,7 +292,7 @@ export async function capitalizeAssetsFromInvoice(
  * - Validates source and destination branches belong to same company
  * - Updates branch_id on asset
  * - Records TRANSFER movement
- * - NO journal entry
+ * - Creates inter-branch transfer journals (move asset value between branches)
  */
 export async function transferAsset(
   dto: CreateTransferDto,
@@ -325,7 +326,7 @@ export async function transferAsset(
     await repository.updateBranchId(asset.id, dto.destination_branch_id, userId, client)
 
     // Create transfer record
-    await repository.createTransfer(
+    const transfer = await repository.createTransfer(
       {
         company_id: companyId,
         fixed_asset_id: asset.id,
@@ -357,6 +358,35 @@ export async function transferAsset(
 
     await client.query('COMMIT')
 
+    // ─── Post inter-branch transfer journals ─────────────────────────────────
+    // Source branch: remove asset (Debit Accum Depr + Transit, Credit Fixed Asset at cost)
+    // Dest branch: add asset (Debit Fixed Asset at cost, Credit Accum Depr + Transit)
+    // This moves both the gross asset and accumulated depreciation between branches.
+    try {
+      const { sourceJournalId, targetJournalId } = await postTransferJournals(
+        companyId, asset, sourceBranchId, dto.destination_branch_id, transferDate, userId,
+      )
+      // Mark transfer as journal-posted
+      try {
+        await repository.markTransferJournalPosted(transfer.id, sourceJournalId, targetJournalId)
+      } catch (flagErr: unknown) {
+        logError('Journal posted but failed to update flag (manual fix needed)', {
+          transfer_id: transfer.id,
+          source_journal_id: sourceJournalId,
+          target_journal_id: targetJournalId,
+          error: flagErr instanceof Error ? flagErr.message : flagErr,
+        })
+      }
+    } catch (journalErr: unknown) {
+      logError('Failed to post inter-branch transfer journals (asset moved but no journal)', {
+        asset_id: asset.id,
+        transfer_id: transfer.id,
+        from_branch: sourceBranchId,
+        to_branch: dto.destination_branch_id,
+        error: journalErr instanceof Error ? journalErr.message : journalErr,
+      })
+    }
+
     await AuditService.log('UPDATE', 'fixed_asset', asset.id, userId, { branch_id: sourceBranchId }, { branch_id: dto.destination_branch_id })
 
     logInfo('Asset transferred', {
@@ -371,6 +401,169 @@ export async function transferAsset(
   } finally {
     client.release()
   }
+}
+
+// ─── Transfer Journal Helper ─────────────────────────────────────────────────
+
+/**
+ * Post paired inter-branch transfer journals for a fixed asset.
+ *
+ * Source branch journal (removes asset from source):
+ *   Dr Accumulated Depreciation COA (accumulated_depreciation)
+ *   Dr Inter-branch Transit COA (book value = cost - accum_depr)
+ *   Cr Fixed Asset COA (cost)
+ *
+ * Destination branch journal (adds asset to destination):
+ *   Dr Fixed Asset COA (cost)
+ *   Cr Accumulated Depreciation COA (accumulated_depreciation)
+ *   Cr Inter-branch Transit COA (book value)
+ *
+ * Both journals balance. The transit account nets to zero company-wide.
+ */
+async function postTransferJournals(
+  companyId: string,
+  asset: FixedAsset,
+  sourceBranchId: string,
+  destBranchId: string,
+  transferDate: string,
+  userId: string,
+): Promise<{ sourceJournalId: string; targetJournalId: string }> {
+  // Resolve category for COA accounts
+  const categories = await repository.findCategoriesByIds([asset.asset_category_id], companyId)
+  const category = categories[0]
+  if (!category) throw new AssetCategoryNotFoundError(asset.asset_category_id)
+
+  const assetCoaId = category.asset_coa_id
+  const accumDeprCoaId = category.accumulated_depreciation_coa_id
+  const transitCoaId = await resolveCoaId(companyId, INTER_BRANCH_TRANSFER_COA_CODE)
+
+  const cost = Math.round(asset.cost * 10000) / 10000
+  const accumDepr = Math.round(asset.accumulated_depreciation * 10000) / 10000
+  const bookValue = Math.round((asset.cost - asset.accumulated_depreciation) * 10000) / 10000
+
+  // Guard: negative book value indicates data anomaly
+  if (bookValue < 0) {
+    throw new Error(
+      `Cannot transfer asset ${asset.asset_code}: negative book value (cost=${cost}, accum_depr=${accumDepr}). Fix data before transferring.`,
+    )
+  }
+
+  // Guard: fully depreciated asset (book value = 0) — only transfer gross asset & accum depr
+  // Transit line is skipped since there's no net book value to move
+  const includeTransitLine = bookValue > 0
+
+  // Journal 1 — Source branch: remove asset
+  const sourceLines: CreateJournalLineDto[] = []
+  let lineNum = 1
+
+  if (accumDepr > 0) {
+    sourceLines.push({
+      line_number: lineNum++,
+      account_id: accumDeprCoaId,
+      description: `Transfer keluar akum. penyusutan - ${asset.asset_code}`,
+      debit_amount: accumDepr,
+      credit_amount: 0,
+    })
+  }
+  if (includeTransitLine) {
+    sourceLines.push({
+      line_number: lineNum++,
+      account_id: transitCoaId,
+      description: `Transfer keluar aset tetap (nilai buku) - ${asset.asset_code}`,
+      debit_amount: bookValue,
+      credit_amount: 0,
+    })
+  }
+  sourceLines.push({
+    line_number: lineNum++,
+    account_id: assetCoaId,
+    description: `Transfer keluar aset tetap - ${asset.asset_code}`,
+    debit_amount: 0,
+    credit_amount: cost,
+  })
+
+  const sourceJournal = await journalHeadersService.create(
+    {
+      company_id: companyId,
+      branch_id: sourceBranchId,
+      journal_date: transferDate,
+      journal_type: 'ASSET',
+      source_module: 'fixed_assets',
+      reference_type: 'asset_transfer',
+      reference_id: asset.id,
+      reference_number: asset.asset_code,
+      description: `Transfer keluar aset ${asset.asset_code} - ${asset.asset_name}`,
+      currency: 'IDR',
+      exchange_rate: 1,
+      lines: sourceLines,
+    },
+    userId,
+  )
+
+  await journalHeadersService.submitAsUser(sourceJournal.id, userId)
+  await journalHeadersService.approveAsUser(sourceJournal.id, userId)
+  await journalHeadersService.postAsUser(sourceJournal.id, userId)
+
+  // Journal 2 — Destination branch: add asset
+  const destLines: CreateJournalLineDto[] = []
+  lineNum = 1
+
+  destLines.push({
+    line_number: lineNum++,
+    account_id: assetCoaId,
+    description: `Transfer masuk aset tetap - ${asset.asset_code}`,
+    debit_amount: cost,
+    credit_amount: 0,
+  })
+
+  if (accumDepr > 0) {
+    destLines.push({
+      line_number: lineNum++,
+      account_id: accumDeprCoaId,
+      description: `Transfer masuk akum. penyusutan - ${asset.asset_code}`,
+      debit_amount: 0,
+      credit_amount: accumDepr,
+    })
+  }
+  if (includeTransitLine) {
+    destLines.push({
+      line_number: lineNum++,
+      account_id: transitCoaId,
+      description: `Transfer masuk aset tetap (nilai buku) - ${asset.asset_code}`,
+      debit_amount: 0,
+      credit_amount: bookValue,
+    })
+  }
+
+  const destJournal = await journalHeadersService.create(
+    {
+      company_id: companyId,
+      branch_id: destBranchId,
+      journal_date: transferDate,
+      journal_type: 'ASSET',
+      source_module: 'fixed_assets',
+      reference_type: 'asset_transfer',
+      reference_id: asset.id,
+      reference_number: asset.asset_code,
+      description: `Transfer masuk aset ${asset.asset_code} - ${asset.asset_name}`,
+      currency: 'IDR',
+      exchange_rate: 1,
+      lines: destLines,
+    },
+    userId,
+  )
+
+  await journalHeadersService.submitAsUser(destJournal.id, userId)
+  await journalHeadersService.approveAsUser(destJournal.id, userId)
+  await journalHeadersService.postAsUser(destJournal.id, userId)
+
+  logInfo('Inter-branch transfer journals posted', {
+    asset_id: asset.id,
+    source_journal_id: sourceJournal.id,
+    target_journal_id: destJournal.id,
+  })
+
+  return { sourceJournalId: sourceJournal.id, targetJournalId: destJournal.id }
 }
 
 // ─── 3. Record Maintenance ───────────────────────────────────────────────────

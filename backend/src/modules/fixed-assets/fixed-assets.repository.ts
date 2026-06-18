@@ -747,6 +747,21 @@ export async function createTransfer(
   return rows[0]
 }
 
+export async function markTransferJournalPosted(
+  transferId: string,
+  sourceJournalId: string,
+  targetJournalId: string,
+  client?: PoolClient,
+): Promise<void> {
+  const db = client ?? pool
+  await db.query(
+    `UPDATE asset_transfers
+     SET journal_posted = true, source_journal_id = $1, target_journal_id = $2
+     WHERE id = $3`,
+    [sourceJournalId, targetJournalId, transferId],
+  )
+}
+
 export async function findTransfers(
   companyId: string,
   pagination: { limit: number; offset: number },
@@ -759,26 +774,26 @@ export async function findTransfers(
   client?: PoolClient,
 ): Promise<{ data: AssetTransfer[]; total: number }> {
   const db = client ?? pool
-  const conditions = ['company_id = $1']
+  const conditions = ['atr.company_id = $1']
   const params: unknown[] = [companyId]
   let idx = 2
 
   if (filter?.fixed_asset_id) {
     params.push(filter.fixed_asset_id)
-    conditions.push(`fixed_asset_id = $${idx++}`)
+    conditions.push(`atr.fixed_asset_id = $${idx++}`)
   }
   if (filter?.branch_id) {
     params.push(filter.branch_id)
-    conditions.push(`(source_branch_id = $${idx} OR destination_branch_id = $${idx})`)
+    conditions.push(`(atr.source_branch_id = $${idx} OR atr.destination_branch_id = $${idx})`)
     idx++
   }
   if (filter?.date_from) {
     params.push(filter.date_from)
-    conditions.push(`transfer_date >= $${idx++}`)
+    conditions.push(`atr.transfer_date >= $${idx++}`)
   }
   if (filter?.date_to) {
     params.push(filter.date_to)
-    conditions.push(`transfer_date <= $${idx++}`)
+    conditions.push(`atr.transfer_date <= $${idx++}`)
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`
@@ -788,13 +803,22 @@ export async function findTransfers(
 
   const [dataRes, countRes] = await Promise.all([
     db.query<AssetTransfer>(
-      `SELECT * FROM asset_transfers ${where}
-       ORDER BY transfer_date DESC, created_at DESC
+      `SELECT atr.*,
+              fa.asset_code,
+              fa.asset_name,
+              source_branch.branch_name AS source_branch_name,
+              destination_branch.branch_name AS destination_branch_name
+       FROM asset_transfers atr
+       JOIN fixed_assets fa ON fa.id = atr.fixed_asset_id
+       JOIN branches source_branch ON source_branch.id = atr.source_branch_id
+       JOIN branches destination_branch ON destination_branch.id = atr.destination_branch_id
+       ${where}
+       ORDER BY atr.transfer_date DESC, atr.created_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params,
     ),
     db.query<{ total: number }>(
-      `SELECT COUNT(*)::int AS total FROM asset_transfers ${where}`,
+      `SELECT COUNT(*)::int AS total FROM asset_transfers atr ${where}`,
       params.slice(0, idx - 1),
     ),
   ])
@@ -1149,15 +1173,15 @@ export async function bulkInsertEntries(
   )
 }
 
-export async function updateRunJournal(
+export async function updateRunJournals(
   runId: string,
-  journalId: string,
+  journalIds: string[],
   client?: PoolClient,
 ): Promise<void> {
   const db = client ?? pool
   await db.query(
-    `UPDATE asset_depreciation_runs SET journal_id = $1 WHERE id = $2`,
-    [journalId, runId],
+    `UPDATE asset_depreciation_runs SET journal_ids = $1 WHERE id = $2`,
+    [journalIds, runId],
   )
 }
 

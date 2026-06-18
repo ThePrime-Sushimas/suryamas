@@ -88,7 +88,7 @@ function CreateDisposalModal({ isOpen, onClose, onSuccess }: CreateDisposalModal
     const bookValue = selectedAsset.cost - selectedAsset.accumulated_depreciation
     const gainLoss = proceeds - bookValue
     return { bookValue, gainLoss, proceeds }
-  }, [selectedAsset, proceedsAmount])
+  }, [selectedAsset?.cost, selectedAsset?.accumulated_depreciation, proceedsAmount])
 
   const resetForm = () => {
     setSelectedAssetId('')
