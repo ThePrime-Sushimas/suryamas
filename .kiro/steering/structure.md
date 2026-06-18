@@ -193,3 +193,40 @@ frontend/src/features/{feature}/
 - Frontend checks permissions via `RequirePermission` component
 - Backend checks permissions in service layer
 - Permission object structure: `{ module: { view, create, update, delete } }`
+
+
+## Cross-Module Database Operations
+
+### Journal Hard Delete Convention
+
+When a module needs to delete journal entries (e.g., reversing a posted transaction), it MUST use `journalHeadersRepository.bulkHardDelete(journalIds, client)` from the service layer. Do NOT write direct `DELETE FROM journal_lines` / `DELETE FROM journal_headers` SQL in feature module repositories.
+
+**Correct (service layer, delegates to journal module):**
+```typescript
+// In feature-module.service.ts
+import { journalHeadersRepository } from '../accounting/journals/journal-headers/journal-headers.repository'
+
+await journalHeadersRepository.bulkHardDelete(journalIds, client)
+```
+
+**Incorrect (repository crosses module boundary):**
+```typescript
+// In feature-module.repository.ts — DON'T DO THIS
+await client.query('DELETE FROM journal_lines WHERE journal_header_id = ANY($1)', [journalIds])
+await client.query('DELETE FROM journal_headers WHERE id = ANY($1)', [journalIds])
+```
+
+**Rationale:**
+- `journal_headers` and `journal_lines` are owned by the accounting/journals module
+- Only `journalHeadersRepository` should contain queries that mutate journal tables
+- Service → cross-module repository is acceptable; repository → cross-module repository is NOT
+- Centralizing delete logic ensures future constraints (soft-delete flags, audit hooks, FK cascades) are applied consistently
+
+### General Rule: Table Ownership
+
+Each module's repository MUST only write to tables it owns. Cross-module writes go through the owning module's repository, called from the service layer.
+
+```
+✅ service A → repository B (cross-module, via import)
+❌ repository A → direct SQL on table owned by module B
+```

@@ -477,12 +477,6 @@ export class StockTransfersRepository {
     )
   }
 
-  async deleteJournals(client: PoolClient, journalIds: string[]): Promise<void> {
-    if (journalIds.length === 0) return
-    await client.query(`DELETE FROM journal_lines WHERE journal_header_id = ANY($1::uuid[])`, [journalIds])
-    await client.query(`DELETE FROM journal_headers WHERE id = ANY($1::uuid[])`, [journalIds])
-  }
-
   async clearJournalIds(client: PoolClient, id: string): Promise<void> {
     await client.query(
       `UPDATE stock_transfers SET source_journal_id = NULL, target_journal_id = NULL, updated_at = now() WHERE id = $1`,

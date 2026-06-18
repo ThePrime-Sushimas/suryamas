@@ -65,6 +65,7 @@ import type { CalculationType } from '../payment-terms/payment-terms.types'
 import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 import * as assetLifecycleService from '../fixed-assets/asset-lifecycle.service'
+import { journalHeadersRepository } from '../accounting/journals/journal-headers/journal-headers.repository'
 import { pool } from '../../config/db'
 
 function computeLineTotals(qtyInvoiced: number, unitPrice: number, taxRate: number) {
@@ -1291,7 +1292,7 @@ export class PurchaseInvoicesService {
         updated_by: userId,
       })
 
-      await purchaseInvoicesRepository.hardDeleteJournal(client, journalId)
+      await journalHeadersRepository.bulkHardDelete([journalId], client)
 
       const grIds = await purchaseInvoicesRepository.findGrIdsForInvoice(client, id)
       const draftDueDate = await this.computeDraftDueDate(

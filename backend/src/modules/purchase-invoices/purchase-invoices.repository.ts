@@ -905,11 +905,6 @@ export class PurchaseInvoicesRepository {
     )
   }
 
-  async hardDeleteJournal(client: PoolClient, journalId: string): Promise<void> {
-    await client.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [journalId])
-    await client.query('DELETE FROM journal_headers WHERE id = $1', [journalId])
-  }
-
   async findLatestPostedPiDueDateForPo(client: PoolClient, poId: string): Promise<string | null> {
     const { rows } = await client.query<{ due_date: string | null }>(
       `

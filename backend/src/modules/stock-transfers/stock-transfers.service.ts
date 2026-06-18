@@ -1,5 +1,6 @@
 import { stockTransfersRepository } from './stock-transfers.repository'
 import { stockRepository } from '../stock/stock.repository'
+import { journalHeadersRepository } from '../accounting/journals/journal-headers/journal-headers.repository'
 import {
   StockTransferNotFoundError,
   StockTransferInvalidStatusError,
@@ -361,7 +362,7 @@ export class StockTransfersService {
 
     await stockRepository.withTransaction(async (client) => {
       const journalIds = [detail.source_journal_id, detail.target_journal_id].filter(Boolean) as string[]
-      await stockTransfersRepository.deleteJournals(client, journalIds)
+      await journalHeadersRepository.bulkHardDelete(journalIds, client)
       await stockTransfersRepository.clearJournalIds(client, id)
     })
 
