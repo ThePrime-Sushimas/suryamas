@@ -25,6 +25,10 @@ import type {
   CreateAssetFromGrDto,
 } from './fixed-assets.types'
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+const ASSET_PHOTOS_BUCKET = 'asset-photos'
+const PHOTO_SIGNED_URL_EXPIRY = 900 // 15 minutes
+
 type PaginationMeta = {
   page: number
   limit: number
@@ -248,12 +252,14 @@ export async function getAssets(
     },
   )
 
-  const enriched = data.map((asset) => ({
-    ...asset,
-    thumbnail_url: asset.thumbnail_path
-      ? storageService.getPublicUrl(asset.thumbnail_path, ASSET_PHOTOS_BUCKET)
-      : null,
-  }))
+  const enriched = await Promise.all(
+    data.map(async (asset) => ({
+      ...asset,
+      thumbnail_url: asset.thumbnail_path
+        ? await storageService.createSignedUrl(asset.thumbnail_path, PHOTO_SIGNED_URL_EXPIRY, ASSET_PHOTOS_BUCKET)
+        : null,
+    })),
+  )
 
   return { data: enriched, pagination: buildPagination(filters.page, filters.limit, total) }
 }
@@ -649,7 +655,6 @@ export async function listDepreciationRuns(
 
 // ─── Asset Photos ────────────────────────────────────────────────────────────
 
-const ASSET_PHOTOS_BUCKET = 'asset-photos'
 const MAX_PHOTOS_PER_ASSET = 5
 
 export async function listPhotos(assetId: string, companyId: string) {
@@ -657,10 +662,13 @@ export async function listPhotos(assetId: string, companyId: string) {
   if (!asset) throw new FixedAssetNotFoundError(assetId)
 
   const photos = await repository.listAssetPhotos(assetId, companyId)
-  return photos.map((p) => ({
-    ...p,
-    url: storageService.getPublicUrl(p.file_path, ASSET_PHOTOS_BUCKET),
-  }))
+  const withUrls = await Promise.all(
+    photos.map(async (p) => ({
+      ...p,
+      url: await storageService.createSignedUrl(p.file_path, PHOTO_SIGNED_URL_EXPIRY, ASSET_PHOTOS_BUCKET),
+    })),
+  )
+  return withUrls
 }
 
 export async function uploadPhoto(
@@ -703,7 +711,7 @@ export async function uploadPhoto(
 
   return {
     ...photo,
-    url: storageService.getPublicUrl(photo.file_path, ASSET_PHOTOS_BUCKET),
+    url: await storageService.createSignedUrl(photo.file_path, PHOTO_SIGNED_URL_EXPIRY, ASSET_PHOTOS_BUCKET),
   }
 }
 

@@ -31,7 +31,7 @@ router.get('/signed-url', async (req: Request, res: Response) => {
     }
 
     // Whitelist allowed buckets
-    const ALLOWED_BUCKETS = ['invoices', 'buktisetoran', 'profilepictures']
+    const ALLOWED_BUCKETS = ['invoices', 'buktisetoran', 'profilepictures', 'asset-photos']
     const targetBucket = bucket || 'invoices'
     if (!ALLOWED_BUCKETS.includes(targetBucket)) {
       res.status(400).json({ success: false, message: `bucket '${targetBucket}' not allowed` })
