@@ -66,7 +66,7 @@ function MaintenanceFormModal({ open, onClose }: MaintenanceFormModalProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   // Fetch only ACTIVE assets for selection
-  const { data: assetsData } = useAssets({ status: 'ACTIVE', limit: 200 })
+  const { data: assetsData } = useAssets({ status: 'ACTIVE', limit: 100 })
   const activeAssets = assetsData?.data ?? []
 
   useEffect(() => {
