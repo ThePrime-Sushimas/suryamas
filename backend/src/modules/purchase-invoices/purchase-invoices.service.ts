@@ -16,6 +16,7 @@ import {
   PurchaseInvoiceHasChargesError,
   PurchaseInvoiceInvalidStatusError,
   PurchaseInvoiceJournalAlreadyExistsError,
+  PurchaseInvoiceMixedAssetLinesError,
   PurchaseInvoiceNoJournalError,
   PurchaseInvoiceNotFoundError,
   PurchaseInvoiceNotPostedError,
@@ -977,91 +978,115 @@ export class PurchaseInvoicesService {
       }
 
       const postingRows = await purchaseInvoicesRepository.findPostingRowsForInvoice(client, id)
+
+      // For pure-asset PIs, postingRows will be empty (no GP inputs/outputs).
+      // Check if ALL PI lines are asset products — if so, skip inventory posting logic.
+      const isPureAssetInvoice = (!postingRows || postingRows.length === 0)
+        ? await purchaseInvoicesRepository.checkAllLinesAreAssets(client, id)
+        : false
+
       if (!postingRows || postingRows.length === 0) {
-        throw new PurchaseInvoiceGrNotEligibleError()
-      }
-
-      const rowsByLineId = new Map<string, typeof postingRows>()
-      for (const r of postingRows) {
-        const key = r.purchase_invoice_line_id
-        const arr = rowsByLineId.get(key) ?? []
-        arr.push(r)
-        rowsByLineId.set(key, arr)
-      }
-
-      const productIds = [
-        ...new Set(postingRows.flatMap((r) => [r.product_id, r.input_product_id])),
-      ]
-      const uomsMap = buildProductUomsMap(await productUomsRepository.findAllUomsBatch(productIds))
-
-      const inputProductIds = [...new Set(postingRows.map((r) => r.input_product_id))]
-      const templatesByInput = await productOutputTemplateRepository.findByProductIds(inputProductIds)
-
-      const recomputePairs: Array<{ product_id: string; warehouse_id: string }> = []
-      const seenPairs = new Set<string>()
-
-      for (const [purchase_invoice_line_id, lineRows] of rowsByLineId.entries()) {
-        const head = lineRows[0]
-        const inputProductId = head.input_product_id
-        const lineSubtotal = resolveGpInputCostFromGrLine(
-          {
-            product_id: inputProductId,
-            total_price_invoice: Number(head.line_subtotal),
-            unit_price_invoice: Number(head.unit_price),
-            qty_po_uom: Number(head.qty_po_uom),
-            qty_received: Number(head.qty_received),
-            uom_po: head.uom_po,
-            uom_received: head.uom_received,
-            qty_rejected: Number(head.qty_rejected ?? 0),
-          },
-          uomsMap,
-        )
-        const bearsCostMap = buildBearsCostMap(
-          (templatesByInput[inputProductId] ?? []).map((t) => ({
-            output_product_id: t.output_product_id,
-            bears_cost: t.bears_cost,
-          })),
-        )
-
-        const allocations = allocateLineCostToGpOutputs(
-          lineSubtotal,
-          lineRows.map((r) => ({
-            ...r,
-            output_sort_order: Number(r.output_sort_order),
-          })),
-          bearsCostMap,
-          uomsMap,
-        )
-
-        const hasCostBearingQty = allocations.some((a) => a.baseQty > 0 && a.allocatedCost > 0)
-        if (!hasCostBearingQty && lineSubtotal > 0) continue
-
-        for (const { output: out, allocatedCost, unitCost } of allocations) {
-          await purchaseInvoicesRepository.updateGpOutputCostAndLinkToInvoiceLine(client, {
-            goods_processing_output_id: out.goods_processing_output_id,
-            purchase_invoice_line_id,
-            allocatedCost,
-            unitCost,
-          })
-
-          if (out.stock_movement_id) {
-            await purchaseInvoicesRepository.updateStockMovementCost(client, {
-              stock_movement_id: out.stock_movement_id,
-              costPerUnit: unitCost,
-              totalCost: allocatedCost,
-            })
-
-            const pairKey = `${out.product_id}-${out.warehouse_id}`
-            if (!seenPairs.has(pairKey)) {
-              seenPairs.add(pairKey)
-              recomputePairs.push({ product_id: out.product_id, warehouse_id: out.warehouse_id })
-            }
-          }
+        if (!isPureAssetInvoice) {
+          throw new PurchaseInvoiceGrNotEligibleError()
         }
       }
 
-      for (const pair of recomputePairs) {
-        await purchaseInvoicesRepository.recomputeStockBalanceAvgCost(client, pair.warehouse_id, pair.product_id)
+      // ─── Defense: reject mixed asset + non-asset invoices ──────────────────
+      // Business rule: PI harus homogen (semua asset atau semua non-asset).
+      // Constraint ini enforced di UI (product picker), tapi guard ini
+      // mencegah double-booking AP jika constraint UI ter-bypass.
+      if (!isPureAssetInvoice && postingRows && postingRows.length > 0) {
+        const hasAssetLine = await purchaseInvoicesRepository.checkHasAnyAssetLine(client, id)
+        if (hasAssetLine) {
+          throw new PurchaseInvoiceMixedAssetLinesError()
+        }
+      }
+
+      // ─── Inventory cost allocation (non-asset lines only) ──────────────────
+      // For pure-asset PIs, postingRows is empty — skip cost allocation entirely.
+      if (postingRows && postingRows.length > 0) {
+        const rowsByLineId = new Map<string, typeof postingRows>()
+        for (const r of postingRows) {
+          const key = r.purchase_invoice_line_id
+          const arr = rowsByLineId.get(key) ?? []
+          arr.push(r)
+          rowsByLineId.set(key, arr)
+        }
+
+        const productIds = [
+          ...new Set(postingRows.flatMap((r) => [r.product_id, r.input_product_id])),
+        ]
+        const uomsMap = buildProductUomsMap(await productUomsRepository.findAllUomsBatch(productIds))
+
+        const inputProductIds = [...new Set(postingRows.map((r) => r.input_product_id))]
+        const templatesByInput = await productOutputTemplateRepository.findByProductIds(inputProductIds)
+
+        const recomputePairs: Array<{ product_id: string; warehouse_id: string }> = []
+        const seenPairs = new Set<string>()
+
+        for (const [purchase_invoice_line_id, lineRows] of rowsByLineId.entries()) {
+          const head = lineRows[0]
+          const inputProductId = head.input_product_id
+          const lineSubtotal = resolveGpInputCostFromGrLine(
+            {
+              product_id: inputProductId,
+              total_price_invoice: Number(head.line_subtotal),
+              unit_price_invoice: Number(head.unit_price),
+              qty_po_uom: Number(head.qty_po_uom),
+              qty_received: Number(head.qty_received),
+              uom_po: head.uom_po,
+              uom_received: head.uom_received,
+              qty_rejected: Number(head.qty_rejected ?? 0),
+            },
+            uomsMap,
+          )
+          const bearsCostMap = buildBearsCostMap(
+            (templatesByInput[inputProductId] ?? []).map((t) => ({
+              output_product_id: t.output_product_id,
+              bears_cost: t.bears_cost,
+            })),
+          )
+
+          const allocations = allocateLineCostToGpOutputs(
+            lineSubtotal,
+            lineRows.map((r) => ({
+              ...r,
+              output_sort_order: Number(r.output_sort_order),
+            })),
+            bearsCostMap,
+            uomsMap,
+          )
+
+          const hasCostBearingQty = allocations.some((a) => a.baseQty > 0 && a.allocatedCost > 0)
+          if (!hasCostBearingQty && lineSubtotal > 0) continue
+
+          for (const { output: out, allocatedCost, unitCost } of allocations) {
+            await purchaseInvoicesRepository.updateGpOutputCostAndLinkToInvoiceLine(client, {
+              goods_processing_output_id: out.goods_processing_output_id,
+              purchase_invoice_line_id,
+              allocatedCost,
+              unitCost,
+            })
+
+            if (out.stock_movement_id) {
+              await purchaseInvoicesRepository.updateStockMovementCost(client, {
+                stock_movement_id: out.stock_movement_id,
+                costPerUnit: unitCost,
+                totalCost: allocatedCost,
+              })
+
+              const pairKey = `${out.product_id}-${out.warehouse_id}`
+              if (!seenPairs.has(pairKey)) {
+                seenPairs.add(pairKey)
+                recomputePairs.push({ product_id: out.product_id, warehouse_id: out.warehouse_id })
+              }
+            }
+          }
+        }
+
+        for (const pair of recomputePairs) {
+          await purchaseInvoicesRepository.recomputeStockBalanceAvgCost(client, pair.warehouse_id, pair.product_id)
+        }
       }
 
       const coaByCode = new Map<string, string>()
@@ -1104,6 +1129,15 @@ export class PurchaseInvoicesService {
       const month = detail.invoice_date.substring(5, 7)
       const journalNumber = `JG/${year}${month}/${String(sequence).padStart(5, '0')}`
 
+      // ─── Pure-asset PI: only record PPN portion in PI journal ──────────────
+      // Asset cost (subtotal) will be journaled by capitalizeAssetsFromInvoice
+      // (Dr Asset COA, Cr AP). PI posting only handles the PPN portion here.
+      const journalTotalDebit = isPureAssetInvoice ? totalTax : (debitInventory + totalTax)
+      const journalTotalCredit = isPureAssetInvoice ? totalTax : totalAmount
+      const journalDescriptionFinal = isPureAssetInvoice
+        ? `${journalDescriptionBase} — PPN atas pembelian aset tetap`
+        : journalDescription
+
       const journalHeader = await purchaseInvoicesRepository.createJournalHeader(client, {
         companyId,
         branchId: detail.branch_id,
@@ -1116,23 +1150,42 @@ export class PurchaseInvoicesService {
         referenceType: 'purchase_invoice',
         referenceId: id,
         referenceNumber: detail.invoice_number,
-        description: journalDescription,
-        totalDebit: debitInventory + totalTax,
-        totalCredit: totalAmount,
+        description: journalDescriptionFinal,
+        totalDebit: journalTotalDebit,
+        totalCredit: journalTotalCredit,
         createdBy: userId,
       })
 
-      await purchaseInvoicesRepository.createJournalLines(client, {
-        journalHeaderId: journalHeader.id,
-        debitAccountId: coaInv,
-        debitAmount: debitInventory,
-        taxAccountId: coaTax,
-        taxAmount: totalTax,
-        creditAccountId: coaPayable,
-        creditAmount: totalAmount,
-        description: journalDescription,
-        inventoryDebitDescription,
-      })
+      if (isPureAssetInvoice) {
+        // Pure-asset PI: only PPN journal lines (if PPN > 0).
+        // Asset portion (Dr Asset, Cr AP) handled by capitalizeAssetsFromInvoice.
+        if (totalTax > 0) {
+          await purchaseInvoicesRepository.createJournalLines(client, {
+            journalHeaderId: journalHeader.id,
+            debitAccountId: coaTax,
+            debitAmount: totalTax,
+            taxAccountId: coaTax,
+            taxAmount: 0,
+            creditAccountId: coaPayable,
+            creditAmount: totalTax,
+            description: journalDescriptionFinal,
+            inventoryDebitDescription: journalDescriptionFinal,
+          })
+        }
+      } else {
+        // Normal PI: full inventory + PPN journal
+        await purchaseInvoicesRepository.createJournalLines(client, {
+          journalHeaderId: journalHeader.id,
+          debitAccountId: coaInv,
+          debitAmount: debitInventory,
+          taxAccountId: coaTax,
+          taxAmount: totalTax,
+          creditAccountId: coaPayable,
+          creditAmount: totalAmount,
+          description: journalDescription,
+          inventoryDebitDescription,
+        })
+      }
 
       const grIds = await purchaseInvoicesRepository.findGrIdsForInvoice(client, id)
       const dueDate = await this.computeDraftDueDate(

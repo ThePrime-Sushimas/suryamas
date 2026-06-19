@@ -459,6 +459,7 @@ export default function PurchaseRequestFormPage() {
         showSupplier
         excludeProductIds={lines.map(l => l.product_id)}
         filterRequestable
+        excludeAssets
       />
     </div>
   )

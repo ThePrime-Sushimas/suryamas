@@ -68,23 +68,39 @@ const HEADER_SELECT = `
     AND NOT EXISTS (
       SELECT 1
       FROM purchase_invoice_lines pil
+      JOIN products p ON p.id = pil.product_id
       JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
       JOIN goods_processing gp ON gp.id = gpi.goods_processing_id
       WHERE pil.purchase_invoice_id = pi.id
         AND pil.deleted_at IS NULL
+        AND COALESCE(p.is_asset, false) = false
         AND gpi.status != 'CONFIRMED'
     )
-    AND EXISTS (
-      SELECT 1
-      FROM purchase_invoice_lines pil
-      JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
-      JOIN goods_processing_outputs gpo
-        ON gpo.goods_processing_id = gpi.goods_processing_id
-       AND gpo.input_id = gpi.id
-       AND gpo.is_waste = FALSE
-      WHERE pil.purchase_invoice_id = pi.id
-        AND pil.deleted_at IS NULL
-        AND gpi.status = 'CONFIRMED'
+    AND (
+      -- Either has confirmed GP outputs for non-asset lines...
+      EXISTS (
+        SELECT 1
+        FROM purchase_invoice_lines pil
+        JOIN products p ON p.id = pil.product_id
+        JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
+        JOIN goods_processing_outputs gpo
+          ON gpo.goods_processing_id = gpi.goods_processing_id
+         AND gpo.input_id = gpi.id
+         AND gpo.is_waste = FALSE
+        WHERE pil.purchase_invoice_id = pi.id
+          AND pil.deleted_at IS NULL
+          AND COALESCE(p.is_asset, false) = false
+          AND gpi.status = 'CONFIRMED'
+      )
+      -- ...or ALL lines are asset products (no GP needed)
+      OR NOT EXISTS (
+        SELECT 1
+        FROM purchase_invoice_lines pil
+        JOIN products p ON p.id = pil.product_id
+        WHERE pil.purchase_invoice_id = pi.id
+          AND pil.deleted_at IS NULL
+          AND COALESCE(p.is_asset, false) = false
+      )
     )
   ) AS post_journal_ready
 `
@@ -321,10 +337,12 @@ export class PurchaseInvoicesRepository {
     const { rows } = await client.query(
       `SELECT gp.processing_number
        FROM purchase_invoice_lines pil
+       JOIN products p ON p.id = pil.product_id
        JOIN goods_processing_inputs gpi ON gpi.gr_line_id = pil.gr_line_id
        JOIN goods_processing gp ON gp.id = gpi.goods_processing_id
        WHERE pil.purchase_invoice_id = $1
          AND pil.deleted_at IS NULL
+         AND COALESCE(p.is_asset, false) = false
          AND gpi.status != 'CONFIRMED'
        LIMIT 1`,
       [invoiceId],
@@ -629,6 +647,44 @@ export class PurchaseInvoicesRepository {
     )
 
     return rows
+  }
+
+  /**
+   * Returns true if ALL non-deleted lines in this invoice are asset products.
+   * Used to allow pure-asset PIs to post without GP posting rows.
+   */
+  async checkAllLinesAreAssets(client: PoolClient, invoiceId: string): Promise<boolean> {
+    const { rows } = await client.query<{ all_assets: boolean }>(
+      `SELECT NOT EXISTS (
+         SELECT 1
+         FROM purchase_invoice_lines pil
+         JOIN products p ON p.id = pil.product_id
+         WHERE pil.purchase_invoice_id = $1
+           AND pil.deleted_at IS NULL
+           AND COALESCE(p.is_asset, false) = false
+       ) AS all_assets`,
+      [invoiceId],
+    )
+    return rows[0]?.all_assets ?? false
+  }
+
+  /**
+   * Returns true if at least one non-deleted line in this invoice is an asset product.
+   * Used as guard to reject mixed asset/non-asset invoices at posting time.
+   */
+  async checkHasAnyAssetLine(client: PoolClient, invoiceId: string): Promise<boolean> {
+    const { rows } = await client.query<{ has_asset: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM purchase_invoice_lines pil
+         JOIN products p ON p.id = pil.product_id
+         WHERE pil.purchase_invoice_id = $1
+           AND pil.deleted_at IS NULL
+           AND COALESCE(p.is_asset, false) = true
+       ) AS has_asset`,
+      [invoiceId],
+    )
+    return rows[0]?.has_asset ?? false
   }
 
   async updateGpOutputCostAndLinkToInvoiceLine(

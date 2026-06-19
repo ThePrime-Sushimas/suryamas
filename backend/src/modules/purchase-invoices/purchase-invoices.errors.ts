@@ -56,6 +56,15 @@ export class PurchaseInvoiceGpNotConfirmedError extends BusinessRuleError {
   }
 }
 
+export class PurchaseInvoiceMixedAssetLinesError extends BusinessRuleError {
+  constructor() {
+    super(
+      'Tidak dapat posting: invoice ini berisi campuran produk asset dan non-asset. ' +
+      'Hubungi admin untuk memisahkan data (kemungkinan data lama sebelum pemisahan jalur asset).'
+    )
+  }
+}
+
 export class PurchaseInvoiceChargesInvalidError extends BusinessRuleError {
   constructor(message: string) {
     super(message)

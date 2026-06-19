@@ -329,35 +329,50 @@ export class GoodsReceiptsService {
         await goodsReceiptsRepository.markMarketplaceSessionReceivedIfComplete(client, userId, id)
       }
 
-      const branchCode = gr.branch_code ?? 'XXX'
-      const gpNumber = await goodsProcessingRepository.generateGpNumber(client, companyId, branchCode)
-      const hasDisassembly = await goodsReceiptsRepository.hasDisassemblyProducts(client, id)
-      const processingType = hasDisassembly ? 'DISASSEMBLY' : 'PASS_THROUGH'
-
-      const gpId = await goodsReceiptsRepository.createGoodsProcessingDraft(client, {
-        companyId,
-        branchId: gr.branch_id,
-        warehouseId: gr.warehouse_id,
-        grId: id,
-        gpNumber,
-        receivedDate: gr.received_date,
-        processingType,
-        userId,
-      })
-
+      // ─── Determine asset vs non-asset lines BEFORE GP creation ─────────────
       const lineProductIds = [...new Set(gr.lines.map((l) => l.product_id))]
-      const requiresProcessingByProduct = await goodsReceiptsRepository.findProductsRequiresProcessing(client, lineProductIds)
       const assetInfoByProduct = await goodsReceiptsRepository.findProductsAssetInfo(client, lineProductIds)
-      const disassemblyProductIds = lineProductIds.filter((id) => {
-        const assetInfo = assetInfoByProduct.get(id)
-        if (assetInfo?.is_asset) return false // asset products skip processing entirely
-        return requiresProcessingByProduct.get(id)
-      })
-      const outputTemplatesByProduct =
-        disassemblyProductIds.length > 0
-          ? await productOutputTemplateRepository.findByProductIds(disassemblyProductIds)
-          : {}
-      const productUomsMap = buildProductUomsMap(await productUomsRepository.findAllUomsBatch(lineProductIds))
+      const hasNonAssetLines = gr.lines.some((l) => !assetInfoByProduct.get(l.product_id)?.is_asset)
+
+      // ─── Create GP only if there are non-asset lines to process ────────────
+      // If ALL lines are assets, skip GP entirely — assets go directly to fixed_assets module.
+      // TODO: For non-marketplace suppliers with 100% asset GRs, the Purchase Invoice
+      // post() will fail at findPostingRowsForInvoice (Guard 2) because no GP outputs exist.
+      // This is a pre-existing bug independent of this change — to be addressed separately.
+      let gpId: string | null = null
+      let requiresProcessingByProduct: Map<string, boolean> = new Map()
+      let outputTemplatesByProduct: Record<string, Array<{ output_product_id: string; output_uom: string; suggested_pct: number | null }>> = {}
+      let productUomsMap: ReturnType<typeof buildProductUomsMap> = new Map()
+
+      if (hasNonAssetLines) {
+        const branchCode = gr.branch_code ?? 'XXX'
+        const gpNumber = await goodsProcessingRepository.generateGpNumber(client, companyId, branchCode)
+        const hasDisassembly = await goodsReceiptsRepository.hasDisassemblyProducts(client, id)
+        const processingType = hasDisassembly ? 'DISASSEMBLY' : 'PASS_THROUGH'
+
+        gpId = await goodsReceiptsRepository.createGoodsProcessingDraft(client, {
+          companyId,
+          branchId: gr.branch_id,
+          warehouseId: gr.warehouse_id,
+          grId: id,
+          gpNumber,
+          receivedDate: gr.received_date,
+          processingType,
+          userId,
+        })
+
+        requiresProcessingByProduct = await goodsReceiptsRepository.findProductsRequiresProcessing(client, lineProductIds)
+        const disassemblyProductIds = lineProductIds.filter((pid) => {
+          const assetInfo = assetInfoByProduct.get(pid)
+          if (assetInfo?.is_asset) return false // asset products skip processing entirely
+          return requiresProcessingByProduct.get(pid)
+        })
+        outputTemplatesByProduct =
+          disassemblyProductIds.length > 0
+            ? await productOutputTemplateRepository.findByProductIds(disassemblyProductIds)
+            : {}
+        productUomsMap = buildProductUomsMap(await productUomsRepository.findAllUomsBatch(lineProductIds))
+      }
 
       // For marketplace GRs, track asset line IDs to auto-capitalize after creation
       const assetLineIds: string[] = []
@@ -412,6 +427,12 @@ export class GoodsReceiptsService {
         }
 
         // ─── Non-asset product: normal GP input/output creation ───────────────
+        if (!gpId) {
+          throw new Error(
+            `GR ${id}: attempted to insert GP input for non-asset line ${line.id} but no GP draft was created`
+          )
+        }
+
         const uomReceived = line.uom_received ?? line.uom ?? 'kg'
         const { qty: qtyInput, uom: uomInput } = toProductBaseQty(
           line.product_id,

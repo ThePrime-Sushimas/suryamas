@@ -33,6 +33,7 @@ export interface ProductPickerModalProps {
   excludeProductIds?: string[]
   filterRequestable?: boolean
   filterAsset?: boolean
+  excludeAssets?: boolean
   title?: string
 }
 
@@ -72,6 +73,7 @@ export function ProductPickerModal({
   excludeProductIds = [],
   filterRequestable = false,
   filterAsset = false,
+  excludeAssets = false,
   title = 'Pilih Produk',
 }: ProductPickerModalProps) {
   const [search, setSearch] = useState('')
@@ -117,13 +119,14 @@ export function ProductPickerModal({
     isFetchingNextPage,
     isFetching,
   } = useInfiniteQuery({
-    queryKey: ['product-picker', debouncedSearch, categoryFilter, filterAsset],
+    queryKey: ['product-picker', debouncedSearch, categoryFilter, filterAsset, excludeAssets],
     queryFn: async ({ pageParam = 1 }) => {
       const params: Record<string, string> = { limit: String(PAGE_SIZE), page: String(pageParam) }
       if (debouncedSearch) params.q = debouncedSearch
       if (categoryFilter) params.category_id = categoryFilter
       if (filterRequestable) params.is_requestable = 'true'
       if (filterAsset) params.is_asset = 'true'
+      else if (excludeAssets) params.is_asset = 'false'
       const { data } = await api.get('/products/search', { params })
       return { data: data.data as ProductRow[], pagination: data.pagination } as ProductPage
     },
