@@ -1092,7 +1092,7 @@ export async function findDisposals(
               fa.asset_code,
               fa.asset_name
        FROM asset_disposals ad
-       JOIN fixed_assets fa ON fa.id = ad.fixed_asset_id AND fa.deleted_at IS NULL
+       LEFT JOIN fixed_assets fa ON fa.id = ad.fixed_asset_id AND fa.deleted_at IS NULL
        ${where}
        ORDER BY ad.disposal_date DESC, ad.created_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
