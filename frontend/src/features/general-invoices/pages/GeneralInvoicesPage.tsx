@@ -14,6 +14,7 @@ import {
 } from '../api/generalApi.api'
 import { useGeneralInvoiceFilters } from '../hooks/useGeneralInvoiceFilters'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { useUserBranches } from '@/hooks/_shared/useUserBranches'
 import InvoiceFormModal from './InvoiceFormModal'
 import { CreatePaymentModal } from './PaymentModals'
 
@@ -81,6 +82,7 @@ export default function GeneralInvoicesPage() {
   const [confirmCancel, setConfirmCancel] = useState<GeneralInvoice | null>(null)
   const [confirmForceDelete, setConfirmForceDelete] = useState<GeneralInvoice | null>(null)
 
+  const branches = useUserBranches()
   const { data, isLoading } = useGeneralInvoices(apiQuery)
   const { data: editInvoice } = useGeneralInvoice(editId ?? '')
   const { data: companyBanks = [] } = useCompanyBankAccounts()
@@ -200,6 +202,16 @@ export default function GeneralInvoicesPage() {
           <option value="">Semua Status</option>
           {INVOICE_STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <select
+          value={filters.branchId}
+          onChange={(e) => setFilters({ branchId: e.target.value })}
+          className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-40"
+        >
+          <option value="">Semua Cabang</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>{b.branch_name}</option>
           ))}
         </select>
         <label className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg whitespace-nowrap cursor-pointer hover:bg-gray-50">

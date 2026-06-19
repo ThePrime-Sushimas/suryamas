@@ -15,6 +15,7 @@ export interface GeneralInvoiceFilters {
   search: string
   status: GeneralInvoiceStatus | ''
   overdue: boolean
+  branchId: string
 }
 
 export const DEFAULT_GENERAL_INVOICE_FILTERS: GeneralInvoiceFilters = {
@@ -23,6 +24,7 @@ export const DEFAULT_GENERAL_INVOICE_FILTERS: GeneralInvoiceFilters = {
   search: '',
   status: '',
   overdue: false,
+  branchId: '',
 }
 
 const VALID_STATUS = new Set<GeneralInvoiceStatus>(['DRAFT', 'POSTED', 'CANCELLED'])
@@ -31,6 +33,7 @@ const FILTER_KEYS_RESET_PAGE: (keyof GeneralInvoiceFilters)[] = [
   'search',
   'status',
   'overdue',
+  'branchId',
   'limit',
 ]
 
@@ -42,6 +45,7 @@ export function parseGeneralInvoiceFilters(searchParams: URLSearchParams): Gener
     search: parseString(searchParams.get('search') ?? searchParams.get('q')),
     status: parseEnum(searchParams.get('status'), VALID_STATUS, ''),
     overdue: overdueRaw === '1' || overdueRaw === 'true',
+    branchId: parseString(searchParams.get('branch_id')),
   }
 }
 
@@ -57,6 +61,8 @@ export function stringifyGeneralInvoiceFilters(filters: GeneralInvoiceFilters): 
   if (search) params.set('search', search)
   if (filters.status) params.set('status', filters.status)
   if (filters.overdue) params.set('overdue', '1')
+  const branchId = serializeString(filters.branchId)
+  if (branchId) params.set('branch_id', branchId)
 
   return params
 }
@@ -83,5 +89,6 @@ export function toGeneralInvoiceListQuery(
     ...(search ? { search } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.overdue ? { overdue: true as const } : {}),
+    ...(filters.branchId ? { branch_id: filters.branchId } : {}),
   }
 }
