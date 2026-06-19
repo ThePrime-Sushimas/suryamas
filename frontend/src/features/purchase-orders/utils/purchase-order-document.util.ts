@@ -35,7 +35,8 @@ export function buildPurchaseOrderWhatsAppMessage(po: PurchaseOrder): string {
     `• Cabang: ${po.branch_name}\n` +
     `• Supplier: ${po.supplier_name}\n\n` +
     `*DETAIL ITEM*\n${items}` +
-    (po.notes ? `\n\n📝 Catatan: ${po.notes}` : '') +
+    (po.pr_notes ? `\n\n📝 Catatan PR: ${po.pr_notes}` : '') +
+    (po.notes ? `\n\n📝 Catatan PO: ${po.notes}` : '') +
     `\n\n_Dokumen ini digenerate otomatis_`
   )
 }
@@ -122,7 +123,8 @@ export function buildPurchaseOrderPrintHtml(po: PurchaseOrder): string {
     </thead>
     <tbody>${rows || '<tr><td colspan="4" class="text-center muted">Tidak ada item</td></tr>'}</tbody>
   </table>
-  ${po.notes ? `<div class="notes"><strong>Catatan:</strong> ${esc(po.notes)}</div>` : ''}
+  ${po.pr_notes ? `<div class="notes"><strong>Catatan PR:</strong> ${esc(po.pr_notes)}</div>` : ''}
+  ${po.notes ? `<div class="notes" style="margin-top:8px"><strong>Catatan PO:</strong> ${esc(po.notes)}</div>` : ''}
   <p class="footer">Dicetak ${new Date().toLocaleString('id-ID')}</p>
 </body>
 </html>`
@@ -196,14 +198,27 @@ export function exportPurchaseOrderPdf(po: PurchaseOrder): void {
     },
   })
 
-  let finalY = (doc as JsPdfWithAutoTable).lastAutoTable?.finalY ?? infoY + 20
+  let finalY = (doc as JsPdfWithAutoTable).lastAutoTable?.finalY ?? infoY + 10
+
+  if (po.pr_notes?.trim()) {
+    finalY += 8
+    doc.setTextColor(0)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('Catatan PR:', 14, finalY)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    const noteLines = doc.splitTextToSize(po.pr_notes.trim(), pageWidth - 28)
+    doc.text(noteLines, 14, finalY + 5)
+    finalY += 5 + noteLines.length * 4.5
+  }
 
   if (po.notes?.trim()) {
     finalY += 8
     doc.setTextColor(0)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
-    doc.text('Catatan:', 14, finalY)
+    doc.text('Catatan PO:', 14, finalY)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     const noteLines = doc.splitTextToSize(po.notes.trim(), pageWidth - 28)
