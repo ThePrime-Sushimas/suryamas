@@ -80,7 +80,8 @@
       return { id: journalHeader.id }
     }
     async list(companyIds: string[], filter: any, pagination: { page: number; limit: number }) {
-      const offset = (pagination.page - 1) * pagination.limit
+      const isPaged = pagination.limit > 0
+      const offset = isPaged ? (pagination.page - 1) * pagination.limit : 0
       return marketplacePoRepository.listSessions(companyIds, filter, { limit: pagination.limit, offset })
     }
 

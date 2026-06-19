@@ -688,6 +688,7 @@ export class MarketplacePoRepository {
     if (filter.search) { params.push(`%${filter.search}%`); conditions.push(`(mcs.session_number ILIKE $${idx} OR mcs.platform_receipt_url ILIKE $${idx})`); idx++ }
 
     const where = `WHERE ${conditions.join(' AND ')}`
+    const isPaged = pagination.limit > 0
 
     const [dataRes, countRes] = await Promise.all([
       pool.query(
@@ -700,8 +701,8 @@ export class MarketplacePoRepository {
          LEFT JOIN branches b ON b.id = mcs.branch_id
          ${where}
          ORDER BY mcs.created_at DESC
-         LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...params, pagination.limit, pagination.offset],
+         ${isPaged ? `LIMIT $${idx} OFFSET $${idx + 1}` : ''}`,
+        isPaged ? [...params, pagination.limit, pagination.offset] : params,
       ),
       pool.query(
         `SELECT COUNT(*)::int AS total FROM marketplace_checkout_sessions mcs ${where}`,

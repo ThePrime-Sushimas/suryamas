@@ -18,6 +18,8 @@ import {
   useCombinedInvoicePayments,
   type CombinedInvoicePaymentRow,
 } from '../api/apPayments.api'
+import { useMarketplaceSessions } from '@/features/marketplace-po/api/marketplacePo.api'
+import type { MarketplaceCheckoutSession } from '@/features/marketplace-po/types/marketplacePo.types'
 import {
   AP_PAYMENT_METHOD_LABELS,
   AP_STATUS_CONFIG,
@@ -44,7 +46,7 @@ const GENERAL_PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 // ─── Unified row type ─────────────────────────────────────────────────────────
 
-type RowType = 'PURCHASE' | 'GENERAL'
+type RowType = 'PURCHASE' | 'GENERAL' | 'MARKETPLACE'
 
 interface UnifiedRow {
   _type: RowType
@@ -147,6 +149,41 @@ function fromGeneralPayment(pay: GeneralInvoicePayment): UnifiedRow {
   }
 }
 
+function fromMarketplaceSession(session: MarketplaceCheckoutSession): UnifiedRow {
+  const ccLabel = session.cc_label ?? session.card_label ?? null
+  const bankName = session.bank_name ?? null
+  const last4 = session.last4 ?? null
+  const rekeningDisplay = ccLabel
+    ? `${ccLabel}${last4 ? ' ···' + last4 : ''}`
+    : bankName
+      ? `${bankName}${last4 ? ' ···' + last4 : ''}`
+      : null
+  const isSettled = session.status === 'SETTLED'
+  return {
+    _type: 'MARKETPLACE',
+    _id: `marketplace-${session.id}`,
+    invoice_number: session.session_number,
+    vendor_name: `${session.platform}${ccLabel ? ' · ' + ccLabel : ''}`,
+    branch_name: session.branch_name ?? '—',
+    payment_number: session.session_number,
+    payment_method: 'CC_OWNER',
+    rekening: rekeningDisplay,
+    payment_date: session.checkout_date,
+    nominal_bayar: Number(session.total_amount),
+    invoice_total: Number(session.total_amount),
+    invoice_remaining: isSettled ? 0 : Number(session.total_amount),
+    invoice_due_date: null,
+    invoice_status: session.status,
+    payment_status: session.status,
+    source_bank_name: bankName,
+    source_account_number: last4,
+    source_account_name: ccLabel,
+    dest_bank_name: null,
+    dest_account_number: null,
+    dest_account_name: null,
+  }
+}
+
 function sortByDate(rows: UnifiedRow[]): UnifiedRow[] {
   return [...rows].sort((a, b) => {
     const da = a.payment_date ? new Date(a.payment_date).getTime() : 0
@@ -163,16 +200,33 @@ function getPurchaseInvoiceStatusLabel(status: string | null): string {
   return status ?? ''
 }
 
+function getInvoiceStatusLabel(status: string | null, type: RowType): string {
+  if (!status) return ''
+  if (type === 'MARKETPLACE') return MARKETPLACE_STATUS_LABELS[status] ?? status
+  return getPurchaseInvoiceStatusLabel(status)
+}
+
 function getPaymentMethodLabel(method: string | null, type: RowType): string {
   if (!method) return '—'
-  return type === 'PURCHASE'
-    ? (AP_PAYMENT_METHOD_LABELS[method as keyof typeof AP_PAYMENT_METHOD_LABELS] ?? method)
-    : (GENERAL_PAYMENT_METHOD_LABELS[method] ?? method)
+  if (type === 'PURCHASE')
+    return AP_PAYMENT_METHOD_LABELS[method as keyof typeof AP_PAYMENT_METHOD_LABELS] ?? method
+  if (type === 'MARKETPLACE') return 'CC Owner'
+  return GENERAL_PAYMENT_METHOD_LABELS[method] ?? method
+}
+
+const MARKETPLACE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Draft',
+  ORDERED: 'Ordered',
+  SHIPPED: 'Shipped',
+  RECEIVED: 'Received',
+  SETTLED: 'Settled',
+  CANCELLED: 'Cancelled',
 }
 
 function getPaymentStatusLabel(status: string | null, type: RowType): string {
   if (!status) return ''
   if (type === 'GENERAL') return GENERAL_STATUS_LABELS[status as GeneralPaymentStatus] ?? status
+  if (type === 'MARKETPLACE') return MARKETPLACE_STATUS_LABELS[status] ?? status
   return AP_STATUS_CONFIG[status as keyof typeof AP_STATUS_CONFIG]?.label ?? status
 }
 
@@ -181,7 +235,7 @@ function getPaymentStatusLabel(status: string | null, type: RowType): string {
 interface Filters {
   search: string
   branchId: string
-  rowType: '' | 'PURCHASE' | 'GENERAL'
+  rowType: '' | 'PURCHASE' | 'GENERAL' | 'MARKETPLACE'
   // Shared date (payment date)
   dateFrom: string
   dateTo: string
@@ -229,8 +283,8 @@ export default function UnifiedPaymentReportPage() {
   const isDirty = JSON.stringify(draft) !== JSON.stringify(filters)
 
   const hasActiveFilter = Object.entries(filters).some(([k, v]) => k !== 'rowType' && v !== '')
-  const showPurchaseFilters = draft.rowType !== 'GENERAL'
-  const showGeneralFilters  = draft.rowType !== 'PURCHASE'
+  const showPurchaseFilters = draft.rowType === '' || draft.rowType === 'PURCHASE'
+  const showGeneralFilters  = draft.rowType === '' || draft.rowType === 'GENERAL'
 
   // ── AP combined query ──
   const apQuery = useMemo(() => ({
@@ -247,10 +301,9 @@ export default function UnifiedPaymentReportPage() {
     ...(filters.dateTo      ? { date_to:              filters.dateTo }      : {}),
   }), [filters])
 
+  const enableAp = hasApplied && (filters.rowType === '' || filters.rowType === 'PURCHASE')
   const { data: apData, isLoading: apLoading, isError: apError } =
-    useCombinedInvoicePayments(apQuery, {
-      enabled: hasApplied && filters.rowType !== 'GENERAL',
-    })
+    useCombinedInvoicePayments(apQuery, { enabled: enableAp })
 
   // ── General payments query ──
   const generalQuery = useMemo(() => ({
@@ -263,18 +316,36 @@ export default function UnifiedPaymentReportPage() {
     ...(filters.dateTo        ? { payment_date_to:     filters.dateTo }        : {}),
   }), [filters])
 
+  const enableGeneral = hasApplied && (filters.rowType === '' || filters.rowType === 'GENERAL')
   const { data: generalData, isLoading: generalLoading, isError: generalError } =
-    useGeneralPayments(generalQuery, {
-      enabled: hasApplied && filters.rowType !== 'PURCHASE',
-    })
+    useGeneralPayments(generalQuery, { enabled: enableGeneral })
+
+  // ── Marketplace sessions query ──
+  const marketplaceQuery = useMemo(() => ({
+    limit: -1, // no limit — fetch all for client-side merge
+    page: 1,
+    ...(filters.branchId ? { branch_id: filters.branchId } : {}),
+    ...(filters.search   ? { search:    filters.search }   : {}),
+    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(filters.dateTo   ? { date_to:   filters.dateTo }   : {}),
+  }), [filters])
+
+  const enableMarketplace = hasApplied && (filters.rowType === '' || filters.rowType === 'MARKETPLACE')
+  const { data: marketplaceData, isLoading: marketplaceLoading, isError: marketplaceError } =
+    useMarketplaceSessions(marketplaceQuery, { enabled: enableMarketplace })
 
   // ── Merge + sort ──
   const allRows: UnifiedRow[] = useMemo(() => {
     if (!hasApplied) return []
-    const apRows  = filters.rowType !== 'GENERAL'  ? (apData?.data  ?? []).map((r, i) => fromCombinedRow(r, i)) : []
-    const genRows = filters.rowType !== 'PURCHASE' ? (generalData?.data ?? []).map(fromGeneralPayment)          : []
-    return sortByDate([...apRows, ...genRows])
-  }, [hasApplied, apData, generalData, filters.rowType])
+    const apRows   = enableAp          ? (apData?.data ?? []).map((r, i) => fromCombinedRow(r, i)) : []
+    const genRows  = enableGeneral     ? (generalData?.data ?? []).map(fromGeneralPayment)         : []
+    const mktRows  = enableMarketplace
+      ? (marketplaceData?.data ?? [])
+          .filter((s) => s.status !== 'DRAFT' && s.status !== 'CANCELLED')
+          .map(fromMarketplaceSession)
+      : []
+    return sortByDate([...apRows, ...genRows, ...mktRows])
+  }, [hasApplied, apData, generalData, marketplaceData, enableAp, enableGeneral, enableMarketplace])
 
   // ── Client-side pagination ──
   const totalRows = allRows.length
@@ -285,9 +356,10 @@ export default function UnifiedPaymentReportPage() {
   }, [allRows, page, limit])
 
   const isLoading =
-    (hasApplied && filters.rowType !== 'GENERAL'  && apLoading) ||
-    (hasApplied && filters.rowType !== 'PURCHASE' && generalLoading)
-  const isError = apError || generalError
+    (enableAp && apLoading) ||
+    (enableGeneral && generalLoading) ||
+    (enableMarketplace && marketplaceLoading)
+  const isError = apError || generalError || marketplaceError
 
   // ── Handlers ──
   const applyFilters = useCallback(() => {
@@ -322,16 +394,17 @@ export default function UnifiedPaymentReportPage() {
       const excelRows = allRows.map((r) => {
         const isPurchase = r._type === 'PURCHASE'
         const purchaseRow = isPurchase ? apRowsMap.get(r._id) : undefined
+        const typeLabel = isPurchase ? 'Purchase' : r._type === 'MARKETPLACE' ? 'Marketplace' : 'General'
 
         return {
-          Tipe: isPurchase ? 'Purchase' : 'General',
+          Tipe: typeLabel,
           'No. Invoice': r.invoice_number,
           'Tgl Invoice': isPurchase ? rawDate(purchaseRow?.invoice_date) : '',
           'Tgl Terima': isPurchase ? rawDate(purchaseRow?.earliest_received_date) : '',
           'Jatuh Tempo': rawDate(r.invoice_due_date),
           'Vendor / Supplier': r.vendor_name,
           Cabang: r.branch_name,
-          'Status Invoice': getPurchaseInvoiceStatusLabel(r.invoice_status),
+          'Status Invoice': getInvoiceStatusLabel(r.invoice_status, r._type),
           'Total Invoice': r.invoice_total ?? '',
           'Sisa Outstanding': r.invoice_remaining ?? '',
           'Aging (hari)': isPurchase ? (purchaseRow?.aging_days ?? '') : '',
@@ -394,7 +467,7 @@ export default function UnifiedPaymentReportPage() {
                 Report Pengeluaran
               </h1>
               <p className={`text-xs sm:text-sm ${apTheme.subtitle}`}>
-                Purchase + General · {totalRows} baris
+                Purchase + General + Marketplace · {totalRows} baris
               </p>
             </div>
           </div>
@@ -461,6 +534,7 @@ export default function UnifiedPaymentReportPage() {
             <option value="">Semua tipe</option>
             <option value="PURCHASE">Purchase Invoice</option>
             <option value="GENERAL">General Invoice</option>
+            <option value="MARKETPLACE">Marketplace</option>
           </select>
 
           {/* Purchase-specific: supplier */}
@@ -686,6 +760,13 @@ function TypeBadge({ type }: { type: RowType }) {
       </span>
     )
   }
+  if (type === 'MARKETPLACE') {
+    return (
+      <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200/80 dark:border-transparent">
+        Marketplace
+      </span>
+    )
+  }
   return (
     <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border border-sky-200/80 dark:border-transparent">
       General
@@ -709,6 +790,19 @@ function PaymentStatusBadge({ status, type }: { status: string | null; type: Row
       </span>
     )
   }
+  if (type === 'MARKETPLACE') {
+    const colorMap: Record<string, string> = {
+      ORDERED:   'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      SHIPPED:   'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+      RECEIVED:  'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+      SETTLED:   'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    }
+    return (
+      <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${colorMap[status] ?? 'bg-gray-100 text-gray-600'}`}>
+        {MARKETPLACE_STATUS_LABELS[status] ?? status}
+      </span>
+    )
+  }
   const config = AP_STATUS_CONFIG[status as keyof typeof AP_STATUS_CONFIG]
   if (!config) return <span className="text-gray-500 dark:text-gray-400 text-xs">{status}</span>
   return (
@@ -718,8 +812,23 @@ function PaymentStatusBadge({ status, type }: { status: string | null; type: Row
   )
 }
 
-function InvoiceStatusBadge({ status }: { status: string | null }) {
+function InvoiceStatusBadge({ status, type }: { status: string | null; type: RowType }) {
   if (!status) return <span className="text-gray-400">—</span>
+  if (type === 'MARKETPLACE') {
+    const colorMap: Record<string, string> = {
+      DRAFT:     'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300',
+      ORDERED:   'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      SHIPPED:   'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+      RECEIVED:  'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+      SETTLED:   'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      CANCELLED: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    }
+    return (
+      <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${colorMap[status] ?? 'bg-gray-100 text-gray-600'}`}>
+        {MARKETPLACE_STATUS_LABELS[status] ?? status}
+      </span>
+    )
+  }
   const colorMap: Record<string, string> = {
     DRAFT:     'bg-rose-50 text-rose-600 border border-rose-100 dark:bg-gray-700 dark:text-gray-300 dark:border-transparent',
     APPROVED:  'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
@@ -754,7 +863,7 @@ function UnifiedTableRow({ row }: { row: UnifiedRow }) {
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{fmtCurrency(row.invoice_total)}</td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{fmtCurrency(row.invoice_remaining)}</td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{fmtDate(row.invoice_due_date)}</td>
-      <td className="px-3 py-3"><InvoiceStatusBadge status={row.invoice_status} /></td>
+      <td className="px-3 py-3"><InvoiceStatusBadge status={row.invoice_status} type={row._type} /></td>
       <td className="px-3 py-3"><PaymentStatusBadge status={row.payment_status} type={row._type} /></td>
     </tr>
   )

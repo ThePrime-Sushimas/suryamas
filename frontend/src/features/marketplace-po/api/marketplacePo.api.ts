@@ -110,7 +110,7 @@ export function useMarketplaceSessions(params: {
   search?: string
   page?: number
   limit?: number
-}) {
+}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: KEYS.sessions(params),
     queryFn: async () => {
@@ -132,6 +132,7 @@ export function useMarketplaceSessions(params: {
       }
     },
     staleTime: 30_000,
+    ...options,
   })
 }
 

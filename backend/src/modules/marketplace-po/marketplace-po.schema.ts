@@ -58,7 +58,7 @@ export const listMarketplaceSessionsSchema = z.object({
     date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     search: z.string().max(200).optional(),
     page: z.coerce.number().int().min(1).optional().default(1),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+    limit: z.coerce.number().int().min(-1).max(5000).optional().default(25),
   }),
 })
 
