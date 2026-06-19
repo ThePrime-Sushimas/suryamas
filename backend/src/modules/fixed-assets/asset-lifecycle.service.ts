@@ -28,8 +28,8 @@ import { AuditService } from '../monitoring/monitoring.service'
 // ─── COA Code Constants ──────────────────────────────────────────────────────
 
 const ACCOUNTS_PAYABLE_COA_CODE = '210101'
-const GAIN_ON_DISPOSAL_COA_CODE = '770101'
-const LOSS_ON_DISPOSAL_COA_CODE = '770201'
+const GAIN_ON_DISPOSAL_COA_CODE = '710101' // Laba/Rugi Penjualan Aset / Revaluasi
+const LOSS_ON_DISPOSAL_COA_CODE = '710101' // sama — satu akun untuk laba & rugi
 const CASH_RECEIVABLE_COA_CODE = '110201'
 const INTER_BRANCH_TRANSFER_COA_CODE = '110598' // Persediaan/Aset Transit (shared with stock transfers)
 

@@ -1085,8 +1085,8 @@ export class DisposalInvalidStatusError extends BusinessRuleError {
 // Configurable per company, but defaults:
 const DEPRECIATION_EXPENSE_COA_CODE = '620101'    // Beban Penyusutan
 const REPAIR_MAINTENANCE_COA_CODE = '620201'      // Beban Perbaikan & Pemeliharaan
-const GAIN_ON_DISPOSAL_COA_CODE = '770101'        // Laba Pelepasan Aset
-const LOSS_ON_DISPOSAL_COA_CODE = '770201'        // Rugi Pelepasan Aset
+const GAIN_ON_DISPOSAL_COA_CODE = '710101' // Laba/Rugi Penjualan Aset / Revaluasi
+const LOSS_ON_DISPOSAL_COA_CODE = '710101' // sama — satu akun untuk laba & rugi
 const ACCOUNTS_PAYABLE_COA_CODE = '210101'        // Hutang Dagang
 
 // Asset cost COA per category (from asset_categories table):
