@@ -66,8 +66,10 @@ import type { CalculationType } from '../payment-terms/payment-terms.types'
 import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
 import * as assetLifecycleService from '../fixed-assets/asset-lifecycle.service'
+import * as fixedAssetsRepository from '../fixed-assets/fixed-assets.repository'
 import { journalHeadersRepository } from '../accounting/journals/journal-headers/journal-headers.repository'
 import { pool } from '../../config/db'
+import { BusinessRuleError } from '../../utils/errors.base'
 
 function computeLineTotals(qtyInvoiced: number, unitPrice: number, taxRate: number) {
   const subtotal = qtyInvoiced * unitPrice
@@ -1124,42 +1126,50 @@ export class PurchaseInvoicesService {
         throw new Error(`Fiscal period not found for invoice date ${detail.invoice_date}`)
       }
 
-      const sequence = await purchaseInvoicesRepository.getNextJournalSequence(client, companyId, period)
-      const year = detail.invoice_date.substring(0, 4)
-      const month = detail.invoice_date.substring(5, 7)
-      const journalNumber = `JG/${year}${month}/${String(sequence).padStart(5, '0')}`
+      // ─── Pure-asset PI with no PPN: skip journal entirely ──────────────────
+      // No inventory to debit, no tax to record. capitalizeAssetsFromInvoice
+      // will handle the full accounting (Dr Asset, Cr AP) after this tx commits.
+      // journal_id stays null — consistent with other modules (production_orders,
+      // stock_transfers) that can be "posted/completed" without a journal.
+      let journalId: string | null = null
 
-      // ─── Pure-asset PI: only record PPN portion in PI journal ──────────────
-      // Asset cost (subtotal) will be journaled by capitalizeAssetsFromInvoice
-      // (Dr Asset COA, Cr AP). PI posting only handles the PPN portion here.
-      const journalTotalDebit = isPureAssetInvoice ? totalTax : (debitInventory + totalTax)
-      const journalTotalCredit = isPureAssetInvoice ? totalTax : totalAmount
-      const journalDescriptionFinal = isPureAssetInvoice
-        ? `${journalDescriptionBase} — PPN atas pembelian aset tetap`
-        : journalDescription
+      if (!(isPureAssetInvoice && totalTax === 0)) {
+        const sequence = await purchaseInvoicesRepository.getNextJournalSequence(client, companyId, period)
+        const year = detail.invoice_date.substring(0, 4)
+        const month = detail.invoice_date.substring(5, 7)
+        const journalNumber = `JG/${year}${month}/${String(sequence).padStart(5, '0')}`
 
-      const journalHeader = await purchaseInvoicesRepository.createJournalHeader(client, {
-        companyId,
-        branchId: detail.branch_id,
-        journalNumber,
-        sequenceNumber: sequence,
-        journalDate: detail.invoice_date,
-        period,
-        currency: 'IDR',
-        journalType: 'GENERAL',
-        referenceType: 'purchase_invoice',
-        referenceId: id,
-        referenceNumber: detail.invoice_number,
-        description: journalDescriptionFinal,
-        totalDebit: journalTotalDebit,
-        totalCredit: journalTotalCredit,
-        createdBy: userId,
-      })
+        // ─── Pure-asset PI with PPN: only record PPN portion ─────────────────
+        // Asset cost (subtotal) will be journaled by capitalizeAssetsFromInvoice
+        // (Dr Asset COA, Cr AP). PI posting only handles the PPN portion here.
+        const journalTotalDebit = isPureAssetInvoice ? totalTax : (debitInventory + totalTax)
+        const journalTotalCredit = isPureAssetInvoice ? totalTax : totalAmount
+        const journalDescriptionFinal = isPureAssetInvoice
+          ? `${journalDescriptionBase} — PPN atas pembelian aset tetap`
+          : journalDescription
 
-      if (isPureAssetInvoice) {
-        // Pure-asset PI: only PPN journal lines (if PPN > 0).
-        // Asset portion (Dr Asset, Cr AP) handled by capitalizeAssetsFromInvoice.
-        if (totalTax > 0) {
+        const journalHeader = await purchaseInvoicesRepository.createJournalHeader(client, {
+          companyId,
+          branchId: detail.branch_id,
+          journalNumber,
+          sequenceNumber: sequence,
+          journalDate: detail.invoice_date,
+          period,
+          currency: 'IDR',
+          journalType: 'GENERAL',
+          referenceType: 'purchase_invoice',
+          referenceId: id,
+          referenceNumber: detail.invoice_number,
+          description: journalDescriptionFinal,
+          totalDebit: journalTotalDebit,
+          totalCredit: journalTotalCredit,
+          createdBy: userId,
+        })
+
+        journalId = journalHeader.id
+
+        if (isPureAssetInvoice) {
+          // Pure-asset PI with PPN > 0: only PPN journal lines.
           await purchaseInvoicesRepository.createJournalLines(client, {
             journalHeaderId: journalHeader.id,
             debitAccountId: coaTax,
@@ -1171,20 +1181,20 @@ export class PurchaseInvoicesService {
             description: journalDescriptionFinal,
             inventoryDebitDescription: journalDescriptionFinal,
           })
+        } else {
+          // Normal PI: full inventory + PPN journal
+          await purchaseInvoicesRepository.createJournalLines(client, {
+            journalHeaderId: journalHeader.id,
+            debitAccountId: coaInv,
+            debitAmount: debitInventory,
+            taxAccountId: coaTax,
+            taxAmount: totalTax,
+            creditAccountId: coaPayable,
+            creditAmount: totalAmount,
+            description: journalDescription,
+            inventoryDebitDescription,
+          })
         }
-      } else {
-        // Normal PI: full inventory + PPN journal
-        await purchaseInvoicesRepository.createJournalLines(client, {
-          journalHeaderId: journalHeader.id,
-          debitAccountId: coaInv,
-          debitAmount: debitInventory,
-          taxAccountId: coaTax,
-          taxAmount: totalTax,
-          creditAccountId: coaPayable,
-          creditAmount: totalAmount,
-          description: journalDescription,
-          inventoryDebitDescription,
-        })
       }
 
       const grIds = await purchaseInvoicesRepository.findGrIdsForInvoice(client, id)
@@ -1229,7 +1239,7 @@ export class PurchaseInvoicesService {
         posted_by: userId,
         posted_at: new Date().toISOString(),
         updated_by: userId,
-        journal_id: journalHeader.id,
+        journal_id: journalId,
       })
     })
 
@@ -1289,14 +1299,24 @@ export class PurchaseInvoicesService {
     const detail = await this.requireById(id, branchIds)
     const companyId = detail.company_id
     if (detail.status !== 'POSTED') throw new PurchaseInvoiceNotPostedError()
-    if (!detail.journal_id) throw new PurchaseInvoiceNoJournalError()
+
+    const journalId = detail.journal_id
 
     // TODO(purchase-payments): if (await hasLinkedPayments(client, id)) throw PurchaseInvoiceHasPaymentsError()
 
-    const journalId = detail.journal_id
     const recipeProductIds = new Set<string>()
 
     await purchaseInvoicesRepository.withTransaction(async (client) => {
+      // ─── Narrow guard: journal_id null is valid ONLY for pure-asset PI with no tax ─
+      if (!journalId) {
+        const allAsset = await purchaseInvoicesRepository.checkAllLinesAreAssets(client, id)
+        const totalTax = Number(detail.total_tax ?? 0)
+        if (!(allAsset && totalTax === 0)) {
+          // Anomalous: PI is POSTED without journal but is NOT a valid pure-asset-no-tax case.
+          throw new PurchaseInvoiceNoJournalError()
+        }
+      }
+
       // Journal is created with journal_date = invoice_date on post — period gate matches that date.
       const periodOpen = await purchaseInvoicesRepository.isFiscalPeriodOpen(
         client,
@@ -1308,6 +1328,76 @@ export class PurchaseInvoicesService {
           'closed fiscal period',
           'open fiscal period for invoice date',
         )
+      }
+
+      // ─── Asset Capitalization Reversal Guard & Execution ───────────────────
+      // Must run BEFORE any writes to ensure clean rollback if guard throws.
+      const { rows: capitalizedAssets } = await client.query<{
+        id: string; asset_code: string; status: string; cost: number; journal_id: string | null
+      }>(
+        `SELECT id, asset_code, status, cost, journal_id FROM fixed_assets
+         WHERE purchase_invoice_id = $1 AND deleted_at IS NULL
+         FOR UPDATE`,
+        [id],
+      )
+
+      if (capitalizedAssets.length > 0) {
+        for (const asset of capitalizedAssets) {
+          if (asset.status === 'DISPOSED') {
+            throw new BusinessRuleError(
+              `Tidak dapat unpost: aset "${asset.asset_code}" sudah di-dispose`
+            )
+          }
+          if (asset.status === 'MAINTENANCE') {
+            const { rows: [{ has_journal }] } = await client.query<{ has_journal: boolean }>(
+              `SELECT EXISTS(
+                 SELECT 1 FROM asset_maintenance
+                 WHERE fixed_asset_id = $1 AND journal_id IS NOT NULL AND deleted_at IS NULL
+               ) AS has_journal`,
+              [asset.id],
+            )
+            if (has_journal) {
+              throw new BusinessRuleError(
+                `Tidak dapat unpost: aset "${asset.asset_code}" sedang maintenance dengan jurnal terkait`
+              )
+            }
+          }
+          const { rows: [{ has_depr }] } = await client.query<{ has_depr: boolean }>(
+            `SELECT EXISTS(
+               SELECT 1 FROM asset_depreciation_entries WHERE fixed_asset_id = $1
+             ) AS has_depr`,
+            [asset.id],
+          )
+          if (has_depr) {
+            throw new BusinessRuleError(
+              `Tidak dapat unpost: aset "${asset.asset_code}" sudah memiliki catatan penyusutan. ` +
+              `Batalkan penyusutan terlebih dahulu.`
+            )
+          }
+        }
+
+        // All assets passed guard — safe to revert
+        const assetJournalIds = [...new Set(
+          capitalizedAssets.map(a => a.journal_id).filter((jId): jId is string => jId != null)
+        )]
+
+        for (const asset of capitalizedAssets) {
+          await fixedAssetsRepository.revertCapitalization(
+            asset.id, companyId, { cost: asset.cost, updated_by: userId }, client,
+          )
+          await client.query(
+            `DELETE FROM asset_movements
+             WHERE fixed_asset_id = $1
+               AND movement_type = 'CAPITALIZE'
+               AND reference_id = $2
+               AND reference_type = 'purchase_invoice'`,
+            [asset.id, id],
+          )
+        }
+
+        if (assetJournalIds.length > 0) {
+          await journalHeadersRepository.bulkHardDelete(assetJournalIds, client)
+        }
       }
 
       const affectedProducts = await pricelistsService.revertPricelistOnPurchaseInvoiceUnpost({
@@ -1345,7 +1435,10 @@ export class PurchaseInvoicesService {
         updated_by: userId,
       })
 
-      await journalHeadersRepository.bulkHardDelete([journalId], client)
+      // Only delete journal if one was created during post (skip for pure-asset no-tax PIs)
+      if (journalId) {
+        await journalHeadersRepository.bulkHardDelete([journalId], client)
+      }
 
       const grIds = await purchaseInvoicesRepository.findGrIdsForInvoice(client, id)
       const draftDueDate = await this.computeDraftDueDate(
