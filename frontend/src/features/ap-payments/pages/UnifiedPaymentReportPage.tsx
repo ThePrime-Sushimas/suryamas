@@ -335,17 +335,28 @@ export default function UnifiedPaymentReportPage() {
     useMarketplaceSessions(marketplaceQuery, { enabled: enableMarketplace })
 
   // ── Merge + sort ──
+  // When a type-specific filter is active, exclude other types that can't filter on it
+  const hasSupplierFilter = !!filters.supplierId || !!filters.receivedDateFrom || !!filters.receivedDateTo || !!filters.dueDateFrom || !!filters.dueDateTo
+  const hasVendorFilter = !!filters.vendorId || !!filters.generalStatus
+
   const allRows: UnifiedRow[] = useMemo(() => {
     if (!hasApplied) return []
-    const apRows   = enableAp          ? (apData?.data ?? []).map((r, i) => fromCombinedRow(r, i)) : []
-    const genRows  = enableGeneral     ? (generalData?.data ?? []).map(fromGeneralPayment)         : []
-    const mktRows  = enableMarketplace
+    // If a purchase-specific filter is active, only show purchase rows
+    // If a general-specific filter is active, only show general rows
+    // Otherwise show all enabled types
+    const showAp   = enableAp && !hasVendorFilter
+    const showGen  = enableGeneral && !hasSupplierFilter
+    const showMkt  = enableMarketplace && !hasSupplierFilter && !hasVendorFilter
+
+    const apRows   = showAp  ? (apData?.data ?? []).map((r, i) => fromCombinedRow(r, i)) : []
+    const genRows  = showGen ? (generalData?.data ?? []).map(fromGeneralPayment)         : []
+    const mktRows  = showMkt
       ? (marketplaceData?.data ?? [])
           .filter((s) => s.status !== 'DRAFT' && s.status !== 'CANCELLED')
           .map(fromMarketplaceSession)
       : []
     return sortByDate([...apRows, ...genRows, ...mktRows])
-  }, [hasApplied, apData, generalData, marketplaceData, enableAp, enableGeneral, enableMarketplace])
+  }, [hasApplied, apData, generalData, marketplaceData, enableAp, enableGeneral, enableMarketplace, hasSupplierFilter, hasVendorFilter])
 
   // ── Client-side pagination ──
   const totalRows = allRows.length
