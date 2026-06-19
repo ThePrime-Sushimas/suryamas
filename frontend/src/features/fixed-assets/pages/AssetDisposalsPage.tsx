@@ -65,7 +65,7 @@ function CreateDisposalModal({ isOpen, onClose, onSuccess }: CreateDisposalModal
 
   // Fetch only ACTIVE/MAINTENANCE assets for selection
   const { data: assetsData, isLoading: assetsLoading } = useAssets({
-    limit: 200,
+    limit: 100,
     status: '' as never, // we'll filter client-side
   })
 
@@ -495,19 +495,94 @@ export default function AssetDisposalsPage() {
         title="Posting Disposisi"
         message={
           postTarget ? (
-            <div className="space-y-2">
-              <p>Anda akan memposting disposisi untuk aset <strong>{postTarget.asset_name ?? postTarget.fixed_asset_id}</strong>.</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Jurnal akan dibuat secara otomatis dan status aset akan berubah menjadi DISPOSED.
-              </p>
-              {postTarget.gain_loss_amount !== 0 && (
-                <p className="text-sm font-medium">
-                  {postTarget.gain_loss_amount > 0
-                    ? `Gain: ${fmtCurrency(postTarget.gain_loss_amount)}`
-                    : `Loss: ${fmtCurrency(Math.abs(postTarget.gain_loss_amount))}`
-                  }
+            <div className="space-y-3">
+              <p>Anda akan memposting disposisi untuk aset <strong>{postTarget.asset_name ?? postTarget.asset_code ?? postTarget.fixed_asset_id}</strong>.</p>
+
+              {/* Ringkasan Keuangan */}
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Nilai Buku</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(postTarget.book_value_at_disposal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Hasil Penjualan</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(postTarget.proceeds_amount)}</span>
+                </div>
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-1.5 flex justify-between">
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">
+                    {postTarget.gain_loss_amount >= 0 ? 'Laba' : 'Rugi'}
+                  </span>
+                  <span className={`font-bold ${postTarget.gain_loss_amount >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                    {fmtCurrency(Math.abs(postTarget.gain_loss_amount))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Journal Preview ─ menunjukkan COA yang akan di-debit / credit */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                  Jurnal yang akan dibuat
                 </p>
-              )}
+                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3 space-y-2 text-xs">
+                  {/* Akum. Penyusutan (DEBIT) — hanya jika > 0 */}
+                  <div className="flex justify-between items-center gap-2">
+                    <div className="flex-1">
+                      <p className="font-mono text-gray-700 dark:text-gray-300">120203 · Akum. Penyusutan - Peralatan</p>
+                      <p className="text-gray-400 dark:text-gray-500">Menghapus akum. penyusutan aset</p>
+                    </div>
+                    <span className="shrink-0 text-blue-700 dark:text-blue-400 font-semibold">Debit</span>
+                  </div>
+
+                  {/* Hasil Penjualan (DEBIT) — hanya jika proceeds > 0 */}
+                  {postTarget.proceeds_amount > 0 && (
+                    <div className="flex justify-between items-center gap-2">
+                      <div className="flex-1">
+                        <p className="font-mono text-gray-700 dark:text-gray-300">110201 · Bank BCA PT Surya Mas Pratama</p>
+                        <p className="text-gray-400 dark:text-gray-500">Penerimaan hasil penjualan aset</p>
+                      </div>
+                      <span className="shrink-0 text-blue-700 dark:text-blue-400 font-semibold">Debit</span>
+                    </div>
+                  )}
+
+                  {/* Rugi Pelepasan (DEBIT) — hanya jika rugi */}
+                  {postTarget.gain_loss_amount < 0 && (
+                    <div className="flex justify-between items-center gap-2">
+                      <div className="flex-1">
+                        <p className="font-mono text-gray-700 dark:text-gray-300">710101 · Rugi Pelepasan Aset</p>
+                        <p className="text-gray-400 dark:text-gray-500">Mencatat rugi pelepasan aset ({fmtCurrency(Math.abs(postTarget.gain_loss_amount))})</p>
+                      </div>
+                      <span className="shrink-0 text-blue-700 dark:text-blue-400 font-semibold">Debit</span>
+                    </div>
+                  )}
+
+                  {/* Aset Tetap (CREDIT) — selalu ada */}
+                  <div className="flex justify-between items-center gap-2">
+                    <div className="flex-1">
+                      <p className="font-mono text-gray-700 dark:text-gray-300">120103 · Peralatan</p>
+                      <p className="text-gray-400 dark:text-gray-500">Menghapus harga perolehan aset</p>
+                    </div>
+                    <span className="shrink-0 text-amber-700 dark:text-amber-400 font-semibold">Credit</span>
+                  </div>
+
+                  {/* Laba Pelepasan (CREDIT) — hanya jika untung */}
+                  {postTarget.gain_loss_amount > 0 && (
+                    <div className="flex justify-between items-center gap-2">
+                      <div className="flex-1">
+                        <p className="font-mono text-gray-700 dark:text-gray-300">710101 · Laba Pelepasan Aset</p>
+                        <p className="text-gray-400 dark:text-gray-500">Mencatat laba pelepasan aset ({fmtCurrency(postTarget.gain_loss_amount)})</p>
+                      </div>
+                      <span className="shrink-0 text-amber-700 dark:text-amber-400 font-semibold">Credit</span>
+                    </div>
+                  )}
+                </div>
+                <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500 italic">
+                  COA berdasarkan kategori aset dan konfigurasi perusahaan.
+                </p>
+              </div>
+
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Jurnal akan diposting otomatis (create → submit → approve → post) dan status aset akan berubah menjadi <strong>DISPOSED</strong>.
+              </p>
             </div>
           ) : ''
         }

@@ -1050,35 +1050,35 @@ export async function findDisposals(
   client?: PoolClient,
 ): Promise<{ data: AssetDisposal[]; total: number }> {
   const db = client ?? pool
-  const conditions = ['company_id = $1']
+  const conditions = ['ad.company_id = $1']
   const params: unknown[] = [companyId]
   let idx = 2
 
   if (filter?.fixed_asset_id) {
     params.push(filter.fixed_asset_id)
-    conditions.push(`fixed_asset_id = $${idx++}`)
+    conditions.push(`ad.fixed_asset_id = $${idx++}`)
   }
   if (filter?.status) {
     const trimmed = filter.status.trim()
     if (trimmed.includes(',')) {
       params.push(trimmed.split(',').map((s) => s.trim()))
-      conditions.push(`status = ANY($${idx++}::text[])`)
+      conditions.push(`ad.status = ANY($${idx++}::text[])`)
     } else {
       params.push(trimmed)
-      conditions.push(`status = $${idx++}`)
+      conditions.push(`ad.status = $${idx++}`)
     }
   }
   if (filter?.disposal_method) {
     params.push(filter.disposal_method)
-    conditions.push(`disposal_method = $${idx++}`)
+    conditions.push(`ad.disposal_method = $${idx++}`)
   }
   if (filter?.date_from) {
     params.push(filter.date_from)
-    conditions.push(`disposal_date >= $${idx++}`)
+    conditions.push(`ad.disposal_date >= $${idx++}`)
   }
   if (filter?.date_to) {
     params.push(filter.date_to)
-    conditions.push(`disposal_date <= $${idx++}`)
+    conditions.push(`ad.disposal_date <= $${idx++}`)
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`
@@ -1088,13 +1088,18 @@ export async function findDisposals(
 
   const [dataRes, countRes] = await Promise.all([
     db.query<AssetDisposal>(
-      `SELECT * FROM asset_disposals ${where}
-       ORDER BY disposal_date DESC, created_at DESC
+      `SELECT ad.*,
+              fa.asset_code,
+              fa.asset_name
+       FROM asset_disposals ad
+       JOIN fixed_assets fa ON fa.id = ad.fixed_asset_id AND fa.deleted_at IS NULL
+       ${where}
+       ORDER BY ad.disposal_date DESC, ad.created_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params,
     ),
     db.query<{ total: number }>(
-      `SELECT COUNT(*)::int AS total FROM asset_disposals ${where}`,
+      `SELECT COUNT(*)::int AS total FROM asset_disposals ad ${where}`,
       params.slice(0, idx - 1),
     ),
   ])
