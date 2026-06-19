@@ -131,6 +131,16 @@ export default function FixedAssetDetailPage() {
   const createMaintenanceMutation = useCreateMaintenance()
   const createDisposalMutation = useCreateDisposal()
 
+  // Fetch branches for resolving branch names in movement timeline (before early returns to respect Rules of Hooks)
+  const { data: branchesData } = useCompanyBranches(asset?.company_id)
+  const branchMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const branch of branchesData ?? []) {
+      map.set(branch.id, branch.branch_name)
+    }
+    return map
+  }, [branchesData])
+
   const [showActivateConfirm, setShowActivateConfirm] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
@@ -303,7 +313,7 @@ export default function FixedAssetDetailPage() {
                 ) : sortedMovements.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-8">Belum ada riwayat pergerakan</p>
                 ) : (
-                  <AssetMovementTimeline movements={sortedMovements} />
+                  <AssetMovementTimeline movements={sortedMovements} branchMap={branchMap} />
                 )}
               </div>
             </div>
@@ -363,6 +373,7 @@ export default function FixedAssetDetailPage() {
 
       <TransferAssetModal
         asset={asset}
+        branches={branchesData ?? []}
         open={transferOpen}
         onClose={() => setTransferOpen(false)}
         isSaving={createTransferMutation.isPending}
@@ -565,19 +576,20 @@ function EditAssetModal({
 
 function TransferAssetModal({
   asset,
+  branches: allBranches,
   open,
   onClose,
   onSubmit,
   isSaving,
 }: {
   asset: FixedAsset
+  branches: BranchOption[]
   open: boolean
   onClose: () => void
   onSubmit: (body: CreateTransferDto) => Promise<void>
   isSaving: boolean
 }) {
-  const { data } = useCompanyBranches(asset.company_id)
-  const branches = (data ?? []).filter((branch) => branch.id !== asset.branch_id)
+  const branches = allBranches.filter((branch) => branch.id !== asset.branch_id)
   const [destinationBranchId, setDestinationBranchId] = useState('')
   const [transferDate, setTransferDate] = useState(today())
   const [reason, setReason] = useState('')
@@ -964,7 +976,16 @@ function InfoRow({
   )
 }
 
-function AssetMovementTimeline({ movements }: { movements: AssetMovement[] }) {
+function AssetMovementTimeline({ movements, branchMap }: { movements: AssetMovement[]; branchMap: Map<string, string> }) {
+  const resolveValue = (val: string | null | undefined, movementType: MovementType): string => {
+    if (!val) return ''
+    // Only TRANSFER movements store branch UUIDs in from_value/to_value
+    if (movementType === 'TRANSFER') {
+      return branchMap.get(val) ?? val
+    }
+    return val
+  }
+
   return (
     <div className="relative">
       {/* Timeline line */}
@@ -978,6 +999,8 @@ function AssetMovementTimeline({ movements }: { movements: AssetMovement[] }) {
             icon: FileText,
           }
           const Icon = config.icon
+          const fromLabel = resolveValue(movement.from_value, movement.movement_type)
+          const toLabel = resolveValue(movement.to_value, movement.movement_type)
 
           return (
             <div key={movement.id} className="relative flex items-start gap-3 pl-1">
@@ -997,14 +1020,14 @@ function AssetMovementTimeline({ movements }: { movements: AssetMovement[] }) {
                   </span>
                 </div>
 
-                {(movement.from_value || movement.to_value) && (
+                {(fromLabel || toLabel) && (
                   <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                    {movement.from_value && movement.to_value ? (
-                      <span>{movement.from_value} → {movement.to_value}</span>
-                    ) : movement.to_value ? (
-                      <span>{movement.to_value}</span>
+                    {fromLabel && toLabel ? (
+                      <span>{fromLabel} → {toLabel}</span>
+                    ) : toLabel ? (
+                      <span>{toLabel}</span>
                     ) : (
-                      <span>{movement.from_value}</span>
+                      <span>{fromLabel}</span>
                     )}
                   </div>
                 )}
