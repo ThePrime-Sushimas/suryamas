@@ -12,6 +12,7 @@ const HEADER_SELECT = `
   b.branch_name, b.branch_code,
   s.supplier_name, s.supplier_code, s.invoice_bypass_reason,
   pr.request_number,
+  pr.notes AS pr_notes,
   app_emp.full_name AS approved_by_name,
   pt.term_name AS payment_term_name,
   COALESCE(lines_agg.line_count, 0)::int AS line_count,

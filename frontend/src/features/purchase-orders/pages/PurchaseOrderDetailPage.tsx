@@ -420,9 +420,15 @@ export default function PurchaseOrderDetailPage() {
               <span className="text-gray-500 dark:text-gray-400">Total</span>
               <p className="font-bold text-gray-900 dark:text-white">Rp {fmt(displayTotal)}</p>
             </div>
+            {po.pr_notes && (
+              <div className="col-span-2 sm:col-span-3 lg:col-span-5">
+                <span className="text-gray-500 dark:text-gray-400">Catatan PR</span>
+                <p className="font-medium text-gray-900 dark:text-white">{po.pr_notes}</p>
+              </div>
+            )}
             {po.notes && (
               <div className="col-span-2 sm:col-span-3 lg:col-span-5">
-                <span className="text-gray-500 dark:text-gray-400">Catatan</span>
+                <span className="text-gray-500 dark:text-gray-400">Catatan PO</span>
                 <p className="font-medium text-gray-900 dark:text-white">{po.notes}</p>
               </div>
             )}

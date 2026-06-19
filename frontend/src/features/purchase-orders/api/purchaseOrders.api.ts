@@ -64,6 +64,7 @@ export interface PurchaseOrder {
   payment_term_name: string | null
   payment_due_info: PoPaymentDueInfo | null
   notes: string | null
+  pr_notes: string | null
   approved_by_name: string | null
   approved_at: string | null
   cancelled_reason: string | null

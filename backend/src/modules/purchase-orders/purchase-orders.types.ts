@@ -40,6 +40,7 @@ export interface PurchaseOrderWithRelations extends PurchaseOrder {
   supplier_code: string
   invoice_bypass_reason: 'marketplace' | 'cash' | 'informal' | null
   request_number: string
+  pr_notes: string | null
   approved_by_name: string | null
   line_count: number
   // Computed overdue fields

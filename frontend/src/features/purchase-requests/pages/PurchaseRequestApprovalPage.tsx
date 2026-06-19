@@ -221,6 +221,11 @@ export default function PurchaseRequestApprovalPage() {
           <span className="font-medium">Warehouse:</span> {approvalData.warehouse_name}
           {pr.needed_by_date && <span className="ml-3 sm:ml-4"><span className="font-medium">Dibutuhkan:</span> {new Date(pr.needed_by_date as string).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
         </p>
+        {pr.notes ? (
+          <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-700 dark:text-blue-300">
+            <strong>Catatan PR:</strong> {String(pr.notes)}
+          </div>
+        ) : null}
         {pr.rejected_reason ? (
           <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
             <strong>Alasan Penolakan:</strong> {String(pr.rejected_reason)}
