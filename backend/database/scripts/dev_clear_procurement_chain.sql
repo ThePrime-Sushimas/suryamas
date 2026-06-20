@@ -19,7 +19,8 @@
 --                 expense_auto_rules, notification_rules,
 --                 payment_method_groups, payment_method_group_mappings,
 --                 payment_method_alerts, supplier_products,
---                 asset_categories
+--                 asset_categories,
+--                 general_invoice_templates, general_invoice_template_lines
 --   HR          : employee_branches, employee_positions
 --                 (diperlukan agar login & branch guard tetap berfungsi)
 --   POS Source  : pos_imports, pos_import_lines,
@@ -175,13 +176,15 @@ DELETE FROM purchase_requests;
 
 -- ============================================================
 -- 12. GENERAL INVOICES & AMORTIZATIONS
+--     NOTE: general_invoice_templates dan general_invoice_template_lines
+--     adalah MASTER DATA dan TIDAK dihapus.
 -- ============================================================
 DELETE FROM general_invoice_amortization_entries;
 DELETE FROM general_invoice_amortizations;
 DELETE FROM general_invoice_lines;
 DELETE FROM general_invoice_payments;
-DELETE FROM general_invoice_templates;
 DELETE FROM general_invoices;
+-- general_invoice_templates dan general_invoice_template_lines dipertahankan
 
 -- ============================================================
 -- 13. STOCK: MOVEMENTS, BALANCES, TRANSFERS, ADJUSTMENTS
@@ -292,7 +295,8 @@ SELECT tbl, remaining FROM (
   UNION ALL SELECT 'cash_deposits',            COUNT(*)::int FROM cash_deposits
   UNION ALL SELECT 'pricelist_price_changes',  COUNT(*)::int FROM pricelist_price_changes
   UNION ALL SELECT 'fixed_assets',             COUNT(*)::int FROM fixed_assets
-  -- Source of truth — harus TETAP ada isinya
+  -- Master data — harus TETAP ada isinya
+  UNION ALL SELECT '⚑ general_invoice_templates (kept)', COUNT(*)::int FROM general_invoice_templates
   UNION ALL SELECT '⚑ pos_imports (kept)',       COUNT(*)::int FROM pos_imports
   UNION ALL SELECT '⚑ pos_sync_aggregates (kept)', COUNT(*)::int FROM pos_sync_aggregates
   UNION ALL SELECT '⚑ aggregated_transactions (kept)', COUNT(*)::int FROM aggregated_transactions
