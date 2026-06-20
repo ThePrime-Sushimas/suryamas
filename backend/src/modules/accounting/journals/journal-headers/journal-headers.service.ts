@@ -446,6 +446,21 @@ export class JournalHeadersService {
       // Rollback accumulated_depreciation, delete movements, entries, run, and sibling journals
       const { reverseDepreciationRunFromJournal } = await import('../../../fixed-assets/depreciation.service')
       await reverseDepreciationRunFromJournal(journal.reference_id, companyId, id, userId)
+    } else if (
+      journal.reference_type === 'asset_opening_balance' &&
+      journal.source_module === 'fixed_assets' &&
+      journal.reference_id
+    ) {
+      // Opening balance asset hard-delete cascade:
+      // The asset was created solely by this journal — remove asset + movements
+      const { hardDeleteAssetByJournalId } = await import('../../../fixed-assets/fixed-assets.repository')
+      const deletedAssetId = await hardDeleteAssetByJournalId(id)
+      if (deletedAssetId) {
+        await AuditService.log('FORCE_DELETE', 'fixed_asset', deletedAssetId, userId, {
+          reason: 'Cascade from opening balance journal force delete',
+          journal_id: id,
+        })
+      }
     }
 
     await journalHeadersRepository.clearReversalReferences(id)

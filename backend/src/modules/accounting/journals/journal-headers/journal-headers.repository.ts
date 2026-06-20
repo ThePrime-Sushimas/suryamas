@@ -246,6 +246,7 @@ export class JournalHeadersRepository {
       pool.query("UPDATE general_invoice_payments SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
       pool.query("UPDATE general_invoice_payments SET cc_settlement_id = NULL WHERE cc_settlement_id IN (SELECT id FROM marketplace_settlements WHERE journal_id = $1)", [journalId]),
       pool.query("DELETE FROM marketplace_settlements WHERE journal_id = $1", [journalId]),
+      pool.query("UPDATE fixed_assets SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
     ])
   }
 

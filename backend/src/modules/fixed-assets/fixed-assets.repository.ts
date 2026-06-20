@@ -1743,3 +1743,47 @@ export async function createAssetWithAccumDepr(
   )
   return rows[0]
 }
+
+// ─── Hard Delete (for journal force-delete cascade) ──────────────────────────
+
+/**
+ * Hard-deletes a fixed asset and its associated movements/photos.
+ * Used when the opening balance journal is force-deleted — the asset
+ * has no accounting backing and must be removed entirely.
+ *
+ * Self-contained transaction: follows the same pattern as
+ * `reverseDepreciationRunFromJournal` — each cascade operation is
+ * independently atomic even though the outer `forceDelete` is not.
+ */
+export async function hardDeleteAssetByJournalId(journalId: string): Promise<string | null> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    const { rows } = await client.query<{ id: string }>(
+      `SELECT id FROM fixed_assets WHERE journal_id = $1 AND deleted_at IS NULL FOR UPDATE`,
+      [journalId],
+    )
+    if (rows.length === 0) {
+      await client.query('ROLLBACK')
+      return null
+    }
+
+    const assetId = rows[0].id
+
+    // Delete movements first (FK dependency)
+    await client.query(`DELETE FROM asset_movements WHERE fixed_asset_id = $1`, [assetId])
+    // Delete photos if any
+    await client.query(`DELETE FROM asset_photos WHERE fixed_asset_id = $1`, [assetId])
+    // Delete the asset itself
+    await client.query(`DELETE FROM fixed_assets WHERE id = $1`, [assetId])
+
+    await client.query('COMMIT')
+    return assetId
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
+  }
+}
