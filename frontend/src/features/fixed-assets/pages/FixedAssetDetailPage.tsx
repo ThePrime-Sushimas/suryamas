@@ -279,6 +279,12 @@ export default function FixedAssetDetailPage() {
                 />
                 <InfoRow icon={Building} label="Branch" value={asset.branch_name || '—'} />
                 <InfoRow icon={Package} label="Kategori" value={asset.category_name || '—'} />
+                {asset.tracking_method === 'POOLED' && (
+                  <InfoRow icon={Package} label="Stok" value={`${asset.quantity} ${asset.uom}`} />
+                )}
+                {asset.tracking_method === 'POOLED' && (
+                  <InfoRow icon={Package} label="Tracking" value="Pooled (gabungan)" />
+                )}
                 <InfoRow icon={Hash} label="Serial Number" value={asset.serial_number || '—'} />
                 <InfoRow icon={MapPin} label="Lokasi" value={asset.location_note || '—'} />
                 <InfoRow
@@ -779,9 +785,11 @@ function DisposeAssetModal({
   onSubmit: (body: CreateDisposalDto) => Promise<void>
   isSaving: boolean
 }) {
+  const isPooled = asset.tracking_method === 'POOLED'
   const [disposalDate, setDisposalDate] = useState(today())
   const [method, setMethod] = useState<DisposalMethod>('SOLD')
   const [proceedsAmount, setProceedsAmount] = useState('')
+  const [quantityDisposed, setQuantityDisposed] = useState('')
   const [notes, setNotes] = useState('')
 
   useEffect(() => {
@@ -789,33 +797,73 @@ function DisposeAssetModal({
     setDisposalDate(today())
     setMethod('SOLD')
     setProceedsAmount('')
+    setQuantityDisposed(isPooled ? String(asset.quantity) : '')
     setNotes('')
-  }, [open])
+  }, [open, asset, isPooled])
 
   const preview = useMemo(() => {
     const proceeds = Number(proceedsAmount) || 0
-    const bookValue = asset.cost - asset.accumulated_depreciation
+    const totalBookValue = asset.cost - asset.accumulated_depreciation
+    let bookValue: number
+
+    if (isPooled && quantityDisposed) {
+      const qty = Number(quantityDisposed) || asset.quantity
+      bookValue = Math.round((qty / asset.quantity) * totalBookValue * 100) / 100
+    } else {
+      bookValue = totalBookValue
+    }
+
     return { proceeds, bookValue, gainLoss: proceeds - bookValue }
-  }, [asset, proceedsAmount])
+  }, [asset, proceedsAmount, quantityDisposed, isPooled])
 
   if (!open) return null
 
   const handleSubmit = () => {
-    onSubmit({
+    const body: CreateDisposalDto = {
       fixed_asset_id: asset.id,
       disposal_date: disposalDate,
       disposal_method: method,
       proceeds_amount: Number(proceedsAmount) || 0,
       notes: notes.trim() || undefined,
-    })
+    }
+    if (isPooled && quantityDisposed) {
+      body.quantity_disposed = Number(quantityDisposed)
+    }
+    onSubmit(body)
   }
+
+  const qtyValid = !isPooled || (Number(quantityDisposed) > 0 && Number(quantityDisposed) <= asset.quantity)
 
   return (
     <ModalShell title="Dispose Aset" onClose={onClose}>
       <div className="p-6 space-y-4">
         <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/40 p-3 text-sm text-red-800 dark:text-red-300">
-          Draft disposisi akan dibuat untuk {asset.asset_code} - {asset.asset_name}. Posting jurnal dilakukan dari halaman Disposisi Aset.
+          {isPooled ? (
+            <>Draft disposisi parsial untuk pool {asset.asset_code} - {asset.asset_name}. Stok saat ini: <strong>{asset.quantity} {asset.uom}</strong>.</>
+          ) : (
+            <>Draft disposisi akan dibuat untuk {asset.asset_code} - {asset.asset_name}. Posting jurnal dilakukan dari halaman Disposisi Aset.</>
+          )}
         </div>
+
+        {isPooled && (
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Jumlah yang di-dispose ({asset.uom}) *</label>
+            <input
+              type="number"
+              min={1}
+              max={asset.quantity}
+              value={quantityDisposed}
+              onChange={(e) => setQuantityDisposed(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+            {Number(quantityDisposed) > 0 && Number(quantityDisposed) < asset.quantity && (
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Sisa setelah disposal: {asset.quantity - Number(quantityDisposed)} {asset.uom}
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Tanggal *</label>
@@ -852,7 +900,7 @@ function DisposeAssetModal({
         </div>
         <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4 text-sm">
           <div className="flex justify-between gap-4">
-            <span className="text-gray-600 dark:text-gray-400">Nilai buku</span>
+            <span className="text-gray-600 dark:text-gray-400">Nilai buku{isPooled ? ` (${quantityDisposed || 0} ${asset.uom})` : ''}</span>
             <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(preview.bookValue)}</span>
           </div>
           <div className="flex justify-between gap-4 mt-1">
@@ -875,7 +923,7 @@ function DisposeAssetModal({
       <ModalActions
         onClose={onClose}
         onSubmit={handleSubmit}
-        disabled={!disposalDate || isSaving}
+        disabled={!disposalDate || !qtyValid || isSaving}
         isSaving={isSaving}
         submitLabel="Buat Draft"
         danger

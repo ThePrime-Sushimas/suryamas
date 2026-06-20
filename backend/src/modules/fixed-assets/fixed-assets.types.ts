@@ -19,6 +19,8 @@ export type MaintenanceStatus = 'IN_PROGRESS' | 'COMPLETED' | 'POSTED'
 
 export type DepreciationRunStatus = 'PREVIEW' | 'POSTED' | 'REVERSED'
 
+export type TrackingMethod = 'INDIVIDUAL' | 'POOLED'
+
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
 export interface AssetCategory {
@@ -30,6 +32,7 @@ export interface AssetCategory {
   depreciation_expense_coa_id: string
   accumulated_depreciation_coa_id: string
   default_useful_life_months: number
+  tracking_method: TrackingMethod
   is_active: boolean
   is_deleted: boolean
   deleted_at: string | null
@@ -63,6 +66,8 @@ export interface FixedAsset {
   depreciation_method: DepreciationMethod
   accumulated_depreciation: number
   book_value: number
+  quantity: number
+  uom: string
   gr_line_id: string | null
   purchase_invoice_id: string | null
   journal_id: string | null
@@ -81,6 +86,7 @@ export interface FixedAsset {
   branch_name?: string
   category_name?: string
   category_code?: string
+  tracking_method?: TrackingMethod
   thumbnail_path?: string | null
   thumbnail_url?: string | null
 }
@@ -140,6 +146,7 @@ export interface AssetDisposal {
   proceeds_amount: number
   book_value_at_disposal: number
   gain_loss_amount: number
+  quantity_disposed: number | null
   status: 'DRAFT' | 'POSTED'
   journal_id: string | null
   notes: string | null
@@ -201,6 +208,8 @@ export interface CreateAssetFromGrDto {
   asset_category_id: string
   acquisition_date: string
   cost: number
+  quantity: number
+  uom: string
   useful_life_months?: number
   gr_line_id: string
   asset_name: string
@@ -226,6 +235,7 @@ export interface CreateDisposalDto {
   disposal_date: string
   disposal_method: DisposalMethod
   proceeds_amount: number
+  quantity_disposed?: number | null
   notes?: string | null
 }
 

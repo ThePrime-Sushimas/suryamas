@@ -712,7 +712,8 @@ export async function completeMaintenance(
 /**
  * Create a disposal draft:
  * - Validate asset status is ACTIVE or MAINTENANCE
- * - Calculate book_value = cost - accumulated_depreciation
+ * - For INDIVIDUAL: book_value = cost - accumulated_depreciation (full disposal)
+ * - For POOLED: book_value = (quantity_disposed / quantity) * current_book_value (partial disposal)
  * - Calculate gain_loss = proceeds - book_value
  * - Create disposal record (status DRAFT)
  */
@@ -729,8 +730,26 @@ export async function createDisposal(
     throw new DisposalInvalidStatusError(asset.asset_code, asset.status)
   }
 
-  // Calculate book value and gain/loss
-  const bookValue = asset.cost - asset.accumulated_depreciation
+  const category = await repository.findCategoryById(asset.asset_category_id, companyId)
+  const isPooled = category?.tracking_method === 'POOLED'
+
+  let bookValue: number
+  let quantityDisposed: number | null = null
+
+  if (isPooled) {
+    // Partial disposal for pooled assets
+    quantityDisposed = dto.quantity_disposed ?? asset.quantity // default: dispose all
+    if (quantityDisposed > asset.quantity) {
+      throw new Error(`Jumlah disposal (${quantityDisposed}) melebihi stok tersedia (${asset.quantity})`)
+    }
+    // Pro-rate book value based on quantity
+    const totalBookValue = asset.cost - asset.accumulated_depreciation
+    bookValue = Math.round((quantityDisposed / asset.quantity) * totalBookValue * 10000) / 10000
+  } else {
+    // Full disposal for individual assets
+    bookValue = asset.cost - asset.accumulated_depreciation
+  }
+
   const gainLoss = dto.proceeds_amount - bookValue
 
   // Create disposal record (DRAFT)
@@ -742,6 +761,7 @@ export async function createDisposal(
     proceeds_amount: dto.proceeds_amount,
     book_value_at_disposal: bookValue,
     gain_loss_amount: gainLoss,
+    quantity_disposed: quantityDisposed,
     notes: dto.notes ?? null,
     created_by: userId,
   })
@@ -753,6 +773,8 @@ export async function createDisposal(
     asset_id: asset.id,
     book_value: bookValue,
     gain_loss: gainLoss,
+    quantity_disposed: quantityDisposed,
+    is_pooled: isPooled,
     user_id: userId,
   })
 
@@ -763,12 +785,15 @@ export async function createDisposal(
 
 /**
  * Post disposal journal:
- *   Dr Accumulated Depreciation (full amount)
+ *   Dr Accumulated Depreciation (proportional for pooled, full for individual)
  *   Dr Cash/Receivable (proceeds, if > 0)
  *   Dr Loss on Disposal 770201 (if loss)
- *   Cr Asset Cost COA (original cost)
+ *   Cr Asset Cost COA (book value disposed)
  *   Cr Gain on Disposal 770101 (if gain)
- * Set asset status to DISPOSED.
+ *
+ * For INDIVIDUAL: set asset status to DISPOSED.
+ * For POOLED partial: reduce quantity and cost, keep asset ACTIVE.
+ * For POOLED full (qty_disposed == total qty): set asset status to DISPOSED.
  * Record DISPOSAL movement.
  */
 export async function postDisposal(
@@ -788,6 +813,9 @@ export async function postDisposal(
   const category = await repository.findCategoryById(asset.asset_category_id, companyId)
   if (!category) throw new AssetCategoryNotFoundError(asset.asset_category_id)
 
+  const isPooled = category.tracking_method === 'POOLED'
+  const isPartialDisposal = isPooled && disposal.quantity_disposed !== null && disposal.quantity_disposed < asset.quantity
+
   const cashCoaId = await resolveCoaId(companyId, CASH_RECEIVABLE_COA_CODE)
   const gainCoaId = await resolveCoaId(companyId, GAIN_ON_DISPOSAL_COA_CODE)
   const lossCoaId = await resolveCoaId(companyId, LOSS_ON_DISPOSAL_COA_CODE)
@@ -795,15 +823,23 @@ export async function postDisposal(
   const gainLoss = disposal.gain_loss_amount
   const priorAssetStatus = asset.status
 
+  // For partial pooled disposal, calculate the proportional accumulated depreciation
+  const disposedAccumDepr = isPartialDisposal
+    ? Math.round((disposal.quantity_disposed! / asset.quantity) * asset.accumulated_depreciation * 10000) / 10000
+    : asset.accumulated_depreciation
+
+  // The cost credit is book_value_at_disposal + proportional accum depr (to remove the full original cost portion)
+  const costCredited = disposal.book_value_at_disposal + disposedAccumDepr
+
   const lines: CreateJournalLineDto[] = []
   let lineNum = 1
 
-  if (asset.accumulated_depreciation > 0) {
+  if (disposedAccumDepr > 0) {
     lines.push({
       line_number: lineNum++,
       account_id: category.accumulated_depreciation_coa_id,
-      description: `Akumulasi Penyusutan - ${asset.asset_code}`,
-      debit_amount: asset.accumulated_depreciation,
+      description: `Akumulasi Penyusutan - ${asset.asset_code}${isPartialDisposal ? ` (${disposal.quantity_disposed} ${asset.uom})` : ''}`,
+      debit_amount: disposedAccumDepr,
       credit_amount: 0,
     })
   }
@@ -831,9 +867,9 @@ export async function postDisposal(
   lines.push({
     line_number: lineNum++,
     account_id: category.asset_coa_id,
-    description: `Pelepasan Aset - ${asset.asset_code}`,
+    description: `Pelepasan Aset - ${asset.asset_code}${isPartialDisposal ? ` (${disposal.quantity_disposed} ${asset.uom})` : ''}`,
     debit_amount: 0,
-    credit_amount: asset.cost,
+    credit_amount: costCredited,
   })
 
   if (gainLoss > 0) {
@@ -854,7 +890,7 @@ export async function postDisposal(
       source_module: 'fixed_assets',
       reference_type: 'asset_disposal',
       reference_id: disposal.id,
-      description: `Pelepasan Aset ${asset.asset_code} - ${asset.asset_name}`,
+      description: `Pelepasan Aset ${asset.asset_code} - ${asset.asset_name}${isPartialDisposal ? ` (${disposal.quantity_disposed} ${asset.uom})` : ''}`,
       lines,
     },
     userId,
@@ -872,7 +908,22 @@ export async function postDisposal(
     )
     if (!posted) throw new DisposalNotFoundError(disposalId)
 
-    await repository.updateStatus(asset.id, 'DISPOSED', userId, client)
+    if (isPartialDisposal) {
+      // Partial disposal: reduce quantity, cost, and accumulated_depreciation proportionally
+      await repository.applyPartialDisposal(
+        asset.id,
+        {
+          quantity_disposed: disposal.quantity_disposed!,
+          cost_reduction: costCredited,
+          accum_depr_reduction: disposedAccumDepr,
+          updated_by: userId,
+        },
+        client,
+      )
+    } else {
+      // Full disposal: set asset status to DISPOSED
+      await repository.updateStatus(asset.id, 'DISPOSED', userId, client)
+    }
 
     await repository.createMovement(
       {
@@ -880,11 +931,11 @@ export async function postDisposal(
         fixed_asset_id: asset.id,
         movement_type: 'DISPOSAL',
         movement_date: disposal.disposal_date,
-        from_value: priorAssetStatus,
-        to_value: 'DISPOSED',
+        from_value: isPartialDisposal ? `qty:${asset.quantity}` : priorAssetStatus,
+        to_value: isPartialDisposal ? `qty:${asset.quantity - disposal.quantity_disposed!}` : 'DISPOSED',
         reference_id: disposalId,
         reference_type: 'asset_disposal',
-        notes: `${disposal.disposal_method} - Proceeds: ${disposal.proceeds_amount}`,
+        notes: `${disposal.disposal_method}${isPartialDisposal ? ` - ${disposal.quantity_disposed} ${asset.uom}` : ''} - Proceeds: ${disposal.proceeds_amount}`,
         created_by: userId,
       },
       client,
@@ -906,6 +957,8 @@ export async function postDisposal(
       asset_id: asset.id,
       journal_id: journalId,
       gain_loss: gainLoss,
+      is_partial: isPartialDisposal,
+      quantity_disposed: disposal.quantity_disposed,
       user_id: userId,
     })
   } catch (e) {

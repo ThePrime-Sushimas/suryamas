@@ -20,6 +20,7 @@ export const createAssetCategorySchema = z.object({
     depreciation_expense_coa_id: z.string().uuid(),
     accumulated_depreciation_coa_id: z.string().uuid(),
     default_useful_life_months: z.coerce.number().int().min(1).default(60),
+    tracking_method: z.enum(['INDIVIDUAL', 'POOLED']).optional().default('INDIVIDUAL'),
     is_active: z.boolean().optional().default(true),
   }),
 })
@@ -35,6 +36,7 @@ export const updateAssetCategorySchema = z.object({
     depreciation_expense_coa_id: z.string().uuid().optional(),
     accumulated_depreciation_coa_id: z.string().uuid().optional(),
     default_useful_life_months: z.coerce.number().int().min(1).optional(),
+    tracking_method: z.enum(['INDIVIDUAL', 'POOLED']).optional(),
     is_active: z.boolean().optional(),
   }),
 })
@@ -153,6 +155,7 @@ export const createDisposalSchema = z.object({
     disposal_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     disposal_method: z.enum(['SOLD', 'SCRAPPED', 'DONATED']),
     proceeds_amount: z.coerce.number().min(0),
+    quantity_disposed: z.coerce.number().int().min(1).nullable().optional(),
     notes: z.string().max(500).nullable().optional(),
   }),
 })

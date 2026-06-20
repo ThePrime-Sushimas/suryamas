@@ -87,6 +87,7 @@ export async function createCategory(
     depreciation_expense_coa_id: string
     accumulated_depreciation_coa_id: string
     default_useful_life_months: number
+    tracking_method?: string
   },
   companyId: string,
   userId: string,
@@ -104,6 +105,7 @@ export async function createCategory(
       depreciation_expense_coa_id: data.depreciation_expense_coa_id,
       accumulated_depreciation_coa_id: data.accumulated_depreciation_coa_id,
       default_useful_life_months: data.default_useful_life_months,
+      tracking_method: data.tracking_method,
       created_by: userId,
     })
     await AuditService.log('CREATE', 'asset_category', category.id, userId, undefined, category)
@@ -122,6 +124,7 @@ export async function updateCategory(
     depreciation_expense_coa_id?: string
     accumulated_depreciation_coa_id?: string
     default_useful_life_months?: number
+    tracking_method?: string
     is_active?: boolean
   },
   companyId: string,
@@ -181,6 +184,57 @@ export async function createFromGr(
   const category = await repository.findCategoryById(dto.asset_category_id, dto.company_id, client)
   if (!category) throw new AssetCategoryNotFoundError(dto.asset_category_id)
 
+  // ─── POOLED tracking: merge into existing pool if one exists ───────────────
+  if (category.tracking_method === 'POOLED') {
+    const existingPool = await repository.findPooledAsset(
+      dto.company_id,
+      dto.product_id,
+      dto.branch_id,
+      client,
+    )
+
+    if (existingPool) {
+      // Merge into existing pool record:
+      // new cost = current_book_value + incoming cost
+      // accumulated_depreciation resets to 0
+      // quantity += incoming qty
+      const merged = await repository.mergePooledAsset(
+        existingPool.id,
+        {
+          additional_quantity: dto.quantity,
+          additional_cost: dto.cost,
+          acquisition_date: dto.acquisition_date,
+          gr_line_id: dto.gr_line_id,
+          updated_by: dto.created_by,
+        },
+        client,
+      )
+
+      // Record a COST_ADJUSTMENT movement for audit trail
+      await repository.createMovement(
+        {
+          company_id: dto.company_id,
+          fixed_asset_id: existingPool.id,
+          movement_type: 'COST_ADJUSTMENT',
+          movement_date: dto.acquisition_date,
+          from_value: String(existingPool.cost - existingPool.accumulated_depreciation),
+          to_value: String(merged.cost),
+          reference_id: dto.gr_line_id,
+          reference_type: 'goods_receipt',
+          notes: `Pool merge: +${dto.quantity} ${merged.uom}, +${dto.cost} cost from GR`,
+          created_by: dto.created_by,
+        },
+        client,
+      )
+
+      return merged
+    }
+
+    // No existing pool — fall through to create new record (with quantity)
+  }
+
+  // ─── INDIVIDUAL tracking (default) or new POOLED record ────────────────────
+
   // Get branch code for asset code generation
   const branchCode = await repository.findBranchCode(dto.branch_id, client)
   if (!branchCode) {
@@ -210,6 +264,8 @@ export async function createFromGr(
       salvage_value: 0,
       useful_life_months: dto.useful_life_months ?? category.default_useful_life_months,
       depreciation_method: 'STRAIGHT_LINE',
+      quantity: dto.quantity,
+      uom: dto.uom,
       gr_line_id: dto.gr_line_id,
       created_by: dto.created_by,
     },

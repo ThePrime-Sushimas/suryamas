@@ -37,6 +37,7 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
     depreciation_expense_coa_id: '',
     accumulated_depreciation_coa_id: '',
     default_useful_life_months: 60,
+    tracking_method: 'INDIVIDUAL' as 'INDIVIDUAL' | 'POOLED',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -50,6 +51,7 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
         depreciation_expense_coa_id: editCategory.depreciation_expense_coa_id,
         accumulated_depreciation_coa_id: editCategory.accumulated_depreciation_coa_id,
         default_useful_life_months: editCategory.default_useful_life_months,
+        tracking_method: editCategory.tracking_method ?? 'INDIVIDUAL',
       })
     } else {
       setForm({
@@ -59,6 +61,7 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
         depreciation_expense_coa_id: '',
         accumulated_depreciation_coa_id: '',
         default_useful_life_months: 60,
+        tracking_method: 'INDIVIDUAL',
       })
     }
     setErrors({})
@@ -89,6 +92,7 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
           depreciation_expense_coa_id: form.depreciation_expense_coa_id,
           accumulated_depreciation_coa_id: form.accumulated_depreciation_coa_id,
           default_useful_life_months: form.default_useful_life_months,
+          tracking_method: form.tracking_method,
         }
         await updateMutation.mutateAsync({ id: editCategory!.id, body })
         toast.success('Kategori berhasil diperbarui')
@@ -100,6 +104,7 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
           depreciation_expense_coa_id: form.depreciation_expense_coa_id,
           accumulated_depreciation_coa_id: form.accumulated_depreciation_coa_id,
           default_useful_life_months: form.default_useful_life_months,
+          tracking_method: form.tracking_method,
         }
         await createMutation.mutateAsync(body)
         toast.success('Kategori berhasil dibuat')
@@ -171,6 +176,40 @@ function CategoryFormModal({ open, onClose, editCategory }: CategoryFormModalPro
               }`}
             />
             {errors.category_name && <p className="text-xs text-red-500">{errors.category_name}</p>}
+          </div>
+
+          {/* Tracking Method */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Metode Tracking *</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="tracking_method"
+                  value="INDIVIDUAL"
+                  checked={form.tracking_method === 'INDIVIDUAL'}
+                  onChange={() => setForm(prev => ({ ...prev, tracking_method: 'INDIVIDUAL' }))}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Individual</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="tracking_method"
+                  value="POOLED"
+                  checked={form.tracking_method === 'POOLED'}
+                  onChange={() => setForm(prev => ({ ...prev, tracking_method: 'POOLED' }))}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Pooled</span>
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {form.tracking_method === 'INDIVIDUAL'
+                ? 'Setiap unit yang dibeli akan punya Asset ID terpisah. Cocok untuk AC, kulkas, kendaraan, dll.'
+                : 'Semua pembelian barang sejenis di lokasi yang sama akan digabung jadi 1 Asset ID dengan jumlah stok. Cocok untuk sumpit, piring, sendok, dll.'}
+            </p>
           </div>
 
           {/* COA Selectors */}
@@ -337,6 +376,7 @@ export default function AssetCategoriesPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Beban Penyusutan (DB)</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Akum. Penyusutan (CR)</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Umur</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Tracking</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
                     <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-right">Aksi</th>
                   </tr>
@@ -359,6 +399,15 @@ export default function AssetCategoriesPage() {
                         {cat.accumulated_depreciation_coa_name && <span className="ml-1 text-gray-400">· {cat.accumulated_depreciation_coa_name}</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{cat.default_useful_life_months} bln</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          cat.tracking_method === 'POOLED'
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                            : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                        }`}>
+                          {cat.tracking_method === 'POOLED' ? 'Pooled' : 'Individual'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           cat.is_active

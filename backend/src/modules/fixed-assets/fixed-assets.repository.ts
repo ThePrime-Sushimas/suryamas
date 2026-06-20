@@ -78,6 +78,7 @@ export async function createCategory(
     depreciation_expense_coa_id: string
     accumulated_depreciation_coa_id: string
     default_useful_life_months: number
+    tracking_method?: string
     created_by?: string
   },
   client?: PoolClient,
@@ -87,8 +88,8 @@ export async function createCategory(
     `INSERT INTO asset_categories
        (company_id, category_code, category_name, asset_coa_id,
         depreciation_expense_coa_id, accumulated_depreciation_coa_id,
-        default_useful_life_months, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+        default_useful_life_months, tracking_method, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
      RETURNING *`,
     [
       data.company_id,
@@ -98,6 +99,7 @@ export async function createCategory(
       data.depreciation_expense_coa_id,
       data.accumulated_depreciation_coa_id,
       data.default_useful_life_months,
+      data.tracking_method ?? 'INDIVIDUAL',
       data.created_by ?? null,
     ],
   )
@@ -113,6 +115,7 @@ export async function updateCategory(
     depreciation_expense_coa_id?: string
     accumulated_depreciation_coa_id?: string
     default_useful_life_months?: number
+    tracking_method?: string
     is_active?: boolean
     updated_by?: string
   },
@@ -142,6 +145,10 @@ export async function updateCategory(
   if (data.default_useful_life_months !== undefined) {
     params.push(data.default_useful_life_months)
     fields.push(`default_useful_life_months = $${idx++}`)
+  }
+  if (data.tracking_method !== undefined) {
+    params.push(data.tracking_method)
+    fields.push(`tracking_method = $${idx++}`)
   }
   if (data.is_active !== undefined) {
     params.push(data.is_active)
@@ -385,7 +392,8 @@ export async function findById(
     `SELECT fa.*,
        b.branch_name,
        ac.category_name,
-       ac.category_code
+       ac.category_code,
+       ac.tracking_method
      FROM fixed_assets fa
      LEFT JOIN branches b ON b.id = fa.branch_id
      LEFT JOIN asset_categories ac ON ac.id = fa.asset_category_id
@@ -595,6 +603,8 @@ export async function createAsset(
     salvage_value: number
     useful_life_months: number
     depreciation_method: string
+    quantity?: number
+    uom?: string
     gr_line_id: string
     qr_code_url?: string | null
     created_by?: string | null
@@ -606,9 +616,9 @@ export async function createAsset(
     `INSERT INTO fixed_assets
        (company_id, branch_id, asset_code, asset_name, asset_category_id,
         product_id, status, acquisition_date, cost, salvage_value,
-        useful_life_months, depreciation_method, gr_line_id, qr_code_url,
+        useful_life_months, depreciation_method, quantity, uom, gr_line_id, qr_code_url,
         created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
      RETURNING *`,
     [
       data.company_id,
@@ -623,6 +633,8 @@ export async function createAsset(
       data.salvage_value,
       data.useful_life_months,
       data.depreciation_method,
+      data.quantity ?? 1,
+      data.uom ?? 'UNIT',
       data.gr_line_id,
       data.qr_code_url ?? null,
       data.created_by ?? null,
@@ -993,6 +1005,7 @@ export async function createDisposal(
     proceeds_amount: number
     book_value_at_disposal: number
     gain_loss_amount: number
+    quantity_disposed?: number | null
     notes?: string | null
     created_by?: string | null
   },
@@ -1002,8 +1015,9 @@ export async function createDisposal(
   const { rows } = await db.query<AssetDisposal>(
     `INSERT INTO asset_disposals
        (company_id, fixed_asset_id, disposal_date, disposal_method,
-        proceeds_amount, book_value_at_disposal, gain_loss_amount, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        proceeds_amount, book_value_at_disposal, gain_loss_amount,
+        quantity_disposed, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [
       data.company_id,
@@ -1013,6 +1027,7 @@ export async function createDisposal(
       data.proceeds_amount,
       data.book_value_at_disposal,
       data.gain_loss_amount,
+      data.quantity_disposed ?? null,
       data.notes ?? null,
       data.created_by ?? null,
     ],
@@ -1499,4 +1514,112 @@ export async function deleteAssetPhoto(
     [photoId, fixedAssetId, companyId],
   )
   return rows[0] ?? null
+}
+
+// ─── Pooled Asset Methods ────────────────────────────────────────────────────
+
+/**
+ * Find an existing pooled asset by product_id + branch_id (same SKU + same location).
+ * Only matches ACTIVE or DRAFT pooled assets that haven't been disposed.
+ */
+export async function findPooledAsset(
+  companyId: string,
+  productId: string,
+  branchId: string,
+  client?: PoolClient,
+): Promise<FixedAsset | null> {
+  const db = client ?? pool
+  const { rows } = await db.query<FixedAsset>(
+    `SELECT fa.*
+     FROM fixed_assets fa
+     JOIN asset_categories ac ON ac.id = fa.asset_category_id
+     WHERE fa.company_id = $1
+       AND fa.product_id = $2
+       AND fa.branch_id = $3
+       AND ac.tracking_method = 'POOLED'
+       AND fa.status IN ('DRAFT', 'ACTIVE')
+       AND fa.deleted_at IS NULL
+     ORDER BY fa.created_at DESC
+     LIMIT 1`,
+    [companyId, productId, branchId],
+  )
+  return rows[0] ?? null
+}
+
+/**
+ * Merge incoming GR into an existing pooled asset record.
+ * new_cost = current_book_value + incoming_cost
+ * quantity += incoming_quantity
+ * accumulated_depreciation = 0 (reset basis)
+ * acquisition_date = GR date (most recent)
+ */
+export async function mergePooledAsset(
+  id: string,
+  data: {
+    additional_quantity: number
+    additional_cost: number
+    acquisition_date: string
+    gr_line_id: string
+    updated_by: string
+  },
+  client?: PoolClient,
+): Promise<FixedAsset> {
+  const db = client ?? pool
+  const { rows } = await db.query<FixedAsset>(
+    `UPDATE fixed_assets
+     SET quantity = quantity + $1,
+         cost = (cost - accumulated_depreciation) + $2,
+         accumulated_depreciation = 0,
+         acquisition_date = $3,
+         gr_line_id = $4,
+         updated_by = $5,
+         updated_at = now()
+     WHERE id = $6 AND deleted_at IS NULL
+     RETURNING *`,
+    [
+      data.additional_quantity,
+      data.additional_cost,
+      data.acquisition_date,
+      data.gr_line_id,
+      data.updated_by,
+      id,
+    ],
+  )
+  return rows[0]
+}
+
+/**
+ * Apply partial disposal to a pooled asset: reduce quantity, cost, and accumulated_depreciation proportionally.
+ * cost_reduction = proportional original cost removed (book_value_disposed + accum_depr_disposed)
+ * accum_depr_reduction = proportional accumulated depreciation removed
+ */
+export async function applyPartialDisposal(
+  id: string,
+  data: {
+    quantity_disposed: number
+    cost_reduction: number
+    accum_depr_reduction: number
+    updated_by: string
+  },
+  client?: PoolClient,
+): Promise<FixedAsset> {
+  const db = client ?? pool
+  const { rows } = await db.query<FixedAsset>(
+    `UPDATE fixed_assets
+     SET quantity = quantity - $1,
+         cost = cost - $2,
+         accumulated_depreciation = GREATEST(0, accumulated_depreciation - $3),
+         updated_by = $4,
+         updated_at = now()
+     WHERE id = $5 AND deleted_at IS NULL
+     RETURNING *`,
+    [
+      data.quantity_disposed,
+      data.cost_reduction,
+      data.accum_depr_reduction,
+      data.updated_by,
+      id,
+    ],
+  )
+  return rows[0]
 }
