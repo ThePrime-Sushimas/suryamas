@@ -18,7 +18,8 @@
 --                 accounting_purposes, accounting_purpose_accounts,
 --                 expense_auto_rules, notification_rules,
 --                 payment_method_groups, payment_method_group_mappings,
---                 payment_method_alerts, supplier_products
+--                 payment_method_alerts, supplier_products,
+--                 asset_categories
 --   HR          : employee_branches, employee_positions
 --                 (diperlukan agar login & branch guard tetap berfungsi)
 --   POS Source  : pos_imports, pos_import_lines,
@@ -53,6 +54,13 @@ UPDATE marketplace_checkout_sessions
      OR journal_received_id IS NOT NULL
      OR journal_settled_id IS NOT NULL;
 UPDATE marketplace_settlements SET journal_id = NULL WHERE journal_id IS NOT NULL;
+UPDATE fixed_assets SET journal_id = NULL WHERE journal_id IS NOT NULL;
+UPDATE fixed_assets SET purchase_invoice_id = NULL WHERE purchase_invoice_id IS NOT NULL;
+UPDATE fixed_assets SET gr_line_id = NULL WHERE gr_line_id IS NOT NULL;
+UPDATE asset_maintenance SET journal_id = NULL WHERE journal_id IS NOT NULL;
+UPDATE asset_disposals SET journal_id = NULL WHERE journal_id IS NOT NULL;
+UPDATE asset_depreciation_runs SET journal_ids = NULL, reversal_journal_ids = NULL
+  WHERE journal_ids IS NOT NULL OR reversal_journal_ids IS NOT NULL;
 
 -- NULL-kan FK ke stock_movements dari tabel yang dihapus belakangan
 UPDATE daily_prep_order_lines SET in_movement_id = NULL, out_movement_id = NULL
@@ -109,7 +117,21 @@ DELETE FROM ap_payment_batches;
 DELETE FROM ap_payments;
 
 -- ============================================================
--- 6. PURCHASE INVOICES (PI)
+-- 6. FIXED ASSETS (Transactional Data Only)
+--    asset_categories dipertahankan sebagai master data.
+--    Semua FK (journal_id, gr_line_id, purchase_invoice_id) sudah
+--    di-NULL-kan di step 0.
+-- ============================================================
+DELETE FROM asset_depreciation_entries;
+DELETE FROM asset_depreciation_runs;
+DELETE FROM asset_movements;
+DELETE FROM asset_disposals;
+DELETE FROM asset_maintenance;
+DELETE FROM asset_transfers;
+DELETE FROM fixed_assets;
+
+-- ============================================================
+-- 7. PURCHASE INVOICES (PI)
 --    lines → goods_receipt_lines; gr_links → goods_receipts
 -- ============================================================
 DELETE FROM purchase_invoice_charges;
@@ -119,7 +141,7 @@ DELETE FROM purchase_invoice_attachments;
 DELETE FROM purchase_invoices;
 
 -- ============================================================
--- 7. MARKETPLACE PO & SETTLEMENTS
+-- 8. MARKETPLACE PO & SETTLEMENTS
 --    lines/shipments/settlements → sessions
 --    sessions → goods_receipts, purchase_order_lines
 -- ============================================================
@@ -130,7 +152,7 @@ DELETE FROM marketplace_checkout_attachments;
 DELETE FROM marketplace_checkout_sessions;
 
 -- ============================================================
--- 8. GOODS RECEIPTS (GR)
+-- 9. GOODS RECEIPTS (GR)
 --    lines → purchase_order_lines; GR → purchase_orders
 -- ============================================================
 DELETE FROM invoice_verifications;
@@ -139,20 +161,20 @@ DELETE FROM goods_receipt_attachments;
 DELETE FROM goods_receipts;
 
 -- ============================================================
--- 9. PURCHASE ORDERS (PO)
+-- 10. PURCHASE ORDERS (PO)
 --    lines → purchase_request_lines; PO → purchase_requests
 -- ============================================================
 DELETE FROM purchase_order_lines;
 DELETE FROM purchase_orders;
 
 -- ============================================================
--- 10. PURCHASE REQUESTS (PR)
+-- 11. PURCHASE REQUESTS (PR)
 -- ============================================================
 DELETE FROM purchase_request_lines;
 DELETE FROM purchase_requests;
 
 -- ============================================================
--- 11. GENERAL INVOICES & AMORTIZATIONS
+-- 12. GENERAL INVOICES & AMORTIZATIONS
 -- ============================================================
 DELETE FROM general_invoice_amortization_entries;
 DELETE FROM general_invoice_amortizations;
@@ -162,7 +184,7 @@ DELETE FROM general_invoice_templates;
 DELETE FROM general_invoices;
 
 -- ============================================================
--- 12. STOCK: MOVEMENTS, BALANCES, TRANSFERS, ADJUSTMENTS
+-- 13. STOCK: MOVEMENTS, BALANCES, TRANSFERS, ADJUSTMENTS
 -- ============================================================
 DELETE FROM stock_adjustment_lines;
 DELETE FROM stock_adjustment_outputs;
@@ -173,7 +195,7 @@ DELETE FROM stock_movements;
 DELETE FROM stock_balances;
 
 -- ============================================================
--- 13. DAILY CLOSING / STOCK OPNAME
+-- 14. DAILY CLOSING / STOCK OPNAME
 -- ============================================================
 DELETE FROM variance_classification_lines;
 DELETE FROM opname_reopen_requests;
@@ -181,13 +203,13 @@ DELETE FROM daily_closing_count_lines;
 DELETE FROM daily_closing_counts;
 
 -- ============================================================
--- 14. COGS CALCULATIONS
+-- 15. COGS CALCULATIONS
 -- ============================================================
 DELETE FROM cogs_calculation_lines;
 DELETE FROM cogs_calculations;
 
 -- ============================================================
--- 15. MENU PRICING (Transaction Data Only)
+-- 16. MENU PRICING (Transaction Data Only)
 --     NOTE: recipe_lines dan menu_branch_prices sekarang dianggap
 --     MASTER DATA dan TIDAK dihapus. Sudah ditambahkan ke daftar
 --     "DIPERTAHANKAN" di header.
@@ -195,7 +217,7 @@ DELETE FROM cogs_calculations;
 -- (Tidak ada yang dihapus di step ini)
 
 -- ============================================================
--- 16. BANK STATEMENTS & REKONSILIASI
+-- 17. BANK STATEMENTS & REKONSILIASI
 --    bank_statements.journal_id sudah di-NULL-kan di step 0
 -- ============================================================
 DELETE FROM bank_settlement_aggregates;
@@ -210,31 +232,31 @@ DELETE FROM account_period_balances;
 DELETE FROM fee_discrepancy_reviews;
 
 -- ============================================================
--- 17. JOURNAL ENTRIES
+-- 18. JOURNAL ENTRIES
 --    Semua FK ke journal_headers sudah di-NULL-kan di step 0
 -- ============================================================
 DELETE FROM journal_lines;
 DELETE FROM journal_headers;
 
 -- ============================================================
--- 18. CASH DEPOSITS & COUNTS
+-- 19. CASH DEPOSITS & COUNTS
 -- ============================================================
 DELETE FROM cash_deposits;
 DELETE FROM cash_counts;
 
 -- ============================================================
--- 19. NOTIFICATIONS & ALERTS (History Only)
+-- 20. NOTIFICATIONS & ALERTS (History Only)
 -- ============================================================
 DELETE FROM payment_method_alert_history;
 DELETE FROM notifications;
 
 -- ============================================================
--- 20. JOBS (Async task records)
+-- 21. JOBS (Async task records)
 -- ============================================================
 DELETE FROM jobs;
 
 -- ============================================================
--- 21. AUDIT LOGS
+-- 22. AUDIT LOGS
 -- ============================================================
 DELETE FROM perm_audit_log;
 
@@ -269,6 +291,7 @@ SELECT tbl, remaining FROM (
   UNION ALL SELECT 'bank_statements',          COUNT(*)::int FROM bank_statements
   UNION ALL SELECT 'cash_deposits',            COUNT(*)::int FROM cash_deposits
   UNION ALL SELECT 'pricelist_price_changes',  COUNT(*)::int FROM pricelist_price_changes
+  UNION ALL SELECT 'fixed_assets',             COUNT(*)::int FROM fixed_assets
   -- Source of truth — harus TETAP ada isinya
   UNION ALL SELECT '⚑ pos_imports (kept)',       COUNT(*)::int FROM pos_imports
   UNION ALL SELECT '⚑ pos_sync_aggregates (kept)', COUNT(*)::int FROM pos_sync_aggregates
