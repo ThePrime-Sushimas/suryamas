@@ -102,6 +102,7 @@ const MOVEMENT_STYLES: Record<MovementType, { label: string; color: string; icon
   MAINTENANCE_COMPLETE: { label: 'Selesai Maintenance', color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400', icon: Wrench },
   DISPOSAL: { label: 'Pelepasan', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: Trash2 },
   COST_ADJUSTMENT: { label: 'Penyesuaian Biaya', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: FileText },
+  OPENING_BALANCE: { label: 'Saldo Awal', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', icon: Package },
 }
 
 // ─── Formatters ──────────────────────────────────────────────────────────────

@@ -414,6 +414,8 @@ export class GoodsReceiptsService {
               asset_category_id: assetInfo.asset_category_id,
               acquisition_date: gr.received_date ?? new Date().toISOString().slice(0, 10),
               cost: Number(line.unit_price_po),
+              quantity: 1,
+              uom: line.uom,
               gr_line_id: line.id,
               asset_name: assetInfo.product_name ?? line.product_name ?? 'Asset',
               created_by: userId,

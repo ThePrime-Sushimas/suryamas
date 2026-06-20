@@ -29,6 +29,8 @@ import type {
   confirmDepreciationSchema,
   reverseDepreciationSchema,
   activateAssetSchema,
+  createOpeningBalanceSchema,
+  previewDepreciationCalcSchema,
 } from './fixed-assets.schema'
 
 async function assetScope(req: Request) {
@@ -433,5 +435,47 @@ export const deletePhoto = async (req: Request, res: Response) => {
     sendSuccess(res, null, 'Photo deleted')
   } catch (error: unknown) {
     await handleError(res, error, req, { action: 'delete_asset_photo', id: req.params.id as string })
+  }
+}
+
+// ─── Opening Balance ─────────────────────────────────────────────────────────
+
+export const getEquityAccounts = async (req: Request, res: Response) => {
+  try {
+    const { companyId } = await assetScope(req)
+    const accounts = await fixedAssetsService.getEquityAccounts(companyId)
+    sendSuccess(res, accounts)
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'get_equity_accounts' })
+  }
+}
+
+export const previewDepreciationCalc = async (req: Request, res: Response) => {
+  try {
+    const query = (req as ValidatedAuthRequest<typeof previewDepreciationCalcSchema>).validated.query
+    const result = fixedAssetsService.previewDepreciationCalc(
+      query.acquisition_date,
+      query.cost,
+      query.salvage_value,
+      query.useful_life_months,
+    )
+    sendSuccess(res, result)
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'preview_depreciation_calc' })
+  }
+}
+
+export const createOpeningBalance = async (req: Request, res: Response) => {
+  try {
+    const { companyId, userId } = await assetScope(req)
+    const body = (req as ValidatedAuthRequest<typeof createOpeningBalanceSchema>).validated.body
+    const asset = await fixedAssetsService.createOpeningBalance({
+      ...body,
+      company_id: companyId,
+      created_by: userId,
+    })
+    sendSuccess(res, asset, 'Saldo awal aset berhasil dibuat', 201)
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'create_opening_balance' })
   }
 }

@@ -264,3 +264,35 @@ export const bulkQrCodeSchema = z.object({
     asset_ids: z.array(z.string().uuid()).min(1).max(100),
   }),
 })
+
+// ─── Opening Balance ─────────────────────────────────────────────────────────
+
+export const createOpeningBalanceSchema = z.object({
+  body: z.object({
+    branch_id: z.string().uuid(),
+    asset_category_id: z.string().uuid(),
+    product_id: z.string().uuid(),
+    asset_name: z.string().min(1).max(200),
+    acquisition_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    cost: z.coerce.number().min(0),
+    salvage_value: z.coerce.number().min(0),
+    useful_life_months: z.coerce.number().int().min(1).optional(),
+    accumulated_depreciation: z.coerce.number().min(0),
+    quantity: z.coerce.number().int().min(1).optional(),
+    uom: z.string().max(20).optional(),
+    equity_coa_id: z.string().uuid(),
+    serial_number: z.string().max(100).nullable().optional(),
+    location_note: z.string().max(200).nullable().optional(),
+    description: z.string().max(500).nullable().optional(),
+    notes: z.string().max(500).nullable().optional(),
+  }),
+})
+
+export const previewDepreciationCalcSchema = z.object({
+  query: z.object({
+    acquisition_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    cost: z.coerce.number().min(0),
+    salvage_value: z.coerce.number().min(0),
+    useful_life_months: z.coerce.number().int().min(1),
+  }),
+})

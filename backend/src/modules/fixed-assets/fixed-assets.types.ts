@@ -14,6 +14,7 @@ export type MovementType =
   | 'MAINTENANCE_COMPLETE'
   | 'DISPOSAL'
   | 'COST_ADJUSTMENT'
+  | 'OPENING_BALANCE'
 
 export type MaintenanceStatus = 'IN_PROGRESS' | 'COMPLETED' | 'POSTED'
 
@@ -260,4 +261,42 @@ export interface DepreciationRunResult {
   asset_count: number
   entries: DepreciationPreviewEntry[]
   journal_ids?: string[]
+}
+
+// ─── Opening Balance ─────────────────────────────────────────────────────────
+
+export interface CreateOpeningBalanceDto {
+  company_id: string
+  branch_id: string
+  asset_category_id: string
+  product_id: string
+  asset_name: string
+  acquisition_date: string
+  cost: number
+  salvage_value: number
+  useful_life_months?: number
+  accumulated_depreciation: number
+  quantity?: number
+  uom?: string
+  equity_coa_id: string
+  serial_number?: string | null
+  location_note?: string | null
+  description?: string | null
+  notes?: string | null
+  created_by: string
+}
+
+export interface DepreciationPreviewRequest {
+  acquisition_date: string
+  cost: number
+  salvage_value: number
+  useful_life_months: number
+}
+
+export interface DepreciationPreviewResponse {
+  months_elapsed: number
+  estimated_accumulated_depreciation: number
+  estimated_book_value: number
+  monthly_depreciation: number
+  is_fully_depreciated: boolean
 }

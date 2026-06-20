@@ -32,7 +32,7 @@ export class BankAccountsRepository {
     const companyIds = query?.accessible_company_ids
     if (companyIds?.length) {
       params.push(companyIds)
-      conditions.push(`(ba.owner_type <> 'company' OR ba.owner_id = ANY($${idx}::text[]))`)
+      conditions.push(`ba.owner_type = 'company' AND ba.owner_id = ANY($${idx}::text[])`)
       idx++
     }
 

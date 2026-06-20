@@ -1623,3 +1623,123 @@ export async function applyPartialDisposal(
   )
   return rows[0]
 }
+
+// ─── Equity Accounts (for Opening Balance) ───────────────────────────────────
+
+export interface EquityAccount {
+  id: string
+  account_code: string
+  account_name: string
+}
+
+/**
+ * Find all postable, active Equity accounts for a company.
+ * Used for the opening balance equity COA dropdown.
+ */
+export async function findEquityAccounts(
+  companyId: string,
+  client?: PoolClient,
+): Promise<EquityAccount[]> {
+  const db = client ?? pool
+  const { rows } = await db.query<EquityAccount>(
+    `SELECT id, account_code, account_name
+     FROM chart_of_accounts
+     WHERE company_id = $1
+       AND account_type = 'EQUITY'
+       AND is_postable = true
+       AND is_active = true
+       AND deleted_at IS NULL
+     ORDER BY account_code ASC`,
+    [companyId],
+  )
+  return rows
+}
+
+/**
+ * Validate that a given COA ID is an active, postable Equity account in this company.
+ */
+export async function validateEquityCoa(
+  coaId: string,
+  companyId: string,
+  client?: PoolClient,
+): Promise<boolean> {
+  const db = client ?? pool
+  const { rows } = await db.query<{ exists: boolean }>(
+    `SELECT EXISTS(
+       SELECT 1 FROM chart_of_accounts
+       WHERE id = $1
+         AND company_id = $2
+         AND account_type = 'EQUITY'
+         AND is_postable = true
+         AND is_active = true
+         AND deleted_at IS NULL
+     ) AS exists`,
+    [coaId, companyId],
+  )
+  return rows[0].exists
+}
+
+/**
+ * Create an asset record with explicit accumulated_depreciation (for opening balance).
+ * Unlike createAsset which defaults accum_depr to 0, this sets it from input.
+ */
+export async function createAssetWithAccumDepr(
+  data: {
+    company_id: string
+    branch_id: string
+    asset_code: string
+    asset_name: string
+    asset_category_id: string
+    product_id: string
+    status: string
+    acquisition_date: string
+    capitalized_date: string
+    cost: number
+    salvage_value: number
+    useful_life_months: number
+    depreciation_method: string
+    accumulated_depreciation: number
+    quantity?: number
+    uom?: string
+    serial_number?: string | null
+    location_note?: string | null
+    description?: string | null
+    created_by?: string | null
+  },
+  client?: PoolClient,
+): Promise<FixedAsset> {
+  const db = client ?? pool
+  const { rows } = await db.query<FixedAsset>(
+    `INSERT INTO fixed_assets
+       (company_id, branch_id, asset_code, asset_name, asset_category_id,
+        product_id, status, acquisition_date, capitalized_date, cost, salvage_value,
+        useful_life_months, depreciation_method, accumulated_depreciation,
+        quantity, uom, serial_number, location_note, description,
+        created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $20)
+     RETURNING *`,
+    [
+      data.company_id,
+      data.branch_id,
+      data.asset_code,
+      data.asset_name,
+      data.asset_category_id,
+      data.product_id,
+      data.status,
+      data.acquisition_date,
+      data.capitalized_date,
+      data.cost,
+      data.salvage_value,
+      data.useful_life_months,
+      data.depreciation_method,
+      data.accumulated_depreciation,
+      data.quantity ?? 1,
+      data.uom ?? 'UNIT',
+      data.serial_number ?? null,
+      data.location_note ?? null,
+      data.description ?? null,
+      data.created_by ?? null,
+    ],
+  )
+  return rows[0]
+}

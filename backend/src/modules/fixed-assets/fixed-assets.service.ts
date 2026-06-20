@@ -15,7 +15,7 @@ import { generateAssetCode } from './asset-code-generator.util'
 import { generateQrCode, generateBulkQrPdf } from './qr-code.util'
 import { isPostgresError } from '../../utils/postgres-error.util'
 import { AuditService } from '../monitoring/monitoring.service'
-import { logError } from '../../config/logger'
+import { logError, logInfo } from '../../config/logger'
 import { storageService } from '../../services/storage.service'
 import { resolveDocumentUploadExtension } from '../../utils/document-upload.util'
 import type {
@@ -23,6 +23,8 @@ import type {
   FixedAsset,
   AssetMovement,
   CreateAssetFromGrDto,
+  CreateOpeningBalanceDto,
+  DepreciationPreviewResponse,
 } from './fixed-assets.types'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -800,4 +802,280 @@ export async function deletePhoto(
   })
 
   return deleted
+}
+
+// ─── Opening Balance ─────────────────────────────────────────────────────────
+
+/**
+ * Preview depreciation calculation for opening balance form.
+ * Estimates accumulated_depreciation based on months elapsed since acquisition_date.
+ */
+export function previewDepreciationCalc(
+  acquisitionDate: string,
+  cost: number,
+  salvageValue: number,
+  usefulLifeMonths: number,
+): DepreciationPreviewResponse {
+  const acqDate = new Date(acquisitionDate)
+  const today = new Date()
+
+  // Calculate months elapsed (rounded down)
+  const monthsElapsed = Math.max(
+    0,
+    (today.getFullYear() - acqDate.getFullYear()) * 12 + (today.getMonth() - acqDate.getMonth()),
+  )
+
+  const totalDepreciable = cost - salvageValue
+  const monthlyDepreciation = totalDepreciable > 0 ? Math.round((totalDepreciable / usefulLifeMonths) * 10000) / 10000 : 0
+  const estimatedAccumDepr = Math.min(totalDepreciable, Math.round(monthlyDepreciation * monthsElapsed * 10000) / 10000)
+  const isFullyDepreciated = monthsElapsed >= usefulLifeMonths
+
+  return {
+    months_elapsed: monthsElapsed,
+    estimated_accumulated_depreciation: estimatedAccumDepr,
+    estimated_book_value: cost - estimatedAccumDepr,
+    monthly_depreciation: monthlyDepreciation,
+    is_fully_depreciated: isFullyDepreciated,
+  }
+}
+
+/**
+ * Get equity accounts for opening balance dropdown.
+ */
+export async function getEquityAccounts(companyId: string) {
+  return repository.findEquityAccounts(companyId)
+}
+
+/**
+ * Create an asset from opening balance (pre-existing asset migration).
+ *
+ * Flow:
+ * 1. Validate inputs (category, equity COA, dates, amounts)
+ * 2. For POOLED: reject if pool already exists (opening balance = new record only)
+ * 3. Create asset record (status ACTIVE, with accumulated_depreciation)
+ * 4. Generate QR code
+ * 5. Post opening balance journal (Dr Asset, Cr Accum Depr + Cr Equity)
+ * 6. Record OPENING_BALANCE movement
+ */
+export async function createOpeningBalance(
+  dto: CreateOpeningBalanceDto,
+): Promise<FixedAsset & { journal_id: string }> {
+  // 1. Validate category
+  const category = await repository.findCategoryById(dto.asset_category_id, dto.company_id)
+  if (!category) throw new AssetCategoryNotFoundError(dto.asset_category_id)
+
+  // 2. Validate equity COA
+  const isValidEquity = await repository.validateEquityCoa(dto.equity_coa_id, dto.company_id)
+  if (!isValidEquity) {
+    throw new Error('Akun ekuitas yang dipilih tidak valid atau bukan bertipe Equity di company ini')
+  }
+
+  // 3. Validate accumulated_depreciation <= (cost - salvage_value)
+  const maxDepr = dto.cost - dto.salvage_value
+  if (dto.accumulated_depreciation > maxDepr) {
+    throw new Error(`Akumulasi penyusutan (${dto.accumulated_depreciation}) tidak boleh melebihi nilai yang dapat disusutkan (${maxDepr})`)
+  }
+
+  // 4. Validate acquisition_date not in the future
+  const today = new Date().toISOString().split('T')[0]
+  if (dto.acquisition_date > today) {
+    throw new Error('Tanggal perolehan tidak boleh di masa depan')
+  }
+
+  // 5. For POOLED categories: reject if pool already exists
+  if (category.tracking_method === 'POOLED') {
+    const existingPool = await repository.findPooledAsset(dto.company_id, dto.product_id, dto.branch_id)
+    if (existingPool) {
+      throw new Error(
+        `Pool aset untuk SKU ini di cabang yang sama sudah ada (${existingPool.asset_code}). ` +
+        'Opening balance hanya untuk membuat record baru. Untuk menambah qty ke pool yang sudah ada, gunakan jalur pembelian (GR) biasa.',
+      )
+    }
+  }
+
+  // 6. Get branch code for asset code generation
+  const branchCode = await repository.findBranchCode(dto.branch_id)
+  if (!branchCode) throw new BranchNotFoundError(dto.branch_id)
+
+  // 7. Generate asset code
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    const assetCode = await generateAssetCode(
+      client,
+      dto.company_id,
+      category.category_code,
+      branchCode,
+    )
+
+    const usefulLifeMonths = dto.useful_life_months ?? category.default_useful_life_months
+
+    // 8. Create asset record (ACTIVE, with accumulated_depreciation)
+    const asset = await repository.createAssetWithAccumDepr(
+      {
+        company_id: dto.company_id,
+        branch_id: dto.branch_id,
+        asset_code: assetCode,
+        asset_name: dto.asset_name,
+        asset_category_id: dto.asset_category_id,
+        product_id: dto.product_id,
+        status: 'ACTIVE',
+        acquisition_date: dto.acquisition_date,
+        capitalized_date: dto.acquisition_date,
+        cost: dto.cost,
+        salvage_value: dto.salvage_value,
+        useful_life_months: usefulLifeMonths,
+        depreciation_method: 'STRAIGHT_LINE',
+        accumulated_depreciation: dto.accumulated_depreciation,
+        quantity: dto.quantity,
+        uom: dto.uom,
+        serial_number: dto.serial_number,
+        location_note: dto.location_note,
+        description: dto.description,
+        created_by: dto.created_by,
+      },
+      client,
+    )
+
+    // 9. Generate QR code
+    const qrCodeUrl = await generateQrCode(asset.id)
+    await repository.updateQrCode(asset.id, qrCodeUrl, client)
+
+    // 10. Record OPENING_BALANCE movement
+    await repository.createMovement(
+      {
+        company_id: dto.company_id,
+        fixed_asset_id: asset.id,
+        movement_type: 'OPENING_BALANCE',
+        movement_date: dto.acquisition_date,
+        from_value: null,
+        to_value: 'ACTIVE',
+        notes: dto.notes ?? 'Saldo awal aset',
+        created_by: dto.created_by,
+      },
+      client,
+    )
+
+    await client.query('COMMIT')
+
+    // 11. Post opening balance journal (outside transaction — follows marketplace capitalization pattern)
+    // If journal posting fails, we revert the asset back (hard delete since it was just created)
+    const bookValue = dto.cost - dto.accumulated_depreciation
+    const lines: CreateJournalLineDto[] = []
+    let lineNum = 1
+
+    // Dr Asset COA = cost
+    lines.push({
+      line_number: lineNum++,
+      account_id: category.asset_coa_id,
+      description: `Saldo Awal Aset - ${assetCode} - ${dto.asset_name}`,
+      debit_amount: dto.cost,
+      credit_amount: 0,
+    })
+
+    // Cr Accumulated Depreciation (if > 0)
+    if (dto.accumulated_depreciation > 0) {
+      lines.push({
+        line_number: lineNum++,
+        account_id: category.accumulated_depreciation_coa_id,
+        description: `Akumulasi Penyusutan - ${assetCode}`,
+        debit_amount: 0,
+        credit_amount: dto.accumulated_depreciation,
+      })
+    }
+
+    // Cr Equity = book value (cost - accumulated_depreciation)
+    lines.push({
+      line_number: lineNum++,
+      account_id: dto.equity_coa_id,
+      description: `Modal Pembukaan Aset - ${assetCode}`,
+      debit_amount: 0,
+      credit_amount: bookValue,
+    })
+
+    let journalId: string
+    try {
+      const journal = await journalHeadersService.create(
+        {
+          company_id: dto.company_id,
+          branch_id: dto.branch_id,
+          journal_date: dto.acquisition_date,
+          journal_type: 'ASSET',
+          source_module: 'fixed_assets',
+          reference_type: 'asset_opening_balance',
+          reference_id: asset.id,
+          reference_number: assetCode,
+          description: `Saldo Awal Aset - ${assetCode} - ${dto.asset_name}`,
+          currency: 'IDR',
+          exchange_rate: 1,
+          lines,
+        },
+        dto.created_by,
+      )
+
+      await journalHeadersService.submitAsUser(journal.id, dto.created_by)
+      await journalHeadersService.approveAsUser(journal.id, dto.created_by)
+      await journalHeadersService.postAsUser(journal.id, dto.created_by)
+      journalId = journal.id
+    } catch (journalErr) {
+      // Journal failed — revert the asset (hard delete since it was just created via opening balance)
+      logError('Opening balance journal posting failed, reverting asset', {
+        asset_id: asset.id,
+        asset_code: assetCode,
+        error: journalErr instanceof Error ? journalErr.message : journalErr,
+      })
+      const revertClient = await pool.connect()
+      try {
+        await revertClient.query('BEGIN')
+        await revertClient.query(
+          `DELETE FROM asset_movements WHERE fixed_asset_id = $1`,
+          [asset.id],
+        )
+        await revertClient.query(
+          `DELETE FROM fixed_assets WHERE id = $1`,
+          [asset.id],
+        )
+        await revertClient.query('COMMIT')
+      } catch (revErr) {
+        await revertClient.query('ROLLBACK')
+        logError('Failed to revert opening balance asset after journal error', {
+          asset_id: asset.id,
+          error: revErr instanceof Error ? revErr.message : revErr,
+        })
+      } finally {
+        revertClient.release()
+      }
+      throw journalErr
+    }
+
+    // Update asset with journal_id
+    await repository.updateJournalId(asset.id, journalId)
+
+    await AuditService.log(
+      'CREATE',
+      'fixed_asset',
+      asset.id,
+      dto.created_by,
+      undefined,
+      { ...asset, journal_id: journalId, source: 'opening_balance' },
+    )
+
+    logInfo('Asset opening balance created', {
+      asset_id: asset.id,
+      asset_code: assetCode,
+      cost: dto.cost,
+      accumulated_depreciation: dto.accumulated_depreciation,
+      book_value: bookValue,
+      journal_id: journalId,
+      user_id: dto.created_by,
+    })
+
+    return { ...asset, qr_code_url: qrCodeUrl, journal_id: journalId }
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
 }

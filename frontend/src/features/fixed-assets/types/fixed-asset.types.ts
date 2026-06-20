@@ -14,6 +14,7 @@ export type MovementType =
   | 'MAINTENANCE_COMPLETE'
   | 'DISPOSAL'
   | 'COST_ADJUSTMENT'
+  | 'OPENING_BALANCE'
 
 export type MaintenanceStatus = 'IN_PROGRESS' | 'COMPLETED' | 'POSTED'
 

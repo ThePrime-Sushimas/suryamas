@@ -592,6 +592,7 @@ const DepreciationRunPage = lazy(() => import('./features/fixed-assets/pages/Dep
 const AssetTransfersPage = lazy(() => import('./features/fixed-assets/pages/AssetTransfersPage'))
 const AssetMaintenancePage = lazy(() => import('./features/fixed-assets/pages/AssetMaintenancePage'))
 const AssetDisposalsPage = lazy(() => import('./features/fixed-assets/pages/AssetDisposalsPage'))
+const AssetOpeningBalancePage = lazy(() => import('./features/fixed-assets/pages/AssetOpeningBalancePage'))
 
 // AP Payments
 const ApDashboardPage = lazy(() => import('./features/ap-payments/pages/ApDashboardPage'))
@@ -2562,6 +2563,16 @@ function App() {
                       <RequirePermission module="fixed_assets" action="approve">
                         <Suspense fallback={<LoadingFallback />}>
                           <AssetDisposalsPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="fixed-assets/opening-balance"
+                    element={
+                      <RequirePermission module="fixed_assets" action="insert">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <AssetOpeningBalancePage />
                         </Suspense>
                       </RequirePermission>
                     }

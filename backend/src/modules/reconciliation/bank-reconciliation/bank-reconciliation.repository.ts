@@ -385,7 +385,7 @@ export class BankReconciliationRepository {
           jsonb_build_object('bank_name', b.bank_name, 'bank_code', b.bank_code) as banks
         FROM bank_accounts ba
         JOIN banks b ON ba.bank_id = b.id
-        WHERE ba.deleted_at IS NULL
+        WHERE ba.deleted_at IS NULL AND ba.owner_type = 'company'
       `;
       const params: any[] = [];
 
@@ -435,7 +435,7 @@ export class BankReconciliationRepository {
            jsonb_build_object('bank_name', b.bank_name, 'bank_code', b.bank_code) as banks
          FROM bank_accounts ba
          JOIN banks b ON ba.bank_id = b.id
-         WHERE ba.id = ANY($1)`,
+         WHERE ba.id = ANY($1) AND ba.owner_type = 'company'`,
         [accountIds]
       );
 

@@ -14,6 +14,7 @@ export type MovementType =
   | 'MAINTENANCE_COMPLETE'
   | 'DISPOSAL'
   | 'COST_ADJUSTMENT'
+  | 'OPENING_BALANCE'
 export type MaintenanceStatus = 'IN_PROGRESS' | 'COMPLETED' | 'POSTED'
 export type DepreciationRunStatus = 'PREVIEW' | 'POSTED' | 'REVERSED'
 export type TrackingMethod = 'INDIVIDUAL' | 'POOLED'
@@ -805,6 +806,80 @@ export const useDeleteAssetPhoto = () => {
     },
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['fixed-assets', vars.assetId, 'photos'] })
+    },
+  })
+}
+
+// ─── Opening Balance ─────────────────────────────────────────────────────────
+
+export interface EquityAccount {
+  id: string
+  account_code: string
+  account_name: string
+}
+
+export interface CreateOpeningBalanceDto {
+  branch_id: string
+  asset_category_id: string
+  product_id: string
+  asset_name: string
+  acquisition_date: string
+  cost: number
+  salvage_value: number
+  useful_life_months?: number
+  accumulated_depreciation: number
+  quantity?: number
+  uom?: string
+  equity_coa_id: string
+  serial_number?: string | null
+  location_note?: string | null
+  description?: string | null
+  notes?: string | null
+}
+
+export interface DepreciationPreviewResponse {
+  months_elapsed: number
+  estimated_accumulated_depreciation: number
+  estimated_book_value: number
+  monthly_depreciation: number
+  is_fully_depreciated: boolean
+}
+
+export const useEquityAccounts = () =>
+  useQuery({
+    queryKey: ['fixed-assets', 'equity-accounts'],
+    queryFn: async () => {
+      const { data } = await api.get('/asset-opening-balance/equity-accounts')
+      return data.data as EquityAccount[]
+    },
+    staleTime: 5 * 60_000,
+  })
+
+export const useDepreciationPreview = (params: {
+  acquisition_date: string
+  cost: number
+  salvage_value: number
+  useful_life_months: number
+} | null) =>
+  useQuery({
+    queryKey: ['fixed-assets', 'depreciation-preview', params],
+    queryFn: async () => {
+      const { data } = await api.get('/asset-opening-balance/preview-depreciation', { params })
+      return data.data as DepreciationPreviewResponse
+    },
+    enabled: !!params && !!params.acquisition_date && params.cost > 0 && params.useful_life_months > 0,
+    staleTime: 0,
+  })
+
+export const useCreateOpeningBalance = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: CreateOpeningBalanceDto) => {
+      const { data } = await api.post('/asset-opening-balance', body)
+      return data.data as FixedAsset & { journal_id: string }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fixed-assets'] })
     },
   })
 }

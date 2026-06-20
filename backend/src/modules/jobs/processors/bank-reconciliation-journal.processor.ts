@@ -247,11 +247,11 @@ async function resolveBankAccounts(
   const result = new Map<number, BankAccountResolved>()
   if (bankAccountIds.length === 0) return result
 
-  const { rows: data } = await pool.query(
-    `SELECT id, account_number, account_name, coa_account_id, owner_id
-     FROM bank_accounts WHERE id = ANY($1::int[]) AND owner_id = $2 AND is_active = true AND deleted_at IS NULL`,
-    [bankAccountIds, companyId]
-  )
+    const { rows: data } = await pool.query(
+      `SELECT id, account_number, account_name, coa_account_id, owner_id
+       FROM bank_accounts WHERE id = ANY($1::int[]) AND owner_id = $2 AND owner_type = 'company' AND is_active = true AND deleted_at IS NULL`,
+      [bankAccountIds, companyId]
+    )
 
   for (const ba of data) {
     result.set(ba.id as number, {

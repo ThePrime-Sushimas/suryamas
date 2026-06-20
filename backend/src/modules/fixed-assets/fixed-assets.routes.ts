@@ -30,6 +30,8 @@ import {
   confirmDepreciationSchema,
   reverseDepreciationSchema,
   activateAssetSchema,
+  createOpeningBalanceSchema,
+  previewDepreciationCalcSchema,
 } from './fixed-assets.schema'
 
 // ─── Module registration ──────────────────────────────────────────────────────
@@ -100,5 +102,12 @@ router.post(   '/depreciation-runs/preview', requireWriteAccess, canApprove('fix
 router.post(   '/depreciation-runs/confirm', requireWriteAccess, canApprove('fixed_assets'), validateSchema(confirmDepreciationSchema),  (req, res) => controller.confirmDepreciation(req, res))
 router.get(    '/depreciation-runs',         canView('fixed_assets'),    validateSchema(listDepreciationRunsSchema), (req, res) => controller.listDepreciationRuns(req, res))
 router.post(   '/depreciation-runs/:id/reverse', requireWriteAccess, canApprove('fixed_assets'), validateSchema(reverseDepreciationSchema), (req, res) => controller.reverseDepreciation(req, res))
+
+// ============================================================
+// OPENING BALANCE  →  /api/v1/asset-opening-balance
+// ============================================================
+router.get(    '/asset-opening-balance/equity-accounts',  canView('fixed_assets'),   (req, res) => controller.getEquityAccounts(req, res))
+router.get(    '/asset-opening-balance/preview-depreciation', canView('fixed_assets'), validateSchema(previewDepreciationCalcSchema), (req, res) => controller.previewDepreciationCalc(req, res))
+router.post(   '/asset-opening-balance',                  requireWriteAccess, canUpdate('fixed_assets'), validateSchema(createOpeningBalanceSchema), (req, res) => controller.createOpeningBalance(req, res))
 
 export default router
