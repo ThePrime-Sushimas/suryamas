@@ -904,6 +904,14 @@ export const menuItems: MenuItem[] = [
         module: "fixed_assets",
       },
       {
+        id: "fixed-assets-opening-balance",
+        name: "Saldo Awal Aset",
+        href: "/fixed-assets/opening-balance",
+        icon: <Database size={16} />,
+        module: "fixed_assets",
+        permissionAction: "insert",
+      },
+      {
         id: "fixed-assets-disposals",
         name: "Pelepasan",
         href: "/fixed-assets/disposals",
