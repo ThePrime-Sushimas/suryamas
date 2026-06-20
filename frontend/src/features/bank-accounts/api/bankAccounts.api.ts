@@ -34,7 +34,7 @@ export const bankAccountsApi = {
     return res.data
   },
 
-  // Get COA options for linking to bank account
+  // Get COA options for linking to bank account, scoped to a specific company
   getCoaOptions: async (companyId: string) => {
     const res = await api.get<ApiResponse<CoaOption[]>>('/chart-of-accounts', {
       params: {

@@ -10,6 +10,7 @@ import {
   CoaAccountNotFoundError,
   CoaAccountNotActiveError,
   CoaAccountInvalidTypeError,
+  CoaAccountCompanyMismatchError,
   OwnerClosedError,
   OwnerDeletedError,
 } from './bankAccounts.errors'
@@ -19,7 +20,7 @@ import { logInfo } from '../../config/logger'
 import { AuditService } from '../monitoring/monitoring.service'
 
 export class BankAccountsService {
-  private async validateOwner(ownerType: OwnerType, ownerId: string): Promise<void> {
+  private async validateOwner(ownerType: OwnerType, ownerId: string): Promise<string | undefined> {
     if (!['company', 'supplier', 'vendor'].includes(ownerType)) throw new InvalidOwnerTypeError(ownerType, ['company', 'supplier', 'vendor'])
     
     const data = await bankAccountsRepository.findOwner(ownerType, ownerId)
@@ -38,6 +39,8 @@ export class BankAccountsService {
         throw new OwnerDeletedError('vendor', ownerId)
       }
     }
+
+    return data.company_id
   }
 
   private async validateBank(bankId: number): Promise<void> {
@@ -46,19 +49,24 @@ export class BankAccountsService {
     if (!data.is_active) throw new BankNotActiveError(bankId)
   }
 
-  private async validateCoaAccount(coaAccountId: string | null | undefined): Promise<void> {
+  private async validateCoaAccount(coaAccountId: string | null | undefined, ownerCompanyId?: string): Promise<void> {
     if (!coaAccountId) return
 
     const data = await bankAccountsRepository.findCoaAccount(coaAccountId)
     if (!data) throw new CoaAccountNotFoundError(coaAccountId)
     if (!data.is_active) throw new CoaAccountNotActiveError(coaAccountId)
     if (data.account_type !== 'ASSET') throw new CoaAccountInvalidTypeError(coaAccountId, data.account_type)
+
+    // Validate COA belongs to the same company as the owner
+    if (ownerCompanyId && data.company_id !== ownerCompanyId) {
+      throw new CoaAccountCompanyMismatchError(coaAccountId, data.company_id, ownerCompanyId)
+    }
   }
 
   async createBankAccount(data: CreateBankAccountDto, userId?: string): Promise<BankAccount> {
-    await this.validateOwner(data.owner_type, data.owner_id)
+    const ownerCompanyId = await this.validateOwner(data.owner_type, data.owner_id)
     await this.validateBank(data.bank_id)
-    await this.validateCoaAccount(data.coa_account_id)
+    await this.validateCoaAccount(data.coa_account_id, ownerCompanyId)
 
     const existing = await bankAccountsRepository.findByAccountNumber(data.bank_id, data.account_number)
     if (existing) throw new DuplicateBankAccountError(data.account_number)
@@ -94,7 +102,9 @@ export class BankAccountsService {
     }
 
     if (data.coa_account_id !== undefined) {
-      await this.validateCoaAccount(data.coa_account_id)
+      // Resolve owner's company_id for cross-check
+      const ownerData = await bankAccountsRepository.findOwner(existing.owner_type as OwnerType, existing.owner_id)
+      await this.validateCoaAccount(data.coa_account_id, ownerData?.company_id)
     }
 
     const account = await bankAccountsRepository.updateAtomic(id, data)

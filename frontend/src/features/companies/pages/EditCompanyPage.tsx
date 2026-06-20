@@ -65,7 +65,7 @@ export default function EditCompanyPage() {
         </div>
 
         {/* Bank Accounts */}
-        <BankAccountsSection ownerType="company" ownerId={id!} />
+        <BankAccountsSection ownerType="company" ownerId={id!} companyId={id!} />
       </div>
     </div>
   )

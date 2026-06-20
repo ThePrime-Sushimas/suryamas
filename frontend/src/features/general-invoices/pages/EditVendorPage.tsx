@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
-import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { BankAccountsSection } from '@/features/bank-accounts/components/BankAccountsSection'
 import { useVendor, useUpdateVendor } from '../api/generalApi.api'
 import { VENDOR_TYPE_OPTIONS } from '../constants'
@@ -10,9 +9,6 @@ import type { VendorType } from '../api/generalApi.api'
 export default function EditVendorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const writeCompanyId = useBranchContextStore(
-    (s) => s.currentBranch?.company_id ?? s.branches[0]?.company_id,
-  )
 
   const { data: vendor, isLoading: loadingVendor } = useVendor(id ?? '')
   const updateMutation = useUpdateVendor()
@@ -226,7 +222,7 @@ export default function EditVendorPage() {
         <BankAccountsSection
           ownerType="vendor"
           ownerId={id!}
-          companyId={writeCompanyId}
+          companyId={vendor?.company_id}
         />
       </div>
 

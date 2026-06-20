@@ -1083,7 +1083,22 @@ export const generalPaymentRepository = {
     )
   },
 
-  async findBankCoaId(bankAccountId: number): Promise<string | null> {
+  async findBankCoaId(bankAccountId: number, companyId?: string): Promise<string | null> {
+    if (companyId) {
+      const { rows } = await pool.query<{ coa_account_id: string | null }>(
+        `SELECT ba.coa_account_id
+         FROM bank_accounts ba
+         JOIN chart_of_accounts coa ON coa.id = ba.coa_account_id
+         WHERE ba.id = $1
+           AND ba.deleted_at IS NULL
+           AND ba.owner_type = 'company'
+           AND ba.owner_id = $2
+           AND coa.company_id = $2
+           AND coa.deleted_at IS NULL`,
+        [bankAccountId, companyId],
+      )
+      return rows[0]?.coa_account_id ?? null
+    }
     const { rows } = await pool.query<{ coa_account_id: string | null }>(
       `SELECT coa_account_id FROM bank_accounts WHERE id = $1 AND deleted_at IS NULL`,
       [bankAccountId],

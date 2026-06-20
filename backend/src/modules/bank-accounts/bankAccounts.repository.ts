@@ -132,11 +132,21 @@ export class BankAccountsRepository {
     return rows.map(mapRow)
   }
 
-  async findOwner(ownerType: OwnerType, ownerId: string): Promise<{ id: string; status?: string; deleted_at?: string } | null> {
-    const table = ownerType === 'company' ? 'companies' : ownerType === 'supplier' ? 'suppliers' : 'vendors'
-    const selectFields = ownerType === 'company' ? 'id, status' : 'id, deleted_at'
-    const { rows } = await pool.query(`SELECT ${selectFields} FROM ${table} WHERE id = $1`, [ownerId])
-    return rows[0] ?? null
+  async findOwner(ownerType: OwnerType, ownerId: string): Promise<{ id: string; status?: string; deleted_at?: string; company_id?: string } | null> {
+    if (ownerType === 'company') {
+      const { rows } = await pool.query('SELECT id, status FROM companies WHERE id = $1', [ownerId])
+      // For company owner, the owner_id IS the company_id
+      return rows[0] ? { ...rows[0], company_id: rows[0].id } : null
+    } else if (ownerType === 'supplier') {
+      const { rows } = await pool.query('SELECT id, deleted_at FROM suppliers WHERE id = $1', [ownerId])
+      // Suppliers are global (no company_id) — company validation skipped
+      return rows[0] ?? null
+    } else {
+      // vendor
+      const { rows } = await pool.query('SELECT id, company_id, is_deleted FROM vendors WHERE id = $1', [ownerId])
+      if (!rows[0]) return null
+      return { id: rows[0].id, company_id: rows[0].company_id, deleted_at: rows[0].is_deleted ? 'deleted' : undefined }
+    }
   }
 
   async findBank(bankId: number): Promise<{ id: number; is_active: boolean } | null> {
@@ -144,9 +154,9 @@ export class BankAccountsRepository {
     return rows[0] ?? null
   }
 
-  async findCoaAccount(coaAccountId: string): Promise<{ id: string; account_code: string; account_name: string; account_type: string; is_active: boolean } | null> {
+  async findCoaAccount(coaAccountId: string): Promise<{ id: string; account_code: string; account_name: string; account_type: string; is_active: boolean; company_id: string } | null> {
     const { rows } = await pool.query(
-      'SELECT id, account_code, account_name, account_type, is_active FROM chart_of_accounts WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT id, account_code, account_name, account_type, is_active, company_id FROM chart_of_accounts WHERE id = $1 AND deleted_at IS NULL',
       [coaAccountId]
     )
     return rows[0] ?? null

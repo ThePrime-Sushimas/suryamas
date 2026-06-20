@@ -195,6 +195,16 @@ export class CoaAccountInvalidTypeError extends BusinessRuleError {
   }
 }
 
+export class CoaAccountCompanyMismatchError extends BusinessRuleError {
+  constructor(coaAccountId: string, coaCompanyId: string, ownerCompanyId: string) {
+    super(
+      `COA account belongs to a different company than the bank account owner`,
+      { rule: 'coa_company_match', coaAccountId, coaCompanyId, ownerCompanyId }
+    )
+    this.name = 'CoaAccountCompanyMismatchError'
+  }
+}
+
 export class OwnerClosedError extends BusinessRuleError {
   constructor(ownerType: string, ownerId: string) {
     super(

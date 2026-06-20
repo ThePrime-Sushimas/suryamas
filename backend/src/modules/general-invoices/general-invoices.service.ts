@@ -711,7 +711,7 @@ export class GeneralInvoicePaymentService {
       if (!existing.bank_account_id) {
         throw new BusinessRuleError('TRANSFER/CASH payment harus memiliki bank_account_id')
       }
-      const bankCoaId = await generalPaymentRepository.findBankCoaId(existing.bank_account_id)
+      const bankCoaId = await generalPaymentRepository.findBankCoaId(existing.bank_account_id, companyId)
       if (!bankCoaId) throw new GeneralInvoiceBankCoaMissingError(existing.bank_account_id)
       creditAccountId = bankCoaId
     }
