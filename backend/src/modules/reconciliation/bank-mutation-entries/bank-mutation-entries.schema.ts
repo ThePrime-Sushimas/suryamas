@@ -13,6 +13,7 @@ export const reconcileWithMutationEntrySchema = z.object({
     description: z.string().min(1, 'Deskripsi wajib diisi').max(500),
     referenceNumber: z.string().max(100).optional(),
     coaId: z.string().uuid('COA ID harus UUID valid'),
+    branchId: z.string().uuid('Invalid branch ID').optional(),
     entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD').optional(),
     amount: z.number().optional(),
     notes: z.string().max(1000).optional(),

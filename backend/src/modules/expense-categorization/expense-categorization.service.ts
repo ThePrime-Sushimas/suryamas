@@ -3,7 +3,7 @@ import { journalHeadersService } from '../accounting/journals/journal-headers/jo
 import { AuditService } from '../monitoring/monitoring.service'
 import { RuleNotFoundError, RuleDuplicateError, NoEligibleStatementsError, MissingCoaMappingError } from './expense-categorization.errors'
 import { isPostgresError } from '../../utils/postgres-error.util'
-import { requireCompanyAccess } from '../../utils/branch-access.util'
+import { requireCompanyAccess, resolveCentralBranchId } from '../../utils/branch-access.util'
 import { BusinessRuleError } from '../../utils/errors.base'
 import type { ExpenseAutoRule, CreateRuleDto, UpdateRuleDto, CategorizeResult } from './expense-categorization.types'
 
@@ -181,7 +181,7 @@ export class ExpenseCategorizationService {
     companyIds: string[],
     statementIds: number[],
     userId: string,
-    options?: { journal_date?: string; description?: string }
+    options?: { journal_date?: string; description?: string; branch_id?: string }
   ): Promise<{ journal_id: string; journal_number: string; lines_count: number; total_amount: number }> {
     const stmts = await expenseCategorizationRepository.getStatementsForJournal(statementIds, companyIds)
     if (stmts.length === 0) throw new NoEligibleStatementsError()
@@ -191,6 +191,9 @@ export class ExpenseCategorizationService {
     if (stmts.some(s => s.company_id !== companyId)) {
       throw new BusinessRuleError('Semua statement harus dari company yang sama untuk satu jurnal')
     }
+
+    // Resolve Central branch for expense journal (fail-fast before building lines)
+    const centralBranchId = await resolveCentralBranchId(companyId, options?.branch_id)
 
     const incomplete = stmts.filter(s => s.debit_accounts.length === 0 || s.credit_accounts.length === 0)
     if (incomplete.length > 0) {
@@ -232,6 +235,7 @@ export class ExpenseCategorizationService {
 
     const journal = await journalHeadersService.create({
       company_id: companyId,
+      branch_id: centralBranchId,
       journal_date: journalDate,
       journal_type: 'GENERAL',
       description: options?.description || `Expense Journal — ${stmts.length} transaksi`,

@@ -21,7 +21,7 @@ import {
 } from './bank-mutation-entries.types'
 import type { JournalType } from '../../accounting/journals/shared/journal.types'
 import { BusinessRuleError } from '../../../utils/errors.base'
-import { requireCompanyAccess } from '../../../utils/branch-access.util'
+import { requireCompanyAccess, resolveCentralBranchId } from '../../../utils/branch-access.util'
 
 const RECONCILIATION_SOURCE = 'BANK_MUTATION_ENTRY' as const
 const JOURNAL_SOURCE_MODULE = 'BANK_MUTATION_ENTRY' as const
@@ -59,6 +59,9 @@ export class BankMutationEntriesService {
     }
     const coa = coaResult.account!
 
+    // 2b. Resolve Central branch for journal (fail-fast before any writes)
+    const centralBranchId = await resolveCentralBranchId(companyId, dto.branchId)
+
     // 3. Derive defaults from bank statement
     const entryDate = dto.entryDate || statement.transaction_date?.split('T')[0]
     const bankAmount = (statement.credit_amount || 0) - (statement.debit_amount || 0)
@@ -88,6 +91,7 @@ export class BankMutationEntriesService {
     // 6. Auto-create journal DRAFT
     await this.createJournalForEntry(entry.id, {
       companyId,
+      branchId: centralBranchId,
       entryDate,
       entryType: dto.entryType,
       description: dto.description,
@@ -243,6 +247,7 @@ export class BankMutationEntriesService {
     entryId: string,
     params: {
       companyId: string
+      branchId?: string
       entryDate: string
       entryType: BankMutationEntryType
       description: string
@@ -262,6 +267,9 @@ export class BankMutationEntriesService {
         return
       }
 
+      // branchId already resolved & validated by caller (reconcileWithMutationEntry)
+      const centralBranchId = params.branchId!
+
       const typeConfig = BANK_MUTATION_ENTRY_TYPE_CONFIG[params.entryType]
 
       // Determine debit/credit based on entry type
@@ -279,6 +287,7 @@ export class BankMutationEntriesService {
 
       const journal = await journalHeadersService.create({
         company_id: params.companyId,
+        branch_id: centralBranchId,
         journal_date: params.entryDate,
         journal_type: 'BANK' as JournalType,
         description: `[${typeConfig.label}] ${params.description}`,

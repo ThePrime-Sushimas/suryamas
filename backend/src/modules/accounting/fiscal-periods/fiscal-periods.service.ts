@@ -8,6 +8,7 @@ import { PERIOD_FORMAT_REGEX } from './fiscal-periods.constants'
 import { FiscalPeriodsConfig, defaultConfig } from './fiscal-periods.config'
 import { logInfo, logError, logWarn } from '../../../config/logger'
 import { pool } from '../../../config/db'
+import { resolveCentralBranchId } from '../../../utils/branch-access.util'
 
 export interface IAuditService {
   log(action: string, entity: string, entityId: string, userId: string, oldData?: any, newData?: any): Promise<void>
@@ -851,6 +852,9 @@ export class FiscalPeriodsService {
       throw FiscalPeriodErrors.INVALID_RETAINED_EARNINGS_ACCOUNT(dto.retained_earnings_account_id)
     }
 
+    // Resolve Central branch for closing journal (fail-fast before transaction)
+    const centralBranchId = await resolveCentralBranchId(companyId, dto.branch_id)
+
     // Get revenue/expense summary
     const { accounts, posted_count } = await this.repository.getRevenueExpenseSummary(
       companyId, period.period_start, period.period_end
@@ -915,9 +919,9 @@ export class FiscalPeriodsService {
           journal_type, journal_date, period, description,
           total_debit, total_credit, currency, exchange_rate,
           status, source_module, posted_at, created_by, created_at, updated_at
-        ) VALUES ($1, NULL, $2, $3, 'GENERAL', $4, $5, $6, $7, $8, 'IDR', 1, 'POSTED', 'FISCAL_CLOSING', NOW(), $9, NOW(), NOW())
+        ) VALUES ($1, $2, $3, $4, 'GENERAL', $5, $6, $7, $8, $9, 'IDR', 1, 'POSTED', 'FISCAL_CLOSING', NOW(), $10, NOW(), NOW())
         RETURNING id, journal_number`,
-        [companyId, journalNumber, seq, period.period_end, period.period,
+        [companyId, centralBranchId, journalNumber, seq, period.period_end, period.period,
          `Closing Entry - ${period.period}`, totalAmount, totalAmount, userId]
       )
       const journalId = headerRes.rows[0].id

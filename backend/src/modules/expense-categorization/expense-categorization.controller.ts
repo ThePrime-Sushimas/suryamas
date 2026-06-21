@@ -128,7 +128,7 @@ export class ExpenseCategorizationController {
 
       const result = await expenseCategorizationService.generateJournal(
         companyIds, body.statement_ids, userId,
-        { journal_date: body.journal_date, description: body.description },
+        { journal_date: body.journal_date, description: body.description, branch_id: body.branch_id },
       )
       sendSuccess(res, result, `Journal ${result.journal_number} created with ${result.lines_count} lines`, 201)
     } catch (error: unknown) {

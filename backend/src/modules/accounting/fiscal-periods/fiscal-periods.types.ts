@@ -66,6 +66,8 @@ export interface SortParams {
 export interface ClosePeriodWithEntriesDto {
   retained_earnings_account_id: string
   close_reason?: string
+  /** Central branch for closing journal. Required if company has >1 Central branch. */
+  branch_id?: string
 }
 
 export interface ClosingAccountLine {
