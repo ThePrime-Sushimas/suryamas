@@ -137,11 +137,12 @@ export class InventoryReconciliationRepository {
        LEFT JOIN daily_closing_counts dcc ON dcc.id = vcl.closing_id
        LEFT JOIN monthly_stock_opname_lines msol ON msol.id = vcl.monthly_opname_line_id
        LEFT JOIN monthly_stock_opname mso ON mso.id = vcl.monthly_opname_id
-       JOIN branches b ON b.id = COALESCE(dcc.branch_id, mso.branch_id)
+       LEFT JOIN branches b ON b.id = COALESCE(dcc.branch_id, mso.branch_id)
        WHERE vcl.variance_category = 'SHORTAGE'
          AND vcl.resolve_status = 'RESOLVED'
          AND vcl.deduction_amount > 0
          AND vcl.shortage_journal_id IS NULL
+         AND COALESCE(dcc.branch_id, mso.branch_id) IS NOT NULL
          AND COALESCE(dcc.branch_id, mso.branch_id) = ANY($1::uuid[])
          AND b.company_id = ANY($2::uuid[])
          AND COALESCE(dcc.closing_date, mso.opname_date) <= $3::date
