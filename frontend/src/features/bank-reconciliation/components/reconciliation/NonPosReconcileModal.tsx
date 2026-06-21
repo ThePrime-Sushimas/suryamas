@@ -15,7 +15,10 @@ import {
   Loader2,
   ChevronDown,
   Info,
+  Building2,
 } from "lucide-react";
+import { useQuery } from '@tanstack/react-query'
+import api from '@/lib/axios'
 import { AccountSelector } from "@/features/accounting/journals/shared/AccountSelector";
 import {
   bankMutationEntriesApi,
@@ -56,6 +59,24 @@ export function NonPosReconcileModal({
 
   const config = BANK_MUTATION_ENTRY_TYPE_CONFIG[entryType];
   const bankAmount = statement ? (statement.credit_amount || 0) - (statement.debit_amount || 0) : 0;
+
+  // Central branch for journal — uses statement's own company_id (consistent with backend)
+  const statementCompanyId = statement?.company_id ?? ''
+  const { data: centralBranches = [] } = useQuery({
+    queryKey: ['branches', 'central', statementCompanyId],
+    queryFn: async () => {
+      const { data } = await api.get('/branches/central', { params: { company_id: statementCompanyId } })
+      return data.data as Array<{ id: string; branch_code: string; branch_name: string }>
+    },
+    enabled: !!statementCompanyId && isOpen,
+    staleTime: 60_000,
+  })
+  const [selectedCentralBranchId, setSelectedCentralBranchId] = useState('')
+
+  // Auto-select when exactly 1 Central
+  useEffect(() => {
+    if (centralBranches.length === 1) setSelectedCentralBranchId(centralBranches[0].id)
+  }, [centralBranches])
 
   useEffect(() => {
     if (isOpen && statement) {
@@ -98,6 +119,7 @@ export function NonPosReconcileModal({
         referenceNumber: referenceNumber.trim() || undefined,
         notes: notes.trim() || undefined,
         entryDate: entryDate || undefined,
+        branchId: selectedCentralBranchId || undefined,
       };
       await bankMutationEntriesApi.reconcile(payload);
       onSuccess();
@@ -111,7 +133,8 @@ export function NonPosReconcileModal({
     }
   };
 
-  const canSubmit = coaId && description.trim() && !isSubmitting;
+  const hasCentralBranch = centralBranches.length > 0 && (centralBranches.length === 1 || !!selectedCentralBranchId)
+  const canSubmit = coaId && description.trim() && !isSubmitting && hasCentralBranch;
 
   if (!isOpen || !statement) return null;
 
@@ -246,6 +269,32 @@ export function NonPosReconcileModal({
               <input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)}
                 className="w-full px-3 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" />
             </div>
+          </div>
+
+          {/* Central Branch */}
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Central Branch</label>
+            {centralBranches.length === 0 && (
+              <p className="text-xs text-red-500">⚠️ Belum ada Central branch dikonfigurasi. Hubungi admin.</p>
+            )}
+            {centralBranches.length === 1 && (
+              <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                {centralBranches[0].branch_name}
+              </p>
+            )}
+            {centralBranches.length > 1 && (
+              <select
+                value={selectedCentralBranchId}
+                onChange={e => setSelectedCentralBranchId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              >
+                <option value="">— Pilih Central Branch —</option>
+                {centralBranches.map(b => (
+                  <option key={b.id} value={b.id}>{b.branch_name} ({b.branch_code})</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Notes */}

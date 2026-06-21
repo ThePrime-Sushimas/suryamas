@@ -73,6 +73,7 @@ export interface FiscalPeriodListResponse {
 export interface ClosePeriodWithEntriesDto {
   retained_earnings_account_id: string
   close_reason?: string
+  branch_id?: string
 }
 
 export interface ClosingAccountLine {

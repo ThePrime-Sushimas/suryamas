@@ -66,6 +66,7 @@ export interface PotentialMatch {
  */
 export interface BankStatementWithMatch {
   id: string;
+  company_id?: string;
   transaction_date: string;
   description: string;
   reference_number?: string;

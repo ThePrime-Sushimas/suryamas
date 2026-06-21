@@ -79,6 +79,7 @@ export interface ReconcileWithMutationEntryRequest {
   entryDate?: string;
   amount?: number;
   notes?: string;
+  branchId?: string;
 }
 
 export interface VoidMutationEntryRequest {

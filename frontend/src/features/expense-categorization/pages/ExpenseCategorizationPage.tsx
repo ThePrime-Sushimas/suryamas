@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Zap, Plus, Trash2, Tag, AlertCircle, CheckCircle2, Settings, Eye, Search, Filter, X, Pencil, Check, Calendar } from 'lucide-react'
+import { Zap, Plus, Trash2, Tag, AlertCircle, CheckCircle2, Settings, Eye, Search, Filter, X, Pencil, Check, Calendar, Building2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -11,6 +11,9 @@ import {
   useAutoCategorize, useManualCategorize, useUncategorize, useGenerateJournal,
 } from '../api/expense-categorization.api'
 import type { AccountingPurposeOption, CategorizeResult, ExpenseAutoRule } from '../types/expense-categorization.types'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
+import { useQuery } from '@tanstack/react-query'
+import api from '@/lib/axios'
 
 const fmt = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -42,6 +45,29 @@ function getPurposeBadge(purposeName: string | null) {
 
 export default function ExpenseCategorizationPage() {
   const toast = useToast()
+
+  // Central branch for journal generation
+  const currentBranch = useBranchContextStore(s => s.currentBranch)
+  const companyId = currentBranch?.company_id ?? ''
+  const { data: centralBranches = [] } = useQuery({
+    queryKey: ['branches', 'central', companyId],
+    queryFn: async () => {
+      const { data } = await api.get('/branches/central', { params: { company_id: companyId } })
+      return data.data as Array<{ id: string; branch_code: string; branch_name: string }>
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  })
+  const [selectedCentralBranchId, setSelectedCentralBranchId] = useState('')
+
+  // Auto-select when exactly 1 Central branch
+  useEffect(() => {
+    if (centralBranches.length === 1 && !selectedCentralBranchId) {
+      setSelectedCentralBranchId(centralBranches[0].id)
+    }
+  }, [centralBranches, selectedCentralBranchId])
+
+  const canGenerateJournal = centralBranches.length > 0 && (centralBranches.length === 1 || !!selectedCentralBranchId)
 
   const [activeTab, setActiveTab] = useState<'uncategorized' | 'rules'>('uncategorized')
   const [page, setPage] = useState(1)
@@ -186,8 +212,12 @@ export default function ExpenseCategorizationPage() {
     if (selectedIds.size === 0) return
     const eligible = stmts.filter(s => selectedIds.has(Number(s.id)) && s.purpose_id)
     if (eligible.length === 0) { toast.warning('Pilih transaksi yang sudah dikategorikan'); return }
+    if (!canGenerateJournal) { toast.warning('Pilih Central Branch terlebih dahulu'); return }
     try {
-      const result = await generateJournal.mutateAsync({ statement_ids: eligible.map(s => Number(s.id)) })
+      const result = await generateJournal.mutateAsync({
+        statement_ids: eligible.map(s => Number(s.id)),
+        branch_id: selectedCentralBranchId || undefined,
+      })
       toast.success(`Journal ${result.journal_number} dibuat — ${result.lines_count} lines, ${fmt(result.total_amount)}`)
       setSelectedIds(new Set())
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal generate journal')) }
@@ -297,7 +327,28 @@ export default function ExpenseCategorizationPage() {
                   className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-40">Assign</button>
                 <button onClick={handleUncategorize} disabled={uncategorizeMutation.isPending}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700">Clear</button>
-                <button onClick={handleGenerateJournal} disabled={generateJournal.isPending}
+                {centralBranches.length === 0 && (
+                  <span className="text-xs text-red-500">⚠️ No Central branch</span>
+                )}
+                {centralBranches.length === 1 && (
+                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <Building2 className="w-3 h-3" />
+                    {centralBranches[0].branch_name}
+                  </span>
+                )}
+                {centralBranches.length > 1 && (
+                  <select
+                    value={selectedCentralBranchId}
+                    onChange={e => setSelectedCentralBranchId(e.target.value)}
+                    className="h-9 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">— Central Branch —</option>
+                    {centralBranches.map(b => (
+                      <option key={b.id} value={b.id}>{b.branch_name} ({b.branch_code})</option>
+                    ))}
+                  </select>
+                )}
+                <button onClick={handleGenerateJournal} disabled={generateJournal.isPending || !canGenerateJournal}
                   className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40">
                   {generateJournal.isPending ? 'Generating...' : '📝 Generate Journal'}
                 </button>

@@ -1,10 +1,12 @@
 import { pool } from '../../config/db'
 import { dailyStockOpnameRepository } from './daily-stock-opname.repository'
 import { classificationRepository } from './daily-stock-opname-classification.repository'
+import { stockAdjustmentsService } from '../stock-adjustments/stock-adjustments.service'
 import { AppError, ErrorCategory } from '../../utils/errors.base'
 import { AuditService } from '../monitoring/monitoring.service'
 import { notificationDispatcher } from '../notifications/notification-dispatcher.service'
 import { NOTIFICATION_EVENT_KEYS } from '../notifications/notification-events'
+import { logInfo, logWarn, logError } from '../../config/logger'
 import type { PermissionMatrix } from '../permissions/permissions.types'
 import type {
   ClassifyDto,
@@ -220,10 +222,16 @@ export class DailyStockOpnameClassificationService {
         )
       } catch (auditErr) {
         // Log but don't rethrow — data is already committed
-        const { logWarn } = await import('../../config/logger')
         logWarn('Audit log failed for classification replacement', { sessionId, error: auditErr })
       }
     }
+
+    // 10b. Auto-generate journal for WASTE classification entries (best-effort)
+    // Creates a stock_adjustment record + confirms it → triggers generateWasteJournal().
+    // Stock is NOT deducted again (isShortageConversion path) because source_closing_id is set.
+    await this.generateWasteJournalFromClassification(
+      sessionId, branchIds, dto.entries, negativeLinesMap, session, userId,
+    )
 
     // 11. Dispatch notifications for SHORTAGE entries (best-effort, don't fail the request)
     // Resolve employee IDs to user_ids for notification recipients
@@ -307,6 +315,101 @@ export class DailyStockOpnameClassificationService {
         undefined,
         ErrorCategory.BUSINESS_RULE,
       )
+    }
+  }
+
+  /**
+   * Auto-generate waste journal for WASTE classification entries.
+   *
+   * Reuses the existing stock-adjustments flow:
+   * 1. Create stock_adjustment with source_closing_id (marks as shortage-conversion → no stock re-deduction)
+   * 2. Auto-confirm → triggers generateWasteJournal() internally
+   *
+   * Idempotency: blocks if a CONFIRMED stock_adjustment already exists for this closing session.
+   * Best-effort: failures are logged but do not fail the classify() response.
+   */
+  private async generateWasteJournalFromClassification(
+    sessionId: string,
+    branchIds: string[],
+    entries: ClassifyLineEntry[],
+    negativeLinesMap: Map<string, DailyClosingCountLine>,
+    session: { warehouse_id: string; branch_id: string; company_id: string; closing_date: string; position_id: string | null },
+    userId: string,
+  ): Promise<void> {
+    const wasteEntries = entries.filter((e) => e.variance_category === 'WASTE')
+    if (wasteEntries.length === 0) return
+
+    try {
+      // Idempotency check: if a confirmed stock_adjustment already exists for this closing, skip
+      const { rows: existingSa } = await pool.query(
+        `SELECT id FROM stock_adjustments
+         WHERE source_closing_id = $1 AND status = 'CONFIRMED' AND deleted_at IS NULL
+         LIMIT 1`,
+        [sessionId],
+      )
+      if (existingSa.length > 0) {
+        logInfo('[ClassificationJournal] Stock adjustment already exists for closing, skipping', {
+          sessionId, existingSaId: existingSa[0].id,
+        })
+        return
+      }
+
+      // Cancel any existing DRAFT stock_adjustment for this closing (from previous classification attempt)
+      const { rows: draftSa } = await pool.query(
+        `SELECT id FROM stock_adjustments
+         WHERE source_closing_id = $1 AND status = 'DRAFT' AND deleted_at IS NULL`,
+        [sessionId],
+      )
+      for (const draft of draftSa) {
+        try {
+          await stockAdjustmentsService.cancel(draft.id, branchIds, { cancelled_by: userId })
+        } catch {
+          // If cancel fails (e.g., already cancelled), just continue
+        }
+      }
+
+      // Build waste lines from classification entries + closing count lines
+      const wasteLines: { product_id: string; qty: number; notes: string | null }[] = []
+      for (const entry of wasteEntries) {
+        const line = negativeLinesMap.get(entry.line_id)
+        if (!line) continue
+        wasteLines.push({
+          product_id: line.product_id,
+          qty: entry.qty,
+          notes: `Opname ${session.closing_date} - ${line.product_name}`,
+        })
+      }
+
+      if (wasteLines.length === 0) return
+
+      // Create stock_adjustment via existing service method (reuses full flow)
+      const saId = await stockAdjustmentsService.createFromShortage(branchIds, {
+        warehouse_id: session.warehouse_id,
+        branch_id: session.branch_id,
+        company_id: session.company_id,
+        adjustment_date: session.closing_date,
+        notes: `Auto from opname classification - ${session.closing_date}`,
+        source_closing_id: sessionId,
+        source_position_id: session.position_id,
+        lines: wasteLines,
+        created_by: userId,
+      })
+
+      // Auto-confirm → triggers journal generation (non-blocking on journal failure)
+      const result = await stockAdjustmentsService.confirm(saId, branchIds, { confirmed_by: userId })
+
+      logInfo('[ClassificationJournal] Waste journal generated from classification', {
+        sessionId,
+        stockAdjustmentId: saId,
+        journalPending: result.journal_pending ?? false,
+        wasteLineCount: wasteLines.length,
+      })
+    } catch (err) {
+      // Best-effort: classification succeeded, journal generation is secondary
+      logError('[ClassificationJournal] Failed to generate waste journal from classification', {
+        sessionId,
+        error: err instanceof Error ? err.message : 'Unknown',
+      })
     }
   }
 

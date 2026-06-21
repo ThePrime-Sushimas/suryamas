@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Building2 } from 'lucide-react'
 import { parseApiError } from '@/lib/errorParser'
 import api from '@/lib/axios'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
@@ -123,6 +125,27 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
   const [result, setResult] = useState<{ journalId: string; journalNumber: string } | null>(null)
   const [equityAccounts, setEquityAccounts] = useState<EquityAccount[]>([])
 
+  // Central branch for closing journal
+  const { data: centralBranches = [] } = useQuery({
+    queryKey: ['branches', 'central', period.company_id],
+    queryFn: async () => {
+      const { data } = await api.get('/branches/central', { params: { company_id: period.company_id } })
+      return data.data as Array<{ id: string; branch_code: string; branch_name: string }>
+    },
+    enabled: isOpen && !!period.company_id,
+    staleTime: 60_000,
+  })
+  const [selectedCentralBranchId, setSelectedCentralBranchId] = useState('')
+
+  // Auto-select when exactly 1 Central
+  useEffect(() => {
+    if (centralBranches.length === 1 && !selectedCentralBranchId) {
+      setSelectedCentralBranchId(centralBranches[0].id)
+    }
+  }, [centralBranches, selectedCentralBranchId])
+
+  const hasCentralBranch = centralBranches.length > 0 && (centralBranches.length === 1 || !!selectedCentralBranchId)
+
   useEffect(() => {
     if (!isOpen) return
     setStep('preview')
@@ -156,12 +179,17 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
       setSubmitError('Pilih akun Retained Earnings terlebih dahulu')
       return
     }
+    if (!hasCentralBranch) {
+      setSubmitError('Pilih Central Branch untuk closing journal')
+      return
+    }
     setSubmitting(true)
     setSubmitError(null)
     try {
       const res = await closePeriodWithEntries(period.id, {
         retained_earnings_account_id: retainedEarningsAccountId,
         close_reason: closeReason || undefined,
+        branch_id: selectedCentralBranchId || undefined,
       })
       setResult({ journalId: res.closing_journal_id, journalNumber: res.closing_journal_number })
       onSuccess()
@@ -291,6 +319,35 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
                   placeholder="Masukkan alasan penutupan periode..." />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right">{closeReason.length}/500</p>
               </div>
+            {/* Central Branch */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Central Branch untuk Closing Journal
+              </label>
+              {centralBranches.length === 0 && (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  ⚠️ Belum ada Central branch dikonfigurasi. Closing journal memerlukan Central branch.
+                </p>
+              )}
+              {centralBranches.length === 1 && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                  <Building2 className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-900 dark:text-white">{centralBranches[0].branch_name}</span>
+                </div>
+              )}
+              {centralBranches.length > 1 && (
+                <select
+                  value={selectedCentralBranchId}
+                  onChange={e => setSelectedCentralBranchId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                >
+                  <option value="">— Pilih Central Branch —</option>
+                  {centralBranches.map(b => (
+                    <option key={b.id} value={b.id}>{b.branch_name} ({b.branch_code})</option>
+                  ))}
+                </select>
+              )}
+            </div>
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-2 text-sm">
                 <p className="font-medium text-gray-700 dark:text-gray-300">Ringkasan Closing</p>
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
@@ -344,7 +401,7 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
               </button>
             )}
             {step === 'confirm' && (
-              <button type="button" onClick={handleConfirm} disabled={submitting || !retainedEarningsAccountId}
+              <button type="button" onClick={handleConfirm} disabled={submitting || !retainedEarningsAccountId || !hasCentralBranch}
                 className="px-5 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 text-sm transition font-medium min-w-[140px]">
                 {submitting ? (
                   <span className="flex items-center gap-2 justify-center">
