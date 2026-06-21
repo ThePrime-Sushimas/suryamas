@@ -32,6 +32,7 @@ export const BANK_MUTATION_ENTRY_TYPE_CONFIG: Record<
 export interface BankMutationEntryRow {
   id: string
   company_id: string
+  branch_id: string | null
   entry_date: string
   entry_type: BankMutationEntryType
   description: string
@@ -71,6 +72,8 @@ export interface ReconcileBankStatementWithMutationEntryDto {
   /** Override amount (default: bank statement amount). Must match sign with entry type */
   amount?: number
   notes?: string
+  /** Central branch for journal attribution. Required if company has >1 Central branch. */
+  branchId?: string
 }
 
 /** Void entry DTO */

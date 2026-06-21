@@ -21,6 +21,7 @@ export interface Branch {
   hari_operasional: HariOperasional
   notes: string | null
   is_sales: boolean | null
+  is_central: boolean
   closed_at: string | null
   closed_by: string | null
   closed_date: string | null

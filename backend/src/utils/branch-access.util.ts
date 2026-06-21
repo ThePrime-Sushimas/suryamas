@@ -178,3 +178,83 @@ export async function getWriteScope(req: Request): Promise<WriteScope> {
   if (!companyId) throw new Error('Branch context required')
   return { ...scope, companyId }
 }
+
+// ── Central Branch ──
+
+export interface CentralBranchOption {
+  id: string
+  branch_code: string
+  branch_name: string
+}
+
+/**
+ * Returns all Central branches for a company.
+ * A company may have zero, one, or multiple Central branches.
+ *
+ * Caller (UI-facing service) is responsible for:
+ * - If 0 results: surface error to user (no Central configured)
+ * - If 1 result: may auto-select without prompting user
+ * - If 2+ results: must prompt user to choose via dropdown
+ */
+export async function getCentralBranches(companyId: string): Promise<CentralBranchOption[]> {
+  const { rows } = await pool.query(
+    `SELECT id, branch_code, branch_name
+     FROM branches
+     WHERE company_id = $1 AND is_central = true AND status = 'active'
+     ORDER BY branch_name`,
+    [companyId]
+  )
+  return rows
+}
+
+/**
+ * Validates that a given branch_id is a valid Central branch for the specified company.
+ * Used by services that receive branch_id from user request and need defensive validation.
+ *
+ * @throws BusinessRuleError if branch is not a valid Central for this company
+ */
+export async function requireCentralBranch(branchId: string, companyId: string): Promise<void> {
+  const centrals = await getCentralBranches(companyId)
+  if (!centrals.some(b => b.id === branchId)) {
+    const err = new Error('Branch yang dipilih bukan Central branch yang valid untuk company ini') as Error & { statusCode?: number }
+    err.statusCode = 400
+    throw err
+  }
+}
+
+/**
+ * Resolves the Central branch_id for a service call.
+ * - If branchId provided by user: validates it's a valid Central
+ * - If not provided and exactly 1 Central: auto-selects
+ * - If not provided and 0 or 2+ Centrals: throws descriptive error
+ *
+ * @returns resolved branch_id (guaranteed valid Central for this company)
+ */
+export async function resolveCentralBranchId(companyId: string, userProvidedBranchId?: string): Promise<string> {
+  const centrals = await getCentralBranches(companyId)
+
+  if (centrals.length === 0) {
+    const err = new Error('Belum ada Central branch dikonfigurasi untuk company ini. Hubungi admin.') as Error & { statusCode?: number }
+    err.statusCode = 400
+    throw err
+  }
+
+  if (userProvidedBranchId) {
+    if (!centrals.some(b => b.id === userProvidedBranchId)) {
+      const err = new Error('Branch yang dipilih bukan Central branch yang valid untuk company ini') as Error & { statusCode?: number }
+      err.statusCode = 400
+      throw err
+    }
+    return userProvidedBranchId
+  }
+
+  if (centrals.length === 1) {
+    return centrals[0].id
+  }
+
+  const err = new Error(
+    'Company memiliki lebih dari 1 Central branch. Pilih salah satu via parameter branch_id.'
+  ) as Error & { statusCode?: number }
+  err.statusCode = 400
+  throw err
+}

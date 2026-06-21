@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Request, Response } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
 import { canView, canInsert, canUpdate, canDelete } from '../../middleware/permission.middleware'
@@ -7,6 +7,9 @@ import { validateSchema } from '../../middleware/validation.middleware'
 import { branchesController } from './branches.controller'
 import { PermissionService } from '../../services/permission.service'
 import { CreateBranchSchema, UpdateBranchSchema, BulkUpdateStatusSchema, branchIdSchema } from './branches.schema'
+import { getAccessibleCompanyIds, requireCompanyAccess, getCentralBranches } from '../../utils/branch-access.util'
+import { sendSuccess, sendError } from '../../utils/response.util'
+import { handleError } from '../../utils/error-handler.util'
 
 const router = Router()
 
@@ -17,6 +20,23 @@ PermissionService.registerModule('branches', 'Branch Management').catch((err) =>
 const sortFields = ['branch_name', 'branch_code', 'city', 'status', 'created_at', 'updated_at', 'id']
 
 router.use(authenticate, resolveBranchContext)
+
+// Central branches for dropdown (company-wide expense attribution)
+router.get('/central', canView('branches'), async (req: Request, res: Response) => {
+  try {
+    const companyId = req.query.company_id as string || req.context?.company_id || ''
+    if (!companyId) {
+      sendError(res, 'company_id is required', 400)
+      return
+    }
+    const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+    requireCompanyAccess(companyId, companyIds)
+    const centrals = await getCentralBranches(companyId)
+    sendSuccess(res, centrals, 'Central branches retrieved')
+  } catch (error: unknown) {
+    await handleError(res, error, req, { action: 'get_central_branches' })
+  }
+})
 
 router.get('/filter-options', canView('branches'), (req, res) => branchesController.getFilterOptions(req, res))
 router.get('/minimal/active', canView('branches'), (req, res) => branchesController.minimalActive(req, res))
