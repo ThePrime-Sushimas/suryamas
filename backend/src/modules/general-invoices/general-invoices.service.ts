@@ -372,19 +372,24 @@ export class GeneralInvoiceService {
       throw new GeneralInvoiceAlreadyPaidError(payment.payment_number, payment.status)
     }
 
-    // Hapus payment DRAFT agar tidak menggantung
-    if (payment?.status === 'DRAFT') {
-      await generalPaymentRepository.withTransaction(async (client) => {
-        await generalPaymentRepository.softDelete(client, payment.id, userId)
-      })
-    }
-
-    // Hard-delete jurnal posting (forceDelete null FK + revert POSTED→DRAFT)
-    if (existing.status === 'POSTED' && existing.journal_id) {
-      await journalHeadersService.forceDeleteAsUser(existing.journal_id, userId)
-    }
-
+    // Semua write operations dalam satu transaction:
+    // - soft-delete draft payment (jika ada)
+    // - hard-delete journal posting (clear refs + delete lines/header)
+    // - update invoice status ke CANCELLED
+    // - cancel amortization schedules
     await generalInvoiceRepository.withTransaction(async (client) => {
+      // Hapus payment DRAFT agar tidak menggantung
+      if (payment?.status === 'DRAFT') {
+        await generalPaymentRepository.softDelete(client, payment.id, userId)
+      }
+
+      // Hard-delete jurnal posting (clear FK references + delete journal)
+      if (existing.status === 'POSTED' && existing.journal_id) {
+        await journalHeadersRepository.clearReversalReferences(existing.journal_id, client)
+        await journalHeadersRepository.clearJournalReferences(existing.journal_id, client)
+        await journalHeadersRepository.delete(existing.journal_id, userId, client)
+      }
+
       await generalInvoiceRepository.updateStatus(client, id, 'CANCELLED', {
         updated_by: userId,
         journal_id: null,
@@ -395,6 +400,17 @@ export class GeneralInvoiceService {
       await amortizationRepository.cancelByInvoiceId(client, id)
     })
 
+    // Audit trail — best-effort, non-transactional by design.
+    // AuditService.log does not accept PoolClient and swallows errors internally.
+    // If process crashes after commit but before these lines, audit trail is lost
+    // but data integrity is preserved (transaction already committed successfully).
+    if (existing.status === 'POSTED' && existing.journal_id) {
+      await AuditService.log('FORCE_DELETE', 'journal_header', existing.journal_id, userId, {
+        journal_id: existing.journal_id,
+        reason: 'Cascade from general invoice cancel',
+        invoice_id: id,
+      })
+    }
     await AuditService.log('UPDATE', 'general_invoices', id, userId, { status: existing.status }, { status: 'CANCELLED' })
     return this.getById(id, branchIds)
   }
@@ -459,20 +475,18 @@ export class GeneralInvoiceService {
     const amortJournalIds = await amortizationRepository.findJournalIdsByInvoiceId(id)
     journalIdsToDelete.push(...amortJournalIds)
 
-    // 4. Delete all journals directly (bypass forceDeleteAsUser to avoid double-cascade)
-    for (const journalId of journalIdsToDelete) {
-      try {
-        await journalHeadersRepository.clearReversalReferences(journalId)
-        await journalHeadersRepository.clearJournalReferences(journalId)
-        await journalHeadersRepository.delete(journalId, userId)
-      } catch {
-        // Journal mungkin sudah dihapus — skip
-      }
-    }
-
-    // 5. Hard delete everything in one transaction
+    // All writes in one transaction: journal cleanup + record deletion
     await generalInvoiceRepository.withTransaction(async (client) => {
-      // Delete settlement records for CC_OWNER payments
+      // 4. Clear references and delete all journals
+      for (const journalId of journalIdsToDelete) {
+        await journalHeadersRepository.clearReversalReferences(journalId, client)
+        await journalHeadersRepository.clearJournalReferences(journalId, client)
+      }
+      if (journalIdsToDelete.length > 0) {
+        await journalHeadersRepository.bulkHardDelete(journalIdsToDelete, client)
+      }
+
+      // 5. Hard delete settlement records, payments, invoice (lines + header + amortizations)
       for (const payment of payments) {
         if (payment.cc_settlement_id) {
           await generalPaymentRepository.deleteSettlementRecord(client, payment.cc_settlement_id)

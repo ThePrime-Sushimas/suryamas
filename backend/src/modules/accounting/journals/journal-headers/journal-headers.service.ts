@@ -285,6 +285,16 @@ export class JournalHeadersService {
   }
 
   async reverse(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<JournalHeaderWithLines> {
+    if (client) {
+      return this._reverseWithClient(id, reason, userId, branchIds, companyIds, client)
+    }
+    // Self-managed transaction: create+submit+approve+post+markReversed must be atomic
+    return journalHeadersRepository.withTransaction(async (ownClient) => {
+      return this._reverseWithClient(id, reason, userId, branchIds, companyIds, ownClient)
+    })
+  }
+
+  private async _reverseWithClient(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[], client: PoolClient): Promise<JournalHeaderWithLines> {
     const original = await this.getByIdForUser(id, branchIds, companyIds, client)
     const companyId = original.company_id
     if (original.status !== 'POSTED') throw JournalErrors.REVERSE_NON_POSTED(original.status)
