@@ -1,3 +1,4 @@
+import { PoolClient } from "pg";
 import { pool } from "@/config/db";
 import { toSaleRow, toSaleItemRow, toSalePaymentRow } from "./pos-sync.mapper";
 import { SaleInput, SaleItemInput, SalePaymentInput, MasterBranchInput, MasterPaymentMethodInput, MasterMenuCategoryInput, MasterMenuGroupInput, MasterMenuInput, StagingTable, StagingListParams, StagingUpdatePayload } from "./pos-sync.types";
@@ -18,15 +19,33 @@ function getStagingTableName(table: StagingTable): string {
   return name;
 }
 
+// ── Transaction helper ──
+export async function withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await operation(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 // ── Helper: bulk upsert via unnest ──
 async function bulkUpsert<T extends Record<string, unknown>>(
   tableName: string,
   rows: T[],
   columns: string[],
-  conflictColumn: string
+  conflictColumn: string,
+  client?: PoolClient,
 ): Promise<void> {
   if (rows.length === 0) return;
 
+  const db = client ?? pool;
   const BATCH_SIZE = 500;
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
@@ -48,7 +67,7 @@ async function bulkUpsert<T extends Record<string, unknown>>(
       .map(c => `${c} = EXCLUDED.${c}`)
       .join(', ');
 
-    await pool.query(
+    await db.query(
       `INSERT INTO ${tableName} (${columns.join(', ')})
        VALUES ${values.join(', ')}
        ON CONFLICT (${conflictColumn}) DO UPDATE SET ${setClauses}`,
@@ -95,31 +114,32 @@ const SALE_PAYMENT_COLUMNS = [
 ] as const;
 
 export const salesRepository = {
-  async upsertSales(sales: SaleInput[]): Promise<void> {
+  async upsertSales(sales: SaleInput[], client?: PoolClient): Promise<void> {
     const payload = sales.map(toSaleRow);
-    await bulkUpsert('tr_saleshead', payload, [...SALE_COLUMNS], 'sales_num');
+    await bulkUpsert('tr_saleshead', payload, [...SALE_COLUMNS], 'sales_num', client);
   },
 
-  async upsertItems(items: SaleItemInput[]): Promise<void> {
+  async upsertItems(items: SaleItemInput[], client?: PoolClient): Promise<void> {
     const payload = items.map(toSaleItemRow);
-    await bulkUpsert('tr_salesmenu', payload, [...SALE_ITEM_COLUMNS], 'external_id');
+    await bulkUpsert('tr_salesmenu', payload, [...SALE_ITEM_COLUMNS], 'external_id', client);
   },
 
-  async upsertPayments(payments: SalePaymentInput[]): Promise<void> {
+  async upsertPayments(payments: SalePaymentInput[], client?: PoolClient): Promise<void> {
     const payload = payments.map(toSalePaymentRow);
+    const db = client ?? pool;
 
     // Delete old payment records before upsert
     const salesNums = [...new Set(payload.map((p) => p.sales_num))];
     if (salesNums.length > 0) {
       const placeholders = salesNums.map((_, i) => `$${i + 1}`).join(', ');
-      const { rowCount } = await pool.query(
+      const { rowCount } = await db.query(
         `DELETE FROM tr_salespayment WHERE sales_num IN (${placeholders})`,
         salesNums
       );
       logWarn("PosSyncRepository: deleted old payments", { deleted: rowCount ?? 0, salesNums: salesNums.length });
     }
 
-    await bulkUpsert('tr_salespayment', payload, [...SALE_PAYMENT_COLUMNS], 'external_id');
+    await bulkUpsert('tr_salespayment', payload, [...SALE_PAYMENT_COLUMNS], 'external_id', client);
   },
 };
 
@@ -131,20 +151,20 @@ const STAGING_MENU_GROUP_COLS = ['pos_id', 'pos_category_id', 'group_name', 'gro
 const STAGING_MENU_COLS = ['pos_id', 'pos_group_id', 'menu_name', 'menu_short_name', 'menu_code', 'price', 'estimated_cost', 'flag_tax', 'flag_other_tax', 'sales_coa_no', 'cogs_coa_no', 'flag_active', 'pos_synced_at'] as const;
 
 export const masterRepository = {
-  async upsertBranches(branches: MasterBranchInput[]): Promise<void> {
-    await bulkUpsert('pos_staging_branches', branches as unknown as Record<string, unknown>[], [...STAGING_BRANCH_COLS], 'pos_id');
+  async upsertBranches(branches: MasterBranchInput[], client?: PoolClient): Promise<void> {
+    await bulkUpsert('pos_staging_branches', branches as unknown as Record<string, unknown>[], [...STAGING_BRANCH_COLS], 'pos_id', client);
   },
-  async upsertPaymentMethods(payments: MasterPaymentMethodInput[]): Promise<void> {
-    await bulkUpsert('pos_staging_payment_methods', payments as unknown as Record<string, unknown>[], [...STAGING_PM_COLS], 'pos_id');
+  async upsertPaymentMethods(payments: MasterPaymentMethodInput[], client?: PoolClient): Promise<void> {
+    await bulkUpsert('pos_staging_payment_methods', payments as unknown as Record<string, unknown>[], [...STAGING_PM_COLS], 'pos_id', client);
   },
-  async upsertMenuCategories(categories: MasterMenuCategoryInput[]): Promise<void> {
-    await bulkUpsert('pos_staging_menu_categories', categories as unknown as Record<string, unknown>[], [...STAGING_MENU_CAT_COLS], 'pos_id');
+  async upsertMenuCategories(categories: MasterMenuCategoryInput[], client?: PoolClient): Promise<void> {
+    await bulkUpsert('pos_staging_menu_categories', categories as unknown as Record<string, unknown>[], [...STAGING_MENU_CAT_COLS], 'pos_id', client);
   },
-  async upsertMenuGroups(groups: MasterMenuGroupInput[]): Promise<void> {
-    await bulkUpsert('pos_staging_menu_groups', groups as unknown as Record<string, unknown>[], [...STAGING_MENU_GROUP_COLS], 'pos_id');
+  async upsertMenuGroups(groups: MasterMenuGroupInput[], client?: PoolClient): Promise<void> {
+    await bulkUpsert('pos_staging_menu_groups', groups as unknown as Record<string, unknown>[], [...STAGING_MENU_GROUP_COLS], 'pos_id', client);
   },
-  async upsertMenus(menus: MasterMenuInput[]): Promise<void> {
-    await bulkUpsert('pos_staging_menus', menus as unknown as Record<string, unknown>[], [...STAGING_MENU_COLS], 'pos_id');
+  async upsertMenus(menus: MasterMenuInput[], client?: PoolClient): Promise<void> {
+    await bulkUpsert('pos_staging_menus', menus as unknown as Record<string, unknown>[], [...STAGING_MENU_COLS], 'pos_id', client);
   },
 };
 

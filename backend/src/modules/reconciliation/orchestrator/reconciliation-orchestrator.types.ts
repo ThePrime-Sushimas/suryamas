@@ -57,7 +57,8 @@ export interface IReconciliationOrchestratorService {
     aggregateId: string, 
     status: 'PENDING' | 'RECONCILED' | 'DISCREPANCY',
     statementId?: string,
-    reconciledBy?: string
+    reconciledBy?: string,
+    client?: import('pg').PoolClient
   ): Promise<void>;
   getReconciliationSummary(startDate: Date, endDate: Date, companyIds: string[], branchIds: string[]): Promise<any>;
   findPotentialAggregatesForStatement(

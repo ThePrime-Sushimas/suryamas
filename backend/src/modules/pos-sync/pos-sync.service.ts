@@ -3,6 +3,7 @@ import {
   masterRepository,
   stagingRepository,
   aggregateRepository,
+  withTransaction,
 } from "./pos-sync.repository";
 import {
   ImportSalesPayload,
@@ -24,21 +25,22 @@ export const salesService = {
   import: async (payload: ImportSalesPayload): Promise<ImportSalesResult> => {
     const { sales = [], items = [], payments = [] } = payload;
 
-    // sequential (lebih aman untuk Supabase upsert)
-    if (sales.length > 0) {
-      await salesRepository.upsertSales(sales);
-    }
+    // ── All-or-nothing: wrap semua writes dalam satu transaction ──
+    await withTransaction(async (client) => {
+      if (sales.length > 0) {
+        await salesRepository.upsertSales(sales, client);
+      }
 
-    if (items.length > 0) {
-      await salesRepository.upsertItems(items);
-    }
+      if (items.length > 0) {
+        await salesRepository.upsertItems(items, client);
+      }
 
-    if (payments.length > 0) {
-      await salesRepository.upsertPayments(payments);
-    }
+      if (payments.length > 0) {
+        await salesRepository.upsertPayments(payments, client);
+      }
+    });
 
-    // ✅ Trigger per tanggal, bukan per salesNums batch
-    // Supaya kalkulasi selalu pakai semua transaksi di tanggal itu
+    // ✅ Trigger per tanggal — di LUAR transaction (fire-and-forget, idempotent, best-effort)
     if (sales.length > 0) {
       const dates = [
         ...new Set(
@@ -87,32 +89,35 @@ export const masterService = {
       menus = [],
     } = payload;
 
-    // Urutan penting: parent dulu sebelum child
-    if (branches.length > 0) {
-      await masterRepository.upsertBranches(branches);
-    }
-
-    if (payment_methods.length > 0) {
-      await masterRepository.upsertPaymentMethods(payment_methods);
-    }
-
-    if (menu_categories.length > 0) {
-      await masterRepository.upsertMenuCategories(menu_categories);
-    }
-
-    // menu_groups FK ke menu_categories — pastikan categories duluan
-    if (menu_groups.length > 0) {
-      await masterRepository.upsertMenuGroups(menu_groups);
-    }
-
-    // menus FK ke menu_groups — pastikan groups duluan
-    if (menus.length > 0) {
-      // Chunk 50 rows untuk hindari payload terlalu besar
-      const chunkSize = 50;
-      for (let i = 0; i < menus.length; i += chunkSize) {
-        await masterRepository.upsertMenus(menus.slice(i, i + chunkSize));
+    // ── All-or-nothing: wrap semua master data writes dalam satu transaction ──
+    await withTransaction(async (client) => {
+      // Urutan penting: parent dulu sebelum child
+      if (branches.length > 0) {
+        await masterRepository.upsertBranches(branches, client);
       }
-    }
+
+      if (payment_methods.length > 0) {
+        await masterRepository.upsertPaymentMethods(payment_methods, client);
+      }
+
+      if (menu_categories.length > 0) {
+        await masterRepository.upsertMenuCategories(menu_categories, client);
+      }
+
+      // menu_groups FK ke menu_categories — pastikan categories duluan
+      if (menu_groups.length > 0) {
+        await masterRepository.upsertMenuGroups(menu_groups, client);
+      }
+
+      // menus FK ke menu_groups — pastikan groups duluan
+      if (menus.length > 0) {
+        // Chunk 50 rows untuk hindari payload terlalu besar
+        const chunkSize = 50;
+        for (let i = 0; i < menus.length; i += chunkSize) {
+          await masterRepository.upsertMenus(menus.slice(i, i + chunkSize), client);
+        }
+      }
+    });
 
     return {
       success: true,

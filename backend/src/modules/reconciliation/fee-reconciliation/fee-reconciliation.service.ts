@@ -263,7 +263,7 @@ export class FeeReconciliationService {
   }
 
   async resetFeeDiscrepancy(aggregateId: string, client?: import('pg').PoolClient): Promise<void> {
-    await this.repo.resetFeeDiscrepancy(aggregateId, client)
+    await this.repo.resetFeeDiscrepancy?.(aggregateId, client)
   }
 }
 
