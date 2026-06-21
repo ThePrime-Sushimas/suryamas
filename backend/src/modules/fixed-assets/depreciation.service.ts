@@ -1,4 +1,5 @@
 import { pool } from '../../config/db'
+import type { PoolClient } from 'pg'
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { journalHeadersRepository } from '../accounting/journals/journal-headers/journal-headers.repository'
 import { fiscalPeriodsRepository } from '../accounting/fiscal-periods/fiscal-periods.repository'
@@ -67,48 +68,40 @@ export async function executeDepreciationRun(
   const period = await fiscalPeriodsRepository.findById(fiscalPeriodId, companyId)
   if (!period || !period.is_open) throw new PeriodNotOpenError()
 
-  // 2. Idempotency check (only for CONFIRM)
-  if (mode === 'CONFIRM') {
-    const existing = await repository.findPostedRun(companyId, fiscalPeriodId)
-    if (existing) throw new DepreciationAlreadyPostedError(period.period)
-  }
-
-  // 3. Fetch eligible assets (ACTIVE or MAINTENANCE, not fully depreciated)
-  const assets = await repository.findDepreciableAssets(companyId)
-  if (assets.length === 0) {
-    return {
-      run_id: '',
-      status: 'PREVIEW',
-      fiscal_period_id: fiscalPeriodId,
-      total_depreciation_amount: 0,
-      asset_count: 0,
-      entries: [],
-    }
-  }
-
-  // 4. Calculate entries
-  const entries: DepreciationPreviewEntry[] = assets
-    .map((asset) => {
-      const amount = calculateMonthlyDepreciation(asset)
-      return {
-        fixed_asset_id: asset.id,
-        asset_code: asset.asset_code,
-        asset_name: asset.asset_name,
-        cost: asset.cost,
-        salvage_value: asset.salvage_value,
-        useful_life_months: asset.useful_life_months,
-        accumulated_before: asset.accumulated_depreciation,
-        depreciation_amount: amount,
-        accumulated_after: asset.accumulated_depreciation + amount,
-        book_value_after: asset.cost - (asset.accumulated_depreciation + amount),
-      }
-    })
-    .filter((e) => e.depreciation_amount > 0)
-
-  const totalAmount = entries.reduce((sum, e) => sum + e.depreciation_amount, 0)
-
-  // 5. Preview mode: return without persisting
+  // 2. Preview mode: read without locks, return calculation without persisting
   if (mode === 'PREVIEW') {
+    const assets = await repository.findDepreciableAssets(companyId)
+    if (assets.length === 0) {
+      return {
+        run_id: '',
+        status: 'PREVIEW',
+        fiscal_period_id: fiscalPeriodId,
+        total_depreciation_amount: 0,
+        asset_count: 0,
+        entries: [],
+      }
+    }
+
+    const entries = assets
+      .map((asset) => {
+        const amount = calculateMonthlyDepreciation(asset)
+        return {
+          fixed_asset_id: asset.id,
+          asset_code: asset.asset_code,
+          asset_name: asset.asset_name,
+          cost: asset.cost,
+          salvage_value: asset.salvage_value,
+          useful_life_months: asset.useful_life_months,
+          accumulated_before: asset.accumulated_depreciation,
+          depreciation_amount: amount,
+          accumulated_after: asset.accumulated_depreciation + amount,
+          book_value_after: asset.cost - (asset.accumulated_depreciation + amount),
+        }
+      })
+      .filter((e) => e.depreciation_amount > 0)
+
+    const totalAmount = entries.reduce((sum, e) => sum + e.depreciation_amount, 0)
+
     return {
       run_id: '',
       status: 'PREVIEW',
@@ -119,17 +112,52 @@ export async function executeDepreciationRun(
     }
   }
 
-  // 6. Confirm mode: post journals (one per branch), then persist asset updates in transaction
+  // 3. Confirm mode: ALL reads + calculations + writes in a single atomic transaction.
+  //    FOR UPDATE on fixed_assets prevents concurrent depreciation runs from reading
+  //    stale accumulated_depreciation values. Idempotency re-check after lock ensures
+  //    a concurrent run that committed while we waited is detected.
+  let runId: string = ''
   let journalIds: string[] = []
-  try {
-    journalIds = await postDepreciationJournals(companyId, period, entries, userId)
-  } catch (e) {
-    throw e
-  }
+  let entries: DepreciationPreviewEntry[] = []
+  let totalAmount = 0
 
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
+  await repository.withTransaction(async (client) => {
+    // Re-check idempotency AFTER acquiring transaction — prevents TOCTOU race
+    const existing = await repository.findPostedRun(companyId, fiscalPeriodId, client)
+    if (existing) throw new DepreciationAlreadyPostedError(period.period)
+
+    // Lock + read assets with FOR UPDATE (ORDER BY id for consistent lock ordering)
+    const assets = await repository.findDepreciableAssetsForUpdate(companyId, client)
+    if (assets.length === 0) {
+      // Nothing to depreciate — exit transaction cleanly (will commit empty tx)
+      return
+    }
+
+    // Calculate entries from freshly-locked data (guaranteed no concurrent modification)
+    entries = assets
+      .map((asset) => {
+        const amount = calculateMonthlyDepreciation(asset)
+        return {
+          fixed_asset_id: asset.id,
+          asset_code: asset.asset_code,
+          asset_name: asset.asset_name,
+          cost: asset.cost,
+          salvage_value: asset.salvage_value,
+          useful_life_months: asset.useful_life_months,
+          accumulated_before: asset.accumulated_depreciation,
+          depreciation_amount: amount,
+          accumulated_after: asset.accumulated_depreciation + amount,
+          book_value_after: asset.cost - (asset.accumulated_depreciation + amount),
+        }
+      })
+      .filter((e) => e.depreciation_amount > 0)
+
+    if (entries.length === 0) return
+
+    totalAmount = entries.reduce((sum, e) => sum + e.depreciation_amount, 0)
+
+    // Post journals (one per branch) within the same transaction
+    journalIds = await postDepreciationJournals(companyId, period, entries, userId, client)
 
     const run = await repository.createRun(
       {
@@ -142,6 +170,7 @@ export async function executeDepreciationRun(
       },
       client,
     )
+    runId = run.id
 
     await repository.bulkInsertEntries(run.id, entries, client)
 
@@ -169,57 +198,47 @@ export async function executeDepreciationRun(
     }
 
     await repository.updateRunJournals(run.id, journalIds, client)
+  })
 
-    await client.query('COMMIT')
-
-    await AuditService.log(
-      'CREATE',
-      'depreciation_run',
-      run.id,
-      userId,
-      undefined,
-      { fiscal_period_id: fiscalPeriodId, total_amount: totalAmount, asset_count: entries.length, journal_ids: journalIds },
-    )
-
-    logInfo('Depreciation run confirmed', {
-      run_id: run.id,
-      company_id: companyId,
-      period: period.period,
-      asset_count: entries.length,
-      total_amount: totalAmount,
-      journal_count: journalIds.length,
-    })
-
+  // Early exit: no assets to depreciate (transaction committed empty)
+  if (entries.length === 0) {
     return {
-      run_id: run.id,
-      status: 'POSTED',
+      run_id: '',
+      status: 'PREVIEW',
       fiscal_period_id: fiscalPeriodId,
-      total_depreciation_amount: Math.round(totalAmount * 10000) / 10000,
-      asset_count: entries.length,
-      entries,
-      journal_ids: journalIds,
+      total_depreciation_amount: 0,
+      asset_count: 0,
+      entries: [],
     }
-  } catch (e) {
-    await client.query('ROLLBACK')
-    if (journalIds.length > 0) {
-      for (const jId of journalIds) {
-        try {
-          await journalHeadersService.reverseAsUser(
-            jId,
-            `Rollback failed depreciation run for period ${period.period}`,
-            userId,
-          )
-        } catch (revErr: unknown) {
-          logError('Failed to reverse depreciation journal after rollback', {
-            journal_id: jId,
-            error: revErr instanceof Error ? revErr.message : revErr,
-          })
-        }
-      }
-    }
-    throw e
-  } finally {
-    client.release()
+  }
+
+  // Audit + logging — best-effort, non-transactional by design
+  await AuditService.log(
+    'CREATE',
+    'depreciation_run',
+    runId,
+    userId,
+    undefined,
+    { fiscal_period_id: fiscalPeriodId, total_amount: totalAmount, asset_count: entries.length, journal_ids: journalIds },
+  )
+
+  logInfo('Depreciation run confirmed', {
+    run_id: runId,
+    company_id: companyId,
+    period: period.period,
+    asset_count: entries.length,
+    total_amount: totalAmount,
+    journal_count: journalIds.length,
+  })
+
+  return {
+    run_id: runId,
+    status: 'POSTED',
+    fiscal_period_id: fiscalPeriodId,
+    total_depreciation_amount: Math.round(totalAmount * 10000) / 10000,
+    asset_count: entries.length,
+    entries,
+    journal_ids: journalIds,
   }
 }
 
@@ -240,6 +259,7 @@ async function postDepreciationJournals(
   period: FiscalPeriod,
   entries: DepreciationPreviewEntry[],
   userId: string,
+  client?: PoolClient,
 ): Promise<string[]> {
   const assetIds = entries.map((e) => e.fixed_asset_id)
   const assets = await repository.findByIds(assetIds, companyId)
@@ -336,12 +356,13 @@ async function postDepreciationJournals(
         lines,
       },
       userId,
+      client,
     )
 
     // Auto-post the journal
-    await journalHeadersService.submitAsUser(journal.id, userId)
-    await journalHeadersService.approveAsUser(journal.id, userId)
-    await journalHeadersService.postAsUser(journal.id, userId)
+    await journalHeadersService.submitAsUser(journal.id, userId, client)
+    await journalHeadersService.approveAsUser(journal.id, userId, client)
+    await journalHeadersService.postAsUser(journal.id, userId, client)
 
     journalIds.push(journal.id)
   }

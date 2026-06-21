@@ -1337,6 +1337,7 @@ export class PurchaseInvoicesService {
       }>(
         `SELECT id, asset_code, status, cost, journal_id FROM fixed_assets
          WHERE purchase_invoice_id = $1 AND deleted_at IS NULL
+         ORDER BY id
          FOR UPDATE`,
         [id],
       )

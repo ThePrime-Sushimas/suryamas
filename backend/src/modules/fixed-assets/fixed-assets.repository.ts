@@ -15,6 +15,23 @@ import type {
 } from './fixed-assets.types'
 import { FixedAssetNotFoundError } from './fixed-assets.errors'
 
+// ─── Transaction Helper ──────────────────────────────────────────────────────
+
+export async function withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const result = await operation(client)
+    await client.query('COMMIT')
+    return result
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
 // ─── Asset Categories ────────────────────────────────────────────────────────
 
 export async function findCategories(
@@ -458,6 +475,28 @@ export async function findDepreciableAssets(
        AND deleted_at IS NULL
        AND status IN ('ACTIVE', 'MAINTENANCE')
        AND (cost - salvage_value) > accumulated_depreciation`,
+    [companyId],
+  )
+  return rows
+}
+
+/**
+ * Same as findDepreciableAssets but with FOR UPDATE lock + deterministic ordering.
+ * Use inside a transaction when the caller intends to mutate accumulated_depreciation.
+ * ORDER BY id ensures consistent lock ordering to prevent deadlocks.
+ */
+export async function findDepreciableAssetsForUpdate(
+  companyId: string,
+  client: PoolClient,
+): Promise<FixedAsset[]> {
+  const { rows } = await client.query<FixedAsset>(
+    `SELECT * FROM fixed_assets
+     WHERE company_id = $1
+       AND deleted_at IS NULL
+       AND status IN ('ACTIVE', 'MAINTENANCE')
+       AND (cost - salvage_value) > accumulated_depreciation
+     ORDER BY id
+     FOR UPDATE`,
     [companyId],
   )
   return rows
@@ -1761,7 +1800,7 @@ export async function hardDeleteAssetByJournalId(journalId: string): Promise<str
     await client.query('BEGIN')
 
     const { rows } = await client.query<{ id: string }>(
-      `SELECT id FROM fixed_assets WHERE journal_id = $1 AND deleted_at IS NULL FOR UPDATE`,
+      `SELECT id FROM fixed_assets WHERE journal_id = $1 AND deleted_at IS NULL ORDER BY id FOR UPDATE`,
       [journalId],
     )
     if (rows.length === 0) {

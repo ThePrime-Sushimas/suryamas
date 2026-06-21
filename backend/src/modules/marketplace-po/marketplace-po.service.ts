@@ -1,4 +1,5 @@
   import { randomUUID } from 'crypto'
+  import type { PoolClient } from 'pg'
   import { logError } from '../../config/logger'
   import { BusinessRuleError } from '../../utils/errors.base'
   import { AuditService } from '../monitoring/monitoring.service'
@@ -72,11 +73,12 @@
       journalCreateDto: any,
       authUserId: string,
       companyId: string,
+      client?: PoolClient,
     ): Promise<{ id: string }> {
-      const journalHeader = await journalHeadersService.create(journalCreateDto, authUserId)
-      await journalHeadersService.submitAsUser(journalHeader.id, authUserId)
-      await journalHeadersService.approveAsUser(journalHeader.id, authUserId)
-      await journalHeadersService.postAsUser(journalHeader.id, authUserId)
+      const journalHeader = await journalHeadersService.create(journalCreateDto, authUserId, client)
+      await journalHeadersService.submitAsUser(journalHeader.id, authUserId, client)
+      await journalHeadersService.approveAsUser(journalHeader.id, authUserId, client)
+      await journalHeadersService.postAsUser(journalHeader.id, authUserId, client)
       return { id: journalHeader.id }
     }
     async list(companyIds: string[], filter: any, pagination: { page: number; limit: number }) {
@@ -390,10 +392,11 @@
 
       let journalId: string | null = null
       try {
-        const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
-        journalId = posted.id
-
+        // Single transaction: journal creation + session status update — truly atomic
         await marketplacePoRepository.withTransaction(async (client) => {
+          const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId, client)
+          journalId = posted.id
+
           const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
           if (!locked) throw new BusinessRuleError('Marketplace session not found')
           if (locked.status !== 'DRAFT') throw new BusinessRuleError('Session must be DRAFT')
@@ -407,13 +410,7 @@
           if (!updated) throw new BusinessRuleError('Session not found or not in DRAFT')
         })
       } catch (e) {
-        await this.cleanupPostedJournalsAfterFailure(
-          journalId ? [journalId] : [],
-          'orderSession',
-          userId,
-          companyId,
-          { sessionId: id },
-        )
+        // No compensation needed — if transaction rolled back, journal was never committed
         throw e
       }
 
@@ -939,10 +936,11 @@
 
       let journalId: string | null = null
       try {
-        const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId)
-        journalId = posted.id
-
+        // Single transaction: journal creation + settlement finalization — truly atomic
         await marketplacePoRepository.withTransaction(async (client) => {
+          const posted = await this.postJournalWorkflow(journalCreateDto, userId, companyId, client)
+          journalId = posted.id
+
           const locked = await marketplacePoRepository.getSessionForTransition(client, id, companyId)
           if (!locked) throw new BusinessRuleError('Marketplace session not found')
           if (locked.status !== 'RECEIVED') throw new BusinessRuleError('Session must be RECEIVED to SETTLED')
@@ -961,13 +959,7 @@
           })
         })
       } catch (e) {
-        await this.cleanupPostedJournalsAfterFailure(
-          journalId ? [journalId] : [],
-          'settleSession',
-          userId,
-          companyId,
-          { sessionId: id },
-        )
+        // No compensation needed — if transaction rolled back, journal was never committed
         throw e
       }
 
