@@ -334,6 +334,7 @@ export class MarketplacePoRepository {
          AND cc_settlement_id IS NULL
          AND status = 'PAID'
          AND is_deleted = false
+       ORDER BY id
        FOR UPDATE`,
       [paymentIds],
     )
@@ -1232,21 +1233,6 @@ export class MarketplacePoRepository {
     return rows[0] ?? null
   }
 
-  /** Revert sessions back to RECEIVED if bulk settlement fails after eager status update */
-  async revertSessionsToReceived(sessionIds: string[]): Promise<void> {
-    const { rowCount } = await pool.query(
-      `UPDATE marketplace_checkout_sessions SET status = 'RECEIVED', updated_at = NOW()
-       WHERE id = ANY($1::uuid[]) AND status = 'SETTLED' AND journal_settled_id IS NULL`,
-      [sessionIds],
-    )
-    if (rowCount !== sessionIds.length) {
-      logWarn('revertSessionsToReceived: partial revert', {
-        expected: sessionIds.length,
-        reverted: rowCount,
-        sessionIds,
-      })
-    }
-  }
 
   /**
    * Returns total amounts for a session split by product nature (inventory vs asset).
