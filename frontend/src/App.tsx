@@ -338,6 +338,11 @@ const TrialBalancePage = lazy(() =>
     default: m.TrialBalancePage,
   }))
 )
+const InventoryReconciliationPage = lazy(() =>
+  import("./features/accounting/inventory-reconciliation").then((m) => ({
+    default: m.InventoryReconciliationPage,
+  }))
+)
 const DailyLedgerPage = lazy(() =>
   import("./features/accounting/daily-ledger/pages/DailyLedgerPage")
 );
@@ -1519,6 +1524,16 @@ function App() {
                       <RequirePermission module="trial_balance">
                         <Suspense fallback={<LoadingFallback />}>
                           <TrialBalancePage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="accounting/inventory-reconciliation"
+                    element={
+                      <RequirePermission module="trial_balance">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <InventoryReconciliationPage />
                         </Suspense>
                       </RequirePermission>
                     }

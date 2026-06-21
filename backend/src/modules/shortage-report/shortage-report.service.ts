@@ -3,6 +3,7 @@ import { shortageReportRepository } from './shortage-report.repository'
 import { stockAdjustmentsService } from '../stock-adjustments/stock-adjustments.service'
 import { ShortageReportError } from './shortage-report.errors'
 import { AuditService } from '../monitoring/monitoring.service'
+import { logWarn } from '../../config/logger'
 import type {
   DepartmentEmployeePreview,
   ShortageByDepartmentGroup,
@@ -505,10 +506,9 @@ export class ShortageReportService {
     payload: ShortageResolvePayload,
     resolvedByUserId: string,
   ): Promise<ShortageResolveResult> {
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
+    let journalPending = false
 
+    await shortageReportRepository.withTransaction(async (client) => {
       const locked = await shortageReportRepository.lockUnresolvedRowsForResolve(
         client, payload.vcl_ids, branchIds,
       )
@@ -577,20 +577,120 @@ export class ShortageReportService {
         )
       }
 
-      await client.query('COMMIT')
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
-    }
+      // Generate journal: DR Piutang Karyawan (110403), CR Persediaan Cabang (110505)
+      // Best-effort within the same transaction — if COA/fiscal missing, skip journal but still resolve
+      try {
+        journalPending = !(await this.generateShortageResolveJournal(client, locked, resolvedByUserId))
+      } catch (err) {
+        // Journal generation failed — resolve still committed, log for retry
+        logWarn('[ShortageResolve] Journal generation failed', { error: err instanceof Error ? err.message : String(err) })
+        journalPending = true
+      }
+    })
 
     await AuditService.log(
       'UPDATE', 'shortage_report', payload.vcl_ids[0], resolvedByUserId, undefined,
-      { action: 'RESOLVE', vcl_ids: payload.vcl_ids },
+      { action: 'RESOLVE', vcl_ids: payload.vcl_ids, journal_pending: journalPending },
     )
 
-    return { success: true }
+    return { success: true, journal_pending: journalPending }
+  }
+
+  /**
+   * Generate journal for shortage resolve (deduction):
+   *   DR 110403 (Potongan Karyawan) — total deduction value
+   *   CR 110505 (Persediaan Cabang) — per product line
+   *
+   * All locked rows must be from the same branch/company (validated upstream + asserted here).
+   * Returns true if journal was created, false if skipped (missing config).
+   */
+  private async generateShortageResolveJournal(
+    client: import('pg').PoolClient,
+    locked: ShortageRowForResolve[],
+    userId: string,
+  ): Promise<boolean> {
+    if (locked.length === 0) return false
+
+    const companyId = locked[0].company_id
+    const branchId = locked[0].branch_id
+    const journalDate = locked[0].closing_date
+
+    // Assert all rows are same branch/company/date — fail loud if violated
+    for (const row of locked) {
+      if (row.branch_id !== branchId || row.company_id !== companyId) {
+        throw new ShortageReportError(
+          'Journal generation requires all rows from same branch and company. ' +
+          `Expected branch=${branchId}, company=${companyId}, got branch=${row.branch_id}, company=${row.company_id}`
+        )
+      }
+    }
+
+    // Only include rows with positive cost (consistent filter for both DR and CR)
+    const journalRows = locked.filter(r => (Number(r.total_cost) || 0) > 0)
+    if (journalRows.length === 0) return false
+
+    // Calculate total value from filtered rows only
+    const totalValue = journalRows.reduce((sum, r) => sum + Number(r.total_cost), 0)
+    if (totalValue <= 0) return false
+
+    // Resolve fiscal period
+    const fiscalPeriod = await shortageReportRepository.findOpenFiscalPeriod(companyId, journalDate, client)
+    if (!fiscalPeriod) return false
+
+    // Resolve COA accounts
+    const piutangKaryawan = await shortageReportRepository.findCoaByCode(companyId, '110403', client)
+    const persediaanCabang = await shortageReportRepository.findCoaByCode(companyId, '110505', client)
+    if (!piutangKaryawan || !persediaanCabang) return false
+
+    const period = fiscalPeriod.period
+    const seq = await shortageReportRepository.getNextJournalSequence(client, companyId, period)
+    const journalNumber = `JI-${period}-${String(seq).padStart(4, '0')}`
+
+    const description = `Potongan shortage opname ${journalDate}`
+
+    const journalId = await shortageReportRepository.insertJournalHeader(client, {
+      companyId,
+      branchId,
+      journalNumber,
+      sequenceNumber: seq,
+      journalDate,
+      period,
+      description,
+      totalAmount: totalValue,
+      referenceId: locked[0].closing_id ?? locked[0].monthly_opname_id ?? locked[0].id,
+      createdBy: userId,
+    })
+
+    let lineNumber = 1
+
+    // DR: Piutang Karyawan (single line for total)
+    await shortageReportRepository.insertJournalLine(client, {
+      journalHeaderId: journalId,
+      lineNumber: lineNumber++,
+      accountId: piutangKaryawan.id,
+      description: `Potongan shortage - ${journalRows.length} item`,
+      debitAmount: totalValue,
+      creditAmount: 0,
+    })
+
+    // CR: Persediaan Cabang (per product for audit trail)
+    for (const row of journalRows) {
+      const value = Number(row.total_cost)
+      await shortageReportRepository.insertJournalLine(client, {
+        journalHeaderId: journalId,
+        lineNumber: lineNumber++,
+        accountId: persediaanCabang.id,
+        description: `Shortage - ${row.product_id}`,
+        debitAmount: 0,
+        creditAmount: value,
+      })
+    }
+
+    // Save journal reference on VCL rows
+    const vclIds = locked.map(r => r.id)
+    await shortageReportRepository.saveShortageJournalId(client, vclIds, journalId)
+
+    return true
   }
 
   async markDeductionPaid(

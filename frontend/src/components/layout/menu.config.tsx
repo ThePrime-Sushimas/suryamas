@@ -950,6 +950,13 @@ export const menuItems: MenuItem[] = [
             module: "trial_balance",
           },
           {
+            id: "inventory-reconciliation",
+            name: "Rekon Inventory",
+            href: "/accounting/inventory-reconciliation",
+            icon: <Scale size={16} />,
+            module: "trial_balance",
+          },
+          {
             id: "daily-ledger",
             name: "Daily Ledger",
             href: "/accounting/daily-ledger",

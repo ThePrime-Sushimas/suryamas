@@ -31,6 +31,7 @@ import fiscalPeriodsRoutes from "./modules/accounting/fiscal-periods/fiscal-peri
 import journalHeadersRoutes from "./modules/accounting/journals/journal-headers/journal-headers.routes";
 import journalLinesRoutes from "./modules/accounting/journals/journal-lines/journal-lines.routes";
 import trialBalanceRoutes from "./modules/accounting/trial-balance/trial-balance.routes";
+import inventoryReconciliationRoutes from "./modules/accounting/inventory-reconciliation/inventory-reconciliation.routes";
 import dailyLedgerRoutes from "./modules/accounting/daily-ledger/daily-ledger.routes";
 import generalLedgerRoutes from "./modules/accounting/general-ledger/general-ledger.routes";
 import paymentMethodAlertRoutes from "./modules/payment-method-alerts/payment-method-alerts.routes";
@@ -157,6 +158,7 @@ app.use("/api/v1/accounting/fiscal-periods", fiscalPeriodsRoutes);
 app.use("/api/v1/accounting/journals", journalHeadersRoutes);
 app.use("/api/v1/accounting/journal-lines", journalLinesRoutes);
 app.use("/api/v1/accounting/trial-balance", trialBalanceRoutes);
+app.use("/api/v1/accounting/inventory-reconciliation", inventoryReconciliationRoutes);
 app.use("/api/v1/accounting/daily-ledger", dailyLedgerRoutes);
 app.use("/api/v1/accounting/general-ledger", generalLedgerRoutes);
 app.use("/api/v1/payment-method-alerts", paymentMethodAlertRoutes);

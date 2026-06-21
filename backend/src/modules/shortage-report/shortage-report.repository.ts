@@ -601,6 +601,98 @@ export class ShortageReportRepository {
 
     return this.getShortageRowById(id, branchIds)
   }
+  // ─── TRANSACTION WRAPPER ──────────────────────────────────────────────────────
+
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  // ─── JOURNAL HELPERS (for shortage resolve) ─────────────────────────────────
+
+  async findCoaByCode(companyId: string, code: string, client: PoolClient): Promise<{ id: string; account_code: string } | null> {
+    const { rows } = await client.query(
+      `SELECT id, account_code FROM chart_of_accounts
+       WHERE company_id = $1 AND account_code = $2 AND deleted_at IS NULL
+       LIMIT 1`,
+      [companyId, code],
+    )
+    return rows[0] ?? null
+  }
+
+  async findOpenFiscalPeriod(companyId: string, date: string, client: PoolClient): Promise<{ id: string; period: string } | null> {
+    const { rows } = await client.query(
+      `SELECT id, period FROM fiscal_periods
+       WHERE company_id = $1 AND is_open = true AND deleted_at IS NULL
+         AND period_start <= $2::date AND period_end >= $2::date
+       LIMIT 1`,
+      [companyId, date],
+    )
+    return rows[0] ?? null
+  }
+
+  async getNextJournalSequence(client: PoolClient, companyId: string, period: string): Promise<number> {
+    const { rows } = await client.query(
+      `SELECT COALESCE(MAX(sequence_number), 0) + 1 AS next_seq
+       FROM journal_headers
+       WHERE company_id = $1 AND period = $2 AND deleted_at IS NULL`,
+      [companyId, period],
+    )
+    return Number(rows[0].next_seq)
+  }
+
+  async insertJournalHeader(client: PoolClient, params: {
+    companyId: string; branchId: string; journalNumber: string; sequenceNumber: number
+    journalDate: string; period: string; description: string; totalAmount: number
+    referenceId: string; createdBy: string
+  }): Promise<string> {
+    const { rows } = await client.query(
+      `INSERT INTO journal_headers
+       (company_id, branch_id, journal_number, sequence_number, journal_type,
+        journal_date, period, description, total_debit, total_credit,
+        status, source_module, reference_id, created_by)
+       VALUES ($1, $2, $3, $4, 'GENERAL', $5, $6, $7, $8, $8,
+        'DRAFT', 'SHORTAGE_RESOLVE', $9, $10)
+       RETURNING id`,
+      [params.companyId, params.branchId, params.journalNumber, params.sequenceNumber,
+       params.journalDate, params.period, params.description, params.totalAmount,
+       params.referenceId, params.createdBy],
+    )
+    return rows[0].id
+  }
+
+  async insertJournalLine(client: PoolClient, params: {
+    journalHeaderId: string; lineNumber: number; accountId: string
+    description: string; debitAmount: number; creditAmount: number
+  }): Promise<void> {
+    await client.query(
+      `INSERT INTO journal_lines
+       (journal_header_id, line_number, account_id, description,
+        debit_amount, credit_amount, currency, exchange_rate, base_debit_amount, base_credit_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, 'IDR', 1, $5, $6)`,
+      [params.journalHeaderId, params.lineNumber, params.accountId,
+       params.description, params.debitAmount, params.creditAmount],
+    )
+  }
+
+  async saveShortageJournalId(client: PoolClient, vclIds: string[], journalId: string): Promise<void> {
+    await client.query(
+      `UPDATE variance_classification_lines
+       SET shortage_journal_id = $2
+       WHERE id = ANY($1::uuid[])`,
+      [vclIds, journalId],
+    )
+  }
 }
 
 export const shortageReportRepository = new ShortageReportRepository()
