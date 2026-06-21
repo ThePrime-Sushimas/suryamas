@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg'
 import { journalHeadersRepository } from './journal-headers.repository'
 import { chartOfAccountsRepository } from '../../chart-of-accounts/chart-of-accounts.repository'
 import { fiscalPeriodsRepository } from '../../fiscal-periods/fiscal-periods.repository'
@@ -44,47 +45,47 @@ export class JournalHeadersService {
   }
 
   /** API: resolve by accessible branches (cross-company). */
-  async getByIdForUser(id: string, branchIds: string[], companyIds: string[]): Promise<JournalHeaderWithLines> {
-    const journal = await journalHeadersRepository.findById(id)
+  async getByIdForUser(id: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<JournalHeaderWithLines> {
+    const journal = await journalHeadersRepository.findById(id, false, client)
     if (!journal) throw JournalErrors.NOT_FOUND(id)
     this.assertJournalAccess(journal, branchIds, companyIds, id)
     return journal
   }
 
   /** Internal: company_id on the journal must match (callers pass company from the record). */
-  async getById(id: string, companyId: string): Promise<JournalHeaderWithLines> {
-    const journal = await journalHeadersRepository.findById(id)
+  async getById(id: string, companyId: string, client?: PoolClient): Promise<JournalHeaderWithLines> {
+    const journal = await journalHeadersRepository.findById(id, false, client)
     if (!journal) throw JournalErrors.NOT_FOUND(id)
     if (journal.company_id !== companyId) throw JournalErrors.NOT_FOUND(id)
     return journal
   }
 
-  async create(data: CreateJournalDto & { company_id: string }, userId: string): Promise<JournalHeaderWithLines> {
+  async create(data: CreateJournalDto & { company_id: string }, userId: string, client?: PoolClient): Promise<JournalHeaderWithLines> {
     const lineErrors = validateJournalLines(data.lines)
     if (lineErrors.length > 0) throw JournalErrors.INVALID_LINES(lineErrors)
     if (!validateJournalBalance(data.lines)) throw JournalErrors.NOT_BALANCED()
 
     const accountIds = data.lines.map(line => line.account_id)
-    const validationResults = await chartOfAccountsRepository.validateMany(accountIds, data.company_id)
+    const validationResults = await chartOfAccountsRepository.validateMany(accountIds, data.company_id, true, client)
     for (const line of data.lines) {
       const validation = validationResults.get(line.account_id)
       if (!validation || !validation.valid) throw JournalErrors.VALIDATION_ERROR('account', validation?.error || 'Account validation failed')
     }
 
     const totals = calculateTotals(data.lines)
-    const fiscalPeriod = await fiscalPeriodsRepository.findByDate(data.company_id, data.journal_date)
+    const fiscalPeriod = await fiscalPeriodsRepository.findByDate(data.company_id, data.journal_date, client)
     if (!fiscalPeriod) throw JournalErrors.VALIDATION_ERROR('journal_date', `Tidak ditemukan periode fiskal untuk tanggal ${data.journal_date}`)
     if (!fiscalPeriod.is_open) throw JournalErrors.PERIOD_CLOSED(fiscalPeriod.period)
 
     const period = fiscalPeriod.period
-    const sequence = await journalHeadersRepository.getNextSequence(data.company_id, data.journal_type, period)
+    const sequence = await journalHeadersRepository.getNextSequence(data.company_id, data.journal_type, period, client)
     const journalNumber = generateJournalNumber(data.journal_type, data.journal_date, sequence)
 
     const journal = await journalHeadersRepository.create({
       ...data, journal_number: journalNumber, sequence_number: sequence, period,
       total_debit: totals.total_debit, total_credit: totals.total_credit,
       currency: data.currency || 'IDR', exchange_rate: data.exchange_rate || 1, status: 'DRAFT'
-    }, userId)
+    }, userId, client)
 
     await AuditService.log('CREATE', 'journal_header', journal.id, userId, undefined, {
       journal_number: journal.journal_number, journal_type: journal.journal_type,
@@ -94,8 +95,23 @@ export class JournalHeadersService {
     return journal
   }
 
-  async update(id: string, data: UpdateJournalDto, userId: string, branchIds: string[], companyIds: string[]): Promise<JournalHeaderWithLines> {
-    const existing = await this.getByIdForUser(id, branchIds, companyIds)
+  async update(id: string, data: UpdateJournalDto, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<JournalHeaderWithLines> {
+    if (client) {
+      return this._updateWithClient(id, data, userId, branchIds, companyIds, client)
+    }
+    // If lines are being updated, we need a transaction to make header update + lines replacement atomic.
+    // If no lines, it's a single update call — no wrapping needed.
+    if (data.lines) {
+      return journalHeadersRepository.withTransaction(async (ownClient) => {
+        return this._updateWithClient(id, data, userId, branchIds, companyIds, ownClient)
+      })
+    }
+    // No lines — single write, no transaction needed
+    return this._updateWithClient(id, data, userId, branchIds, companyIds)
+  }
+
+  private async _updateWithClient(id: string, data: UpdateJournalDto, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<JournalHeaderWithLines> {
+    const existing = await this.getByIdForUser(id, branchIds, companyIds, client)
     const companyId = existing.company_id
     if (existing.status !== 'DRAFT') throw JournalErrors.CANNOT_EDIT_NON_DRAFT(existing.status)
 
@@ -105,7 +121,7 @@ export class JournalHeadersService {
       if (!validateJournalBalance(data.lines)) throw JournalErrors.NOT_BALANCED()
 
       const accountIds = data.lines.map(line => line.account_id)
-      const validationResults = await chartOfAccountsRepository.validateMany(accountIds, companyId)
+      const validationResults = await chartOfAccountsRepository.validateMany(accountIds, companyId, true, client)
       for (const line of data.lines) {
         const validation = validationResults.get(line.account_id)
         if (!validation || !validation.valid) throw JournalErrors.VALIDATION_ERROR('account', validation?.error || 'Account validation failed')
@@ -113,38 +129,47 @@ export class JournalHeadersService {
 
       const totals = calculateTotals(data.lines)
       const { lines: _lines, ...headerData } = data
-      await journalHeadersRepository.update(id, { ...headerData, total_debit: totals.total_debit, total_credit: totals.total_credit }, userId)
+      await journalHeadersRepository.update(id, { ...headerData, total_debit: totals.total_debit, total_credit: totals.total_credit }, userId, client)
 
       const linesWithHeaderId = data.lines.map(line => ({
         ...line, journal_header_id: id, currency: existing.currency, exchange_rate: existing.exchange_rate,
         base_debit_amount: line.debit_amount * existing.exchange_rate, base_credit_amount: line.credit_amount * existing.exchange_rate,
         created_at: new Date().toISOString()
       }))
-      await journalHeadersRepository.updateLines(id, linesWithHeaderId)
+      await journalHeadersRepository.updateLines(id, linesWithHeaderId, client)
     } else {
-      await journalHeadersRepository.update(id, data, userId)
+      await journalHeadersRepository.update(id, data, userId, client)
     }
 
     await AuditService.log('UPDATE', 'journal_header', id, userId, { journal_number: existing.journal_number, status: existing.status }, { updates: data })
-    return this.getByIdForUser(id, branchIds, companyIds)
+    return this.getByIdForUser(id, branchIds, companyIds, client)
   }
 
-  async delete(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
-    const journal = await this.getByIdForUser(id, branchIds, companyIds)
-    const companyId = journal.company_id
+  async delete(id: string, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<void> {
+    if (client) {
+      return this._deleteWithClient(id, userId, branchIds, companyIds, client)
+    }
+    // Self-managed transaction: clearJournalReferences + delete must be atomic
+    await journalHeadersRepository.withTransaction(async (ownClient) => {
+      await this._deleteWithClient(id, userId, branchIds, companyIds, ownClient)
+    })
+  }
+
+  private async _deleteWithClient(id: string, userId: string, branchIds: string[], companyIds: string[], client: PoolClient): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds, client)
     if (journal.status !== 'DRAFT' && journal.status !== 'REJECTED') throw JournalErrors.CANNOT_DELETE_POSTED()
 
-    await journalHeadersRepository.clearJournalReferences(id)
-    await journalHeadersRepository.delete(id, userId)
+    await journalHeadersRepository.clearJournalReferences(id, client)
+    await journalHeadersRepository.delete(id, userId, client)
     await AuditService.log('DELETE', 'journal_header', id, userId, { journal_number: journal.journal_number, status: journal.status })
     logInfo('Journal deleted', { journal_id: id, user_id: userId })
   }
 
-  async submit(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
-    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+  async submit(id: string, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds, client)
     const companyId = journal.company_id
     if (!canTransition(journal.status, 'SUBMITTED')) throw JournalErrors.INVALID_STATUS_TRANSITION(journal.status, 'SUBMITTED')
-    await journalHeadersRepository.updateStatus(id, 'SUBMITTED', userId, { submitted_at: new Date().toISOString(), submitted_by: userId })
+    await journalHeadersRepository.updateStatus(id, 'SUBMITTED', userId, { submitted_at: new Date().toISOString(), submitted_by: userId }, client)
     await AuditService.log('SUBMIT', 'journal_header', id, userId, { status: journal.status }, { status: 'SUBMITTED' })
     logInfo('Journal submitted', { journal_id: id, user_id: userId })
 
@@ -159,11 +184,11 @@ export class JournalHeadersService {
     )
   }
 
-  async approve(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
-    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+  async approve(id: string, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds, client)
     const companyId = journal.company_id
     if (!canTransition(journal.status, 'APPROVED')) throw JournalErrors.INVALID_STATUS_TRANSITION(journal.status, 'APPROVED')
-    await journalHeadersRepository.updateStatus(id, 'APPROVED', userId, { approved_at: new Date().toISOString(), approved_by: userId })
+    await journalHeadersRepository.updateStatus(id, 'APPROVED', userId, { approved_at: new Date().toISOString(), approved_by: userId }, client)
     await AuditService.log('APPROVE', 'journal_header', id, userId, { status: journal.status }, { status: 'APPROVED' })
     logInfo('Journal approved', { journal_id: id, user_id: userId })
 
@@ -181,12 +206,22 @@ export class JournalHeadersService {
     )
   }
 
-  async reject(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
-    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+  async reject(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<void> {
+    if (client) {
+      return this._rejectWithClient(id, reason, userId, branchIds, companyIds, client)
+    }
+    // Self-managed transaction: update status + clearJournalReferences must be atomic
+    await journalHeadersRepository.withTransaction(async (ownClient) => {
+      await this._rejectWithClient(id, reason, userId, branchIds, companyIds, ownClient)
+    })
+  }
+
+  private async _rejectWithClient(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[], client: PoolClient): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds, client)
     const companyId = journal.company_id
     if (!canTransition(journal.status, 'REJECTED')) throw JournalErrors.INVALID_STATUS_TRANSITION(journal.status, 'REJECTED')
-    await journalHeadersRepository.update(id, { status: 'REJECTED', rejected_at: new Date().toISOString(), rejected_by: userId, rejection_reason: reason }, userId)
-    await journalHeadersRepository.clearJournalReferences(id)
+    await journalHeadersRepository.update(id, { status: 'REJECTED', rejected_at: new Date().toISOString(), rejected_by: userId, rejection_reason: reason }, userId, client)
+    await journalHeadersRepository.clearJournalReferences(id, client)
     await AuditService.log('REJECT', 'journal_header', id, userId, { status: journal.status }, { status: 'REJECTED', rejection_reason: reason })
     logInfo('Journal rejected', { journal_id: id, user_id: userId, reason })
 
@@ -203,8 +238,8 @@ export class JournalHeadersService {
     )
   }
 
-  async post(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
-    const journal = await this.getByIdForUser(id, branchIds, companyIds)
+  async post(id: string, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<void> {
+    const journal = await this.getByIdForUser(id, branchIds, companyIds, client)
     const companyId = journal.company_id
     if (!canTransition(journal.status, 'POSTED')) throw JournalErrors.INVALID_STATUS_TRANSITION(journal.status, 'POSTED')
 
@@ -212,10 +247,10 @@ export class JournalHeadersService {
     if (lineErrors.length > 0) throw JournalErrors.INVALID_LINES(lineErrors)
     if (!validateJournalBalance(journal.lines)) throw JournalErrors.NOT_BALANCED()
 
-    const fiscalPeriod = await fiscalPeriodsRepository.findByDate(companyId, journal.journal_date)
+    const fiscalPeriod = await fiscalPeriodsRepository.findByDate(companyId, journal.journal_date, client)
     if (!fiscalPeriod || !fiscalPeriod.is_open) throw JournalErrors.PERIOD_CLOSED(journal.period)
 
-    await journalHeadersRepository.updateStatus(id, 'POSTED', userId, { posted_at: new Date().toISOString(), posted_by: userId })
+    await journalHeadersRepository.updateStatus(id, 'POSTED', userId, { posted_at: new Date().toISOString(), posted_by: userId }, client)
     await AuditService.log('POST', 'journal_header', id, userId, { status: journal.status }, { status: 'POSTED' })
     logInfo('Journal posted', { journal_id: id, user_id: userId })
 
@@ -249,8 +284,8 @@ export class JournalHeadersService {
     }
   }
 
-  async reverse(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[]): Promise<JournalHeaderWithLines> {
-    const original = await this.getByIdForUser(id, branchIds, companyIds)
+  async reverse(id: string, reason: string, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<JournalHeaderWithLines> {
+    const original = await this.getByIdForUser(id, branchIds, companyIds, client)
     const companyId = original.company_id
     if (original.status !== 'POSTED') throw JournalErrors.REVERSE_NON_POSTED(original.status)
     if (original.is_reversed) throw JournalErrors.ALREADY_REVERSED()
@@ -267,25 +302,25 @@ export class JournalHeadersService {
       description: `REVERSAL OF ${original.journal_number}`, currency: original.currency, exchange_rate: original.exchange_rate,
       reference_type: 'journal_reversal', reference_id: id, reference_number: original.journal_number,
       reversal_of_journal_id: id, lines: reversalLines
-    }, userId)
+    }, userId, client)
 
-    await this.submit(reversal.id, userId, branchIds, companyIds)
-    await this.approve(reversal.id, userId, branchIds, companyIds)
-    await this.post(reversal.id, userId, branchIds, companyIds)
-    await journalHeadersRepository.markReversed(id, reversal.id, reason)
+    await this.submit(reversal.id, userId, branchIds, companyIds, client)
+    await this.approve(reversal.id, userId, branchIds, companyIds, client)
+    await this.post(reversal.id, userId, branchIds, companyIds, client)
+    await journalHeadersRepository.markReversed(id, reversal.id, reason, client)
 
     await AuditService.log('REVERSE', 'journal_header', id, userId, { status: original.status, is_reversed: false }, { status: 'REVERSED', reversal_id: reversal.id, reason })
     logInfo('Journal reversed', { original_id: id, reversal_id: reversal.id, user_id: userId, reason })
     return reversal
   }
 
-  async restore(id: string, userId: string, branchIds: string[], companyIds: string[]): Promise<void> {
-    const journal = await journalHeadersRepository.findById(id, true)
+  async restore(id: string, userId: string, branchIds: string[], companyIds: string[], client?: PoolClient): Promise<void> {
+    const journal = await journalHeadersRepository.findById(id, true, client)
     if (!journal) throw JournalErrors.NOT_FOUND(id)
     this.assertJournalAccess(journal, branchIds, companyIds, id)
     if (!journal.deleted_at) throw new Error('Journal is not deleted')
 
-    await journalHeadersRepository.restore(id, userId)
+    await journalHeadersRepository.restore(id, userId, client)
     await AuditService.log('RESTORE', 'journal_header', id, userId, { deleted_at: journal.deleted_at }, { deleted_at: null })
     logInfo('Journal restored', { journal_id: id, user_id: userId })
   }
@@ -503,19 +538,19 @@ export class JournalHeadersService {
   }
 
   /** Internal callers: resolve user access scope then run workflow. */
-  async submitAsUser(id: string, userId: string): Promise<void> {
+  async submitAsUser(id: string, userId: string, client?: PoolClient): Promise<void> {
     const { branchIds, companyIds } = await getAccessScope(userId)
-    return this.submit(id, userId, branchIds, companyIds)
+    return this.submit(id, userId, branchIds, companyIds, client)
   }
 
-  async approveAsUser(id: string, userId: string): Promise<void> {
+  async approveAsUser(id: string, userId: string, client?: PoolClient): Promise<void> {
     const { branchIds, companyIds } = await getAccessScope(userId)
-    return this.approve(id, userId, branchIds, companyIds)
+    return this.approve(id, userId, branchIds, companyIds, client)
   }
 
-  async postAsUser(id: string, userId: string): Promise<void> {
+  async postAsUser(id: string, userId: string, client?: PoolClient): Promise<void> {
     const { branchIds, companyIds } = await getAccessScope(userId)
-    return this.post(id, userId, branchIds, companyIds)
+    return this.post(id, userId, branchIds, companyIds, client)
   }
 
   async forceDeleteAsUser(id: string, userId: string): Promise<void> {
@@ -523,9 +558,9 @@ export class JournalHeadersService {
     return this.forceDelete(id, userId, branchIds, companyIds)
   }
 
-  async reverseAsUser(id: string, reason: string, userId: string): Promise<JournalHeaderWithLines> {
+  async reverseAsUser(id: string, reason: string, userId: string, client?: PoolClient): Promise<JournalHeaderWithLines> {
     const { branchIds, companyIds } = await getAccessScope(userId)
-    return this.reverse(id, reason, userId, branchIds, companyIds)
+    return this.reverse(id, reason, userId, branchIds, companyIds, client)
   }
 }
 

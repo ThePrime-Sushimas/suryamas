@@ -1,5 +1,6 @@
 import { pool } from '../../../../config/db'
 import type { PoolClient } from 'pg'
+import type { Queryable } from '../../../../types/db.types'
 import { JournalHeader, JournalHeaderWithLines, CreateJournalDto, JournalFilter, SortParams } from './journal-headers.types'
 import { JournalStatus } from '../shared/journal.types'
 import { logError, logInfo } from '../../../../config/logger'
@@ -81,9 +82,10 @@ export class JournalHeadersRepository {
     return { data: withLines as unknown as JournalHeaderWithLines[], total }
   }
 
-  async findById(id: string, includeDeleted = false): Promise<JournalHeaderWithLines | null> {
+  async findById(id: string, includeDeleted = false, client?: PoolClient): Promise<JournalHeaderWithLines | null> {
+    const db: Queryable = client ?? pool
     const deletedFilter = includeDeleted ? '' : ' AND jh.deleted_at IS NULL'
-    const { rows: headerRows } = await pool.query(
+    const { rows: headerRows } = await db.query(
       `SELECT jh.*, b.branch_name, c.company_name
        FROM journal_headers jh
        LEFT JOIN branches b ON b.id = jh.branch_id
@@ -95,7 +97,39 @@ export class JournalHeadersRepository {
 
     const header = { ...headerRows[0], branch_name: headerRows[0].branch_name || headerRows[0].company_name || null }
 
-    const { rows: lines } = await pool.query(
+    const { rows: lines } = await db.query(
+      `SELECT jl.*, coa.account_code, coa.account_name, coa.account_type
+       FROM journal_lines jl
+       JOIN chart_of_accounts coa ON coa.id = jl.account_id
+       WHERE jl.journal_header_id = $1 ORDER BY jl.line_number`,
+      [id]
+    )
+
+    const result = { ...header, lines }
+    const [populated] = await this.populateNames([result])
+    return populated as unknown as JournalHeaderWithLines
+  }
+
+  /**
+   * SELECT ... FOR UPDATE — locks the journal row for the duration of the caller's transaction.
+   * Use this when the caller intends to mutate the journal and needs to prevent concurrent modifications.
+   * Client is REQUIRED (locking only makes sense inside a transaction).
+   */
+  async findByIdForUpdate(id: string, client: PoolClient): Promise<JournalHeaderWithLines | null> {
+    const { rows: headerRows } = await client.query(
+      `SELECT jh.*, b.branch_name, c.company_name
+       FROM journal_headers jh
+       LEFT JOIN branches b ON b.id = jh.branch_id
+       LEFT JOIN companies c ON c.id = jh.company_id
+       WHERE jh.id = $1 AND jh.deleted_at IS NULL
+       FOR UPDATE OF jh`,
+      [id]
+    )
+    if (!headerRows[0]) return null
+
+    const header = { ...headerRows[0], branch_name: headerRows[0].branch_name || headerRows[0].company_name || null }
+
+    const { rows: lines } = await client.query(
       `SELECT jl.*, coa.account_code, coa.account_name, coa.account_type
        FROM journal_lines jl
        JOIN chart_of_accounts coa ON coa.id = jl.account_id
@@ -138,7 +172,29 @@ export class JournalHeadersRepository {
   async create(data: CreateJournalDto & {
     journal_number: string; sequence_number: number; period: string;
     total_debit: number; total_credit: number; status: JournalStatus; reversal_of_journal_id?: string
-  }, userId: string): Promise<JournalHeaderWithLines> {
+  }, userId: string, client?: PoolClient): Promise<JournalHeaderWithLines> {
+    if (client) {
+      return this._createWithClient(data, userId, client)
+    }
+    // Self-managed transaction: called standalone
+    const ownClient = await pool.connect()
+    try {
+      await ownClient.query('BEGIN')
+      const result = await this._createWithClient(data, userId, ownClient)
+      await ownClient.query('COMMIT')
+      return result
+    } catch (err) {
+      await ownClient.query('ROLLBACK')
+      throw err
+    } finally {
+      ownClient.release()
+    }
+  }
+
+  private async _createWithClient(data: CreateJournalDto & {
+    journal_number: string; sequence_number: number; period: string;
+    total_debit: number; total_credit: number; status: JournalStatus; reversal_of_journal_id?: string
+  }, userId: string, db: PoolClient): Promise<JournalHeaderWithLines> {
     const { lines, ...headerData } = data
     const now = new Date().toISOString()
 
@@ -146,7 +202,7 @@ export class JournalHeadersRepository {
     const keys = Object.keys(headerInsert)
     const values = Object.values(headerInsert)
 
-    const { rows: headerRows } = await pool.query(
+    const { rows: headerRows } = await db.query(
       `INSERT INTO journal_headers (${keys.join(', ')}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
       values
     )
@@ -166,44 +222,71 @@ export class JournalHeadersRepository {
       )
     })
 
-    try {
-      const { rows: createdLines } = await pool.query(
-        `INSERT INTO journal_lines (${lineKeys.join(', ')}) VALUES ${linePlaceholders.join(', ')} RETURNING *`,
-        lineValues
-      )
-      logInfo('Journal created', { journal_id: header.id, journal_number: header.journal_number })
-      return { ...header, lines: createdLines } as JournalHeaderWithLines
-    } catch (error) {
-      await pool.query('DELETE FROM journal_headers WHERE id = $1', [header.id])
-      logError('Failed to create journal lines, header rolled back', { error: (error as Error).message, header_id: header.id })
-      throw error
-    }
+    const { rows: createdLines } = await db.query(
+      `INSERT INTO journal_lines (${lineKeys.join(', ')}) VALUES ${linePlaceholders.join(', ')} RETURNING *`,
+      lineValues
+    )
+    logInfo('Journal created', { journal_id: header.id, journal_number: header.journal_number })
+    return { ...header, lines: createdLines } as JournalHeaderWithLines
   }
 
-  async update(id: string, data: Partial<JournalHeader>, userId: string): Promise<JournalHeader> {
+  async update(id: string, data: Partial<JournalHeader>, userId: string, client?: PoolClient): Promise<JournalHeader> {
+    const db: Queryable = client ?? pool
     const fullData = { ...data, updated_by: userId, updated_at: new Date().toISOString() }
     const keys = Object.keys(fullData)
     const values = Object.values(fullData)
-    const { rows } = await pool.query(
+    const { rows } = await db.query(
       `UPDATE journal_headers SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} AND deleted_at IS NULL RETURNING *`,
       [...values, id]
     )
     return rows[0]
   }
 
-  async updateStatus(id: string, status: JournalStatus, userId: string, timestamps?: Record<string, unknown>): Promise<void> {
+  async updateStatus(id: string, status: JournalStatus, userId: string, timestamps?: Record<string, unknown>, client?: PoolClient): Promise<void> {
+    const db: Queryable = client ?? pool
     const updateData: Record<string, unknown> = { status, updated_by: userId, updated_at: new Date().toISOString(), ...timestamps }
     const keys = Object.keys(updateData)
     const values = Object.values(updateData)
-    await pool.query(
+    await db.query(
       `UPDATE journal_headers SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(', ')} WHERE id = $${keys.length + 1} AND deleted_at IS NULL`,
       [...values, id]
     )
   }
 
-  async delete(id: string, _userId: string): Promise<void> {
-    await pool.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [id])
-    await pool.query('DELETE FROM journal_headers WHERE id = $1', [id])
+  async delete(id: string, userId: string, client?: PoolClient): Promise<void> {
+    if (client) {
+      await client.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [id])
+      await client.query('DELETE FROM journal_headers WHERE id = $1', [id])
+      return
+    }
+    // Self-managed transaction: called standalone
+    const ownClient = await pool.connect()
+    try {
+      await ownClient.query('BEGIN')
+      await ownClient.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [id])
+      await ownClient.query('DELETE FROM journal_headers WHERE id = $1', [id])
+      await ownClient.query('COMMIT')
+    } catch (err) {
+      await ownClient.query('ROLLBACK')
+      throw err
+    } finally {
+      ownClient.release()
+    }
+  }
+
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
   }
 
   async bulkHardDelete(journalIds: string[], client: PoolClient): Promise<void> {
@@ -212,67 +295,123 @@ export class JournalHeadersRepository {
     await client.query('DELETE FROM journal_headers WHERE id = ANY($1::uuid[])', [journalIds])
   }
 
-  async getNextSequence(companyId: string, type: string, period: string): Promise<number> {
-    const { rows } = await pool.query('SELECT get_next_journal_sequence($1::uuid, $2::varchar, $3::journal_type_enum) AS seq', [companyId, period, type])
+  async getNextSequence(companyId: string, type: string, period: string, client?: PoolClient): Promise<number> {
+    const db: Queryable = client ?? pool
+    const { rows } = await db.query('SELECT get_next_journal_sequence($1::uuid, $2::varchar, $3::journal_type_enum) AS seq', [companyId, period, type])
     if (!rows[0]?.seq) throw new Error('Sequence generation failed')
     return rows[0].seq as number
   }
 
-  async markReversed(id: string, reversalJournalId: string, reason: string): Promise<void> {
-    await pool.query(
+  async markReversed(id: string, reversalJournalId: string, reason: string, client?: PoolClient): Promise<void> {
+    const db: Queryable = client ?? pool
+    await db.query(
       'UPDATE journal_headers SET is_reversed = true, reversed_by_journal_id = $1, reversal_date = NOW(), reversal_reason = $2, updated_at = NOW() WHERE id = $3',
       [reversalJournalId, reason, id]
     )
   }
 
-  async restore(id: string, userId: string): Promise<void> {
-    await pool.query(
+  async restore(id: string, userId: string, client?: PoolClient): Promise<void> {
+    const db: Queryable = client ?? pool
+    await db.query(
       'UPDATE journal_headers SET deleted_at = NULL, deleted_by = NULL, updated_at = NOW(), updated_by = $1 WHERE id = $2',
       [userId, id]
     )
   }
 
-  async clearJournalReferences(journalId: string): Promise<void> {
-    await Promise.all([
-      pool.query("UPDATE bank_statements SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
-      pool.query("UPDATE aggregated_transactions SET journal_id = NULL, status = 'READY', updated_at = NOW() WHERE journal_id = $1", [journalId]),
-      pool.query("UPDATE production_orders SET journal_id = NULL, status = 'COMPLETED', updated_at = NOW() WHERE journal_id = $1 AND status = 'JOURNALED'", [journalId]),
-      pool.query("UPDATE marketplace_checkout_sessions SET journal_settled_id = NULL, updated_at = NOW() WHERE journal_settled_id = $1", [journalId]),
-      pool.query("UPDATE marketplace_checkout_sessions SET journal_ordered_id = NULL, updated_at = NOW() WHERE journal_ordered_id = $1", [journalId]),
-      pool.query("UPDATE marketplace_checkout_sessions SET journal_received_id = NULL, updated_at = NOW() WHERE journal_received_id = $1", [journalId]),
-      pool.query("UPDATE ap_payments SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
-      pool.query("UPDATE purchase_invoices SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
-      pool.query("UPDATE general_invoices SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
-      pool.query("UPDATE general_invoice_payments SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
-      pool.query("UPDATE general_invoice_payments SET cc_settlement_id = NULL WHERE cc_settlement_id IN (SELECT id FROM marketplace_settlements WHERE journal_id = $1)", [journalId]),
-      pool.query("DELETE FROM marketplace_settlements WHERE journal_id = $1", [journalId]),
-      pool.query("UPDATE fixed_assets SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId]),
-    ])
+  async clearJournalReferences(journalId: string, client?: PoolClient): Promise<void> {
+    if (client) {
+      await this._clearJournalRefsSequential(journalId, client)
+      return
+    }
+    // Self-managed transaction: all 13 statements atomic
+    const ownClient = await pool.connect()
+    try {
+      await ownClient.query('BEGIN')
+      await this._clearJournalRefsSequential(journalId, ownClient)
+      await ownClient.query('COMMIT')
+    } catch (err) {
+      await ownClient.query('ROLLBACK')
+      throw err
+    } finally {
+      ownClient.release()
+    }
   }
 
-  async clearReversalReferences(journalId: string): Promise<void> {
-    await Promise.all([
-      // If deleting a reversal journal: reset the original's reversed state
-      pool.query(
-        `UPDATE journal_headers SET is_reversed = false, reversed_by_journal_id = NULL, reversed_by = NULL, reversal_date = NULL, reversal_reason = NULL, updated_at = NOW()
-         WHERE reversed_by_journal_id = $1`,
-        [journalId]
-      ),
-      // If deleting an original journal: also delete its reversal journal (cascade)
-      pool.query(
-        `DELETE FROM journal_lines WHERE journal_header_id IN (SELECT id FROM journal_headers WHERE reversal_of_journal_id = $1)`,
-        [journalId]
-      ),
-    ])
+  private async _clearJournalRefsSequential(journalId: string, db: PoolClient): Promise<void> {
+    await db.query("UPDATE bank_statements SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE aggregated_transactions SET journal_id = NULL, status = 'READY', updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE production_orders SET journal_id = NULL, status = 'COMPLETED', updated_at = NOW() WHERE journal_id = $1 AND status = 'JOURNALED'", [journalId])
+    await db.query("UPDATE marketplace_checkout_sessions SET journal_settled_id = NULL, updated_at = NOW() WHERE journal_settled_id = $1", [journalId])
+    await db.query("UPDATE marketplace_checkout_sessions SET journal_ordered_id = NULL, updated_at = NOW() WHERE journal_ordered_id = $1", [journalId])
+    await db.query("UPDATE marketplace_checkout_sessions SET journal_received_id = NULL, updated_at = NOW() WHERE journal_received_id = $1", [journalId])
+    await db.query("UPDATE ap_payments SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE purchase_invoices SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE general_invoices SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE general_invoice_payments SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE general_invoice_payments SET cc_settlement_id = NULL WHERE cc_settlement_id IN (SELECT id FROM marketplace_settlements WHERE journal_id = $1)", [journalId])
+    await db.query("DELETE FROM marketplace_settlements WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE fixed_assets SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+  }
+
+  async clearReversalReferences(journalId: string, client?: PoolClient): Promise<void> {
+    if (client) {
+      await this._clearReversalRefsSequential(journalId, client)
+      return
+    }
+    // Self-managed transaction
+    const ownClient = await pool.connect()
+    try {
+      await ownClient.query('BEGIN')
+      await this._clearReversalRefsSequential(journalId, ownClient)
+      await ownClient.query('COMMIT')
+    } catch (err) {
+      await ownClient.query('ROLLBACK')
+      throw err
+    } finally {
+      ownClient.release()
+    }
+  }
+
+  private async _clearReversalRefsSequential(journalId: string, db: PoolClient): Promise<void> {
+    // If deleting a reversal journal: reset the original's reversed state
+    await db.query(
+      `UPDATE journal_headers SET is_reversed = false, reversed_by_journal_id = NULL, reversed_by = NULL, reversal_date = NULL, reversal_reason = NULL, updated_at = NOW()
+       WHERE reversed_by_journal_id = $1`,
+      [journalId]
+    )
+    // If deleting an original journal: also delete its reversal journal (cascade)
+    await db.query(
+      `DELETE FROM journal_lines WHERE journal_header_id IN (SELECT id FROM journal_headers WHERE reversal_of_journal_id = $1)`,
+      [journalId]
+    )
     // Delete orphan reversal headers after their lines are gone
-    await pool.query(
+    await db.query(
       `DELETE FROM journal_headers WHERE reversal_of_journal_id = $1`,
       [journalId]
     )
   }
 
-  async updateLines(journalHeaderId: string, lines: Record<string, unknown>[]): Promise<void> {
-    await pool.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [journalHeaderId])
+  async updateLines(journalHeaderId: string, lines: Record<string, unknown>[], client?: PoolClient): Promise<void> {
+    if (client) {
+      await this._updateLinesWithClient(journalHeaderId, lines, client)
+      return
+    }
+    // Self-managed transaction
+    const ownClient = await pool.connect()
+    try {
+      await ownClient.query('BEGIN')
+      await this._updateLinesWithClient(journalHeaderId, lines, ownClient)
+      await ownClient.query('COMMIT')
+    } catch (err) {
+      await ownClient.query('ROLLBACK')
+      throw err
+    } finally {
+      ownClient.release()
+    }
+  }
+
+  private async _updateLinesWithClient(journalHeaderId: string, lines: Record<string, unknown>[], db: PoolClient): Promise<void> {
+    await db.query('DELETE FROM journal_lines WHERE journal_header_id = $1', [journalHeaderId])
     if (!lines.length) return
 
     const keys = Object.keys(lines[0])
@@ -280,7 +419,7 @@ export class JournalHeadersRepository {
       `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`
     ).join(', ')
     const values = lines.flatMap(l => keys.map(k => l[k]))
-    await pool.query(`INSERT INTO journal_lines (${keys.join(', ')}) VALUES ${placeholders}`, values)
+    await db.query(`INSERT INTO journal_lines (${keys.join(', ')}) VALUES ${placeholders}`, values)
   }
 
   async updatePosAggregateStatus(journalId: string): Promise<string | null> {

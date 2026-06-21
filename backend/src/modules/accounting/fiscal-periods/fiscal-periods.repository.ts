@@ -1,4 +1,6 @@
 import { pool } from '../../../config/db'
+import type { PoolClient } from 'pg'
+import type { Queryable } from '../../../types/db.types'
 import { FiscalPeriod, CreateFiscalPeriodDto, UpdateFiscalPeriodDto, FiscalPeriodFilter, SortParams } from './fiscal-periods.types'
 import { FiscalPeriodErrors, FiscalPeriodError } from './fiscal-periods.errors'
 import { FiscalPeriodsConfig, defaultConfig } from './fiscal-periods.config'
@@ -124,17 +126,28 @@ export class FiscalPeriodsRepository {
     return rows[0] ?? null
   }
 
-  async findByDate(companyId: string, date: string): Promise<FiscalPeriod | null> {
+  async findByDate(companyId: string, date: string, client?: PoolClient): Promise<FiscalPeriod | null> {
     if (!companyId?.trim() || !date?.trim()) return null
-    const cacheKey = this.getCacheKey('period_by_date', { companyId, date })
-    const cached = this.getFromCache<FiscalPeriod>(cacheKey)
-    if (cached) return cached
 
-    const { rows } = await pool.query(
+    // When called within a transaction (client provided), bypass cache for consistent reads
+    if (!client) {
+      const cacheKey = this.getCacheKey('period_by_date', { companyId, date })
+      const cached = this.getFromCache<FiscalPeriod>(cacheKey)
+      if (cached) return cached
+
+      const { rows } = await pool.query(
+        'SELECT * FROM fiscal_periods WHERE company_id = $1 AND period_start <= $2 AND period_end >= $2 AND deleted_at IS NULL',
+        [companyId, date]
+      )
+      if (rows[0]) this.setCache(cacheKey, rows[0])
+      return rows[0] ?? null
+    }
+
+    const db: Queryable = client
+    const { rows } = await db.query(
       'SELECT * FROM fiscal_periods WHERE company_id = $1 AND period_start <= $2 AND period_end >= $2 AND deleted_at IS NULL',
       [companyId, date]
     )
-    if (rows[0]) this.setCache(cacheKey, rows[0])
     return rows[0] ?? null
   }
 

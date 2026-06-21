@@ -1,4 +1,6 @@
 import { pool } from '../../../config/db'
+import type { PoolClient } from 'pg'
+import type { Queryable } from '../../../types/db.types'
 import { ChartOfAccount, CreateChartOfAccountDTO, UpdateChartOfAccountDTO, ChartOfAccountTreeNode } from './chart-of-accounts.types'
 
 const VALID_SORT_FIELDS = ['account_code', 'account_name', 'account_type', 'level', 'sort_order', 'created_at', 'updated_at']
@@ -135,15 +137,16 @@ export class ChartOfAccountsRepository {
     return rows[0] ?? null
   }
 
-  async findByIds(ids: string[]): Promise<ChartOfAccount[]> {
+  async findByIds(ids: string[], client?: PoolClient): Promise<ChartOfAccount[]> {
     if (!ids.length) return []
-    const { rows } = await pool.query('SELECT * FROM chart_of_accounts WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL', [ids])
+    const db: Queryable = client ?? pool
+    const { rows } = await db.query('SELECT * FROM chart_of_accounts WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL', [ids])
     return rows
   }
 
-  async validateMany(accountIds: string[], companyId: string, requirePostable = true): Promise<Map<string, { valid: boolean; account?: ChartOfAccount; error?: string }>> {
+  async validateMany(accountIds: string[], companyId: string, requirePostable = true, client?: PoolClient): Promise<Map<string, { valid: boolean; account?: ChartOfAccount; error?: string }>> {
     if (!accountIds.length) return new Map()
-    const accounts = await this.findByIds(accountIds)
+    const accounts = await this.findByIds(accountIds, client)
     const accountMap = new Map(accounts.map(a => [a.id, a]))
     const result = new Map<string, { valid: boolean; account?: ChartOfAccount; error?: string }>()
 
