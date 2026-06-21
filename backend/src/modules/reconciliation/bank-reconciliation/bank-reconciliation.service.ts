@@ -258,26 +258,29 @@ export class BankReconciliationService {
     companyId?: string,
     notes?: string,
   ): Promise<any> {
-    const statement = await this.repository.findById(statementId);
-    if (!statement) throw new Error("Bank statement not found");
-    if (statement.is_reconciled) throw new AlreadyReconciledError(statementId);
+    // All writes in a single atomic transaction with FOR UPDATE on the statement row
+    await this.repository.withTransaction(async (client) => {
+      const statement = await this.repository.findByIdForUpdate(statementId, client);
+      if (statement.is_reconciled) throw new AlreadyReconciledError(statementId);
 
-    const deposit = await cashCountsRepository.findDepositById(cashDepositId);
-    if (!deposit) throw new Error("Cash deposit not found");
-    if (deposit.status === 'RECONCILED') throw new Error("Cash deposit sudah reconciled");
-    if (deposit.status !== 'DEPOSITED') throw new Error(`Cash deposit status ${deposit.status}, harus DEPOSITED`);
+      const deposit = await cashCountsRepository.findDepositById(cashDepositId);
+      if (!deposit) throw new Error("Cash deposit not found");
+      if (deposit.status === 'RECONCILED') throw new Error("Cash deposit sudah reconciled");
+      if (deposit.status !== 'DEPOSITED') throw new Error(`Cash deposit status ${deposit.status}, harus DEPOSITED`);
 
-    await this.repository.markAsReconciledCashDeposit(statementId, cashDepositId, userId);
-    await cashCountsRepository.reconcileDeposit(cashDepositId, statementId);
+      await this.repository.markAsReconciledCashDeposit(statementId, cashDepositId, userId, client);
+      await cashCountsRepository.reconcileDeposit(cashDepositId, statementId, client);
 
-    await this.repository.logAction({
-      companyId: companyId || statement.company_id,
-      userId,
-      action: "AUTO_MATCH_CASH_DEPOSIT",
-      statementId,
-      details: { cashDepositId, depositAmount: deposit.deposit_amount, notes },
+      await this.repository.logAction({
+        companyId: companyId || statement.company_id,
+        userId,
+        action: "AUTO_MATCH_CASH_DEPOSIT",
+        statementId,
+        details: { cashDepositId, depositAmount: deposit.deposit_amount, notes },
+      }, client);
     });
 
+    // Audit log — best-effort, non-transactional by design
     if (userId) {
       await AuditService.log('CREATE', 'bank_reconciliation', statementId, userId,
         { is_reconciled: false },
@@ -296,51 +299,45 @@ export class BankReconciliationService {
     notes?: string,
     overrideDifference?: boolean,
   ): Promise<any> {
-    const statement = await this.repository.findById(statementId);
-    if (!statement) {
-      throw new Error("Bank statement not found");
-    }
+    // All writes in a single atomic transaction with FOR UPDATE on the statement row
+    await this.repository.withTransaction(async (client) => {
+      // Lock the statement row — prevents concurrent reconciliation of the same statement
+      const statement = await this.repository.findByIdForUpdate(statementId, client);
+      if (statement.is_reconciled) {
+        throw new AlreadyReconciledError(statementId);
+      }
 
-    if (statement.is_reconciled) {
-      throw new AlreadyReconciledError(statementId);
-    }
+      await this.repository.markAsReconciled(statementId, aggregateId, userId, client);
+      await this.feeReconciliationService.calculateAndSaveFeeDiscrepancy(
+        aggregateId,
+        statementId,
+        client,
+      );
+      await this.orchestratorService.updateReconciliationStatus(
+        aggregateId,
+        "RECONCILED",
+        statementId,
+        userId,
+        client,
+      );
 
-    await this.repository.markAsReconciled(statementId, aggregateId, userId);
-    await this.feeReconciliationService.calculateAndSaveFeeDiscrepancy(
-      aggregateId,
-      statementId,
-    );
-    await this.orchestratorService.updateReconciliationStatus(
-      aggregateId,
-      "RECONCILED",
-      statementId,
-      userId,
-    );
-
-    await this.repository.logAction({
-      companyId: companyId || statement.company_id,
-      userId,
-      action: "MANUAL_RECONCILE",
-      statementId,
-      aggregateId,
-      details: {
-        notes,
-        overrideDifference,
-      },
+      await this.repository.logAction({
+        companyId: companyId || statement.company_id,
+        userId,
+        action: "MANUAL_RECONCILE",
+        statementId,
+        aggregateId,
+        details: { notes, overrideDifference },
+      }, client);
     });
 
-    // Audit log for MANUAL_RECONCILE
+    // Audit log — best-effort, non-transactional by design
     if (userId) {
       await AuditService.log('CREATE', 'bank_reconciliation', statementId, userId, 
         { is_reconciled: false }, 
         { is_reconciled: true, aggregateId, notes }
       )
     }
-
-    // Auto-generate draft voucher
-    const stmtDate = typeof statement.transaction_date === 'string'
-      ? statement.transaction_date.slice(0, 10)
-      : new Date(statement.transaction_date).toISOString().slice(0, 10);
 
     return {
       success: true,
@@ -355,18 +352,25 @@ export class BankReconciliationService {
   async undo(statementId: string, userId?: string, companyId?: string): Promise<void> {
     const statement = await this.repository.findById(statementId);
     if (!statement) throw new Error("Bank statement not found");
-  
-    // ── Cash deposit undo ──
-    if (statement.cash_deposit_id) {
-      await cashCountsRepository.unreconciledDeposit(statement.cash_deposit_id);
-      await this.repository.undoCashDepositReconciliation(statementId, statement.cash_deposit_id, userId);
 
-      await this.repository.logAction({
-        companyId: companyId || statement.company_id,
-        userId,
-        action: "UNDO_CASH_DEPOSIT",
-        statementId,
-        details: { cashDepositId: statement.cash_deposit_id },
+    // ── Cash deposit undo ──
+    // NOTE: cashCountsRepository.unreconciledDeposit and undoCashDepositReconciliation
+    // now accept client and are wrapped in one transaction.
+    if (statement.cash_deposit_id) {
+      await this.repository.withTransaction(async (client) => {
+        const lockedStmt = await this.repository.findByIdForUpdate(statementId, client);
+        if (!lockedStmt.cash_deposit_id) throw new Error("Statement cash_deposit_id missing under lock");
+
+        await cashCountsRepository.unreconciledDeposit(lockedStmt.cash_deposit_id, client);
+        await this.repository.undoCashDepositReconciliation(statementId, lockedStmt.cash_deposit_id, userId, client);
+
+        await this.repository.logAction({
+          companyId: companyId || statement.company_id,
+          userId,
+          action: "UNDO_CASH_DEPOSIT",
+          statementId,
+          details: { cashDepositId: lockedStmt.cash_deposit_id },
+        }, client);
       });
 
       if (userId) {
@@ -379,7 +383,10 @@ export class BankReconciliationService {
     }
 
     // ── Settlement group undo ──
-    // Detect if this statement belongs to a settlement group (1 statement → many aggregates)
+    // LIMITATION: settlementGroupService.deleteSettlementGroup() manages its own
+    // independent transaction(s) and does not accept a client. The bank_statement
+    // reset and the settlement group deletion are not atomic against each other.
+    // Fixing this requires refactoring bank-settlement-group module — out of scope here.
     const settlementGroup = await settlementGroupRepository.findByBankStatementId(statementId);
     if (settlementGroup) {
       logInfo("Undo detected settlement group, delegating to deleteSettlementGroup", {
@@ -406,6 +413,9 @@ export class BankReconciliationService {
     }
 
     // ── Bank mutation entry undo ──
+    // LIMITATION: bankMutationEntriesService.voidEntry() manages its own
+    // independent writes and does not accept a client. Not atomic with bank_statement reset.
+    // Fixing this requires refactoring bank-mutation-entries module — out of scope here.
     if (statement.bank_mutation_entry_id) {
       logInfo("Undo detected bank mutation entry, delegating to voidEntry", {
         statementId,
@@ -420,49 +430,48 @@ export class BankReconciliationService {
       return;
     }
 
-    // ── Aggregate undo (existing logic) ──
+    // ── Aggregate undo (standard path) — fully atomic ──
     let aggregateId = statement.reconciliation_id;
     let isMultiMatch = false;
-  
+
     if (!aggregateId && statement.reconciliation_group_id) {
-      const group = await this.repository.getReconciliationGroupById(
-        statement.reconciliation_group_id
-      );
+      const group = await this.repository.getReconciliationGroupById(statement.reconciliation_group_id);
       aggregateId = group?.aggregate_id ?? null;
       isMultiMatch = true;
     }
-  
-    // Reset statement ini
-    await this.repository.undoReconciliation(statementId, userId);
-  
-    if (aggregateId) {
-      if (isMultiMatch) {
-        // Cek apakah masih ada statement lain di group yang belum di-undo
-        const remainingReconciled = await this.repository
-          .countReconciledStatementsInGroup(statement.reconciliation_group_id!);
-        
-        // Baru update aggregate kalau semua sudah di-undo
-        if (remainingReconciled === 0) {
-          await this.feeReconciliationService.resetFeeDiscrepancy?.(aggregateId);
-          await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING");
-          await this.repository.softDeleteGroup(statement.reconciliation_group_id!);
+
+    await this.repository.withTransaction(async (client) => {
+      // FOR UPDATE lock on statement row
+      await this.repository.findByIdForUpdate(statementId, client);
+
+      await this.repository.undoReconciliation(statementId, userId, client);
+
+      if (aggregateId) {
+        if (isMultiMatch) {
+          const remainingReconciled = await this.repository
+            .countReconciledStatementsInGroup(statement.reconciliation_group_id!, client);
+
+          if (remainingReconciled === 0) {
+            await this.feeReconciliationService.resetFeeDiscrepancy?.(aggregateId, client);
+            await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING", undefined, undefined, client);
+            await this.repository.softDeleteGroup(statement.reconciliation_group_id!, client);
+          }
+        } else {
+          await this.feeReconciliationService.resetFeeDiscrepancy?.(aggregateId, client);
+          await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING", undefined, undefined, client);
         }
-      } else {
-        // Manual/auto reconcile — langsung reset
-        await this.feeReconciliationService.resetFeeDiscrepancy?.(aggregateId);
-        await this.orchestratorService.updateReconciliationStatus(aggregateId, "PENDING");
       }
-    }
-  
-    await this.repository.logAction({
-      companyId: companyId || statement.company_id,
-      userId,
-      action: "UNDO",
-      statementId,
-      aggregateId,
-      details: {},
+
+      await this.repository.logAction({
+        companyId: companyId || statement.company_id,
+        userId,
+        action: "UNDO",
+        statementId,
+        aggregateId,
+        details: {},
+      }, client);
     });
-  
+
     if (userId) {
       await AuditService.log('DELETE', 'bank_reconciliation', statementId, userId,
         { is_reconciled: true, reconciliation_id: statement.reconciliation_id },
@@ -780,32 +789,27 @@ export class BankReconciliationService {
       dateBufferDays: this.config.dateBufferDays,
       ...criteria,
     };
-  
-    // 1. Get selected statements
+
+    // 1. Read statements (outside tx — read-only, no locks yet)
     const statements = (
       await Promise.all(statementIds.map((id) => this.repository.findById(id)))
     ).filter((s) => s && !s.is_reconciled);
-  
+
     if (statements.length === 0) {
       return { matched: 0, failed: 0, matches: [] };
     }
 
-    let matches: ReconciliationMatch[];
-
-    // Compute date buffer for cash deposit matching (needed regardless of path)
-    const minDate = new Date(
-      Math.min(...statements.map((s: any) => new Date(s.transaction_date).getTime()))
-    );
-    const maxDate = new Date(
-      Math.max(...statements.map((s: any) => new Date(s.transaction_date).getTime()))
-    );
+    // Compute date buffer for cash deposit matching
+    const minDate = new Date(Math.min(...statements.map((s: any) => new Date(s.transaction_date).getTime())));
+    const maxDate = new Date(Math.max(...statements.map((s: any) => new Date(s.transaction_date).getTime())));
     const bufferStart = new Date(minDate);
     bufferStart.setDate(bufferStart.getDate() - matchingCriteria.dateBufferDays);
     const bufferEnd = new Date(maxDate);
     bufferEnd.setDate(bufferEnd.getDate() + matchingCriteria.dateBufferDays);
 
+    let matches: ReconciliationMatch[];
+
     if (preMatchedPairs && preMatchedPairs.length > 0) {
-      // Use pre-matched pairs from preview — skip re-matching
       const validStatementIds = new Set(statements.map((s: any) => String(s.id)));
       matches = preMatchedPairs
         .filter((p) => validStatementIds.has(String(p.statementId)))
@@ -817,63 +821,49 @@ export class BankReconciliationService {
           difference: 0,
         }));
     } else {
-      // Fallback: re-run matching engine
-      const aggregates = await this.orchestratorService.getAggregatesByDateRange(
-        bufferStart,
-        bufferEnd,
-      );
-
-      const engineResult = this.runMatchingEngine(
-        statements,
-        aggregates,
-        matchingCriteria,
-        'execute'
-      ) as { matches: ReconciliationMatch[] };
-
+      const aggregates = await this.orchestratorService.getAggregatesByDateRange(bufferStart, bufferEnd);
+      const engineResult = this.runMatchingEngine(statements, aggregates, matchingCriteria, 'execute') as { matches: ReconciliationMatch[] };
       matches = engineResult.matches;
     }
-  
-    // Execute reconciliation for matches
+
+    // 2. Execute reconciliation — per-match mini-transaction (partial-success pattern)
     const successMatches: ReconciliationMatch[] = [];
-  
+
     for (const match of matches) {
       try {
-        await this.repository.markAsReconciled(
-          match.statementId,
-          match.aggregateId,
-          userId,
-        );
-        await this.feeReconciliationService.calculateAndSaveFeeDiscrepancy(
-          match.aggregateId,
-          match.statementId,
-        );
-        await this.repository.logAction({
-          companyId: companyId || "",
-          userId,
-          action: "AUTO_MATCH",
-          statementId: match.statementId,
-          aggregateId: match.aggregateId,
-          details: {
-            matchScore: match.matchScore,
-            matchCriteria: match.matchCriteria,
-          },
-        });
-  
-        if (userId) {
-          await AuditService.log(
-            "CREATE",
-            "bank_reconciliation",
-            match.statementId,
+        await this.repository.withTransaction(async (client) => {
+          // FOR UPDATE lock on statement row — prevents concurrent reconciliation
+          const stmt = await this.repository.findByIdForUpdate(match.statementId, client);
+          if (stmt.is_reconciled) {
+            // Already reconciled by concurrent request — skip this match silently
+            throw new Error(`Statement ${match.statementId} already reconciled`);
+          }
+
+          await this.repository.markAsReconciled(match.statementId, match.aggregateId, userId, client);
+          await this.feeReconciliationService.calculateAndSaveFeeDiscrepancy(
+            match.aggregateId, match.statementId, client,
+          );
+          await this.orchestratorService.updateReconciliationStatus(
+            match.aggregateId, "RECONCILED", match.statementId, userId, client,
+          );
+          await this.repository.logAction({
+            companyId: companyId || "",
             userId,
+            action: "AUTO_MATCH",
+            statementId: match.statementId,
+            aggregateId: match.aggregateId,
+            details: { matchScore: match.matchScore, matchCriteria: match.matchCriteria },
+          }, client);
+        });
+
+        // Audit log outside tx — best-effort
+        if (userId) {
+          await AuditService.log("CREATE", "bank_reconciliation", match.statementId, userId,
             { is_reconciled: false },
-            {
-              is_reconciled: true,
-              aggregateId: match.aggregateId,
-              matchScore: match.matchScore,
-            },
+            { is_reconciled: true, aggregateId: match.aggregateId, matchScore: match.matchScore },
           );
         }
-  
+
         successMatches.push(match);
       } catch (error: any) {
         logError("Error reconciling match", {
@@ -884,33 +874,7 @@ export class BankReconciliationService {
       }
     }
 
-    // Update aggregate reconciliation status
-    if (successMatches.length > 0) {
-      const bulkUpdates = successMatches.map((m) => ({
-        aggregateId: m.aggregateId,
-        status: "RECONCILED" as const,
-        statementId: m.statementId,
-      }));
-      await this.orchestratorService.bulkUpdateReconciliationStatus(bulkUpdates);
-    }
-  
-    // Auto-generate draft vouchers for all successful matches
-    if (successMatches.length > 0) {
-      // Group by statement date for bank_date
-      const matchesByDate = new Map<string, string[]>();
-      for (const m of successMatches) {
-        const stmt = statements.find(s => s.id === m.statementId);
-        const bankDate = stmt?.transaction_date
-          ? (typeof stmt.transaction_date === 'string' ? stmt.transaction_date.slice(0, 10) : new Date(stmt.transaction_date).toISOString().slice(0, 10))
-          : new Date().toISOString().slice(0, 10);
-        if (!matchesByDate.has(bankDate)) matchesByDate.set(bankDate, []);
-        matchesByDate.get(bankDate)!.push(m.aggregateId);
-      }
-      for (const [bankDate, aggIds] of matchesByDate) {
-      }
-    }
-
-    // ── Cash Deposit matching for remaining statements ──
+    // 3. Cash deposit matching for remaining statements — per-deposit mini-transaction
     const remainingStatements = statements.filter(
       (s: any) => !successMatches.find((m) => m.statementId === String(s.id))
     );
@@ -937,15 +901,21 @@ export class BankReconciliationService {
         if (depIdx !== -1) {
           const dep = deposits[depIdx];
           try {
-            await this.repository.markAsReconciledCashDeposit(String(stmt.id), dep.id, userId);
-            await cashCountsRepository.reconcileDeposit(dep.id, String(stmt.id));
-            await this.repository.logAction({
-              companyId: companyId || "",
-              userId,
-              action: "AUTO_MATCH_CASH_DEPOSIT",
-              statementId: String(stmt.id),
-              details: { cashDepositId: dep.id, depositAmount: dep.deposit_amount },
+            await this.repository.withTransaction(async (client) => {
+              const lockedStmt = await this.repository.findByIdForUpdate(String(stmt.id), client);
+              if (lockedStmt.is_reconciled) throw new Error(`Statement ${stmt.id} already reconciled`);
+
+              await this.repository.markAsReconciledCashDeposit(String(stmt.id), dep.id, userId, client);
+              await cashCountsRepository.reconcileDeposit(dep.id, String(stmt.id), client);
+              await this.repository.logAction({
+                companyId: companyId || "",
+                userId,
+                action: "AUTO_MATCH_CASH_DEPOSIT",
+                statementId: String(stmt.id),
+                details: { cashDepositId: dep.id, depositAmount: dep.deposit_amount },
+              }, client);
             });
+
             cashDepositMatched++;
             deposits.splice(depIdx, 1);
             remainingStatements.splice(i, 1);
@@ -1066,6 +1036,7 @@ export class BankReconciliationService {
     // Remove duplicate statement IDs
     const uniqueStatementIds = [...new Set(statementIds)];
 
+    // Pre-validation (read-only, outside transaction)
     const aggregate = await this.orchestratorService.getAggregateById(aggregateId);
     if (!aggregate) {
       throw new Error("Aggregate tidak ditemukan");
@@ -1079,98 +1050,106 @@ export class BankReconciliationService {
       throw new Error("Aggregate sudah menjadi bagian dari group");
     }
 
-    const statements = await Promise.all(
-      uniqueStatementIds.map((id) => this.repository.findById(id)),
-    );
+    // All writes in a single atomic transaction with FOR UPDATE locks
+    let groupId: string = '';
+    let totalBankAmount = 0;
 
-    const invalidStatements = statements.filter((s) => !s || s.is_reconciled || s.company_id !== companyId);
-    if (invalidStatements.length > 0) {
-      throw new Error("Beberapa statement tidak valid atau sudah dicocokkan");
-    }
+    await this.repository.withTransaction(async (client) => {
+      // Lock statements with FOR UPDATE + ORDER BY id (consistent lock ordering)
+      const statements = await this.repository.findByIdsForUpdate(uniqueStatementIds, client);
 
-    const totalBankAmount = statements.reduce((sum, s) => {
-      const amount = (s.credit_amount || 0) - (s.debit_amount || 0);
-      return sum + amount;
-    }, 0);
+      const invalidStatements = statements.filter((s) => !s || s.is_reconciled || s.company_id !== companyId);
+      if (invalidStatements.length > 0) {
+        throw new Error("Beberapa statement tidak valid atau sudah dicocokkan");
+      }
 
-    const aggregateAmount = aggregate.nett_amount;
-    const difference = totalBankAmount - aggregateAmount;
-    const differencePercent =
-      aggregateAmount !== 0 ? Math.abs(difference) / aggregateAmount : 0;
+      if (statements.length !== uniqueStatementIds.length) {
+        const foundIds = new Set(statements.map((s: any) => String(s.id)));
+        const missingIds = uniqueStatementIds.filter(id => !foundIds.has(String(id)));
+        throw new Error(`Statement tidak ditemukan: ${missingIds.join(', ')}`);
+      }
 
-    const isWithinTolerance =
-      differencePercent <= this.multiMatchConfig.defaultTolerancePercent;
-    if (!isWithinTolerance && !overrideDifference) {
-      throw new Error(
-        `Selisih melebihi tolerance: ${(differencePercent * 100).toFixed(2)}% > ${this.multiMatchConfig.defaultTolerancePercent * 100}%. Gunakan override jika ingin melanjutkan.`,
-      );
-    }
+      totalBankAmount = statements.reduce((sum, s) => {
+        const amount = (s.credit_amount || 0) - (s.debit_amount || 0);
+        return sum + amount;
+      }, 0);
 
-    const groupId = await this.repository.createReconciliationGroup({
-      aggregateId,
-      statementIds: uniqueStatementIds,
-      totalBankAmount,
-      aggregateAmount,
-      difference,
-      notes,
-      reconciledBy: userId,
-      companyId,
-    });
+      const aggregateAmount = aggregate.nett_amount;
+      const difference = totalBankAmount - aggregateAmount;
+      const differencePercent =
+        aggregateAmount !== 0 ? Math.abs(difference) / aggregateAmount : 0;
 
-    const statementDetails = statements.map((s) => ({
-      statementId: s.id,
-      amount: (s.credit_amount || 0) - (s.debit_amount || 0),
-    }));
-    await this.repository.addStatementsToGroup(groupId, statementDetails);
+      const isWithinTolerance =
+        differencePercent <= this.multiMatchConfig.defaultTolerancePercent;
+      if (!isWithinTolerance && !overrideDifference) {
+        throw new Error(
+          `Selisih melebihi tolerance: ${(differencePercent * 100).toFixed(2)}% > ${this.multiMatchConfig.defaultTolerancePercent * 100}%. Gunakan override jika ingin melanjutkan.`,
+        );
+      }
 
-    await this.repository.markStatementsAsReconciledWithGroup(
-      uniqueStatementIds,
-      groupId,
-      userId,
-    );
-
-    await this.feeReconciliationService.calculateAndSaveFeeDiscrepancyMultiMatch?.(
-      aggregateId,
-      totalBankAmount,
-    );
-
-    await this.orchestratorService.updateReconciliationStatus(
-      aggregateId,
-      "RECONCILED",
-      undefined,
-      userId,
-    );
-
-    await this.repository.logAction({
-      companyId: companyId || "",
-      userId,
-      action: "CREATE_MULTI_MATCH",
-      aggregateId,
-      details: {
-        groupId,
+      groupId = await this.repository.createReconciliationGroup({
+        aggregateId,
         statementIds: uniqueStatementIds,
         totalBankAmount,
         aggregateAmount,
         difference,
-        differencePercent,
-        overrideDifference,
-        isMultiMatch: true,
-      },
+        notes,
+        reconciledBy: userId,
+        companyId,
+      }, client);
+
+      const statementDetails = statements.map((s) => ({
+        statementId: s.id,
+        amount: (s.credit_amount || 0) - (s.debit_amount || 0),
+      }));
+      await this.repository.addStatementsToGroup(groupId, statementDetails, client);
+
+      await this.repository.markStatementsAsReconciledWithGroup(
+        uniqueStatementIds,
+        groupId,
+        userId,
+        client,
+      );
+
+      await this.feeReconciliationService.calculateAndSaveFeeDiscrepancyMultiMatch?.(
+        aggregateId,
+        totalBankAmount,
+        client,
+      );
+
+      await this.orchestratorService.updateReconciliationStatus(
+        aggregateId,
+        "RECONCILED",
+        undefined,
+        userId,
+        client,
+      );
+
+      await this.repository.logAction({
+        companyId: companyId || "",
+        userId,
+        action: "CREATE_MULTI_MATCH",
+        aggregateId,
+        details: {
+          groupId,
+          statementIds: uniqueStatementIds,
+          totalBankAmount,
+          aggregateAmount,
+          difference,
+          differencePercent,
+          overrideDifference,
+          isMultiMatch: true,
+        },
+      }, client);
     });
 
-    // Audit log for CREATE_MULTI_MATCH
+    // Audit log — best-effort, non-transactional by design
     if (userId) {
       await AuditService.log('CREATE', 'bank_reconciliation_multi_match', groupId, userId, 
         null, 
-        { aggregateId, statementIds: uniqueStatementIds, totalBankAmount, aggregateAmount, difference }
+        { aggregateId, statementIds: uniqueStatementIds, totalBankAmount, aggregateAmount: aggregate.nett_amount, difference: totalBankAmount - aggregate.nett_amount }
       )
     }
-
-    // Auto-generate draft voucher for multi-match
-    const firstStmt = statements[0];
-    const multiMatchBankDate = typeof firstStmt.transaction_date === 'string'
-      ? firstStmt.transaction_date.slice(0, 10)
-      : new Date(firstStmt.transaction_date).toISOString().slice(0, 10);
 
     return {
       success: true,
@@ -1178,9 +1157,9 @@ export class BankReconciliationService {
       aggregateId,
       statementIds: uniqueStatementIds,
       totalBankAmount,
-      aggregateAmount,
-      difference,
-      differencePercent,
+      aggregateAmount: aggregate.nett_amount,
+      difference: totalBankAmount - aggregate.nett_amount,
+      differencePercent: aggregate.nett_amount !== 0 ? Math.abs(totalBankAmount - aggregate.nett_amount) / aggregate.nett_amount : 0,
     };
   }
 
@@ -1189,40 +1168,36 @@ export class BankReconciliationService {
     userId?: string,
     companyId?: string,
   ): Promise<void> {
+    // Pre-read outside transaction — check existence before acquiring locks
     const group = await this.repository.getReconciliationGroupById(groupId);
-    if (!group) {
-      throw new Error("Group tidak ditemukan");
-    }
+    if (!group) throw new Error("Group tidak ditemukan");
+    if (group.deleted_at) throw new Error("Group sudah di-undo");
 
-    if (group.deleted_at) {
-      throw new Error("Group sudah di-undo");
-    }
+    // All writes in a single atomic transaction
+    await this.repository.withTransaction(async (client) => {
+      await this.repository.undoReconciliationGroup(groupId, userId, client);
 
-    await this.repository.undoReconciliationGroup(groupId);
+      if (group.aggregate_id) {
+        await this.feeReconciliationService.resetFeeDiscrepancy?.(group.aggregate_id, client);
+        await this.orchestratorService.updateReconciliationStatus(
+          group.aggregate_id,
+          "PENDING",
+          undefined,
+          undefined,
+          client,
+        );
+      }
 
-    if (group.aggregate_id) {
-      await this.feeReconciliationService.resetFeeDiscrepancy?.(group.aggregate_id)
-    }
-
-    if (group.aggregate_id) {
-      await this.orchestratorService.updateReconciliationStatus(
-        group.aggregate_id,
-        "PENDING",
-      );
-    }
-
-    await this.repository.logAction({
-      companyId: companyId || "",
-      userId,
-      action: "UNDO_MULTI_MATCH",
-      aggregateId: group.aggregate_id,
-      details: {
-        groupId,
-        isMultiMatchUndo: true,
-      },
+      await this.repository.logAction({
+        companyId: companyId || "",
+        userId,
+        action: "UNDO_MULTI_MATCH",
+        aggregateId: group.aggregate_id,
+        details: { groupId, isMultiMatchUndo: true },
+      }, client);
     });
 
-    // Audit log for UNDO_MULTI_MATCH
+    // Audit log — best-effort, non-transactional by design
     if (userId) {
       await AuditService.log('DELETE', 'bank_reconciliation_multi_match', groupId, userId, 
         { aggregateId: group.aggregate_id, statementIds: (group as any).statement_ids || [] }, 

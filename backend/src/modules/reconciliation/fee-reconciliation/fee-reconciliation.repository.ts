@@ -1,4 +1,5 @@
 import { pool } from '../../../config/db'
+import type { PoolClient, Pool } from 'pg'
 import { logInfo, logWarn, logError } from '../../../config/logger'
 import {
   IFeeReconciliationRepository,
@@ -94,9 +95,10 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
     }
   }
 
-  async calculateAndSaveFeeDiscrepancy(aggregateId: string, statementId: string): Promise<void> {
+  async calculateAndSaveFeeDiscrepancy(aggregateId: string, statementId: string, client?: PoolClient): Promise<void> {
+    const db = client ?? pool;
     try {
-      const { rows: aggRows } = await pool.query(
+      const { rows: aggRows } = await db.query(
         `SELECT id, nett_amount, total_fee_amount, payment_method_id
          FROM aggregated_transactions WHERE id = $1`,
         [aggregateId]
@@ -104,7 +106,7 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
       const agg = aggRows[0]
       if (!agg) { logWarn('calculateAndSaveFeeDiscrepancy: aggregate not found', { aggregateId }); return }
 
-      const { rows: stmtRows } = await pool.query(
+      const { rows: stmtRows } = await db.query(
         `SELECT credit_amount, debit_amount FROM bank_statements WHERE id = $1`,
         [statementId]
       )
@@ -131,7 +133,7 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
           : `Bank bayar lebih Rp ${Math.abs(feeDiscrepancy).toLocaleString('id-ID')} dari expected — platform promo`
       }
 
-      await pool.query(
+      await db.query(
         `UPDATE aggregated_transactions
          SET actual_fee_amount = $1, fee_discrepancy = $2, fee_discrepancy_note = $3, updated_at = NOW()
          WHERE id = $4`,
@@ -146,9 +148,10 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
     }
   }
 
-  async calculateAndSaveFeeDiscrepancyMultiMatch(aggregateId: string, totalBankAmount: number): Promise<void> {
+  async calculateAndSaveFeeDiscrepancyMultiMatch(aggregateId: string, totalBankAmount: number, client?: PoolClient): Promise<void> {
+    const db = client ?? pool;
     try {
-      const { rows } = await pool.query(
+      const { rows } = await db.query(
         `SELECT id, nett_amount, total_fee_amount, payment_method_id
          FROM aggregated_transactions WHERE id = $1`,
         [aggregateId]
@@ -175,7 +178,7 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
           : `Multi-match: bank bayar lebih Rp ${Math.abs(feeDiscrepancy).toLocaleString('id-ID')} — platform promo`
       }
 
-      await pool.query(
+      await db.query(
         `UPDATE aggregated_transactions
          SET actual_fee_amount = $1, fee_discrepancy = $2, fee_discrepancy_note = $3, updated_at = NOW()
          WHERE id = $4`,
@@ -188,9 +191,10 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
     }
   }
 
-  async resetFeeDiscrepancy(aggregateId: string): Promise<void> {
+  async resetFeeDiscrepancy(aggregateId: string, client?: PoolClient): Promise<void> {
+    const db = client ?? pool;
     try {
-      await pool.query(
+      await db.query(
         `UPDATE aggregated_transactions
          SET actual_fee_amount = 0, fee_discrepancy = 0, fee_discrepancy_note = '', updated_at = NOW()
          WHERE id = $1`,

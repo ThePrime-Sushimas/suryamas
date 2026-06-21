@@ -110,18 +110,20 @@ export interface IFeeReconciliationRepository {
   createReconciliationResult(result: ReconciliationResult): Promise<void>
   calculateAndSaveFeeDiscrepancy(
     aggregateId: string,
-    statementId: string
+    statementId: string,
+    client?: import('pg').PoolClient,
   ): Promise<void>
   calculateAndSaveFeeDiscrepancyMultiMatch(
     aggregateId: string,
-    totalBankAmount: number
+    totalBankAmount: number,
+    client?: import('pg').PoolClient,
   ): Promise<void>
+  resetFeeDiscrepancy?(aggregateId: string, client?: import('pg').PoolClient): Promise<void>
   getFeeDiscrepancies(
     startDate: string,
     endDate: string,
     paymentMethodId?: number
   ): Promise<FeeDiscrepancyRecord[]>
-  resetFeeDiscrepancy(aggregateId: string): Promise<void>
 }
 
 export interface FeeDiscrepancyRecord {

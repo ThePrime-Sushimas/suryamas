@@ -250,19 +250,20 @@ export class FeeReconciliationService {
   // BANK-RECON INTEGRATION (unchanged public API)
   // =====================================================
   
-  async calculateAndSaveFeeDiscrepancy(aggregateId: string, statementId: string): Promise<void> {
-    await this.repo.calculateAndSaveFeeDiscrepancy(aggregateId, statementId)
+  async calculateAndSaveFeeDiscrepancy(aggregateId: string, statementId: string, client?: import('pg').PoolClient): Promise<void> {
+    await this.repo.calculateAndSaveFeeDiscrepancy(aggregateId, statementId, client)
   }
 
   async calculateAndSaveFeeDiscrepancyMultiMatch(
     aggregateId: string,
-    totalBankAmount: number
+    totalBankAmount: number,
+    client?: import('pg').PoolClient,
   ): Promise<void> {
-    await this.repo.calculateAndSaveFeeDiscrepancyMultiMatch(aggregateId, totalBankAmount)
+    await this.repo.calculateAndSaveFeeDiscrepancyMultiMatch(aggregateId, totalBankAmount, client)
   }
 
-  async resetFeeDiscrepancy(aggregateId: string): Promise<void> {
-    await this.repo.resetFeeDiscrepancy(aggregateId)
+  async resetFeeDiscrepancy(aggregateId: string, client?: import('pg').PoolClient): Promise<void> {
+    await this.repo.resetFeeDiscrepancy(aggregateId, client)
   }
 }
 

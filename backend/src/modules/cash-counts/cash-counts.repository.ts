@@ -1,6 +1,10 @@
 import { pool } from '../../config/db'
+import type { PoolClient, Pool } from 'pg'
 import type { CashCount, CashCountWithRelations, CashDeposit, CashDepositWithRelations, CashCountListQuery } from './cash-counts.types'
 import { CashCountOperationError } from './cash-counts.errors'
+
+/** Queryable interface shared by Pool and PoolClient */
+type Queryable = Pick<Pool, 'query'> | PoolClient;
 
 const ALLOWED_SORT_FIELDS = new Set([
   'created_at', 'start_date', 'end_date', 'status', 'branch_name', 'system_balance'
@@ -342,18 +346,20 @@ export class CashCountsRepository {
     await pool.query(`DELETE FROM cash_deposits WHERE id = $1`, [depositId])
   }
 
-  async reconcileDeposit(depositId: string, bankStatementId: string): Promise<void> {
-    await pool.query(
+  async reconcileDeposit(depositId: string, bankStatementId: string, client?: PoolClient): Promise<void> {
+    const db: Queryable = client ?? pool;
+    await db.query(
       `UPDATE cash_deposits SET status = 'RECONCILED', bank_statement_id = $1, updated_at = NOW()
        WHERE id = $2`,
       [bankStatementId, depositId]
     )
     // Sync via RPC (atomic)
-    await pool.query(`SELECT sync_cash_deposit_reconciliation($1::uuid, $2::boolean)`, [depositId, true])
+    await db.query(`SELECT sync_cash_deposit_reconciliation($1::uuid, $2::boolean)`, [depositId, true])
   }
 
-  async unreconciledDeposit(depositId: string): Promise<void> {
-    await pool.query(`SELECT sync_cash_deposit_reconciliation($1::uuid, $2::boolean)`, [depositId, false])
+  async unreconciledDeposit(depositId: string, client?: PoolClient): Promise<void> {
+    const db: Queryable = client ?? pool;
+    await db.query(`SELECT sync_cash_deposit_reconciliation($1::uuid, $2::boolean)`, [depositId, false])
   }
 
   async getDepositedForMatch(startDate: string, endDate: string, bankAccountId?: number): Promise<CashDeposit[]> {

@@ -1,4 +1,5 @@
 import { pool } from "../../../config/db";
+import type { PoolClient, Pool } from "pg";
 import { logInfo, logError, logDebug } from "../../../config/logger";
 import {
   AggregatedTransaction,
@@ -63,9 +64,11 @@ export class ReconciliationOrchestratorService implements IReconciliationOrchest
     status: "PENDING" | "RECONCILED" | "DISCREPANCY",
     _statementId?: string,
     _reconciledBy?: string,
+    client?: PoolClient,
   ): Promise<void> {
+    const db = client ?? pool;
     // DB trigger: reconciliation cascade logic is handled at database layer.
-    await pool.query(
+    await db.query(
       `UPDATE aggregated_transactions SET is_reconciled = $1, updated_at = NOW() WHERE id = $2`,
       [status === "RECONCILED", aggregateId]
     );

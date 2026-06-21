@@ -1,5 +1,5 @@
 import { pool } from "../../../config/db";
-import { PoolClient } from "pg";
+import type { PoolClient, Pool } from "pg";
 import { logError } from "../../../config/logger";
 import { BankReconciliationStatus } from "./bank-reconciliation.types";
 import {
@@ -7,6 +7,9 @@ import {
   StatementNotFoundError,
   DatabaseConnectionError,
 } from "./bank-reconciliation.errors";
+
+/** Queryable interface shared by Pool and PoolClient */
+type Queryable = Pick<Pool, 'query'> | PoolClient;
 
 // ---------------------------------------------------------------------------
 // Local types for method return shapes
@@ -53,12 +56,28 @@ export interface ReconciliationGroupWithDetails {
 export class BankReconciliationRepository {
   constructor() {}
 
+  async withTransaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await operation(client)
+      await client.query('COMMIT')
+      return result
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
   /**
    * Find bank statement by ID
    */
-  async findById(id: string): Promise<any> {
+  async findById(id: string, client?: PoolClient): Promise<any> {
+    const db: Queryable = client ?? pool;
     try {
-      const { rows } = await pool.query(
+      const { rows } = await db.query(
         "SELECT * FROM bank_statements WHERE id = $1 AND deleted_at IS NULL LIMIT 1",
         [id]
       );
@@ -78,6 +97,32 @@ export class BankReconciliationRepository {
       });
       throw new FetchStatementError(id, error.message);
     }
+  }
+
+  /**
+   * Find bank statement by ID with FOR UPDATE lock.
+   * Use inside a transaction to prevent concurrent reconciliation of the same statement.
+   */
+  async findByIdForUpdate(id: string, client: PoolClient): Promise<any> {
+    const { rows } = await client.query(
+      "SELECT * FROM bank_statements WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+      [id]
+    );
+    if (rows.length === 0) throw new StatementNotFoundError(id);
+    return rows[0];
+  }
+
+  /**
+   * Find multiple bank statements by IDs with FOR UPDATE lock.
+   * ORDER BY id for consistent lock ordering across all reconciliation methods.
+   */
+  async findByIdsForUpdate(ids: string[], client: PoolClient): Promise<any[]> {
+    if (ids.length === 0) return [];
+    const { rows } = await client.query(
+      "SELECT * FROM bank_statements WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL ORDER BY id FOR UPDATE",
+      [ids]
+    );
+    return rows;
   }
 
   /**
@@ -486,9 +531,11 @@ export class BankReconciliationRepository {
     statementId: string,
     aggregateId: string,
     userId?: string,
+    client?: PoolClient,
   ): Promise<void> {
+    const db: Queryable = client ?? pool;
     try {
-      const { rows: aggregateRows } = await pool.query(
+      const { rows: aggregateRows } = await db.query(
         "SELECT payment_method_id FROM aggregated_transactions WHERE id = $1 LIMIT 1",
         [aggregateId]
       );
@@ -511,7 +558,7 @@ export class BankReconciliationRepository {
       params.push(statementId);
       query += ` WHERE id = $${params.length}`;
 
-      await pool.query(query, params);
+      await db.query(query, params);
     } catch (error: any) {
       logError("Error marking statement as reconciled", {
         statementId,
@@ -551,8 +598,9 @@ export class BankReconciliationRepository {
     }
   }
 
-  async countReconciledStatementsInGroup(groupId: string): Promise<number> {
-    const { rows } = await pool.query(
+  async countReconciledStatementsInGroup(groupId: string, client?: PoolClient): Promise<number> {
+    const db: Queryable = client ?? pool;
+    const { rows } = await db.query(
       `SELECT COUNT(*)::int as count 
        FROM bank_reconciliation_group_details brgd
        JOIN bank_statements bs ON brgd.statement_id = bs.id
@@ -655,9 +703,10 @@ export class BankReconciliationRepository {
     statementId?: string;
     aggregateId?: string;
     details?: any;
-  }): Promise<void> {
+  }, client?: PoolClient): Promise<void> {
+    const db: Queryable = client ?? pool;
     try {
-      await pool.query(
+      await db.query(
         `INSERT INTO bank_reconciliation_logs 
          (company_id, user_id, action, statement_id, aggregate_id, details) 
          VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -678,9 +727,11 @@ export class BankReconciliationRepository {
   async undoReconciliation(
     statementId: string,
     userId?: string,
+    client?: PoolClient,
   ): Promise<void> {
+    const db: Queryable = client ?? pool;
     try {
-      const { rows } = await pool.query(
+      const { rows } = await db.query(
         "SELECT reconciliation_id FROM bank_statements WHERE id = $1 LIMIT 1",
         [statementId]
       );
@@ -696,10 +747,10 @@ export class BankReconciliationRepository {
       params.push(statementId);
       query += ` WHERE id = $${params.length}`;
 
-      await pool.query(query, params);
+      await db.query(query, params);
 
       if (reconciliationId) {
-        await pool.query(
+        await db.query(
           `UPDATE aggregated_transactions 
            SET is_reconciled = false, actual_fee_amount = 0, fee_discrepancy = 0, fee_discrepancy_note = null, updated_at = $1 
            WHERE id = $2`,
@@ -731,10 +782,11 @@ export class BankReconciliationRepository {
     notes?: string;
     reconciledBy?: string;
     companyId?: string;
-  }): Promise<string> {
+  }, client?: PoolClient): Promise<string> {
+    const db: Queryable = client ?? pool;
     try {
       const status = Math.abs(data.difference) <= 100 ? "RECONCILED" : "DISCREPANCY";
-      const { rows } = await pool.query(
+      const { rows } = await db.query(
         `INSERT INTO bank_reconciliation_groups 
          (aggregate_id, company_id, total_bank_amount, aggregate_amount, difference, notes, reconciled_by, updated_at, status) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
@@ -753,7 +805,9 @@ export class BankReconciliationRepository {
   async addStatementsToGroup(
     groupId: string,
     statements: Array<{ statementId: string; amount: number }>,
+    client?: PoolClient,
   ): Promise<void> {
+    const db: Queryable = client ?? pool;
     try {
       if (statements.length === 0) return;
       const values: any[] = [];
@@ -763,7 +817,7 @@ export class BankReconciliationRepository {
         return `($${base + 1}, $${base + 2}, $${base + 3})`;
       }).join(", ");
 
-      await pool.query(
+      await db.query(
         `INSERT INTO bank_reconciliation_group_details (group_id, statement_id, amount) VALUES ${placeholders}`,
         values
       );
@@ -845,7 +899,9 @@ export class BankReconciliationRepository {
     statementIds: string[],
     groupId: string,
     userId?: string,
+    client?: PoolClient,
   ): Promise<void> {
+    const db: Queryable = client ?? pool;
     try {
       const params: any[] = [true, false, groupId, new Date().toISOString()];
       let query = "UPDATE bank_statements SET is_reconciled = $1, is_pending = $2, reconciliation_group_id = $3, updated_at = $4";
@@ -857,7 +913,7 @@ export class BankReconciliationRepository {
       params.push(statementIds);
       query += ` WHERE id = ANY($${params.length})`;
 
-      await pool.query(query, params);
+      await db.query(query, params);
     } catch (error: any) {
       logError("Error marking statements as reconciled with group", {
         count: statementIds.length,
@@ -874,57 +930,55 @@ export class BankReconciliationRepository {
   async undoReconciliationGroup(
     groupId: string,
     userId?: string,
+    client?: PoolClient,
   ): Promise<void> {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      // Pass the transactional client so the read runs within the same transaction
-      const group = await this.getReconciliationGroupById(groupId, client);
-      if (!group) throw new Error("Group not found");
-
-      const statementIds = (group.bank_reconciliation_group_details || []).map((d: any) => d.statement_id);
-
-      // 1. Reset bank_statements
-      if (statementIds.length > 0) {
-        const params: any[] = [false, null, new Date().toISOString()];
-        let query = "UPDATE bank_statements SET is_reconciled = $1, reconciliation_group_id = $2, updated_at = $3";
-        if (userId) {
-          params.push(userId);
-          query += `, updated_by = $${params.length}`;
-        }
-        params.push(statementIds);
-        query += ` WHERE id = ANY($${params.length})`;
-        await client.query(query, params);
-      }
-
-      // 2. Reset aggregated_transactions if linked
-      if (group.aggregate_id) {
-        await client.query(
-          `UPDATE aggregated_transactions 
-           SET is_reconciled = false, actual_fee_amount = 0, fee_discrepancy = 0, fee_discrepancy_note = null, updated_at = $1 
-           WHERE id = $2`,
-          [new Date().toISOString(), group.aggregate_id]
-        );
-      }
-
-      // 3. Soft delete group
-      await client.query(
-        `UPDATE bank_reconciliation_groups SET deleted_at = $1, status = 'UNDO', updated_at = $1 WHERE id = $2`,
-        [new Date().toISOString(), groupId]
-      );
-
-      await client.query("COMMIT");
-    } catch (error: any) {
-      await client.query("ROLLBACK");
-      logError("Error undoing reconciliation group", {
-        groupId,
-        error: error.message,
-      });
-      throw new DatabaseConnectionError("undoing reconciliation group", error.message);
-    } finally {
-      client.release();
+    if (client) {
+      return this._undoReconciliationGroupWithClient(groupId, userId, client);
     }
+    // Self-managed transaction when called standalone
+    await this.withTransaction(async (ownClient) => {
+      await this._undoReconciliationGroupWithClient(groupId, userId, ownClient);
+    });
+  }
+
+  private async _undoReconciliationGroupWithClient(
+    groupId: string,
+    userId: string | undefined,
+    client: PoolClient,
+  ): Promise<void> {
+    const group = await this.getReconciliationGroupById(groupId, client);
+    if (!group) throw new Error("Group not found");
+
+    const statementIds = (group.bank_reconciliation_group_details || []).map((d: any) => d.statement_id);
+
+    // 1. Reset bank_statements
+    if (statementIds.length > 0) {
+      const params: any[] = [false, null, new Date().toISOString()];
+      let query = "UPDATE bank_statements SET is_reconciled = $1, reconciliation_group_id = $2, updated_at = $3";
+      if (userId) {
+        params.push(userId);
+        query += `, updated_by = $${params.length}`;
+      }
+      params.push(statementIds);
+      query += ` WHERE id = ANY($${params.length})`;
+      await client.query(query, params);
+    }
+
+    // 2. Reset aggregated_transactions if linked
+    if (group.aggregate_id) {
+      await client.query(
+        `UPDATE aggregated_transactions 
+         SET is_reconciled = false, actual_fee_amount = 0, fee_discrepancy = 0, fee_discrepancy_note = null, updated_at = $1 
+         WHERE id = $2`,
+        [new Date().toISOString(), group.aggregate_id]
+      );
+    }
+
+    // 3. Soft delete group
+    await client.query(
+      `UPDATE bank_reconciliation_groups SET deleted_at = $1, status = 'UNDO', updated_at = $1 WHERE id = $2`,
+      [new Date().toISOString(), groupId]
+    );
   }
 
   /**
@@ -1058,7 +1112,9 @@ export class BankReconciliationRepository {
     statementId: string,
     cashDepositId: string,
     userId?: string,
+    client?: PoolClient,
   ): Promise<void> {
+    const db: Queryable = client ?? pool;
     const params: any[] = [true, false, cashDepositId, new Date().toISOString()];
     let query = "UPDATE bank_statements SET is_reconciled = $1, is_pending = $2, cash_deposit_id = $3, updated_at = $4";
     if (userId) {
@@ -1067,40 +1123,43 @@ export class BankReconciliationRepository {
     }
     params.push(statementId);
     query += ` WHERE id = $${params.length}`;
-    await pool.query(query, params);
+    await db.query(query, params);
   }
 
   async undoCashDepositReconciliation(
     statementId: string,
     cashDepositId: string,
     userId?: string,
+    client?: PoolClient,
   ): Promise<void> {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      
-      const params: any[] = [false, null, new Date().toISOString()];
-      let query = "UPDATE bank_statements SET is_reconciled = $1, cash_deposit_id = $2, updated_at = $3";
-      if (userId) {
-        params.push(userId);
-        query += `, updated_by = $${params.length}`;
-      }
-      params.push(statementId);
-      query += ` WHERE id = $${params.length}`;
-      await client.query(query, params);
-
-      await client.query(
-        `UPDATE cash_deposits SET status = 'DEPOSITED', bank_statement_id = null, updated_at = $1 WHERE id = $2`,
-        [new Date().toISOString(), cashDepositId]
-      );
-
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
+    if (client) {
+      return this._undoCashDepositWithClient(statementId, cashDepositId, userId, client);
     }
+    await this.withTransaction(async (ownClient) => {
+      await this._undoCashDepositWithClient(statementId, cashDepositId, userId, ownClient);
+    });
+  }
+
+  private async _undoCashDepositWithClient(
+    statementId: string,
+    cashDepositId: string,
+    userId: string | undefined,
+    client: PoolClient,
+  ): Promise<void> {
+    const params: any[] = [false, null, new Date().toISOString()];
+    let query = "UPDATE bank_statements SET is_reconciled = $1, cash_deposit_id = $2, updated_at = $3";
+    if (userId) {
+      params.push(userId);
+      query += `, updated_by = $${params.length}`;
+    }
+    params.push(statementId);
+    query += ` WHERE id = $${params.length}`;
+    await client.query(query, params);
+
+    await client.query(
+      `UPDATE cash_deposits SET status = 'DEPOSITED', bank_statement_id = null, updated_at = $1 WHERE id = $2`,
+      [new Date().toISOString(), cashDepositId]
+    );
   }
 }
 
