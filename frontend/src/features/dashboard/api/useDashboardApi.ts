@@ -8,6 +8,7 @@ import api from '@/lib/axios'
 type SalesRow = {
   id: string
   sales_date: string
+  branch_id: string | null
   branch_name: string | null
   payment_methods: { id: number; name: string; payment_type: string } | null
   grand_total: number

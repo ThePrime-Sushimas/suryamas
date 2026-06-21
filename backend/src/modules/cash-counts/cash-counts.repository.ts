@@ -36,18 +36,25 @@ export class CashCountsRepository {
       .sort((a, b) => a.branch_name.localeCompare(b.branch_name) || a.transaction_date.localeCompare(b.transaction_date))
   }
 
-  async findByPeriod(companyId: string, startDate: string, endDate: string, paymentMethodId: number): Promise<CashCount[]> {
+  async findByPeriod(companyId: string, startDate: string, endDate: string, paymentMethodId: number, branchId?: string | null): Promise<CashCount[]> {
+    const conditions = ['company_id = $1', 'start_date >= $2', 'end_date <= $3', 'payment_method_id = $4', 'deleted_at IS NULL']
+    const values: unknown[] = [companyId, startDate, endDate, paymentMethodId]
+    let idx = 5
+
+    if (branchId) {
+      conditions.push(`branch_id = $${idx++}`)
+      values.push(branchId)
+    }
+
     const { rows } = await pool.query(
-      `SELECT * FROM cash_counts
-       WHERE company_id = $1 AND start_date >= $2 AND end_date <= $3
-         AND payment_method_id = $4 AND deleted_at IS NULL`,
-      [companyId, startDate, endDate, paymentMethodId]
+      `SELECT * FROM cash_counts WHERE ${conditions.join(' AND ')}`,
+      values
     )
     return rows
   }
 
   // ── Calculate ──
-  async calculateSystemBalance(companyId: string, startDate: string, endDate: string, paymentMethodId: number, branchName?: string | null) {
+  async calculateSystemBalance(companyId: string, startDate: string, endDate: string, paymentMethodId: number, branchName?: string | null, branchId?: string | null) {
     const conditions = [
       'payment_method_id = $1',
       'transaction_date >= $2',
@@ -58,7 +65,10 @@ export class CashCountsRepository {
     const values: unknown[] = [paymentMethodId, startDate, endDate]
     let idx = 4
 
-    if (branchName) {
+    if (branchId) {
+      conditions.push(`branch_id = $${idx++}`)
+      values.push(branchId)
+    } else if (branchName) {
       conditions.push(`branch_name = $${idx++}`)
       values.push(branchName)
     }
@@ -86,7 +96,7 @@ export class CashCountsRepository {
   }
 
   // ── Duplicate check ──
-  async findDuplicate(companyId: string, startDate: string, endDate: string, paymentMethodId: number, branchName?: string | null): Promise<CashCount | null> {
+  async findDuplicate(companyId: string, startDate: string, endDate: string, paymentMethodId: number, branchName?: string | null, branchId?: string | null): Promise<CashCount | null> {
     const conditions = [
       'company_id = $1', 'start_date = $2', 'end_date = $3',
       'payment_method_id = $4', 'deleted_at IS NULL',
@@ -94,7 +104,10 @@ export class CashCountsRepository {
     const values: unknown[] = [companyId, startDate, endDate, paymentMethodId]
     let idx = 5
 
-    if (branchName) {
+    if (branchId) {
+      conditions.push(`branch_id = $${idx++}`)
+      values.push(branchId)
+    } else if (branchName) {
       conditions.push(`branch_name = $${idx++}`)
       values.push(branchName)
     } else {

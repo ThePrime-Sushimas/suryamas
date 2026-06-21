@@ -205,7 +205,7 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
     }
   }
 
-  async getFeeDiscrepancies(startDate: string, endDate: string, paymentMethodId?: number): Promise<FeeDiscrepancyRecord[]> {
+  async getFeeDiscrepancies(startDate: string, endDate: string, paymentMethodId?: number, branchIds?: string[]): Promise<FeeDiscrepancyRecord[]> {
     const conditions = [
       "at.reconciliation_status = 'RECONCILED'",
       'at.transaction_date >= $1', 'at.transaction_date <= $2',
@@ -217,6 +217,11 @@ export class FeeReconciliationRepository implements IFeeReconciliationRepository
     if (paymentMethodId) {
       conditions.push(`at.payment_method_id = $${idx++}`)
       values.push(paymentMethodId)
+    }
+
+    if (branchIds && branchIds.length > 0) {
+      conditions.push(`at.branch_id = ANY($${idx++}::uuid[])`)
+      values.push(branchIds)
     }
 
     const { rows } = await pool.query(

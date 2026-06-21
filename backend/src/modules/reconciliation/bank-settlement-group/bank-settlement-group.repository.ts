@@ -418,6 +418,7 @@ export class SettlementGroupRepository {
     endDate?: string;
     status?: SettlementGroupStatus;
     search?: string;
+    branchIds?: string[];
     limit?: number;
     offset?: number;
   }): Promise<{ data: any[]; total: number }> {
@@ -440,6 +441,14 @@ export class SettlementGroupRepository {
       if (options?.search) {
         params.push(`%${options.search}%`);
         conditions.push(`(bsg.settlement_number ILIKE $${params.length} OR bsg.notes ILIKE $${params.length})`);
+      }
+      if (options?.branchIds && options.branchIds.length > 0) {
+        params.push(options.branchIds);
+        conditions.push(`EXISTS (
+          SELECT 1 FROM bank_settlement_aggregates bsa
+          JOIN aggregated_transactions at ON at.id = bsa.aggregate_id
+          WHERE bsa.settlement_group_id = bsg.id AND at.branch_id = ANY($${params.length}::uuid[])
+        )`);
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";

@@ -79,10 +79,40 @@ export default function DashboardSalesPage() {
 
   const [pmCompanyTab, setPmCompanyTab] = useState<string | null>(null)
   const activePmCompany = pmCompanyTab || companies[0]?.id || null
-  const companyBranchNames = useMemo(() => {
+
+  // Branch filter
+  const companyBranches = useMemo(() =>
+    allUserBranches.filter(b => b.company_id === activePmCompany),
+    [allUserBranches, activePmCompany]
+  )
+  const [selectedBranchIds, setSelectedBranchIds] = useState<Set<string>>(new Set())
+  const activeBranchFilter = useMemo(() => {
+    if (selectedBranchIds.size === 0) return null
+    return selectedBranchIds
+  }, [selectedBranchIds])
+  const toggleBranch = (branchId: string) => {
+    setSelectedBranchIds(prev => {
+      const next = new Set(prev)
+      if (next.has(branchId)) next.delete(branchId); else next.add(branchId)
+      return next
+    })
+  }
+  const clearBranchFilter = () => setSelectedBranchIds(new Set())
+
+  // Set of branch_ids for filtering sales data (UUID-based, robust)
+  const activeBranchIdSet = useMemo(() => {
     if (!activePmCompany) return null
-    return new Set(allUserBranches.filter((b) => b.company_id === activePmCompany).map((b) => b.branch_name.toLowerCase()))
-  }, [activePmCompany, allUserBranches])
+    const branches = activeBranchFilter
+      ? allUserBranches.filter(b => b.company_id === activePmCompany && activeBranchFilter.has(b.branch_id))
+      : allUserBranches.filter(b => b.company_id === activePmCompany)
+    return new Set(branches.map(b => b.branch_id))
+  }, [activePmCompany, allUserBranches, activeBranchFilter])
+
+  const companyBranchNames = useMemo(() => {
+    if (!activeBranchIdSet) return null
+    const branches = allUserBranches.filter(b => activeBranchIdSet.has(b.branch_id))
+    return new Set(branches.map(b => b.branch_name.toLowerCase()))
+  }, [activeBranchIdSet, allUserBranches])
 
   // Date filter
   const [draftFrom, setDraftFrom] = useState(fmtDate(firstOfMonth()))
@@ -103,26 +133,38 @@ export default function DashboardSalesPage() {
 
   const isVoid = (r: { status: string }) => r.status === 'VOID'
 
-  const todaySalesData = useMemo(() =>
-    todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === effectiveDateStr) || []
-  , [todaySales.data, effectiveDateStr])
+  const todaySalesData = useMemo(() => {
+    let data = todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === effectiveDateStr) || []
+    if (activeBranchIdSet) {
+      data = data.filter(r => r.branch_id && activeBranchIdSet.has(r.branch_id))
+    }
+    return data
+  }, [todaySales.data, effectiveDateStr, activeBranchIdSet])
 
   const todayNonVoid = useMemo(() => todaySalesData.filter(r => !isVoid(r)), [todaySalesData])
   const todayVoidData = useMemo(() => todaySalesData.filter(isVoid), [todaySalesData])
   const todayVoidTotal = useMemo(() => todayVoidData.reduce((s, r) => s + r.grand_total, 0), [todayVoidData])
   const todayVoidTrx = useMemo(() => todayVoidData.reduce((s, r) => s + (r.void_transaction_count ?? 0), 0), [todayVoidData])
 
-  const yesterdayData = useMemo(() =>
-    todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === effectiveYesterdayStr) || []
-  , [todaySales.data, effectiveYesterdayStr])
+  const yesterdayData = useMemo(() => {
+    let data = todaySales.data?.filter(r => r.sales_date?.slice(0, 10) === effectiveYesterdayStr) || []
+    if (activeBranchIdSet) {
+      data = data.filter(r => r.branch_id && activeBranchIdSet.has(r.branch_id))
+    }
+    return data
+  }, [todaySales.data, effectiveYesterdayStr, activeBranchIdSet])
 
   const rangeData = useMemo(() => {
     if (!hasApplied || !rangeSales.data) return []
-    return rangeSales.data.filter(r => {
+    let data = rangeSales.data.filter(r => {
       const d = r.sales_date?.slice(0, 10)
       return d >= appliedFrom! && d <= appliedTo!
     })
-  }, [rangeSales.data, appliedFrom, appliedTo, hasApplied])
+    if (activeBranchIdSet) {
+      data = data.filter(r => r.branch_id && activeBranchIdSet.has(r.branch_id))
+    }
+    return data
+  }, [rangeSales.data, appliedFrom, appliedTo, hasApplied, activeBranchIdSet])
 
   const rangeNonVoid = useMemo(() => rangeData.filter(r => !isVoid(r)), [rangeData])
 
@@ -196,6 +238,34 @@ export default function DashboardSalesPage() {
           </button>
         </div>
       </div>
+
+      {/* Branch Filter */}
+      {companyBranches.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400">Branch:</span>
+          {companyBranches.map(b => {
+            const isSelected = selectedBranchIds.size === 0 || selectedBranchIds.has(b.branch_id)
+            return (
+              <button
+                key={b.branch_id}
+                onClick={() => toggleBranch(b.branch_id)}
+                className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                  isSelected
+                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 line-through'
+                }`}
+              >
+                {b.branch_name}
+              </button>
+            )
+          })}
+          {selectedBranchIds.size > 0 && (
+            <button onClick={clearBranchFilter} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline">
+              Semua
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Failed Alert ── */}
       {failedCount > 0 && (

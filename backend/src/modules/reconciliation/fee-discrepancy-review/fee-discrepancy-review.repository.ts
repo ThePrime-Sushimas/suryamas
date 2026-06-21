@@ -211,7 +211,9 @@ export class FeeDiscrepancyReviewRepository {
   // ── Data source queries ──
 
   private async getSingleMatchDiscrepancies(companyId: string, filter: FeeDiscrepancyFilter): Promise<FeeDiscrepancyItem[]> {
-    const branchIds = await this.getBranchIdsByCompany(companyId)
+    const branchIds = filter.branchIds && filter.branchIds.length > 0
+      ? filter.branchIds
+      : await this.getBranchIdsByCompany(companyId)
     if (branchIds.length === 0) return []
 
     // Exclude multi-match and settlement aggregate IDs

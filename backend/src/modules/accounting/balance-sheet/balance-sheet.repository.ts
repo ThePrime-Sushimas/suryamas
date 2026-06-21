@@ -66,8 +66,15 @@ export class BalanceSheetRepository {
     }
   }
 
-  async getRetainedEarnings(companyIds: string[], asOfDate: string): Promise<number> {
+  async getRetainedEarnings(companyIds: string[], asOfDate: string, branchFilterIds?: string[]): Promise<number> {
     try {
+      const values: (string | string[])[] = [companyIds, asOfDate]
+      let branchFilter = ''
+      if (branchFilterIds && branchFilterIds.length > 0) {
+        values.push(branchFilterIds)
+        branchFilter = `AND glv.branch_id = ANY($3::uuid[])`
+      }
+
       const { rows } = await pool.query(
         `
         SELECT
@@ -80,8 +87,9 @@ export class BalanceSheetRepository {
           AND coa.company_id = ANY($1::uuid[])
           AND coa.account_type IN ('REVENUE', 'EXPENSE')
           AND glv.journal_date <= $2::date
+          ${branchFilter}
         `,
-        [companyIds, asOfDate]
+        values
       )
       return Number(rows[0]?.retained_earnings ?? 0)
     } catch (error: unknown) {

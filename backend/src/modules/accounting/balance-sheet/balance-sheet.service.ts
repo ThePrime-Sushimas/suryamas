@@ -33,9 +33,9 @@ export class BalanceSheetService {
 
     const [{ current, compare }, retainedEarnings, compareRetainedEarnings] = await Promise.all([
       balanceSheetRepository.getBalanceSheet(params),
-      balanceSheetRepository.getRetainedEarnings(params.companyIds, params.asOfDate),
+      balanceSheetRepository.getRetainedEarnings(params.companyIds, params.asOfDate, params.branchFilterIds),
       params.compareAsOfDate
-        ? balanceSheetRepository.getRetainedEarnings(params.companyIds, params.compareAsOfDate)
+        ? balanceSheetRepository.getRetainedEarnings(params.companyIds, params.compareAsOfDate, params.branchFilterIds)
         : Promise.resolve(0),
     ])
 

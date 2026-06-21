@@ -57,7 +57,7 @@ export class BankMutationEntriesRepository {
   async list(filter: {
     companyIds: string[]; bankAccountId?: number; entryType?: BankMutationEntryType;
     status?: BankMutationEntryStatus; isReconciled?: boolean;
-    dateFrom?: string; dateTo?: string; search?: string; limit: number; offset: number;
+    dateFrom?: string; dateTo?: string; search?: string; branchIds?: string[]; limit: number; offset: number;
   }): Promise<{ data: BankMutationEntryRow[]; total: number }> {
     const conditions: string[] = ['company_id = ANY($1::uuid[])', 'deleted_at IS NULL']
     const values: unknown[] = [filter.companyIds]
@@ -69,6 +69,7 @@ export class BankMutationEntriesRepository {
     if (filter.isReconciled !== undefined) { conditions.push(`is_reconciled = $${idx++}`); values.push(filter.isReconciled) }
     if (filter.dateFrom) { conditions.push(`entry_date >= $${idx++}`); values.push(filter.dateFrom) }
     if (filter.dateTo) { conditions.push(`entry_date <= $${idx++}`); values.push(filter.dateTo) }
+    if (filter.branchIds && filter.branchIds.length > 0) { conditions.push(`branch_id = ANY($${idx++}::uuid[])`); values.push(filter.branchIds) }
     if (filter.search) {
       const term = `%${escapeSearch(filter.search)}%`
       conditions.push(`(description ILIKE $${idx} OR reference_number ILIKE $${idx})`)

@@ -26,6 +26,7 @@ export interface FeeDiscrepancyFilter {
   status?: FeeDiscrepancyStatus
   paymentMethodId?: number
   minAmount?: number
+  branchIds?: string[]
   page?: number
   limit?: number
 }

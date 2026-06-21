@@ -1047,6 +1047,7 @@ export class BankReconciliationRepository {
     companyId: string,
     startDate: Date,
     endDate: Date,
+    branchIds?: string[],
   ): Promise<any[]> {
     try {
       const { rows: groups } = await pool.query(
@@ -1064,9 +1065,12 @@ export class BankReconciliationRepository {
          LEFT JOIN payment_methods pm ON at.payment_method_id = pm.id
          WHERE at.transaction_date >= $1::date AND at.transaction_date <= $2::date 
            AND at.company_id = $3::uuid
+           ${branchIds && branchIds.length > 0 ? `AND at.branch_id = ANY($4::uuid[])` : ''}
            AND brg.deleted_at IS NULL 
          ORDER BY brg.created_at DESC`,
-        [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0], companyId]
+        branchIds && branchIds.length > 0
+          ? [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0], companyId, branchIds]
+          : [startDate.toISOString().split("T")[0], endDate.toISOString().split("T")[0], companyId]
       );
 
       if (groups.length === 0) return [];
