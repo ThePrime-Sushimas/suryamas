@@ -9,6 +9,7 @@ import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { usePurchaseOrders, useDeletePurchaseOrder } from '../api/purchaseOrders.api'
 import type { PurchaseOrder } from '../api/purchaseOrders.api'
 import { usePurchaseOrderFilters } from '../hooks/usePurchaseOrderFilters'
@@ -33,6 +34,8 @@ export default function PurchaseOrdersPage() {
     setPage,
     setLimit,
   } = usePurchaseOrderFilters()
+
+  const branches = useBranchContextStore(state => state.branches)
 
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null)
 
@@ -112,6 +115,16 @@ export default function PurchaseOrdersPage() {
             )}
           </div>
           <select
+            value={filters.branchId}
+            onChange={(e) => setFilters({ branchId: e.target.value, tab: 'all' })}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm min-w-[180px]"
+          >
+            <option value="">Semua Cabang</option>
+            {branches.map((b: { branch_id: string; branch_name: string }) => (
+              <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>
+            ))}
+          </select>
+          <select
             value={filters.status}
             onChange={(e) => setFilters({ status: e.target.value, tab: 'all' })}
             className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
@@ -179,7 +192,7 @@ export default function PurchaseOrdersPage() {
                         className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
                       >
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 truncate">
                             <Link to={`${PURCHASE_ORDERS_LIST_PATH}/${po.id}`} className="font-mono font-semibold text-blue-600 dark:text-blue-400 hover:underline" onClick={e => e.stopPropagation()}>
                               {po.po_number}
                             </Link>
@@ -188,7 +201,7 @@ export default function PurchaseOrdersPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{po.supplier_name}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 truncate">{po.supplier_name}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{po.branch_name}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{fmtDate(po.order_date)}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -202,7 +215,7 @@ export default function PurchaseOrdersPage() {
                             {po.payment_term_name ?? (po.payment_type === 'CASH' ? 'Cash' : `Tempo ${po.payment_terms_days ?? ''}hr`)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
+                        <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200 truncate">
                           Rp {fmt(po.total_amount)}
                         </td>
                         <td className="px-4 py-3 text-center whitespace-nowrap">
