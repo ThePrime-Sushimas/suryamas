@@ -54,9 +54,17 @@ interface JournalHeadersState {
   clearSelection: () => void
 }
 
+function getCurrentMonthRange() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  return { date_from: start, date_to: end }
+}
+
 const DEFAULT_FILTERS: JournalHeaderFilter & JournalSortParams = {
   sort: 'journal_date',
   order: 'desc',
+  ...getCurrentMonthRange(),
 }
 
 export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => ({
@@ -74,7 +82,7 @@ export const useJournalHeadersStore = create<JournalHeadersState>((set, get) => 
     hasPrev: false,
   },
   filters: DEFAULT_FILTERS,
-  hasAppliedFilters: false,
+  hasAppliedFilters: true,
   selectedRows: [],
 
   fetchJournals: async (filters?: Partial<JournalHeaderFilter & JournalSortParams>) => {

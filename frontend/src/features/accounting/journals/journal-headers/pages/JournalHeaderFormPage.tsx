@@ -7,46 +7,11 @@ import { JournalHeaderForm } from '../components/JournalHeaderForm'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
 import type { CreateJournalDto, UpdateJournalDto } from '../types/journal-header.types'
 
-// interface SuggestedTemplate {
-  //   id: string
-  //   name: string
-  //   description: string
-  //   lines: number
-  //   total_amount: number
-  // }
-
 export function JournalHeaderFormPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const permissions = useJournalPermissions()
   const { createJournal } = useJournalHeadersStore()
-  // const [showTemplates, setShowTemplates] = useState(false)
-  // Quick actions removed per user request
-
-  // Mock suggested templates - in real app this would come from API
-  // const suggestedTemplates: SuggestedTemplate[] = [
-  //   {
-  //     id: '1',
-  //     name: 'Biaya Bulanan',
-  //     description: 'Biaya rutin bulanan seperti listrik, air, telepon',
-  //     lines: 3,
-  //     total_amount: 2500000,
-  //   },
-  //   {
-  //     id: '2',
-  //     name: 'Pembelian Persediaan',
-  //     description: 'Pembelian barang dagangan dari supplier',
-  //     lines: 5,
-  //     total_amount: 15000000,
-  //   },
-  //   {
-  //     id: '3',
-  //     name: 'Penjualan Tunai',
-  //     description: 'Penjualan barang dengan pembayaran tunai',
-  //     lines: 2,
-  //     total_amount: 5000000,
-  //   },
-  // ]
 
   const handleSubmit = useCallback(async (dto: CreateJournalDto | UpdateJournalDto) => {
     try {
@@ -61,12 +26,6 @@ export function JournalHeaderFormPage() {
   const handleCancel = useCallback(() => {
     navigate('/accounting/journals')
   }, [navigate])
-
-  // const handleUseTemplate = (template: SuggestedTemplate) => {
-  //   // In real implementation, this would pre-fill the form
-  //   alert(`Template "${template.name}" dipilih. Form akan di-prefill dengan data template.`)
-  //   setShowTemplates(false)
-  // }
 
   if (!permissions.canCreate) {
     return (

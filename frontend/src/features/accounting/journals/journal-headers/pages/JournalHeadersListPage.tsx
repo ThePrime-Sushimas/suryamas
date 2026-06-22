@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ArrowUpDown } from 'lucide-react'
+import { Plus, FileSearch } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { Pagination } from '@/components/ui/Pagination'
@@ -34,6 +34,11 @@ export function JournalHeadersListPage() {
     isOpen: false,
     id: null,
   })
+
+  // Auto-fetch on mount with default filters (current month)
+  useEffect(() => {
+    fetchJournals()
+  }, [fetchJournals])
 
   const handleView = (journal: JournalHeader) => {
     navigate(`/accounting/journals/${journal.id}`)
@@ -149,7 +154,7 @@ export function JournalHeadersListPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="text-center py-16">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-50 dark:bg-blue-900/30 mb-4">
-              <ArrowUpDown className="w-10 h-10 text-blue-500" />
+              <FileSearch className="w-10 h-10 text-blue-500" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               Start Searching
@@ -163,7 +168,7 @@ export function JournalHeadersListPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="text-center py-16">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
-              <ArrowUpDown className="w-10 h-10 text-gray-400" />
+              <FileSearch className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               No Journals Found

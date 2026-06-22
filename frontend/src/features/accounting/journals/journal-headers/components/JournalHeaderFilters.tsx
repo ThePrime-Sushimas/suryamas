@@ -43,13 +43,19 @@ export function JournalHeaderFilters() {
   }
 
   const handleReset = () => {
+    const now = new Date()
+    const date_from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    const date_to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
     const resetFilters: JournalFilter & JournalSortParams = {
       sort: 'journal_date',
       order: 'desc',
+      date_from,
+      date_to,
     }
     setLocalFilters(resetFilters)
     setFilters(resetFilters)
-    setHasAppliedFilters(false)
+    setHasAppliedFilters(true)
+    fetchJournals(resetFilters)
   }
 
   const activeFilterCount = [

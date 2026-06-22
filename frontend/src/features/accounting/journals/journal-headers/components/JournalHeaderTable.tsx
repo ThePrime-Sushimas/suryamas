@@ -1,5 +1,6 @@
-import { Eye, Edit, Trash2, RotateCcw, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react'
+import { Eye, Edit, Trash2, RotateCcw, ChevronUp, ChevronDown, ArrowUpDown, FileSearch } from 'lucide-react'
 import { JournalStatusBadge } from './JournalStatusBadge'
+import { JournalTypeBadge } from './JournalTypeBadge'
 import { formatCurrency, formatDate } from '../../shared/journal.utils'
 import type { JournalHeader, JournalSortParams } from '../types/journal-header.types'
 
@@ -26,7 +27,7 @@ export function JournalHeaderTable({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
-            <ArrowUpDown className="w-8 h-8 text-gray-400" />
+            <FileSearch className="w-8 h-8 text-gray-400" />
           </div>
           <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">No journals found</p>
           <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Try adjusting filters or create a new journal</p>
@@ -87,11 +88,13 @@ export function JournalHeaderTable({
                 </td>
 
                 {/* Journal Number + Type */}
-                <td className="px-3 py-2 max-w-[180px]">
+                <td className="px-3 py-2 max-w-[200px]">
                   <div className="text-sm font-medium text-blue-600 dark:text-blue-400 truncate" title={journal.journal_number}>
                     {journal.journal_number}
                   </div>
-                  <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase">{journal.journal_type}</div>
+                  <div className="mt-0.5">
+                    <JournalTypeBadge type={journal.journal_type} />
+                  </div>
                 </td>
 
                 {/* Branch — full width */}
@@ -99,15 +102,17 @@ export function JournalHeaderTable({
                   {journal.branch_name || '-'}
                 </td>
 
-                {/* Description — full width */}
-                <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap" title={journal.description}>
-                  {journal.description}
+                {/* Description */}
+                <td className="px-3 py-2">
+                  <div className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                    {journal.description || '-'}
+                  </div>
                 </td>
 
                 {/* Debit */}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   {journal.total_debit > 0 ? (
-                    <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                    <span className="text-sm font-mono tabular-nums text-gray-900 dark:text-gray-100">
                       {formatCurrency(journal.total_debit)}
                     </span>
                   ) : (
@@ -118,7 +123,7 @@ export function JournalHeaderTable({
                 {/* Credit */}
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   {journal.total_credit > 0 ? (
-                    <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                    <span className="text-sm font-mono tabular-nums text-gray-900 dark:text-gray-100">
                       {formatCurrency(journal.total_credit)}
                     </span>
                   ) : (

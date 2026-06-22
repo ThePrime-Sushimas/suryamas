@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { 
-  Edit, Trash2, Send, CheckCircle, XCircle, RotateCcw, 
+  Edit, Trash2, CheckCircle, XCircle, RotateCcw, 
   ArrowLeft, Copy, Printer, MoreHorizontal, Calendar, 
   Building2, FileText, Banknote, Clock, Tag, AlertOctagon
 } from 'lucide-react'
@@ -13,16 +13,18 @@ import { BalanceIndicator } from '../../journal-lines/components/BalanceIndicato
 import { formatCurrency, formatDateShort } from '../../shared/journal.utils'
 import { canTransitionTo } from '../../shared/journal.constants'
 import { useJournalPermissions } from '../hooks/useJournalPermissions'
+import { QuickStatItem } from '../components/detail/QuickStatItem'
+import { AuditTimelineCard } from '../components/detail/AuditTimelineCard'
+import { ActionButtonsCard } from '../components/detail/ActionButtonsCard'
+import { RejectModal } from '../components/detail/RejectModal'
+import { ReverseModal } from '../components/detail/ReverseModal'
 import api from '@/lib/axios'
-import { useTheme } from '@/contexts/ThemeContext'
 import { useToast } from '@/contexts/ToastContext'
 import type { JournalLineWithDetails } from '../../shared/journal.types'
-import type { JournalHeaderWithLines } from '../types/journal-header.types'
 
 export function JournalHeaderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  useTheme()
   const permissions = useJournalPermissions()
   const toast = useToast()
   const {
@@ -38,20 +40,15 @@ export function JournalHeaderDetailPage() {
     reverseJournal,
   } = useJournalHeadersStore()
 
-  const [rejectReason, setRejectReason] = useState('')
-  const [reverseReason, setReverseReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showReverseModal, setShowReverseModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showForceDeleteModal, setShowForceDeleteModal] = useState(false)
   const [showPostModal, setShowPostModal] = useState(false)
-  const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false)
   const [copied, setCopied] = useState(false)
   
-  // Loading states for modal operations
-  const [isPosting, setIsPosting] = useState(false)
-  const [isReversing, setIsReversing] = useState(false)
-  const [isForceDeleting, setIsForceDeleting] = useState(false)
+  // Consolidated loading state for modal operations
+  const [pendingAction, setPendingAction] = useState<'post' | 'reverse' | 'forceDelete' | null>(null)
   const [completeness, setCompleteness] = useState<{
     is_complete: boolean
     total_channels: number
@@ -144,7 +141,7 @@ export function JournalHeaderDetailPage() {
   }
 
   const handleForceDelete = async () => {
-    setIsForceDeleting(true)
+    setPendingAction('forceDelete')
     try {
       await api.delete(`/accounting/journals/${id}/force`)
       setShowForceDeleteModal(false)
@@ -154,34 +151,43 @@ export function JournalHeaderDetailPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal menghapus jurnal')
     } finally {
-      setIsForceDeleting(false)
+      setPendingAction(null)
     }
   }
 
   const handleSubmit = async () => {
-    await submitJournal(id!)
-    fetchJournalById(id!)
+    try {
+      await submitJournal(id!)
+      await fetchJournalById(id!)
+      toast.success('Jurnal berhasil dikirim')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal mengirim jurnal')
+    }
   }
 
   const handleApprove = async () => {
-    await approveJournal(id!)
-    fetchJournalById(id!)
+    try {
+      await approveJournal(id!)
+      await fetchJournalById(id!)
+      toast.success('Jurnal berhasil disetujui')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menyetujui jurnal')
+    }
   }
 
-  const handleReject = async () => {
-    if (!rejectReason.trim()) {
-      setShowRejectModal(true)
-      return
+  const handleReject = async (reason: string) => {
+    try {
+      await rejectJournal(id!, { rejection_reason: reason })
+      await fetchJournalById(id!)
+      setShowRejectModal(false)
+      toast.success('Jurnal berhasil ditolak')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menolak jurnal')
     }
-    await rejectJournal(id!, { rejection_reason: rejectReason })
-    setShowRejectModal(false)
-    setShowRejectConfirmModal(false)
-    setRejectReason('')
-    fetchJournalById(id!)
   }
 
   const handlePost = async () => {
-    setIsPosting(true)
+    setPendingAction('post')
     try {
       await postJournal(id!)
       await fetchJournalById(id!)
@@ -190,25 +196,21 @@ export function JournalHeaderDetailPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal memposting jurnal')
     } finally {
-      setIsPosting(false)
+      setPendingAction(null)
     }
   }
 
-  const handleReverse = async () => {
-    if (!reverseReason.trim()) {
-      return
-    }
-    setIsReversing(true)
+  const handleReverse = async (reason: string) => {
+    setPendingAction('reverse')
     try {
-      await reverseJournal(id!, { reversal_reason: reverseReason })
+      await reverseJournal(id!, { reversal_reason: reason })
       setShowReverseModal(false)
-      setReverseReason('')
       toast.success('Jurnal berhasil dibalikkan')
       navigate('/accounting/journals')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal membalikkan jurnal')
     } finally {
-      setIsReversing(false)
+      setPendingAction(null)
     }
   }
 
@@ -361,7 +363,7 @@ export function JournalHeaderDetailPage() {
 
           {/* Quick Stats */}
           <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <QuickStatItem
                 icon={<Calendar className="w-5 h-5" />}
                 label="Tanggal"
@@ -544,7 +546,7 @@ export function JournalHeaderDetailPage() {
               handleSubmit={handleSubmit}
               handleApprove={handleApprove}
               handlePost={async () => setShowPostModal(true)}
-              setShowRejectModal={() => setShowRejectConfirmModal(true)}
+              setShowRejectModal={() => setShowRejectModal(true)}
               setShowReverseModal={setShowReverseModal}
             />
           </div>
@@ -552,93 +554,19 @@ export function JournalHeaderDetailPage() {
       </div>
 
       {/* Reject Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
-                  <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tolak Jurnal</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Berikan alasan penolakan</p>
-                </div>
-              </div>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Masukkan alasan penolakan..."
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                rows={4}
-              />
-              <div className="flex gap-3 mt-4">
-                <button
-                  onClick={() => setShowRejectModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleReject}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Tolak
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <RejectModal
+        isOpen={showRejectModal}
+        onClose={() => setShowRejectModal(false)}
+        onConfirm={handleReject}
+      />
 
       {/* Reverse Modal */}
-      {showReverseModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
-                  <RotateCcw className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Balikkan Jurnal</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Aksi ini akan membuat jurnal baru dengan nilai terbalik</p>
-                </div>
-              </div>
-              <textarea
-                value={reverseReason}
-                onChange={(e) => setReverseReason(e.target.value)}
-                placeholder="Masukkan alasan pembalikan..."
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                rows={4}
-              />
-              <div className="flex gap-3 mt-4">
-                <button
-                  onClick={() => setShowReverseModal(false)}
-                  disabled={isReversing}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleReverse}
-                  disabled={isReversing}
-                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  {isReversing ? (
-                    <>
-                      <Clock className="w-4 h-4 animate-spin" />
-                      Memproses...
-                    </>
-                  ) : (
-                    'Balikkan'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReverseModal
+        isOpen={showReverseModal}
+        onClose={() => setShowReverseModal(false)}
+        onConfirm={handleReverse}
+        isLoading={pendingAction === 'reverse'}
+      />
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
@@ -661,7 +589,7 @@ export function JournalHeaderDetailPage() {
         confirmText="Force Delete"
         cancelText="Batal"
         variant="danger"
-        isLoading={isForceDeleting}
+        isLoading={pendingAction === 'forceDelete'}
       />
 
       {/* Post Confirmation Modal */}
@@ -674,231 +602,8 @@ export function JournalHeaderDetailPage() {
         confirmText="Posting"
         cancelText="Batal"
         variant="warning"
-        isLoading={isPosting}
+        isLoading={pendingAction === 'post'}
       />
-
-      {/* Reject Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showRejectConfirmModal}
-        onClose={() => setShowRejectConfirmModal(false)}
-        onConfirm={() => {
-          setShowRejectConfirmModal(false)
-          setShowRejectModal(true)
-        }}
-        title="Tolak Jurnal"
-        message="Apakah Anda yakin ingin menolak jurnal ini? Harap berikan alasan penolakan."
-        confirmText="Lanjutkan"
-        cancelText="Batal"
-        variant="danger"
-      />
-    </div>
-  )
-}
-
-// Helper Components
-function QuickStatItem({ 
-  icon, 
-  label, 
-  value 
-}: { 
-  icon: React.ReactNode
-  label: string
-  value: React.ReactNode
-}) {
-  return (
-    <div className="flex items-start gap-2">
-      <div className="text-gray-400 dark:text-gray-500 mt-0.5">{icon}</div>
-      <div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
-        <div className="text-sm text-gray-900 dark:text-white mt-0.5">{value}</div>
-      </div>
-    </div>
-  )
-}
-
-function AuditTimelineCard({ journal }: { journal: JournalHeaderWithLines }) {
-  const timelineEvents = [
-    journal.created_at && {
-      date: journal.created_at,
-      user: journal.created_by_name,
-      action: 'Dibuat',
-      icon: <FileText className="w-4 h-4" />,
-      color: 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400',
-    },
-    journal.submitted_at && {
-      date: journal.submitted_at,
-      user: journal.submitted_by_name,
-      action: 'Dikirim',
-      icon: <Send className="w-4 h-4" />,
-      color: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400',
-    },
-    journal.approved_at && {
-      date: journal.approved_at,
-      user: journal.approved_by_name,
-      action: 'Disetujui',
-      icon: <CheckCircle className="w-4 h-4" />,
-      color: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400',
-    },
-    journal.posted_at && {
-      date: journal.posted_at,
-      user: journal.posted_by_name,
-      action: 'Diposting',
-      icon: <Banknote className="w-4 h-4" />,
-      color: 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400',
-    },
-    journal.rejected_at && {
-      date: journal.rejected_at,
-      user: journal.rejected_by_name,
-      action: 'Ditolak',
-      icon: <XCircle className="w-4 h-4" />,
-      color: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400',
-    },
-    journal.is_reversed && journal.reversal_date && {
-      date: journal.reversal_date,
-      user: journal.reversed_by_name,
-      action: 'Dibalikkan',
-      icon: <RotateCcw className="w-4 h-4" />,
-      color: 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400',
-    },
-  ].filter(Boolean) as Array<{
-    date: string
-    user?: string
-    action: string
-    icon: React.ReactNode
-    color: string
-  }>
-
-  // Sort by date descending
-  timelineEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <Clock className="w-4 h-4" />
-          Riwayat Aktivitas
-        </h3>
-      </div>
-      <div className="p-4">
-        {timelineEvents.length > 0 ? (
-          <div className="relative">
-            {/* Vertical Line */}
-            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700" />
-            
-            <div className="space-y-4">
-              {timelineEvents.map((event, index) => (
-                <div key={index} className="relative flex gap-3">
-                  <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center ${event.color}`}>
-                    {event.icon}
-                  </div>
-                  <div className="flex-1 min-w-0 pt-1">
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">{event.action}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateShort(event.date)}</p>
-                    {event.user && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">oleh {event.user}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Belum ada aktivitas</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ActionButtonsCard({
-  canSubmit,
-  canApprove,
-  canReject,
-  canPost,
-  canReverse,
-  mutating,
-  handleSubmit,
-  handleApprove,
-  handlePost,
-  setShowRejectModal,
-  setShowReverseModal,
-}: {
-  canSubmit: boolean
-  canApprove: boolean
-  canReject: boolean
-  canPost: boolean
-  canReverse: boolean
-  mutating: boolean
-  handleSubmit: () => Promise<void>
-  handleApprove: () => Promise<void>
-  handlePost: () => Promise<void>
-  setShowRejectModal: (show: boolean) => void
-  setShowReverseModal: (show: boolean) => void
-}) {
-  const hasActions = canSubmit || canApprove || canReject || canPost || canReverse
-  
-  if (!hasActions) return null
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-        <h3 className="font-semibold text-gray-900 dark:text-white">Aksi</h3>
-      </div>
-      <div className="p-4 space-y-3">
-        {/* Primary actions first */}
-        {canSubmit && (
-          <button
-            onClick={handleSubmit}
-            disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Send size={18} />
-            <span className="font-medium">Kirim untuk Persetujuan</span>
-          </button>
-        )}
-        {canApprove && (
-          <button
-            onClick={handleApprove}
-            disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <CheckCircle size={18} />
-            <span className="font-medium">Setujui</span>
-          </button>
-        )}
-        {canPost && (
-          <button
-            onClick={handlePost}
-            disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-purple-600 dark:bg-purple-500 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Banknote size={18} />
-            <span className="font-medium">Posting ke GL</span>
-          </button>
-        )}
-        {canReverse && (
-          <button
-            onClick={() => setShowReverseModal(true)}
-            disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-orange-600 dark:bg-orange-500 text-white rounded-lg hover:bg-orange-700 dark:hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RotateCcw size={18} />
-            <span className="font-medium">Balikkan Jurnal</span>
-          </button>
-        )}
-
-        {/* Destructive/secondary action last with outline style */}
-        {canReject && (
-          <button
-            onClick={() => setShowRejectModal(true)}
-            disabled={mutating}
-            className="w-full flex items-center gap-3 px-4 py-3 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <XCircle size={18} />
-            <span className="font-medium">Tolak</span>
-          </button>
-        )}
-      </div>
     </div>
   )
 }
