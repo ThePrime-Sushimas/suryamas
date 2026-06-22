@@ -19,8 +19,10 @@ export interface PaymentMethodAlert {
 export interface PaymentMethodAlertHistory {
   id: string
   alert_id: string
-  payment_method_id: number
+  payment_method_id: number | null
   payment_method_name: string
+  alert_group_id: string | null
+  alert_group_name: string | null
   company_id: string
   triggered_date: string
   triggered_amount: number

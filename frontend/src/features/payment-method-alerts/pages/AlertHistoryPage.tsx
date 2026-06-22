@@ -142,22 +142,32 @@ export default function AlertHistoryPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {history.map(item => (
+            {history.map(item => {
+              const isGroup = !!item.alert_group_id
+              const displayName = isGroup ? (item.alert_group_name || 'Group') : item.payment_method_name
+              const isActive = isGroup ? item.alert_group_is_active : item.alert_is_active
+
+              return (
               <div key={item.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
+                      {isGroup && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+                          GROUP
+                        </span>
+                      )}
                       <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {item.payment_method_name}
+                        {displayName}
                       </span>
                       <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
-                        item.alert_is_active === true
+                        isActive === true
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
-                          : item.alert_is_active === false
+                          : isActive === false
                           ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                           : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                       }`}>
-                        {item.alert_is_active === true ? 'Aktif' : item.alert_is_active === false ? 'Nonaktif' : 'Dihapus'}
+                        {isActive === true ? 'Aktif' : isActive === false ? 'Nonaktif' : 'Dihapus'}
                       </span>
                     </div>
                     
@@ -174,7 +184,7 @@ export default function AlertHistoryPage() {
 
                     <div className="mt-2">
                       <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
-                        Breakdown {item.branch_breakdown.length} cabang:
+                        Breakdown {item.branch_breakdown.length} {isGroup ? 'item' : 'cabang'}:
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {item.branch_breakdown.slice(0, 3).map((branch, idx) => (
@@ -200,7 +210,8 @@ export default function AlertHistoryPage() {
                   </Link>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

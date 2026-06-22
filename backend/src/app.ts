@@ -35,6 +35,7 @@ import inventoryReconciliationRoutes from "./modules/accounting/inventory-reconc
 import dailyLedgerRoutes from "./modules/accounting/daily-ledger/daily-ledger.routes";
 import generalLedgerRoutes from "./modules/accounting/general-ledger/general-ledger.routes";
 import paymentMethodAlertRoutes from "./modules/payment-method-alerts/payment-method-alerts.routes";
+import paymentMethodAlertGroupRoutes from "./modules/payment-method-alerts/payment-method-alert-groups.routes";
 import incomeStatementRoutes from "./modules/accounting/income-statement/income-statement.routes";
 import balanceSheetRoutes from "./modules/accounting/balance-sheet/balance-sheet.routes";
 import posImportsRoutes from "./modules/pos-imports/pos-imports/pos-imports.routes";
@@ -162,6 +163,7 @@ app.use("/api/v1/accounting/inventory-reconciliation", inventoryReconciliationRo
 app.use("/api/v1/accounting/daily-ledger", dailyLedgerRoutes);
 app.use("/api/v1/accounting/general-ledger", generalLedgerRoutes);
 app.use("/api/v1/payment-method-alerts", paymentMethodAlertRoutes);
+app.use("/api/v1/payment-method-alert-groups", paymentMethodAlertGroupRoutes);
 app.use("/api/v1/accounting/income-statement", incomeStatementRoutes);
 app.use("/api/v1/accounting/balance-sheet", balanceSheetRoutes);
 app.use("/api/v1/pos-sync", posSyncRoutes);

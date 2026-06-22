@@ -152,6 +152,14 @@ export class PaymentMethodAlertsService {
         logError('Failed to send payment method alert', { alert_id: alert.id, error: err })
       }
     }
+
+    // Also check grouped alerts (combined payment methods)
+    try {
+      const { paymentMethodAlertGroupsService } = await import('./payment-method-alert-groups.service')
+      await paymentMethodAlertGroupsService.checkAlertGroups(companyId, salesDate)
+    } catch (err) {
+      logError('Failed to check alert groups', { companyId, salesDate, error: err })
+    }
   }
 }
 

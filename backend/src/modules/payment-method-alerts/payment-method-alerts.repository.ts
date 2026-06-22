@@ -163,6 +163,7 @@ export class PaymentMethodAlertsRepository {
       params.push(end_date)
     }
     if (payment_method_id) {
+      // Only filter single alerts when payment_method_id specified; group alerts excluded
       whereClause += ` AND h.payment_method_id = $${paramIndex++}`
       params.push(payment_method_id)
     }
@@ -176,9 +177,12 @@ export class PaymentMethodAlertsRepository {
     const limitIdx = paramIndex++
     const offsetIdx = paramIndex++
     const dataQuery = `
-      SELECT h.*, a.is_active as alert_is_active
+      SELECT h.*,
+             a.is_active as alert_is_active,
+             g.is_active as alert_group_is_active
       FROM payment_method_alert_history h
       LEFT JOIN payment_method_alerts a ON a.id = h.alert_id
+      LEFT JOIN payment_method_alert_groups g ON g.id = h.alert_group_id
       ${whereClause}
       ORDER BY h.triggered_date DESC, h.telegram_sent_at DESC
       LIMIT $${limitIdx} OFFSET $${offsetIdx}
@@ -186,17 +190,18 @@ export class PaymentMethodAlertsRepository {
     params.push(limit, offset)
     
     const { rows } = await pool.query(dataQuery, params)
-    const data = rows  // pg driver sudah parse JSONB otomatis
 
-    return { data, total }
+    return { data: rows, total }
   }
-
   async getHistoryByIdAccessible(id: string, companyIds: string[]): Promise<PaymentMethodAlertHistory | null> {
     if (!companyIds.length) return null
     const { rows } = await pool.query(
-      `SELECT h.*, a.is_active as alert_is_active
+      `SELECT h.*,
+              a.is_active as alert_is_active,
+              g.is_active as alert_group_is_active
        FROM payment_method_alert_history h
        LEFT JOIN payment_method_alerts a ON a.id = h.alert_id
+       LEFT JOIN payment_method_alert_groups g ON g.id = h.alert_group_id
        WHERE h.id = $1 AND h.company_id = ANY($2::uuid[])`,
       [id, companyIds]
     )
@@ -206,14 +211,47 @@ export class PaymentMethodAlertsRepository {
 
   async getHistoryById(id: string, companyId: string): Promise<PaymentMethodAlertHistory | null> {
     const { rows } = await pool.query(
-      `SELECT h.*, a.is_active as alert_is_active
+      `SELECT h.*,
+              a.is_active as alert_is_active,
+              g.is_active as alert_group_is_active
        FROM payment_method_alert_history h
        LEFT JOIN payment_method_alerts a ON a.id = h.alert_id
+       LEFT JOIN payment_method_alert_groups g ON g.id = h.alert_group_id
        WHERE h.id = $1 AND h.company_id = $2`,
       [id, companyId]
     )
     if (rows.length === 0) return null
-    return rows[0]  // pg driver sudah parse JSONB otomatis
+    return rows[0]
+  }
+
+  async createGroupHistory(data: {
+    alert_group_id: string
+    alert_group_name: string
+    company_id: string
+    triggered_date: string
+    triggered_amount: number
+    threshold_amount: number
+    branch_breakdown: BranchBreakdown[]
+    telegram_chat_id: string
+  }): Promise<PaymentMethodAlertHistory> {
+    const { rows } = await pool.query(
+      `INSERT INTO payment_method_alert_history
+       (alert_group_id, alert_group_name, payment_method_name, company_id, triggered_date, triggered_amount, threshold_amount, branch_breakdown, telegram_chat_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        data.alert_group_id,
+        data.alert_group_name,
+        data.alert_group_name, // payment_method_name as display fallback
+        data.company_id,
+        data.triggered_date,
+        data.triggered_amount,
+        data.threshold_amount,
+        JSON.stringify(data.branch_breakdown),
+        data.telegram_chat_id
+      ]
+    )
+    return rows[0]
   }
 }
 

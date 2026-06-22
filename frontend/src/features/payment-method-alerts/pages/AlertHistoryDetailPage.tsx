@@ -62,6 +62,9 @@ export default function AlertHistoryDetailPage() {
 
   const exceedAmount = history.triggered_amount - history.threshold_amount
   const exceedPercentage = ((exceedAmount / history.threshold_amount) * 100).toFixed(1)
+  const isGroup = !!history.alert_group_id
+  const displayName = isGroup ? (history.alert_group_name || 'Group') : history.payment_method_name
+  const isActive = isGroup ? history.alert_group_is_active : history.alert_is_active
 
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -74,7 +77,10 @@ export default function AlertHistoryDetailPage() {
           <MessageSquare className="w-5 h-5 text-blue-500" />
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Alert Detail</h1>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400">{history.payment_method_name}</p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              {isGroup && <span className="text-purple-600 dark:text-purple-400 font-medium">[GROUP] </span>}
+              {displayName}
+            </p>
           </div>
         </div>
       </div>
@@ -91,8 +97,8 @@ export default function AlertHistoryDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500 dark:text-gray-400">Payment Method:</span>
-                <span className="text-xs font-medium text-gray-900 dark:text-white">{history.payment_method_name}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{isGroup ? 'Group Name:' : 'Payment Method:'}</span>
+                <span className="text-xs font-medium text-gray-900 dark:text-white">{displayName}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Threshold:</span>
@@ -126,13 +132,13 @@ export default function AlertHistoryDetailPage() {
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Status Alert:</span>
                 <span className={`text-xs font-medium ${
-                  history.alert_is_active === true
+                  isActive === true
                     ? 'text-green-600 dark:text-green-400' 
-                    : history.alert_is_active === false
+                    : isActive === false
                     ? 'text-gray-500 dark:text-gray-400'
                     : 'text-red-500 dark:text-red-400'
                 }`}>
-                  {history.alert_is_active === true ? 'Aktif' : history.alert_is_active === false ? 'Nonaktif' : 'Dihapus'}
+                  {isActive === true ? 'Aktif' : isActive === false ? 'Nonaktif' : 'Dihapus'}
                 </span>
               </div>
             </div>
@@ -187,7 +193,20 @@ export default function AlertHistoryDetailPage() {
           
           <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 font-mono text-xs">
             <div className="whitespace-pre-line text-gray-800 dark:text-gray-200">
-              {`🔔 *ALERT: ${history.payment_method_name}*
+              {isGroup
+                ? `🔔 *ALERT GROUP: ${displayName}*
+
+Total gabungan: *Rp ${fmt(history.triggered_amount)}*
+Threshold: Rp ${fmt(history.threshold_amount)}
+
+📊 Breakdown:
+${history.branch_breakdown
+  .sort((a, b) => b.amount - a.amount)
+  .map(b => `• ${b.branch_name}: Rp ${fmt(b.amount)}`)
+  .join('\n')}
+
+📅 ${history.triggered_date}`
+                : `🔔 *ALERT: ${history.payment_method_name}*
 
 Total hari ini: *Rp ${fmt(history.triggered_amount)}*
 Threshold: Rp ${fmt(history.threshold_amount)}

@@ -1,25 +1,42 @@
 import { useState } from 'react'
-import { Bell, Plus, History } from 'lucide-react'
+import { Bell, Plus, History, Layers } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { AlertCard } from '../components/AlertCard'
 import { AlertForm } from '../components/AlertForm'
+import { AlertGroupCard } from '../components/AlertGroupCard'
+import { AlertGroupForm } from '../components/AlertGroupForm'
 import { useAlerts, useCreateAlert, useUpdateAlert, useDeleteAlert, useTestAlert } from '../api/alerts'
-import type { PaymentMethodAlert } from '../types'
+import { useAlertGroups, useCreateAlertGroup, useUpdateAlertGroup, useDeleteAlertGroup, useTestAlertGroup } from '../api/alertGroups'
+import type { PaymentMethodAlert, PaymentMethodAlertGroup, CreateAlertGroupDto, UpdateAlertGroupDto, CreateAlertDto, UpdateAlertDto } from '../types'
 
 export default function AlertSettingsPage() {
   const { data: alerts = [], isLoading } = useAlerts()
+  const { data: groups = [], isLoading: groupsLoading } = useAlertGroups()
+
+  // Single alert state
   const [showForm, setShowForm] = useState(false)
   const [editingAlert, setEditingAlert] = useState<PaymentMethodAlert | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  
+
+  // Group alert state
+  const [showGroupForm, setShowGroupForm] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<PaymentMethodAlertGroup | null>(null)
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<string | null>(null)
+
+  // Single alert mutations
   const createMutation = useCreateAlert()
   const updateMutation = useUpdateAlert()
   const deleteMutation = useDeleteAlert()
   const testMutation = useTestAlert()
 
+  // Group alert mutations
+  const createGroupMutation = useCreateAlertGroup()
+  const updateGroupMutation = useUpdateAlertGroup()
+  const deleteGroupMutation = useDeleteAlertGroup()
+  const testGroupMutation = useTestAlertGroup()
 
-
+  // --- Single Alert Handlers ---
   const openCreate = () => {
     setEditingAlert(null)
     setShowForm(true)
@@ -30,7 +47,7 @@ export default function AlertSettingsPage() {
     setShowForm(true)
   }
 
-  const handleSubmit = (data: any) => {
+  const handleSubmit = (data: CreateAlertDto | UpdateAlertDto) => {
     if (editingAlert) {
       updateMutation.mutate({ id: editingAlert.id, dto: data }, {
         onSuccess: () => setShowForm(false)
@@ -57,7 +74,43 @@ export default function AlertSettingsPage() {
     updateMutation.mutate({ id: alert.id, dto: { is_active: !alert.is_active } })
   }
 
+  // --- Group Alert Handlers ---
+  const openCreateGroup = () => {
+    setEditingGroup(null)
+    setShowGroupForm(true)
+  }
 
+  const openEditGroup = (group: PaymentMethodAlertGroup) => {
+    setEditingGroup(group)
+    setShowGroupForm(true)
+  }
+
+  const handleGroupSubmit = (data: CreateAlertGroupDto | UpdateAlertGroupDto) => {
+    if (editingGroup) {
+      updateGroupMutation.mutate({ id: editingGroup.id, dto: data }, {
+        onSuccess: () => setShowGroupForm(false)
+      })
+    } else {
+      createGroupMutation.mutate(data, {
+        onSuccess: () => setShowGroupForm(false)
+      })
+    }
+  }
+
+  const handleGroupDelete = () => {
+    if (!deleteGroupTarget) return
+    deleteGroupMutation.mutate(deleteGroupTarget, {
+      onSuccess: () => setDeleteGroupTarget(null)
+    })
+  }
+
+  const handleGroupTest = (id: string) => {
+    testGroupMutation.mutate(id)
+  }
+
+  const handleGroupToggle = (group: PaymentMethodAlertGroup) => {
+    updateGroupMutation.mutate({ id: group.id, dto: { is_active: !group.is_active } })
+  }
 
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -86,33 +139,74 @@ export default function AlertSettingsPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto min-h-0 p-4 sm:p-6">
-        {isLoading ? (
-          <div className="space-y-3">
-            {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />)}
+      <div className="flex-1 overflow-auto min-h-0 p-4 sm:p-6 space-y-6">
+        {/* Single Alerts Section */}
+        <section>
+          <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+            Per Payment Method
+          </h2>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />)}
+            </div>
+          ) : alerts.length === 0 ? (
+            <div className="text-center py-6">
+              <Bell className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-1" />
+              <p className="text-xs text-gray-500 dark:text-gray-400">Belum ada alert single.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {alerts.map(alert => (
+                <AlertCard
+                  key={alert.id}
+                  alert={alert}
+                  onEdit={openEdit}
+                  onDelete={setDeleteTarget}
+                  onTest={handleTest}
+                  onToggle={handleToggle}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Group Alerts Section */}
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" /> Gabungan Payment Method
+            </h2>
+            <button onClick={openCreateGroup} className="flex items-center gap-1 px-2.5 py-1 bg-purple-600 text-white text-[11px] rounded-lg hover:bg-purple-700 font-medium">
+              <Plus className="w-3 h-3" /> Group
+            </button>
           </div>
-        ) : alerts.length === 0 ? (
-          <div className="text-center py-12">
-            <Bell className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada alert. Tambahkan untuk mulai monitoring.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {alerts.map(alert => (
-              <AlertCard
-                key={alert.id}
-                alert={alert}
-                onEdit={openEdit}
-                onDelete={setDeleteTarget}
-                onTest={handleTest}
-                onToggle={handleToggle}
-              />
-            ))}
-          </div>
-        )}
+          {groupsLoading ? (
+            <div className="space-y-3">
+              {[...Array(2)].map((_, i) => <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />)}
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="text-center py-6">
+              <Layers className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-1" />
+              <p className="text-xs text-gray-500 dark:text-gray-400">Belum ada alert group. Gabungkan 2+ payment method dengan satu threshold.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {groups.map(group => (
+                <AlertGroupCard
+                  key={group.id}
+                  group={group}
+                  onEdit={openEditGroup}
+                  onDelete={setDeleteGroupTarget}
+                  onTest={handleGroupTest}
+                  onToggle={handleGroupToggle}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Single Alert Form Modal */}
       <AlertForm
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -121,13 +215,33 @@ export default function AlertSettingsPage() {
         loading={createMutation.isPending || updateMutation.isPending}
       />
 
-      {/* Delete Confirm */}
+      {/* Group Alert Form Modal */}
+      <AlertGroupForm
+        isOpen={showGroupForm}
+        onClose={() => setShowGroupForm(false)}
+        onSubmit={handleGroupSubmit}
+        editingGroup={editingGroup}
+        loading={createGroupMutation.isPending || updateGroupMutation.isPending}
+      />
+
+      {/* Delete Single Confirm */}
       <ConfirmModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Hapus Alert"
         message="Hapus alert ini? Notifikasi tidak akan dikirim lagi."
+        confirmText="Hapus"
+        variant="danger"
+      />
+
+      {/* Delete Group Confirm */}
+      <ConfirmModal
+        isOpen={!!deleteGroupTarget}
+        onClose={() => setDeleteGroupTarget(null)}
+        onConfirm={handleGroupDelete}
+        title="Hapus Alert Group"
+        message="Hapus alert group ini? Notifikasi gabungan tidak akan dikirim lagi."
         confirmText="Hapus"
         variant="danger"
       />
