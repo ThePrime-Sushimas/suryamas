@@ -1093,9 +1093,9 @@ export const generalPaymentRepository = {
            AND ba.deleted_at IS NULL
            AND ba.owner_type = 'company'
            AND ba.owner_id = $2
-           AND coa.company_id = $2
+           AND coa.company_id = $3
            AND coa.deleted_at IS NULL`,
-        [bankAccountId, companyId],
+        [bankAccountId, companyId, companyId],
       )
       return rows[0]?.coa_account_id ?? null
     }
