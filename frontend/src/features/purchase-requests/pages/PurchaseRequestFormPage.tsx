@@ -203,7 +203,7 @@ export default function PurchaseRequestFormPage() {
                 {isEdit ? `Edit ${existingPR?.request_number ?? 'PR'}` : 'Buat Permintaan Pembelian'}
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
-                {isEdit ? 'Perbarui permintaan pembelian bahan baku' : 'Permintaan pembelian bahan baku'}
+                {isEdit ? 'Perbarui permintaan pembelian bahan baku' : ''}
               </p>
             </div>
           </div>
@@ -328,7 +328,7 @@ export default function PurchaseRequestFormPage() {
                             <tr>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produk</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Qty</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">UOM</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">Satuan</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Gudang</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-28">Ready</th>
                             <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-16">Hapus</th>

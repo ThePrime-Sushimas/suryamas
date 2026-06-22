@@ -262,7 +262,7 @@ export function ProductPickerModal({
                 <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   <tr>
                     <th className="text-left px-4 py-2.5">Produk</th>
-                    <th className="text-left px-3 py-2.5">UOM Beli</th>
+                    <th className="text-left px-3 py-2.5">Satuan</th>
                     {showStock && (
                       <>
                         <th className="text-right px-3 py-2.5">Gudang</th>
@@ -284,8 +284,7 @@ export function ProductPickerModal({
                       <tr key={p.id} className={`transition-colors ${excluded ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer'}`}
                         onClick={() => !excluded && !showSupplier && handleSelect(p)}>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-gray-900 dark:text-white">{p.product_name}</div>
-                          <div className="text-xs text-gray-400">{p.product_code}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{p.product_name}</div>                          
                         </td>
                         <td className="px-3 py-3 text-gray-600 dark:text-gray-300">{getUomBuy(p)}</td>
                         {showStock && (

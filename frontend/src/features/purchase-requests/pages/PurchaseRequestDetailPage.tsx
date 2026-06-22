@@ -382,19 +382,19 @@ export default function PurchaseRequestDetailPage() {
                     Produk
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
-                    Request
+                    Permintaan
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
-                    Approved
+                    Disetujui
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
-                    Ordered
+                    Dipesan
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-24">
                     Diterima
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase w-20">
-                    UOM
+                    Satuan
                   </th>
                 </tr>
               </thead>
@@ -414,9 +414,6 @@ export default function PurchaseRequestDetailPage() {
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900 dark:text-white">
                           {line.product_name}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {line.product_code}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-500 dark:text-gray-400">
