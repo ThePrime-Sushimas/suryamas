@@ -468,7 +468,7 @@ export default function InvoiceFormModal({ open, onClose, invoice, initialVendor
                             priorityPrefix={['1106', '11']}
                           />
                           <p className="text-[10px] text-gray-400 mt-0.5">
-                            Isi jika PPN bisa dikreditkan (mis. PPN Masukan)
+                            Isi PPN tidak bisa dikreditkan (mis. PPN Tidak Bisa Dikreditkan)
                           </p>
                         </div>
                       </div>

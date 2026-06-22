@@ -1097,7 +1097,7 @@ export class PurchaseInvoicesService {
       }
 
       const coaInv = coaByCode.get('110501')
-      const coaTax = coaByCode.get('110601')
+      const coaTax = coaByCode.get('510304') // Ganti dengan kode COA PPN Masukan yang kamu inginkan
       const coaPayable = coaByCode.get('210101')
       if (!coaInv || !coaTax || !coaPayable) {
         throw new Error('COA codes missing for purchase invoice posting')
@@ -1866,4 +1866,3 @@ export class PurchaseInvoicesService {
 }
 
 export const purchaseInvoicesService = new PurchaseInvoicesService()
-

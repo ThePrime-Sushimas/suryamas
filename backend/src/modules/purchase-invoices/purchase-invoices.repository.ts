@@ -833,7 +833,7 @@ export class PurchaseInvoicesRepository {
         )
         VALUES ($1, $2, $3, $4, $5, 0, $5, 0)
         `,
-        [input.journalHeaderId, lineNum++, input.taxAccountId, 'PPN Masukan', input.taxAmount],
+        [input.journalHeaderId, lineNum++, input.taxAccountId, 'PPN Tidak Bisa Kreditkan)', input.taxAmount], // Ganti teks deskripsi sesuai kebutuhan
       )
     }
 
@@ -1630,4 +1630,3 @@ export class PurchaseInvoicesRepository {
 }
 
 export const purchaseInvoicesRepository = new PurchaseInvoicesRepository()
-
