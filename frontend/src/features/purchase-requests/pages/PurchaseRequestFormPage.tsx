@@ -215,7 +215,7 @@ export default function PurchaseRequestFormPage() {
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Cabang *
+              Cabang * (wajib diisi)
             </label>
             <select
               value={branchId}
@@ -232,7 +232,7 @@ export default function PurchaseRequestFormPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Tanggal PR *
+              Tanggal Permintaan * (wajib diisi)
             </label>
             <input
               type="date"

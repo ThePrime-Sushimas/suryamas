@@ -28,7 +28,7 @@ export class ProductsController {
       const page = req.pagination?.page || parseInt(req.query.page as string) || 1
       const limit = req.pagination?.limit || parseInt(req.query.limit as string) || 10
       const includeDeleted = req.query.includeDeleted === 'true'
-      const result = await productsService.list({ page, limit }, req.sort, req.filterParams, includeDeleted)
+      const result = await productsService.list({ page, limit }, req.sort, req.filterParams, includeDeleted, req.user?.id)
       sendSuccess(res, result.data, 'Products retrieved successfully', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'list' })
@@ -41,7 +41,7 @@ export class ProductsController {
       const page = req.pagination?.page || parseInt(req.query.page as string) || 1
       const limit = req.pagination?.limit || parseInt(req.query.limit as string) || 10
       const includeDeleted = req.query.includeDeleted === 'true'
-      const result = await productsService.search(q, { page, limit }, req.sort, req.filterParams, includeDeleted)
+      const result = await productsService.search(q, { page, limit }, req.sort, req.filterParams, includeDeleted, req.user?.id)
       sendSuccess(res, result.data, 'Search completed', 200, result.pagination)
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'search', query: req.query.q })
@@ -130,7 +130,7 @@ export class ProductsController {
 
   minimalActive = async (req: Request, res: Response): Promise<void> => {
     try {
-      const products = await productsService.minimalActive()
+      const products = await productsService.minimalActive(req.user?.id)
       sendSuccess(res, products, 'Products retrieved successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'minimalActive' })

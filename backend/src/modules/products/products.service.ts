@@ -14,6 +14,7 @@ import {
 import { VALID_PRODUCT_STATUSES, VALID_PRODUCT_TYPES, PRODUCT_DEFAULTS, PRODUCT_LIMITS } from './products.constants'
 import { calculatePagination, calculateOffset } from '../../utils/pagination.util'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
+import { resolveUserStationAccess } from './products.access'
 
 export class ProductsService {
   constructor(
@@ -25,13 +26,19 @@ export class ProductsService {
     pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: Record<string, unknown>,
-    includeDeleted = false
+    includeDeleted = false,
+    userId?: string
   ) {
     const offset = calculateOffset(pagination.page, pagination.limit)
+    const stationAccess = userId ? await resolveUserStationAccess(userId) : undefined
+    const enrichedFilter = stationAccess && !stationAccess.canAccessAll
+      ? { ...filter, allowed_stations: stationAccess.stationCodes }
+      : filter
+
     const { data, total } = await this.repository.findAll(
       { limit: pagination.limit, offset },
       sort,
-      filter,
+      enrichedFilter,
       includeDeleted
     )
 
@@ -46,14 +53,20 @@ export class ProductsService {
     pagination: { page: number; limit: number },
     sort?: { field: string; order: 'asc' | 'desc' },
     filter?: Record<string, unknown>,
-    includeDeleted = false
+    includeDeleted = false,
+    userId?: string
   ) {
     const offset = calculateOffset(pagination.page, pagination.limit)
+    const stationAccess = userId ? await resolveUserStationAccess(userId) : undefined
+    const enrichedFilter = stationAccess && !stationAccess.canAccessAll
+      ? { ...filter, allowed_stations: stationAccess.stationCodes }
+      : filter
+
     const { data, total } = await this.repository.search(
       q,
       { limit: pagination.limit, offset },
       sort,
-      filter,
+      enrichedFilter,
       includeDeleted
     )
 
@@ -222,8 +235,12 @@ export class ProductsService {
     return this.repository.getFilterOptions()
   }
 
-  async minimalActive(): Promise<{ id: string; product_name: string }[]> {
-    return this.repository.minimalActive()
+  async minimalActive(userId?: string): Promise<{ id: string; product_name: string }[]> {
+    const stationAccess = userId ? await resolveUserStationAccess(userId) : undefined
+    const allowedStations = stationAccess && !stationAccess.canAccessAll
+      ? stationAccess.stationCodes
+      : undefined
+    return this.repository.minimalActive(allowedStations)
   }
 
   async checkProductNameExists(productName: string, excludeId?: string): Promise<boolean> {

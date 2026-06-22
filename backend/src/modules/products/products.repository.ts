@@ -5,9 +5,9 @@ import { PRODUCT_SORT_FIELDS, PRODUCT_LIMITS } from './products.constants'
 import { BulkOperationLimitError, EmptyIdsError } from './products.errors'
 
 export class ProductsRepository {
-  private buildFilter(filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string; station?: string; is_requestable?: boolean; is_asset?: boolean }, search?: string, includeDeleted = false) {
+  private buildFilter(filter?: { status?: string; product_type?: string; category_id?: string; sub_category_id?: string; station?: string; is_requestable?: boolean; is_asset?: boolean; allowed_stations?: string[] }, search?: string, includeDeleted = false) {
     const conditions: string[] = []
-    const params: (string | boolean)[] = []
+    const params: (string | boolean | string[])[] = []
     let idx = 1
 
     if (!includeDeleted) conditions.push('p.is_deleted = false')
@@ -19,6 +19,11 @@ export class ProductsRepository {
     if (filter?.station) { params.push(filter.station); conditions.push(`p.station = $${idx}`); idx++ }
     if (filter?.is_requestable !== undefined) { params.push(filter.is_requestable); conditions.push(`p.is_requestable = $${idx}`); idx++ }
     if (filter?.is_asset !== undefined) { params.push(filter.is_asset); conditions.push(`p.is_asset = $${idx}`); idx++ }
+    if (filter?.allowed_stations) {
+      params.push(filter.allowed_stations)
+      conditions.push(`p.station = ANY($${idx}::text[])`)
+      idx++
+    }
 
     return { where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params, idx }
   }
@@ -171,7 +176,17 @@ export class ProductsRepository {
     return { statuses: ['ACTIVE', 'INACTIVE', 'DISCONTINUED'], productTypes: ['raw', 'semi_finished', 'finished_goods'] }
   }
 
-  async minimalActive(): Promise<{ id: string; product_name: string }[]> {
+  async minimalActive(allowedStations?: string[]): Promise<{ id: string; product_name: string }[]> {
+    if (allowedStations) {
+      const { rows } = await pool.query(
+        `SELECT id, product_name FROM products
+         WHERE status = 'ACTIVE' AND is_deleted = false
+           AND station = ANY($1::text[])
+         ORDER BY product_name LIMIT $2`,
+        [allowedStations, PRODUCT_LIMITS.MAX_MINIMAL_PRODUCTS]
+      )
+      return rows
+    }
     const { rows } = await pool.query(
       `SELECT id, product_name FROM products WHERE status = 'ACTIVE' AND is_deleted = false ORDER BY product_name LIMIT $1`,
       [PRODUCT_LIMITS.MAX_MINIMAL_PRODUCTS]
