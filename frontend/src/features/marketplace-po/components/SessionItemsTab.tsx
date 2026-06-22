@@ -143,7 +143,7 @@ export function SessionItemsTab({
                       colSpan={3}
                       className="px-4 py-2 text-right text-xs font-medium text-gray-500"
                     >
-                      Subtotal cabang (aktif)
+                      SUBTOTAL
                     </td>
                     <td className="px-4 py-2 text-right font-semibold text-gray-900 dark:text-white">
                       {fmtCurrency(subtotal)}
