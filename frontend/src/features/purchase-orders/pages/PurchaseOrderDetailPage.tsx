@@ -518,7 +518,7 @@ export default function PurchaseOrderDetailPage() {
                         Ditutup
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                        UOM
+                        Satuan
                       </th>
                       {canShortClose && (
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
@@ -546,8 +546,7 @@ export default function PurchaseOrderDetailPage() {
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900 dark:text-white">
                             {line.product_name}
-                          </div>
-                          <div className="text-xs text-gray-500">{line.product_code}</div>
+                          </div>                          
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-200">
                           {fmt(line.qty)}

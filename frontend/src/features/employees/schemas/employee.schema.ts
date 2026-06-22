@@ -5,7 +5,7 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD
 export const employeeFormSchema = z.object({
   employee_id: z.string().max(50).optional(),
   full_name: z.string().min(1, 'Name is required').max(255),
-  position_id: z.string().uuid('Position is required'),
+  position_id: z.string().uuid('Position is required').optional().or(z.literal('')),
   brand_name: z.string().min(1, 'Brand is required').max(100),
   join_date: isoDate,
   resign_date: isoDate.optional().or(z.literal('')),

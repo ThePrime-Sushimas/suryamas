@@ -31,13 +31,14 @@ export function PoWhatsAppModal({
   description = 'Pilih penerima dan kirim ringkasan PO melalui WhatsApp.',
   confirmLabel = 'Kirim WhatsApp',
 }: PoWhatsAppModalProps) {
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [whatsappNumber, setWhatsappNumber] = useState('')
 
   const { data: employeesData } = useQuery({
     queryKey: ['employees', 'with-phone'],
     queryFn: async () => {
-      const { data } = await api.get('/employees', { params: { limit: 100 } })
-      return (data.data ?? []).filter((e: Record<string, unknown>) => e.mobile_phone) as EmployeeOption[]
+      const { data } = await api.get('/employees', { params: { limit: 100, no_pagination: true } })
+      return (data.data ?? []) as EmployeeOption[]
     },
     staleTime: 120_000,
     enabled: open,
@@ -45,8 +46,17 @@ export function PoWhatsAppModal({
   const employees = employeesData ?? []
 
   useEffect(() => {
-    if (!open) setWhatsappNumber('')
+    if (!open) {
+      setSelectedEmployeeId('')
+      setWhatsappNumber('')
+    }
   }, [open])
+
+  const handleSelectEmployee = (id: string) => {
+    setSelectedEmployeeId(id)
+    const emp = employees.find(e => e.id === id)
+    if (emp) setWhatsappNumber(emp.mobile_phone ?? '')
+  }
 
   if (!open) return null
 
@@ -78,16 +88,14 @@ export function PoWhatsAppModal({
               Pilih Penerima
             </label>
             <select
-              onChange={(e) => {
-                const emp = employees.find((x) => x.id === e.target.value)
-                if (emp) setWhatsappNumber(emp.mobile_phone)
-              }}
+              value={selectedEmployeeId}
+              onChange={(e) => handleSelectEmployee(e.target.value)}
               className={inputCls}
             >
               <option value="">Pilih employee...</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
-                  {emp.full_name} - {emp.mobile_phone}
+                  {emp.full_name}{emp.mobile_phone ? ` - ${emp.mobile_phone}` : ''}
                 </option>
               ))}
             </select>
