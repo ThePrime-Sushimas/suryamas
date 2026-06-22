@@ -58,7 +58,7 @@ export default function PositionsPage() {
       <div className="flex items-center gap-2.5">
         <div className="p-2 bg-purple-600 rounded-xl"><Users className="w-5 h-5 text-white" /></div>
         <div>
-          <h1 className="text-base font-semibold text-gray-900 dark:text-white">Posisi / Jabatan</h1>
+          <h1 className="text-base font-semibold text-gray-900 dark:text-white">Station</h1>
           <p className="text-xs text-gray-400">Kelola posisi karyawan per departemen</p>
         </div>
         <button onClick={() => { resetForm(); setShowForm(true) }}

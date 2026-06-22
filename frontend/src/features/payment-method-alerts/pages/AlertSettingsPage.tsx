@@ -53,7 +53,7 @@ export default function AlertSettingsPage() {
         onSuccess: () => setShowForm(false)
       })
     } else {
-      createMutation.mutate(data, {
+      createMutation.mutate(data as CreateAlertDto, {
         onSuccess: () => setShowForm(false)
       })
     }
@@ -91,7 +91,7 @@ export default function AlertSettingsPage() {
         onSuccess: () => setShowGroupForm(false)
       })
     } else {
-      createGroupMutation.mutate(data, {
+      createGroupMutation.mutate(data as CreateAlertGroupDto, {
         onSuccess: () => setShowGroupForm(false)
       })
     }
