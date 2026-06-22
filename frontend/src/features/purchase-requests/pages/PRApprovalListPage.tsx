@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ShieldCheck, RotateCcw, ExternalLink, MessageSquare, Check, X } from 'lucide-react'
+import { ShieldCheck, RotateCcw, ExternalLink, MessageSquare, Check, X, Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import { PR_STATUS_CONFIG, PR_PRIORITY_CONFIG } from '../constants'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
+import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { useToast } from '@/contexts/ToastContext'
+import { useDebounce } from '@/hooks/_shared/useDebounce'
+import { Pagination } from '@/components/ui/Pagination'
 import {
   usePendingReopenRequestsList,
   useApproveMonthlyOpnameReopenRequest,
@@ -32,6 +35,7 @@ const SO_TABS = [
 export default function PRApprovalListPage() {
   const navigate = useNavigate()
   const toast = useToast()
+  const branches = useBranchContextStore(state => state.branches)
 
   const hasPermission = usePermissionStore(s => s.hasPermission)
   const canApprovePR = hasPermission('purchase_requests', 'approve')
@@ -46,15 +50,37 @@ export default function PRApprovalListPage() {
     return 'pr'
   })
 
+  // ─── PR SEARCH & FILTER STATE ──────────────────────────────────────────────
+  const [search, setSearch] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const LIMIT = 25
+
+  const debouncedSearch = useDebounce(search, 400)
+
+  const prQueryParams = useMemo(() => ({
+    status: activeTab,
+    limit: LIMIT,
+    page,
+    search: debouncedSearch || undefined,
+    branch_id: branchFilter || undefined,
+  }), [activeTab, page, debouncedSearch, branchFilter])
+
   // ─── PURCHASE REQUEST QUERY ───────────────────────────────────────────────
   const { data: prData, isLoading: isPRLoading } = useQuery({
-    queryKey: ['purchase-requests', 'approval-list', activeTab],
+    queryKey: ['purchase-requests', 'approval-list', prQueryParams],
     queryFn: async () => {
-      const { data } = await api.get('/purchase-requests', { params: { status: activeTab, limit: 50 } })
-      return data.data
+      const params: Record<string, unknown> = { status: prQueryParams.status, limit: prQueryParams.limit, page: prQueryParams.page }
+      if (prQueryParams.search) params.q = prQueryParams.search
+      if (prQueryParams.branch_id) params.branch_id = prQueryParams.branch_id
+      const { data } = await api.get('/purchase-requests', { params })
+      return { data: data.data as Record<string, any>[], pagination: data.pagination }
     },
     enabled: module === 'pr' && canApprovePR,
   })
+
+  const prList = prData?.data ?? []
+  const prPagination = prData?.pagination
 
   // ─── STOCK OPNAME REOPEN QUERY ────────────────────────────────────────────
   const { data: soData, isLoading: isSOLoading } = usePendingReopenRequestsList(
@@ -98,6 +124,11 @@ export default function PRApprovalListPage() {
     }
   }
 
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab)
+    setPage(1)
+  }
+
   const isPageLoading = module === 'pr' ? isPRLoading : isSOLoading
 
   return (
@@ -108,8 +139,7 @@ export default function PRApprovalListPage() {
           <div className="flex items-center gap-3">
             <ShieldCheck className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Pusat Approval</h1>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Review dan beri persetujuan dokumen operasional</p>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Pusat Approval</h1>              
             </div>
           </div>
 
@@ -145,7 +175,7 @@ export default function PRApprovalListPage() {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6">
         <div className="flex gap-1">
           {module === 'pr' && PR_TABS.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            <button key={tab.key} onClick={() => handleTabChange(tab.key)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.key
                   ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
@@ -168,6 +198,43 @@ export default function PRApprovalListPage() {
         </div>
       </div>
 
+      {/* Search & Filter (PR only) */}
+      {module === 'pr' && (
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Cari No. Permintaan Pembelian..."
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setPage(1) }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <select
+              value={branchFilter}
+              onChange={e => { setBranchFilter(e.target.value); setPage(1) }}
+              className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm min-w-[180px]"
+            >
+              <option value="">Semua Cabang</option>
+              {branches.map((b: { branch_id: string; branch_name: string }) => (
+                <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {isPageLoading ? (
@@ -176,7 +243,7 @@ export default function PRApprovalListPage() {
           </div>
         ) : module === 'pr' ? (
           // ─── PURCHASE REQUEST DASHBOARD ──────────────────────────────────────────
-          (!prData || prData.length === 0 ? (
+          (prList.length === 0 ? (
             <div className="text-center py-12">
               <ShieldCheck className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
               <p className="text-gray-500 dark:text-gray-400">
@@ -189,7 +256,7 @@ export default function PRApprovalListPage() {
             <>
               {/* Mobile: Cards */}
               <div className="sm:hidden space-y-3">
-                {prData.map((pr: Record<string, any>) => {
+                {prList.map((pr: Record<string, any>) => {
                   const status = PR_STATUS_CONFIG[pr.status] ?? PR_STATUS_CONFIG.PENDING_APPROVAL
                   const priority = PR_PRIORITY_CONFIG[pr.priority] ?? PR_PRIORITY_CONFIG.normal
                   return (
@@ -245,7 +312,7 @@ export default function PRApprovalListPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                      {prData.map((pr: Record<string, any>) => {
+                      {prList.map((pr: Record<string, any>) => {
                         const status = PR_STATUS_CONFIG[pr.status] ?? PR_STATUS_CONFIG.PENDING_APPROVAL
                         const priority = PR_PRIORITY_CONFIG[pr.priority] ?? PR_PRIORITY_CONFIG.normal
                         return (
@@ -275,6 +342,17 @@ export default function PRApprovalListPage() {
                   </table>
                 </div>
               </div>
+
+              {/* Pagination */}
+              {prPagination && prPagination.total > 0 && (
+                <Pagination
+                  pagination={prPagination}
+                  onPageChange={setPage}
+                  onLimitChange={() => {}}
+                  currentLength={prList.length}
+                  loading={isPRLoading}
+                />
+              )}
             </>
           ))
         ) : (

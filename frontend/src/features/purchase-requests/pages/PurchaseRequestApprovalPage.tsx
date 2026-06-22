@@ -282,8 +282,7 @@ export default function PurchaseRequestApprovalPage() {
                       return (
                         <tr key={iIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${!item.selected ? 'opacity-40 line-through' : ''}`}>
                           <td className="px-4 py-2.5">
-                            <p className="font-medium text-gray-900 dark:text-white">{item.product_name}</p>
-                            <p className="text-xs text-gray-500">{item.product_code}</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{item.product_name}</p>                            
                           </td>
                           <td className="px-4 py-2.5 text-right font-mono text-gray-500 dark:text-gray-400 text-xs">{item.qty} {item.uom}</td>
                           <td className="px-4 py-2.5 text-right">
