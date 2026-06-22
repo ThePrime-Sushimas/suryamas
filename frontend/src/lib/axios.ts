@@ -156,6 +156,14 @@ api.interceptors.response.use(
         }
         break
 
+      case 400:
+        // Bad request - show backend message
+        if (t) {
+          const message = parseApiError(error, 'Request tidak valid. Periksa kembali input Anda.')
+          t.error(message)
+        }
+        break
+
       case 403:
         // Permission denied - show toast
         if (t) {

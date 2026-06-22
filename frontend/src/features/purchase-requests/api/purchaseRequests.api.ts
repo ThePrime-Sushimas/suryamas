@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import { parseApiError } from '@/lib/errorParser'
+import { useToast } from '@/contexts/ToastContext'
 
 export interface PurchaseRequestLine {
   id?: string
@@ -89,17 +91,20 @@ export const usePurchaseRequest = (id: string) =>
 
 export const useCreatePurchaseRequest = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (body: { branch_id: string; needed_by_date?: string | null; notes?: string | null; lines: { product_id: string; qty: number; uom: string; supplier_id?: string | null }[] }) => {
       const { data } = await api.post('/purchase-requests', body)
       return data.data as PurchaseRequest
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat purchase request')),
   })
 }
 
 export const useUpdatePurchaseRequest = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, ...body }: { id: string; needed_by_date?: string | null; notes?: string | null; lines?: { product_id: string; qty: number; uom: string; supplier_id?: string | null }[] }) => {
       const { data } = await api.put(`/purchase-requests/${id}`, body)
@@ -110,39 +115,48 @@ export const useUpdatePurchaseRequest = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.id) })
       qc.invalidateQueries({ queryKey: ['pr-approval-data', vars.id] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal memperbarui purchase request')),
   })
 }
 
 export const useSubmitPurchaseRequest = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-requests/${id}/submit`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengajukan purchase request')),
   })
 }
 
 export const useRejectPurchaseRequest = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, rejected_reason }: { id: string; rejected_reason: string }) => {
       await api.post(`/purchase-requests/${id}/reject`, { rejected_reason })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menolak purchase request')),
   })
 }
 
 export const useCancelPurchaseRequest = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-requests/${id}/cancel`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membatalkan purchase request')),
   })
 }
 
 export const useDeletePurchaseRequest = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => { await api.delete(`/purchase-requests/${id}`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus purchase request')),
   })
 }

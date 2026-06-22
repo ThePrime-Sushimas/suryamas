@@ -16,6 +16,9 @@ import ForgotPasswordPage from "./features/auth/pages/ForgotPasswordPage";
 import ResetPasswordPage from "./features/auth/pages/ResetPasswordPage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// Statuses already handled by axios interceptor (avoid double-toast)
+const INTERCEPTOR_HANDLED_STATUSES = new Set([401, 403, 404, 409, 422, 429, 500, 502, 503, 504])
+
 // Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +26,15 @@ const queryClient = new QueryClient({
       staleTime: 2 * 60_000,
       refetchOnWindowFocus: false,
       retry: 1,
+    },
+    mutations: {
+      onError: (error: unknown) => {
+        // Safety net: only toast for statuses NOT already handled by interceptor
+        const status = (error as { response?: { status?: number } })?.response?.status
+        if (status && INTERCEPTOR_HANDLED_STATUSES.has(status)) return
+        // Network errors (no response) or unhandled statuses
+        console.warn('[QueryClient] Unhandled mutation error:', error)
+      },
     },
   },
 });

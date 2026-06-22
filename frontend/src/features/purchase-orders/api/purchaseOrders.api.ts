@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import { parseApiError } from '@/lib/errorParser'
+import { useToast } from '@/contexts/ToastContext'
 import type { PurchaseOrderListQuery } from '../types/purchaseOrderFilters.types'
 
 export interface PurchaseOrderLine {
@@ -138,6 +140,7 @@ export const usePaymentDuePreview = (
 
 export const useUpdatePurchaseOrder = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, ...body }: { id: string; expected_delivery_date?: string | null; notes?: string | null; lines?: { product_id: string; qty: number; uom: string; unit_price: number; pr_line_id?: string | null }[] }) => {
       const { data } = await api.put(`/purchase-orders/${id}`, body)
@@ -147,23 +150,27 @@ export const useUpdatePurchaseOrder = () => {
       qc.invalidateQueries({ queryKey: ['purchase-orders'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.id) })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal memperbarui purchase order')),
   })
 }
 
 
 export const useMarkSentPurchaseOrder = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-orders/${id}/send`) },
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: ['purchase-orders'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menandai PO terkirim')),
   })
 }
 
 export const useMarkOrderedPurchaseOrder = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-orders/${id}/mark-ordered`) },
     onSuccess: (_, id) => {
@@ -171,6 +178,7 @@ export const useMarkOrderedPurchaseOrder = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: ['goods-receipts'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menandai PO sudah dipesan')),
   })
 }
 
@@ -189,6 +197,7 @@ export const PO_SHORT_CLOSE_REASONS: { value: PoShortCloseReason; label: string 
 
 export const useShortClosePoLines = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({
       id,
@@ -205,24 +214,29 @@ export const useShortClosePoLines = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: ['goods-receipts'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menutup sisa PO')),
   })
 }
 
 export const useCancelPurchaseOrder = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, cancelled_reason }: { id: string; cancelled_reason: string }) => {
       await api.post(`/purchase-orders/${id}/cancel`, { cancelled_reason })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membatalkan purchase order')),
   })
 }
 
 export const useDeletePurchaseOrder = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => { await api.delete(`/purchase-orders/${id}`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus purchase order')),
   })
 }
 

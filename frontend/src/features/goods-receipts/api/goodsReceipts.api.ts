@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import { parseApiError } from '@/lib/errorParser'
+import { useToast } from '@/contexts/ToastContext'
 
 export interface GoodsReceiptLine {
   id?: string
@@ -94,6 +96,7 @@ export const useGoodsReceipt = (id: string) =>
 
 export const useCreateGoodsReceipt = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (body: {
       po_id: string; warehouse_id: string; received_date?: string;
@@ -108,11 +111,13 @@ export const useCreateGoodsReceipt = () => {
       qc.invalidateQueries({ queryKey: ['goods-receipts'] })
       qc.invalidateQueries({ queryKey: ['purchase-orders'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat penerimaan barang')),
   })
 }
 
 export const useConfirmGoodsReceipt = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
       const { data } = await api.post(`/goods-receipts/${id}/confirm`)
@@ -123,14 +128,17 @@ export const useConfirmGoodsReceipt = () => {
       qc.invalidateQueries({ queryKey: ['purchase-orders'] })
       qc.invalidateQueries({ queryKey: ['stock'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengkonfirmasi penerimaan barang')),
   })
 }
 
 export const useDeleteGoodsReceipt = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => { await api.delete(`/goods-receipts/${id}`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['goods-receipts'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus penerimaan barang')),
   })
 }
 
@@ -158,6 +166,7 @@ export const useGRAttachments = (grId: string) =>
 
 export const useUploadGRAttachment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ grId, file, fileType }: { grId: string; file: File; fileType: string }) => {
       const formData = new FormData()
@@ -171,11 +180,13 @@ export const useUploadGRAttachment = () => {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['goods-receipts', vars.grId, 'attachments'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengupload lampiran')),
   })
 }
 
 export const useDeleteGRAttachment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ grId, attachmentId }: { grId: string; attachmentId: string }) => {
       await api.delete(`/goods-receipts/${grId}/attachments/${attachmentId}`)
@@ -183,5 +194,6 @@ export const useDeleteGRAttachment = () => {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['goods-receipts', vars.grId, 'attachments'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus lampiran')),
   })
 }

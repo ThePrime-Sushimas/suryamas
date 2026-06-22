@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import { parseApiError } from '@/lib/errorParser'
+import { useToast } from '@/contexts/ToastContext'
 import type {
   DailyClosingCount,
   DailyClosingCountDetail,
@@ -302,8 +304,9 @@ export const useVarianceReport = (params: VarianceReportFilter) =>
 
 // ─── EXPORT VARIANCE REPORT CSV ──────────────────────────────────────────────
 
-export const useExportVarianceReportCsv = () =>
-  useMutation({
+export const useExportVarianceReportCsv = () => {
+  const toast = useToast()
+  return useMutation({
     mutationFn: async (params: VarianceReportFilter) => {
       const { data } = await api.get('/daily-stock-opname/variance-report/export', {
         params,
@@ -320,7 +323,9 @@ export const useExportVarianceReportCsv = () =>
       link.remove()
       window.URL.revokeObjectURL(url)
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengekspor laporan variance')),
   })
+}
 
 // ─── CLASSIFY ────────────────────────────────────────────────────────────────
 
