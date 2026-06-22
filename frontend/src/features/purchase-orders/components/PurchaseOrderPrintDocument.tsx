@@ -38,7 +38,7 @@ export function PurchaseOrderPrintDocument({ po }: PurchaseOrderPrintDocumentPro
           <dd>{paymentLabel}</dd>
         </div>
         <div>
-          <dt className="font-semibold text-gray-700">No. PR</dt>
+          <dt className="font-semibold text-gray-700">No. Permintaan Pembelian</dt>
           <dd>{po.request_number}</dd>
         </div>
         <div>
