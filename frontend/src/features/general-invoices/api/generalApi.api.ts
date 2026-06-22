@@ -1,5 +1,7 @@
 import api from '@/lib/axios'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useToast } from '@/contexts/ToastContext'
+import { parseApiError } from '@/lib/errorParser'
 
 // ─── Types (mirror backend) ───────────────────────────────────
 export type VendorType = 'UTILITY' | 'RENT' | 'SERVICE' | 'SUBSCRIPTION' | 'OTHER'
@@ -861,6 +863,7 @@ export const useAmortizations = (params?: {
 
 export const useExecuteAmortization = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, period_number, period_date }: {
       id: string
@@ -877,5 +880,6 @@ export const useExecuteAmortization = () => {
       qc.invalidateQueries({ queryKey: ['general-ap', 'amortizations'] })
       qc.invalidateQueries({ queryKey: KEYS.invoices })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal eksekusi amortisasi')),
   })
 }
