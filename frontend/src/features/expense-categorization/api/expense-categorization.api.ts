@@ -131,7 +131,7 @@ export const useUncategorize = () => {
 export const useGenerateJournal = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { statement_ids: number[]; journal_date?: string; description?: string }) => {
+    mutationFn: async (body: { statement_ids: number[]; journal_date?: string; description?: string; branch_id?: string }) => {
       const { data } = await api.post('/expense-categorization/generate-journal', body)
       return data.data as { journal_id: string; journal_number: string; lines_count: number; total_amount: number }
     },
