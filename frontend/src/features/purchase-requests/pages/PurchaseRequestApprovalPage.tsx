@@ -137,7 +137,7 @@ export default function PurchaseRequestApprovalPage() {
     try {
       await rejectPR.mutateAsync({ id, rejected_reason: rejectReason.trim() })
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] })
-      toast.success('Purchase request ditolak')
+      toast.success('Permintaan Pembelian ditolak')
       navigate('/inventory/pr-approval')
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menolak')) }
   }
@@ -421,7 +421,7 @@ export default function PurchaseRequestApprovalPage() {
       {showRejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowRejectModal(false)}>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Tolak Purchase Request</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Tolak Permintaan Pembelian</h3>
             <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} placeholder="Alasan penolakan (wajib)..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-4" />
             <div className="flex gap-2 justify-end">

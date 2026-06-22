@@ -142,14 +142,14 @@ export default function PurchaseRequestFormPage() {
     try {
       if (isEdit && id) {
         await updatePR.mutateAsync({ id, ...payload })
-        toast.success('Purchase request berhasil diperbarui')
+        toast.success('Permintaan Pembelian berhasil diperbarui')
       } else {
         await createPR.mutateAsync({ branch_id: branchId, ...payload })
-        toast.success('Purchase request berhasil dibuat')
+        toast.success('Permintaan Pembelian berhasil dibuat')
       }
       navigate('/inventory/purchase-requests')
     } catch (err: unknown) {
-      toast.error(parseApiError(err, isEdit ? 'Gagal memperbarui purchase request' : 'Gagal membuat purchase request'))
+      toast.error(parseApiError(err, isEdit ? 'Gagal memperbarui Permintaan Pembelian' : 'Gagal membuat Permintaan Pembelian'))
     }
   }
 
@@ -172,7 +172,7 @@ export default function PurchaseRequestFormPage() {
       <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <p className="text-gray-500 dark:text-gray-400 mb-4">
-            Purchase request ini tidak bisa diedit (status: {existingPR?.status})
+            Permintaan Pembelian ini tidak bisa diedit (status: {existingPR?.status})
           </p>
           <button
             onClick={() => navigate(`/inventory/purchase-requests/${id}`)}
@@ -200,7 +200,7 @@ export default function PurchaseRequestFormPage() {
             <ClipboardList className="w-6 h-6 text-purple-600 shrink-0 hidden sm:block" />
             <div className="min-w-0">
               <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">
-                {isEdit ? `Edit ${existingPR?.request_number ?? 'PR'}` : 'Buat Purchase Request'}
+                {isEdit ? `Edit ${existingPR?.request_number ?? 'PR'}` : 'Buat Permintaan Pembelian'}
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
                 {isEdit ? 'Perbarui permintaan pembelian bahan baku' : 'Permintaan pembelian bahan baku'}
@@ -418,7 +418,7 @@ export default function PurchaseRequestFormPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
               {branchLabel ??
                 (isEdit
-                  ? existingPR?.request_number ?? 'Edit purchase request'
+                  ? existingPR?.request_number ?? 'Edit Permintaan Pembelian'
                   : 'Pilih cabang lalu tambah produk')}
             </p>
           </div>

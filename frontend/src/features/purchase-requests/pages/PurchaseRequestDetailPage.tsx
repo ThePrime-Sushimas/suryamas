@@ -114,7 +114,7 @@ export default function PurchaseRequestDetailPage() {
   if (!pr) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <p className="text-gray-500">Purchase request tidak ditemukan</p>
+        <p className="text-gray-500">Permintaan Pembelian tidak ditemukan</p>
       </div>
     );
   }
@@ -463,7 +463,7 @@ export default function PurchaseRequestDetailPage() {
         message={
           confirmAction === "submit"
             ? "PR akan diajukan ke Stock Keeper untuk approval. Lanjutkan?"
-            : "Yakin ingin membatalkan purchase request ini?"
+            : "Yakin ingin membatalkan Permintaan Pembelian ini?"
         }
         confirmText={confirmAction === "submit" ? "Ajukan" : "Batalkan"}
         variant={confirmAction === "cancel" ? "danger" : "success"}

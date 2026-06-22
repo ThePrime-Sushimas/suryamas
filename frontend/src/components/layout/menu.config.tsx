@@ -593,13 +593,13 @@ export const menuItems: MenuItem[] = [
       // ── 4a. Request (uang keluar - pengajuan) ─
       {
         id: "purchasing-requests",
-        name: "Request",
+        name: "Permintaan",
         icon: <ClipboardList size={16} />,           // fix: ShoppingCart → ClipboardList (request = form/daftar)
         color: "red",
         submenu: [
           {
             id: "inv-purchase-requests",
-            name: "Request Bahan Baku",
+            name: "Permintaan Bahan Baku",
             href: "/inventory/purchase-requests",
             icon: <ClipboardList size={16} />,
             module: "purchase_requests",
@@ -607,7 +607,7 @@ export const menuItems: MenuItem[] = [
           },
           {
             id: "fp-production-requests",
-            name: "Request Sauce",
+            name: "Permintaan Saos",
             href: "/food-production/production-requests",
             icon: <ChefHat size={16} />,             // fix: ClipboardList (sama) → ChefHat (sauce = dapur)
             module: "production_requests",
@@ -615,7 +615,7 @@ export const menuItems: MenuItem[] = [
           },
           {
             id: "general-invoices-templates",
-            name: "Request Utility",
+            name: "Permintaan Operasional",
             href: "/finance/general-invoices/templates",
             icon: <FileText size={16} />,            // fix: RefreshCcw → FileText (template invoice = dokumen)
             module: "general_invoices",

@@ -51,7 +51,7 @@ export default function PurchaseRequestsPage() {
     if (!deleteTarget) return
     try {
       await deletePR.mutateAsync(deleteTarget.id)
-      toast.success('Purchase request dihapus')
+      toast.success('Permintaan Pembelian dihapus')
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal menghapus')) }
     finally { setDeleteTarget(null) }
   }
@@ -60,7 +60,7 @@ export default function PurchaseRequestsPage() {
     if (!cancelTarget) return
     try {
       await cancelPR.mutateAsync(cancelTarget.id)
-      toast.success('Purchase request dibatalkan')
+      toast.success('Permintaan Pembelian dibatalkan')
     } catch (err: unknown) { toast.error(parseApiError(err, 'Gagal membatalkan')) }
     finally { setCancelTarget(null) }
   }
@@ -73,7 +73,7 @@ export default function PurchaseRequestsPage() {
           <div className="flex items-center gap-3">
             <ClipboardList className="w-6 h-6 text-purple-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Purchase Request</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Permintaan Pembelian</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">{pagination?.total ?? 0} permintaan</p>
             </div>
           </div>
@@ -130,7 +130,7 @@ export default function PurchaseRequestsPage() {
                     <tr key={i}><td colSpan={7} className="px-4 py-4"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></td></tr>
                   ))
                 ) : requests.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">Tidak ada purchase request</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">Tidak ada Permintaan Pembelian</td></tr>
                 ) : requests.map(pr => {
                   const statusCfg = PR_STATUS_CONFIG[pr.status] ?? PR_STATUS_CONFIG.DRAFT
                   return (
@@ -173,11 +173,11 @@ export default function PurchaseRequestsPage() {
       </div>
 
       <ConfirmModal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete}
-        title="Hapus Purchase Request" message={`Yakin ingin menghapus "${deleteTarget?.request_number}"?`}
+        title="Hapus Permintaan Pembelian" message={`Yakin ingin menghapus "${deleteTarget?.request_number}"?`}
         confirmText="Hapus" variant="danger" isLoading={deletePR.isPending} />
 
       <ConfirmModal isOpen={!!cancelTarget} onClose={() => setCancelTarget(null)} onConfirm={handleCancel}
-        title="Batalkan Purchase Request" message={`Yakin ingin membatalkan "${cancelTarget?.request_number}"?`}
+        title="Batalkan Permintaan Pembelian" message={`Yakin ingin membatalkan "${cancelTarget?.request_number}"?`}
         confirmText="Batalkan" variant="danger" isLoading={cancelPR.isPending} />
     </div>
   )

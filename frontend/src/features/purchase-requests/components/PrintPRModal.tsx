@@ -67,7 +67,7 @@ export function PrintPRModal({ prId, supplierGroups, onClose }: PrintPRModalProp
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-indigo-600" />
-            <h3 className="font-bold text-gray-900 dark:text-white">Print Purchase Request</h3>
+            <h3 className="font-bold text-gray-900 dark:text-white">Cetak Permintaan Pembelian</h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
         </div>

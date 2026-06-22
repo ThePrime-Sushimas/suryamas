@@ -98,7 +98,7 @@ export const useCreatePurchaseRequest = () => {
       return data.data as PurchaseRequest
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
-    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat purchase request')),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat Permintaan Pembelian')),
   })
 }
 
@@ -115,7 +115,7 @@ export const useUpdatePurchaseRequest = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.id) })
       qc.invalidateQueries({ queryKey: ['pr-approval-data', vars.id] })
     },
-    onError: (err) => toast.error(parseApiError(err, 'Gagal memperbarui purchase request')),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal memperbarui Permintaan Pembelian')),
   })
 }
 
@@ -125,7 +125,7 @@ export const useSubmitPurchaseRequest = () => {
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-requests/${id}/submit`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
-    onError: (err) => toast.error(parseApiError(err, 'Gagal mengajukan purchase request')),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengajukan Permintaan Pembelian')),
   })
 }
 
@@ -137,7 +137,7 @@ export const useRejectPurchaseRequest = () => {
       await api.post(`/purchase-requests/${id}/reject`, { rejected_reason })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
-    onError: (err) => toast.error(parseApiError(err, 'Gagal menolak purchase request')),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menolak Permintaan Pembelian')),
   })
 }
 
@@ -147,7 +147,7 @@ export const useCancelPurchaseRequest = () => {
   return useMutation({
     mutationFn: async (id: string) => { await api.post(`/purchase-requests/${id}/cancel`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
-    onError: (err) => toast.error(parseApiError(err, 'Gagal membatalkan purchase request')),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membatalkan Permintaan Pembelian')),
   })
 }
 
@@ -157,6 +157,6 @@ export const useDeletePurchaseRequest = () => {
   return useMutation({
     mutationFn: async (id: string) => { await api.delete(`/purchase-requests/${id}`) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-requests'] }),
-    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus purchase request')),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus Permintaan Pembelian')),
   })
 }
