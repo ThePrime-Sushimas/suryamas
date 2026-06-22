@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CreditCard, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -10,8 +10,8 @@ import {
   useUpdateOwnerCreditCard,
   useDeleteOwnerCreditCard,
   useCompanyBankAccounts,
+  useCcCoaOptions,
 } from '@/features/marketplace-po/api/marketplacePo.api'
-import { CC_COA_OPTIONS } from '@/features/marketplace-po/utils/constants'
 import type { OwnerCreditCard } from '@/features/marketplace-po/types/marketplacePo.types'
 
 function formatBankAccountLabel(b: {
@@ -51,6 +51,7 @@ export default function OwnerCreditCardSettingsPage() {
     isLoading: banksLoading,
     isFetching: banksFetching,
   } = useCompanyBankAccounts()
+  const { data: coaOptions = [] } = useCcCoaOptions()
   const createCard = useCreateOwnerCreditCard()
   const updateCard = useUpdateOwnerCreditCard()
   const deleteCard = useDeleteOwnerCreditCard()
@@ -60,7 +61,7 @@ export default function OwnerCreditCardSettingsPage() {
   const [cardLabel, setCardLabel] = useState('')
   const [bankName, setBankName] = useState('')
   const [last4, setLast4] = useState('')
-  const [coaCode, setCoaCode] = useState(CC_COA_OPTIONS[0].code)
+  const [coaCode, setCoaCode] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [sortOrder, setSortOrder] = useState(0)
   const [settlementBankAccountId, setSettlementBankAccountId] = useState<number | ''>('')
@@ -90,13 +91,20 @@ export default function OwnerCreditCardSettingsPage() {
     }
   }, [settlementBankAccountId, bankAccounts, editingCard])
 
+  // Set default COA when options load or after resetForm clears it
+  useEffect(() => {
+    if (coaOptions.length > 0 && coaCode === '') {
+      setCoaCode(coaOptions[0].account_code)
+    }
+  }, [coaOptions, coaCode])
+
   const resetForm = () => {
     setShowForm(false)
     setEditId(null)
     setCardLabel('')
     setBankName('')
     setLast4('')
-    setCoaCode(CC_COA_OPTIONS[0].code)
+    setCoaCode('')  // useEffect akan set ke default
     setIsActive(true)
     setSortOrder(0)
     setSettlementBankAccountId('')
@@ -221,9 +229,9 @@ export default function OwnerCreditCardSettingsPage() {
                 onChange={(e) => setCoaCode(e.target.value)}
                 className="w-full h-9 px-3 text-sm border rounded-lg bg-white dark:bg-gray-700"
               >
-                {CC_COA_OPTIONS.map((o) => (
-                  <option key={o.code} value={o.code}>
-                    {o.label}
+                {coaOptions.map((o) => (
+                  <option key={o.account_code} value={o.account_code}>
+                    {o.account_code} - {o.account_name}
                   </option>
                 ))}
               </select>

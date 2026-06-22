@@ -166,6 +166,17 @@ export class ChartOfAccountsRepository {
     return rows[0] ?? null
   }
 
+  async findByCodePrefix(companyId: string, prefix: string): Promise<ChartOfAccount[]> {
+    const { rows } = await pool.query(
+      `SELECT account_code, account_name FROM chart_of_accounts
+       WHERE company_id = $1 AND is_postable = true AND deleted_at IS NULL
+         AND account_code LIKE $2
+       ORDER BY account_code ASC`,
+      [companyId, `${prefix}%`]
+    )
+    return rows
+  }
+
   async update(id: string, updates: UpdateChartOfAccountDTO): Promise<ChartOfAccount | null> {
     const fullUpdates: Record<string, unknown> = { ...updates, updated_at: new Date().toISOString() }
     const keys = COA_UPDATE_FIELDS.filter(k => fullUpdates[k] !== undefined)

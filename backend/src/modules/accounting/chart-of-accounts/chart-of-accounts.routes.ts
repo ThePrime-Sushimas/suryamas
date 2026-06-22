@@ -88,6 +88,10 @@ router.post('/bulk/delete', canDelete('chart_of_accounts'), bulkOperationLimit, 
 router.post('/bulk/restore', canUpdate('chart_of_accounts'), bulkOperationLimit, validateSchema(bulkDeleteSchema), (req, res) => 
   chartOfAccountsController.bulkRestore(req, res))
 
+// By-code-prefix (static route before /:id)
+router.get('/by-code-prefix/:prefix', canView('chart_of_accounts'), (req, res) => 
+  chartOfAccountsController.getByCodePrefix(req, res))
+
 // CRUD operations
 router.post('/', canInsert('chart_of_accounts'), validateSchema(createChartOfAccountSchema), (req, res) => 
   chartOfAccountsController.create(req, res))

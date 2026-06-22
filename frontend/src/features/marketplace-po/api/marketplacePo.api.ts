@@ -579,6 +579,23 @@ export function useCompanyBankAccounts(companyId?: string) {
   })
 }
 
+export interface CcCoaOption {
+  account_code: string
+  account_name: string
+}
+
+/** Fetch COA with a given code prefix (e.g. "2106" for owner CC). */
+export function useCcCoaOptions() {
+  return useQuery({
+    queryKey: ['chart-of-accounts', 'by-code-prefix', '2106'],
+    queryFn: async () => {
+      const { data } = await api.get('/chart-of-accounts/by-code-prefix/2106')
+      return (data.data ?? []) as CcCoaOption[]
+    },
+    staleTime: 5 * 60_000,
+  })
+}
+
 export async function getSignedUrl(filePath: string) {
   const { data } = await api.get('/storage/signed-url', {
     params: { path: filePath, bucket: 'invoices' },

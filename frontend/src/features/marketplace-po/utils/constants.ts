@@ -67,14 +67,6 @@ export const FILE_TYPE_LABELS: Record<string, string> = {
   OTHER: 'Lainnya',
 }
 
-export const CC_COA_OPTIONS = [
-  { code: '210602', label: '210602 - Utang CC Owner - Kartu 1' },
-  { code: '210603', label: '210603 - Utang CC Owner - Kartu 2' },
-  { code: '210604', label: '210604 - Utang CC Owner - Kartu 3' },
-  { code: '210605', label: '210605 - Utang CC Owner - Kartu 4' },
-  { code: '210606', label: '210606 - Utang CC Owner - Kartu 5' },
-]
-
 export const TIMELINE_STEPS: MarketplaceSessionStatus[] = [
   'DRAFT',
   'ORDERED',

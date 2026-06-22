@@ -236,6 +236,10 @@ export class ChartOfAccountsService {
     logInfo('Bulk restore completed', { count: ids.length })
   }
 
+  async getByCodePrefix(companyId: string, prefix: string) {
+    return await this.repository.findByCodePrefix(companyId, prefix)
+  }
+
   async getFilterOptions(companyId: string) {
     return await this.repository.getFilterOptions(companyId)
   }

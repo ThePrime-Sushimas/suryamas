@@ -102,6 +102,22 @@ export class ChartOfAccountsController {
     }
   }
 
+  getByCodePrefix = async (req: Request, res: Response) => {
+    try {
+      const { branchIds, companyIds } = await getAccess(req)
+      // COA is scoped to a single company; for multi-company users we use the first accessible one.
+      // This is intentional — COA prefixes are company-specific and the UI operates in one company context.
+      const companyId = companyIds[0]
+      if (!companyId) throw new Error('No accessible company')
+      const prefix = req.params.prefix as string
+      if (!/^\d{1,10}$/.test(prefix)) throw new Error('Invalid prefix format')
+      const accounts = await chartOfAccountsService.getByCodePrefix(companyId, prefix)
+      sendSuccess(res, accounts)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_coa_by_prefix', prefix: req.params.prefix })
+    }
+  }
+
   getFilterOptions = async (req: Request, res: Response) => {
     try {
       const companyId = await getWriteCompanyId(req)
