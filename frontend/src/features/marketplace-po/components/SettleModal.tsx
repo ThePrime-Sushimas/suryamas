@@ -172,7 +172,7 @@ export function SettleModal({
           <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900 font-mono text-xs space-y-1">
             <p className="font-semibold mb-1">Journal yang akan di-post:</p>
             <p>
-              Dr {coaCode} Hutang CC Owner {fmtCurrency(Number(amount) || 0)}
+              Dr {coaCode} Hutang Credit Card {fmtCurrency(Number(amount) || 0)}
             </p>
             <p>
               Cr {selectedBank ? formatBankAccountOption(selectedBank) : 'Bank'}{' '}

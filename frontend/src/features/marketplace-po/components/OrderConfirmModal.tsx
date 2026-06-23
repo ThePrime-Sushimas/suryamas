@@ -64,7 +64,7 @@ export function OrderConfirmModal({
           <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 font-mono text-xs space-y-1">
             <div className="font-semibold text-gray-600 dark:text-gray-300 mb-2">Journal yang akan di-post:</div>
             <div>Dr 110598 Persediaan Dalam Perjalanan {fmtCurrency(session.total_amount)}</div>
-            <div>Cr {coaCode} Hutang CC Owner {fmtCurrency(session.total_amount)}</div>
+            <div>Cr {coaCode} Hutang Credit Card {fmtCurrency(session.total_amount)}</div>
           </div>
           {!hasBukti ? (
             <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">

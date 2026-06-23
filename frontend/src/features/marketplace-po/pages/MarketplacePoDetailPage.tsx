@@ -180,7 +180,7 @@ export default function MarketplacePoDetailPage() {
       },
       SHIPPED: null,
       RECEIVED: canRelease ? {
-        label: "Lunasi CC Owner",
+        label: "Pelunasan Marketplace",
         onClick: () => setShowSettleModal(true),
         className: "bg-purple-600 hover:bg-purple-700",
       } : null,
