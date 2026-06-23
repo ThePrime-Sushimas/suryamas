@@ -32,7 +32,7 @@ export const DEFAULT_VENDOR_FILTERS: VendorFilters = {
   sortOrder: 'asc',
 }
 
-const VALID_VENDOR_TYPE = new Set<VendorType>(['UTILITY', 'RENT', 'SERVICE', 'SUBSCRIPTION', 'OTHER'])
+const VALID_VENDOR_TYPE = new Set<VendorType>(['UTILITY', 'RENT', 'SERVICE', 'SUBSCRIPTION', 'OTHER', 'EMPLOYEE'])
 const VALID_SORT_BY = new Set<VendorSortBy>(['vendor_name', 'vendor_code', 'created_at'])
 const VALID_SORT_ORDER = new Set<SortOrder>(['asc', 'desc'])
 

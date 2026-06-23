@@ -13,6 +13,7 @@ import {
   generalTemplateRepository,
   vendorRepository,
   amortizationRepository,
+  invoiceAttachmentRepository,
 } from './general-invoices.repository'
 import type {
   CreateVendorDto,
@@ -32,6 +33,7 @@ import type {
   GenerateFromTemplateDto,
   GeneralInvoiceTemplate,
   GeneralApDashboard,
+  GeneralInvoiceAttachment,
 } from './general-invoices.types'
 import { getAccessibleBranchIds, getAccessibleCompanyIds, getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import {
@@ -185,8 +187,13 @@ export class GeneralInvoiceService {
     }
     if (existing.lines.length === 0) throw new GeneralInvoiceLineEmptyError()
 
-    // Ambil COA hutang usaha umum dari accounting_purposes
-    const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId)
+    // Resolve purpose_code berdasarkan vendor_type
+    const purposeCode = existing.vendor_type === 'EMPLOYEE'
+      ? 'EMP_REIMBURSE_LIABILITY'
+      : 'GEN-AP-LIABILITY'
+
+    // Ambil COA hutang dari accounting_purposes
+    const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId, purposeCode)
     if (!liabilityAccountId) throw new GeneralInvoiceLiabilityCoaMissingError()
 
     const totalAmount = Number(existing.total_amount)
@@ -537,6 +544,126 @@ export class GeneralInvoiceService {
 
     return this.getById(id, branchIds)
   }
+
+  // ── Multi-attachment (new) ─────────────────────────────────
+
+  async listAttachments(
+    invoiceId: string,
+    branchIds: string[],
+  ): Promise<GeneralInvoiceAttachment[]> {
+    const existing = await this.requireById(invoiceId, branchIds)
+
+    const attachments = await invoiceAttachmentRepository.findByInvoiceId(invoiceId)
+
+    // Fallback: if no rows in new table but legacy attachment_url exists, return it as read-only entry
+    if (attachments.length === 0 && existing.attachment_url) {
+      return [{
+        id: 'legacy-' + invoiceId,
+        invoice_id: invoiceId,
+        file_url: existing.attachment_url,
+        file_name: null,
+        file_size: null,
+        mime_type: null,
+        description: null,
+        uploaded_by: existing.created_by ?? null,
+        created_at: existing.created_at,
+        is_legacy: true,
+      }]
+    }
+
+    return attachments.map((a) => ({ ...a, is_legacy: false }))
+  }
+
+  async uploadNewAttachment(
+    invoiceId: string,
+    branchIds: string[],
+    userId: string,
+    file: Express.Multer.File,
+    description?: string,
+  ): Promise<GeneralInvoiceAttachment> {
+    const existing = await this.requireById(invoiceId, branchIds)
+    const companyId = existing.company_id
+
+    // Upload blocked only for CANCELLED invoices (final state, full read-only)
+    if (existing.status === 'CANCELLED') {
+      throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT or POSTED')
+    }
+
+    // Validate file type
+    const ext = resolveDocumentUploadExtension(file)
+    if (!ext) {
+      throw new BusinessRuleError(
+        'Format file tidak didukung. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+      )
+    }
+
+    // Check max attachments limit
+    const count = await invoiceAttachmentRepository.countByInvoiceId(invoiceId)
+    if (count >= invoiceAttachmentRepository.MAX_ATTACHMENTS_PER_INVOICE) {
+      throw new BusinessRuleError(
+        `Maksimal ${invoiceAttachmentRepository.MAX_ATTACHMENTS_PER_INVOICE} lampiran per invoice.`,
+      )
+    }
+
+    // Upload to R2
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const now = new Date()
+    const storagePath = `${companyId}/general-ap-invoices/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
+
+    await storageService.uploadToPath(file.buffer, storagePath, file.mimetype, 'invoices')
+
+    // Save to DB
+    const attachment = await invoiceAttachmentRepository.create(
+      invoiceId,
+      storagePath,
+      file.originalname ?? null,
+      file.size ?? null,
+      file.mimetype ?? null,
+      description ?? null,
+      userId,
+    )
+
+    await AuditService.log('CREATE', 'general_invoice_attachments', attachment.id, userId, null, {
+      invoice_id: invoiceId,
+      file_name: file.originalname,
+    })
+
+    logInfo('Invoice attachment uploaded', { invoice_id: invoiceId, attachment_id: attachment.id })
+    return attachment
+  }
+
+  async deleteAttachment(
+    invoiceId: string,
+    attachmentId: string,
+    branchIds: string[],
+    userId: string,
+  ): Promise<void> {
+    const existing = await this.requireById(invoiceId, branchIds)
+
+    // Delete blocked only for CANCELLED invoices (final state, full read-only)
+    if (existing.status === 'CANCELLED') {
+      throw new GeneralInvoiceInvalidStatusError(existing.status, 'DRAFT or POSTED')
+    }
+
+    // Attachment lookup — if not found in real table, it's either legacy or invalid
+    const attachment = await invoiceAttachmentRepository.findById(attachmentId)
+    if (!attachment || attachment.invoice_id !== invoiceId) {
+      throw new BusinessRuleError('Lampiran tidak ditemukan atau merupakan lampiran lama (legacy) yang tidak bisa dihapus via endpoint ini.')
+    }
+
+    // Delete from storage (best-effort)
+    await storageService.delete(attachment.file_url, 'invoices').catch(() => undefined)
+
+    // Hard delete from DB
+    await invoiceAttachmentRepository.hardDelete(attachmentId)
+
+    await AuditService.log('DELETE', 'general_invoice_attachments', attachmentId, userId, {
+      invoice_id: invoiceId,
+      file_name: attachment.file_name,
+    }, null)
+
+    logInfo('Invoice attachment deleted', { invoice_id: invoiceId, attachment_id: attachmentId })
+  }
 }
 
 // ============================================================
@@ -708,8 +835,13 @@ export class GeneralInvoicePaymentService {
       throw new GeneralPaymentProofRequiredError()
     }
 
-    // Ambil COA debit: Hutang Usaha Umum
-    const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId)
+    // Resolve purpose_code berdasarkan vendor_type
+    const purposeCode = existing.vendor_type === 'EMPLOYEE'
+      ? 'EMP_REIMBURSE_LIABILITY'
+      : 'GEN-AP-LIABILITY'
+
+    // Ambil COA debit: Hutang (vendor biasa atau reimburse karyawan)
+    const liabilityAccountId = await generalInvoiceRepository.findLiabilityAccountId(companyId, purposeCode)
     if (!liabilityAccountId) throw new GeneralInvoiceLiabilityCoaMissingError()
 
     // Ambil COA credit: Bank atau Hutang CC Owner

@@ -5,7 +5,7 @@
 // ------------------------------------------------------------
 // VENDOR
 // ------------------------------------------------------------
-export type VendorType = 'UTILITY' | 'RENT' | 'SERVICE' | 'SUBSCRIPTION' | 'OTHER'
+export type VendorType = 'UTILITY' | 'RENT' | 'SERVICE' | 'SUBSCRIPTION' | 'OTHER' | 'EMPLOYEE'
 
 export interface Vendor {
   id: string
@@ -143,7 +143,10 @@ export interface GeneralInvoice {
 export interface GeneralInvoiceDetail extends GeneralInvoice {
   lines: GeneralInvoiceLine[]
   payment: GeneralInvoicePaymentSummary | null
+  payments?: GeneralInvoicePaymentSummary[]
   amortizations?: AmortizationSummary[]
+  created_by_name?: string | null
+  posted_by_name?: string | null
 }
 
 export interface GeneralInvoicePaymentSummary {
@@ -213,6 +216,7 @@ export interface GeneralInvoicePayment {
   invoice_total_amount: number | null // joined
   invoice_due_date: string | null     // joined
   vendor_name: string       // joined
+  vendor_type: VendorType | null // joined
   vendor_bank_name: string | null      // joined (from vendors table)
   vendor_bank_account_number: string | null  // joined (from vendors table)
   vendor_bank_account_name: string | null   // joined (from vendors table)
@@ -242,6 +246,22 @@ export interface GeneralInvoicePayment {
   reconciled_at: string | null
   created_at: string
   updated_at: string
+}
+
+// ------------------------------------------------------------
+// GENERAL INVOICE ATTACHMENT
+// ------------------------------------------------------------
+export interface GeneralInvoiceAttachment {
+  id: string
+  invoice_id: string
+  file_url: string
+  file_name: string | null
+  file_size: number | null
+  mime_type: string | null
+  description: string | null
+  uploaded_by: string | null
+  created_at: string
+  is_legacy: boolean
 }
 
 export interface CreateGeneralInvoicePaymentDto {

@@ -9,6 +9,7 @@ import {
 import { INVOICE_DATE_FIELD_HELP } from '../constants'
 import { FieldHint } from '../components/FieldHint'
 import { InvoiceSummaryPanel } from '../components/InvoiceSummaryPanel'
+import { InvoiceAttachments } from '../components/InvoiceAttachments'
 import { AccountSelector } from '@/features/accounting/journals/shared/AccountSelector'
 import { useChartOfAccountsStore } from '@/features/accounting/chart-of-accounts/store/chartOfAccounts.store'
 import { getSignedStorageUrl } from '@/lib/storage'
@@ -550,28 +551,35 @@ export default function InvoiceFormModal({ open, onClose, invoice, initialVendor
               />
             </div>
             <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
-                  <Upload size={12} /> Foto / PDF Tagihan
-                </label>
-                {attachmentPath && !pendingFile && (
-                  <button
-                    type="button"
-                    onClick={openAttachment}
-                    className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    <ExternalLink size={12} /> Lihat lampiran saat ini
-                  </button>
-                )}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*,.pdf,.heic,.heif"
-                  className="w-full text-xs"
-                  onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
+              {isEdit && invoice ? (
+                <InvoiceAttachments
+                  invoiceId={invoice.id}
+                  readOnly={invoice.status === 'CANCELLED'}
                 />
-                <p className="text-[11px] text-gray-500">JPG, PNG, WEBP, PDF, HEIC · maks. 10MB · disimpan di R2</p>
-              </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
+                    <Upload size={12} /> Foto / PDF Tagihan
+                  </label>
+                  {attachmentPath && !pendingFile && (
+                    <button
+                      type="button"
+                      onClick={openAttachment}
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink size={12} /> Lihat lampiran saat ini
+                    </button>
+                  )}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*,.pdf,.heic,.heif"
+                    className="w-full text-xs"
+                    onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
+                  />
+                  <p className="text-[11px] text-gray-500">JPG, PNG, WEBP, PDF, HEIC · maks. 10MB · disimpan di R2</p>
+                </div>
+              )}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"

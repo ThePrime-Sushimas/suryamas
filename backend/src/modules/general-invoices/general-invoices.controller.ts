@@ -284,6 +284,58 @@ export class GeneralInvoicesController {
       await handleError(res, error, req, { action: 'upload_general_invoice_attachment', id: req.params.id })
     }
   }
+
+  // ── Multi-attachment endpoints ───────────────────────────────
+
+  listAttachments = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { branchIds } = await giScope(req)
+      const data = await generalInvoiceService.listAttachments(req.params.id as string, branchIds)
+      sendSuccess(res, data)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_invoice_attachments', id: req.params.id })
+    }
+  }
+
+  uploadNewAttachment = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { branchIds, userId } = await giScope(req)
+      const file = req.file
+      if (!file) {
+        res.status(400).json({
+          success: false,
+          message: 'File tidak diterima. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+        })
+        return
+      }
+      const description = (req.body as { description?: string }).description ?? undefined
+      const attachment = await generalInvoiceService.uploadNewAttachment(
+        req.params.id as string,
+        branchIds,
+        userId,
+        file,
+        description,
+      )
+      sendSuccess(res, attachment, 'Lampiran berhasil diupload', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upload_invoice_attachment_multi', id: req.params.id })
+    }
+  }
+
+  deleteNewAttachment = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { branchIds, userId } = await giScope(req)
+      await generalInvoiceService.deleteAttachment(
+        req.params.id as string,
+        req.params.attachmentId as string,
+        branchIds,
+        userId,
+      )
+      sendSuccess(res, null, 'Lampiran berhasil dihapus')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_invoice_attachment', id: req.params.id })
+    }
+  }
 }
 
 // ============================================================

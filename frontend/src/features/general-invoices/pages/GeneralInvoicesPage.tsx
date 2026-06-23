@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2, Send, XCircle, Receipt, RefreshCw, ArrowRight, AlertTriangle, Clock } from 'lucide-react'
 
 import {
@@ -39,6 +39,7 @@ export default function GeneralInvoicesPage() {
     setPage,
   } = useGeneralInvoiceFilters()
 
+  const navigate = useNavigate()
   const [createOpen, setCreateOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
 
@@ -255,7 +256,7 @@ export default function GeneralInvoicesPage() {
                   {invoices.map((inv) => {
                     const overdue = inv.status === 'POSTED' && isOverdue(inv.due_date) && !inv.journal_id
                     return (
-                      <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={inv.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/finance/general-invoices/${inv.id}`)}>
                         <td className="px-4 py-3 font-mono text-xs text-gray-900">
                           {inv.invoice_number}
                           {inv.is_confidential && (
@@ -279,7 +280,7 @@ export default function GeneralInvoicesPage() {
                             {INVOICE_STATUS_LABELS[inv.status]}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
                             {inv.status === 'DRAFT' && (
                               <>
@@ -363,7 +364,7 @@ export default function GeneralInvoicesPage() {
               {invoices.map((inv) => {
                 const overdue = inv.status === 'POSTED' && isOverdue(inv.due_date)
                 return (
-                  <div key={inv.id} className="p-4 space-y-2">
+                  <div key={inv.id} className="p-4 space-y-2 cursor-pointer hover:bg-gray-50" onClick={() => navigate(`/finance/general-invoices/${inv.id}`)}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-xs font-mono text-gray-900">{inv.invoice_number}</p>
@@ -381,7 +382,7 @@ export default function GeneralInvoicesPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-gray-900">{formatRupiah(inv.total_amount)}</span>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                         {inv.status === 'DRAFT' && (
                           <button
                             onClick={() => setEditId(inv.id)}

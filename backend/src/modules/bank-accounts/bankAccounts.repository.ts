@@ -30,7 +30,9 @@ export class BankAccountsRepository {
     let idx = 1
 
     const companyIds = query?.accessible_company_ids
-    if (companyIds?.length) {
+    if (companyIds?.length && !query?.owner_type) {
+      // Default scoping: only show company-owned accounts for user's accessible companies
+      // Skip when owner_type is explicitly provided (e.g. vendor/supplier bank accounts)
       params.push(companyIds)
       conditions.push(`ba.owner_type = 'company' AND ba.owner_id = ANY($${idx}::text[])`)
       idx++

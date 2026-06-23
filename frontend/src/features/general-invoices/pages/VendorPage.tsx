@@ -211,6 +211,21 @@ export default function VendorsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null)
 
+  // Tab: 'vendor' (all except EMPLOYEE) or 'reimburse' (EMPLOYEE only)
+  const activeTab = filters.vendorType === 'EMPLOYEE' ? 'reimburse' : 'vendor'
+  const setTab = (tab: 'vendor' | 'reimburse') => {
+    if (tab === 'reimburse') {
+      setFilters({ vendorType: 'EMPLOYEE' })
+    } else {
+      setFilters({ vendorType: '' })
+    }
+  }
+
+  // For "vendor" tab, filter out EMPLOYEE type options from the dropdown
+  const vendorTypeOptions = activeTab === 'vendor'
+    ? VENDOR_TYPE_OPTIONS.filter((o) => o.value !== 'EMPLOYEE')
+    : VENDOR_TYPE_OPTIONS
+
   const { data, isLoading } = useVendors(apiQuery)
   const deleteMutation = useDeleteVendor()
 
@@ -229,15 +244,43 @@ export default function VendorsPage() {
     <div className="p-4 sm:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Vendors</h1>
-          <p className="text-sm text-gray-500">{data?.pagination?.total ?? 0} vendor</p>
+          <h1 className="text-lg font-bold text-gray-900">
+            {activeTab === 'reimburse' ? 'Reimburse Karyawan' : 'Vendors'}
+          </h1>
+          <p className="text-sm text-gray-500">{data?.pagination?.total ?? 0} {activeTab === 'reimburse' ? 'karyawan' : 'vendor'}</p>
         </div>
         <button
           type="button"
           onClick={() => setFormOpen(true)}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
         >
-          <Plus size={16} /> Tambah Vendor
+          <Plus size={16} /> {activeTab === 'reimburse' ? 'Tambah Karyawan' : 'Tambah Vendor'}
+        </button>
+      </div>
+
+      {/* Tab: Vendor / Reimburse */}
+      <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5 w-fit">
+        <button
+          type="button"
+          onClick={() => setTab('vendor')}
+          className={`px-4 py-1.5 text-xs rounded-md transition-colors ${
+            activeTab === 'vendor'
+              ? 'bg-white text-gray-900 font-medium shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Vendor
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('reimburse')}
+          className={`px-4 py-1.5 text-xs rounded-md transition-colors ${
+            activeTab === 'reimburse'
+              ? 'bg-white text-gray-900 font-medium shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Reimburse
         </button>
       </div>
 
@@ -246,20 +289,22 @@ export default function VendorsPage() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Cari nama atau kode vendor..."
+            placeholder={activeTab === 'reimburse' ? 'Cari nama karyawan atau NIK...' : 'Cari nama atau kode vendor...'}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg"
           />
         </div>
-        <select
-          value={filters.vendorType}
-          onChange={(e) => setFilters({ vendorType: e.target.value as VendorType | '' })}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-lg"
-        >
-          <option value="">Semua Tipe</option>
-          {VENDOR_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        {activeTab === 'vendor' && (
+          <select
+            value={filters.vendorType}
+            onChange={(e) => setFilters({ vendorType: e.target.value as VendorType | '' })}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg"
+          >
+            <option value="">Semua Tipe</option>
+            {vendorTypeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )}
         <select
           value={filters.isActive}
           onChange={(e) => setFilters({ isActive: e.target.value as VendorFilters['isActive'] })}

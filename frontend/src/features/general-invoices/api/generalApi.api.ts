@@ -4,7 +4,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 
 // ─── Types (mirror backend) ───────────────────────────────────
-export type VendorType = 'UTILITY' | 'RENT' | 'SERVICE' | 'SUBSCRIPTION' | 'OTHER'
+export type VendorType = 'UTILITY' | 'RENT' | 'SERVICE' | 'SUBSCRIPTION' | 'OTHER' | 'EMPLOYEE'
 export type TransactionType = 'EXPENSE' | 'PREPAID'
 export type GeneralInvoiceStatus = 'DRAFT' | 'POSTED' | 'CANCELLED'
 export type GeneralPaymentStatus = 'DRAFT' | 'APPROVED' | 'REJECTED' | 'PAID' | 'RECONCILED'
@@ -95,6 +95,9 @@ export interface GeneralInvoicePaymentSummary {
 export interface GeneralInvoiceDetail extends GeneralInvoice {
   lines: GeneralInvoiceLine[]
   payment: GeneralInvoicePaymentSummary | null
+  payments?: GeneralInvoicePaymentSummary[]
+  created_by_name?: string | null
+  posted_by_name?: string | null
 }
 
 export interface GeneralInvoicePayment {
@@ -628,6 +631,69 @@ export const useUploadGeneralInvoiceAttachment = () => {
       qc.invalidateQueries({ queryKey: KEYS.invoiceDetail(vars.id) })
       qc.invalidateQueries({ queryKey: KEYS.invoices })
     },
+  })
+}
+
+// ============================================================
+// MULTI-ATTACHMENT HOOKS (new table: general_invoice_attachments)
+// ============================================================
+export interface InvoiceAttachment {
+  id: string
+  invoice_id: string
+  file_url: string
+  file_name: string | null
+  file_size: number | null
+  mime_type: string | null
+  description: string | null
+  uploaded_by: string | null
+  created_at: string
+  is_legacy: boolean
+}
+
+export const useInvoiceAttachments = (invoiceId: string) =>
+  useQuery({
+    queryKey: ['general-ap', 'invoice-attachments', invoiceId],
+    queryFn: async () => {
+      const { data } = await api.get(`/general-invoices/${invoiceId}/attachments`)
+      return data.data as InvoiceAttachment[]
+    },
+    enabled: !!invoiceId,
+    staleTime: 30_000,
+  })
+
+export const useUploadInvoiceAttachment = () => {
+  const qc = useQueryClient()
+  const toast = useToast()
+  return useMutation({
+    mutationFn: async ({ invoiceId, file, description }: { invoiceId: string; file: File; description?: string }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      if (description) formData.append('description', description)
+      const { data } = await api.post(`/general-invoices/${invoiceId}/attachments`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data.data as InvoiceAttachment
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['general-ap', 'invoice-attachments', vars.invoiceId] })
+      qc.invalidateQueries({ queryKey: KEYS.invoiceDetail(vars.invoiceId) })
+    },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengupload lampiran')),
+  })
+}
+
+export const useDeleteInvoiceAttachment = () => {
+  const qc = useQueryClient()
+  const toast = useToast()
+  return useMutation({
+    mutationFn: async ({ invoiceId, attachmentId }: { invoiceId: string; attachmentId: string }) => {
+      await api.delete(`/general-invoices/${invoiceId}/attachments/${attachmentId}`)
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['general-ap', 'invoice-attachments', vars.invoiceId] })
+      qc.invalidateQueries({ queryKey: KEYS.invoiceDetail(vars.invoiceId) })
+    },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus lampiran')),
   })
 }
 

@@ -12,6 +12,7 @@ export const VENDOR_TYPE_LABELS: Record<VendorType, string> = {
   SERVICE: 'Jasa',
   SUBSCRIPTION: 'Langganan',
   OTHER: 'Lainnya',
+  EMPLOYEE: 'Karyawan (Reimburse)',
 }
 
 export const INVOICE_STATUS_LABELS: Record<GeneralInvoiceStatus, string> = {

@@ -20,6 +20,7 @@ import type {
   CreateGeneralInvoiceTemplateDto,
   GeneralApDashboard,
   VendorBankAccount,
+  GeneralInvoiceAttachment,
 } from './general-invoices.types'
 
 // ============================================================
@@ -411,11 +412,19 @@ export const generalInvoiceRepository = {
   },
 
   async findById(id: string, companyId: string): Promise<GeneralInvoiceDetail | null> {
-    const { rows } = await pool.query<GeneralInvoice>(
-      `SELECT gi.*, v.vendor_name, v.vendor_type, jh.journal_number
+    const { rows } = await pool.query<GeneralInvoice & { branch_name: string; created_by_name: string | null; posted_by_name: string | null }>(
+      `SELECT gi.*,
+              v.vendor_name, v.vendor_type,
+              b.branch_name,
+              jh.journal_number,
+              e_created.full_name AS created_by_name,
+              e_posted.full_name AS posted_by_name
        FROM general_invoices gi
        JOIN vendors v ON v.id = gi.vendor_id
+       JOIN branches b ON b.id = gi.branch_id
        LEFT JOIN journal_headers jh ON jh.id = gi.journal_id
+       LEFT JOIN employees e_created ON e_created.user_id = gi.created_by
+       LEFT JOIN employees e_posted ON e_posted.user_id = gi.posted_by
        WHERE gi.id = $1 AND gi.company_id = $2 AND gi.is_deleted = false`,
       [id, companyId],
     )
@@ -437,11 +446,11 @@ export const generalInvoiceRepository = {
       [id],
     )
 
-    const { rows: payRows } = await pool.query(
+    const { rows: payRows } = await pool.query<GeneralInvoicePaymentSummary>(
       `SELECT id, payment_number, status, total_amount, payment_date, paid_at
        FROM general_invoice_payments
        WHERE general_invoice_id = $1 AND is_deleted = false
-       LIMIT 1`,
+       ORDER BY created_at DESC`,
       [id],
     )
 
@@ -449,6 +458,7 @@ export const generalInvoiceRepository = {
       ...rows[0],
       lines,
       payment: payRows[0] ?? null,
+      payments: payRows,
     }
   },
 
@@ -691,24 +701,26 @@ export const generalInvoiceRepository = {
   },
 
   // ----------------------------------------------------------
-  // COA untuk liability account (Hutang Usaha Umum)
-  // Diambil dari accounting_purposes dengan key 'GEN-AP-LIABILITY'
+  // COA untuk liability account
+  // Diambil dari accounting_purposes dengan key yang ditentukan caller.
+  // Default: 'GEN-AP-LIABILITY' (hutang usaha umum vendor biasa — legacy seed, pakai dash)
+  // Reimburse: 'EMP_REIMBURSE_LIABILITY' (hutang reimburse karyawan — format baru, pakai underscore)
   // ----------------------------------------------------------
-  async findLiabilityAccountId(companyId: string): Promise<string | null> {
+  async findLiabilityAccountId(companyId: string, purposeCode = 'GEN-AP-LIABILITY'): Promise<string | null> {
     const { rows } = await pool.query<{ account_id: string }>(
       `SELECT apa.account_id
        FROM accounting_purposes ap
        JOIN accounting_purpose_accounts apa ON apa.purpose_id = ap.id
        JOIN chart_of_accounts coa ON coa.id = apa.account_id
        WHERE ap.company_id = $1
-         AND ap.purpose_code = 'GEN-AP-LIABILITY'
+         AND ap.purpose_code = $2
          AND (ap.is_deleted IS NULL OR ap.is_deleted = false)
          AND apa.is_active = true
          AND apa.deleted_at IS NULL
          AND coa.deleted_at IS NULL
        ORDER BY apa.priority ASC
        LIMIT 1`,
-      [companyId],
+      [companyId, purposeCode],
     )
     return rows[0]?.account_id ?? null
   },
@@ -938,6 +950,7 @@ export const generalPaymentRepository = {
               gi.total_amount AS invoice_total_amount,
               gi.due_date AS invoice_due_date,
               v.vendor_name,
+              v.vendor_type,
               ba.account_name AS bank_account_name,
               ba.account_number AS bank_account_number,
               bk.bank_name AS bank_name,
@@ -1357,6 +1370,64 @@ export const generalTemplateRepository = {
       [userId, id, companyId],
     )
   },
+}
+
+// ============================================================
+// ATTACHMENT REPOSITORY
+// ============================================================
+const MAX_ATTACHMENTS_PER_INVOICE = 20
+
+export const invoiceAttachmentRepository = {
+  async findByInvoiceId(invoiceId: string): Promise<GeneralInvoiceAttachment[]> {
+    const { rows } = await pool.query<GeneralInvoiceAttachment>(
+      `SELECT * FROM general_invoice_attachments
+       WHERE invoice_id = $1
+       ORDER BY created_at ASC`,
+      [invoiceId],
+    )
+    return rows
+  },
+
+  async countByInvoiceId(invoiceId: string): Promise<number> {
+    const { rows } = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM general_invoice_attachments WHERE invoice_id = $1`,
+      [invoiceId],
+    )
+    return parseInt(rows[0].count, 10)
+  },
+
+  async create(
+    invoiceId: string,
+    fileUrl: string,
+    fileName: string | null,
+    fileSize: number | null,
+    mimeType: string | null,
+    description: string | null,
+    uploadedBy: string,
+  ): Promise<GeneralInvoiceAttachment> {
+    const { rows } = await pool.query<GeneralInvoiceAttachment>(
+      `INSERT INTO general_invoice_attachments
+        (invoice_id, file_url, file_name, file_size, mime_type, description, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [invoiceId, fileUrl, fileName, fileSize, mimeType, description, uploadedBy],
+    )
+    return rows[0]
+  },
+
+  async findById(id: string): Promise<GeneralInvoiceAttachment | null> {
+    const { rows } = await pool.query<GeneralInvoiceAttachment>(
+      `SELECT * FROM general_invoice_attachments WHERE id = $1`,
+      [id],
+    )
+    return rows[0] ?? null
+  },
+
+  async hardDelete(id: string): Promise<void> {
+    await pool.query(`DELETE FROM general_invoice_attachments WHERE id = $1`, [id])
+  },
+
+  MAX_ATTACHMENTS_PER_INVOICE,
 }
 
 // ============================================================

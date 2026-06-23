@@ -83,6 +83,10 @@ router.post(
   validateSchema(generalInvoiceParamSchema),
   (req, res) => generalInvoicesController.uploadAttachment(req, res),
 )
+// Multi-attachment endpoints (new — replaces singular /attachment above for new code)
+router.get(    '/general-invoices/:id/attachments',                canView('general_invoices'),   validateSchema(generalInvoiceParamSchema), (req, res) => generalInvoicesController.listAttachments(req, res))
+router.post(   '/general-invoices/:id/attachments',                requireWriteAccess, canUpdate('general_invoices'), documentUploadSingle('file'), validateSchema(generalInvoiceParamSchema), (req, res) => generalInvoicesController.uploadNewAttachment(req, res))
+router.delete( '/general-invoices/:id/attachments/:attachmentId',  requireWriteAccess, canDelete('general_invoices'), (req, res) => generalInvoicesController.deleteNewAttachment(req, res))
 router.delete( '/general-invoices/:id',        requireWriteAccess, canDelete('general_invoices'), validateSchema(generalInvoiceParamSchema),   (req, res) => generalInvoicesController.delete(req, res))
 router.delete( '/general-invoices/:id/force',  requireWriteAccess, canRelease('general_invoices'), validateSchema(generalInvoiceParamSchema),  (req, res) => generalInvoicesController.forceDelete(req, res))
 

@@ -1,6 +1,6 @@
 import { z } from '@/lib/openapi'
 
-const vendorTypes  = ['UTILITY', 'RENT', 'SERVICE', 'SUBSCRIPTION', 'OTHER'] as const
+const vendorTypes  = ['UTILITY', 'RENT', 'SERVICE', 'SUBSCRIPTION', 'OTHER', 'EMPLOYEE'] as const
 const transactionTypes = ['EXPENSE', 'PREPAID'] as const
 const paymentMethods = ['TRANSFER', 'CASH', 'CC_OWNER'] as const
 const recurrenceTypes = ['MONTHLY', 'QUARTERLY', 'YEARLY'] as const
