@@ -380,7 +380,23 @@ export class JournalHeadersService {
       journal.source_module === 'ap_payments' &&
       journal.reference_id
     ) {
-      await apPaymentsRepository.revertPaidAfterJournalDelete(journal.reference_id, userId)
+      // AP payment journal force-delete (atomic):
+      // Revert payment status + delete this journal in a single transaction.
+      await journalHeadersRepository.withTransaction(async (client) => {
+        await apPaymentsRepository.revertPaidAfterJournalDelete(journal.reference_id!, userId, client)
+        await journalHeadersRepository.clearReversalReferences(id, client)
+        await journalHeadersRepository.clearJournalReferences(id, client)
+        await journalHeadersRepository.delete(id, userId, client)
+      })
+
+      // Audit log — best-effort, outside transaction
+      await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+        journal_number: journal.journal_number,
+        status: journal.status,
+        ap_payment_id: journal.reference_id,
+      })
+      logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+      return // Skip the generic cleanup at bottom — already done inside transaction
     } else if (
       journal.reference_type === 'general_invoice' &&
       journal.source_module === 'general_invoices' &&
