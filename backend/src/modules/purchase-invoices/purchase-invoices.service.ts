@@ -1092,12 +1092,12 @@ export class PurchaseInvoicesService {
       }
 
       const coaByCode = new Map<string, string>()
-      for (const r of await purchaseInvoicesRepository.findCoaIdsByCodes(client, companyId, ['110501', '110601', '210101'])) {
+      for (const r of await purchaseInvoicesRepository.findCoaIdsByCodes(client, companyId, ['110501', '510304', '210101'])) {
         coaByCode.set(r.account_code, r.id)
       }
 
       const coaInv = coaByCode.get('110501')
-      const coaTax = coaByCode.get('510304') // Ganti dengan kode COA PPN Masukan yang kamu inginkan
+      const coaTax = coaByCode.get('510304') // PPN Masukan
       const coaPayable = coaByCode.get('210101')
       if (!coaInv || !coaTax || !coaPayable) {
         throw new Error('COA codes missing for purchase invoice posting')
