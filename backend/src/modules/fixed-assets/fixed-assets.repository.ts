@@ -1794,36 +1794,42 @@ export async function createAssetWithAccumDepr(
  * `reverseDepreciationRunFromJournal` — each cascade operation is
  * independently atomic even though the outer `forceDelete` is not.
  */
-export async function hardDeleteAssetByJournalId(journalId: string): Promise<string | null> {
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-
-    const { rows } = await client.query<{ id: string }>(
+export async function hardDeleteAssetByJournalId(journalId: string, client?: PoolClient): Promise<string | null> {
+  const doWork = async (db: PoolClient): Promise<string | null> => {
+    const { rows } = await db.query<{ id: string }>(
       `SELECT id FROM fixed_assets WHERE journal_id = $1 AND deleted_at IS NULL ORDER BY id FOR UPDATE`,
       [journalId],
     )
-    if (rows.length === 0) {
-      await client.query('ROLLBACK')
-      return null
-    }
+    if (rows.length === 0) return null
 
     const assetId = rows[0].id
 
     // Delete movements first (FK dependency)
-    await client.query(`DELETE FROM asset_movements WHERE fixed_asset_id = $1`, [assetId])
+    await db.query(`DELETE FROM asset_movements WHERE fixed_asset_id = $1`, [assetId])
     // Delete photos if any
-    await client.query(`DELETE FROM asset_photos WHERE fixed_asset_id = $1`, [assetId])
+    await db.query(`DELETE FROM asset_photos WHERE fixed_asset_id = $1`, [assetId])
     // Delete the asset itself
-    await client.query(`DELETE FROM fixed_assets WHERE id = $1`, [assetId])
+    await db.query(`DELETE FROM fixed_assets WHERE id = $1`, [assetId])
 
-    await client.query('COMMIT')
     return assetId
+  }
+
+  if (client) {
+    return doWork(client)
+  }
+
+  // Self-managed transaction when called standalone
+  const ownClient = await pool.connect()
+  try {
+    await ownClient.query('BEGIN')
+    const result = await doWork(ownClient)
+    await ownClient.query('COMMIT')
+    return result
   } catch (err) {
-    await client.query('ROLLBACK')
+    await ownClient.query('ROLLBACK')
     throw err
   } finally {
-    client.release()
+    ownClient.release()
   }
 }
 

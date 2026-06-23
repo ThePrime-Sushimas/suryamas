@@ -484,6 +484,7 @@ export async function reverseDepreciationRunFromJournal(
   companyId: string,
   triggerJournalId: string,
   userId: string,
+  client?: PoolClient,
 ): Promise<void> {
   const run = await repository.findRunById(runId, companyId)
   if (!run || run.status !== 'POSTED') {
@@ -504,69 +505,82 @@ export async function reverseDepreciationRunFromJournal(
       run_id: runId,
       company_id: companyId,
     })
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
+    if (client) {
       await repository.deleteRun(runId, client)
-      await client.query('COMMIT')
-    } catch (e) {
-      await client.query('ROLLBACK')
-      throw e
-    } finally {
-      client.release()
+    } else {
+      const ownClient = await pool.connect()
+      try {
+        await ownClient.query('BEGIN')
+        await repository.deleteRun(runId, ownClient)
+        await ownClient.query('COMMIT')
+      } catch (e) {
+        await ownClient.query('ROLLBACK')
+        throw e
+      } finally {
+        ownClient.release()
+      }
     }
     return
   }
 
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-
+  const doWork = async (db: PoolClient) => {
     // 1. Rollback accumulated_depreciation on each asset
     for (const entry of entries) {
       await repository.decrementAccumulatedDepreciation(
         entry.fixed_asset_id,
         entry.depreciation_amount,
-        client,
+        db,
       )
     }
 
     // 2. Delete movement records for this run
-    await repository.deleteDepreciationMovements(runId, client)
+    await repository.deleteDepreciationMovements(runId, db)
 
     // 3. Delete depreciation entries
-    await repository.deleteRunEntries(runId, client)
+    await repository.deleteRunEntries(runId, db)
 
     // 4. Hard delete sibling journals (excluding the one already being deleted by caller)
     const siblingJournalIds = (run.journal_ids ?? []).filter(jId => jId !== triggerJournalId)
-    await journalHeadersRepository.bulkHardDelete(siblingJournalIds, client)
+    await journalHeadersRepository.bulkHardDelete(siblingJournalIds, db)
 
     // 5. Delete the run record itself
-    await repository.deleteRun(runId, client)
-
-    await client.query('COMMIT')
-
-    await AuditService.log('DELETE', 'depreciation_run', runId, userId, {
-      status: 'POSTED',
-      trigger: 'journal_force_delete',
-      trigger_journal_id: triggerJournalId,
-      journal_ids: run.journal_ids,
-      asset_count: entries.length,
-      total_amount: run.total_depreciation_amount,
-    })
-
-    logInfo('Depreciation run cascade-deleted from journal forceDelete', {
-      run_id: runId,
-      company_id: companyId,
-      trigger_journal_id: triggerJournalId,
-      sibling_journals_deleted: siblingJournalIds,
-      asset_count: entries.length,
-      user_id: userId,
-    })
-  } catch (e) {
-    await client.query('ROLLBACK')
-    throw e
-  } finally {
-    client.release()
+    await repository.deleteRun(runId, db)
   }
+
+  if (client) {
+    await doWork(client)
+  } else {
+    // Self-managed transaction when called standalone
+    const ownClient = await pool.connect()
+    try {
+      await ownClient.query('BEGIN')
+      await doWork(ownClient)
+      await ownClient.query('COMMIT')
+    } catch (e) {
+      await ownClient.query('ROLLBACK')
+      throw e
+    } finally {
+      ownClient.release()
+    }
+  }
+
+  // Audit log — best-effort, outside transaction
+  const siblingJournalIds = (run.journal_ids ?? []).filter(jId => jId !== triggerJournalId)
+  await AuditService.log('DELETE', 'depreciation_run', runId, userId, {
+    status: 'POSTED',
+    trigger: 'journal_force_delete',
+    trigger_journal_id: triggerJournalId,
+    journal_ids: run.journal_ids,
+    asset_count: entries.length,
+    total_amount: run.total_depreciation_amount,
+  })
+
+  logInfo('Depreciation run cascade-deleted from journal forceDelete', {
+    run_id: runId,
+    company_id: companyId,
+    trigger_journal_id: triggerJournalId,
+    sibling_journals_deleted: siblingJournalIds,
+    asset_count: entries.length,
+    user_id: userId,
+  })
 }

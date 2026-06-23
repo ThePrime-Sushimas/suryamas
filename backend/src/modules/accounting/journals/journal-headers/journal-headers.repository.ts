@@ -3,7 +3,7 @@ import type { PoolClient } from 'pg'
 import type { Queryable } from '../../../../types/db.types'
 import { JournalHeader, JournalHeaderWithLines, CreateJournalDto, JournalFilter, SortParams } from './journal-headers.types'
 import { JournalStatus } from '../shared/journal.types'
-import { logError, logInfo } from '../../../../config/logger'
+import { logInfo } from '../../../../config/logger'
 
 const VALID_SORT_FIELDS = ['journal_number', 'journal_date', 'journal_type', 'status', 'total_debit', 'created_at', 'updated_at', 'id']
 

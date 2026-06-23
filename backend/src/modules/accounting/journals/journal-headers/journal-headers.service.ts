@@ -581,25 +581,62 @@ export class JournalHeadersService {
       journal.source_module === 'fixed_assets' &&
       journal.reference_id
     ) {
-      // Depreciation run hard-delete cascade:
-      // Rollback accumulated_depreciation, delete movements, entries, run, and sibling journals
+      // Depreciation run hard-delete cascade (atomic):
+      // 1 run = N journals (one per branch). All siblings cascade-deleted together.
+      // Guard checks (run status, fiscal period) run BEFORE transaction — read-only, no side effects.
       const { reverseDepreciationRunFromJournal } = await import('../../../fixed-assets/depreciation.service')
-      await reverseDepreciationRunFromJournal(journal.reference_id, companyId, id, userId)
+
+      await journalHeadersRepository.withTransaction(async (client) => {
+        // reverseDepreciationRunFromJournal handles: rollback accum_depr, delete movements/entries/run,
+        // and bulkHardDelete sibling journals (excluding triggerJournalId which we delete below).
+        await reverseDepreciationRunFromJournal(journal.reference_id!, companyId, id, userId, client)
+
+        // Delete the triggering journal itself
+        await journalHeadersRepository.clearReversalReferences(id, client)
+        await journalHeadersRepository.clearJournalReferences(id, client)
+        await journalHeadersRepository.delete(id, userId, client)
+      })
+
+      // Audit log for the triggering journal — best-effort, outside transaction
+      // (reverseDepreciationRunFromJournal already logs its own audit for the run)
+      await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+        journal_number: journal.journal_number,
+        status: journal.status,
+        depreciation_run_id: journal.reference_id,
+      })
+      logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+      return // Skip the generic cleanup at bottom — already done inside transaction
     } else if (
       journal.reference_type === 'asset_opening_balance' &&
       journal.source_module === 'fixed_assets' &&
       journal.reference_id
     ) {
-      // Opening balance asset hard-delete cascade:
-      // The asset was created solely by this journal — remove asset + movements
+      // Opening balance asset hard-delete cascade (atomic):
+      // The asset was created solely by this journal — remove asset + movements + journal in one tx.
+      // No siblings — 1 asset = 1 opening balance journal.
       const { hardDeleteAssetByJournalId } = await import('../../../fixed-assets/fixed-assets.repository')
-      const deletedAssetId = await hardDeleteAssetByJournalId(id)
+
+      let deletedAssetId: string | null = null
+      await journalHeadersRepository.withTransaction(async (client) => {
+        deletedAssetId = await hardDeleteAssetByJournalId(id, client)
+        await journalHeadersRepository.clearReversalReferences(id, client)
+        await journalHeadersRepository.clearJournalReferences(id, client)
+        await journalHeadersRepository.delete(id, userId, client)
+      })
+
+      // Audit logs — best-effort, outside transaction
       if (deletedAssetId) {
         await AuditService.log('FORCE_DELETE', 'fixed_asset', deletedAssetId, userId, {
           reason: 'Cascade from opening balance journal force delete',
           journal_id: id,
         })
       }
+      await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+        journal_number: journal.journal_number,
+        status: journal.status,
+      })
+      logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+      return // Skip the generic cleanup at bottom — already done inside transaction
     } else if (
       journal.reference_type === 'purchase_invoice' &&
       journal.source_module === 'purchase_invoice' &&
