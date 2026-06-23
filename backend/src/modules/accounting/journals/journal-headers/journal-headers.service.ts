@@ -10,6 +10,7 @@ import { logInfo, logError, logWarn } from '../../../../config/logger'
 import { AuditService } from '../../../monitoring/monitoring.service'
 import { marketplacePoRepository } from '../../../marketplace-po/marketplace-po.repository'
 import { apPaymentsRepository } from '../../../ap-payments/ap-payments.repository'
+import { purchaseInvoicesRepository } from '../../../purchase-invoices/purchase-invoices.repository'
 import {
   generalInvoiceRepository,
   generalPaymentRepository,
@@ -506,6 +507,97 @@ export class JournalHeadersService {
           journal_id: id,
         })
       }
+    } else if (
+      journal.reference_type === 'purchase_invoice' &&
+      journal.source_module === 'purchase_invoice' &&
+      journal.reference_id
+    ) {
+      // Purchase invoice journal force-delete cascade (atomic):
+      // All operations run in a single transaction — if any step fails, nothing is committed.
+      // Order: delete AP payment journals → revert AP payments → revert PI → delete this journal.
+      const piId = journal.reference_id
+
+      const linkedPayments = await apPaymentsRepository.findPaymentIdsWithJournalByInvoiceId(piId)
+
+      await journalHeadersRepository.withTransaction(async (client) => {
+        // 1. Delete AP payment journals linked to this PI
+        for (const payment of linkedPayments) {
+          // AP payment journals always have a different source_module ('ap_payments')
+          // than the PI journal ('purchase_invoice'), so journal IDs are always distinct.
+          await journalHeadersRepository.clearReversalReferences(payment.journal_id, client)
+          await journalHeadersRepository.clearJournalReferences(payment.journal_id, client)
+          await journalHeadersRepository.delete(payment.journal_id, userId, client)
+        }
+
+        // 2. Revert AP payment status (PAID/RECONCILED → APPROVED)
+        for (const payment of linkedPayments) {
+          await apPaymentsRepository.revertPaidAfterJournalDelete(payment.id, userId, client)
+        }
+
+        // 3. Revert PI status back to APPROVED
+        await purchaseInvoicesRepository.updateStatus(client, piId, 'APPROVED', {
+          journal_id: null,
+          posted_by: null,
+          posted_at: null,
+          updated_by: userId,
+        })
+
+        // 4. Delete the PI journal itself (the one being force-deleted)
+        await journalHeadersRepository.clearReversalReferences(id, client)
+        await journalHeadersRepository.clearJournalReferences(id, client)
+        await journalHeadersRepository.delete(id, userId, client)
+      })
+
+      // Audit logs — best-effort, outside transaction
+      for (const payment of linkedPayments) {
+        await AuditService.log('FORCE_DELETE', 'journal_header', payment.journal_id, userId, {
+          reason: 'AP payment journal deleted via PI journal cascade',
+          purchase_invoice_id: piId,
+        })
+      }
+      await AuditService.log('FORCE_DELETE', 'purchase_invoices', piId, userId, {
+        reason: 'Cascade from PI journal force delete',
+        journal_id: id,
+        ap_payments_reverted: linkedPayments.length,
+      })
+      await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+        journal_number: journal.journal_number,
+        status: journal.status,
+      })
+      logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+      return // Skip the generic cleanup at bottom — already done inside transaction
+    } else if (
+      journal.reference_type === 'fixed_asset' &&
+      journal.source_module === 'fixed_assets' &&
+      journal.reference_id
+    ) {
+      // Fixed asset capitalization journal force-delete (atomic):
+      // Guard check runs BEFORE transaction — read-only, no side effects to rollback.
+      const { hasDepreciationEntries, revertCapitalizationFromJournal } = await import('../../../fixed-assets/fixed-assets.repository')
+      const hasDep = await hasDepreciationEntries(journal.reference_id)
+      if (hasDep) {
+        throw JournalErrors.CANNOT_DELETE_POSTED()
+      }
+
+      // All mutations in a single transaction — if any step fails, nothing is committed.
+      await journalHeadersRepository.withTransaction(async (client) => {
+        await revertCapitalizationFromJournal(journal.reference_id!, userId, client)
+        await journalHeadersRepository.clearReversalReferences(id, client)
+        await journalHeadersRepository.clearJournalReferences(id, client)
+        await journalHeadersRepository.delete(id, userId, client)
+      })
+
+      // Audit logs — best-effort, outside transaction
+      await AuditService.log('FORCE_DELETE', 'fixed_asset_capitalization', journal.reference_id, userId, {
+        reason: 'Cascade from capitalization journal force delete',
+        journal_id: id,
+      })
+      await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+        journal_number: journal.journal_number,
+        status: journal.status,
+      })
+      logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+      return // Skip the generic cleanup at bottom — already done inside transaction
     }
 
     await journalHeadersRepository.clearReversalReferences(id)

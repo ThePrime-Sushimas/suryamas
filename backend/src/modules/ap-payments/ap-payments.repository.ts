@@ -1450,8 +1450,9 @@ export class ApPaymentsRepository {
   }
 
   /** Revert PAID/RECONCILED → APPROVED after journal hard-delete (keep proof upload). */
-  async revertPaidAfterJournalDelete(paymentId: string, userId: string): Promise<void> {
-    await pool.query(
+  async revertPaidAfterJournalDelete(paymentId: string, userId: string, client?: PoolClient): Promise<void> {
+    const db = client ?? pool
+    await db.query(
       `UPDATE ap_payments SET
          status = 'APPROVED',
          journal_id = NULL,
@@ -1629,6 +1630,19 @@ export class ApPaymentsRepository {
     )
   }
 
+  /** Find AP payment IDs (with journal) linked to a purchase invoice. Used by journal forceDelete cascade. */
+  async findPaymentIdsWithJournalByInvoiceId(invoiceId: string): Promise<Array<{ id: string; journal_id: string }>> {
+    const { rows } = await pool.query<{ id: string; journal_id: string }>(
+      `SELECT DISTINCT p.id, p.journal_id
+       FROM ap_payment_invoice_lines l
+       JOIN ap_payments p ON p.id = l.ap_payment_id
+       WHERE l.purchase_invoice_id = $1
+         AND p.journal_id IS NOT NULL
+         AND p.deleted_at IS NULL`,
+      [invoiceId],
+    )
+    return rows
+  }
 }
 
 export const apPaymentsRepository = new ApPaymentsRepository()

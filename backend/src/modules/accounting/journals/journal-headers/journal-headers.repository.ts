@@ -351,6 +351,9 @@ export class JournalHeadersRepository {
     await db.query("UPDATE general_invoice_payments SET cc_settlement_id = NULL WHERE cc_settlement_id IN (SELECT id FROM marketplace_settlements WHERE journal_id = $1)", [journalId])
     await db.query("DELETE FROM marketplace_settlements WHERE journal_id = $1", [journalId])
     await db.query("UPDATE fixed_assets SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE stock_adjustments SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE stock_transfers SET source_journal_id = NULL, updated_at = NOW() WHERE source_journal_id = $1", [journalId])
+    await db.query("UPDATE stock_transfers SET target_journal_id = NULL, updated_at = NOW() WHERE target_journal_id = $1", [journalId])
   }
 
   async clearReversalReferences(journalId: string, client?: PoolClient): Promise<void> {

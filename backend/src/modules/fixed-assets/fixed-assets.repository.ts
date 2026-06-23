@@ -1826,3 +1826,92 @@ export async function hardDeleteAssetByJournalId(journalId: string): Promise<str
     client.release()
   }
 }
+
+/**
+ * Check if a fixed asset has any depreciation entries from POSTED runs.
+ * Used by journal forceDelete to guard against deleting capitalization journals
+ * when the asset already has depreciation history.
+ *
+ * Only POSTED runs are considered because:
+ * - PREVIEW runs are dry-runs that have NOT modified accumulated_depreciation on the asset.
+ * - REVERSED runs have already been undone (accumulated_depreciation rolled back).
+ * Only a POSTED (active) depreciation run means the asset's book value depends on
+ * the capitalization journal remaining in place.
+ *
+ * Depreciation run statuses: 'PREVIEW' | 'POSTED' | 'REVERSED'
+ */
+export async function hasDepreciationEntries(assetId: string): Promise<boolean> {
+  const { rows } = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS(
+       SELECT 1 FROM asset_depreciation_entries ade
+       JOIN asset_depreciation_runs dr ON dr.id = ade.depreciation_run_id
+       WHERE ade.fixed_asset_id = $1 AND dr.status = 'POSTED'
+     ) AS exists`,
+    [assetId],
+  )
+  return rows[0]?.exists ?? false
+}
+
+/**
+ * Revert a capitalization triggered by a journal.
+ * Sets asset status back to DRAFT, clears journal_id and capitalized_date.
+ * Also removes the CAPITALIZE movement record(s) for this asset.
+ *
+ * Note on scope of DELETE FROM asset_movements:
+ * The asset_movements table does NOT store a journal_id for CAPITALIZE movements.
+ * Its reference_id/reference_type columns point to the SOURCE of capitalization
+ * (e.g., gr_line_id/goods_receipt, invoiceId/purchase_invoice) — not to the journal.
+ * However, an asset can only have one active capitalization at any time (the
+ * activateAsset() function guards with WHERE status = 'DRAFT'). Since we are
+ * reverting the asset back to DRAFT, all CAPITALIZE movements are invalid and
+ * should be removed. There cannot be a "previous valid" CAPITALIZE movement
+ * that needs to be preserved.
+ */
+export async function revertCapitalizationFromJournal(assetId: string, userId: string, client?: PoolClient): Promise<void> {
+  if (client) {
+    await client.query(
+      `UPDATE fixed_assets
+       SET status = 'DRAFT', journal_id = NULL, capitalized_date = NULL,
+           updated_by = $1, updated_at = now()
+       WHERE id = $2 AND deleted_at IS NULL`,
+      [userId, assetId],
+    )
+    await client.query(
+      `DELETE FROM asset_movements
+       WHERE fixed_asset_id = $1 AND movement_type = 'CAPITALIZE'`,
+      [assetId],
+    )
+    return
+  }
+
+  // Self-managed transaction when called standalone
+  const ownClient = await pool.connect()
+  try {
+    await ownClient.query('BEGIN')
+
+    await ownClient.query(
+      `UPDATE fixed_assets
+       SET status = 'DRAFT', journal_id = NULL, capitalized_date = NULL,
+           updated_by = $1, updated_at = now()
+       WHERE id = $2 AND deleted_at IS NULL`,
+      [userId, assetId],
+    )
+
+    // Remove ALL CAPITALIZE movement records for this asset.
+    // Safe because: (1) asset can only be capitalized once at a time (DRAFT→ACTIVE guard),
+    // (2) we are reverting to DRAFT so no capitalization record should exist,
+    // (3) there is no journal_id column on asset_movements to filter by.
+    await ownClient.query(
+      `DELETE FROM asset_movements
+       WHERE fixed_asset_id = $1 AND movement_type = 'CAPITALIZE'`,
+      [assetId],
+    )
+
+    await ownClient.query('COMMIT')
+  } catch (err) {
+    await ownClient.query('ROLLBACK')
+    throw err
+  } finally {
+    ownClient.release()
+  }
+}
