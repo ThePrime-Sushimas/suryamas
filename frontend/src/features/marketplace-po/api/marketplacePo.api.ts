@@ -354,7 +354,7 @@ export function useOrderSession() {
   })
 }
 
-// ── CC Owner Settlements ──
+// ── CC Settlements ──
 export function usePendingMarketplaceSessions() {
   return useQuery<MarketplaceCheckoutSession[]>({
     queryKey: ['marketplace-sessions', 'pending-settlement'],

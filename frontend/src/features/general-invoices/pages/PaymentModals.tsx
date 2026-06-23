@@ -201,7 +201,7 @@ export function CreatePaymentModal({
             </div>
           </div>
 
-          {/* Bank account or CC Owner */}
+          {/* Bank account or CC */}
           {paymentMethod === "TRANSFER" && (
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600">
@@ -251,7 +251,7 @@ export function CreatePaymentModal({
                 </p>
               )}
               <p className="text-[11px] text-gray-400">
-                Hutang akan dicatat ke akun CC owner, lalu dilunasi di halaman
+                Hutang akan dicatat ke akun Credit Card, lalu dilunasi di halaman
                 CC Settlements
               </p>
             </div>

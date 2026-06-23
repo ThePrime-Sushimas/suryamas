@@ -292,7 +292,7 @@ export default function CCOwnerSettlementsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">Tagihan Umum via CC Owner (Belum Lunas)</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-white">Tagihan Umum via Credit Card (Belum Lunas)</h2>
                 <p className="text-xs text-gray-500 mt-1">General invoice yang dibayar via marketplace — perlu di-settle ke owner</p>
               </div>
               <button

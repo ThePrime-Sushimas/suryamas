@@ -182,7 +182,7 @@ export default function MarketplacePoNewPage() {
 
         <section className="bg-white dark:bg-gray-800 rounded-2xl border p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">CC Owner *</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Credit Card *</label>
             <select
               value={ccId}
               onChange={(e) => setCcId(e.target.value)}

@@ -381,7 +381,7 @@ export class MarketplacePoController {
     try {
       const { companyIds } = await mpScope(req)
       const data = await marketplacePoService.getPendingCcOwnerGeneralInvoicePayments(companyIds)
-      sendSuccess(res, data, 'Pending CC owner general invoice payments fetched')
+      sendSuccess(res, data, 'Pending Credit Card general invoice payments fetched')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'get_pending_cc_owner_gi_payments' })
     }

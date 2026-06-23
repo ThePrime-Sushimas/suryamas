@@ -152,10 +152,13 @@ export class MarketplacePoRepository {
   ): Promise<string | null> {
     const db = client ?? pool
     const { rows } = await db.query(
-      `SELECT coa_code FROM bank_accounts WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+      `SELECT coa.account_code
+       FROM bank_accounts ba
+       JOIN chart_of_accounts coa ON coa.id = ba.coa_account_id
+       WHERE ba.id = $1 AND ba.owner_id = $2 AND ba.deleted_at IS NULL`,
       [bankAccountId, companyId],
     )
-    return rows[0]?.coa_code ?? null
+    return rows[0]?.account_code ?? null
   }
 
   async completeSessionSettlement(

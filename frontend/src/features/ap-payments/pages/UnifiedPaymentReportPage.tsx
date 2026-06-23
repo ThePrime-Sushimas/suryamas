@@ -41,7 +41,7 @@ const DEFAULT_PAGE_SIZE = 25
 const GENERAL_PAYMENT_METHOD_LABELS: Record<string, string> = {
   TRANSFER: 'Transfer',
   CASH: 'Cash',
-  CC_OWNER: 'CC Owner',
+  CC_OWNER: 'Credit Card',
 }
 
 // ─── Unified row type ─────────────────────────────────────────────────────────

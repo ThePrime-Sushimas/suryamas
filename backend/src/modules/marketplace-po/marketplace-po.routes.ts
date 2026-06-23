@@ -39,7 +39,7 @@ PermissionService.registerModule('owner_credit_cards', 'Owner Credit Cards').cat
   console.error('Failed to register owner_credit_cards module:', err instanceof Error ? err.message : err)
 })
 
-PermissionService.registerModule('cc_owner_settlements', 'CC Owner Settlements / Pelunasan CC').catch((err) => {
+PermissionService.registerModule('cc_owner_settlements', 'Credit Card Settlements / Pelunasan Credit Card').catch((err) => {
   console.error('Failed to register cc_owner_settlements module:', err instanceof Error ? err.message : err)
 })
 

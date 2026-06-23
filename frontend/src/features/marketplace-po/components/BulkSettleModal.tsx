@@ -86,7 +86,7 @@ export function BulkSettleModal({
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Pelunasan Bulk CC Owner
+            Pelunasan Bulk Credit Card
           </h2>
           <button type="button" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
