@@ -638,6 +638,88 @@ export class JournalHeadersService {
       logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
       return // Skip the generic cleanup at bottom — already done inside transaction
     } else if (
+      journal.reference_type === 'asset_transfer' &&
+      journal.source_module === 'fixed_assets' &&
+      journal.reference_id
+    ) {
+      // Asset transfer journal: BLOCKED.
+      // Transfer journals come in pairs (source + destination branch). Reverting would require:
+      // moving the asset back to original branch, deleting TRANSFER movement, and deleting both journals.
+      // This is high-risk because: (1) asset may have been depreciated in the new branch,
+      // (2) inter-branch transit account would be imbalanced, (3) no safe automated reverse path.
+      // Users must void the transfer manually from the Fixed Assets module instead.
+      throw JournalErrors.CANNOT_DELETE_POSTED()
+    } else if (
+      journal.reference_type === 'asset_disposal' &&
+      journal.source_module === 'fixed_assets' &&
+      journal.reference_id
+    ) {
+      // Asset disposal journal force-delete (atomic):
+      // Reverts: disposal record POSTED→DRAFT, asset status DISPOSED→ACTIVE, removes DISPOSAL movement.
+      // BLOCKED for partial disposals (quantity/cost/accum_depr cannot be safely reconstructed).
+      // Detection uses the DISPOSAL movement record's to_value (definitive source of truth),
+      // NOT the current asset status (which may have changed from subsequent disposals).
+      const { findDisposalById, findById: findAssetById, updateStatus: updateAssetStatus, findDisposalMovementToValue } = await import('../../../fixed-assets/fixed-assets.repository')
+
+      const disposal = await findDisposalById(journal.reference_id, companyId)
+      if (!disposal) {
+        // Disposal record not found — orphan journal, fall through to generic cleanup
+      } else {
+        const asset = await findAssetById(disposal.fixed_asset_id, companyId)
+        if (!asset) {
+          // Asset not found — orphan disposal, fall through to generic cleanup
+        } else {
+          // Look up the DISPOSAL movement to determine if this was partial or full.
+          // Movement to_value: 'DISPOSED' = full disposal (only status changed, safe to revert).
+          // Movement to_value: 'qty:N' = partial disposal (quantity/cost mutated, NOT reversible).
+          const movementToValue = await findDisposalMovementToValue(asset.id, disposal.id)
+
+          // Guard: if movement not found or to_value !== 'DISPOSED', this was partial → BLOCK
+          if (!movementToValue || movementToValue !== 'DISPOSED') {
+            throw JournalErrors.CANNOT_DELETE_POSTED()
+          }
+
+          await journalHeadersRepository.withTransaction(async (client) => {
+            // 1. Revert asset status DISPOSED → ACTIVE
+            await updateAssetStatus(asset.id, 'ACTIVE', userId, client)
+
+            // 2. Delete DISPOSAL movement record
+            await client.query(
+              `DELETE FROM asset_movements
+               WHERE fixed_asset_id = $1 AND movement_type = 'DISPOSAL' AND reference_id = $2 AND reference_type = 'asset_disposal'`,
+              [asset.id, disposal.id],
+            )
+
+            // 3. Revert disposal record POSTED → DRAFT
+            await client.query(
+              `UPDATE asset_disposals
+               SET status = 'DRAFT', journal_id = NULL, posted_by = NULL, posted_at = NULL, updated_at = NOW()
+               WHERE id = $1`,
+              [disposal.id],
+            )
+
+            // 4. Delete the journal itself
+            await journalHeadersRepository.clearReversalReferences(id, client)
+            await journalHeadersRepository.clearJournalReferences(id, client)
+            await journalHeadersRepository.delete(id, userId, client)
+          })
+
+          // Audit logs — best-effort, outside transaction
+          await AuditService.log('FORCE_DELETE', 'asset_disposals', disposal.id, userId, {
+            reason: 'Cascade from disposal journal force delete',
+            journal_id: id,
+            asset_id: asset.id,
+            reverted_status: 'DRAFT',
+          })
+          await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+            journal_number: journal.journal_number,
+            status: journal.status,
+          })
+          logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+          return // Skip the generic cleanup at bottom — already done inside transaction
+        }
+      }
+    } else if (
       journal.reference_type === 'purchase_invoice' &&
       journal.source_module === 'purchase_invoice' &&
       journal.reference_id

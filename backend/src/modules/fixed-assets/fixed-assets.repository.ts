@@ -1921,3 +1921,19 @@ export async function revertCapitalizationFromJournal(assetId: string, userId: s
     ownClient.release()
   }
 }
+
+/**
+ * Find the `to_value` of the DISPOSAL movement for a specific disposal record.
+ * Used by forceDelete to determine if a disposal was full ('DISPOSED') or partial ('qty:N').
+ * Returns null if movement not found (indicates data corruption or deleted movement).
+ */
+export async function findDisposalMovementToValue(assetId: string, disposalId: string): Promise<string | null> {
+  const { rows } = await pool.query<{ to_value: string | null }>(
+    `SELECT to_value FROM asset_movements
+     WHERE fixed_asset_id = $1 AND movement_type = 'DISPOSAL'
+       AND reference_id = $2 AND reference_type = 'asset_disposal'
+     LIMIT 1`,
+    [assetId, disposalId],
+  )
+  return rows[0]?.to_value ?? null
+}
