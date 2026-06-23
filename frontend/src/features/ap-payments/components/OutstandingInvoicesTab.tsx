@@ -98,15 +98,17 @@ export function OutstandingInvoicesTab({
   const invoices = data?.data ?? [];
   const pagination = data?.pagination;
 
-  // Sync bankAccountAssignments from API data (persisted assignments)
+  // Sync bankAccountAssignments from API data (persisted assignments).
+  // Always overwrite with API values so local state stays in sync after refetch.
   useEffect(() => {
     if (!data?.data || data.data.length === 0) return;
     setBankAccountAssignments((prev) => {
       const next = new Map(prev);
       for (const inv of data.data) {
-        // Only set from API if not already locally overridden
-        if (!next.has(inv.id) && inv.assigned_bank_account_id != null) {
+        if (inv.assigned_bank_account_id != null) {
           next.set(inv.id, inv.assigned_bank_account_id);
+        } else if (!next.has(inv.id)) {
+          // Don't overwrite a local optimistic value with null from API
         }
       }
       return next;
@@ -119,8 +121,10 @@ export function OutstandingInvoicesTab({
     setSupplierBankAssignments((prev) => {
       const next = new Map(prev);
       for (const inv of data.data) {
-        if (!next.has(inv.id) && inv.supplier_bank_account_id != null) {
+        if (inv.supplier_bank_account_id != null) {
           next.set(inv.id, inv.supplier_bank_account_id);
+        } else if (!next.has(inv.id)) {
+          // Don't overwrite a local optimistic value with null from API
         }
       }
       return next;
@@ -153,17 +157,6 @@ export function OutstandingInvoicesTab({
         }
       } else {
         setSelectedAmounts((prev) => {
-          const next = new Map(prev);
-          next.delete(invoiceId);
-          return next;
-        });
-        // V2: Reset bank account assignment when unchecking
-        setBankAccountAssignments((prev) => {
-          const next = new Map(prev);
-          next.delete(invoiceId);
-          return next;
-        });
-        setSupplierBankAssignments((prev) => {
           const next = new Map(prev);
           next.delete(invoiceId);
           return next;
@@ -203,16 +196,6 @@ export function OutstandingInvoicesTab({
         }
         return next;
       });
-      // V2: Reset bank account assignments when unchecking all
-      if (!checked) {
-        setBankAccountAssignments((prev) => {
-          const next = new Map(prev);
-          for (const inv of invoices) {
-            next.delete(inv.id);
-          }
-          return next;
-        });
-      }
     },
     [invoices],
   );
@@ -229,8 +212,6 @@ export function OutstandingInvoicesTab({
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set());
     setSelectedAmounts(new Map());
-    setBankAccountAssignments(new Map());
-    setSupplierBankAssignments(new Map());
   }, []);
 
   // V2: Handle bank account assignment change per invoice (auto-save to DB)
@@ -378,12 +359,12 @@ export function OutstandingInvoicesTab({
                     disabled={isMaxReached && !selectedIds.has(inv.id)}
                     onToggle={handleToggle}
                     bankAccounts={bankAccounts}
-                    bankAccountId={bankAccountAssignments.get(inv.id) ?? null}
+                    bankAccountId={bankAccountAssignments.get(inv.id) ?? inv.assigned_bank_account_id ?? null}
                     onBankAccountChange={handleBankAccountChange}
                     isBankAccountsLoading={isBankAccountsLoading}
                     isBankAccountsError={isBankAccountsError}
                     supplierBankAccountId={
-                      supplierBankAssignments.get(inv.id) ?? null
+                      supplierBankAssignments.get(inv.id) ?? inv.supplier_bank_account_id ?? null
                     }
                     onSupplierBankAccountChange={
                       handleSupplierBankAccountChange
