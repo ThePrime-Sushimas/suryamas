@@ -388,6 +388,31 @@ export class PurchaseInvoicesRepository {
     return rows.map((r) => ({ account_code: String(r.account_code), id: String(r.id) }))
   }
 
+  async findAccountIdByPurpose(
+    client: PoolClient,
+    companyId: string,
+    purposeCode: string,
+    side: 'DEBIT' | 'CREDIT'
+  ): Promise<string | null> {
+    const { rows } = await client.query<{ account_id: string }>(
+      `SELECT apa.account_id
+       FROM accounting_purposes ap
+       JOIN accounting_purpose_accounts apa ON apa.purpose_id = ap.id
+       JOIN chart_of_accounts coa ON coa.id = apa.account_id
+       WHERE ap.company_id = $1
+         AND ap.purpose_code = $2
+         AND apa.side = $3
+         AND (ap.is_deleted IS NULL OR ap.is_deleted = false)
+         AND apa.is_active = true
+         AND apa.deleted_at IS NULL
+         AND coa.deleted_at IS NULL
+       ORDER BY apa.priority ASC
+       LIMIT 1`,
+      [companyId, purposeCode, side],
+    )
+    return rows[0]?.account_id ?? null
+  }
+
   async findFiscalPeriodForDate(client: PoolClient, companyId: string, date: string): Promise<string | null> {
     const { rows } = await client.query(
       `SELECT period FROM fiscal_periods

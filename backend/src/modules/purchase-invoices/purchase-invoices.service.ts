@@ -1091,14 +1091,11 @@ export class PurchaseInvoicesService {
         }
       }
 
-      const coaByCode = new Map<string, string>()
-      for (const r of await purchaseInvoicesRepository.findCoaIdsByCodes(client, companyId, ['110501', '510304', '210101'])) {
-        coaByCode.set(r.account_code, r.id)
-      }
-
-      const coaInv = coaByCode.get('110501')
-      const coaTax = coaByCode.get('510304') // PPN Masukan
-      const coaPayable = coaByCode.get('210101')
+      const [coaInv, coaTax, coaPayable] = await Promise.all([
+        purchaseInvoicesRepository.findAccountIdByPurpose(client, companyId, 'PUR-INV', 'DEBIT'),
+        purchaseInvoicesRepository.findAccountIdByPurpose(client, companyId, 'TAX-PPN', 'DEBIT'),
+        purchaseInvoicesRepository.findAccountIdByPurpose(client, companyId, 'PUR-INV', 'CREDIT'),
+      ])
       if (!coaInv || !coaTax || !coaPayable) {
         throw new Error('COA codes missing for purchase invoice posting')
       }
