@@ -720,16 +720,18 @@ export class MarketplacePoRepository {
     sessionId: string,
     journalId: string,
     userId: string,
+    client?: PoolClient,
   ): Promise<void> {
+    const db = client ?? pool
     // Cek session memang SETTLED karena journal ini
-    const { rows } = await pool.query(
+    const { rows } = await db.query(
       `SELECT id FROM marketplace_checkout_sessions
        WHERE id = $1 AND journal_settled_id = $2 AND status = 'SETTLED' AND deleted_at IS NULL`,
       [sessionId, journalId],
     )
     if (!rows[0]) return
   
-    await pool.query(
+    await db.query(
       `UPDATE marketplace_checkout_sessions
        SET status = 'RECEIVED',
            journal_settled_id = NULL,
@@ -740,7 +742,7 @@ export class MarketplacePoRepository {
     )
   
     // Nullify FK references from general_invoice_payments before deleting settlements
-    await pool.query(
+    await db.query(
       `UPDATE general_invoice_payments
        SET cc_settlement_id = NULL
        WHERE cc_settlement_id IN (
@@ -749,7 +751,7 @@ export class MarketplacePoRepository {
       [sessionId, journalId],
     )
 
-    await pool.query(
+    await db.query(
       `DELETE FROM marketplace_settlements WHERE session_id = $1 AND journal_id = $2`,
       [sessionId, journalId],
     )

@@ -347,13 +347,33 @@ export class JournalHeadersService {
       journal.reference_type === 'marketplace_checkout_session' &&
       journal.source_module === 'marketplace_po'
     ) {
-      // Single settle — reference_id = session id
+      // Marketplace checkout session journal force-delete (atomic):
+      // Handles all 4 journal moments (ordered, correction, received, settled).
+      // - If this is the "settled" journal: reverseSettledSession reverts session to RECEIVED + cleans settlements.
+      // - If this is ordered/received/correction: reverseSettledSession is a no-op (guard returns early).
+      // In both cases, clearJournalReferences NULLifies the correct journal_*_id column.
+      // Each session journal is INDEPENDENT — deleting one does NOT cascade to the others.
       if (journal.reference_id) {
-        await marketplacePoRepository.reverseSettledSession(
-          journal.reference_id,
-          id,
-          userId,
-        )
+        await journalHeadersRepository.withTransaction(async (client) => {
+          await marketplacePoRepository.reverseSettledSession(
+            journal.reference_id!,
+            id,
+            userId,
+            client,
+          )
+          await journalHeadersRepository.clearReversalReferences(id, client)
+          await journalHeadersRepository.clearJournalReferences(id, client)
+          await journalHeadersRepository.delete(id, userId, client)
+        })
+
+        // Audit log — best-effort, outside transaction
+        await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+          journal_number: journal.journal_number,
+          status: journal.status,
+          marketplace_session_id: journal.reference_id,
+        })
+        logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+        return // Skip the generic cleanup at bottom — already done inside transaction
       }
     } else if (journal.reference_type === 'marketplace_bulk_settlement') {
       // Bulk settle — reverse semua session + hapus sibling journals
