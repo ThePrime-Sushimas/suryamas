@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronDown, Play, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'
 import { useUrlFilters } from '@/lib/urlFilters'
-import { useAmortizations, useExecuteAmortization } from '../api/generalApi.api'
+import { useAmortizations, useExecuteAmortization, useAmortizationSchedulerLastRun } from '../api/generalApi.api'
 import type { AmortizationItem, AmortizationEntry } from '../api/generalApi.api'
 import { formatRupiah, formatDate } from '../constants'
 import { useToast } from '@/contexts/ToastContext'
@@ -152,6 +152,7 @@ export default function AmortizationsPage() {
   })
 
   const executeMutation = useExecuteAmortization()
+  const { data: lastRun } = useAmortizationSchedulerLastRun()
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
@@ -214,6 +215,45 @@ export default function AmortizationsPage() {
         <span className="text-xs text-gray-400 ml-1">
           {amortizations.length} jadwal ditemukan
         </span>
+
+        {/* Scheduler last-run badge */}
+        {lastRun && (
+          <div className="ml-auto flex items-center gap-2">
+            {lastRun.has_data_anomaly && (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] bg-red-100 text-red-800 font-medium"
+                title="Terdeteksi orphaned journal — ada inkonsistensi data yang perlu investigasi manual"
+              >
+                <AlertTriangle size={11} />
+                Perlu review manual
+              </span>
+            )}
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] ${
+                lastRun.status === 'SUCCESS'
+                  ? 'bg-green-50 text-green-700'
+                  : lastRun.status === 'PARTIAL'
+                    ? 'bg-amber-50 text-amber-700'
+                    : lastRun.status === 'FAILED'
+                      ? 'bg-red-50 text-red-700'
+                      : 'bg-gray-100 text-gray-500'
+              }`}
+              title={`Trigger: ${lastRun.trigger} · ${lastRun.success_count}/${lastRun.total_entries} berhasil`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                lastRun.status === 'SUCCESS' ? 'bg-green-500' :
+                lastRun.status === 'PARTIAL' ? 'bg-amber-500' :
+                lastRun.status === 'FAILED' ? 'bg-red-500' : 'bg-gray-400'
+              }`} />
+              Auto-run {lastRun.run_month}: {lastRun.status === 'SUCCESS' ? 'OK' : lastRun.status}
+              {lastRun.finished_at && (
+                <span className="text-[10px] opacity-70 ml-1">
+                  ({formatDate(lastRun.finished_at)})
+                </span>
+              )}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Stats */}

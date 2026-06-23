@@ -883,3 +883,27 @@ export const useExecuteAmortization = () => {
     onError: (err) => toast.error(parseApiError(err, 'Gagal eksekusi amortisasi')),
   })
 }
+
+export interface SchedulerLastRun {
+  id: string
+  run_month: string
+  status: 'RUNNING' | 'SUCCESS' | 'PARTIAL' | 'FAILED'
+  total_entries: number
+  success_count: number
+  failed_count: number
+  trigger: 'SCHEDULED' | 'CATCHUP'
+  started_at: string
+  finished_at: string | null
+  has_data_anomaly: boolean
+  error_summary: Array<{ entry_id: string; amortization_id: string; period_number: number; error: string }> | null
+}
+
+export const useAmortizationSchedulerLastRun = () =>
+  useQuery({
+    queryKey: ['general-ap', 'amortizations', 'scheduler-last-run'],
+    queryFn: async () => {
+      const { data } = await api.get('/general-invoice-amortizations/scheduler/last-run')
+      return data.data as SchedulerLastRun | null
+    },
+    staleTime: 60_000,
+  })

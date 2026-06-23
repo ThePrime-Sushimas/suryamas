@@ -122,6 +122,7 @@ router.delete( '/general-invoice-templates/:id',      requireWriteAccess, canDel
 // AMORTIZATIONS  →  /api/v1/general-invoice-amortizations
 // ============================================================
 router.get(    '/general-invoice-amortizations',              canView('general_invoices'),   validateSchema(listAmortizationsSchema), (req, res) => generalInvoiceTemplatesController.listAmortizations(req, res))
+router.get(    '/general-invoice-amortizations/scheduler/last-run', canView('general_invoices'), (req, res) => generalInvoiceTemplatesController.schedulerLastRun(req, res))
 router.post(   '/general-invoice-amortizations/:id/execute',  requireWriteAccess, canUpdate('general_invoices'), validateSchema(executeAmortizationSchema), (req, res) => generalInvoiceTemplatesController.executeAmortization(req, res))
 
 export default router

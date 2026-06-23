@@ -7,6 +7,7 @@ import app from './app'
 import { logInfo, logError } from './config/logger'
 import { jobWorker, registerAllProcessors } from './modules/jobs'
 import { initSocketServer } from './services/socket.service'
+import { startAmortizationScheduler, stopAmortizationScheduler } from './services/amortization-scheduler.service'
 
 const PORT = process.env.PORT || 3000
 
@@ -43,12 +44,18 @@ httpServer.listen(Number(PORT), '0.0.0.0', () => {
   jobWorker.startPolling()
   
   logInfo('Job worker initialized with all processors registered')
+
+  // Start amortization scheduler (cron-based, skip in test env)
+  if (process.env.NODE_ENV !== 'test') {
+    startAmortizationScheduler()
+  }
 })
 
 // Graceful shutdown handlers
 process.on('SIGTERM', async () => {
   logInfo('SIGTERM received, starting graceful shutdown')
   try {
+    stopAmortizationScheduler()
     await jobWorker.gracefulShutdown(30000)
     logInfo('Graceful shutdown completed')
     process.exit(0)
@@ -61,6 +68,7 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   logInfo('SIGINT received, starting graceful shutdown')
   try {
+    stopAmortizationScheduler()
     await jobWorker.gracefulShutdown(30000)
     logInfo('Graceful shutdown completed')
     process.exit(0)

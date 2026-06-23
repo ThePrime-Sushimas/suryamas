@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { sendSuccess } from '../../utils/response.util'
 import { handleError } from '../../utils/error-handler.util'
 import { getAccessibleBranchIds, getAccessibleCompanyIds, resolveContextCompanyId } from '../../utils/branch-access.util'
+import { getLastSchedulerRun } from '../../services/amortization-scheduler.service'
 
 async function giScope(req: Request) {
   const userId = req.user?.id ?? ''
@@ -546,6 +547,15 @@ export class GeneralInvoiceTemplatesController {
       sendSuccess(res, result, 'Amortisasi berhasil dieksekusi')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'execute_amortization', id: req.params.id })
+    }
+  }
+
+  schedulerLastRun = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const data = await getLastSchedulerRun()
+      sendSuccess(res, data)
+    } catch (error: unknown) {
+      await handleError(res, error, _req, { action: 'scheduler_last_run' })
     }
   }
 }
