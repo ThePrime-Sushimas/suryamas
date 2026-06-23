@@ -376,24 +376,43 @@ export class JournalHeadersService {
         return // Skip the generic cleanup at bottom — already done inside transaction
       }
     } else if (journal.reference_type === 'marketplace_bulk_settlement') {
-      // Bulk settle — reverse semua session + hapus sibling journals
+      // Bulk settlement journal force-delete cascade (atomic):
+      // 1 bulk batch = N journals (one per CC+branch combo), all share the same reference_id (bulkId).
+      // Deleting any one journal in the batch cascades to ALL siblings (they are one atomic business op).
       if (journal.reference_id) {
-        const allJournalIds = await marketplacePoRepository.reverseBulkSettledSessions(
-          journal.reference_id,
-          companyId,
-          userId,
-        )
+        await journalHeadersRepository.withTransaction(async (client) => {
+          // Reverse all sessions + delete settlements (pass client for atomicity)
+          const allJournalIds = await marketplacePoRepository.reverseBulkSettledSessions(
+            journal.reference_id!,
+            companyId,
+            userId,
+            client,
+          )
 
-        // Hapus sibling journals (selain yang sedang di-delete)
-        const siblingIds = allJournalIds.filter(jid => jid !== id)
-        for (const siblingId of siblingIds) {
-          await journalHeadersRepository.clearReversalReferences(siblingId)
-          await journalHeadersRepository.clearJournalReferences(siblingId)
-          await journalHeadersRepository.delete(siblingId, userId)
-          await AuditService.log('FORCE_DELETE', 'journal_header', siblingId, userId, {
-            reason: `Sibling bulk settlement journal deleted with ${id}`,
-          })
-        }
+          // Delete ALL journals in the batch (siblings + the triggering one)
+          for (const jId of allJournalIds) {
+            await journalHeadersRepository.clearReversalReferences(jId, client)
+            await journalHeadersRepository.clearJournalReferences(jId, client)
+            await journalHeadersRepository.delete(jId, userId, client)
+          }
+
+          // If the triggering journal wasn't in the list (edge case: already soft-deleted before), delete it too
+          if (!allJournalIds.includes(id)) {
+            await journalHeadersRepository.clearReversalReferences(id, client)
+            await journalHeadersRepository.clearJournalReferences(id, client)
+            await journalHeadersRepository.delete(id, userId, client)
+          }
+        })
+
+        // Audit logs — best-effort, outside transaction
+        await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+          journal_number: journal.journal_number,
+          status: journal.status,
+          bulk_settlement_id: journal.reference_id,
+          reason: 'Bulk settlement batch cascade delete',
+        })
+        logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+        return // Skip the generic cleanup at bottom — already done inside transaction
       }
     } else if (
       journal.reference_type === 'ap_payment' &&

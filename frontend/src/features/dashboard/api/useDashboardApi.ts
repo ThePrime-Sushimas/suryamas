@@ -41,7 +41,7 @@ export const usePosSalesRange = (dateFrom: string, dateTo: string, enabled = tru
     queryKey: ['dashboard', 'pos-sales', extendedFrom, dateTo],
     queryFn: async () => {
       const { data } = await api.get('/pos-sync-aggregates', {
-        params: { date_from: extendedFrom, date_to: dateTo, limit: 500, fields: 'slim' },
+        params: { date_from: extendedFrom, date_to: dateTo, limit: 20000, fields: 'slim' },
       })
       return data.data as SalesRow[]
     },

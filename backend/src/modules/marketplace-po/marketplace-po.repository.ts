@@ -761,9 +761,11 @@ export class MarketplacePoRepository {
     bulkId: string,
     companyId: string,
     userId: string,
+    client?: PoolClient,
   ): Promise<string[]> {
+    const db = client ?? pool
     // Cari semua journal dalam grup bulk yang sama
-    const { rows: journalRows } = await pool.query(
+    const { rows: journalRows } = await db.query(
       `SELECT id FROM journal_headers
        WHERE reference_id = $1
          AND reference_type = 'marketplace_bulk_settlement'
@@ -775,7 +777,7 @@ export class MarketplacePoRepository {
     if (allJournalIds.length === 0) return []
   
     // Cari semua session via marketplace_settlements
-    const { rows: settlementRows } = await pool.query(
+    const { rows: settlementRows } = await db.query(
       `SELECT session_id FROM marketplace_settlements
        WHERE journal_id = ANY($1::uuid[])`,
       [allJournalIds],
@@ -784,7 +786,7 @@ export class MarketplacePoRepository {
     if (sessionIds.length === 0) return allJournalIds
   
     // Balik semua session ke RECEIVED
-    await pool.query(
+    await db.query(
       `UPDATE marketplace_checkout_sessions
        SET status = 'RECEIVED',
            journal_settled_id = NULL,
@@ -797,7 +799,7 @@ export class MarketplacePoRepository {
     )
   
     // Nullify FK references from general_invoice_payments before deleting settlements
-    await pool.query(
+    await db.query(
       `UPDATE general_invoice_payments
        SET cc_settlement_id = NULL
        WHERE cc_settlement_id IN (
@@ -807,7 +809,7 @@ export class MarketplacePoRepository {
     )
 
     // Hapus semua marketplace_settlements
-    await pool.query(
+    await db.query(
       `DELETE FROM marketplace_settlements
        WHERE journal_id = ANY($1::uuid[])`,
       [allJournalIds],
