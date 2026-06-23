@@ -1,5 +1,6 @@
 export interface GeneralLedgerLine {
   line_id: string
+  journal_header_id: string
   account_id: string
   account_code: string
   account_name: string

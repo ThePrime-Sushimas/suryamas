@@ -154,6 +154,7 @@ export class GeneralLedgerRepository {
     const { rows } = await pool.query(
       `SELECT
         glv.line_id,
+        glv.journal_header_id,
         glv.account_id,
         glv.account_code,
         glv.account_name,
@@ -187,6 +188,7 @@ export class GeneralLedgerRepository {
 
     return rows.map(r => ({
       line_id: r.line_id,
+      journal_header_id: r.journal_header_id,
       account_id: r.account_id,
       account_code: r.account_code,
       account_name: r.account_name,

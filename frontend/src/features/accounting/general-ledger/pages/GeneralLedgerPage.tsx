@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import api from '@/lib/axios'
 import { useBranchContextStore } from '@/features/branch_context/store/branchContext.store'
 import { MultiAccountSelector } from '../components/MultiAccountSelector'
+import { getSourceLabel, getSourceRefLink } from '../../shared/journal-source-registry'
 
 // Types
 interface AccountInfo {
@@ -24,6 +25,7 @@ interface OpeningRow {
 
 interface LedgerLine {
   line_id: string
+  journal_header_id: string
   account_id: string
   account_code: string
   account_name: string
@@ -65,17 +67,6 @@ interface GeneralLedgerResponse {
   lines: LedgerLine[]
   summary: Summary
   pagination: Pagination
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  POS_AGGREGATES: 'POS',
-  BANK_RECONCILIATION: 'Bank',
-  purchase_invoices: 'Faktur Beli',
-  general_invoices: 'Invoice Umum',
-  general_invoice_payments: 'Bayar Invoice',
-  ap_payments: 'Bayar AP',
-  marketplace_po: 'Marketplace',
-  FISCAL_CLOSING: 'Tutup Buku',
 }
 
 function fmt(v: number): string {
@@ -177,7 +168,7 @@ export default function GeneralLedgerPage() {
           'No. Jurnal': l.journal_number,
           Keterangan: l.line_description || l.journal_description || '',
           Referensi: l.reference_number || '',
-          Sumber: SOURCE_LABELS[l.source_module || ''] || l.source_module || '',
+          Sumber: getSourceLabel(l.source_module) || l.source_module || '',
           Debit: l.debit_amount || '',
           Kredit: l.credit_amount || '',
           Saldo: l.running_balance,
@@ -485,15 +476,30 @@ function AccountGroup({ group, showAccountColumn, isFirstPage }: {
             <td className="px-3 py-1.5 font-mono text-[10px] text-gray-400">{line.account_code}</td>
           )}
           <td className="px-3 py-1.5 text-gray-600 dark:text-gray-400 whitespace-nowrap">{formatDate(line.journal_date)}</td>
-          <td className="px-3 py-1.5 font-mono text-blue-600 dark:text-blue-400 whitespace-nowrap">{line.journal_number}</td>
+          <td className="px-3 py-1.5 font-mono whitespace-nowrap">
+            <a href={`/accounting/journals/${line.journal_header_id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+              {line.journal_number}
+            </a>
+          </td>
           <td className="px-3 py-1.5 text-gray-900 dark:text-white truncate max-w-xs" title={line.line_description || line.journal_description || ''}>
             {line.line_description || line.journal_description || '-'}
           </td>
-          <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400 font-mono text-[10px] whitespace-nowrap">{line.reference_number || '-'}</td>
+          <td className="px-3 py-1.5 font-mono text-[10px] whitespace-nowrap">
+            {line.reference_number ? (() => {
+              const href = getSourceRefLink(line.source_module, line.reference_id)
+              return href ? (
+                <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                  {line.reference_number}
+                </a>
+              ) : (
+                <span className="text-gray-500 dark:text-gray-400">{line.reference_number}</span>
+              )
+            })() : '-'}
+          </td>
           <td className="px-3 py-1.5 whitespace-nowrap">
             {line.source_module && (
               <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                {SOURCE_LABELS[line.source_module] || line.source_module}
+                {getSourceLabel(line.source_module)}
               </span>
             )}
           </td>
