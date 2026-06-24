@@ -46,6 +46,31 @@ export interface PendingPostingFilter {
   limit: number
 }
 
+export type PendingClosingSeverity = 'HARD_BLOCK' | 'WARNING'
+
+export interface PendingClosingGuardRow {
+  module: PendingModule
+  severity: PendingClosingSeverity
+  count: number
+  total_amount: number
+}
+
+/**
+ * Module severity classification for fiscal closing guard.
+ * HARD_BLOCK = closing refused entirely (data integrity risk)
+ * WARNING = closing allowed with acknowledge (operational choice)
+ */
+export const MODULE_CLOSING_SEVERITY: Record<PendingModule, PendingClosingSeverity> = {
+  ap_payments: 'HARD_BLOCK',
+  production_orders: 'HARD_BLOCK',
+  purchase_invoices: 'WARNING',
+  general_invoices: 'WARNING',
+  asset_disposals: 'WARNING',
+  stock_adjustments: 'WARNING',
+  stock_transfers: 'WARNING',
+  marketplace_po: 'WARNING',
+}
+
 class PendingJournalPostingRepository {
   /**
    * Get summary counts per module for given companies within a date range.
@@ -346,6 +371,25 @@ class PendingJournalPostingRepository {
       })),
       total,
     }
+  }
+  /**
+   * Get severity-classified summary for fiscal closing guard.
+   * Uses the same UNION logic as getSummary but scoped to a single company + date range,
+   * and returns severity classification per module.
+   */
+  async getClosingGuardSummary(
+    companyId: string,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<PendingClosingGuardRow[]> {
+    const summaryRows = await this.getSummary([companyId], periodStart, periodEnd)
+
+    return summaryRows.map(row => ({
+      module: row.module,
+      severity: MODULE_CLOSING_SEVERITY[row.module],
+      count: row.count,
+      total_amount: row.total_amount,
+    }))
   }
 }
 

@@ -107,6 +107,7 @@ export const closePeriodWithEntriesSchema = z.object({
     retained_earnings_account_id: uuidSchema,
     close_reason: z.string().max(500).optional().nullable(),
     branch_id: z.string().uuid().optional(),
+    acknowledge_pending_warnings: z.boolean().optional(),
   }).strict(),
 })
 

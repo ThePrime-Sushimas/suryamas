@@ -9,6 +9,7 @@ import { FiscalPeriodsConfig, defaultConfig } from './fiscal-periods.config'
 import { logInfo, logError, logWarn } from '../../../config/logger'
 import { pool } from '../../../config/db'
 import { resolveCentralBranchId } from '../../../utils/branch-access.util'
+import { pendingJournalPostingRepository } from '../../pending-journal-posting/pending-journal-posting.repository'
 
 export interface IAuditService {
   log(action: string, entity: string, entityId: string, userId: string, oldData?: any, newData?: any): Promise<void>
@@ -808,6 +809,13 @@ export class FiscalPeriodsService {
 
     const defaultRE = await this.repository.getDefaultRetainedEarningsAccount(companyId)
 
+    // Fetch pending module records for closing guard display
+    const guardRows = await pendingJournalPostingRepository.getClosingGuardSummary(
+      companyId, period.period_start, period.period_end
+    )
+    const hard_block = guardRows.filter(r => r.severity === 'HARD_BLOCK')
+    const warning = guardRows.filter(r => r.severity === 'WARNING')
+
     return {
       period: period.period,
       period_start: period.period_start,
@@ -820,6 +828,7 @@ export class FiscalPeriodsService {
       pending_journals_count: pending_count,
       posted_journals_count: posted_count,
       default_retained_earnings_account_id: defaultRE,
+      pending_module_records: { hard_block, warning },
     }
   }
 
@@ -854,6 +863,34 @@ export class FiscalPeriodsService {
 
     // Resolve Central branch for closing journal (fail-fast before transaction)
     const centralBranchId = await resolveCentralBranchId(companyId, dto.branch_id)
+
+    // ─── Pending Module Records Guard (Tiered: HARD_BLOCK / WARNING) ─────────
+    const guardRows = await pendingJournalPostingRepository.getClosingGuardSummary(
+      companyId, period.period_start, period.period_end
+    )
+    const hardBlockItems = guardRows.filter(r => r.severity === 'HARD_BLOCK' && r.count > 0)
+    const warningItems = guardRows.filter(r => r.severity === 'WARNING' && r.count > 0)
+
+    // HARD BLOCK: refuse closing entirely
+    if (hardBlockItems.length > 0) {
+      const details = hardBlockItems.map(r => `${r.module} (${r.count} record)`).join(', ')
+      throw FiscalPeriodErrors.VALIDATION_ERROR(
+        'pending_hard_block',
+        `Closing ditolak: terdapat transaksi WAJIB yang belum di-post journal — ${details}. ` +
+        `Selesaikan posting semua record di module tersebut sebelum closing periode.`
+      )
+    }
+
+    // WARNING: require explicit acknowledgment
+    if (warningItems.length > 0 && !dto.acknowledge_pending_warnings) {
+      const details = warningItems.map(r => `${r.module} (${r.count} record)`).join(', ')
+      throw FiscalPeriodErrors.VALIDATION_ERROR(
+        'pending_warnings_not_acknowledged',
+        `Terdapat transaksi pending yang belum di-post journal — ${details}. ` +
+        `Kirim ulang dengan acknowledge_pending_warnings: true jika Anda yakin ingin melanjutkan closing.`
+      )
+    }
+    // ─── End Guard ───────────────────────────────────────────────────────────
 
     // Get revenue/expense summary
     const { accounts, posted_count } = await this.repository.getRevenueExpenseSummary(
@@ -956,9 +993,17 @@ export class FiscalPeriodsService {
       })
 
       // Audit log (outside transaction, non-critical)
-      await this.auditService.log('CLOSE', 'fiscal_period', id, userId, { is_open: true }, {
+      const auditNewData: Record<string, unknown> = {
         is_open: false, closing_journal_id: journalId, closing_journal_number: journalNum, net_income: netIncome,
-      }).catch(e => logWarn('Audit log failed for fiscal closing', { error: String(e) }))
+      }
+      // Record acknowledged warnings in audit trail
+      if (warningItems.length > 0 && dto.acknowledge_pending_warnings) {
+        auditNewData.acknowledged_pending_warnings = warningItems.map(r => ({
+          module: r.module, count: r.count, total_amount: r.total_amount,
+        }))
+      }
+      await this.auditService.log('CLOSE', 'fiscal_period', id, userId, { is_open: true }, auditNewData)
+        .catch(e => logWarn('Audit log failed for fiscal closing', { error: String(e) }))
 
       // Fetch fresh data (bypasses cache)
       const updatedPeriod = await this.repository.findById(id, companyId)

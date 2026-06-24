@@ -68,6 +68,8 @@ export interface ClosePeriodWithEntriesDto {
   close_reason?: string
   /** Central branch for closing journal. Required if company has >1 Central branch. */
   branch_id?: string
+  /** Set to true to proceed with closing despite WARNING-level pending records. */
+  acknowledge_pending_warnings?: boolean
 }
 
 export interface ClosingAccountLine {
@@ -85,6 +87,13 @@ export interface ClosingAccountLine {
   closing_credit: number
 }
 
+export interface PendingModuleRecord {
+  module: string
+  severity: 'HARD_BLOCK' | 'WARNING'
+  count: number
+  total_amount: number
+}
+
 export interface PeriodClosingSummary {
   period: string
   period_start: string
@@ -97,6 +106,11 @@ export interface PeriodClosingSummary {
   pending_journals_count: number
   posted_journals_count: number
   default_retained_earnings_account_id: string | null
+  /** Pending module records classified by severity for closing guard */
+  pending_module_records: {
+    hard_block: PendingModuleRecord[]
+    warning: PendingModuleRecord[]
+  }
 }
 
 export interface ClosePeriodWithEntriesResult {
