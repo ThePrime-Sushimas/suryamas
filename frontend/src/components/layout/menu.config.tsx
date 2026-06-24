@@ -936,6 +936,13 @@ export const menuItems: MenuItem[] = [
         icon: <BarChart3 size={16} />,
         submenu: [
           {
+            id: "pending-journal-posting",
+            name: "Pending Posting",
+            href: "/accounting/pending-journal-posting",
+            icon: <FileCheck size={16} />,
+            module: "pending_journal_posting",
+          },
+          {
             id: "journal-entries",
             name: "Journal Entries",
             href: "/accounting/journals",

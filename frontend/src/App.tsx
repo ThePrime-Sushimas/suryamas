@@ -345,6 +345,11 @@ const JournalHeadersPage = lazy(() =>
     default: m.JournalHeadersPage,
   })),
 );
+const PendingJournalPostingPage = lazy(() =>
+  import("./features/pending-journal-posting").then((m) => ({
+    default: m.PendingJournalPostingPage,
+  })),
+);
 const TrialBalancePage = lazy(() =>
   import("./features/accounting/trial-balance").then((m) => ({
     default: m.TrialBalancePage,
@@ -1531,6 +1536,16 @@ function App() {
                       <RequirePermission module="journals">
                         <Suspense fallback={<LoadingFallback />}>
                           <JournalHeadersPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="accounting/pending-journal-posting"
+                    element={
+                      <RequirePermission module="pending_journal_posting">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PendingJournalPostingPage />
                         </Suspense>
                       </RequirePermission>
                     }
