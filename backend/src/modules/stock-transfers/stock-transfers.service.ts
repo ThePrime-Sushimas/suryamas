@@ -373,6 +373,37 @@ export class StockTransfersService {
     return this.getById(id, branchIds)
   }
 
+  // ─── REGENERATE JOURNALS (public — for retry when confirm succeeded but journal failed) ──
+
+  async regenerateJournals(id: string, branchIds: string[], userId: string): Promise<StockTransferDetail> {
+    const detail = await this.getById(id, branchIds)
+    if (detail.status !== 'CONFIRMED') {
+      throw new StockTransferInvalidStatusError(detail.status, 'CONFIRMED')
+    }
+    if (detail.source_journal_id || detail.target_journal_id) {
+      throw new BusinessRuleError('Transfer ini sudah memiliki jurnal')
+    }
+    if (detail.source_branch_id === detail.target_branch_id) {
+      throw new BusinessRuleError('Transfer intra-cabang tidak memerlukan jurnal')
+    }
+
+    await stockRepository.withTransaction(async (client) => {
+      // Reload lines with cost_per_unit
+      const { rows: updatedLines } = await client.query(
+        `SELECT stl.*, p.product_code, p.product_name
+         FROM stock_transfer_lines stl
+         JOIN products p ON p.id = stl.product_id
+         WHERE stl.stock_transfer_id = $1 ORDER BY stl.sort_order`,
+        [id]
+      )
+      const detailWithCost = { ...detail, lines: updatedLines }
+      await this.generateTransferJournals(client, detailWithCost, userId)
+    })
+
+    await AuditService.log('UPDATE', 'stock_transfer_journal', id, userId, undefined, { action: 'regenerate_journals' })
+    return this.getById(id, branchIds)
+  }
+
   // ─── JOURNAL GENERATION (private) ──────────────────────────────────────────
 
   private async generateTransferJournals(

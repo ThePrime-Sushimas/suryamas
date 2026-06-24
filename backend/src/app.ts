@@ -90,6 +90,7 @@ import fixedAssetsRoutes from './modules/fixed-assets/fixed-assets.routes';
 import monthlyStockOpnameRoutes from './modules/monthly-stock-opname/monthly-stock-opname.routes';
 import wasteReportRoutes from './modules/waste-report/waste-report.routes';
 import shortageReportRoutes from './modules/shortage-report/shortage-report.routes';
+import pendingJournalPostingRoutes from './modules/pending-journal-posting/pending-journal-posting.routes'
 import { pool } from "./config/db";
 
 const app = express();
@@ -212,6 +213,7 @@ app.use('/api/v1', fixedAssetsRoutes);
 app.use('/api/v1/monthly-stock-opname', monthlyStockOpnameRoutes);
 app.use('/api/v1/waste-report', wasteReportRoutes);
 app.use('/api/v1/shortage-report', shortageReportRoutes);
+app.use('/api/v1/pending-journal-posting', pendingJournalPostingRoutes);
 app.use("/api/v1/printers", printersRoutes);
 app.use("/api/v1/storage", storageRoutes);
 app.use("/api/v1/notifications", notificationsRoutes);
