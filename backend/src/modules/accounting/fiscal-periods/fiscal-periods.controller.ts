@@ -1,6 +1,8 @@
 import { Request, Response } from 'express'
 import type { ValidatedAuthRequest } from '../../../middleware/validation.middleware'
 import { fiscalPeriodsService } from './fiscal-periods.service'
+import { closingSnapshotsService } from './closing-snapshots.service'
+import { generateSnapshotPdf } from './closing-snapshots-pdf.service'
 import { sendSuccess } from '../../../utils/response.util'
 import { handleError } from '../../../utils/error-handler.util'
 import { logInfo } from '../../../config/logger'
@@ -234,6 +236,101 @@ export class FiscalPeriodsController {
       sendSuccess(res, result, 'Fiscal period reopened successfully')
     } catch (error: unknown) {
       await handleError(res, error, req, { action: 'reopen_period', id: req.params.id })
+    }
+  }
+
+  // ─── Closing Snapshots ─────────────────────────────────────────────────────
+
+  async listSnapshots(req: Request, res: Response) {
+    try {
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const existing = await fiscalPeriodsService.getById(req.params.id as string, companyIds)
+      const snapshots = await closingSnapshotsService.listVersions(existing.id, existing.company_id)
+      sendSuccess(res, snapshots, 'Closing snapshots retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'list_closing_snapshots', id: req.params.id })
+    }
+  }
+
+  async getSnapshotByVersion(req: Request, res: Response) {
+    try {
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const existing = await fiscalPeriodsService.getById(req.params.id as string, companyIds)
+      const version = parseInt(req.params.version as string, 10)
+      if (isNaN(version) || version < 1) {
+        throw FiscalPeriodErrors.VALIDATION_ERROR('version', 'Version harus berupa angka positif')
+      }
+      const snapshot = await closingSnapshotsService.getByVersion(existing.id, version, existing.company_id)
+      if (!snapshot) {
+        throw FiscalPeriodErrors.NOT_FOUND(`snapshot version ${version}`)
+      }
+      sendSuccess(res, snapshot, 'Closing snapshot retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_closing_snapshot', id: req.params.id, version: req.params.version })
+    }
+  }
+
+  async getLatestSnapshot(req: Request, res: Response) {
+    try {
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const existing = await fiscalPeriodsService.getById(req.params.id as string, companyIds)
+      const snapshot = await closingSnapshotsService.getLatest(existing.id, existing.company_id)
+      if (!snapshot) {
+        throw FiscalPeriodErrors.NOT_FOUND('snapshot for this period')
+      }
+      sendSuccess(res, snapshot, 'Latest closing snapshot retrieved')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'get_latest_closing_snapshot', id: req.params.id })
+    }
+  }
+
+  async retrySnapshot(req: Request, res: Response) {
+    try {
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const existing = await fiscalPeriodsService.getById(req.params.id as string, companyIds)
+      await fiscalPeriodsService.retrySnapshot(existing.id, req.user!.id, existing.company_id)
+      sendSuccess(res, null, 'Snapshot berhasil dibuat')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'retry_snapshot', id: req.params.id })
+    }
+  }
+
+  async downloadSnapshotPdf(req: Request, res: Response) {
+    try {
+      const companyIds = await getAccessibleCompanyIds(req.user?.id ?? '')
+      const existing = await fiscalPeriodsService.getById(req.params.id as string, companyIds)
+      const version = parseInt(req.params.version as string, 10)
+      if (isNaN(version) || version < 1) {
+        throw FiscalPeriodErrors.VALIDATION_ERROR('version', 'Version harus berupa angka positif')
+      }
+      const snapshot = await closingSnapshotsService.getByVersion(existing.id, version, existing.company_id)
+      if (!snapshot) {
+        throw FiscalPeriodErrors.NOT_FOUND(`snapshot version ${version}`)
+      }
+
+      // Resolve company name
+      const { pool } = await import('../../../config/db')
+      const { rows: companyRows } = await pool.query(
+        `SELECT company_name FROM companies WHERE id = $1`, [existing.company_id]
+      )
+      const companyName = companyRows[0]?.company_name ?? 'Company'
+
+      const pdfBuffer = await generateSnapshotPdf({
+        header: snapshot.header,
+        companyName,
+        periodLabel: existing.period,
+        trialBalance: snapshot.trial_balance,
+        incomeStatement: snapshot.income_statement,
+        balanceSheet: snapshot.balance_sheet,
+      })
+
+      const filename = `closing-snapshot_${existing.period}_v${version}.pdf`
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      res.setHeader('Content-Length', pdfBuffer.length)
+      res.end(pdfBuffer)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'download_snapshot_pdf', id: req.params.id, version: req.params.version })
     }
   }
 }

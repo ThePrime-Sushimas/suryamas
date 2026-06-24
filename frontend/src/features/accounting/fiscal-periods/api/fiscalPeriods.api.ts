@@ -11,6 +11,8 @@ import type {
   ReopenPeriodDto,
   ReopenPeriodResult,
   FiscalPeriodFilter,
+  ClosingSnapshotSummary,
+  ClosingSnapshotDetail,
 } from '../types/fiscal-period.types'
 
 const BASE_URL = '/accounting/fiscal-periods'
@@ -104,5 +106,20 @@ export const fiscalPeriodsApi = {
       })
     }
     window.open(`${api.defaults.baseURL}${BASE_URL}/export?${params}`, '_blank')
+  },
+
+  listSnapshots: async (periodId: string): Promise<ClosingSnapshotSummary[]> => {
+    const { data } = await api.get<ApiResponse<ClosingSnapshotSummary[]>>(`${BASE_URL}/${periodId}/snapshots`)
+    return data.data
+  },
+
+  getSnapshotByVersion: async (periodId: string, version: number): Promise<ClosingSnapshotDetail> => {
+    const { data } = await api.get<ApiResponse<ClosingSnapshotDetail>>(`${BASE_URL}/${periodId}/snapshots/${version}`)
+    return data.data
+  },
+
+  getLatestSnapshot: async (periodId: string): Promise<ClosingSnapshotDetail> => {
+    const { data } = await api.get<ApiResponse<ClosingSnapshotDetail>>(`${BASE_URL}/${periodId}/snapshots/latest`)
+    return data.data
   },
 }

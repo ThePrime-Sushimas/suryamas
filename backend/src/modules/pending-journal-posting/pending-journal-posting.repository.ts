@@ -253,7 +253,7 @@ class PendingJournalPostingRepository {
 
     if (!module || module === 'purchase_invoices') {
       segments.push(`
-        SELECT pi.id, 'purchase_invoices'::text AS module, pi.invoice_number AS ref_number,
+        SELECT pi.id::text, 'purchase_invoices'::text AS module, pi.invoice_number AS ref_number,
                pi.invoice_date::text AS transaction_date, pi.total_amount::numeric AS amount,
                pi.status, pi.company_id, c.company_name, pi.branch_id, b.branch_name,
                1 AS record_count
@@ -267,7 +267,7 @@ class PendingJournalPostingRepository {
 
     if (!module || module === 'general_invoices') {
       segments.push(`
-        SELECT gi.id, 'general_invoices', gi.invoice_number,
+        SELECT gi.id::text, 'general_invoices', gi.invoice_number,
                gi.invoice_date::text, gi.total_amount, gi.status,
                gi.company_id, c.company_name, gi.branch_id, b.branch_name,
                1 AS record_count
@@ -281,7 +281,7 @@ class PendingJournalPostingRepository {
 
     if (!module || module === 'ap_payments') {
       segments.push(`
-        SELECT ap.id, 'ap_payments', ap.payment_number,
+        SELECT ap.id::text, 'ap_payments', ap.payment_number,
                ap.payment_date::text, ap.total_amount, ap.status,
                ap.company_id, c.company_name, ap.branch_id, b.branch_name,
                1 AS record_count
@@ -297,7 +297,7 @@ class PendingJournalPostingRepository {
 
     if (!module || module === 'asset_disposals') {
       segments.push(`
-        SELECT ad.id, 'asset_disposals', fa.asset_code,
+        SELECT ad.id::text, 'asset_disposals', fa.asset_code,
                ad.disposal_date::text, ad.book_value_at_disposal, ad.status,
                ad.company_id, c.company_name, fa.branch_id, b.branch_name,
                1 AS record_count
@@ -313,7 +313,7 @@ class PendingJournalPostingRepository {
 
     if (!module || module === 'stock_adjustments') {
       segments.push(`
-        SELECT sa.id, 'stock_adjustments', sa.adjustment_number,
+        SELECT sa.id::text, 'stock_adjustments', sa.adjustment_number,
                sa.adjustment_date::text, sa.waste_value, sa.status,
                sa.company_id, c.company_name, sa.branch_id, b.branch_name,
                1 AS record_count
@@ -327,7 +327,7 @@ class PendingJournalPostingRepository {
 
     if (!module || module === 'stock_transfers') {
       segments.push(`
-        SELECT st.id, 'stock_transfers', st.transfer_number,
+        SELECT st.id::text, 'stock_transfers', st.transfer_number,
                st.transfer_date::text, 0::numeric, st.status,
                st.company_id, c.company_name, st.source_branch_id AS branch_id, b.branch_name,
                1 AS record_count
@@ -344,7 +344,7 @@ class PendingJournalPostingRepository {
 
     if (!module || module === 'production_orders') {
       segments.push(`
-        SELECT po.id, 'production_orders', po.order_number,
+        SELECT po.id::text, 'production_orders', po.order_number,
                po.production_date::text, po.total_material_cost, po.status,
                po.company_id, c.company_name, po.branch_id, b.branch_name,
                1 AS record_count
@@ -359,7 +359,7 @@ class PendingJournalPostingRepository {
 
     if (!module || module === 'marketplace_po') {
       segments.push(`
-        SELECT mcs.id, 'marketplace_po', mcs.session_number,
+        SELECT mcs.id::text, 'marketplace_po', mcs.session_number,
                mcs.checkout_date::text, mcs.total_amount, mcs.status,
                mcs.company_id, c.company_name, NULL::uuid AS branch_id, NULL::text AS branch_name,
                1 AS record_count

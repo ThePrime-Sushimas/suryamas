@@ -10,6 +10,7 @@ interface FiscalPeriodTableProps {
   onRestore: (id: string) => void
   onClose?: (period: FiscalPeriodWithDetails) => void
   onReopen?: (period: FiscalPeriodWithDetails) => void
+  onViewSnapshot?: (period: FiscalPeriodWithDetails) => void
   onRefresh?: () => void
   canUpdate: boolean
   canDelete: boolean
@@ -17,7 +18,7 @@ interface FiscalPeriodTableProps {
   canReopen: boolean
 }
 
-export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClose, onReopen, canUpdate, canDelete, canClose, canReopen }: FiscalPeriodTableProps) {
+export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClose, onReopen, onViewSnapshot, canUpdate, canDelete, canClose, canReopen }: FiscalPeriodTableProps) {
   const branches = useBranchContextStore(s => s.branches)
   const companyNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -105,6 +106,12 @@ export function FiscalPeriodTable({ periods, onEdit, onDelete, onRestore, onClos
                       <button onClick={() => onReopen(period)}
                         className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300">
                         Reopen
+                      </button>
+                    )}
+                    {!period.is_open && !period.deleted_at && onViewSnapshot && (
+                      <button onClick={() => onViewSnapshot(period)}
+                        className="text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300">
+                        Snapshot
                       </button>
                     )}
                     {canDelete && period.is_open && (

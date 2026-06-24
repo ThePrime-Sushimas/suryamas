@@ -20,6 +20,7 @@ export function FiscalPeriodsListPage() {
   const canInsert = hasPermission('fiscal_periods', 'insert')
   const canClose = hasPermission('fiscal_periods', 'release')
   const canReopen = hasPermission('fiscal_periods', 'approve')
+  const canView = hasPermission('fiscal_periods', 'view')
 
   const {
     periods, loading, error, pagination,
@@ -35,6 +36,8 @@ export function FiscalPeriodsListPage() {
   useEffect(() => { fetchPeriods() }, [fetchPeriods])
 
   const handleEdit = (period: FiscalPeriodWithDetails) => navigate(`/accounting/fiscal-periods/${period.id}/edit`)
+
+  const handleViewSnapshot = (period: FiscalPeriodWithDetails) => navigate(`/accounting/fiscal-periods/${period.id}/snapshots`)
 
   const handleDeleteClick = (id: string) => setConfirmModal({ isOpen: true, periodId: id })
 
@@ -145,6 +148,7 @@ export function FiscalPeriodsListPage() {
             onRestore={handleRestore}
             onClose={canClose ? (period) => setClosingPeriod(period) : undefined}
             onReopen={canReopen ? (period) => setReopenConfirm({ isOpen: true, period }) : undefined}
+            onViewSnapshot={canView ? handleViewSnapshot : undefined}
             onRefresh={fetchPeriods}
             canUpdate={canUpdate}
             canDelete={canDelete}

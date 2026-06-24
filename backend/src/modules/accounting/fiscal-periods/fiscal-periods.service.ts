@@ -10,6 +10,7 @@ import { logInfo, logError, logWarn } from '../../../config/logger'
 import { pool } from '../../../config/db'
 import { resolveCentralBranchId } from '../../../utils/branch-access.util'
 import { pendingJournalPostingRepository } from '../../pending-journal-posting/pending-journal-posting.repository'
+import { closingSnapshotsService } from './closing-snapshots.service'
 
 export interface IAuditService {
   log(action: string, entity: string, entityId: string, userId: string, oldData?: any, newData?: any): Promise<void>
@@ -924,6 +925,15 @@ export class FiscalPeriodsService {
     // RE line (penyeimbang)
     const netIncome = totalClosingDebit - totalClosingCredit
     const isProfit = netIncome > 0
+
+    // Compute revenue/expense totals for snapshot (net in normal balance direction)
+    const totalRevenue = accounts
+      .filter(a => a.account_type === 'REVENUE')
+      .reduce((s, a) => s + (a.total_credit - a.total_debit), 0)
+    const totalExpense = accounts
+      .filter(a => a.account_type === 'EXPENSE')
+      .reduce((s, a) => s + (a.total_debit - a.total_credit), 0)
+
     if (Math.abs(netIncome) >= 0.005) {
       if (isProfit) {
         closingLines.push({ account_id: dto.retained_earnings_account_id, debit: 0, credit: netIncome, description: `Laba periode ${period.period}` })
@@ -936,7 +946,12 @@ export class FiscalPeriodsService {
 
     const totalAmount = Math.max(totalClosingDebit, totalClosingCredit)
 
-    // Execute atomically
+    // ─── Fetch snapshot report data BEFORE transaction (uses separate pool connections) ───
+    const snapshotReportData = await closingSnapshotsService.fetchReportData(
+      companyId, period.period_start, period.period_end
+    )
+
+    // ─── Execute atomically: closing journal + period close + snapshot ────────
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
@@ -978,16 +993,27 @@ export class FiscalPeriodsService {
 
       // 4. Close the fiscal period
       await client.query(
-        `UPDATE fiscal_periods SET is_open = false, closed_at = NOW(), closed_by = $1, close_reason = $2, updated_at = NOW(), updated_by = $1
+        `UPDATE fiscal_periods SET is_open = false, snapshot_status = 'COMPLETED', closed_at = NOW(), closed_by = $1, close_reason = $2, updated_at = NOW(), updated_by = $1
          WHERE id = $3 AND company_id = $4`,
         [userId, dto.close_reason || `Fiscal closing - ${period.period}`, id, companyId]
       )
+
+      // 5. Insert snapshot (INSIDE same transaction — atomic with closing)
+      await closingSnapshotsService.insertSnapshot(client, {
+        fiscalPeriodId: id,
+        companyId,
+        closingJournalId: journalId,
+        netIncome,
+        totalRevenue,
+        totalExpense,
+        closedBy: userId,
+      }, snapshotReportData)
 
       await client.query('COMMIT')
 
       this.repository.clearCache()
 
-      logInfo('Fiscal period closed with entries', {
+      logInfo('Fiscal period closed with entries + snapshot', {
         period_id: id, period: period.period, journal_id: journalId,
         journal_number: journalNum, net_income: netIncome, lines: closingLines.length,
       })
@@ -1022,6 +1048,71 @@ export class FiscalPeriodsService {
       throw error
     } finally {
       client.release()
+    }
+  }
+
+  /**
+   * Retry snapshot generation for a period that closed successfully but snapshot failed.
+   * Only works when snapshot_status = 'FAILED'.
+   */
+  async retrySnapshot(id: string, userId: string, companyId: string): Promise<void> {
+    this.validateCompanyAccess(companyId)
+
+    const period = await this.repository.findById(id.trim(), companyId)
+    if (!period) throw FiscalPeriodErrors.NOT_FOUND(id)
+    if (period.is_open) throw FiscalPeriodErrors.VALIDATION_ERROR('period_open', 'Period masih open, tidak perlu retry snapshot')
+
+    // Check snapshot_status
+    const { rows } = await pool.query(
+      `SELECT snapshot_status FROM fiscal_periods WHERE id = $1`, [id]
+    )
+    const status = rows[0]?.snapshot_status
+    if (status === 'COMPLETED') throw FiscalPeriodErrors.VALIDATION_ERROR('snapshot_exists', 'Snapshot sudah berhasil dibuat')
+
+    // Crash recovery: if status is PENDING, check if snapshot already committed
+    // (server crashed after snapshot commit but before status update)
+    if (status === 'PENDING') {
+      const existingSnapshot = await closingSnapshotsService.getLatest(id, companyId)
+      if (existingSnapshot) {
+        await pool.query(`UPDATE fiscal_periods SET snapshot_status = 'COMPLETED' WHERE id = $1`, [id])
+        logInfo('Snapshot status recovered from PENDING to COMPLETED (crash recovery)', { period_id: id })
+        return
+      }
+    }
+
+    if (status !== 'FAILED' && status !== 'PENDING' && status !== null) {
+      throw FiscalPeriodErrors.VALIDATION_ERROR('invalid_status', `Snapshot status tidak valid untuk retry: ${status}`)
+    }
+
+    // Find closing journal for this period
+    const closingJournal = await this.repository.findClosingJournal(companyId, period.period)
+
+    await pool.query(`UPDATE fiscal_periods SET snapshot_status = 'PENDING' WHERE id = $1`, [id])
+
+    try {
+      // Compute revenue/expense from posted journals in period
+      const { accounts } = await this.repository.getRevenueExpenseSummary(companyId, period.period_start, period.period_end)
+      const totalRevenue = accounts.filter(a => a.account_type === 'REVENUE').reduce((s, a) => s + (a.total_credit - a.total_debit), 0)
+      const totalExpense = accounts.filter(a => a.account_type === 'EXPENSE').reduce((s, a) => s + (a.total_debit - a.total_credit), 0)
+      const netIncome = totalRevenue - totalExpense
+
+      await closingSnapshotsService.generateSnapshot({
+        fiscalPeriodId: id,
+        companyId,
+        periodStart: String(period.period_start),
+        periodEnd: String(period.period_end),
+        closingJournalId: closingJournal?.id ?? null,
+        netIncome,
+        totalRevenue,
+        totalExpense,
+        closedBy: userId,
+      })
+
+      await pool.query(`UPDATE fiscal_periods SET snapshot_status = 'COMPLETED' WHERE id = $1`, [id])
+      logInfo('Snapshot retry succeeded', { period_id: id, user_id: userId })
+    } catch (err) {
+      await pool.query(`UPDATE fiscal_periods SET snapshot_status = 'FAILED' WHERE id = $1`, [id])
+      throw err
     }
   }
 

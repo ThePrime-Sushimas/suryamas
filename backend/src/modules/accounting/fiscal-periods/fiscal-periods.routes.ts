@@ -74,6 +74,22 @@ router.post('/:id/close', canUpdate('fiscal_periods'), validateSchema(closePerio
 router.post('/:id/reopen', canApprove('fiscal_periods'), validateSchema(reopenPeriodSchema), (req, res) =>
   fiscalPeriodsController.reopenPeriod(req, res))
 
+// Closing Snapshots
+router.get('/:id/snapshots', canView('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) =>
+  fiscalPeriodsController.listSnapshots(req, res))
+
+router.get('/:id/snapshots/latest', canView('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) =>
+  fiscalPeriodsController.getLatestSnapshot(req, res))
+
+router.post('/:id/snapshots/retry', canRelease('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) =>
+  fiscalPeriodsController.retrySnapshot(req, res))
+
+router.get('/:id/snapshots/:version', canView('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) =>
+  fiscalPeriodsController.getSnapshotByVersion(req, res))
+
+router.get('/:id/snapshots/:version/pdf', canView('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) =>
+  fiscalPeriodsController.downloadSnapshotPdf(req, res))
+
 router.delete('/:id', canDelete('fiscal_periods'), validateSchema(fiscalPeriodIdSchema), (req, res) => 
   fiscalPeriodsController.delete(req, res))
 

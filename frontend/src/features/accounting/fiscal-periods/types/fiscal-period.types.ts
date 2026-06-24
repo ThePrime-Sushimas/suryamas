@@ -133,3 +133,72 @@ export interface ReopenPeriodResult {
   reversed_journal_id: string
   reversed_journal_number: string
 }
+
+// ============================================================================
+// CLOSING SNAPSHOT TYPES
+// ============================================================================
+
+export interface ClosingSnapshotSummary {
+  id: string
+  version: number
+  is_latest: boolean
+  net_income: number
+  total_revenue: number
+  total_expense: number
+  closed_by: string
+  closed_at: string
+  closing_journal_id: string | null
+}
+
+export interface ClosingSnapshotHeader extends ClosingSnapshotSummary {
+  fiscal_period_id: string
+  company_id: string
+  created_at: string
+}
+
+export interface ClosingSnapshotTrialBalanceLine {
+  account_id: string
+  account_code: string
+  account_name: string
+  account_type: string
+  parent_account_code: string | null
+  parent_account_name: string | null
+  branch_id: string | null
+  branch_name: string | null
+  currency: string
+  opening_debit: number
+  opening_credit: number
+  period_debit: number
+  period_credit: number
+  closing_debit: number
+  closing_credit: number
+  pos_debit: number
+  pos_credit: number
+  bank_debit: number
+  bank_credit: number
+  other_debit: number
+  other_credit: number
+}
+
+export interface ClosingSnapshotReportLine {
+  account_id: string
+  account_code: string
+  account_name: string
+  account_type: string
+  parent_account_id: string | null
+  parent_account_code: string | null
+  parent_account_name: string | null
+  group_label: string | null
+  branch_id: string | null
+  branch_name: string | null
+  currency: string
+  debit_amount: number
+  credit_amount: number
+}
+
+export interface ClosingSnapshotDetail {
+  header: ClosingSnapshotHeader
+  trial_balance: ClosingSnapshotTrialBalanceLine[]
+  income_statement: ClosingSnapshotReportLine[]
+  balance_sheet: ClosingSnapshotReportLine[]
+}

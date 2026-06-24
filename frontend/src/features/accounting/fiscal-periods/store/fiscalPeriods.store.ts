@@ -12,6 +12,8 @@ import type {
   ReopenPeriodDto,
   ReopenPeriodResult,
   FiscalPeriodFilter,
+  ClosingSnapshotSummary,
+  ClosingSnapshotDetail,
 } from '../types/fiscal-period.types'
 
 interface FiscalPeriodsState {
@@ -50,6 +52,14 @@ interface FiscalPeriodsState {
   clearError: () => void
   resetSelectedPeriod: () => void
   refresh: () => Promise<void>
+  // Closing Snapshots
+  snapshots: ClosingSnapshotSummary[]
+  snapshotDetail: ClosingSnapshotDetail | null
+  snapshotLoading: boolean
+  fetchSnapshots: (periodId: string) => Promise<void>
+  fetchSnapshotByVersion: (periodId: string, version: number) => Promise<void>
+  fetchLatestSnapshot: (periodId: string) => Promise<void>
+  clearSnapshotDetail: () => void
 }
 
 export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
@@ -58,6 +68,9 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
   loading: false,
   mutating: false,
   error: null,
+  snapshots: [],
+  snapshotDetail: null,
+  snapshotLoading: false,
   pagination: {
     page: 1,
     limit: 10,
@@ -254,4 +267,46 @@ export const useFiscalPeriodsStore = create<FiscalPeriodsState>((set, get) => ({
   clearError: () => set({ error: null }),
   resetSelectedPeriod: () => set({ selectedPeriod: null }),
   refresh: async () => { await get().fetchPeriods() },
+
+  // ─── Closing Snapshots ─────────────────────────────────────────────────────
+  fetchSnapshots: async (periodId) => {
+    set({ snapshotLoading: true, error: null })
+    try {
+      const result = await fiscalPeriodsApi.listSnapshots(periodId)
+      set({ snapshots: result })
+    } catch (error) {
+      set({ error: parseApiError(error, 'Gagal memuat daftar snapshot') })
+      throw error
+    } finally {
+      set({ snapshotLoading: false })
+    }
+  },
+
+  fetchSnapshotByVersion: async (periodId, version) => {
+    set({ snapshotLoading: true, error: null })
+    try {
+      const result = await fiscalPeriodsApi.getSnapshotByVersion(periodId, version)
+      set({ snapshotDetail: result })
+    } catch (error) {
+      set({ error: parseApiError(error, 'Gagal memuat detail snapshot') })
+      throw error
+    } finally {
+      set({ snapshotLoading: false })
+    }
+  },
+
+  fetchLatestSnapshot: async (periodId) => {
+    set({ snapshotLoading: true, error: null })
+    try {
+      const result = await fiscalPeriodsApi.getLatestSnapshot(periodId)
+      set({ snapshotDetail: result })
+    } catch (error) {
+      set({ error: parseApiError(error, 'Gagal memuat snapshot terbaru') })
+      throw error
+    } finally {
+      set({ snapshotLoading: false })
+    }
+  },
+
+  clearSnapshotDetail: () => set({ snapshotDetail: null, snapshots: [] }),
 }))
