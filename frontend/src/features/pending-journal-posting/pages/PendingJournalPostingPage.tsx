@@ -27,6 +27,8 @@ const MODULE_BADGE: Record<PendingModule, string> = {
   stock_transfers: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
   production_orders: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   marketplace_po: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  bank_reconciliation: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+  pos_aggregates: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
 }
 
 // ─── Format Helpers ──────────────────────────────────────────────────────────
@@ -279,7 +281,12 @@ export default function PendingJournalPostingPage() {
 
   const handleOpenDetail = useCallback((record: PendingPostingRecord) => {
     const basePath = MODULE_DETAIL_PATHS[record.module]
-    navigate(`${basePath}/${record.id}`)
+    // Grouped modules (bank_reconciliation, pos_aggregates) have composite IDs — navigate to list page
+    if (record.module === 'bank_reconciliation' || record.module === 'pos_aggregates') {
+      navigate(basePath)
+    } else {
+      navigate(`${basePath}/${record.id}`)
+    }
   }, [navigate])
 
   const hasFilters = filters.module || filters.branch_id || filters.date_from || filters.date_to
@@ -419,6 +426,7 @@ export default function PendingJournalPostingPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Cabang</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Jumlah</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Rec</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Aksi</th>
               </tr>
@@ -449,6 +457,13 @@ export default function PendingJournalPostingPage() {
                   <td className="px-4 py-3 text-xs text-gray-500">{record.transaction_date}</td>
                   <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-white">
                     {record.amount > 0 ? formatCurrency(record.amount) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-center text-xs text-gray-500">
+                    {record.record_count && record.record_count > 1 ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-medium">
+                        {record.record_count}
+                      </span>
+                    ) : '-'}
                   </td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
@@ -511,7 +526,7 @@ export default function PendingJournalPostingPage() {
         isOpen={!!confirmTarget}
         title="Konfirmasi Post Journal"
         message={confirmTarget
-          ? `Post journal untuk:\n\nModule: ${MODULE_LABELS[confirmTarget.module]}\nReference: ${confirmTarget.ref_number}\nJumlah: ${formatCurrency(confirmTarget.amount)}`
+          ? `Post journal untuk:\n\nModule: ${MODULE_LABELS[confirmTarget.module]}\nReference: ${confirmTarget.ref_number}\nJumlah: ${formatCurrency(confirmTarget.amount)}${confirmTarget.record_count && confirmTarget.record_count > 1 ? `\n\nAkan membuat 1 journal gabungan dari ${confirmTarget.record_count} record.` : ''}`
           : ''}
         confirmLabel="Post"
         isLoading={postSingle.isPending}

@@ -16,6 +16,9 @@ import { stockAdjustmentsService } from '../stock-adjustments/stock-adjustments.
 import { stockTransfersService } from '../stock-transfers/stock-transfers.service'
 import { productionOrdersService } from '../food-production/production-orders/production-orders.service'
 import { marketplacePoService } from '../marketplace-po/marketplace-po.service'
+import { generateBankRecJournals } from '../jobs/processors/bank-reconciliation-journal.processor'
+import { generateJournalsOptimized } from '../jobs/processors/pos-journals.processor'
+import type { AggregatedTransaction } from '../pos-imports/pos-aggregates/pos-aggregates.types'
 
 // ─── Exhaustiveness helper ───────────────────────────────────────────────────
 
@@ -38,6 +41,8 @@ const HANDLED_MODULES_IN_SWITCH = [
   'stock_transfers',
   'production_orders',
   'marketplace_po',
+  'bank_reconciliation',
+  'pos_aggregates',
 ] as const satisfies readonly PendingModule[]
 
 // Runtime fail-fast: crash at startup if any module in the registry is missing from switch
@@ -142,6 +147,34 @@ class PendingJournalPostingService {
       case 'marketplace_po':
         await marketplacePoService.postReceiveJournal(companyIds, branchIds, userId, id, {})
         break
+
+      case 'bank_reconciliation': {
+        // id format: 'bank_account_id|transaction_date'
+        const [bankAccountId, bankTxDate] = id.split('|')
+        if (!bankAccountId || !bankTxDate) throw new BusinessRuleError('Invalid bank_reconciliation group ID format')
+        const statementIds = await pendingJournalPostingRepository.findBankStatementIdsInGroup(
+          bankAccountId, bankTxDate, companyIds
+        )
+        if (statementIds.length === 0) throw new BusinessRuleError('Tidak ada bank statement yang eligible untuk diproses')
+        const bankResult = await generateBankRecJournals(statementIds, companyIds[0])
+        if (bankResult.failed.length > 0 && bankResult.success.length === 0) {
+          throw new BusinessRuleError(bankResult.failed[0].error)
+        }
+        break
+      }
+
+      case 'pos_aggregates': {
+        // id format: 'branch_id|transaction_date'
+        const [posBranchId, posTxDate] = id.split('|')
+        if (!posBranchId || !posTxDate) throw new BusinessRuleError('Invalid pos_aggregates group ID format')
+        const txRows = await pendingJournalPostingRepository.findPosAggregateTransactionsInGroup(posBranchId, posTxDate)
+        if (txRows.length === 0) throw new BusinessRuleError('Tidak ada transaksi POS yang eligible untuk diproses')
+        const posResult = await generateJournalsOptimized(txRows as unknown as AggregatedTransaction[], companyIds[0])
+        if (posResult.failed.length > 0 && posResult.success.length === 0) {
+          throw new BusinessRuleError(posResult.failed[0].error)
+        }
+        break
+      }
 
       default:
         // TypeScript compile-time exhaustiveness check:

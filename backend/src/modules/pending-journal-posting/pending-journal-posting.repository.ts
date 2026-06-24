@@ -13,6 +13,8 @@ export const PENDING_POSTING_MODULES = [
   'stock_transfers',
   'production_orders',
   'marketplace_po',
+  'bank_reconciliation',
+  'pos_aggregates',
 ] as const
 
 export type PendingModule = typeof PENDING_POSTING_MODULES[number]
@@ -28,6 +30,7 @@ export interface PendingPostingRow {
   company_name: string | null
   branch_id: string | null
   branch_name: string | null
+  record_count?: number
 }
 
 export interface PendingPostingSummaryRow {
@@ -69,6 +72,8 @@ export const MODULE_CLOSING_SEVERITY: Record<PendingModule, PendingClosingSeveri
   stock_adjustments: 'WARNING',
   stock_transfers: 'WARNING',
   marketplace_po: 'WARNING',
+  bank_reconciliation: 'WARNING',
+  pos_aggregates: 'WARNING',
 }
 
 class PendingJournalPostingRepository {
@@ -169,6 +174,33 @@ class PendingJournalPostingRepository {
         WHERE mcs.company_id = ANY($1::uuid[]) AND mcs.status = 'RECEIVED' AND mcs.journal_received_id IS NULL
           AND mcs.deleted_at IS NULL
           ${df('mcs.checkout_date')} ${dt('mcs.checkout_date')}
+
+        UNION ALL
+
+        SELECT 'bank_reconciliation'::text, grp.group_amount
+        FROM (
+          SELECT SUM(COALESCE(bs.credit_amount, 0) - COALESCE(bs.debit_amount, 0)) AS group_amount
+          FROM bank_statements bs
+          WHERE bs.company_id = ANY($1::uuid[]) AND bs.is_reconciled = true AND bs.is_pending = false
+            AND bs.journal_id IS NULL AND bs.deleted_at IS NULL
+            AND (bs.credit_amount > 0 OR bs.debit_amount > 0)
+            ${df('bs.transaction_date')} ${dt('bs.transaction_date')}
+          GROUP BY bs.bank_account_id, bs.transaction_date
+        ) grp
+
+        UNION ALL
+
+        SELECT 'pos_aggregates'::text, grp.group_amount
+        FROM (
+          SELECT SUM(at2.nett_amount) AS group_amount
+          FROM aggregated_transactions at2
+          JOIN branches br2 ON br2.id = at2.branch_id
+          WHERE br2.company_id = ANY($1::uuid[]) AND at2.status = 'READY'
+            AND at2.is_reconciled = true AND at2.journal_id IS NULL AND at2.deleted_at IS NULL
+            ${df('at2.transaction_date')} ${dt('at2.transaction_date')}
+            ${branchIdx ? `AND at2.branch_id = $${branchIdx}` : ''}
+          GROUP BY at2.branch_id, at2.transaction_date
+        ) grp
       )
       SELECT module, COUNT(*)::int AS count, COALESCE(SUM(amount), 0)::numeric AS total_amount
       FROM pending
@@ -223,7 +255,8 @@ class PendingJournalPostingRepository {
       segments.push(`
         SELECT pi.id, 'purchase_invoices'::text AS module, pi.invoice_number AS ref_number,
                pi.invoice_date::text AS transaction_date, pi.total_amount::numeric AS amount,
-               pi.status, pi.company_id, c.company_name, pi.branch_id, b.branch_name
+               pi.status, pi.company_id, c.company_name, pi.branch_id, b.branch_name,
+               1 AS record_count
         FROM purchase_invoices pi
         LEFT JOIN branches b ON b.id = pi.branch_id
         LEFT JOIN companies c ON c.id = pi.company_id
@@ -236,7 +269,8 @@ class PendingJournalPostingRepository {
       segments.push(`
         SELECT gi.id, 'general_invoices', gi.invoice_number,
                gi.invoice_date::text, gi.total_amount, gi.status,
-               gi.company_id, c.company_name, gi.branch_id, b.branch_name
+               gi.company_id, c.company_name, gi.branch_id, b.branch_name,
+               1 AS record_count
         FROM general_invoices gi
         LEFT JOIN branches b ON b.id = gi.branch_id
         LEFT JOIN companies c ON c.id = gi.company_id
@@ -249,7 +283,8 @@ class PendingJournalPostingRepository {
       segments.push(`
         SELECT ap.id, 'ap_payments', ap.payment_number,
                ap.payment_date::text, ap.total_amount, ap.status,
-               ap.company_id, c.company_name, ap.branch_id, b.branch_name
+               ap.company_id, c.company_name, ap.branch_id, b.branch_name,
+               1 AS record_count
         FROM ap_payments ap
         LEFT JOIN branches b ON b.id = ap.branch_id
         LEFT JOIN companies c ON c.id = ap.company_id
@@ -264,7 +299,8 @@ class PendingJournalPostingRepository {
       segments.push(`
         SELECT ad.id, 'asset_disposals', fa.asset_code,
                ad.disposal_date::text, ad.book_value_at_disposal, ad.status,
-               ad.company_id, c.company_name, fa.branch_id, b.branch_name
+               ad.company_id, c.company_name, fa.branch_id, b.branch_name,
+               1 AS record_count
         FROM asset_disposals ad
         JOIN fixed_assets fa ON fa.id = ad.fixed_asset_id
         LEFT JOIN branches b ON b.id = fa.branch_id
@@ -279,7 +315,8 @@ class PendingJournalPostingRepository {
       segments.push(`
         SELECT sa.id, 'stock_adjustments', sa.adjustment_number,
                sa.adjustment_date::text, sa.waste_value, sa.status,
-               sa.company_id, c.company_name, sa.branch_id, b.branch_name
+               sa.company_id, c.company_name, sa.branch_id, b.branch_name,
+               1 AS record_count
         FROM stock_adjustments sa
         LEFT JOIN branches b ON b.id = sa.branch_id
         LEFT JOIN companies c ON c.id = sa.company_id
@@ -292,7 +329,8 @@ class PendingJournalPostingRepository {
       segments.push(`
         SELECT st.id, 'stock_transfers', st.transfer_number,
                st.transfer_date::text, 0::numeric, st.status,
-               st.company_id, c.company_name, st.source_branch_id AS branch_id, b.branch_name
+               st.company_id, c.company_name, st.source_branch_id AS branch_id, b.branch_name,
+               1 AS record_count
         FROM stock_transfers st
         LEFT JOIN branches b ON b.id = st.source_branch_id
         LEFT JOIN companies c ON c.id = st.company_id
@@ -308,7 +346,8 @@ class PendingJournalPostingRepository {
       segments.push(`
         SELECT po.id, 'production_orders', po.order_number,
                po.production_date::text, po.total_material_cost, po.status,
-               po.company_id, c.company_name, po.branch_id, b.branch_name
+               po.company_id, c.company_name, po.branch_id, b.branch_name,
+               1 AS record_count
         FROM production_orders po
         LEFT JOIN branches b ON b.id = po.branch_id
         LEFT JOIN companies c ON c.id = po.company_id
@@ -322,12 +361,57 @@ class PendingJournalPostingRepository {
       segments.push(`
         SELECT mcs.id, 'marketplace_po', mcs.session_number,
                mcs.checkout_date::text, mcs.total_amount, mcs.status,
-               mcs.company_id, c.company_name, NULL::uuid AS branch_id, NULL::text AS branch_name
+               mcs.company_id, c.company_name, NULL::uuid AS branch_id, NULL::text AS branch_name,
+               1 AS record_count
         FROM marketplace_checkout_sessions mcs
         LEFT JOIN companies c ON c.id = mcs.company_id
         WHERE mcs.company_id = ANY($1::uuid[]) AND mcs.status = 'RECEIVED' AND mcs.journal_received_id IS NULL
           AND mcs.deleted_at IS NULL
           ${df('mcs.checkout_date')} ${dt('mcs.checkout_date')}
+      `)
+    }
+
+    if (!module || module === 'bank_reconciliation') {
+      segments.push(`
+        SELECT (bs.bank_account_id::text || '|' || bs.transaction_date::text) AS id,
+               'bank_reconciliation'::text AS module,
+               ba.account_name || ' (' || ba.account_number || ')' AS ref_number,
+               bs.transaction_date::text AS transaction_date,
+               SUM(COALESCE(bs.credit_amount, 0) - COALESCE(bs.debit_amount, 0))::numeric AS amount,
+               'READY_TO_POST' AS status,
+               bs.company_id, c.company_name,
+               NULL::uuid AS branch_id, NULL::text AS branch_name,
+               COUNT(*)::int AS record_count
+        FROM bank_statements bs
+        LEFT JOIN bank_accounts ba ON ba.id = bs.bank_account_id
+        LEFT JOIN companies c ON c.id = bs.company_id
+        WHERE bs.company_id = ANY($1::uuid[]) AND bs.is_reconciled = true AND bs.is_pending = false
+          AND bs.journal_id IS NULL AND bs.deleted_at IS NULL
+          AND (bs.credit_amount > 0 OR bs.debit_amount > 0)
+          ${df('bs.transaction_date')} ${dt('bs.transaction_date')}
+        GROUP BY bs.bank_account_id, bs.transaction_date, bs.company_id, ba.account_name, ba.account_number, c.company_name
+      `)
+    }
+
+    if (!module || module === 'pos_aggregates') {
+      segments.push(`
+        SELECT (at2.branch_id::text || '|' || at2.transaction_date::text) AS id,
+               'pos_aggregates'::text AS module,
+               br2.branch_name || ' — ' || at2.transaction_date::text AS ref_number,
+               at2.transaction_date::text AS transaction_date,
+               SUM(at2.nett_amount)::numeric AS amount,
+               'READY_TO_POST' AS status,
+               br2.company_id, c.company_name,
+               at2.branch_id, br2.branch_name,
+               COUNT(*)::int AS record_count
+        FROM aggregated_transactions at2
+        JOIN branches br2 ON br2.id = at2.branch_id
+        LEFT JOIN companies c ON c.id = br2.company_id
+        WHERE br2.company_id = ANY($1::uuid[]) AND at2.status = 'READY'
+          AND at2.is_reconciled = true AND at2.journal_id IS NULL AND at2.deleted_at IS NULL
+          ${df('at2.transaction_date')} ${dt('at2.transaction_date')}
+          ${branchFilterIdx ? `AND at2.branch_id = $${branchFilterIdx}` : ''}
+        GROUP BY at2.branch_id, at2.transaction_date, br2.company_id, br2.branch_name, c.company_name
       `)
     }
 
@@ -368,14 +452,63 @@ class PendingJournalPostingRepository {
         company_name: r.company_name,
         branch_id: r.branch_id,
         branch_name: r.branch_name,
+        record_count: r.record_count > 1 ? r.record_count : undefined,
       })),
       total,
     }
   }
   /**
+   * Get bank statement IDs in a group (same bank_account_id + transaction_date).
+   * Used by service when user clicks "Post" on a bank_reconciliation group row.
+   */
+  async findBankStatementIdsInGroup(
+    bankAccountId: string,
+    transactionDate: string,
+    companyIds: string[],
+  ): Promise<string[]> {
+    const { rows } = await pool.query(
+      `SELECT id::text FROM bank_statements
+       WHERE bank_account_id = $1::bigint
+         AND transaction_date = $2::date
+         AND company_id = ANY($3::uuid[])
+         AND is_reconciled = true AND is_pending = false
+         AND journal_id IS NULL AND deleted_at IS NULL
+         AND (credit_amount > 0 OR debit_amount > 0)`,
+      [bankAccountId, transactionDate, companyIds]
+    )
+    return rows.map(r => r.id)
+  }
+
+  /**
+   * Get full aggregated transaction objects in a group (same branch_id + transaction_date).
+   * Used by service when user clicks "Post" on a pos_aggregates group row.
+   * Returns full objects because generateJournalsOptimized requires AggregatedTransaction[].
+   */
+  async findPosAggregateTransactionsInGroup(
+    branchId: string,
+    transactionDate: string,
+  ): Promise<Array<Record<string, unknown>>> {
+    const { rows } = await pool.query(
+      `SELECT * FROM aggregated_transactions
+       WHERE branch_id = $1::uuid
+         AND transaction_date = $2::date
+         AND status = 'READY'
+         AND is_reconciled = true
+         AND journal_id IS NULL
+         AND deleted_at IS NULL`,
+      [branchId, transactionDate]
+    )
+    return rows
+  }
+
+  /**
    * Get severity-classified summary for fiscal closing guard.
    * Uses the same UNION logic as getSummary but scoped to a single company + date range,
    * and returns severity classification per module.
+   *
+   * Note: bank_reconciliation and pos_aggregates are EXCLUDED from closing guard
+   * (visibility-only in Pending Journal Posting page, not blocking closing).
+   * To activate them later: remove from EXCLUDED_FROM_CLOSING_GUARD array.
    */
   async getClosingGuardSummary(
     companyId: string,
@@ -384,12 +517,17 @@ class PendingJournalPostingRepository {
   ): Promise<PendingClosingGuardRow[]> {
     const summaryRows = await this.getSummary([companyId], periodStart, periodEnd)
 
-    return summaryRows.map(row => ({
-      module: row.module,
-      severity: MODULE_CLOSING_SEVERITY[row.module],
-      count: row.count,
-      total_amount: row.total_amount,
-    }))
+    // Exclude modules not yet decided for closing guard (visibility-only for now)
+    const EXCLUDED_FROM_CLOSING_GUARD: PendingModule[] = ['bank_reconciliation', 'pos_aggregates']
+
+    return summaryRows
+      .filter(row => !EXCLUDED_FROM_CLOSING_GUARD.includes(row.module))
+      .map(row => ({
+        module: row.module,
+        severity: MODULE_CLOSING_SEVERITY[row.module],
+        count: row.count,
+        total_amount: row.total_amount,
+      }))
   }
 }
 

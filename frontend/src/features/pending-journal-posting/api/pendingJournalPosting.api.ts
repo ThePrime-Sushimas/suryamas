@@ -17,6 +17,8 @@ export const PENDING_MODULE_CONFIG = {
   stock_transfers: { label: 'Stock Transfers', detailPath: '/inventory/stock-transfers' },
   production_orders: { label: 'Production Orders', detailPath: '/food-production/production' },
   marketplace_po: { label: 'Marketplace PO', detailPath: '/inventory/marketplace-po' },
+  bank_reconciliation: { label: 'Bank Reconciliation', detailPath: '/bank-reconciliation' },
+  pos_aggregates: { label: 'POS Aggregates', detailPath: '/pos-aggregates' },
 } as const
 
 // ─── Derived Types & Constants ───────────────────────────────────────────────
@@ -46,6 +48,7 @@ export interface PendingPostingRecord {
   company_name: string | null
   branch_id: string | null
   branch_name: string | null
+  record_count?: number
 }
 
 export interface PendingPostingSummary {

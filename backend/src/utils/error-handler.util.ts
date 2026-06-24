@@ -279,8 +279,17 @@ export const handleError = async (res: Response, error: unknown, req?: Request, 
 
   if (error instanceof Error && 'code' in error && typeof (error as Record<string, unknown>).code === 'string') {
     const pgCode = (error as Record<string, string>).code
-    const mapping = PG_USER_MESSAGES[pgCode]
 
+    // P0001 = RAISE EXCEPTION from triggers/functions — pass through the actual message
+    // (used by e.g. prevent_journal_insert_on_closed_period trigger)
+    if (pgCode === 'P0001') {
+      logError('DATABASE_RULE_VIOLATION', { message: error.message, code: pgCode, context })
+      persistHandledError(error, 422, req, context)
+      sendError(res, error.message, 422)
+      return
+    }
+
+    const mapping = PG_USER_MESSAGES[pgCode]
     if (mapping) {
       logError('DATABASE_ERROR', { message: error.message, code: pgCode, context })
       persistHandledError(error, mapping.statusCode, req, context)
