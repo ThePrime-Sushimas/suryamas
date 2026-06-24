@@ -1,7 +1,11 @@
-import { pendingJournalPostingRepository, type PendingModule, type PendingPostingRow, type PendingPostingSummaryRow } from './pending-journal-posting.repository'
+/**
+ * ⚠️ MENAMBAH MODULE BARU? Baca dulu:
+ * backend/src/modules/pending-journal-posting/ADDING_NEW_MODULE.md
+ */
+import { pendingJournalPostingRepository, PENDING_POSTING_MODULES, type PendingModule, type PendingPostingRow, type PendingPostingSummaryRow } from './pending-journal-posting.repository'
 import { getAccessibleBranchIds, getAccessibleCompanyIds } from '../../utils/branch-access.util'
 import { BusinessRuleError } from '../../utils/errors.base'
-import { logInfo, logError } from '../../config/logger'
+import { logInfo } from '../../config/logger'
 
 // Module service imports
 import { purchaseInvoicesService } from '../purchase-invoices/purchase-invoices.service'
@@ -13,7 +17,19 @@ import { stockTransfersService } from '../stock-transfers/stock-transfers.servic
 import { productionOrdersService } from '../food-production/production-orders/production-orders.service'
 import { marketplacePoService } from '../marketplace-po/marketplace-po.service'
 
-export const VALID_MODULES: PendingModule[] = [
+// ─── Exhaustiveness helper ───────────────────────────────────────────────────
+
+function assertNever(x: never, context: string): never {
+  throw new Error(`[pending-journal-posting] Unhandled ${context}: ${x}`)
+}
+
+// ─── Startup Exhaustiveness Assertion ────────────────────────────────────────
+// This list MUST mirror every case in the postSingle switch below.
+// If a new module is added to PENDING_POSTING_MODULES but not here,
+// TypeScript will error at compile time (satisfies check below).
+// If somehow bypassed, the runtime check catches it at module load.
+
+const HANDLED_MODULES_IN_SWITCH = [
   'purchase_invoices',
   'general_invoices',
   'ap_payments',
@@ -22,7 +38,21 @@ export const VALID_MODULES: PendingModule[] = [
   'stock_transfers',
   'production_orders',
   'marketplace_po',
-]
+] as const satisfies readonly PendingModule[]
+
+// Runtime fail-fast: crash at startup if any module in the registry is missing from switch
+for (const m of PENDING_POSTING_MODULES) {
+  if (!(HANDLED_MODULES_IN_SWITCH as readonly string[]).includes(m)) {
+    throw new Error(
+      `[pending-journal-posting] Module '${m}' ada di PENDING_POSTING_MODULES ` +
+      `tapi belum ada di HANDLED_MODULES_IN_SWITCH. ` +
+      `Tambahkan handler di switch postSingle() dan update HANDLED_MODULES_IN_SWITCH. ` +
+      `Lihat: backend/src/modules/pending-journal-posting/ADDING_NEW_MODULE.md`
+    )
+  }
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface PostResult {
   success: boolean
@@ -30,6 +60,8 @@ export interface PostResult {
   id: string
   error?: string
 }
+
+// ─── Service ─────────────────────────────────────────────────────────────────
 
 class PendingJournalPostingService {
   /**
@@ -67,16 +99,13 @@ class PendingJournalPostingService {
 
   /**
    * Post a single record's journal by routing to the correct module service.
+   * Uses exhaustive switch — TypeScript enforces all PendingModule values are handled.
    */
   async postSingle(
     module: PendingModule,
     id: string,
     userId: string,
   ): Promise<PostResult> {
-    if (!VALID_MODULES.includes(module)) {
-      throw new BusinessRuleError(`Module '${module}' is not supported`)
-    }
-
     const branchIds = await getAccessibleBranchIds(userId)
     const companyIds = await getAccessibleCompanyIds(userId)
 
@@ -115,7 +144,10 @@ class PendingJournalPostingService {
         break
 
       default:
-        throw new BusinessRuleError(`Module '${module}' is not supported`)
+        // TypeScript compile-time exhaustiveness check:
+        // If a new value is added to PendingModule but no case is added above,
+        // this line will show a compile error: "Argument of type 'xxx' is not assignable to parameter of type 'never'"
+        assertNever(module, 'module in postSingle')
     }
 
     logInfo('Pending journal posted via orchestrator', { module, id, userId })
@@ -131,9 +163,6 @@ class PendingJournalPostingService {
     ids: string[],
     userId: string,
   ): Promise<{ results: PostResult[]; success_count: number; failure_count: number }> {
-    if (!VALID_MODULES.includes(module)) {
-      throw new BusinessRuleError(`Module '${module}' is not supported`)
-    }
     if (ids.length === 0) {
       throw new BusinessRuleError('At least 1 ID is required')
     }

@@ -1,15 +1,8 @@
 import { z } from 'zod'
+import { PENDING_POSTING_MODULES } from './pending-journal-posting.repository'
 
-const validModules = [
-  'purchase_invoices',
-  'general_invoices',
-  'ap_payments',
-  'asset_disposals',
-  'stock_adjustments',
-  'stock_transfers',
-  'production_orders',
-  'marketplace_po',
-] as const
+// Zod requires a tuple with at least 1 element for z.enum
+const validModules = PENDING_POSTING_MODULES as unknown as readonly [string, ...string[]]
 
 export const listPendingSchema = z.object({
   query: z.object({

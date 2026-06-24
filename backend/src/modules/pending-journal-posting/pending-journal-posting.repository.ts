@@ -1,14 +1,21 @@
+/**
+ * ⚠️ MENAMBAH MODULE BARU? Baca dulu:
+ * backend/src/modules/pending-journal-posting/ADDING_NEW_MODULE.md
+ */
 import { pool } from '../../config/db'
 
-export type PendingModule =
-  | 'purchase_invoices'
-  | 'general_invoices'
-  | 'ap_payments'
-  | 'asset_disposals'
-  | 'stock_adjustments'
-  | 'stock_transfers'
-  | 'production_orders'
-  | 'marketplace_po'
+export const PENDING_POSTING_MODULES = [
+  'purchase_invoices',
+  'general_invoices',
+  'ap_payments',
+  'asset_disposals',
+  'stock_adjustments',
+  'stock_transfers',
+  'production_orders',
+  'marketplace_po',
+] as const
+
+export type PendingModule = typeof PENDING_POSTING_MODULES[number]
 
 export interface PendingPostingRow {
   id: string

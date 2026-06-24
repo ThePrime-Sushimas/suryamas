@@ -3,17 +3,37 @@ import api from '@/lib/axios'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Single Source of Truth: Module Config ───────────────────────────────────
+// ⚠️ MENAMBAH MODULE BARU? Cukup tambah 1 entry di sini.
+// Type, labels, paths, dan VALID_MODULES (di file filter) semua auto-derive.
+// Baca juga: backend/src/modules/pending-journal-posting/ADDING_NEW_MODULE.md
 
-export type PendingModule =
-  | 'purchase_invoices'
-  | 'general_invoices'
-  | 'ap_payments'
-  | 'asset_disposals'
-  | 'stock_adjustments'
-  | 'stock_transfers'
-  | 'production_orders'
-  | 'marketplace_po'
+export const PENDING_MODULE_CONFIG = {
+  purchase_invoices: { label: 'Purchase Invoices', detailPath: '/inventory/purchase-invoices' },
+  general_invoices: { label: 'General Invoices', detailPath: '/finance/general-invoices' },
+  ap_payments: { label: 'AP Payments', detailPath: '/finance/ap-payments' },
+  asset_disposals: { label: 'Asset Disposals', detailPath: '/fixed-assets/disposals' },
+  stock_adjustments: { label: 'Stock Adjustments', detailPath: '/inventory/stock-adjustments' },
+  stock_transfers: { label: 'Stock Transfers', detailPath: '/inventory/stock-transfers' },
+  production_orders: { label: 'Production Orders', detailPath: '/food-production/production' },
+  marketplace_po: { label: 'Marketplace PO', detailPath: '/inventory/marketplace-po' },
+} as const
+
+// ─── Derived Types & Constants ───────────────────────────────────────────────
+
+export type PendingModule = keyof typeof PENDING_MODULE_CONFIG
+
+export const PENDING_MODULE_KEYS = Object.keys(PENDING_MODULE_CONFIG) as PendingModule[]
+
+export const MODULE_LABELS: Record<PendingModule, string> = Object.fromEntries(
+  Object.entries(PENDING_MODULE_CONFIG).map(([k, v]) => [k, v.label])
+) as Record<PendingModule, string>
+
+export const MODULE_DETAIL_PATHS: Record<PendingModule, string> = Object.fromEntries(
+  Object.entries(PENDING_MODULE_CONFIG).map(([k, v]) => [k, v.detailPath])
+) as Record<PendingModule, string>
+
+// ─── Response Types ──────────────────────────────────────────────────────────
 
 export interface PendingPostingRecord {
   id: string
@@ -59,30 +79,6 @@ export interface PendingPostingListParams {
   branch_id?: string
   page?: number
   limit?: number
-}
-
-// ─── Module Labels ───────────────────────────────────────────────────────────
-
-export const MODULE_LABELS: Record<PendingModule, string> = {
-  purchase_invoices: 'Purchase Invoices',
-  general_invoices: 'General Invoices',
-  ap_payments: 'AP Payments',
-  asset_disposals: 'Asset Disposals',
-  stock_adjustments: 'Stock Adjustments',
-  stock_transfers: 'Stock Transfers',
-  production_orders: 'Production Orders',
-  marketplace_po: 'Marketplace PO',
-}
-
-export const MODULE_DETAIL_PATHS: Record<PendingModule, string> = {
-  purchase_invoices: '/inventory/purchase-invoices',
-  general_invoices: '/finance/general-invoices',
-  ap_payments: '/finance/ap-payments',
-  asset_disposals: '/fixed-assets/disposals',
-  stock_adjustments: '/inventory/stock-adjustments',
-  stock_transfers: '/inventory/stock-transfers',
-  production_orders: '/food-production/production',
-  marketplace_po: '/inventory/marketplace-po',
 }
 
 // ─── Query Keys ──────────────────────────────────────────────────────────────

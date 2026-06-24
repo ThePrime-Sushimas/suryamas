@@ -8,21 +8,12 @@ import {
   type UrlFilterBase,
   type UrlFilterUtils,
 } from '@/lib/urlFilters'
-import type { PendingModule } from '../api/pendingJournalPosting.api'
+import { PENDING_MODULE_CONFIG, type PendingModule } from '../api/pendingJournalPosting.api'
 
 type ModuleFilter = PendingModule | ''
 
-const VALID_MODULES = new Set<ModuleFilter>([
-  '',
-  'purchase_invoices',
-  'general_invoices',
-  'ap_payments',
-  'asset_disposals',
-  'stock_adjustments',
-  'stock_transfers',
-  'production_orders',
-  'marketplace_po',
-])
+// Derived from PENDING_MODULE_CONFIG — no manual maintenance needed
+const VALID_MODULES = new Set<ModuleFilter>(['', ...Object.keys(PENDING_MODULE_CONFIG) as PendingModule[]])
 
 export type PendingJournalFilters = UrlFilterBase & {
   module: ModuleFilter
