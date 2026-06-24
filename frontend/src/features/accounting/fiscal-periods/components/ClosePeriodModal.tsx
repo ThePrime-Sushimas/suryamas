@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Building2 } from 'lucide-react'
+import { Building2, AlertOctagon, AlertTriangle, ExternalLink } from 'lucide-react'
 import { parseApiError } from '@/lib/errorParser'
 import api from '@/lib/axios'
 import { useFiscalPeriodsStore } from '../store/fiscalPeriods.store'
+import { MODULE_LABELS } from '@/features/pending-journal-posting/api/pendingJournalPosting.api'
 import type {
   FiscalPeriodWithDetails,
   PeriodClosingSummary,
   ClosingAccountLine,
+  PendingModuleRecord,
 } from '../types/fiscal-period.types'
 
 interface EquityAccount {
@@ -110,6 +112,109 @@ function AccountTable({ accounts }: { accounts: ClosingAccountLine[] }) {
   )
 }
 
+function getModuleLabel(moduleKey: string): string {
+  return (MODULE_LABELS as Record<string, string>)[moduleKey] ?? moduleKey
+}
+
+function formatRupiahShort(value: number): string {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
+}
+
+function PendingModuleGuardSection({
+  hardBlock,
+  warning,
+  acknowledged,
+  onAcknowledgeChange,
+  onNavigate,
+}: {
+  hardBlock: PendingModuleRecord[]
+  warning: PendingModuleRecord[]
+  acknowledged: boolean
+  onAcknowledgeChange: (v: boolean) => void
+  onNavigate: (path: string) => void
+}) {
+  if (hardBlock.length === 0 && warning.length === 0) return null
+
+  return (
+    <div className="space-y-3">
+      {/* Hard Block */}
+      {hardBlock.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg p-4">
+          <div className="flex items-start gap-2 mb-2">
+            <AlertOctagon className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                Closing Diblokir — Transaksi Wajib Belum Ter-Post
+              </p>
+              <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
+                Selesaikan posting semua record berikut sebelum menutup periode.
+              </p>
+            </div>
+          </div>
+          <ul className="ml-7 space-y-1">
+            {hardBlock.map(item => (
+              <li key={item.module} className="text-sm text-red-700 dark:text-red-400 flex justify-between">
+                <span>{getModuleLabel(item.module)} ({item.count} record)</span>
+                <span className="font-mono text-xs">{formatRupiahShort(item.total_amount)}</span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => onNavigate(`/accounting/pending-journal-posting?module=${hardBlock[0]?.module ?? ''}`)}
+            className="inline-flex items-center gap-1 mt-3 text-xs text-red-700 dark:text-red-400 underline hover:text-red-900 dark:hover:text-red-300"
+          >
+            <ExternalLink className="w-3 h-3" /> Lihat & Post di halaman Pending Journal Posting
+          </button>
+        </div>
+      )}
+
+      {/* Warning */}
+      {warning.length > 0 && hardBlock.length === 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-4">
+          <div className="flex items-start gap-2 mb-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                Transaksi Pending Belum Ter-Post
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                Closing tetap bisa dilanjutkan, tapi record berikut tidak akan memiliki journal di periode ini.
+              </p>
+            </div>
+          </div>
+          <ul className="ml-7 space-y-1 mb-3">
+            {warning.map(item => (
+              <li key={item.module} className="text-sm text-amber-700 dark:text-amber-400 flex justify-between">
+                <span>{getModuleLabel(item.module)} ({item.count} record)</span>
+                <span className="font-mono text-xs">{formatRupiahShort(item.total_amount)}</span>
+              </li>
+            ))}
+          </ul>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={e => onAcknowledgeChange(e.target.checked)}
+              className="mt-0.5 rounded border-amber-400 dark:border-amber-600 text-amber-600 focus:ring-amber-500"
+            />
+            <span className="text-xs text-amber-800 dark:text-amber-300">
+              Saya menyadari ada transaksi pending yang belum di-post journal, dan tetap ingin melanjutkan closing periode ini.
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={() => onNavigate(`/accounting/pending-journal-posting`)}
+            className="inline-flex items-center gap-1 mt-2 text-xs text-amber-700 dark:text-amber-400 underline hover:text-amber-900 dark:hover:text-amber-300"
+          >
+            <ExternalLink className="w-3 h-3" /> Lihat & Post di halaman Pending Journal Posting
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePeriodModalProps) {
   const navigate = useNavigate()
   const { getClosingPreview, closePeriodWithEntries } = useFiscalPeriodsStore()
@@ -120,6 +225,7 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [retainedEarningsAccountId, setRetainedEarningsAccountId] = useState('')
   const [closeReason, setCloseReason] = useState('')
+  const [acknowledgeWarnings, setAcknowledgeWarnings] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [result, setResult] = useState<{ journalId: string; journalNumber: string } | null>(null)
@@ -155,6 +261,7 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
     setResult(null)
     setSubmitError(null)
     setCloseReason('')
+    setAcknowledgeWarnings(false)
 
     Promise.all([
       getClosingPreview(period.id),
@@ -190,6 +297,7 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
         retained_earnings_account_id: retainedEarningsAccountId,
         close_reason: closeReason || undefined,
         branch_id: selectedCentralBranchId || undefined,
+        ...(acknowledgeWarnings && { acknowledge_pending_warnings: true }),
       })
       setResult({ journalId: res.closing_journal_id, journalNumber: res.closing_journal_number })
       onSuccess()
@@ -282,6 +390,16 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
                         Jurnal berstatus DRAFT/SUBMITTED/APPROVED tidak akan masuk dalam closing entry. Setelah periode ditutup, jurnal tersebut tidak bisa diposting.
                       </p>
                     </div>
+                  )}
+                  {/* Pending Module Records Guard */}
+                  {preview.pending_module_records && (
+                    <PendingModuleGuardSection
+                      hardBlock={preview.pending_module_records.hard_block}
+                      warning={preview.pending_module_records.warning}
+                      acknowledged={acknowledgeWarnings}
+                      onAcknowledgeChange={setAcknowledgeWarnings}
+                      onNavigate={(path) => { onClose(); navigate(path) }}
+                    />
                   )}
                   <AccountTable accounts={preview.accounts} />
                   {preview.posted_journals_count === 0 && (
@@ -395,13 +513,16 @@ export function ClosePeriodModal({ period, isOpen, onClose, onSuccess }: ClosePe
             )}
             {step === 'preview' && (
               <button type="button" onClick={() => setStep('confirm')}
-                disabled={previewLoading || !!previewError || !preview || preview.posted_journals_count === 0}
+                disabled={previewLoading || !!previewError || !preview || preview.posted_journals_count === 0 || (preview.pending_module_records?.hard_block?.length ?? 0) > 0}
                 className="px-5 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 text-sm transition font-medium">
                 Lanjutkan →
               </button>
             )}
             {step === 'confirm' && (
-              <button type="button" onClick={handleConfirm} disabled={submitting || !retainedEarningsAccountId || !hasCentralBranch}
+              <button type="button" onClick={handleConfirm} disabled={
+                submitting || !retainedEarningsAccountId || !hasCentralBranch ||
+                ((preview?.pending_module_records?.warning?.length ?? 0) > 0 && !acknowledgeWarnings)
+              }
                 className="px-5 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 text-sm transition font-medium min-w-[140px]">
                 {submitting ? (
                   <span className="flex items-center gap-2 justify-center">

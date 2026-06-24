@@ -74,6 +74,7 @@ export interface ClosePeriodWithEntriesDto {
   retained_earnings_account_id: string
   close_reason?: string
   branch_id?: string
+  acknowledge_pending_warnings?: boolean
 }
 
 export interface ClosingAccountLine {
@@ -88,6 +89,13 @@ export interface ClosingAccountLine {
   closing_credit: number
 }
 
+export interface PendingModuleRecord {
+  module: string
+  severity: 'HARD_BLOCK' | 'WARNING'
+  count: number
+  total_amount: number
+}
+
 export interface PeriodClosingSummary {
   period: string
   period_start: string
@@ -100,6 +108,10 @@ export interface PeriodClosingSummary {
   pending_journals_count: number
   posted_journals_count: number
   default_retained_earnings_account_id: string | null
+  pending_module_records: {
+    hard_block: PendingModuleRecord[]
+    warning: PendingModuleRecord[]
+  }
 }
 
 export interface ClosePeriodWithEntriesResult {
