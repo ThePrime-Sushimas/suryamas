@@ -103,7 +103,7 @@ export default function ApPaymentsPage() {
       sessionStorage.removeItem(AP_PAYMENTS_PAY_TAB_KEY);
       return stored;
     }
-    return "all";
+    return "draft";
   });
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(
     () => new Set(),
@@ -590,6 +590,9 @@ export default function ApPaymentsPage() {
                           Status
                         </th>
                         <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Metode Bayar
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                           No. Pembayaran
                         </th>
                         {isPaidTab && canUpdate && (
@@ -828,6 +831,9 @@ export default function ApPaymentsPage() {
                         </th>
                         <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                           Status
+                        </th>
+                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                          Metode Bayar
                         </th>
                         <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
                           No. Pembayaran

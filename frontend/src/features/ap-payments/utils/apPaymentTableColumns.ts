@@ -1,5 +1,5 @@
-/** Base columns: No. Pembayaran, Tgl Bayar, Supplier, Total, Status — keep in sync with ApPaymentsPage <thead> */
-export const AP_PAYMENT_TABLE_BASE_COLUMNS = 5
+/** Base columns: Supplier, Tgl Bayar, Total, Status, Metode Bayar, No. Pembayaran — keep in sync with ApPaymentsPage <thead> */
+export const AP_PAYMENT_TABLE_BASE_COLUMNS = 6
 
 export function getApPaymentTableColumnCount(options: {
   showJournal: boolean

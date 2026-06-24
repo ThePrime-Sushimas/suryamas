@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Send } from 'lucide-react'
 import { apPaymentBatchPath } from '../constants'
 import type { ApPayment } from '../api/apPayments.api'
-import { AP_STATUS_CONFIG, AP_JOURNAL_STATUS_LABELS } from '../constants'
+import { AP_STATUS_CONFIG, AP_JOURNAL_STATUS_LABELS, AP_PAYMENT_METHOD_LABELS } from '../constants'
 import { BulkBadge } from './BulkBadge'
 import { batchGroupTotals } from '../utils/groupPaymentsByBatch'
 import { getApPaymentTableColumnCount } from '../utils/apPaymentTableColumns'
@@ -49,6 +49,9 @@ function PaymentRow({
       </td>
       <td className="px-2 py-2 whitespace-nowrap">
         <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-medium ${st.color}`}>{st.label}</span>
+      </td>
+      <td className="px-2 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+        {AP_PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method}
       </td>
       <td className={`px-2 py-2 font-medium text-gray-900 dark:text-white whitespace-nowrap ${nested ? 'pl-6' : ''}`}>
         <div className="flex flex-col gap-0.5">
