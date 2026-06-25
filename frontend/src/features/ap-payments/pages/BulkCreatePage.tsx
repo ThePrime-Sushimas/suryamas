@@ -92,6 +92,13 @@ export default function BulkCreatePage() {
   // Initialize bulk create state from fetched invoices with pre-filled bank account assignments
   const bulkState = useBulkCreateState(invoiceData ?? [], initialAssignments, validBankAccountIds)
 
+  // Detect invoices that were selected but are no longer available (already have active payment)
+  const missingCount = useMemo(() => {
+    if (!invoiceIds || !invoiceData) return 0
+    const returnedIds = new Set(invoiceData.map((inv) => inv.id))
+    return invoiceIds.filter((id) => !returnedIds.has(id)).length
+  }, [invoiceIds, invoiceData])
+
   // Bulk create mutation (V2 — multipart/form-data, creates DRAFT payments)
   const bulkCreateMutation = useCreateBulkPaymentV2()
 
@@ -323,6 +330,18 @@ export default function BulkCreatePage() {
               {submissionError}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Warning: some invoices no longer available */}
+      {missingCount > 0 && (
+        <div className="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-900/20">
+          <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            {missingCount} invoice tidak ditampilkan karena sudah dalam proses pembayaran lain
+            (mungkin sudah dibuat draft/diajukan oleh pihak lain).
+            Invoice yang tersisa: {invoiceData?.length ?? 0}.
+          </p>
         </div>
       )}
 

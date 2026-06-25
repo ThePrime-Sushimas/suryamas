@@ -50,6 +50,7 @@ import {
   ApBulkInvoiceNotFoundError,
   ApBulkInvoiceNotEligibleError,
   ApBulkOutstandingExceededError,
+  ApBulkDuplicatePaymentError,
   ApBulkProofUploadFailedError,
 } from './ap-payments.errors'
 
@@ -1022,6 +1023,20 @@ export class ApPaymentsService {
         throw new ApBulkOutstandingExceededError(exceededDetails)
       }
 
+      // Check no invoice already has an active payment (duplicate prevention)
+      const activePayments = await apPaymentsRepository.findActivePaymentsForInvoices(
+        allInvoiceIds,
+        client,
+      )
+      if (activePayments.length > 0) {
+        const details = activePayments.map((ap) => ({
+          invoiceId: ap.purchase_invoice_id,
+          invoiceNumber: invoiceMap.get(ap.purchase_invoice_id)?.invoice_number ?? ap.purchase_invoice_id,
+          paymentNumber: ap.payment_number,
+        }))
+        throw new ApBulkDuplicatePaymentError(details)
+      }
+
       // Note: Proof upload is handled separately after payment creation (on detail page)
 
       // 6. Calculate total_amount (sum of all invoice_lines amount_paid)
@@ -1129,26 +1144,15 @@ export class ApPaymentsService {
         paymentsToCreate,
       )
 
-      // Build supplier name lookup from validated invoices
-      const supplierNames = new Map<string, string>()
-      for (const payment of paymentsToCreate) {
-        if (!supplierNames.has(payment.supplier_id)) {
-          // Look up supplier name from the invoice rows
-          const invoiceForSupplier = invoiceRows.find(
-            (r) => r.supplier_id === payment.supplier_id,
-          )
-          if (invoiceForSupplier) {
-            // We need to get supplier name - query it
-            const { rows: supplierRows } = await client.query<{ supplier_name: string }>(
-              'SELECT supplier_name FROM suppliers WHERE id = $1',
-              [payment.supplier_id],
-            )
-            if (supplierRows.length > 0) {
-              supplierNames.set(payment.supplier_id, supplierRows[0].supplier_name)
-            }
-          }
-        }
-      }
+      // Build supplier name lookup — single batch query instead of N+1
+      const uniqueSupplierIds = Array.from(
+        new Set(paymentsToCreate.map((p) => p.supplier_id)),
+      )
+      const { rows: supplierRows } = await client.query<{ id: string; supplier_name: string }>(
+        'SELECT id, supplier_name FROM suppliers WHERE id = ANY($1::uuid[])',
+        [uniqueSupplierIds],
+      )
+      const supplierNames = new Map(supplierRows.map((r) => [r.id, r.supplier_name]))
 
       // 10. Return response
       return {

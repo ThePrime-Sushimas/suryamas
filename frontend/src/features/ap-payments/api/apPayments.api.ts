@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/lib/axios'
+import { parseApiError } from '@/lib/errorParser'
+import { useToast } from '@/contexts/ToastContext'
 import type { ApPaymentListQuery } from '../types/apPaymentFilters.types'
 
 export type ApPaymentStatus =
@@ -362,17 +364,20 @@ export const useOutstandingInvoicesPaginated = (params: OutstandingInvoicesQuery
 
 export const useCreateApPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (body: CreateApPaymentDto) => {
       const { data } = await api.post('/ap-payments', body)
       return normalizeApPayment(data.data as ApPayment)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ap-payments'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat pembayaran')),
   })
 }
 
 export const useUpdateApPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, body }: { id: string; body: UpdateApPaymentDto }) => {
       const { data } = await api.patch(`/ap-payments/${id}`, body)
@@ -382,31 +387,37 @@ export const useUpdateApPayment = () => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(v.id) })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal memperbarui pembayaran')),
   })
 }
 
 export const useDeleteApPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/ap-payments/${id}`)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ap-payments'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus pembayaran')),
   })
 }
 
 export const useForceDeleteApPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/ap-payments/${id}/force`)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ap-payments'] }),
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus pembayaran')),
   })
 }
 
 export const useRevertApPaymentToDraft = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => {
       const { data } = await api.post(`/ap-payments/${id}/revert-draft`)
@@ -416,11 +427,13 @@ export const useRevertApPaymentToDraft = () => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengembalikan ke draft')),
   })
 }
 
 export const useSubmitApPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => {
       const { data } = await api.post(`/ap-payments/${id}/submit`)
@@ -430,11 +443,13 @@ export const useSubmitApPayment = () => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengajukan pembayaran')),
   })
 }
 
 export const useApproveApPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => {
       const { data } = await api.post(`/ap-payments/${id}/approve`)
@@ -444,11 +459,13 @@ export const useApproveApPayment = () => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menyetujui pembayaran')),
   })
 }
 
 export const useRejectApPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, rejection_reason }: { id: string; rejection_reason: string }) => {
       const { data } = await api.post(`/ap-payments/${id}/reject`, { rejection_reason })
@@ -458,11 +475,13 @@ export const useRejectApPayment = () => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(v.id) })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menolak pembayaran')),
   })
 }
 
 export const useUploadApPaymentProof = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, file }: { id: string; file: File }) => {
       const formData = new FormData()
@@ -477,11 +496,13 @@ export const useUploadApPaymentProof = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(v.id) })
       qc.invalidateQueries({ queryKey: ['ap-payments', 'batch'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengupload bukti bayar')),
   })
 }
 
 export const useMarkApPaymentPaid = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, payment_date }: { id: string; payment_date?: string }) => {
       const { data } = await api.post(`/ap-payments/${id}/pay`, { payment_date })
@@ -492,11 +513,13 @@ export const useMarkApPaymentPaid = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(v.id) })
       qc.invalidateQueries({ queryKey: ['accounting', 'journals'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menandai pembayaran lunas')),
   })
 }
 
 export const usePostApPaymentJournal = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => {
       const { data } = await api.post(`/ap-payments/${id}/post-journal`)
@@ -507,11 +530,13 @@ export const usePostApPaymentJournal = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: ['accounting', 'journals'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal post journal')),
   })
 }
 
 export const useDeleteApPaymentJournal = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (id: string) => {
       const { data } = await api.delete(`/ap-payments/${id}/journal`)
@@ -522,11 +547,13 @@ export const useDeleteApPaymentJournal = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: ['accounting', 'journals'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus journal')),
   })
 }
 
 export const useReconcileApPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({
       id,
@@ -542,6 +569,7 @@ export const useReconcileApPayment = () => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
       qc.invalidateQueries({ queryKey: KEYS.detail(v.id) })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal rekonsiliasi pembayaran')),
   })
 }
 
@@ -589,6 +617,7 @@ export interface ApPaymentBatchDetail {
 
 export const useCreateBulkPayment = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (body: BulkCreateApPaymentDto) => {
       const { data } = await api.post('/ap-payments/bulk', body)
@@ -597,11 +626,13 @@ export const useCreateBulkPayment = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat pembayaran massal')),
   })
 }
 
 export const useCreateBulkPaymentV2 = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (formData: FormData) => {
       const { data } = await api.post('/ap-payments/bulk', formData, {
@@ -613,6 +644,7 @@ export const useCreateBulkPaymentV2 = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ap-payments'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat pembayaran massal')),
   })
 }
 
@@ -622,6 +654,7 @@ export const useCreateBulkPaymentV2 = () => {
  */
 export const useAssignBankAccount = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({ invoiceId, bankAccountId }: { invoiceId: string; bankAccountId: number | null }) => {
       const { data } = await api.patch(`/ap-payments/outstanding-invoices/${invoiceId}/assign`, {
@@ -633,11 +666,13 @@ export const useAssignBankAccount = () => {
       qc.invalidateQueries({ queryKey: ['ap-payments', 'bulk-invoices'] })
       qc.invalidateQueries({ queryKey: ['ap-payments', 'outstanding-paginated'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menyimpan rekening bayar')),
   })
 }
 
 export const useAssignSupplierBankAccount = () => {
   const qc = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async ({
       invoiceId,
@@ -656,6 +691,7 @@ export const useAssignSupplierBankAccount = () => {
       qc.invalidateQueries({ queryKey: ['ap-payments', 'bulk-invoices'] })
       qc.invalidateQueries({ queryKey: ['ap-payments', 'outstanding-paginated'] })
     },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal menyimpan rekening supplier')),
   })
 }
 

@@ -120,6 +120,35 @@ export class ApPaymentsRepository {
     return rows[0] ?? null
   }
 
+  /**
+   * Batch check: find active payments for multiple invoices in one query.
+   * Returns only invoices that DO have an active (non-REJECTED, non-deleted) payment.
+   */
+  async findActivePaymentsForInvoices(
+    invoiceIds: string[],
+    client: PoolClient,
+  ): Promise<Array<{ purchase_invoice_id: string; payment_id: string; payment_number: string }>> {
+    if (invoiceIds.length === 0) return []
+    const { rows } = await client.query<{
+      purchase_invoice_id: string
+      payment_id: string
+      payment_number: string
+    }>(
+      `SELECT DISTINCT ON (l.purchase_invoice_id)
+         l.purchase_invoice_id,
+         p.id AS payment_id,
+         p.payment_number
+       FROM ap_payment_invoice_lines l
+       JOIN ap_payments p ON p.id = l.ap_payment_id
+       WHERE l.purchase_invoice_id = ANY($1::uuid[])
+         AND p.deleted_at IS NULL
+         AND p.status NOT IN ('REJECTED')
+       ORDER BY l.purchase_invoice_id, p.created_at DESC`,
+      [invoiceIds],
+    )
+    return rows
+  }
+
   async findDefaultCompanyBankAccountId(
     companyId: string,
     client?: PoolClient,
@@ -835,6 +864,13 @@ export class ApPaymentsRepository {
          AND pi.id = ANY($2::uuid[])
          AND pi.deleted_at IS NULL
          AND (pi.total_amount - COALESCE(paid.total_paid, 0)) > 0.01
+         AND NOT EXISTS (
+           SELECT 1 FROM ap_payment_invoice_lines pl
+           JOIN ap_payments ap ON ap.id = pl.ap_payment_id
+           WHERE pl.purchase_invoice_id = pi.id
+             AND ap.status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED')
+             AND ap.deleted_at IS NULL
+         )
        ORDER BY pi.due_date ASC NULLS LAST`,
       [branchIds, invoiceIds],
     )

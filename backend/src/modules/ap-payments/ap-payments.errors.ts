@@ -151,6 +151,19 @@ export class ApBulkOutstandingExceededError extends AppError {
   }
 }
 
+export class ApBulkDuplicatePaymentError extends AppError {
+  constructor(details: Array<{ invoiceId: string; invoiceNumber: string; paymentNumber: string }>) {
+    super(
+      `Invoice(s) already have active payment: ${details.map((d) => `${d.invoiceNumber} → ${d.paymentNumber}`).join(', ')}`,
+      409,
+      'AP_BULK_DUPLICATE_PAYMENT',
+      { details },
+      undefined,
+      ErrorCategory.VALIDATION,
+    )
+  }
+}
+
 export class ApBulkEmptyPaymentsError extends AppError {
   constructor() {
     super(

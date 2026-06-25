@@ -11,17 +11,18 @@ import {
   GripVertical,
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
-import { parseApiError } from "@/lib/errorParser";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Pagination } from "@/components/ui/Pagination";
 import { usePermissionStore } from "@/features/branch_context/store/permission.store";
 import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
 import { useCompanyBankAccounts } from "../hooks/useCompanyBankAccounts";
+import { useApPaymentFilters } from "../hooks/useApPaymentFilters";
 import {
   AP_PAYMENTS_LIST_PATH,
   AP_DASHBOARD_PATH,
-  AP_PAYMENTS_PAY_TAB_KEY,
+  AP_LIST_TABS,
+  type ApPaymentListTab,
 } from "../constants";
 import { isDateRangeInvalid } from "../utils/apPaymentFilters.url";
 import {
@@ -42,14 +43,11 @@ import { OutstandingInvoicesTab } from "../components/OutstandingInvoicesTab";
 import { VerifyScreenshotModal } from "../components/VerifyScreenshotModal";
 import { apTheme } from "../ap-payments.theme";
 
-const PAYMENT_TABS = [
-  { id: "draft", label: "Draft", status: "DRAFT" },
-  { id: "pending", label: "Menunggu Pembayaran", status: "APPROVED" },
-  { id: "paid", label: "Paid", status: "PAID" },
-  { id: "all", label: "Semua", status: "" },
-] as const;
-
-type PaymentTabId = (typeof PAYMENT_TABS)[number]["id"];
+/** Tabs shown in the right (Payments) panel */
+const PAYMENT_TABS = AP_LIST_TABS.filter((t) => t.id !== "outstanding") as Array<{
+  id: ApPaymentListTab;
+  label: string;
+}>;
 
 const fmtCurrency = (v: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -79,43 +77,31 @@ export default function ApPaymentsPage() {
   const canDelete = hasPermission("ap_payments", "delete");
   const canUpdate = hasPermission("ap_payments", "update");
 
-  // ── Global filters (shared between panels) ──
-  const [globalSearch, setGlobalSearch] = useState("");
-  const [globalSupplierId, setGlobalSupplierId] = useState("");
-  const [globalBranchId, setGlobalBranchId] = useState("");
+  // ── URL-synced filters (global + right panel) ──
+  const {
+    filters,
+    searchInput,
+    setSearchInput,
+    debouncedSearch,
+    setFilters,
+    setTab,
+    setPage,
+    setLimit,
+    apiQuery,
+  } = useApPaymentFilters();
 
-  // ── Left panel (Outstanding) filters ──
+  // ── Left panel (Outstanding) filters — local state (not in URL) ──
   const [outReceivedFrom, setOutReceivedFrom] = useState("");
   const [outReceivedTo, setOutReceivedTo] = useState("");
   const [outDueFrom, setOutDueFrom] = useState("");
   const [outDueTo, setOutDueTo] = useState("");
   const [outBankAccountId, setOutBankAccountId] = useState("");
 
-  // ── Right panel (Payments) filters ──
-  const [payTab, setPayTab] = useState<PaymentTabId>(() => {
-    const stored = sessionStorage.getItem(AP_PAYMENTS_PAY_TAB_KEY);
-    if (
-      stored === "draft" ||
-      stored === "pending" ||
-      stored === "paid" ||
-      stored === "all"
-    ) {
-      sessionStorage.removeItem(AP_PAYMENTS_PAY_TAB_KEY);
-      return stored;
-    }
-    return "draft";
-  });
+  // ── Batch expansion state ──
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(
     () => new Set(),
   );
-  /** Batch IDs already auto-expanded once; avoids re-opening on refetch after user collapses */
   const autoExpandedBatchesRef = useRef<Set<string>>(new Set());
-  const [payDateFrom, setPayDateFrom] = useState("");
-  const [payDateTo, setPayDateTo] = useState("");
-  const [payDueFrom, setPayDueFrom] = useState("");
-  const [payDueTo, setPayDueTo] = useState("");
-  const [payPage, setPayPage] = useState(1);
-  const [payLimit, setPayLimit] = useState(20);
 
   const [deleteTarget, setDeleteTarget] = useState<ApPayment | null>(null);
   const [showVerify, setShowVerify] = useState(false);
@@ -130,19 +116,7 @@ export default function ApPaymentsPage() {
   const { data: bankAccounts = [] } = useCompanyBankAccounts();
 
   // ── Right panel query ──
-  const payStatus = PAYMENT_TABS.find((t) => t.id === payTab)?.status ?? "";
-  const { data: payData, isLoading: payLoading } = useApPayments({
-    page: payPage,
-    limit: payLimit,
-    ...(globalSearch ? { search: globalSearch } : {}),
-    ...(globalSupplierId ? { supplier_id: globalSupplierId } : {}),
-    ...(globalBranchId ? { branch_id: globalBranchId } : {}),
-    ...(payStatus ? { status: payStatus } : {}),
-    ...(payDateFrom ? { date_from: payDateFrom } : {}),
-    ...(payDateTo ? { date_to: payDateTo } : {}),
-    ...(payDueFrom ? { due_date_from: payDueFrom } : {}),
-    ...(payDueTo ? { due_date_to: payDueTo } : {}),
-  });
+  const { data: payData, isLoading: payLoading } = useApPayments(apiQuery);
   const deletePayment = useDeleteApPayment();
   const postJournal = usePostApPaymentJournal();
   const deletePaymentId = deleteTarget?.id;
@@ -157,8 +131,8 @@ export default function ApPaymentsPage() {
 
   const payments = payData?.data ?? [];
   const payPagination = payData?.pagination;
-  const isPaidTab = payTab === "paid";
-  const groupBulkRows = payTab === "draft" || payTab === "all";
+  const isPaidTab = filters.tab === "paid";
+  const groupBulkRows = filters.tab === "draft" || filters.tab === "all";
 
   const paymentGroups = useMemo(
     () =>
@@ -225,7 +199,6 @@ export default function ApPaymentsPage() {
     document.addEventListener("mouseup", onMouseUp);
   }, []);
 
-  // Double-click handle → reset to default ratio
   const handleDragDoubleClick = useCallback(() => {
     setSplitPct(SPLIT_DEFAULT_PCT);
   }, []);
@@ -241,8 +214,8 @@ export default function ApPaymentsPage() {
       try {
         await postJournal.mutateAsync(p.id);
         toast.success(`Journal ${p.payment_number} di-post`);
-      } catch (err: unknown) {
-        toast.error(parseApiError(err, "Gagal post journal"));
+      } catch {
+        // Error toast sudah ditangani oleh onError di usePostApPaymentJournal
       }
     },
     postJournalPending: postJournal.isPending,
@@ -251,10 +224,10 @@ export default function ApPaymentsPage() {
   };
 
   // ── Outstanding filters object (passed to OutstandingInvoicesTab) ──
-  const outstandingFilters = {
-    supplierId: globalSupplierId,
-    branchId: globalBranchId,
-    search: globalSearch,
+  const outstandingFilters = useMemo(() => ({
+    supplierId: filters.supplierId,
+    branchId: filters.branchId,
+    search: debouncedSearch,
     dateFrom: outReceivedFrom,
     dateTo: outReceivedTo,
     dueFrom: outDueFrom,
@@ -262,19 +235,243 @@ export default function ApPaymentsPage() {
     assignedBankAccountId: outBankAccountId
       ? Number(outBankAccountId)
       : undefined,
-  };
+  }), [filters.supplierId, filters.branchId, debouncedSearch, outReceivedFrom, outReceivedTo, outDueFrom, outDueTo, outBankAccountId]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
       await deletePayment.mutateAsync(deleteTarget.id);
       toast.success("Pembayaran dihapus");
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, "Gagal menghapus"));
+    } catch {
+      // Error toast sudah ditangani oleh onError di useDeleteApPayment
     } finally {
       setDeleteTarget(null);
     }
   };
+
+  // ── Shared filter panel (rendered in both desktop & mobile) ──
+  const outstandingPanelFilters = (
+    <>
+      <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            Tgl Terima:
+          </span>
+          <input
+            type="date"
+            value={outReceivedFrom}
+            onChange={(e) => setOutReceivedFrom(e.target.value)}
+            className={`${apTheme.select} text-xs py-1!`}
+          />
+          <span className="text-xs text-gray-400">—</span>
+          <input
+            type="date"
+            value={outReceivedTo}
+            onChange={(e) => setOutReceivedTo(e.target.value)}
+            className={`${apTheme.select} text-xs py-1!`}
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            Jatuh Tempo:
+          </span>
+          <input
+            type="date"
+            value={outDueFrom}
+            onChange={(e) => setOutDueFrom(e.target.value)}
+            className={`${apTheme.select} text-xs py-1!`}
+          />
+          <span className="text-xs text-gray-400">—</span>
+          <input
+            type="date"
+            value={outDueTo}
+            onChange={(e) => setOutDueTo(e.target.value)}
+            className={`${apTheme.select} text-xs py-1!`}
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            Rek. Bayar:
+          </span>
+          <select
+            value={outBankAccountId}
+            onChange={(e) => setOutBankAccountId(e.target.value)}
+            className={`${apTheme.select} text-xs py-1!`}
+          >
+            <option value="">Semua</option>
+            <option value="-1">Belum diset</option>
+            {bankAccounts.map((ba) => (
+              <option key={ba.id} value={ba.id}>
+                {ba.bank_name} - {ba.account_number} - {ba.account_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {isDateRangeInvalid(outReceivedFrom, outReceivedTo) && (
+        <p className="mt-1 text-xs text-red-600">
+          Tanggal terima awal harus sebelum akhir
+        </p>
+      )}
+      {isDateRangeInvalid(outDueFrom, outDueTo) && (
+        <p className="mt-1 text-xs text-red-600">
+          Jatuh tempo awal harus sebelum akhir
+        </p>
+      )}
+    </>
+  );
+
+  const paymentPanelFilters = (
+    <>
+      {/* Payment sub-tabs */}
+      <div className="flex gap-1 mt-2 overflow-x-auto">
+        {PAYMENT_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setTab(tab.id)}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+              filters.tab === tab.id
+                ? apTheme.listTabActive
+                : apTheme.listTabInactive
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {/* Panel-specific date filters */}
+      <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            Tgl Bayar:
+          </span>
+          <input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => setFilters({ dateFrom: e.target.value })}
+            className={`${apTheme.select} text-xs py-1!`}
+          />
+          <span className="text-xs text-gray-400">—</span>
+          <input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => setFilters({ dateTo: e.target.value })}
+            className={`${apTheme.select} text-xs py-1!`}
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            Jatuh Tempo:
+          </span>
+          <input
+            type="date"
+            value={filters.dueDateFrom}
+            onChange={(e) => setFilters({ dueDateFrom: e.target.value })}
+            className={`${apTheme.select} text-xs py-1!`}
+          />
+          <span className="text-xs text-gray-400">—</span>
+          <input
+            type="date"
+            value={filters.dueDateTo}
+            onChange={(e) => setFilters({ dueDateTo: e.target.value })}
+            className={`${apTheme.select} text-xs py-1!`}
+          />
+        </div>
+      </div>
+      {isDateRangeInvalid(filters.dateFrom, filters.dateTo) && (
+        <p className="mt-1 text-xs text-red-600">
+          Tanggal bayar awal harus sebelum akhir
+        </p>
+      )}
+      {isDateRangeInvalid(filters.dueDateFrom, filters.dueDateTo) && (
+        <p className="mt-1 text-xs text-red-600">
+          Jatuh tempo awal harus sebelum akhir
+        </p>
+      )}
+    </>
+  );
+
+  const paymentTable = (
+    <>
+      {payLoading ? (
+        <div className="p-4 space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className={apTheme.skeleton} />
+          ))}
+        </div>
+      ) : payments.length === 0 ? (
+        <div className="text-center py-12">
+          <p className={apTheme.muted}>Belum ada pembayaran</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-rose-200/80 dark:border-gray-700">
+                <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                  Supplier
+                </th>
+                <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                  Tgl Bayar
+                </th>
+                <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                  Total
+                </th>
+                <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                  Status
+                </th>
+                <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                  Metode Bayar
+                </th>
+                <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                  No. Pembayaran
+                </th>
+                {isPaidTab && canUpdate && (
+                  <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
+                    Journal
+                  </th>
+                )}
+                {canDelete && <th className="px-2 py-2 w-8" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
+              {paymentGroups.map((group) =>
+                group.kind === "batch" ? (
+                  <BulkPaymentBatchRows
+                    key={group.batchId}
+                    batchId={group.batchId}
+                    payments={group.payments}
+                    expanded={expandedBatches.has(group.batchId)}
+                    onToggle={() => toggleBatch(group.batchId)}
+                    {...rowHandlers}
+                  />
+                ) : (
+                  <PaymentRow
+                    key={group.payment.id}
+                    payment={group.payment}
+                    {...rowHandlers}
+                  />
+                ),
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+
+  const paymentPagination = payPagination && payPagination.total > 0 && (
+    <div className="border-t border-rose-200/80 dark:border-gray-700 px-3 py-2">
+      <Pagination
+        pagination={payPagination}
+        onPageChange={setPage}
+        onLimitChange={(l) => setLimit(l)}
+        currentLength={payments.length}
+        loading={payLoading}
+      />
+    </div>
+  );
 
   return (
     <ApPaymentsShell className="flex flex-col h-full">
@@ -325,14 +522,14 @@ export default function ApPaymentsPage() {
             <input
               type="text"
               placeholder="Cari invoice / pembayaran..."
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className={apTheme.inputSearch}
             />
-            {globalSearch && (
+            {searchInput && (
               <button
                 type="button"
-                onClick={() => setGlobalSearch("")}
+                onClick={() => setSearchInput("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X className="w-4 h-4" />
@@ -340,8 +537,8 @@ export default function ApPaymentsPage() {
             )}
           </div>
           <select
-            value={globalSupplierId}
-            onChange={(e) => setGlobalSupplierId(e.target.value)}
+            value={filters.supplierId}
+            onChange={(e) => setFilters({ supplierId: e.target.value })}
             className={apTheme.select}
           >
             <option value="">Semua supplier</option>
@@ -352,8 +549,8 @@ export default function ApPaymentsPage() {
             ))}
           </select>
           <select
-            value={globalBranchId}
-            onChange={(e) => setGlobalBranchId(e.target.value)}
+            value={filters.branchId}
+            onChange={(e) => setFilters({ branchId: e.target.value })}
             className={apTheme.select}
           >
             <option value="">Semua cabang</option>
@@ -369,7 +566,6 @@ export default function ApPaymentsPage() {
       {/* Split Panels */}
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {/* ── Desktop: resizable side-by-side ── */}
-        {/* ── Mobile/tablet: stacked (handled via CSS — container is flex-col below lg) ── */}
         <div
           ref={containerRef}
           className="hidden lg:flex h-full gap-0 rounded-xl overflow-hidden border border-rose-200/80 dark:border-gray-700"
@@ -384,73 +580,7 @@ export default function ApPaymentsPage() {
               <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                 Invoice Outstanding
               </h2>
-              {/* Panel-specific date filters */}
-              <div className="flex flex-wrap gap-2 mt-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Tgl Terima:
-                  </span>
-                  <input
-                    type="date"
-                    value={outReceivedFrom}
-                    onChange={(e) => setOutReceivedFrom(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                  <span className="text-xs text-gray-400">—</span>
-                  <input
-                    type="date"
-                    value={outReceivedTo}
-                    onChange={(e) => setOutReceivedTo(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Jatuh Tempo:
-                  </span>
-                  <input
-                    type="date"
-                    value={outDueFrom}
-                    onChange={(e) => setOutDueFrom(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                  <span className="text-xs text-gray-400">—</span>
-                  <input
-                    type="date"
-                    value={outDueTo}
-                    onChange={(e) => setOutDueTo(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Rek. Bayar:
-                  </span>
-                  <select
-                    value={outBankAccountId}
-                    onChange={(e) => setOutBankAccountId(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  >
-                    <option value="">Semua</option>
-                    <option value="-1">Belum diset</option>
-                    {bankAccounts.map((ba) => (
-                      <option key={ba.id} value={ba.id}>
-                        {ba.bank_name} - {ba.account_number} - {ba.account_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {isDateRangeInvalid(outReceivedFrom, outReceivedTo) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Tanggal terima awal harus sebelum akhir
-                </p>
-              )}
-              {isDateRangeInvalid(outDueFrom, outDueTo) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Jatuh tempo awal harus sebelum akhir
-                </p>
-              )}
+              {outstandingPanelFilters}
             </div>
             <div className="flex-1 overflow-auto">
               <OutstandingInvoicesTab filters={outstandingFilters} />
@@ -489,160 +619,10 @@ export default function ApPaymentsPage() {
                   Pembayaran
                 </h2>
               </div>
-              {/* Payment sub-tabs */}
-              <div className="flex gap-1 mt-2 overflow-x-auto">
-                {PAYMENT_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      setPayTab(tab.id);
-                      setPayPage(1);
-                    }}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                      payTab === tab.id
-                        ? apTheme.listTabActive
-                        : apTheme.listTabInactive
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              {/* Panel-specific date filters */}
-              <div className="flex flex-wrap gap-2 mt-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Tgl Bayar:
-                  </span>
-                  <input
-                    type="date"
-                    value={payDateFrom}
-                    onChange={(e) => setPayDateFrom(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                  <span className="text-xs text-gray-400">—</span>
-                  <input
-                    type="date"
-                    value={payDateTo}
-                    onChange={(e) => setPayDateTo(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Jatuh Tempo:
-                  </span>
-                  <input
-                    type="date"
-                    value={payDueFrom}
-                    onChange={(e) => setPayDueFrom(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                  <span className="text-xs text-gray-400">—</span>
-                  <input
-                    type="date"
-                    value={payDueTo}
-                    onChange={(e) => setPayDueTo(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                </div>
-              </div>
-              {isDateRangeInvalid(payDateFrom, payDateTo) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Tanggal bayar awal harus sebelum akhir
-                </p>
-              )}
-              {isDateRangeInvalid(payDueFrom, payDueTo) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Jatuh tempo awal harus sebelum akhir
-                </p>
-              )}
+              {paymentPanelFilters}
             </div>
-
-            {/* Payment table */}
-            <div className="flex-1 overflow-auto">
-              {payLoading ? (
-                <div className="p-4 space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className={apTheme.skeleton} />
-                  ))}
-                </div>
-              ) : payments.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className={apTheme.muted}>Belum ada pembayaran</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-rose-200/80 dark:border-gray-700">
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Supplier
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Tgl Bayar
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Total
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Status
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Metode Bayar
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          No. Pembayaran
-                        </th>
-                        {isPaidTab && canUpdate && (
-                          <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                            Journal
-                          </th>
-                        )}
-                        {canDelete && <th className="px-2 py-2 w-8" />}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
-                      {paymentGroups.map((group) =>
-                        group.kind === "batch" ? (
-                          <BulkPaymentBatchRows
-                            key={group.batchId}
-                            batchId={group.batchId}
-                            payments={group.payments}
-                            expanded={expandedBatches.has(group.batchId)}
-                            onToggle={() => toggleBatch(group.batchId)}
-                            {...rowHandlers}
-                          />
-                        ) : (
-                          <PaymentRow
-                            key={group.payment.id}
-                            payment={group.payment}
-                            {...rowHandlers}
-                          />
-                        ),
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Payment pagination */}
-            {payPagination && payPagination.total > 0 && (
-              <div className="border-t border-rose-200/80 dark:border-gray-700 px-3 py-2">
-                <Pagination
-                  pagination={payPagination}
-                  onPageChange={setPayPage}
-                  onLimitChange={(l) => {
-                    setPayLimit(l);
-                    setPayPage(1);
-                  }}
-                  currentLength={payments.length}
-                  loading={payLoading}
-                />
-              </div>
-            )}
+            <div className="flex-1 overflow-auto">{paymentTable}</div>
+            {paymentPagination}
           </div>
         </div>
 
@@ -656,72 +636,7 @@ export default function ApPaymentsPage() {
               <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                 Invoice Outstanding
               </h2>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Tgl Terima:
-                  </span>
-                  <input
-                    type="date"
-                    value={outReceivedFrom}
-                    onChange={(e) => setOutReceivedFrom(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                  <span className="text-xs text-gray-400">—</span>
-                  <input
-                    type="date"
-                    value={outReceivedTo}
-                    onChange={(e) => setOutReceivedTo(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Jatuh Tempo:
-                  </span>
-                  <input
-                    type="date"
-                    value={outDueFrom}
-                    onChange={(e) => setOutDueFrom(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                  <span className="text-xs text-gray-400">—</span>
-                  <input
-                    type="date"
-                    value={outDueTo}
-                    onChange={(e) => setOutDueTo(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Rek. Bayar:
-                  </span>
-                  <select
-                    value={outBankAccountId}
-                    onChange={(e) => setOutBankAccountId(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  >
-                    <option value="">Semua</option>
-                    <option value="-1">Belum diset</option>
-                    {bankAccounts.map((ba) => (
-                      <option key={ba.id} value={ba.id}>
-                        {ba.bank_name} - {ba.account_number} - {ba.account_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {isDateRangeInvalid(outReceivedFrom, outReceivedTo) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Tanggal terima awal harus sebelum akhir
-                </p>
-              )}
-              {isDateRangeInvalid(outDueFrom, outDueTo) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Jatuh tempo awal harus sebelum akhir
-                </p>
-              )}
+              {outstandingPanelFilters}
             </div>
             <div className="flex-1 overflow-auto">
               <OutstandingInvoicesTab filters={outstandingFilters} />
@@ -736,154 +651,10 @@ export default function ApPaymentsPage() {
               <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                 Pembayaran
               </h2>
-              <div className="flex gap-1 mt-2 overflow-x-auto">
-                {PAYMENT_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      setPayTab(tab.id);
-                      setPayPage(1);
-                    }}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                      payTab === tab.id
-                        ? apTheme.listTabActive
-                        : apTheme.listTabInactive
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Tgl Bayar:
-                  </span>
-                  <input
-                    type="date"
-                    value={payDateFrom}
-                    onChange={(e) => setPayDateFrom(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                  <span className="text-xs text-gray-400">—</span>
-                  <input
-                    type="date"
-                    value={payDateTo}
-                    onChange={(e) => setPayDateTo(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Jatuh Tempo:
-                  </span>
-                  <input
-                    type="date"
-                    value={payDueFrom}
-                    onChange={(e) => setPayDueFrom(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                  <span className="text-xs text-gray-400">—</span>
-                  <input
-                    type="date"
-                    value={payDueTo}
-                    onChange={(e) => setPayDueTo(e.target.value)}
-                    className={`${apTheme.select} text-xs py-1!`}
-                  />
-                </div>
-              </div>
-              {isDateRangeInvalid(payDateFrom, payDateTo) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Tanggal bayar awal harus sebelum akhir
-                </p>
-              )}
-              {isDateRangeInvalid(payDueFrom, payDueTo) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Jatuh tempo awal harus sebelum akhir
-                </p>
-              )}
+              {paymentPanelFilters}
             </div>
-            <div className="flex-1 overflow-auto">
-              {payLoading ? (
-                <div className="p-4 space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className={apTheme.skeleton} />
-                  ))}
-                </div>
-              ) : payments.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className={apTheme.muted}>Belum ada pembayaran</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-rose-200/80 dark:border-gray-700">
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Supplier
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Tgl Bayar
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Total
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Status
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          Metode Bayar
-                        </th>
-                        <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                          No. Pembayaran
-                        </th>
-                        {isPaidTab && canUpdate && (
-                          <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">
-                            Journal
-                          </th>
-                        )}
-                        {canDelete && <th className="px-2 py-2 w-8" />}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-rose-100 dark:divide-gray-700">
-                      {paymentGroups.map((group) =>
-                        group.kind === "batch" ? (
-                          <BulkPaymentBatchRows
-                            key={group.batchId}
-                            batchId={group.batchId}
-                            payments={group.payments}
-                            expanded={expandedBatches.has(group.batchId)}
-                            onToggle={() => toggleBatch(group.batchId)}
-                            {...rowHandlers}
-                          />
-                        ) : (
-                          <PaymentRow
-                            key={group.payment.id}
-                            payment={group.payment}
-                            {...rowHandlers}
-                          />
-                        ),
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            {payPagination && payPagination.total > 0 && (
-              <div className="border-t border-rose-200/80 dark:border-gray-700 px-3 py-2">
-                <Pagination
-                  pagination={payPagination}
-                  onPageChange={setPayPage}
-                  onLimitChange={(l) => {
-                    setPayLimit(l);
-                    setPayPage(1);
-                  }}
-                  currentLength={payments.length}
-                  loading={payLoading}
-                />
-              </div>
-            )}
+            <div className="flex-1 overflow-auto">{paymentTable}</div>
+            {paymentPagination}
           </div>
         </div>
       </div>
