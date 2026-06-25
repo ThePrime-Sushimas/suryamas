@@ -357,8 +357,9 @@ export class ApPaymentsRepository {
       params.push(filter.due_date_to)
     }
     if (filter.search) {
-      conditions.push(`ap.payment_number ILIKE $${idx++}`)
+      conditions.push(`(ap.payment_number ILIKE $${idx} OR s.supplier_name ILIKE $${idx})`)
       params.push(`%${filter.search}%`)
+      idx++
     }
 
     const where = conditions.join(' AND ')
@@ -367,7 +368,9 @@ export class ApPaymentsRepository {
     const offset = (page - 1) * limit
 
     const countResult = await pool.query(
-      `SELECT COUNT(*) FROM ap_payments ap WHERE ${where}`,
+      `SELECT COUNT(*) FROM ap_payments ap
+       JOIN suppliers s ON s.id = ap.supplier_id
+       WHERE ${where}`,
       params,
     )
     const total = parseInt(countResult.rows[0].count, 10)
