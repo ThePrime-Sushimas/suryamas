@@ -55,7 +55,7 @@ export function PoLineShortCloseModal({
             </div>
             <div>
               <h3 className="font-bold text-gray-900 dark:text-white">Tutup sisa PO</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[240px]">
+              <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-60">
                 {line.product_name}
               </p>
             </div>

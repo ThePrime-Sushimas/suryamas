@@ -166,7 +166,7 @@ export default function ApPaymentDetailPage() {
     <div className={apTheme.page}>
       {/* Top Header */}
       <div className={`${apTheme.header} ${apTheme.headerSticky}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button type="button" onClick={backToList} className={apTheme.btnGhost}>
               <ArrowLeft className="w-5 h-5" />
@@ -195,7 +195,7 @@ export default function ApPaymentDetailPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Left Column — Main content */}
           <div className="flex-1 min-w-0 space-y-6">
@@ -236,65 +236,63 @@ export default function ApPaymentDetailPage() {
                   Alokasi Invoice ({payment.lines?.length ?? 0})
                 </h2>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className={`border-b border-gray-100 dark:border-gray-700 ${apTheme.surface}`}>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">No. Invoice</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Tgl Invoice</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Jatuh Tempo</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">GR</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Subtotal</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Pajak</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Total</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Dibayar</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {(payment.lines ?? []).map((line) => {
-                      const isOverdue = line.invoice_due_date && new Date(line.invoice_due_date) < new Date()
-                      return (
-                        <tr key={line.id} className={apTheme.hoverRow}>
-                          <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                            <div className="max-w-[180px] truncate whitespace-nowrap">
-                              {line.invoice_number}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtDate(line.invoice_date)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="text-gray-600 dark:text-gray-300">{fmtDate(line.invoice_due_date)}</span>
-                            {isOverdue && line.invoice_status !== 'POSTED' && (
-                              <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">Overdue</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{line.gr_numbers ?? '—'}</td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtCurrency(Number(line.invoice_subtotal))}</td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtCurrency(Number(line.invoice_tax))}</td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtCurrency(Number(line.invoice_total_amount))}</td>
-                          <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white whitespace-nowrap">{fmtCurrency(Number(line.amount_paid))}</td>
-                          <td className="px-4 py-3">
-                            {line.invoice_status === 'POSTED' ? (
-                              <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Posted</span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{line.invoice_status ?? '—'}</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                  {(payment.lines ?? []).length > 0 && (
-                    <tfoot>
-                      <tr className="border-t border-gray-200 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-800/80">
-                        <td colSpan={7} className="px-4 py-2.5 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Total Dibayar</td>
-                        <td className="px-4 py-2.5 font-bold text-gray-900 dark:text-white">{fmtCurrency(totalAllocated)}</td>
-                        <td />
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className={`border-b border-gray-100 dark:border-gray-700 ${apTheme.surface}`}>
+                    <th className="px-3 py-2.5 text-left font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Invoice</th>
+                    <th className="px-2 py-2.5 text-left font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Tgl</th>
+                    <th className="px-2 py-2.5 text-left font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Jt. Tempo</th>
+                    <th className="px-2 py-2.5 text-left font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">GR</th>
+                    <th className="px-2 py-2.5 text-right font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Subtotal</th>
+                    <th className="px-2 py-2.5 text-right font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Pajak</th>
+                    <th className="px-2 py-2.5 text-right font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Total</th>
+                    <th className="px-2 py-2.5 text-right font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Dibayar</th>
+                    <th className="px-2 py-2.5 text-center font-medium uppercase tracking-wide text-rose-600/80 dark:text-gray-400">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {(payment.lines ?? []).map((line) => {
+                    const isOverdue = line.invoice_due_date && new Date(line.invoice_due_date) < new Date()
+                    return (
+                      <tr key={line.id} className={apTheme.hoverRow}>
+                        <td className="px-3 py-2.5 font-medium text-gray-900 dark:text-white">
+                          <div className="max-w-[150px] truncate">{line.invoice_number}</div>
+                        </td>
+                        <td className="px-2 py-2.5 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtDate(line.invoice_date)}</td>
+                        <td className="px-2 py-2.5 whitespace-nowrap">
+                          <span className="text-gray-600 dark:text-gray-300">{fmtDate(line.invoice_due_date)}</span>
+                          {isOverdue && line.invoice_status !== 'POSTED' && (
+                            <span className="ml-1 px-1 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">!</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5 text-gray-600 dark:text-gray-300">
+                          <div className="max-w-20 truncate">{line.gr_numbers ?? '—'}</div>
+                        </td>
+                        <td className="px-2 py-2.5 text-right text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtCurrency(Number(line.invoice_subtotal))}</td>
+                        <td className="px-2 py-2.5 text-right text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtCurrency(Number(line.invoice_tax))}</td>
+                        <td className="px-2 py-2.5 text-right text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtCurrency(Number(line.invoice_total_amount))}</td>
+                        <td className="px-2 py-2.5 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">{fmtCurrency(Number(line.amount_paid))}</td>
+                        <td className="px-2 py-2.5 text-center">
+                          {line.invoice_status === 'POSTED' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Posted</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{line.invoice_status ?? '—'}</span>
+                          )}
+                        </td>
                       </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
+                    )
+                  })}
+                </tbody>
+                {(payment.lines ?? []).length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-gray-200 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-800/80">
+                      <td colSpan={7} className="px-3 py-2.5 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Total Dibayar</td>
+                      <td className="px-2 py-2.5 text-right font-bold text-gray-900 dark:text-white">{fmtCurrency(totalAllocated)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </section>
 
             {/* Attachments */}
