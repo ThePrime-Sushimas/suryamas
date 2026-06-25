@@ -341,6 +341,7 @@ export default function PurchaseInvoiceDetailPage() {
                     handleStatusAction(
                       () => submitPI.mutateAsync(id!),
                       inv.status === "REJECTED" ? "Invoice diajukan ulang" : "Invoice diajukan",
+                      backToList,
                     );
                   }}
                   disabled={isStatusBusy}
