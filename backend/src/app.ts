@@ -118,6 +118,21 @@ app.get("/health", async (req, res) => {
   }
 });
 
+app.get("/health/bca", async (req, res) => {
+  try {
+    const { checkBcaHealth } = await import("./integrations/bca-snap/bca-health");
+    const result = await checkBcaHealth();
+    res.status(result.status === "UP" ? 200 : 503).json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(503).json({
+      status: "DOWN",
+      checkedAt: new Date().toISOString(),
+      error: { code: "BCA_HEALTH_CHECK_FAILED", message },
+    });
+  }
+});
+
 // OpenAPI Documentation
 const openApiDocument = generateOpenApiDocument();
 app.get("/openapi.json", (req, res) => {
