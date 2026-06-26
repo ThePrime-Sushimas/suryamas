@@ -21,6 +21,10 @@ import {
 import { useMarketplaceSessions } from '@/features/marketplace-po/api/marketplacePo.api'
 import type { MarketplaceCheckoutSession } from '@/features/marketplace-po/types/marketplacePo.types'
 import {
+  usePettyCashExpenseReport,
+  type PettyCashExpenseReportRow,
+} from '../hooks/usePettyCashExpenseReport'
+import {
   AP_PAYMENT_METHOD_LABELS,
   AP_STATUS_CONFIG,
   AP_PAYMENTS_LIST_PATH,
@@ -46,7 +50,7 @@ const GENERAL_PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 // ─── Unified row type ─────────────────────────────────────────────────────────
 
-type RowType = 'PURCHASE' | 'GENERAL' | 'MARKETPLACE'
+type RowType = 'PURCHASE' | 'GENERAL' | 'MARKETPLACE' | 'PETTY_CASH'
 
 interface UnifiedRow {
   _type: RowType
@@ -184,6 +188,33 @@ function fromMarketplaceSession(session: MarketplaceCheckoutSession): UnifiedRow
   }
 }
 
+function fromPettyCashExpense(expense: PettyCashExpenseReportRow): UnifiedRow {
+  return {
+    _type: 'PETTY_CASH',
+    _id: `petty-cash-${expense.id}`,
+    invoice_number: expense.request_number,
+    vendor_name: expense.category_name +
+      (expense.sub_category_name ? ` / ${expense.sub_category_name}` : ''),
+    branch_name: expense.branch_name,
+    payment_number: expense.request_number,
+    payment_method: 'CASH',
+    rekening: expense.petty_cash_coa_name,
+    payment_date: expense.expense_date,
+    nominal_bayar: expense.amount,
+    invoice_total: expense.request_total_disbursed,
+    invoice_remaining: expense.request_remaining,
+    invoice_due_date: null,
+    invoice_status: expense.settlement_status ?? 'ACTIVE',
+    payment_status: expense.request_status,
+    source_bank_name: null,
+    source_account_number: null,
+    source_account_name: expense.petty_cash_coa_name,
+    dest_bank_name: null,
+    dest_account_number: null,
+    dest_account_name: expense.description,
+  }
+}
+
 function sortByDate(rows: UnifiedRow[]): UnifiedRow[] {
   return [...rows].sort((a, b) => {
     const da = a.payment_date ? new Date(a.payment_date).getTime() : 0
@@ -203,6 +234,7 @@ function getPurchaseInvoiceStatusLabel(status: string | null): string {
 function getInvoiceStatusLabel(status: string | null, type: RowType): string {
   if (!status) return ''
   if (type === 'MARKETPLACE') return MARKETPLACE_STATUS_LABELS[status] ?? status
+  if (type === 'PETTY_CASH') return status === 'SETTLED' ? 'Settled' : 'Belum Settlement'
   return getPurchaseInvoiceStatusLabel(status)
 }
 
@@ -211,6 +243,7 @@ function getPaymentMethodLabel(method: string | null, type: RowType): string {
   if (type === 'PURCHASE')
     return AP_PAYMENT_METHOD_LABELS[method as keyof typeof AP_PAYMENT_METHOD_LABELS] ?? method
   if (type === 'MARKETPLACE') return 'CC Owner'
+  if (type === 'PETTY_CASH') return 'Cash'
   return GENERAL_PAYMENT_METHOD_LABELS[method] ?? method
 }
 
@@ -227,6 +260,12 @@ function getPaymentStatusLabel(status: string | null, type: RowType): string {
   if (!status) return ''
   if (type === 'GENERAL') return GENERAL_STATUS_LABELS[status as GeneralPaymentStatus] ?? status
   if (type === 'MARKETPLACE') return MARKETPLACE_STATUS_LABELS[status] ?? status
+  if (type === 'PETTY_CASH') {
+    const labels: Record<string, string> = {
+      PENDING: 'Pending', DISBURSED: 'Aktif', CLOSED: 'Selesai', REJECTED: 'Ditolak',
+    }
+    return labels[status] ?? status
+  }
   return AP_STATUS_CONFIG[status as keyof typeof AP_STATUS_CONFIG]?.label ?? status
 }
 
@@ -235,7 +274,7 @@ function getPaymentStatusLabel(status: string | null, type: RowType): string {
 interface Filters {
   search: string
   branchId: string
-  rowType: '' | 'PURCHASE' | 'GENERAL' | 'MARKETPLACE'
+  rowType: '' | 'PURCHASE' | 'GENERAL' | 'MARKETPLACE' | 'PETTY_CASH'
   // Shared date (payment date)
   dateFrom: string
   dateTo: string
@@ -334,6 +373,19 @@ export default function UnifiedPaymentReportPage() {
   const { data: marketplaceData, isLoading: marketplaceLoading, isError: marketplaceError } =
     useMarketplaceSessions(marketplaceQuery, { enabled: enableMarketplace })
 
+  // ── Petty cash query ──
+  const pettyCashQuery = useMemo(() => ({
+    limit: -1,
+    ...(filters.branchId ? { branch_id: filters.branchId } : {}),
+    ...(filters.search   ? { search:    filters.search }   : {}),
+    ...(filters.dateFrom ? { date_from: filters.dateFrom } : {}),
+    ...(filters.dateTo   ? { date_to:   filters.dateTo }   : {}),
+  }), [filters])
+
+  const enablePettyCash = hasApplied && (filters.rowType === '' || filters.rowType === 'PETTY_CASH')
+  const { data: pettyCashData, isLoading: pcLoading, isError: pcError } =
+    usePettyCashExpenseReport(pettyCashQuery, { enabled: enablePettyCash })
+
   // ── Merge + sort ──
   // When a type-specific filter is active, exclude other types that can't filter on it
   const hasSupplierFilter = !!filters.supplierId || !!filters.receivedDateFrom || !!filters.receivedDateTo || !!filters.dueDateFrom || !!filters.dueDateTo
@@ -347,6 +399,7 @@ export default function UnifiedPaymentReportPage() {
     const showAp   = enableAp && !hasVendorFilter
     const showGen  = enableGeneral && !hasSupplierFilter
     const showMkt  = enableMarketplace && !hasSupplierFilter && !hasVendorFilter
+    const showPc   = enablePettyCash && !hasSupplierFilter && !hasVendorFilter
 
     const apRows   = showAp  ? (apData?.data ?? []).map((r, i) => fromCombinedRow(r, i)) : []
     const genRows  = showGen ? (generalData?.data ?? []).map(fromGeneralPayment)         : []
@@ -355,8 +408,9 @@ export default function UnifiedPaymentReportPage() {
           .filter((s) => s.status !== 'DRAFT' && s.status !== 'CANCELLED')
           .map(fromMarketplaceSession)
       : []
-    return sortByDate([...apRows, ...genRows, ...mktRows])
-  }, [hasApplied, apData, generalData, marketplaceData, enableAp, enableGeneral, enableMarketplace, hasSupplierFilter, hasVendorFilter])
+    const pcRows   = showPc ? (pettyCashData?.data ?? []).map(fromPettyCashExpense) : []
+    return sortByDate([...apRows, ...genRows, ...mktRows, ...pcRows])
+  }, [hasApplied, apData, generalData, marketplaceData, pettyCashData, enableAp, enableGeneral, enableMarketplace, enablePettyCash, hasSupplierFilter, hasVendorFilter])
 
   // ── Client-side pagination ──
   const totalRows = allRows.length
@@ -369,8 +423,9 @@ export default function UnifiedPaymentReportPage() {
   const isLoading =
     (enableAp && apLoading) ||
     (enableGeneral && generalLoading) ||
-    (enableMarketplace && marketplaceLoading)
-  const isError = apError || generalError || marketplaceError
+    (enableMarketplace && marketplaceLoading) ||
+    (enablePettyCash && pcLoading)
+  const isError = apError || generalError || marketplaceError || pcError
 
   // ── Handlers ──
   const applyFilters = useCallback(() => {
@@ -546,6 +601,7 @@ export default function UnifiedPaymentReportPage() {
             <option value="PURCHASE">Purchase Invoice</option>
             <option value="GENERAL">General Invoice</option>
             <option value="MARKETPLACE">Marketplace</option>
+            <option value="PETTY_CASH">Kas Kecil</option>
           </select>
 
           {/* Purchase-specific: supplier */}
@@ -775,6 +831,13 @@ function TypeBadge({ type }: { type: RowType }) {
     return (
       <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200/80 dark:border-transparent">
         Marketplace
+      </span>
+    )
+  }
+  if (type === 'PETTY_CASH') {
+    return (
+      <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200/80 dark:border-transparent">
+        Kas Kecil
       </span>
     )
   }
