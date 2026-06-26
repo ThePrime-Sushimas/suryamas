@@ -508,8 +508,9 @@ export class PettyCashRepository {
     return rows[0] ?? null
   }
 
-  async countExpensesByRequestId(client: PoolClient, requestId: string): Promise<number> {
-    const { rows } = await client.query(
+  async countExpensesByRequestId(requestId: string, client?: PoolClient): Promise<number> {
+    const db: Queryable = client ?? pool
+    const { rows } = await db.query(
       'SELECT COUNT(*)::int AS count FROM petty_cash_expenses WHERE request_id = $1 AND deleted_at IS NULL',
       [requestId],
     )
@@ -689,6 +690,7 @@ export class PettyCashRepository {
          e_cre.full_name AS created_by_name,
          ba.account_name AS source_bank_account_name,
          bk.bank_name AS source_bank_name,
+         s.id AS settlement_id,
          CASE WHEN s.id IS NOT NULL THEN 'SETTLED' ELSE NULL END AS settlement_status,
          (COALESCE(r.amount_disbursed, 0) + r.carried_amount) AS total_disbursed,
          COALESCE(exp_sum.total_expenses, 0)::numeric AS total_expenses

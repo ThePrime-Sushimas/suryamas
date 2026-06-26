@@ -10,6 +10,7 @@ import { logInfo, logError, logWarn } from '../../../../config/logger'
 import { AuditService } from '../../../monitoring/monitoring.service'
 import { marketplacePoRepository } from '../../../marketplace-po/marketplace-po.repository'
 import { apPaymentsRepository } from '../../../ap-payments/ap-payments.repository'
+import { pettyCashRepository } from '../../../petty-cash/petty-cash.repository'
 import { purchaseInvoicesRepository } from '../../../purchase-invoices/purchase-invoices.repository'
 import {
   generalInvoiceRepository,
@@ -810,6 +811,114 @@ export class JournalHeadersService {
       })
       logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
       return // Skip the generic cleanup at bottom — already done inside transaction
+    } else if (
+      journal.source_module === 'petty_cash' &&
+      journal.reference_type === 'petty_cash_disburse' &&
+      journal.reference_id
+    ) {
+      // Guard: kalau request sudah CLOSED (ada settlement) → BLOCK
+      const pcRequest = await pettyCashRepository.findById(journal.reference_id)
+      if (pcRequest?.status === 'CLOSED') {
+        throw JournalErrors.CANNOT_DELETE_POSTED()
+      }
+
+      await journalHeadersRepository.withTransaction(async (client) => {
+        // Revert request: DISBURSED → PENDING, clear disburse fields
+        await client.query(
+          `UPDATE petty_cash_requests
+           SET status = 'PENDING',
+               amount_disbursed = NULL,
+               approved_by = NULL,
+               approved_at = NULL,
+               source_bank_account_id = NULL,
+               disburse_journal_id = NULL,
+               updated_by = $2,
+               updated_at = NOW()
+           WHERE id = $1`,
+          [journal.reference_id, userId],
+        )
+        await journalHeadersRepository.clearReversalReferences(id, client)
+        await journalHeadersRepository.clearJournalReferences(id, client)
+        await journalHeadersRepository.delete(id, userId, client)
+      })
+
+      await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+        journal_number: journal.journal_number,
+        petty_cash_request_id: journal.reference_id,
+      })
+      logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+      return
+
+    } else if (
+      journal.source_module === 'petty_cash' &&
+      journal.reference_type === 'petty_cash_settlement' &&
+      journal.reference_id
+    ) {
+      const settlement = await pettyCashRepository.findSettlementById(journal.reference_id)
+
+      // Guard: kalau carried_to request sudah punya expenses → BLOCK
+      if (settlement?.carried_to_id) {
+        const expenseCount = await pettyCashRepository.countExpensesByRequestId(settlement.carried_to_id)
+        if (expenseCount > 0) {
+          throw JournalErrors.CANNOT_DELETE_POSTED()
+        }
+      }
+
+      await journalHeadersRepository.withTransaction(async (client) => {
+        if (settlement) {
+          // 1. Reverse stock movements
+          const expensesWithMovements = await pettyCashRepository.getExpensesWithMovements(client, settlement.request_id)
+          for (const exp of expensesWithMovements) {
+            const movement = await pettyCashRepository.findStockMovementById(client, exp.stock_movement_id)
+            if (!movement) continue
+            const { stockRepository } = await import('../../../stock/stock.repository')
+            const balance = await stockRepository.getBalanceForUpdate(client, movement.warehouse_id, movement.product_id)
+            const currentQty = balance ? Number(balance.qty) : 0
+            const currentAvgCost = balance ? Number(balance.avg_cost) : 0
+            const newQty = currentQty - Number(movement.qty)
+            await stockRepository.createMovement(client, {
+              warehouse_id: movement.warehouse_id,
+              product_id: movement.product_id,
+              movement_type: 'OUT_REVERSAL',
+              qty: Number(movement.qty),
+              cost_per_unit: Number(movement.cost_per_unit),
+              reference_type: 'petty_cash',
+              reference_id: settlement.request_id,
+              notes: 'forceDelete settlement journal — reversal',
+              movement_date: movement.movement_date,
+              created_by: userId,
+            }, newQty)
+            await stockRepository.upsertBalance(client, movement.warehouse_id, movement.product_id, newQty, currentAvgCost)
+            await pettyCashRepository.clearExpenseStockMovementId(client, exp.id)
+          }
+
+          // 2. Hard delete carried_to request
+          if (settlement.carried_to_id) {
+            await pettyCashRepository.hardDeleteRequest(client, settlement.carried_to_id)
+          }
+
+          // 3. Clear settlement_id from expenses
+          await pettyCashRepository.clearExpensesSettlementId(client, settlement.request_id)
+
+          // 4. Hard delete settlement
+          await pettyCashRepository.hardDeleteSettlement(client, settlement.id)
+
+          // 5. Revert request: CLOSED → DISBURSED
+          await pettyCashRepository.revertRequestToDisbursed(client, settlement.request_id, userId)
+        }
+
+        // 6. Standard cleanup
+        await journalHeadersRepository.clearReversalReferences(id, client)
+        await journalHeadersRepository.clearJournalReferences(id, client)
+        await journalHeadersRepository.delete(id, userId, client)
+      })
+
+      await AuditService.log('FORCE_DELETE', 'journal_header', id, userId, {
+        journal_number: journal.journal_number,
+        petty_cash_settlement_id: journal.reference_id,
+      })
+      logInfo('Journal force deleted', { journal_id: id, user_id: userId, status: journal.status })
+      return
     }
 
     await journalHeadersRepository.clearReversalReferences(id)

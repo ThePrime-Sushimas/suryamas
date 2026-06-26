@@ -357,6 +357,8 @@ export class JournalHeadersRepository {
     await db.query("UPDATE asset_transfers SET source_journal_id = NULL WHERE source_journal_id = $1", [journalId])
     await db.query("UPDATE asset_transfers SET target_journal_id = NULL WHERE target_journal_id = $1", [journalId])
     await db.query("UPDATE asset_disposals SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
+    await db.query("UPDATE petty_cash_requests SET disburse_journal_id = NULL, updated_at = NOW() WHERE disburse_journal_id = $1", [journalId])
+    await db.query("UPDATE petty_cash_settlements SET journal_id = NULL, updated_at = NOW() WHERE journal_id = $1", [journalId])
   }
 
   async clearReversalReferences(journalId: string, client?: PoolClient): Promise<void> {

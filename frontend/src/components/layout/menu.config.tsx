@@ -747,6 +747,14 @@ export const menuItems: MenuItem[] = [
             color: "red",
           },
           {
+            id: "petty-cash",
+            name: "Kas Kecil",
+            href: "/finance/petty-cash",
+            icon: <Coins size={16} />,
+            module: "petty_cash",
+            color: "red",
+          },
+          {
             id: "general-invoices",
             name: "Invoices Umum",
             href: "/finance/general-invoices",

@@ -876,7 +876,7 @@ export class PettyCashService {
             throw new PettyCashVoidBlockedByRefillError(settlement.carried_to_id)
           }
           // Block if carried request has any expenses
-          const expenseCount = await pettyCashRepository.countExpensesByRequestId(client, settlement.carried_to_id)
+          const expenseCount = await pettyCashRepository.countExpensesByRequestId(settlement.carried_to_id, client)
           if (expenseCount > 0) {
             throw new PettyCashVoidBlockedByExpenseError(settlement.carried_to_id, expenseCount)
           }

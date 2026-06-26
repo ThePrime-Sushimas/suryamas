@@ -6,6 +6,7 @@ export interface Category {
   sort_order: number
   is_active: boolean
   is_deleted: boolean
+  affects_inventory: boolean
   created_at: string
   updated_at: string
   created_by: string | null

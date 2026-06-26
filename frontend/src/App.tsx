@@ -630,6 +630,11 @@ const ApPaymentEditPage = lazy(() => import('./features/ap-payments/pages/ApPaym
 const BulkCreatePage = lazy(() => import('./features/ap-payments/pages/BulkCreatePage'))
 const BulkBatchDetailPage = lazy(() => import('./features/ap-payments/pages/BulkBatchDetailPage'))
 
+// Petty Cash
+const PettyCashListPage = lazy(() => import('./features/petty-cash/pages/PettyCashListPage'))
+const PettyCashDetailPage = lazy(() => import('./features/petty-cash/pages/PettyCashDetailPage'))
+const PettyCashSettlementPage = lazy(() => import('./features/petty-cash/pages/PettyCashSettlementPage'))
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -2097,6 +2102,38 @@ function App() {
                       <RequirePermission module="ap_payments" action="update">
                         <Suspense fallback={<LoadingFallback />}>
                           <ApPaymentEditPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+
+                  {/* Petty Cash */}
+                  <Route
+                    path="finance/petty-cash"
+                    element={
+                      <RequirePermission module="petty_cash">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PettyCashListPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/petty-cash/:id"
+                    element={
+                      <RequirePermission module="petty_cash">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PettyCashDetailPage />
+                        </Suspense>
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="finance/petty-cash/:id/settlement"
+                    element={
+                      <RequirePermission module="petty_cash">
+                        <Suspense fallback={<LoadingFallback />}>
+                          <PettyCashSettlementPage />
                         </Suspense>
                       </RequirePermission>
                     }
