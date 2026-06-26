@@ -8,6 +8,7 @@ export type ReferenceType =
   | 'purchase_order' | 'transfer_order' | 'branch_loan'
   | 'daily_requisition' | 'production_order' | 'adjustment' | 'opening'
   | 'goods_processing' | 'daily_closing_count' | 'monthly_stock_opname'
+  | 'petty_cash'
 
 export interface StockBalance {
   id: string

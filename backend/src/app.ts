@@ -77,6 +77,7 @@ import goodsProcessingRoutes from "./modules/goods-processing/goods-processing.r
 import purchaseInvoicesRoutes from "./modules/purchase-invoices/purchase-invoices.routes";
 import apPaymentsRoutes from "./modules/ap-payments/ap-payments.routes";
 import marketplacePoRoutes from "./modules/marketplace-po/marketplace-po.routes";
+import pettyCashRoutes from "./modules/petty-cash/petty-cash.routes";
 import printersRoutes from "./modules/printers/printers.routes";
 import storageRoutes from "./routes/storage.routes";
 import notificationsRoutes from "./modules/notifications/notifications.routes";
@@ -217,6 +218,7 @@ app.use("/api/v1/goods-receipts", goodsReceiptsRoutes);
 app.use("/api/v1/goods-processing", goodsProcessingRoutes);
 app.use("/api/v1/purchase-invoices", purchaseInvoicesRoutes);
 app.use("/api/v1/ap-payments", apPaymentsRoutes);
+app.use("/api/v1/petty-cash", pettyCashRoutes);
 app.use("/api/v1", marketplacePoRoutes);
 app.use('/api/v1/daily-prep-orders', dailyPrepOrdersRouter);
 app.use('/api/v1/daily-stock-opname', dailyStockOpnameRoutes);
