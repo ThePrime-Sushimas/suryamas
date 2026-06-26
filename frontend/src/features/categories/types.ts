@@ -7,6 +7,9 @@ export interface Category {
   is_active: boolean
   is_deleted: boolean
   affects_inventory: boolean
+  default_coa_id: string | null
+  default_coa_code: string | null
+  default_coa_name: string | null
   created_at: string
   updated_at: string
   created_by: string | null
@@ -35,7 +38,7 @@ export interface SubCategoryWithCategory extends SubCategory {
   }
 }
 
-export type CreateCategoryDto = Pick<Category, 'category_code' | 'category_name'> & Partial<Pick<Category, 'description' | 'sort_order'>>
+export type CreateCategoryDto = Pick<Category, 'category_code' | 'category_name'> & Partial<Pick<Category, 'description' | 'sort_order' | 'affects_inventory' | 'default_coa_id'>>
 export type UpdateCategoryDto = Partial<Omit<Category, 'id' | 'created_at' | 'updated_at' | 'created_by' | 'updated_by' | 'is_deleted'>>
 
 export type CreateSubCategoryDto = Pick<SubCategory, 'category_id' | 'sub_category_code' | 'sub_category_name'> & Partial<Pick<SubCategory, 'description' | 'sort_order'>>

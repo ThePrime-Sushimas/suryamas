@@ -138,6 +138,29 @@ export class PettyCashController {
       await handleError(res, error, req, { action: 'get_petty_cash_expense_report' })
     }
   }
+
+  // ─── Receipt Upload ─────────────────────────────────────────────────────────
+
+  async uploadReceipt(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, branchIds } = await pcScope(req)
+      const expenseId = req.params.id as string
+
+      const file = req.file
+      if (!file) {
+        res.status(400).json({
+          success: false,
+          message: 'File tidak diterima. Gunakan JPG, PNG, WEBP, PDF, atau HEIC (maks. 10MB).',
+        })
+        return
+      }
+
+      const result = await pettyCashService.uploadReceipt(expenseId, file, branchIds, userId)
+      sendSuccess(res, result, 'Struk berhasil diupload')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'upload_petty_cash_receipt', id: req.params.id })
+    }
+  }
 }
 
 export const pettyCashController = new PettyCashController()

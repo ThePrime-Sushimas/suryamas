@@ -40,6 +40,8 @@ export const CategoryTable = ({ categories, loading, onView, onEdit, onDelete, o
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nama</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Deskripsi</th>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Urutan</th>
+            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Inventory</th>
+            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">COA Petty Cash</th>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aksi</th>
           </tr>
@@ -51,6 +53,16 @@ export const CategoryTable = ({ categories, loading, onView, onEdit, onDelete, o
               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{cat.category_name}</td>
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{cat.description || '—'}</td>
               <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{cat.sort_order}</td>
+              <td className="px-4 py-3 text-center">
+                {cat.affects_inventory ? (
+                  <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Gudang</span>
+                ) : <span className="text-gray-400">—</span>}
+              </td>
+              <td className="px-4 py-3 text-center">
+                {cat.default_coa_id ? (
+                  <span className="text-xs text-gray-700 dark:text-gray-300">{cat.default_coa_code} — {cat.default_coa_name}</span>
+                ) : <span className="text-gray-400">—</span>}
+              </td>
               <td className="px-4 py-3 text-center">
                 <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${cat.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
                   {cat.is_active ? 'Aktif' : 'Nonaktif'}

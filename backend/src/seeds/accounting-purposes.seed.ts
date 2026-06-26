@@ -39,6 +39,10 @@ const accountingPurposesData: SeedPurpose[] = [
   { company_id: COMPANY_ID, purpose_code: 'CSH-OUT', purpose_name: 'Cash Out', description: 'Pengeluaran kas', applied_to: 'CASH', is_system: true, is_active: true },
   { company_id: COMPANY_ID, purpose_code: 'BNK-TRF', purpose_name: 'Bank Transfer', description: 'Transfer antar bank', applied_to: 'BANK', is_system: true, is_active: true },
   
+  // Petty Cash Related
+  { company_id: COMPANY_ID, purpose_code: 'PC-DSB', purpose_name: 'Petty Cash Disburse', description: 'Pencairan dana kas kecil dari bank', applied_to: 'CASH', is_system: true, is_active: true },
+  { company_id: COMPANY_ID, purpose_code: 'PC-STL', purpose_name: 'Petty Cash Settlement', description: 'Penutupan periode kas kecil', applied_to: 'CASH', is_system: true, is_active: true },
+  
   // Asset Related
   { company_id: COMPANY_ID, purpose_code: 'AST-PUR', purpose_name: 'Asset Purchase', description: 'Pembelian aset tetap', applied_to: 'ASSET', is_system: true, is_active: true },
   { company_id: COMPANY_ID, purpose_code: 'AST-DEP', purpose_name: 'Asset Depreciation', description: 'Penyusutan aset tetap', applied_to: 'ASSET', is_system: true, is_active: true },

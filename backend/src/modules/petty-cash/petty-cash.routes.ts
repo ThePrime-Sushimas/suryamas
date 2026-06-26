@@ -4,6 +4,7 @@ import { resolveBranchContext } from '../../middleware/branch-context.middleware
 import { requireWriteAccess } from '../../middleware/write-guard.middleware'
 import { canView, canInsert, canUpdate, canDelete, canApprove, canRelease } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
+import { documentUploadSingle } from '../../middleware/upload-document.middleware'
 import { PermissionService } from '../../services/permission.service'
 import { pettyCashController } from './petty-cash.controller'
 import {
@@ -106,6 +107,14 @@ router.delete(
   requireWriteAccess,
   validateSchema(deleteExpenseSchema),
   (req, res) => pettyCashController.deleteExpense(req, res),
+)
+
+router.post(
+  '/expenses/:id/upload-receipt',
+  canUpdate(MODULE),
+  requireWriteAccess,
+  documentUploadSingle('receipt'),
+  (req, res) => pettyCashController.uploadReceipt(req, res),
 )
 
 // ─── Settlement ───────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ export interface PickedProduct {
   category_id: string | null
   category_name: string | null
   average_cost: number
+  affects_inventory: boolean
 }
 
 export interface PickedSupplier {
@@ -47,6 +48,7 @@ interface ProductRow {
   category_id: string | null
   category_name: string | null
   average_cost: number
+  affects_inventory: boolean
 }
 
 interface CategoryOption {
@@ -209,6 +211,7 @@ export function ProductPickerModal({
       category_id: product.category_id,
       category_name: product.category_name,
       average_cost: product.average_cost ?? 0,
+      affects_inventory: product.affects_inventory ?? false,
     }
     const pickedSupplier: PickedSupplier | undefined = supplier
       ? { id: supplier.supplier_id, name: supplier.supplier_name, price: supplier.price }

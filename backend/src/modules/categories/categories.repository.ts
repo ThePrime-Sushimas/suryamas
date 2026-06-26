@@ -22,7 +22,13 @@ export class CategoriesRepository {
     const orderBy = sort && ALLOWED_SORT_FIELDS.includes(sort.field) ? `ORDER BY ${sort.field} ${sort.order === 'desc' ? 'DESC' : 'ASC'}` : 'ORDER BY sort_order ASC, category_name ASC'
 
     const [dataRes, countRes] = await Promise.all([
-      pool.query(`SELECT * FROM categories ${where} ${orderBy} LIMIT $${idx} OFFSET $${idx + 1}`, [...params, pagination.limit, pagination.offset]),
+      pool.query(
+        `SELECT categories.*, coa.account_code AS default_coa_code, coa.account_name AS default_coa_name
+         FROM categories
+         LEFT JOIN chart_of_accounts coa ON coa.id = categories.default_coa_id
+         ${where} ${orderBy} LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...params, pagination.limit, pagination.offset]
+      ),
       pool.query(`SELECT COUNT(*)::int AS total FROM categories ${where}`, params)
     ])
     return { data: dataRes.rows, total: countRes.rows[0].total }

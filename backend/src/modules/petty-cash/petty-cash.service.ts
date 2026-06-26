@@ -1,4 +1,7 @@
 import { logInfo } from '../../config/logger'
+import { AppError } from '../../utils/errors.base'
+import { resolveDocumentUploadExtension, DOCUMENT_UPLOAD_EXTENSIONS } from '../../utils/document-upload.util'
+import { storageService } from '../../services/storage.service'
 import { AuditService } from '../monitoring/monitoring.service'
 import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
 import { stockRepository } from '../stock/stock.repository'
@@ -309,10 +312,13 @@ export class PettyCashService {
       throw new PettyCashCoaMissingError(`category_id (${dto.category_id}) tidak ditemukan`)
     }
 
-    // Validate inventory fields if affects_inventory
+    // Validate inventory fields if user sends product_id (intent to record as inventory)
     if (category.affects_inventory) {
+      // affects_inventory is now a DEFAULT hint for frontend checkbox.
+      // Actual enforcement is based on whether product_id is provided.
+    }
+    if (dto.product_id) {
       const missing: string[] = []
-      if (!dto.product_id) missing.push('product_id')
       if (!dto.warehouse_id) missing.push('warehouse_id')
       if (!dto.qty || dto.qty <= 0) missing.push('qty')
       if (missing.length > 0) {
@@ -345,6 +351,7 @@ export class PettyCashService {
       }
 
       // 4. Resolve expense_coa_id
+      // Priority: user override > category.default_coa_id > purpose-based fallback
       let resolvedCoaId: string
       if (dto.expense_coa_id) {
         // User override — validate exists
@@ -353,8 +360,12 @@ export class PettyCashService {
           throw new PettyCashCoaMissingError(`expense_coa_id (${dto.expense_coa_id}) tidak ditemukan atau tidak aktif`)
         }
         resolvedCoaId = dto.expense_coa_id
+      } else if (category.default_coa_id) {
+        // Category has its own default COA (e.g. Transport → 610401)
+        resolvedCoaId = category.default_coa_id
       } else {
-        const purposeCode = category.affects_inventory ? 'PUR-INV' : 'CSH-OUT'
+        // Fallback: resolve from accounting purpose
+        const purposeCode = dto.product_id ? 'PUR-INV' : 'CSH-OUT'
         const coaId = await pettyCashRepository.findDebitCoaByPurposeCode(client, purposeCode, companyId)
         if (!coaId) {
           throw new PettyCashCoaMissingError(
@@ -948,6 +959,48 @@ export class PettyCashService {
       reason: dto.reason,
     })
     logInfo('Petty cash settlement voided', { id: settlementId, request_id: settlement.request_id, reason: dto.reason })
+  }
+
+  // ─── RECEIPT UPLOAD ─────────────────────────────────────────────────────────
+
+  async uploadReceipt(
+    expenseId: string,
+    file: Express.Multer.File,
+    branchIds: string[],
+    userId: string,
+  ): Promise<{ receipt_url: string }> {
+    // Validate file extension
+    const ext = resolveDocumentUploadExtension(file)
+    if (!ext) {
+      throw new AppError(
+        `Tipe file tidak didukung. Gunakan: ${DOCUMENT_UPLOAD_EXTENSIONS.join(', ')}`,
+        400,
+        'INVALID_FILE_TYPE',
+      )
+    }
+
+    // Validate expense exists and user has access
+    const expense = await pettyCashRepository.findExpenseById(expenseId)
+    if (!expense) throw new PettyCashExpenseNotFoundError(expenseId)
+
+    const request = await pettyCashRepository.findById(expense.request_id)
+    if (!request) throw new PettyCashRequestNotFoundError(expense.request_id)
+    requireBranchAccess(request.branch_id, branchIds)
+
+    // Block upload if request is not DISBURSED (expense already settled or request rejected)
+    if (request.status !== 'DISBURSED') {
+      throw new PettyCashInvalidStatusError(request.status, 'DISBURSED')
+    }
+
+    // Upload to R2
+    const fileName = `${expenseId}-${Date.now()}.${ext}`
+    const now = new Date()
+    const storagePath = `${request.company_id}/petty-cash-receipts/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
+
+    await storageService.uploadToPath(file.buffer, storagePath, file.mimetype, 'buktisetoran')
+    await pettyCashRepository.updateReceiptUrl(expenseId, storagePath, userId)
+
+    return { receipt_url: storagePath }
   }
 }
 

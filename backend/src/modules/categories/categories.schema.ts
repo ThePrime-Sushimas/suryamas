@@ -15,6 +15,8 @@ export const CreateCategorySchema = z.object({
     description: z.string().max(1000).optional().nullable(),
     sort_order: z.number().int().min(0).optional().default(0),
     is_active: z.boolean().optional().default(true),
+    affects_inventory: z.boolean().optional().default(false),
+    default_coa_id: z.string().uuid().optional().nullable(),
   }),
 })
 
@@ -27,6 +29,8 @@ export const UpdateCategorySchema = z.object({
     description: z.string().max(1000).optional().nullable(),
     sort_order: z.number().int().min(0).optional(),
     is_active: z.boolean().optional(),
+    affects_inventory: z.boolean().optional(),
+    default_coa_id: z.string().uuid().optional().nullable(),
   }),
 })
 

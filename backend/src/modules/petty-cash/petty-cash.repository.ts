@@ -217,10 +217,10 @@ export class PettyCashRepository {
   async findCategoryWithInventoryFlag(
     categoryId: string,
     client?: PoolClient,
-  ): Promise<{ id: string; affects_inventory: boolean } | null> {
+  ): Promise<{ id: string; affects_inventory: boolean; default_coa_id: string | null } | null> {
     const db: Queryable = client ?? pool
     const { rows } = await db.query(
-      'SELECT id, affects_inventory FROM categories WHERE id = $1 AND is_deleted = false',
+      'SELECT id, affects_inventory, default_coa_id FROM categories WHERE id = $1 AND is_deleted = false',
       [categoryId],
     )
     return rows[0] ?? null
@@ -494,6 +494,16 @@ export class PettyCashRepository {
     await client.query(
       'UPDATE petty_cash_expenses SET stock_movement_id = $2, updated_at = NOW() WHERE id = $1',
       [expenseId, movementId],
+    )
+  }
+
+  async updateReceiptUrl(expenseId: string, receiptUrl: string, userId: string, client?: PoolClient): Promise<void> {
+    const db: Queryable = client ?? pool
+    await db.query(
+      `UPDATE petty_cash_expenses
+       SET receipt_url = $1, updated_by = $2, updated_at = NOW()
+       WHERE id = $3 AND deleted_at IS NULL`,
+      [receiptUrl, userId, expenseId],
     )
   }
 

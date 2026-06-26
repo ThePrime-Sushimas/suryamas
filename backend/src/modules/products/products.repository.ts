@@ -41,6 +41,7 @@ export class ProductsRepository {
     const [dataRes, countRes] = await Promise.all([
       pool.query(
         `SELECT p.*, c.category_name, sc.sub_category_name,
+                c.affects_inventory,
                 base_unit.unit_name AS base_unit_name,
                 pos.position_name AS station_name
          FROM products p
@@ -77,6 +78,7 @@ export class ProductsRepository {
     const [dataRes, countRes] = await Promise.all([
       pool.query(
         `SELECT p.*, c.category_name, sc.sub_category_name,
+                c.affects_inventory,
                 base_unit.unit_name AS base_unit_name,
                 pos.position_name AS station_name
          FROM products p

@@ -209,3 +209,28 @@ export const useVoidSettlement = () => {
     onError: (err) => toast.error(parseApiError(err, 'Gagal void settlement')),
   })
 }
+
+// ─── Receipt Upload ───────────────────────────────────────────────────────────
+
+export const useUploadPettyCashReceipt = () => {
+  const qc = useQueryClient()
+  const toast = useToast()
+  return useMutation({
+    mutationFn: async ({ expenseId, file, requestId }: { expenseId: string; file: File; requestId: string }) => {
+      const formData = new FormData()
+      formData.append('receipt', file)
+      const { data } = await api.post(
+        `/petty-cash/expenses/${expenseId}/upload-receipt`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      )
+      return { ...data.data, requestId }
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(vars.requestId) })
+      qc.invalidateQueries({ queryKey: KEYS.expenses(vars.requestId) })
+      toast.success('Struk berhasil diupload')
+    },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal mengupload struk')),
+  })
+}

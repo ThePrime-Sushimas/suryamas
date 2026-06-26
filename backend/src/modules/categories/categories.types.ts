@@ -45,6 +45,8 @@ export interface CreateCategoryDto {
   description?: string | null
   sort_order?: number
   is_active?: boolean
+  affects_inventory?: boolean
+  default_coa_id?: string | null
 }
 
 export interface UpdateCategoryDto {
@@ -52,6 +54,8 @@ export interface UpdateCategoryDto {
   description?: string | null
   sort_order?: number
   is_active?: boolean
+  affects_inventory?: boolean
+  default_coa_id?: string | null
 }
 
 export interface CreateSubCategoryDto {
