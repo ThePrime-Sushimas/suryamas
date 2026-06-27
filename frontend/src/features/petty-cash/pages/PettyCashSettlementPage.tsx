@@ -103,7 +103,12 @@ export default function PettyCashSettlementPage() {
                 <tbody>
                   {expenses.map((e) => (
                     <tr key={e.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                      <td className="py-1 text-gray-600">{e.category_name}</td>
+                      <td className="py-1 text-gray-600">
+                        <div>{e.category_name}</div>
+                        {e.product_name && (
+                          <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{e.product_name}</div>
+                        )}
+                      </td>
                       <td className="py-1 text-right font-medium">{fmtCurrency(e.amount)}</td>
                     </tr>
                   ))}
