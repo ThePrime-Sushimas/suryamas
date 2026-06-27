@@ -10,6 +10,7 @@ import { usePettyCashRequest, useDeleteExpense } from '../api/pettyCash.api'
 import { PettyCashStatusBadge } from '../components/PettyCashStatusBadge'
 import { PettyCashExpenseTable } from '../components/PettyCashExpenseTable'
 import { PettyCashExpenseFormModal } from '../components/PettyCashExpenseFormModal'
+import { PettyCashExpenseEditModal } from '../components/PettyCashExpenseEditModal'
 import { PettyCashApproveModal } from '../components/PettyCashApproveModal'
 import { PettyCashRejectModal } from '../components/PettyCashRejectModal'
 import { PettyCashVoidModal } from '../components/PettyCashVoidModal'
@@ -37,6 +38,7 @@ export default function PettyCashDetailPage() {
   const [showExpenseForm, setShowExpenseForm] = useState(false)
   const [showVoid, setShowVoid] = useState(false)
   const [deleteExpenseId, setDeleteExpenseId] = useState<string | null>(null)
+  const [editingExpense, setEditingExpense] = useState<PettyCashExpense | null>(null)
 
   const handleDeleteExpense = async () => {
     if (!deleteExpenseId || !id) return
@@ -110,6 +112,7 @@ export default function PettyCashDetailPage() {
       <PettyCashExpenseTable
         expenses={expenses}
         requestStatus={request.status}
+        onEdit={setEditingExpense}
         onDelete={setDeleteExpenseId}
       />
 
@@ -130,6 +133,13 @@ export default function PettyCashDetailPage() {
       <PettyCashExpenseFormModal
         open={showExpenseForm}
         onClose={() => setShowExpenseForm(false)}
+        requestId={id ?? ''}
+      />
+
+      <PettyCashExpenseEditModal
+        open={!!editingExpense}
+        onClose={() => setEditingExpense(null)}
+        expense={editingExpense}
         requestId={id ?? ''}
       />
 

@@ -866,48 +866,25 @@ export class JournalHeadersService {
 
       await journalHeadersRepository.withTransaction(async (client) => {
         if (settlement) {
-          // 1. Reverse stock movements
-          const expensesWithMovements = await pettyCashRepository.getExpensesWithMovements(client, settlement.request_id)
-          for (const exp of expensesWithMovements) {
-            const movement = await pettyCashRepository.findStockMovementById(client, exp.stock_movement_id)
-            if (!movement) continue
-            const { stockRepository } = await import('../../../stock/stock.repository')
-            const balance = await stockRepository.getBalanceForUpdate(client, movement.warehouse_id, movement.product_id)
-            const currentQty = balance ? Number(balance.qty) : 0
-            const currentAvgCost = balance ? Number(balance.avg_cost) : 0
-            const newQty = currentQty - Number(movement.qty)
-            await stockRepository.createMovement(client, {
-              warehouse_id: movement.warehouse_id,
-              product_id: movement.product_id,
-              movement_type: 'OUT_REVERSAL',
-              qty: Number(movement.qty),
-              cost_per_unit: Number(movement.cost_per_unit),
-              reference_type: 'petty_cash',
-              reference_id: settlement.request_id,
-              notes: 'forceDelete settlement journal — reversal',
-              movement_date: movement.movement_date,
-              created_by: userId,
-            }, newQty)
-            await stockRepository.upsertBalance(client, movement.warehouse_id, movement.product_id, newQty, currentAvgCost)
-            await pettyCashRepository.clearExpenseStockMovementId(client, exp.id)
-          }
+          // Option B: stock movements are per-expense, NOT reversed on settlement delete.
+          // After forceDelete, request returns to DISBURSED — expenses remain active with their stock.
 
-          // 2. Hard delete carried_to request
+          // 1. Hard delete carried_to request
           if (settlement.carried_to_id) {
             await pettyCashRepository.hardDeleteRequest(client, settlement.carried_to_id)
           }
 
-          // 3. Clear settlement_id from expenses
+          // 2. Clear settlement_id from expenses
           await pettyCashRepository.clearExpensesSettlementId(client, settlement.request_id)
 
-          // 4. Hard delete settlement
+          // 3. Hard delete settlement
           await pettyCashRepository.hardDeleteSettlement(client, settlement.id)
 
-          // 5. Revert request: CLOSED → DISBURSED
+          // 4. Revert request: CLOSED → DISBURSED
           await pettyCashRepository.revertRequestToDisbursed(client, settlement.request_id, userId)
         }
 
-        // 6. Standard cleanup
+        // 5. Standard cleanup
         await journalHeadersRepository.clearReversalReferences(id, client)
         await journalHeadersRepository.clearJournalReferences(id, client)
         await journalHeadersRepository.delete(id, userId, client)

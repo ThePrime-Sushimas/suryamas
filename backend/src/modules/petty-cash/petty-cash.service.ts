@@ -376,7 +376,7 @@ export class PettyCashService {
       }
 
       // 5. Insert expense
-      return pettyCashRepository.createExpense(client, {
+      const newExpense = await pettyCashRepository.createExpense(client, {
         request_id: requestId,
         company_id: companyId,
         branch_id: lockedRequest.branch_id,
@@ -394,6 +394,40 @@ export class PettyCashService {
         receipt_url: dto.receipt_url,
         created_by: userId,
       })
+
+      // 6. Stock movement — realtime (Option B: stock immediate, journal at settlement)
+      if (dto.product_id && dto.warehouse_id && dto.qty && dto.qty > 0) {
+        const qty = dto.qty
+        const costPerUnit = dto.unit_price != null && dto.unit_price > 0
+          ? dto.unit_price
+          : (qty > 0 ? dto.amount / qty : dto.amount)
+
+        const balance = await stockRepository.getBalanceForUpdate(client, dto.warehouse_id, dto.product_id)
+        const currentQty = balance ? Number(balance.qty) : 0
+        const currentAvgCost = balance ? Number(balance.avg_cost) : 0
+        const newQty = currentQty + qty
+        const newAvgCost = newQty > 0
+          ? ((currentQty * currentAvgCost) + (qty * costPerUnit)) / newQty
+          : costPerUnit
+
+        const movement = await stockRepository.createMovement(client, {
+          warehouse_id: dto.warehouse_id,
+          product_id: dto.product_id,
+          movement_type: 'IN_PURCHASE',
+          qty,
+          cost_per_unit: costPerUnit,
+          reference_type: 'petty_cash' as any,
+          reference_id: requestId,
+          notes: `Petty cash: ${dto.description || lockedRequest.request_number}`,
+          movement_date: dto.expense_date ?? new Date().toISOString().slice(0, 10),
+          created_by: userId,
+        }, newQty)
+
+        await stockRepository.upsertBalance(client, dto.warehouse_id, dto.product_id, newQty, newAvgCost)
+        await pettyCashRepository.updateExpenseStockMovementId(client, newExpense.id, movement.id)
+      }
+
+      return newExpense
     })
 
     await AuditService.log('CREATE', 'petty_cash_expenses', expense.id, userId, undefined, {
@@ -519,7 +553,84 @@ export class PettyCashService {
         return expense // nothing to update
       }
 
-      return pettyCashRepository.updateExpense(client, expenseId, updateData, userId)
+      const updatedExpense = await pettyCashRepository.updateExpense(client, expenseId, updateData, userId)
+
+      // Stock movement handling: reverse old + create new if inventory fields changed
+      const effectiveProductId = dto.product_id !== undefined ? dto.product_id : expense.product_id
+      const effectiveWarehouseId = dto.warehouse_id !== undefined ? dto.warehouse_id : expense.warehouse_id
+      const effectiveQty = dto.qty !== undefined ? dto.qty : expense.qty
+      const effectiveUnitPrice = dto.unit_price !== undefined ? dto.unit_price : expense.unit_price
+      const effectiveAmount = dto.amount !== undefined ? dto.amount : expense.amount
+
+      const hadMovement = !!expense.stock_movement_id
+      const shouldHaveMovement = !!effectiveProductId && !!effectiveWarehouseId && !!effectiveQty && effectiveQty > 0
+
+      const inventoryFieldsChanged = hadMovement && (
+        dto.product_id !== undefined || dto.warehouse_id !== undefined ||
+        dto.qty !== undefined || dto.unit_price !== undefined || dto.amount !== undefined
+      )
+
+      // Reverse old movement if it existed AND (fields changed OR no longer inventory)
+      if (hadMovement && (inventoryFieldsChanged || !shouldHaveMovement)) {
+        const oldMovement = await pettyCashRepository.findStockMovementById(client, expense.stock_movement_id!)
+        if (oldMovement) {
+          const balance = await stockRepository.getBalanceForUpdate(client, oldMovement.warehouse_id, oldMovement.product_id)
+          const currentQty = balance ? Number(balance.qty) : 0
+          const currentAvgCost = balance ? Number(balance.avg_cost) : 0
+          const newQty = currentQty - Number(oldMovement.qty)
+
+          await stockRepository.createMovement(client, {
+            warehouse_id: oldMovement.warehouse_id,
+            product_id: oldMovement.product_id,
+            movement_type: 'OUT_REVERSAL',
+            qty: Number(oldMovement.qty),
+            cost_per_unit: Number(oldMovement.cost_per_unit),
+            reference_type: 'petty_cash' as any,
+            reference_id: expense.request_id,
+            notes: `Update expense — reversal`,
+            movement_date: oldMovement.movement_date,
+            created_by: userId,
+          }, newQty)
+
+          await stockRepository.upsertBalance(client, oldMovement.warehouse_id, oldMovement.product_id, newQty, currentAvgCost)
+          await pettyCashRepository.clearExpenseStockMovementId(client, expenseId)
+        }
+      }
+
+      // Create new movement if should have one AND (didn't have before OR fields changed)
+      if (shouldHaveMovement && (!hadMovement || inventoryFieldsChanged)) {
+        const qty = effectiveQty!
+        // Priority: explicit unit_price > derived from amount/qty
+        const costPerUnit = effectiveUnitPrice != null && effectiveUnitPrice > 0
+          ? effectiveUnitPrice
+          : (qty > 0 ? effectiveAmount / qty : effectiveAmount)
+
+        const balance = await stockRepository.getBalanceForUpdate(client, effectiveWarehouseId!, effectiveProductId!)
+        const currentQty = balance ? Number(balance.qty) : 0
+        const currentAvgCost = balance ? Number(balance.avg_cost) : 0
+        const newQty = currentQty + qty
+        const newAvgCost = newQty > 0
+          ? ((currentQty * currentAvgCost) + (qty * costPerUnit)) / newQty
+          : costPerUnit
+
+        const movement = await stockRepository.createMovement(client, {
+          warehouse_id: effectiveWarehouseId!,
+          product_id: effectiveProductId!,
+          movement_type: 'IN_PURCHASE',
+          qty,
+          cost_per_unit: costPerUnit,
+          reference_type: 'petty_cash' as any,
+          reference_id: expense.request_id,
+          notes: `Petty cash: ${updatedExpense.description || ''}`,
+          movement_date: updatedExpense.expense_date,
+          created_by: userId,
+        }, newQty)
+
+        await stockRepository.upsertBalance(client, effectiveWarehouseId!, effectiveProductId!, newQty, newAvgCost)
+        await pettyCashRepository.updateExpenseStockMovementId(client, expenseId, movement.id)
+      }
+
+      return updatedExpense
     })
 
     await AuditService.log('UPDATE', 'petty_cash_expenses', expenseId, userId,
@@ -550,14 +661,43 @@ export class PettyCashService {
       throw new PettyCashInvalidStatusError(request.status, 'DISBURSED')
     }
 
-    await pettyCashRepository.softDeleteExpense(expenseId, userId)
+    await pettyCashRepository.withTransaction(async (client) => {
+      // Reverse stock movement if exists
+      if (expense.stock_movement_id) {
+        const movement = await pettyCashRepository.findStockMovementById(client, expense.stock_movement_id)
+        if (movement) {
+          const balance = await stockRepository.getBalanceForUpdate(client, movement.warehouse_id, movement.product_id)
+          const currentQty = balance ? Number(balance.qty) : 0
+          const currentAvgCost = balance ? Number(balance.avg_cost) : 0
+          const newQty = currentQty - Number(movement.qty)
+
+          await stockRepository.createMovement(client, {
+            warehouse_id: movement.warehouse_id,
+            product_id: movement.product_id,
+            movement_type: 'OUT_REVERSAL',
+            qty: Number(movement.qty),
+            cost_per_unit: Number(movement.cost_per_unit),
+            reference_type: 'petty_cash' as any,
+            reference_id: expense.request_id,
+            notes: `Delete expense — reversal`,
+            movement_date: movement.movement_date,
+            created_by: userId,
+          }, newQty)
+
+          await stockRepository.upsertBalance(client, movement.warehouse_id, movement.product_id, newQty, currentAvgCost)
+        }
+      }
+
+      await pettyCashRepository.softDeleteExpense(expenseId, userId, client)
+    })
 
     await AuditService.log('DELETE', 'petty_cash_expenses', expenseId, userId, {
       amount: expense.amount,
       category_id: expense.category_id,
       request_id: expense.request_id,
+      stock_reversed: !!expense.stock_movement_id,
     })
-    logInfo('Petty cash expense deleted', { id: expenseId, request_id: expense.request_id })
+    logInfo('Petty cash expense deleted', { id: expenseId, request_id: expense.request_id, stock_reversed: !!expense.stock_movement_id })
   }
 
   // ─── CREATE SETTLEMENT ──────────────────────────────────────────────────────
@@ -713,45 +853,15 @@ export class PettyCashService {
       await journalHeadersService.approveAsUser(journal.id, userId, client)
       await journalHeadersService.postAsUser(journal.id, userId, client)
 
-      // ── STEP 7 — Stock movements for inventory expenses ───────────────────
-      const inventoryExpenses = await pettyCashRepository.getInventoryExpenses(client, requestId)
-      for (const exp of inventoryExpenses) {
-        if (!exp.product_id || !exp.warehouse_id) continue
-        const qty = exp.qty ?? 1
-        const costPerUnit = exp.unit_price ?? (qty > 0 ? exp.amount / qty : exp.amount)
-
-        const balance = await stockRepository.getBalanceForUpdate(client, exp.warehouse_id, exp.product_id)
-        const currentQty = balance ? Number(balance.qty) : 0
-        const currentAvgCost = balance ? Number(balance.avg_cost) : 0
-        const newQty = currentQty + qty
-        const newAvgCost = newQty > 0
-          ? ((currentQty * currentAvgCost) + (qty * costPerUnit)) / newQty
-          : costPerUnit
-
-        const movement = await stockRepository.createMovement(client, {
-          warehouse_id: exp.warehouse_id,
-          product_id: exp.product_id,
-          movement_type: 'IN_PURCHASE',
-          qty,
-          cost_per_unit: costPerUnit,
-          reference_type: 'petty_cash' as any,
-          reference_id: requestId,
-          notes: `Petty cash: ${exp.description || lockedRequest.request_number}`,
-          movement_date: exp.expense_date,
-          created_by: userId,
-        }, newQty)
-
-        await stockRepository.upsertBalance(client, exp.warehouse_id, exp.product_id, newQty, newAvgCost)
-        await pettyCashRepository.updateExpenseStockMovementId(client, exp.id, movement.id)
-      }
-
-      // ── STEP 8 — Link expenses to settlement ─────────────────────────────
+      // ── STEP 7 — Link expenses to settlement ─────────────────────────────
+      // Note: Stock movements already created per-expense at input time (Option B).
+      // Settlement only handles journal + close.
       await pettyCashRepository.setExpensesSettlementId(client, requestId, settlementRow.id)
 
-      // ── STEP 9 — Close request ───────────────────────────────────────────
+      // ── STEP 8 — Close request ───────────────────────────────────────────
       await pettyCashRepository.updateStatusToClosed(client, requestId, userId)
 
-      // ── STEP 10 — Refill logic (3 scenarios) ─────────────────────────────
+      // ── STEP 9 — Refill logic (3 scenarios) ─────────────────────────────
       let carriedToId: string | null = null
 
       if (carriedToAmount > 0 || (dto.refill_amount && dto.refill_amount > 0)) {
@@ -823,7 +933,7 @@ export class PettyCashService {
       }
       // Skenario C: carriedToAmount = 0 AND refill_amount = 0 → no new request
 
-      // ── STEP 11 — Update settlement with journal_id and carried_to_id ─────
+      // ── STEP 10 — Update settlement with journal_id and carried_to_id ─────
       await pettyCashRepository.updateSettlementJournalAndCarry(
         client, settlementRow.id, journal.id, carriedToId,
       )
@@ -894,38 +1004,10 @@ export class PettyCashService {
         }
       }
 
-      // ── STEP 2 — Reverse stock movements ──────────────────────────────────
-      const expensesWithMovements = await pettyCashRepository.getExpensesWithMovements(client, settlement.request_id)
-
-      for (const exp of expensesWithMovements) {
-        const movement = await pettyCashRepository.findStockMovementById(client, exp.stock_movement_id)
-        if (!movement) continue // orphan reference, skip
-
-        // Lock balance + reverse
-        const balance = await stockRepository.getBalanceForUpdate(client, movement.warehouse_id, movement.product_id)
-        const currentQty = balance ? Number(balance.qty) : 0
-        const currentAvgCost = balance ? Number(balance.avg_cost) : 0
-
-        // OUT_REVERSAL: subtract qty, keep avg_cost (same pattern as monthly opname)
-        const newQty = currentQty - Number(movement.qty)
-        const newAvgCost = currentAvgCost
-
-        await stockRepository.createMovement(client, {
-          warehouse_id: movement.warehouse_id,
-          product_id: movement.product_id,
-          movement_type: 'OUT_REVERSAL',
-          qty: Number(movement.qty),
-          cost_per_unit: Number(movement.cost_per_unit),
-          reference_type: 'petty_cash',
-          reference_id: settlement.request_id,
-          notes: `Void settlement — reversal IN_PURCHASE`,
-          movement_date: movement.movement_date,
-          created_by: userId,
-        }, newQty)
-
-        await stockRepository.upsertBalance(client, movement.warehouse_id, movement.product_id, newQty, newAvgCost)
-        await pettyCashRepository.clearExpenseStockMovementId(client, exp.id)
-      }
+      // ── STEP 2 — Stock movements: NO reversal needed ──────────────────────
+      // With Option B, stock movements are created per-expense at input time.
+      // After void, request returns to DISBURSED — expenses (and their stock) remain active.
+      // Stock only gets reversed if user explicitly deletes an expense.
 
       // ── STEP 3 — Reverse settlement journal ───────────────────────────────
       if (settlement.journal_id) {

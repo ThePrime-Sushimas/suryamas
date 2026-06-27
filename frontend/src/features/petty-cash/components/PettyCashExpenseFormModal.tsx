@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { X, Loader2, Camera } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useCategories, useSubCategories } from '@/features/categories/api/categories.api'
 import { useWarehouses } from '@/features/inventory/api/inventory.api'
-import { useCreateExpense } from '../api/pettyCash.api'
+import { useCreateExpense, useUploadPettyCashReceipt } from '../api/pettyCash.api'
 import { ProductPickerModal } from '@/components/shared/ProductPickerModal'
 
 interface PettyCashExpenseFormModalProps {
@@ -24,8 +24,11 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
   const [expenseMode, setExpenseMode] = useState<'product' | 'operational'>('product')
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [trackInventory, setTrackInventory] = useState(false)
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const createExpenseMutation = useCreateExpense()
+  const uploadReceiptMutation = useUploadPettyCashReceipt()
   const { data: categoriesData } = useCategories({ limit: 200 })
   const { data: subCategoriesData } = useSubCategories({ category_id: expenseForm.category_id, limit: 100 })
   const categories = categoriesData?.data ?? []
@@ -38,6 +41,8 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
     setSelectedProduct(null)
     setExpenseMode('product')
     setTrackInventory(false)
+    setReceiptFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleSubmit = async () => {
@@ -58,7 +63,7 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
       if (!expenseForm.qty || Number(expenseForm.qty) <= 0) { toast.error('Qty wajib > 0'); return }
     }
     try {
-      await createExpenseMutation.mutateAsync({
+      const expense = await createExpenseMutation.mutateAsync({
         requestId,
         category_id: expenseForm.category_id,
         sub_category_id: expenseForm.sub_category_id || undefined,
@@ -70,6 +75,17 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
         qty: trackInventory && expenseForm.qty ? Number(expenseForm.qty) : undefined,
         unit_price: expenseForm.unit_price ? Number(expenseForm.unit_price) : undefined,
       })
+
+      // Auto-upload receipt if file selected
+      if (receiptFile && expense?.id) {
+        try {
+          await uploadReceiptMutation.mutateAsync({ expenseId: expense.id, file: receiptFile, requestId })
+        } catch {
+          // Non-blocking — expense already created, just notify
+          toast.warning('Expense berhasil dibuat, tapi upload struk gagal. Coba upload ulang nanti.')
+        }
+      }
+
       toast.success('Expense ditambahkan')
       resetForm()
       onClose()
@@ -184,6 +200,36 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
               </div>
             </div>
 
+            {/* Receipt upload */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Foto Struk</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+              {receiptFile ? (
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 text-sm">
+                  <span className="text-green-700 dark:text-green-300 truncate">
+                    <Camera className="w-3.5 h-3.5 inline mr-1.5" />{receiptFile.name}
+                  </span>
+                  <button type="button" onClick={() => { setReceiptFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}>
+                    <X className="w-4 h-4 text-gray-400 hover:text-red-500" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-4 h-4" /> Upload foto struk (opsional)
+                </button>
+              )}
+            </div>
+
             {/* Inventory checkbox + warehouse */}
             {expenseMode === 'product' && selectedProduct && (
               <div className="space-y-3 pt-1">
@@ -205,8 +251,10 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Batal</button>
-            <button onClick={handleSubmit} disabled={createExpenseMutation.isPending} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-              {createExpenseMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
+            <button onClick={handleSubmit} disabled={createExpenseMutation.isPending || uploadReceiptMutation.isPending} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              {createExpenseMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin inline mr-1" /> Menyimpan...</>
+                : uploadReceiptMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin inline mr-1" /> Upload struk...</>
+                : 'Simpan'}
             </button>
           </div>
         </div>

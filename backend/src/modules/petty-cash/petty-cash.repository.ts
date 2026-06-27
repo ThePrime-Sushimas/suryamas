@@ -776,6 +776,7 @@ export class PettyCashRepository {
          c.category_name, c.category_code, c.affects_inventory,
          sc.sub_category_name,
          p.product_name, p.product_code,
+         base_unit.unit_name AS base_unit_name,
          coa_e.account_name AS expense_coa_name,
          w.warehouse_name,
          e_cre.full_name AS created_by_name
@@ -783,6 +784,13 @@ export class PettyCashRepository {
        JOIN categories c ON c.id = e.category_id
        LEFT JOIN sub_categories sc ON sc.id = e.sub_category_id
        LEFT JOIN products p ON p.id = e.product_id
+       LEFT JOIN LATERAL (
+         SELECT mu.unit_name FROM product_uoms pu
+         JOIN metric_units mu ON mu.id = pu.metric_unit_id
+         WHERE pu.product_id = p.id AND pu.is_deleted = false
+         ORDER BY pu.is_base_unit DESC, pu.conversion_factor ASC
+         LIMIT 1
+       ) base_unit ON true
        LEFT JOIN chart_of_accounts coa_e ON coa_e.id = e.expense_coa_id
        LEFT JOIN warehouses w ON w.id = e.warehouse_id
        LEFT JOIN employees e_cre ON e_cre.user_id = e.created_by
