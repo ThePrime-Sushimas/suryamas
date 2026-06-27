@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Loader2, FileText } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, FileText, Printer } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -14,6 +14,7 @@ import { PettyCashExpenseEditModal } from '../components/PettyCashExpenseEditMod
 import { PettyCashApproveModal } from '../components/PettyCashApproveModal'
 import { PettyCashRejectModal } from '../components/PettyCashRejectModal'
 import { PettyCashVoidModal } from '../components/PettyCashVoidModal'
+import { PrintPettyCashModal } from '../components/PrintPettyCashModal'
 import type { PettyCashExpense } from '../types/pettyCash.types'
 
 const fmtCurrency = (v: number | null) =>
@@ -37,6 +38,7 @@ export default function PettyCashDetailPage() {
   const [showReject, setShowReject] = useState(false)
   const [showExpenseForm, setShowExpenseForm] = useState(false)
   const [showVoid, setShowVoid] = useState(false)
+  const [showPrint, setShowPrint] = useState(false)
   const [deleteExpenseId, setDeleteExpenseId] = useState<string | null>(null)
   const [editingExpense, setEditingExpense] = useState<PettyCashExpense | null>(null)
 
@@ -68,7 +70,16 @@ export default function PettyCashDetailPage() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{request.request_number}</h2>
             <p className="text-sm text-gray-500">{request.branch_name} · {request.petty_cash_coa_name}</p>
           </div>
-          <PettyCashStatusBadge status={request.status} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPrint(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 shadow-sm transition-colors"
+            >
+              <Printer className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <span className="hidden sm:inline">Print Thermal</span>
+            </button>
+            <PettyCashStatusBadge status={request.status} />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -162,6 +173,13 @@ export default function PettyCashDetailPage() {
         variant="danger"
         isLoading={deleteExpenseMutation.isPending}
       />
+
+      {showPrint && (
+        <PrintPettyCashModal
+          requestId={id ?? ''}
+          onClose={() => setShowPrint(false)}
+        />
+      )}
     </div>
   )
 }

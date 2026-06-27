@@ -3,7 +3,7 @@ import { purchaseRequestsRepository } from '../purchase-requests/purchase-reques
 import { PrinterNotFoundError, PrinterConnectionError } from './printers.errors'
 import { PurchaseRequestNotFoundError } from '../purchase-requests/purchase-requests.errors'
 import { AuditService } from '../monitoring/monitoring.service'
-import { buildDocReceipt, buildGoodsReceiptReceipt, buildDailyPrepOrderReceipt, buildStockTransferReceipt, sendToPrinter, testPrinterConnection, fmt } from './printers.print'
+import { buildDocReceipt, buildGoodsReceiptReceipt, buildDailyPrepOrderReceipt, buildStockTransferReceipt, buildPettyCashReceipt, sendToPrinter, testPrinterConnection, fmt } from './printers.print'
 import { goodsReceiptsRepository } from '../goods-receipts/goods-receipts.repository'
 import { GoodsReceiptNotFoundError } from '../goods-receipts/goods-receipts.errors'
 import { dailyPrepOrdersRepository } from '../daily-prep-orders/daily-prep-orders.repository'
@@ -13,6 +13,8 @@ import { StockTransferNotFoundError } from '../stock-transfers/stock-transfers.e
 import { productionRequestsRepository } from '../production-requests/production-requests.repository'
 import { monthlyStockOpnameRepository } from '../monthly-stock-opname/monthly-stock-opname.repository'
 import { MonthlyOpnameNotFoundError } from '../monthly-stock-opname/monthly-stock-opname.errors'
+import { pettyCashRepository } from '../petty-cash/petty-cash.repository'
+import { PettyCashRequestNotFoundError } from '../petty-cash/petty-cash.errors'
 import type { GoodsReceiptLineWithRelations } from '../goods-receipts/goods-receipts.types'
 import { BusinessRuleError } from '../../utils/errors.base'
 import { getAccessibleBranchIds } from '../../utils/branch-access.util'
@@ -519,6 +521,77 @@ export class PrintersService {
     await AuditService.log('PRINT', 'monthly_stock_opname', opnameId, userId, undefined, {
       printer_id: printerId,
       lines_with_selisih: linesWithSelisih.length,
+    })
+  }
+
+  // ─── PRINT PETTY CASH ──────────────────────────────────────────────────────
+
+  async printPettyCash(
+    printerId: string,
+    requestId: string,
+    companyId: string,
+    userId: string,
+  ): Promise<void> {
+    const branchIds = await getAccessibleBranchIds(userId)
+    const detail = await pettyCashRepository.findByIdWithDetails(requestId, branchIds)
+    if (!detail) throw new PettyCashRequestNotFoundError(requestId)
+
+    const printer = await printersRepository.findById(printerId, companyId)
+    if (!printer) throw new PrinterNotFoundError(printerId)
+    if (!printer.is_active) {
+      throw new PrinterConnectionError(printer.ip_address, printer.port, 'Printer is inactive')
+    }
+    await this.assertPrintAccess(printer, userId, detail.branch_id)
+
+    const printedByName = await printersRepository.getEmployeeName(userId)
+    const formatQty = (n: number) => parseFloat(Number(n).toFixed(2)).toString()
+
+    const expenses = detail.expenses ?? []
+
+    const header = [
+      { key: 'No', value: detail.request_number },
+      { key: 'Cabang', value: detail.branch_name },
+      { key: 'Status', value: detail.status },
+    ]
+
+    const items = expenses.map((e: any, idx: number) => {
+      const label = `${idx + 1}. ${e.product_name ?? e.category_name ?? 'Item'}`
+      let qtyPart = ''
+      if (e.qty != null) {
+        qtyPart = `${formatQty(Number(e.qty))} ${e.product_uom_name ?? e.base_unit_name ?? ''} x ${fmt(Number(e.unit_price ?? 0))}`
+      }
+      
+      const parts = [qtyPart, e.description].filter(Boolean)
+      const detailText = parts.length > 0 ? parts.join(' — ') : ''
+
+      return {
+        label,
+        detail: detailText,
+        amount: fmt(Number(e.amount)),
+      }
+    })
+
+    const totalDisbursed = Number(detail.total_disbursed)
+    const totalExpenses = Number(detail.total_expenses)
+    const remainingBalance = totalDisbursed - totalExpenses
+
+    const now = new Date()
+    const receipt = buildPettyCashReceipt({
+      paper_width: printer.paper_width,
+      header,
+      items,
+      total_disbursed: fmt(totalDisbursed),
+      total_expenses: fmt(totalExpenses),
+      remaining_balance: fmt(remainingBalance),
+      footer: `Dicetak oleh: ${printedByName ?? '-'} · ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })}`,
+    })
+
+    await sendToPrinter(printer.ip_address, printer.port, receipt)
+
+    logInfo('Petty cash printed', { request_id: requestId, printer_id: printerId, expenses: expenses.length })
+    await AuditService.log('PRINT', 'petty_cash', requestId, userId, undefined, {
+      printer_id: printerId,
+      expense_count: expenses.length,
     })
   }
 }

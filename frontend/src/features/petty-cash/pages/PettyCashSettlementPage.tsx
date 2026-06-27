@@ -152,10 +152,10 @@ export default function PettyCashSettlementPage() {
                       className="border-b border-gray-50 dark:border-gray-700/50"
                     >
                       <td className="py-1 text-gray-600">
-                        <div>{e.category_name}</div>
-                        {e.product_name && (
+                        <div>{e.product_name}</div>
+                        {e.category_name && (
                           <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-                            {e.product_name}
+                            {e.category_name}
                           </div>
                         )}
                       </td>
