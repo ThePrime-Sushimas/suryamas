@@ -703,7 +703,15 @@ export class PettyCashRepository {
          s.id AS settlement_id,
          CASE WHEN s.id IS NOT NULL THEN 'SETTLED' ELSE NULL END AS settlement_status,
          (COALESCE(r.amount_disbursed, 0) + r.carried_amount) AS total_disbursed,
-         COALESCE(exp_sum.total_expenses, 0)::numeric AS total_expenses
+         COALESCE(exp_sum.total_expenses, 0)::numeric AS total_expenses,
+         CASE
+           WHEN r.status <> 'CLOSED' THEN false
+           WHEN s.id IS NULL THEN false
+           WHEN s.carried_to_id IS NULL THEN true
+           WHEN carry_check.disburse_journal_id IS NOT NULL THEN false
+           WHEN carry_check.expense_count > 0 THEN false
+           ELSE true
+         END AS can_void
        FROM petty_cash_requests r
        JOIN branches b ON b.id = r.branch_id
        JOIN chart_of_accounts coa ON coa.id = r.petty_cash_coa_id
@@ -720,9 +728,21 @@ export class PettyCashRepository {
          FROM petty_cash_expenses
          WHERE request_id = r.id AND deleted_at IS NULL
        ) exp_sum ON true
+       LEFT JOIN LATERAL (
+         SELECT
+           cr.disburse_journal_id,
+           COALESCE(ec.cnt, 0) AS expense_count
+         FROM petty_cash_requests cr
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*) AS cnt FROM petty_cash_expenses
+           WHERE request_id = cr.id AND deleted_at IS NULL
+         ) ec ON true
+         WHERE cr.id = s.carried_to_id
+       ) carry_check ON s.carried_to_id IS NOT NULL
        WHERE r.id = $1 AND r.branch_id = ANY($2::uuid[]) AND r.deleted_at IS NULL`,
       [id, branchIds],
     )
+
 
     if (!headerRows[0]) return null
 

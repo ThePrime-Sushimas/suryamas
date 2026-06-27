@@ -113,7 +113,7 @@ export default function PettyCashDetailPage() {
               <button onClick={() => navigate(`/finance/petty-cash/${id}/settlement`)} className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"><FileText className="w-4 h-4" /> Buat Settlement</button>
             </>
           )}
-          {request.status === 'CLOSED' && canRelease && request.settlement_id && (
+          {request.status === 'CLOSED' && canRelease && request.can_void && request.settlement_id && (
             <button onClick={() => setShowVoid(true)} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700">Void Settlement</button>
           )}
         </div>

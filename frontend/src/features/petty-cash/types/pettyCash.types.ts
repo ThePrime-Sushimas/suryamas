@@ -37,6 +37,7 @@ export interface PettyCashRequest {
   total_expenses: number
   settlement_status: 'SETTLED' | null
   settlement_id: string | null
+  can_void: boolean
   expenses?: PettyCashExpense[]
 }
 
