@@ -92,10 +92,10 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
         expense_date: expenseForm.expense_date || undefined,
         amount: Number(expenseForm.amount),
         description: expenseForm.description || undefined,
-        product_id: trackInventory ? (expenseForm.product_id || undefined) : undefined,
-        product_uom_id: trackInventory && selectedUomId ? selectedUomId : undefined,
+        product_id: expenseForm.product_id || undefined,
+        product_uom_id: selectedUomId || undefined,
         warehouse_id: trackInventory ? (expenseForm.warehouse_id || undefined) : undefined,
-        qty: trackInventory && expenseForm.qty ? Number(expenseForm.qty) : undefined,
+        qty: expenseForm.qty ? Number(expenseForm.qty) : undefined,
         unit_price: expenseForm.unit_price ? Number(expenseForm.unit_price) : undefined,
       })
 

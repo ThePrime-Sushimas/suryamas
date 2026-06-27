@@ -132,7 +132,7 @@ export function PettyCashExpenseTable({
                     {fmtCurrency(e.amount)}
                   </td>
                   <td className="px-3 py-2 text-center">
-                    {e.affects_inventory ? (
+                    {e.warehouse_id ? (
                       <span className="text-green-600 text-xs font-medium">
                         Ya
                       </span>

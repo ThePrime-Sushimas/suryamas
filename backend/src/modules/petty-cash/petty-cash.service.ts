@@ -318,9 +318,9 @@ export class PettyCashService {
       // affects_inventory is now a DEFAULT hint for frontend checkbox.
       // Actual enforcement is based on whether product_id is provided.
     }
-    if (dto.product_id) {
+    if (dto.warehouse_id) {
       const missing: string[] = []
-      if (!dto.warehouse_id) missing.push('warehouse_id')
+      if (!dto.product_id) missing.push('product_id')
       if (!dto.qty || dto.qty <= 0) missing.push('qty')
       if (missing.length > 0) {
         throw new PettyCashInventoryFieldsRequiredError(missing)
@@ -484,14 +484,12 @@ export class PettyCashService {
       affectsInventory = cat?.affects_inventory ?? false
     }
 
-    // Validate inventory fields if affects_inventory after update
-    if (affectsInventory) {
+    const effectiveWarehouseId = dto.warehouse_id !== undefined ? dto.warehouse_id : expense.warehouse_id
+    if (effectiveWarehouseId) {
       const effectiveProductId = dto.product_id ?? expense.product_id
-      const effectiveWarehouseId = dto.warehouse_id ?? expense.warehouse_id
       const effectiveQty = dto.qty ?? expense.qty
       const missing: string[] = []
       if (!effectiveProductId) missing.push('product_id')
-      if (!effectiveWarehouseId) missing.push('warehouse_id')
       if (!effectiveQty || effectiveQty <= 0) missing.push('qty')
       if (missing.length > 0) {
         throw new PettyCashInventoryFieldsRequiredError(missing)
