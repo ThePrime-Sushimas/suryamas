@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Loader2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -28,7 +27,6 @@ const STATUS_OPTIONS: Array<{ value: '' | PettyCashRequestStatus; label: string 
 ]
 
 export default function PettyCashListPage() {
-  const navigate = useNavigate()
   const toast = useToast()
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('petty_cash', 'insert')
